@@ -1,0 +1,7 @@
+# ChibiOS generated build outputs.
+# BUILDDIR / DEPDIR as set in the demo and test makefiles.
+build/
+.dep/
+
+# doc/build holds tracked Doxygen sources, not build artifacts.
+!/doc/build/
