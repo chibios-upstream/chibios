@@ -1,5 +1,10 @@
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-22.04
 
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    LANGUAGE=C.UTF-8 \
+    PYTHONUTF8=1
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc-arm-none-eabi \
     libnewlib-arm-none-eabi \
