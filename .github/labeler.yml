@@ -221,6 +221,13 @@ ci:
   - changed-files:
     - any-glob-to-any-file:
       - '.github/**'
+      - '.devcontainer/**'
+      - '**/Dockerfile'
+      - '**/Dockerfile.*'
+      - '**/docker-compose.yml'
+      - '**/docker-compose.yaml'
+      - '**/compose.yml'
+      - '**/compose.yaml'
       - 'tools/workflows/**'
       - 'tools/style/**'
       - 'tools/mk/**'

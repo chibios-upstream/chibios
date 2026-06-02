@@ -63,7 +63,7 @@ jobs:
           gh label create "demos"         --color "cfd3d7" --description "Demo projects"          --force --repo "$GITHUB_REPOSITORY"
           gh label create "tests"         --color "cfd3d7" --description "Test suites"            --force --repo "$GITHUB_REPOSITORY"
           gh label create "documentation" --color "cfd3d7" --description "Documentation changes"  --force --repo "$GITHUB_REPOSITORY"
-          gh label create "ci"            --color "cfd3d7" --description "CI / tooling changes"   --force --repo "$GITHUB_REPOSITORY"
+          gh label create "ci"            --color "cfd3d7" --description "CI/CD, container, and tooling changes"   --force --repo "$GITHUB_REPOSITORY"
           gh label create "external"      --color "cfd3d7" --description "External libs / submodules" --force --repo "$GITHUB_REPOSITORY"
 
       - name: Checkout (for labeler config)
