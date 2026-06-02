@@ -1,4 +1,5 @@
-FROM mcr.microsoft.com/devcontainers/base:ubuntu-22.04
+# this will always pull the latest version of the base image, which is updated regularly by Microsoft
+FROM mcr.microsoft.com/devcontainers/base:ubuntu
 
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
