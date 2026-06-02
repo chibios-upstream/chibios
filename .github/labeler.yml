@@ -3,8 +3,8 @@
 #
 # Label rules use the "any" (match if any glob matches) strategy by default.
 # Each top-level key is the exact label name that must exist in the repo.
-# Create the labels once via the GitHub "Labels" settings page (or an API
-# call) — this file only controls assignment, not creation.
+# Labels are created/updated by the GitHub Actions workflow in
+# .github/workflows/labeler.yml; this file controls assignment rules only.
 # ---------------------------------------------------------------------------
 
 # ── RTOS cores ──────────────────────────────────────────────────────────────

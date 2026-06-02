@@ -9,7 +9,7 @@
 
 ## Target Branch Check
 
-<-- put a x instead of the space in the [ ] to check the box [x] -->
+<!-- put a x instead of the space in the [ ] to check the box [x] -->
 
 - [ ] This PR targets `main` for features/improvements
 - [ ] This PR targets `stable-*` only for bugfix/regression
