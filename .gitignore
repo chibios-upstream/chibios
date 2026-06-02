@@ -5,3 +5,9 @@ build/
 
 # doc/build holds tracked Doxygen sources, not build artifacts.
 !/doc/build/
+
+# Eclipse / ChibiStudio debug launch configs are per-user and should not
+# be versioned. The handful of intentionally-committed ones are already
+# tracked (gitignore does not untrack); add new intentional ones with
+# 'git add -f'.
+*.launch
