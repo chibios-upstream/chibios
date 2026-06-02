@@ -1,0 +1,115 @@
+name: Review Mechanical Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-mechanical-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  style-changed-c-h:
+    name: Style check changed C/H
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run stylecheck.py on changed C/H files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.sha }}"
+
+          mapfile -t CHANGED < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- '*.c' '*.h')
+
+          if [ "${#CHANGED[@]}" -eq 0 ]; then
+            echo "No changed .c/.h files in this pull request."
+            exit 0
+          fi
+
+          : > stylecheck.log
+
+          for f in "${CHANGED[@]}"; do
+            if [ ! -f "$f" ]; then
+              # Skip deleted/renamed-away files.
+              continue
+            fi
+            echo "Checking $f"
+            python3 tools/style/stylecheck.py "$f" | tee -a stylecheck.log
+          done
+
+          # REVIEW.md asks for style checking changed C/H files.
+          # Treat both style and error findings as CI failures.
+          if grep -Eq '^(style|error):' stylecheck.log; then
+            echo
+            echo "Stylecheck findings detected."
+            grep -E '^(style|error):' stylecheck.log || true
+            exit 1
+          fi
+
+          echo "Stylecheck passed with no findings."
+
+  build-posix-simulator:
+    name: Build POSIX simulator test target
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y make gcc g++ gcc-multilib g++-multilib
+
+      - name: Build and clean POSIX simulator target
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Compile only: no execution of produced binaries.
+          make -C test/rt/testbuild -f Makefile_x86 all
+          make -C test/rt/testbuild -f Makefile_x86 clean
+
+  build-arm-smoke:
+    name: Build ARM smoke target
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install ARM toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y make gcc-arm-none-eabi
+
+      - name: Build and clean ARMv7-M smoke target
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C test/rt-ports/testbuild -f make/ARMv7-M.make all
+          make -C test/rt-ports/testbuild -f make/ARMv7-M.make clean

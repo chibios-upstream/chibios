@@ -1,0 +1,234 @@
+# ---------------------------------------------------------------------------
+# Automatic PR label configuration for actions/labeler v5.
+#
+# Label rules use the "any" (match if any glob matches) strategy by default.
+# Each top-level key is the exact label name that must exist in the repo.
+# Create the labels once via the GitHub "Labels" settings page (or an API
+# call) — this file only controls assignment, not creation.
+# ---------------------------------------------------------------------------
+
+# ── RTOS cores ──────────────────────────────────────────────────────────────
+rt:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/rt/**'
+      - 'test/rt/**'
+      - 'testrt/**'
+
+nil:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/nil/**'
+      - 'test/nil/**'
+
+oslib:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/oslib/**'
+      - 'test/oslib/**'
+
+# ── HAL ─────────────────────────────────────────────────────────────────────
+hal:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/**'
+      - 'test/hal/**'
+      - 'testhal/**'
+      - 'testex/**'
+
+xhal:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/xhal/**'
+      - 'testxhal/**'
+
+# ── STM32 port families ──────────────────────────────────────────────────────
+port/STM32:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/**'
+      - 'demos/STM32/**'
+      - 'testhal/STM32/**'
+
+port/STM32F0:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32F0xx/**'
+      - 'os/hal/ports/STM32/STM32C0xx/**'
+      - 'testhal/STM32/STM32F0xx/**'
+
+port/STM32F1:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32F1xx/**'
+      - 'testhal/STM32/STM32F1xx/**'
+
+port/STM32F3:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32F3xx/**'
+      - 'os/hal/ports/STM32/STM32F37x/**'
+      - 'testhal/STM32/STM32F3xx/**'
+      - 'testhal/STM32/STM32F37x/**'
+
+port/STM32F4:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32F4xx/**'
+      - 'testhal/STM32/STM32F4xx/**'
+
+port/STM32F7:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32F7xx/**'
+      - 'testhal/STM32/STM32F7xx/**'
+
+port/STM32G0:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32G0xx/**'
+      - 'testhal/STM32/STM32G0xx/**'
+
+port/STM32G4:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32G4xx/**'
+      - 'testhal/STM32/STM32G4xx/**'
+
+port/STM32H5:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32H5xx/**'
+
+port/STM32H7:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32H7xx/**'
+      - 'testhal/STM32/STM32H7xx/**'
+
+port/STM32L0:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32L0xx/**'
+
+port/STM32L1:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32L1xx/**'
+      - 'testhal/STM32/STM32L1xx/**'
+
+port/STM32L4:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32L4xx/**'
+      - 'os/hal/ports/STM32/STM32L4xx+/**'
+      - 'os/hal/ports/STM32/STM32L5xx/**'
+      - 'testhal/STM32/STM32L4xx/**'
+
+port/STM32U:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32U0xx/**'
+      - 'os/hal/ports/STM32/STM32U3xx/**'
+      - 'os/hal/ports/STM32/STM32U5xx/**'
+
+port/STM32WB-WL:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/STM32WBxx/**'
+      - 'os/hal/ports/STM32/STM32WLxx/**'
+      - 'testhal/STM32/STM32WLxx/**'
+
+# ── Other port families ──────────────────────────────────────────────────────
+port/AVR:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/AVR/**'
+      - 'demos/AVR/**'
+      - 'testhal/AVR/**'
+
+port/RP:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/RP/**'
+      - 'demos/RP/**'
+      - 'testhal/RP/**'
+
+port/SPC5:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/SPC5/**'
+      - 'demos/SPC5/**'
+
+# ── Sandbox (SB / VIO) ───────────────────────────────────────────────────────
+sandbox:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/sb/**'
+      - 'testsb/**'
+      - 'os/xhal/ports/SB/**'
+
+# ── VFS ─────────────────────────────────────────────────────────────────────
+vfs:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/vfs/**'
+      - 'os/vns/**'
+
+# ── EX (external devices) ────────────────────────────────────────────────────
+ex:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/ex/**'
+      - 'testex/**'
+
+# ── Code generation / templates ─────────────────────────────────────────────
+codegen:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tools/ftl/**'
+      - 'tools/updater/**'
+      - 'os/xhal/codegen/**'
+
+# ── Demos ────────────────────────────────────────────────────────────────────
+demos:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'demos/**'
+
+# ── Tests ────────────────────────────────────────────────────────────────────
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'test/**'
+      - 'testhal/**'
+      - 'testex/**'
+      - 'testrt/**'
+      - 'testsb/**'
+      - 'testxhal/**'
+
+# ── Documentation ────────────────────────────────────────────────────────────
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'doc/**'
+      - '**/*.md'
+      - '**/*.html'
+      - '**/dox/**'
+
+# ── CI / tooling ─────────────────────────────────────────────────────────────
+ci:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**'
+      - 'tools/workflows/**'
+      - 'tools/style/**'
+      - 'tools/mk/**'
+      - 'tools/calc/**'
+
+# ── External / submodules ────────────────────────────────────────────────────
+external:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'ext/**'
+      - '.gitmodules'
