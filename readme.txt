@@ -3,6 +3,7 @@
 *****************************************************************************
 
 --{root}                        - ChibiOS directory.
+  +--.devcontainer/             - VS Code dev container configuration.
   +--readme.txt                 - This file.
   +--documentation.html         - Shortcut to the web documentation page.
   +--license.txt                - GPL license text.
@@ -71,6 +72,9 @@
   |  |  +--coverage/            - RT code coverage project.
   +--testex/                    - EX integration test demos.
   +--testhal/                   - HAL integration test demos.
+
+NOTE: The optional VS Code dev container setup is in .devcontainer/.
+See .devcontainer/README.md for included tools and usage.
 
 *****************************************************************************
 *** Releases and Change Log                                               ***
