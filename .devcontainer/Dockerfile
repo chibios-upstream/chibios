@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gawk \
     git \
     python3 \
+    python-is-python3 \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
