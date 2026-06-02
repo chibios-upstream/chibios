@@ -6,8 +6,14 @@ build/
 # doc/build holds tracked Doxygen sources, not build artifacts.
 !/doc/build/
 
-# Eclipse / ChibiStudio debug launch configs are per-user and should not
-# be versioned. The handful of intentionally-committed ones are already
-# tracked (gitignore does not untrack); add new intentional ones with
-# 'git add -f'.
+# Eclipse / ChibiStudio debug launch configs are per-user and are not
+# versioned by default. The directories below are the intentional
+# exceptions (their launch configs ship with the project).
 *.launch
+!tools/eclipse/**/*.launch
+!demos/ADI/RT-ADUCM360-ADICUP360/debug/*.launch
+!demos/LPC21xx/RT-LPC214x-OLIMEX/debug/*.launch
+!demos/STM32/RT-STM32L476-DISCOVERY-SB_HOST_DYNAMIC/debug/*.launch
+!demos/STM32/RT-STM32L476-DISCOVERY-SB_HOST_STATIC/debug/*.launch
+!demos/various/RT-ARM7-GENERIC/debug/*.launch
+!testhal/ADUCM/SPI/debug/*.launch
