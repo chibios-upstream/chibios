@@ -271,6 +271,24 @@ void uart_lld_start_send(UARTDriver *uartp, size_t n, const void *txbuf) {
 
   /* Enable TX interrupt to continue draining the buffer from ISR.*/
   uartp->uart->UARTIMSC |= UART_UARTIMSC_TXIM;
+
+  /* If all data fitted in the FIFO during pre-fill, the TX interrupt may
+     never fire due to the PL011 "transition through level" quirk: TXMIS
+     asserts only when FIFO fill crosses down through the trigger level,
+     not merely by being below it. Pend the interrupt manually so the ISR
+     completes the TX state machine.*/
+  if (uartp->txidx >= uartp->txsize) {
+#if RP_UART_USE_UART0 == TRUE
+    if (uartp == &UARTD0) {
+      nvicSetPending(RP_UART0_IRQ_NUMBER);
+    }
+#endif
+#if RP_UART_USE_UART1 == TRUE
+    if (uartp == &UARTD1) {
+      nvicSetPending(RP_UART1_IRQ_NUMBER);
+    }
+#endif
+  }
 }
 
 /**
