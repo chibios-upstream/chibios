@@ -94,7 +94,8 @@ See .devcontainer/README.md for included tools and usage.
 - NEW: RTC driver in XHAL.
 - NEW: Added EFL driver for simulator and a simulator MFS test application.
 - NEW: Added simulator support for x84-64 on Posix/Linux.
-- NEW: Added XSHELL_EXIT_HOOK to xshell.- NEW: Memory areas functions in OSLIB addressed for portability.
+     |- NEW: Added XSHELL_EXIT_HOOK to xshell.
+     |- NEW: Memory areas functions in OSLIB addressed for portability.
 - NEW: Implemented better chThdSleepUntil() in NIL using the same logic used
        in the RT implementation.
 - NEW: Function chSftIntegrityCheckI() rewritten to be much more efficient in
