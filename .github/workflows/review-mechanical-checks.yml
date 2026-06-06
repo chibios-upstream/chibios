@@ -33,8 +33,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          # github.sha on pull_request events is the MERGE commit (PR merged
+          # into the CURRENT base branch); its first parent is the current base
+          # tip. Diffing against it yields exactly the PR's own changes.
+          # Do NOT use github.event.pull_request.base.sha here: it is the base
+          # tip recorded at PR-creation time, so base-branch commits made since
+          # then would leak into the changed-file list and fail PRs on
+          # pre-existing findings in files they never touched.
           HEAD_SHA="${{ github.sha }}"
+          BASE_SHA="$(git rev-parse "${HEAD_SHA}^1")"
 
           mapfile -t CHANGED < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- '*.c' '*.h')
 
@@ -43,27 +50,58 @@ jobs:
             exit 0
           fi
 
-          : > stylecheck.log
+          # Findings are ENFORCED only on lines added/modified by the PR:
+          # legacy files carry pre-existing findings, and a PR touching one
+          # line of such a file must not be failed for the rest of the file.
+          # All findings are still PRINTED (full-file context for the author);
+          # only the enforced ones fail the job.
+          : > enforced.log
 
           for f in "${CHANGED[@]}"; do
             if [ ! -f "$f" ]; then
               # Skip deleted/renamed-away files.
               continue
             fi
+
+            # New-side line ranges of this file's diff hunks: "start[,count]".
+            mapfile -t RANGES < <(git diff -U0 "$BASE_SHA" "$HEAD_SHA" -- "$f" \
+                                  | sed -n 's/^@@ [^+]* +\([0-9][0-9,]*\) @@.*/\1/p')
+
             echo "Checking $f"
-            python3 tools/style/stylecheck.py "$f" | tee -a stylecheck.log
+            while IFS= read -r line; do
+              echo "$line"
+              if [[ "$line" =~ ^(style|error): ]]; then
+                n="$(sed -n 's/.* at line \([0-9]\{1,\}\) .*/\1/p' <<< "$line")"
+                if [ -z "$n" ]; then
+                  # No line info: enforce conservatively.
+                  echo "$line" >> enforced.log
+                  continue
+                fi
+                for r in "${RANGES[@]}"; do
+                  s="${r%%,*}"; c="${r#*,}"; [ "$c" = "$r" ] && c=1
+                  [ "$c" -eq 0 ] && continue  # pure-deletion hunk
+                  if [ "$n" -ge "$s" ] && [ "$n" -lt "$((s + c))" ]; then
+                    echo "$line" >> enforced.log
+                    break
+                  fi
+                done
+              fi
+            done < <(python3 tools/style/stylecheck.py "$f")
           done
 
           # REVIEW.md asks for style checking changed C/H files.
-          # Treat both style and error findings as CI failures.
-          if grep -Eq '^(style|error):' stylecheck.log; then
+          # Treat both style and error findings on CHANGED LINES as failures.
+          if [ -s enforced.log ]; then
             echo
-            echo "Stylecheck findings detected."
-            grep -E '^(style|error):' stylecheck.log || true
+            echo "Stylecheck findings on lines changed by this pull request:"
+            cat enforced.log
+            echo
+            echo "Reproduce locally: python3 tools/style/stylecheck.py <file>"
+            echo "(findings are printed on stdout; the tool always exits 0)"
             exit 1
           fi
 
-          echo "Stylecheck passed with no findings."
+          echo "Stylecheck passed: no findings on changed lines."
 
   build-posix-simulator:
     name: Build POSIX simulator test target

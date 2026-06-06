@@ -11,8 +11,9 @@
 
 <!-- put a x instead of the space in the [ ] to check the box [x] -->
 
-- [ ] This PR targets `main` for features/improvements
-- [ ] This PR targets `stable-*` only for bugfix/regression
+- [ ] This PR targets `main` — all changes land on `main` first (upstream-first policy);
+      `stable-*` branches only receive maintainer-selected backports of commits already
+      merged on `main`
 
 ## Scope
 

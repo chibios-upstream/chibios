@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
+  name="hal_sensor" descr="Generic Sensor Interface" headerpath="include"
+  editcode="false">
+  <brief>Generic sensor interface.</brief>
+  <imports>
+    <import>oop_base_interface.xml</import>
+  </imports>
+  <public>
+    <includes>
+      <include style="regular">ch.h</include>
+      <include style="regular">oop_base_interface.h</include>
+    </includes>
+    <types>
+      <interface name="hal_sensor" namespace="sensor"
+        ancestorname="base_interface" descr="generic sensor">
+        <brief>Generic sensor interface.</brief>
+        <details>
+          <![CDATA[This interface represents a generic sensor exposing one or
+                   more data channels.]]>
+        </details>
+        <note><![CDATA[This interface is part of the XHAL complex sensor support.]]></note>
+        <consts>
+        </consts>
+        <methods>
+          <method name="halSensorGetChannelNumber" shortname="get_channels_number"
+            ctype="size_t">
+            <brief>Sensors get channels number.</brief>
+            <return>The number of channels of the sensor.</return>
+            <api />
+          </method>
+          <method name="halSensorReadRaw" shortname="read_raw" ctype="msg_t">
+            <brief>Sensors read raw data.</brief>
+            <param name="data" ctype="int32_t *" dir="out">
+              Pointer to the raw data array.
+            </param>
+            <return>The operation status.</return>
+            <retval value="MSG_OK">if the function succeeded.</retval>
+            <retval value="MSG_RESET">if one or more errors occurred.</retval>
+            <api />
+          </method>
+          <method name="halSensorReadCooked" shortname="read_cooked" ctype="msg_t">
+            <brief>Sensors read cooked data.</brief>
+            <param name="data" ctype="float *" dir="out">
+              Pointer to the cooked data array.
+            </param>
+            <return>The operation status.</return>
+            <retval value="MSG_OK">if the function succeeded.</retval>
+            <retval value="MSG_RESET">if one or more errors occurred.</retval>
+            <api />
+          </method>
+        </methods>
+      </interface>
+    </types>
+  </public>
+  <private>
+  </private>
+</module>

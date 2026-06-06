@@ -1982,7 +1982,7 @@
  */
 #define STM32_ADF1_ENABLED                  ((STM32_ADF1_REQUIRED_DEMANDED == TRUE))
 
-/*--- Macros and checks for the NONE clock point. --------------------------*/
+/* --- Macros and checks for the NONE clock point. -------------------------*/
 
 /**
  * @brief   NONE nominal source frequency.
@@ -1998,8 +1998,9 @@
  * @brief   Pseudo-clock for disabled sources clock point.
  */
 #define STM32_NONE_FREQ                     0U
+#define STM32_NONE_CLOCK                    0U
 
-/*--- Macros and checks for the AUDIOCLK clock point. ----------------------*/
+/* --- Macros and checks for the AUDIOCLK clock point. ---------------------*/
 
 /**
  * @brief   AUDIOCLK nominal source frequency.
@@ -2015,8 +2016,9 @@
  * @brief   External audio clock input clock point.
  */
 #define STM32_AUDIOCLK_FREQ                 STM32_AUDIOCLK_SOURCE_FREQ
+#define STM32_AUDIOCLK_CLOCK                STM32_AUDIOCLK_SOURCE_FREQ
 
-/*--- Macros and checks for the HSI16 clock point. -------------------------*/
+/* --- Macros and checks for the HSI16 clock point. ------------------------*/
 
 #if !((STM32_CFG_HSI16_ENABLE == TRUE) || (STM32_CFG_HSI16_ENABLE == FALSE)) && \
     !defined(__DOXYGEN__)
@@ -2115,8 +2117,9 @@
 #else
   #define STM32_HSI16_FREQ                  0U
 #endif
+#define STM32_HSI16_CLOCK                   hal_lld_get_clock_point(CLK_HSI16)
 
-/*--- Macros and checks for the HSI48 clock point. -------------------------*/
+/* --- Macros and checks for the HSI48 clock point. ------------------------*/
 
 #if !((STM32_CFG_HSI48_ENABLE == TRUE) || (STM32_CFG_HSI48_ENABLE == FALSE)) && \
     !defined(__DOXYGEN__)
@@ -2167,8 +2170,9 @@
 #else
   #define STM32_HSI48_FREQ                  0U
 #endif
+#define STM32_HSI48_CLOCK                   hal_lld_get_clock_point(CLK_HSI48)
 
-/*--- Macros and checks for the HSE clock point. ---------------------------*/
+/* --- Macros and checks for the HSE clock point. --------------------------*/
 
 #if !((STM32_CFG_HSE_ENABLE == TRUE) || (STM32_CFG_HSE_ENABLE == FALSE)) && \
     !defined(__DOXYGEN__)
@@ -2251,6 +2255,7 @@
 #else
   #define STM32_HSE_FREQ                    0U
 #endif
+#define STM32_HSE_CLOCK                     hal_lld_get_clock_point(CLK_HSE)
 
 #if !((STM32_HSE_ENABLED != TRUE) || (STM32_HSE_FREQ >= STM32_HSECLK_MIN)) && \
     !defined(__DOXYGEN__)
@@ -2262,7 +2267,7 @@
   #error "STM32_HSE_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the LSE clock point. ---------------------------*/
+/* --- Macros and checks for the LSE clock point. --------------------------*/
 
 #if !((STM32_CFG_LSE_ENABLE == TRUE) || (STM32_CFG_LSE_ENABLE == FALSE)) && \
     !defined(__DOXYGEN__)
@@ -2354,8 +2359,10 @@
  */
 #if (STM32_LSE_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_LSE_FREQ                    STM32_LSE_SOURCE_FREQ
+  #define STM32_LSE_CLOCK                   STM32_LSE_SOURCE_FREQ
 #else
   #define STM32_LSE_FREQ                    0U
+  #define STM32_LSE_CLOCK                   0U
 #endif
 
 #if !((STM32_LSE_ENABLED != TRUE) || (STM32_LSE_FREQ >= STM32_LSECLK_MIN)) && \
@@ -2368,7 +2375,7 @@
   #error "STM32_LSE_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the LSI clock point. ---------------------------*/
+/* --- Macros and checks for the LSI clock point. --------------------------*/
 
 #if !((STM32_CFG_LSI_ENABLE == TRUE) || (STM32_CFG_LSI_ENABLE == FALSE)) && \
     !defined(__DOXYGEN__)
@@ -2444,11 +2451,13 @@
  */
 #if (STM32_LSI_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_LSI_FREQ                    STM32_LSI_SOURCE_FREQ
+  #define STM32_LSI_CLOCK                   STM32_LSI_SOURCE_FREQ
 #else
   #define STM32_LSI_FREQ                    0U
+  #define STM32_LSI_CLOCK                   0U
 #endif
 
-/*--- Macros and checks for the MSIRC0 clock point. ------------------------*/
+/* --- Macros and checks for the MSIRC0 clock point. -----------------------*/
 
 /**
  * @brief   MSIRC0 nominal source frequency.
@@ -2525,20 +2534,26 @@
  */
 #if (STM32_MSIRC0_ENABLED == FALSE) && !defined(__DOXYGEN__)
   #define STM32_MSIRC0_FREQ                 0U
+  #define STM32_MSIRC0_CLOCK                0U
 #elif (STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_LSE) || \
     defined(__DOXYGEN__)
   #define STM32_MSIRC0_FREQ                 96010000U
+  #define STM32_MSIRC0_CLOCK                96010000U
 #elif (STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_HSE)
   #define STM32_MSIRC0_FREQ                 96000000U
+  #define STM32_MSIRC0_CLOCK                96000000U
 #elif (STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_LSE_FAST)
   #define STM32_MSIRC0_FREQ                 96010000U
+  #define STM32_MSIRC0_CLOCK                96010000U
 #elif (STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_HSE_FAST)
   #define STM32_MSIRC0_FREQ                 96000000U
+  #define STM32_MSIRC0_CLOCK                96000000U
 #else
   #define STM32_MSIRC0_FREQ                 96000000U
+  #define STM32_MSIRC0_CLOCK                96000000U
 #endif
 
-/*--- Macros and checks for the MSIRC1 clock point. ------------------------*/
+/* --- Macros and checks for the MSIRC1 clock point. -----------------------*/
 
 /**
  * @brief   MSIRC1 nominal source frequency.
@@ -2811,56 +2826,74 @@
  */
 #if (STM32_MSIRC1_ENABLED == FALSE) && !defined(__DOXYGEN__)
   #define STM32_MSIRC1_FREQ                 0U
+  #define STM32_MSIRC1_CLOCK                0U
 #elif ((STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE) && \
       ((STM32_CFG_MSIPLL1N_VALUE == 0) || (STM32_CFG_MSIPLL1N_VALUE == 1))) || \
     defined(__DOXYGEN__)
   #define STM32_MSIRC1_FREQ                 23986000U
+  #define STM32_MSIRC1_CLOCK                23986000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE) && \
       (STM32_CFG_MSIPLL1N_VALUE == 2)
   #define STM32_MSIRC1_FREQ                 22577000U
+  #define STM32_MSIRC1_CLOCK                22577000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE) && \
       (STM32_CFG_MSIPLL1N_VALUE == 3)
   #define STM32_MSIRC1_FREQ                 24576000U
+  #define STM32_MSIRC1_CLOCK                24576000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE)
   #define STM32_MSIRC1_FREQ                 24000000U
+  #define STM32_MSIRC1_CLOCK                24000000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE) && \
       ((STM32_CFG_MSIPLL1N_VALUE == 0) || (STM32_CFG_MSIPLL1N_VALUE == 1))
   #define STM32_MSIRC1_FREQ                 24016000U
+  #define STM32_MSIRC1_CLOCK                24016000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE) && \
       (STM32_CFG_MSIPLL1N_VALUE == 2)
   #define STM32_MSIRC1_FREQ                 22581000U
+  #define STM32_MSIRC1_CLOCK                22581000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE) && \
       (STM32_CFG_MSIPLL1N_VALUE == 3)
   #define STM32_MSIRC1_FREQ                 24577000U
+  #define STM32_MSIRC1_CLOCK                24577000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE)
   #define STM32_MSIRC1_FREQ                 24000000U
+  #define STM32_MSIRC1_CLOCK                24000000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE_FAST) && \
       ((STM32_CFG_MSIPLL1N_VALUE == 0) || (STM32_CFG_MSIPLL1N_VALUE == 1))
   #define STM32_MSIRC1_FREQ                 23986000U
+  #define STM32_MSIRC1_CLOCK                23986000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE_FAST) && \
       (STM32_CFG_MSIPLL1N_VALUE == 2)
   #define STM32_MSIRC1_FREQ                 22577000U
+  #define STM32_MSIRC1_CLOCK                22577000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE_FAST) && \
       (STM32_CFG_MSIPLL1N_VALUE == 3)
   #define STM32_MSIRC1_FREQ                 24576000U
+  #define STM32_MSIRC1_CLOCK                24576000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE_FAST)
   #define STM32_MSIRC1_FREQ                 24000000U
+  #define STM32_MSIRC1_CLOCK                24000000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE_FAST) && \
       ((STM32_CFG_MSIPLL1N_VALUE == 0) || (STM32_CFG_MSIPLL1N_VALUE == 1))
   #define STM32_MSIRC1_FREQ                 24016000U
+  #define STM32_MSIRC1_CLOCK                24016000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE_FAST) && \
       (STM32_CFG_MSIPLL1N_VALUE == 2)
   #define STM32_MSIRC1_FREQ                 22581000U
+  #define STM32_MSIRC1_CLOCK                22581000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE_FAST) && \
       (STM32_CFG_MSIPLL1N_VALUE == 3)
   #define STM32_MSIRC1_FREQ                 24577000U
+  #define STM32_MSIRC1_CLOCK                24577000U
 #elif (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE_FAST)
   #define STM32_MSIRC1_FREQ                 24000000U
+  #define STM32_MSIRC1_CLOCK                24000000U
 #else
   #define STM32_MSIRC1_FREQ                 24000000U
+  #define STM32_MSIRC1_CLOCK                24000000U
 #endif
 
-/*--- Macros and checks for the MSIS clock point. --------------------------*/
+/* --- Macros and checks for the MSIS clock point. -------------------------*/
 
 /**
  * @brief   MSIS clock register bits.
@@ -3309,8 +3342,9 @@
 #else
   #define STM32_MSIS_FREQ                   3000000U
 #endif
+#define STM32_MSIS_CLOCK                    hal_lld_get_clock_point(CLK_MSIS)
 
-/*--- Macros and checks for the MSIK clock point. --------------------------*/
+/* --- Macros and checks for the MSIK clock point. -------------------------*/
 
 /**
  * @brief   MSIK clock register bits.
@@ -3759,8 +3793,9 @@
 #else
   #define STM32_MSIK_FREQ                   3000000U
 #endif
+#define STM32_MSIK_CLOCK                    hal_lld_get_clock_point(CLK_MSIK)
 
-/*--- Macros and checks for the SYSCLK clock point. ------------------------*/
+/* --- Macros and checks for the SYSCLK clock point. -----------------------*/
 
 /**
  * @brief   SYSCLK clock register bits.
@@ -3791,6 +3826,7 @@
 #else
   #define STM32_SYSCLK_FREQ                 0U
 #endif
+#define STM32_SYSCLK_CLOCK                  hal_lld_get_clock_point(CLK_SYSCLK)
 
 #if !(!((STM32_SYSCLK_ENABLED == TRUE) &&                                   \
       (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_MSIS)) ||                       \
@@ -3810,7 +3846,7 @@
   #error "STM32_SYSCLK_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the HCLK clock point. --------------------------*/
+/* --- Macros and checks for the HCLK clock point. -------------------------*/
 
 /**
  * @brief   HCLK clock register bits.
@@ -3842,13 +3878,14 @@
  */
 #define STM32_HCLK_FREQ                     (STM32_SYSCLK_FREQ /            \
                                              STM32_CFG_HCLK_VALUE)
+#define STM32_HCLK_CLOCK                    hal_lld_get_clock_point(CLK_HCLK)
 
 #if !((STM32_HCLK_ENABLED != TRUE) || (STM32_HCLK_FREQ <= STM32_HCLK_MAX)) && \
     !defined(__DOXYGEN__)
   #error "STM32_HCLK_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the PCLK1 clock point. -------------------------*/
+/* --- Macros and checks for the PCLK1 clock point. ------------------------*/
 
 /**
  * @brief   PCLK1 clock register bits.
@@ -3872,13 +3909,14 @@
  */
 #define STM32_PCLK1_FREQ                    (STM32_HCLK_FREQ /              \
                                              STM32_CFG_PCLK1_VALUE)
+#define STM32_PCLK1_CLOCK                   hal_lld_get_clock_point(CLK_PCLK1)
 
 #if !((STM32_PCLK1_ENABLED != TRUE) || (STM32_PCLK1_FREQ <= STM32_PCLK1_MAX)) && \
     !defined(__DOXYGEN__)
   #error "STM32_PCLK1_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the PCLK1TIM clock point. ----------------------*/
+/* --- Macros and checks for the PCLK1TIM clock point. ---------------------*/
 
 /**
  * @brief   PCLK1TIM clock register bits.
@@ -3890,8 +3928,9 @@
  */
 #define STM32_PCLK1TIM_FREQ                 ((STM32_CFG_PCLK1_VALUE == 1) ? STM32_PCLK1_FREQ : \
                                              (STM32_PCLK1_FREQ * 2U))
+#define STM32_PCLK1TIM_CLOCK                hal_lld_get_clock_point(CLK_PCLK1TIM)
 
-/*--- Macros and checks for the PCLK2 clock point. -------------------------*/
+/* --- Macros and checks for the PCLK2 clock point. ------------------------*/
 
 /**
  * @brief   PCLK2 clock register bits.
@@ -3915,13 +3954,14 @@
  */
 #define STM32_PCLK2_FREQ                    (STM32_HCLK_FREQ /              \
                                              STM32_CFG_PCLK2_VALUE)
+#define STM32_PCLK2_CLOCK                   hal_lld_get_clock_point(CLK_PCLK2)
 
 #if !((STM32_PCLK2_ENABLED != TRUE) || (STM32_PCLK2_FREQ <= STM32_PCLK2_MAX)) && \
     !defined(__DOXYGEN__)
   #error "STM32_PCLK2_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the PCLK2TIM clock point. ----------------------*/
+/* --- Macros and checks for the PCLK2TIM clock point. ---------------------*/
 
 /**
  * @brief   PCLK2TIM clock register bits.
@@ -3933,8 +3973,9 @@
  */
 #define STM32_PCLK2TIM_FREQ                 ((STM32_CFG_PCLK2_VALUE == 1) ? STM32_PCLK2_FREQ : \
                                              (STM32_PCLK2_FREQ * 2U))
+#define STM32_PCLK2TIM_CLOCK                hal_lld_get_clock_point(CLK_PCLK2TIM)
 
-/*--- Macros and checks for the PCLK3 clock point. -------------------------*/
+/* --- Macros and checks for the PCLK3 clock point. ------------------------*/
 
 /**
  * @brief   PCLK3 clock register bits.
@@ -3958,13 +3999,14 @@
  */
 #define STM32_PCLK3_FREQ                    (STM32_HCLK_FREQ /              \
                                              STM32_CFG_PCLK3_VALUE)
+#define STM32_PCLK3_CLOCK                   hal_lld_get_clock_point(CLK_PCLK3)
 
 #if !((STM32_PCLK3_ENABLED != TRUE) || (STM32_PCLK3_FREQ <= STM32_PCLK3_MAX)) && \
     !defined(__DOXYGEN__)
   #error "STM32_PCLK3_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the HSEDIV clock point. ------------------------*/
+/* --- Macros and checks for the HSEDIV clock point. -----------------------*/
 
 /**
  * @brief   HSEDIV clock register bits.
@@ -3976,11 +4018,13 @@
  */
 #if (STM32_HSEDIV_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_HSEDIV_FREQ                 (STM32_HSE_FREQ / 32U)
+  #define STM32_HSEDIV_CLOCK                (STM32_HSE_CLOCK / 32U)
 #else
   #define STM32_HSEDIV_FREQ                 0U
+  #define STM32_HSEDIV_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the HCLKDIV8 clock point. ----------------------*/
+/* --- Macros and checks for the HCLKDIV8 clock point. ---------------------*/
 
 /**
  * @brief   HCLKDIV8 clock register bits.
@@ -3991,8 +4035,9 @@
  * @brief   HCLK divided by 8 clock point.
  */
 #define STM32_HCLKDIV8_FREQ                 (STM32_HCLK_FREQ / 8U)
+#define STM32_HCLKDIV8_CLOCK                (STM32_HCLK_CLOCK / 8U)
 
-/*--- Macros and checks for the MCO1DIV clock point. -----------------------*/
+/* --- Macros and checks for the MCO1DIV clock point. ----------------------*/
 
 /**
  * @brief   MCO1DIV clock register bits.
@@ -4026,35 +4071,45 @@
      (STM32_CFG_MCO1DIV_SEL == RCC_CFGR1_MCO1SEL_OFF)) || \
     defined(__DOXYGEN__)
   #define STM32_MCO1DIV_FREQ                STM32_NONE_FREQ
+  #define STM32_MCO1DIV_CLOCK               STM32_NONE_CLOCK
 #elif (STM32_MCO1DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO1DIV_SEL == RCC_CFGR1_MCO1SEL_SYSCLK)
   #define STM32_MCO1DIV_FREQ                STM32_SYSCLK_FREQ
+  #define STM32_MCO1DIV_CLOCK               STM32_SYSCLK_CLOCK
 #elif (STM32_MCO1DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO1DIV_SEL == RCC_CFGR1_MCO1SEL_MSIS)
   #define STM32_MCO1DIV_FREQ                STM32_MSIS_FREQ
+  #define STM32_MCO1DIV_CLOCK               STM32_MSIS_CLOCK
 #elif (STM32_MCO1DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO1DIV_SEL == RCC_CFGR1_MCO1SEL_HSI16)
   #define STM32_MCO1DIV_FREQ                STM32_HSI16_FREQ
+  #define STM32_MCO1DIV_CLOCK               STM32_HSI16_CLOCK
 #elif (STM32_MCO1DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO1DIV_SEL == RCC_CFGR1_MCO1SEL_HSE)
   #define STM32_MCO1DIV_FREQ                STM32_HSE_FREQ
+  #define STM32_MCO1DIV_CLOCK               STM32_HSE_CLOCK
 #elif (STM32_MCO1DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO1DIV_SEL == RCC_CFGR1_MCO1SEL_LSI)
   #define STM32_MCO1DIV_FREQ                STM32_LSI_FREQ
+  #define STM32_MCO1DIV_CLOCK               STM32_LSI_CLOCK
 #elif (STM32_MCO1DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO1DIV_SEL == RCC_CFGR1_MCO1SEL_LSE)
   #define STM32_MCO1DIV_FREQ                STM32_LSE_FREQ
+  #define STM32_MCO1DIV_CLOCK               STM32_LSE_CLOCK
 #elif (STM32_MCO1DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO1DIV_SEL == RCC_CFGR1_MCO1SEL_HSI48)
   #define STM32_MCO1DIV_FREQ                STM32_HSI48_FREQ
+  #define STM32_MCO1DIV_CLOCK               STM32_HSI48_CLOCK
 #elif (STM32_MCO1DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO1DIV_SEL == RCC_CFGR1_MCO1SEL_MSIK)
   #define STM32_MCO1DIV_FREQ                STM32_MSIK_FREQ
+  #define STM32_MCO1DIV_CLOCK               STM32_MSIK_CLOCK
 #else
   #define STM32_MCO1DIV_FREQ                0U
+  #define STM32_MCO1DIV_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the MCO1 clock point. --------------------------*/
+/* --- Macros and checks for the MCO1 clock point. -------------------------*/
 
 /**
  * @brief   MCO1 clock register bits.
@@ -4084,8 +4139,9 @@
  */
 #define STM32_MCO1_FREQ                     (STM32_MCO1DIV_FREQ /           \
                                              STM32_CFG_MCO1_VALUE)
+#define STM32_MCO1_CLOCK                    hal_lld_get_clock_point(CLK_MCO1)
 
-/*--- Macros and checks for the MCO2DIV clock point. -----------------------*/
+/* --- Macros and checks for the MCO2DIV clock point. ----------------------*/
 
 /**
  * @brief   MCO2DIV clock register bits.
@@ -4119,35 +4175,45 @@
      (STM32_CFG_MCO2DIV_SEL == RCC_CFGR1_MCO2SEL_OFF)) || \
     defined(__DOXYGEN__)
   #define STM32_MCO2DIV_FREQ                STM32_NONE_FREQ
+  #define STM32_MCO2DIV_CLOCK               STM32_NONE_CLOCK
 #elif (STM32_MCO2DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO2DIV_SEL == RCC_CFGR1_MCO2SEL_SYSCLK)
   #define STM32_MCO2DIV_FREQ                STM32_SYSCLK_FREQ
+  #define STM32_MCO2DIV_CLOCK               STM32_SYSCLK_CLOCK
 #elif (STM32_MCO2DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO2DIV_SEL == RCC_CFGR1_MCO2SEL_MSIS)
   #define STM32_MCO2DIV_FREQ                STM32_MSIS_FREQ
+  #define STM32_MCO2DIV_CLOCK               STM32_MSIS_CLOCK
 #elif (STM32_MCO2DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO2DIV_SEL == RCC_CFGR1_MCO2SEL_HSI16)
   #define STM32_MCO2DIV_FREQ                STM32_HSI16_FREQ
+  #define STM32_MCO2DIV_CLOCK               STM32_HSI16_CLOCK
 #elif (STM32_MCO2DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO2DIV_SEL == RCC_CFGR1_MCO2SEL_HSE)
   #define STM32_MCO2DIV_FREQ                STM32_HSE_FREQ
+  #define STM32_MCO2DIV_CLOCK               STM32_HSE_CLOCK
 #elif (STM32_MCO2DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO2DIV_SEL == RCC_CFGR1_MCO2SEL_LSI)
   #define STM32_MCO2DIV_FREQ                STM32_LSI_FREQ
+  #define STM32_MCO2DIV_CLOCK               STM32_LSI_CLOCK
 #elif (STM32_MCO2DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO2DIV_SEL == RCC_CFGR1_MCO2SEL_LSE)
   #define STM32_MCO2DIV_FREQ                STM32_LSE_FREQ
+  #define STM32_MCO2DIV_CLOCK               STM32_LSE_CLOCK
 #elif (STM32_MCO2DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO2DIV_SEL == RCC_CFGR1_MCO2SEL_HSI48)
   #define STM32_MCO2DIV_FREQ                STM32_HSI48_FREQ
+  #define STM32_MCO2DIV_CLOCK               STM32_HSI48_CLOCK
 #elif (STM32_MCO2DIV_ENABLED == TRUE) && \
       (STM32_CFG_MCO2DIV_SEL == RCC_CFGR1_MCO2SEL_MSIK)
   #define STM32_MCO2DIV_FREQ                STM32_MSIK_FREQ
+  #define STM32_MCO2DIV_CLOCK               STM32_MSIK_CLOCK
 #else
   #define STM32_MCO2DIV_FREQ                0U
+  #define STM32_MCO2DIV_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the MCO2 clock point. --------------------------*/
+/* --- Macros and checks for the MCO2 clock point. -------------------------*/
 
 /**
  * @brief   MCO2 clock register bits.
@@ -4177,8 +4243,9 @@
  */
 #define STM32_MCO2_FREQ                     (STM32_MCO2DIV_FREQ /           \
                                              STM32_CFG_MCO2_VALUE)
+#define STM32_MCO2_CLOCK                    hal_lld_get_clock_point(CLK_MCO2)
 
-/*--- Macros and checks for the RTC clock point. ---------------------------*/
+/* --- Macros and checks for the RTC clock point. --------------------------*/
 
 /**
  * @brief   RTC clock register bits.
@@ -4202,20 +4269,25 @@
      (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_NOCLOCK)) || \
     defined(__DOXYGEN__)
   #define STM32_RTC_FREQ                    STM32_NONE_FREQ
+  #define STM32_RTC_CLOCK                   STM32_NONE_CLOCK
 #elif (STM32_RTC_ENABLED == TRUE) && \
       (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_LSE)
   #define STM32_RTC_FREQ                    STM32_LSE_FREQ
+  #define STM32_RTC_CLOCK                   STM32_LSE_CLOCK
 #elif (STM32_RTC_ENABLED == TRUE) && \
       (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_LSI)
   #define STM32_RTC_FREQ                    STM32_LSI_FREQ
+  #define STM32_RTC_CLOCK                   STM32_LSI_CLOCK
 #elif (STM32_RTC_ENABLED == TRUE) && \
       (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_HSEDIV)
   #define STM32_RTC_FREQ                    STM32_HSEDIV_FREQ
+  #define STM32_RTC_CLOCK                   STM32_HSEDIV_CLOCK
 #else
   #define STM32_RTC_FREQ                    0U
+  #define STM32_RTC_CLOCK                   0U
 #endif
 
-/*--- Macros and checks for the LSCO clock point. --------------------------*/
+/* --- Macros and checks for the LSCO clock point. -------------------------*/
 
 /**
  * @brief   LSCO clock register bits.
@@ -4237,17 +4309,21 @@
      (STM32_CFG_LSCO_SEL == RCC_BDCR_LSCOSEL_NOCLOCK)) || \
     defined(__DOXYGEN__)
   #define STM32_LSCO_FREQ                   STM32_NONE_FREQ
+  #define STM32_LSCO_CLOCK                  STM32_NONE_CLOCK
 #elif (STM32_LSCO_ENABLED == TRUE) && \
       (STM32_CFG_LSCO_SEL == RCC_BDCR_LSCOSEL_LSI)
   #define STM32_LSCO_FREQ                   STM32_LSI_FREQ
+  #define STM32_LSCO_CLOCK                  STM32_LSI_CLOCK
 #elif (STM32_LSCO_ENABLED == TRUE) && \
       (STM32_CFG_LSCO_SEL == RCC_BDCR_LSCOSEL_LSE)
   #define STM32_LSCO_FREQ                   STM32_LSE_FREQ
+  #define STM32_LSCO_CLOCK                  STM32_LSE_CLOCK
 #else
   #define STM32_LSCO_FREQ                   0U
+  #define STM32_LSCO_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the USART1 clock point. ------------------------*/
+/* --- Macros and checks for the USART1 clock point. -----------------------*/
 
 /**
  * @brief   USART1 clock register bits.
@@ -4275,14 +4351,17 @@
      (STM32_CFG_USART1_SEL == RCC_CCIPR1_USART1SEL_PCLK2)) || \
     defined(__DOXYGEN__)
   #define STM32_USART1_FREQ                 STM32_PCLK2_FREQ
+  #define STM32_USART1_CLOCK                STM32_PCLK2_CLOCK
 #elif (STM32_USART1_ENABLED == TRUE) && \
       (STM32_CFG_USART1_SEL == RCC_CCIPR1_USART1SEL_HSI16)
   #define STM32_USART1_FREQ                 STM32_HSI16_FREQ
+  #define STM32_USART1_CLOCK                STM32_HSI16_CLOCK
 #else
   #define STM32_USART1_FREQ                 0U
+  #define STM32_USART1_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the USART3 clock point. ------------------------*/
+/* --- Macros and checks for the USART3 clock point. -----------------------*/
 
 /**
  * @brief   USART3 clock register bits.
@@ -4310,14 +4389,17 @@
      (STM32_CFG_USART3_SEL == RCC_CCIPR1_USART3SEL_PCLK1)) || \
     defined(__DOXYGEN__)
   #define STM32_USART3_FREQ                 STM32_PCLK1_FREQ
+  #define STM32_USART3_CLOCK                STM32_PCLK1_CLOCK
 #elif (STM32_USART3_ENABLED == TRUE) && \
       (STM32_CFG_USART3_SEL == RCC_CCIPR1_USART3SEL_HSI16)
   #define STM32_USART3_FREQ                 STM32_HSI16_FREQ
+  #define STM32_USART3_CLOCK                STM32_HSI16_CLOCK
 #else
   #define STM32_USART3_FREQ                 0U
+  #define STM32_USART3_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the UART4 clock point. -------------------------*/
+/* --- Macros and checks for the UART4 clock point. ------------------------*/
 
 /**
  * @brief   UART4 clock register bits.
@@ -4345,14 +4427,17 @@
      (STM32_CFG_UART4_SEL == RCC_CCIPR1_UART4SEL_PCLK1)) || \
     defined(__DOXYGEN__)
   #define STM32_UART4_FREQ                  STM32_PCLK1_FREQ
+  #define STM32_UART4_CLOCK                 STM32_PCLK1_CLOCK
 #elif (STM32_UART4_ENABLED == TRUE) && \
       (STM32_CFG_UART4_SEL == RCC_CCIPR1_UART4SEL_HSI16)
   #define STM32_UART4_FREQ                  STM32_HSI16_FREQ
+  #define STM32_UART4_CLOCK                 STM32_HSI16_CLOCK
 #else
   #define STM32_UART4_FREQ                  0U
+  #define STM32_UART4_CLOCK                 0U
 #endif
 
-/*--- Macros and checks for the UART5 clock point. -------------------------*/
+/* --- Macros and checks for the UART5 clock point. ------------------------*/
 
 /**
  * @brief   UART5 clock register bits.
@@ -4380,14 +4465,17 @@
      (STM32_CFG_UART5_SEL == RCC_CCIPR1_UART5SEL_PCLK1)) || \
     defined(__DOXYGEN__)
   #define STM32_UART5_FREQ                  STM32_PCLK1_FREQ
+  #define STM32_UART5_CLOCK                 STM32_PCLK1_CLOCK
 #elif (STM32_UART5_ENABLED == TRUE) && \
       (STM32_CFG_UART5_SEL == RCC_CCIPR1_UART5SEL_HSI16)
   #define STM32_UART5_FREQ                  STM32_HSI16_FREQ
+  #define STM32_UART5_CLOCK                 STM32_HSI16_CLOCK
 #else
   #define STM32_UART5_FREQ                  0U
+  #define STM32_UART5_CLOCK                 0U
 #endif
 
-/*--- Macros and checks for the LPUART1 clock point. -----------------------*/
+/* --- Macros and checks for the LPUART1 clock point. ----------------------*/
 
 /**
  * @brief   LPUART1 clock register bits.
@@ -4428,20 +4516,25 @@
      (STM32_CFG_LPUART1_SEL == RCC_CCIPR3_LPUART1SEL_PCLK3)) || \
     defined(__DOXYGEN__)
   #define STM32_LPUART1_FREQ                STM32_PCLK3_FREQ
+  #define STM32_LPUART1_CLOCK               STM32_PCLK3_CLOCK
 #elif (STM32_LPUART1_ENABLED == TRUE) && \
       (STM32_CFG_LPUART1_SEL == RCC_CCIPR3_LPUART1SEL_HSI16)
   #define STM32_LPUART1_FREQ                STM32_HSI16_FREQ
+  #define STM32_LPUART1_CLOCK               STM32_HSI16_CLOCK
 #elif (STM32_LPUART1_ENABLED == TRUE) && \
       (STM32_CFG_LPUART1_SEL == RCC_CCIPR3_LPUART1SEL_LSE)
   #define STM32_LPUART1_FREQ                STM32_LSE_FREQ
+  #define STM32_LPUART1_CLOCK               STM32_LSE_CLOCK
 #elif (STM32_LPUART1_ENABLED == TRUE) && \
       (STM32_CFG_LPUART1_SEL == RCC_CCIPR3_LPUART1SEL_MSIK)
   #define STM32_LPUART1_FREQ                STM32_MSIK_FREQ
+  #define STM32_LPUART1_CLOCK               STM32_MSIK_CLOCK
 #else
   #define STM32_LPUART1_FREQ                0U
+  #define STM32_LPUART1_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the LPTIM1 clock point. ------------------------*/
+/* --- Macros and checks for the LPTIM1 clock point. -----------------------*/
 
 /**
  * @brief   LPTIM1 clock register bits.
@@ -4481,20 +4574,25 @@
      (STM32_CFG_LPTIM1_SEL == RCC_CCIPR3_LPTIM1SEL_MSIK)) || \
     defined(__DOXYGEN__)
   #define STM32_LPTIM1_FREQ                 STM32_MSIK_FREQ
+  #define STM32_LPTIM1_CLOCK                STM32_MSIK_CLOCK
 #elif (STM32_LPTIM1_ENABLED == TRUE) && \
       (STM32_CFG_LPTIM1_SEL == RCC_CCIPR3_LPTIM1SEL_LSI)
   #define STM32_LPTIM1_FREQ                 STM32_LSI_FREQ
+  #define STM32_LPTIM1_CLOCK                STM32_LSI_CLOCK
 #elif (STM32_LPTIM1_ENABLED == TRUE) && \
       (STM32_CFG_LPTIM1_SEL == RCC_CCIPR3_LPTIM1SEL_HSI16)
   #define STM32_LPTIM1_FREQ                 STM32_HSI16_FREQ
+  #define STM32_LPTIM1_CLOCK                STM32_HSI16_CLOCK
 #elif (STM32_LPTIM1_ENABLED == TRUE) && \
       (STM32_CFG_LPTIM1_SEL == RCC_CCIPR3_LPTIM1SEL_LSE)
   #define STM32_LPTIM1_FREQ                 STM32_LSE_FREQ
+  #define STM32_LPTIM1_CLOCK                STM32_LSE_CLOCK
 #else
   #define STM32_LPTIM1_FREQ                 0U
+  #define STM32_LPTIM1_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the LPTIM2 clock point. ------------------------*/
+/* --- Macros and checks for the LPTIM2 clock point. -----------------------*/
 
 /**
  * @brief   LPTIM2 clock register bits.
@@ -4534,20 +4632,25 @@
      (STM32_CFG_LPTIM2_SEL == RCC_CCIPR1_LPTIM2SEL_PCLK1)) || \
     defined(__DOXYGEN__)
   #define STM32_LPTIM2_FREQ                 STM32_PCLK1_FREQ
+  #define STM32_LPTIM2_CLOCK                STM32_PCLK1_CLOCK
 #elif (STM32_LPTIM2_ENABLED == TRUE) && \
       (STM32_CFG_LPTIM2_SEL == RCC_CCIPR1_LPTIM2SEL_LSI)
   #define STM32_LPTIM2_FREQ                 STM32_LSI_FREQ
+  #define STM32_LPTIM2_CLOCK                STM32_LSI_CLOCK
 #elif (STM32_LPTIM2_ENABLED == TRUE) && \
       (STM32_CFG_LPTIM2_SEL == RCC_CCIPR1_LPTIM2SEL_HSI16)
   #define STM32_LPTIM2_FREQ                 STM32_HSI16_FREQ
+  #define STM32_LPTIM2_CLOCK                STM32_HSI16_CLOCK
 #elif (STM32_LPTIM2_ENABLED == TRUE) && \
       (STM32_CFG_LPTIM2_SEL == RCC_CCIPR1_LPTIM2SEL_LSE)
   #define STM32_LPTIM2_FREQ                 STM32_LSE_FREQ
+  #define STM32_LPTIM2_CLOCK                STM32_LSE_CLOCK
 #else
   #define STM32_LPTIM2_FREQ                 0U
+  #define STM32_LPTIM2_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the LPTIM34 clock point. -----------------------*/
+/* --- Macros and checks for the LPTIM34 clock point. ----------------------*/
 
 /**
  * @brief   LPTIM34 clock register bits.
@@ -4588,20 +4691,25 @@
      (STM32_CFG_LPTIM34_SEL == RCC_CCIPR3_LPTIM34SEL_MSIK)) || \
     defined(__DOXYGEN__)
   #define STM32_LPTIM34_FREQ                STM32_MSIK_FREQ
+  #define STM32_LPTIM34_CLOCK               STM32_MSIK_CLOCK
 #elif (STM32_LPTIM34_ENABLED == TRUE) && \
       (STM32_CFG_LPTIM34_SEL == RCC_CCIPR3_LPTIM34SEL_LSI)
   #define STM32_LPTIM34_FREQ                STM32_LSI_FREQ
+  #define STM32_LPTIM34_CLOCK               STM32_LSI_CLOCK
 #elif (STM32_LPTIM34_ENABLED == TRUE) && \
       (STM32_CFG_LPTIM34_SEL == RCC_CCIPR3_LPTIM34SEL_HSI16)
   #define STM32_LPTIM34_FREQ                STM32_HSI16_FREQ
+  #define STM32_LPTIM34_CLOCK               STM32_HSI16_CLOCK
 #elif (STM32_LPTIM34_ENABLED == TRUE) && \
       (STM32_CFG_LPTIM34_SEL == RCC_CCIPR3_LPTIM34SEL_LSE)
   #define STM32_LPTIM34_FREQ                STM32_LSE_FREQ
+  #define STM32_LPTIM34_CLOCK               STM32_LSE_CLOCK
 #else
   #define STM32_LPTIM34_FREQ                0U
+  #define STM32_LPTIM34_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the SPI1 clock point. --------------------------*/
+/* --- Macros and checks for the SPI1 clock point. -------------------------*/
 
 /**
  * @brief   SPI1 clock register bits.
@@ -4629,14 +4737,17 @@
      (STM32_CFG_SPI1_SEL == RCC_CCIPR1_SPI1SEL_PCLK2)) || \
     defined(__DOXYGEN__)
   #define STM32_SPI1_FREQ                   STM32_PCLK2_FREQ
+  #define STM32_SPI1_CLOCK                  STM32_PCLK2_CLOCK
 #elif (STM32_SPI1_ENABLED == TRUE) && \
       (STM32_CFG_SPI1_SEL == RCC_CCIPR1_SPI1SEL_MSIK)
   #define STM32_SPI1_FREQ                   STM32_MSIK_FREQ
+  #define STM32_SPI1_CLOCK                  STM32_MSIK_CLOCK
 #else
   #define STM32_SPI1_FREQ                   0U
+  #define STM32_SPI1_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the SPI2 clock point. --------------------------*/
+/* --- Macros and checks for the SPI2 clock point. -------------------------*/
 
 /**
  * @brief   SPI2 clock register bits.
@@ -4664,14 +4775,17 @@
      (STM32_CFG_SPI2_SEL == RCC_CCIPR1_SPI2SEL_PCLK1)) || \
     defined(__DOXYGEN__)
   #define STM32_SPI2_FREQ                   STM32_PCLK1_FREQ
+  #define STM32_SPI2_CLOCK                  STM32_PCLK1_CLOCK
 #elif (STM32_SPI2_ENABLED == TRUE) && \
       (STM32_CFG_SPI2_SEL == RCC_CCIPR1_SPI2SEL_MSIK)
   #define STM32_SPI2_FREQ                   STM32_MSIK_FREQ
+  #define STM32_SPI2_CLOCK                  STM32_MSIK_CLOCK
 #else
   #define STM32_SPI2_FREQ                   0U
+  #define STM32_SPI2_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the SPI3 clock point. --------------------------*/
+/* --- Macros and checks for the SPI3 clock point. -------------------------*/
 
 /**
  * @brief   SPI3 clock register bits.
@@ -4699,14 +4813,17 @@
      (STM32_CFG_SPI3_SEL == RCC_CCIPR2_SPI3SEL_PCLK1)) || \
     defined(__DOXYGEN__)
   #define STM32_SPI3_FREQ                   STM32_PCLK1_FREQ
+  #define STM32_SPI3_CLOCK                  STM32_PCLK1_CLOCK
 #elif (STM32_SPI3_ENABLED == TRUE) && \
       (STM32_CFG_SPI3_SEL == RCC_CCIPR2_SPI3SEL_MSIK)
   #define STM32_SPI3_FREQ                   STM32_MSIK_FREQ
+  #define STM32_SPI3_CLOCK                  STM32_MSIK_CLOCK
 #else
   #define STM32_SPI3_FREQ                   0U
+  #define STM32_SPI3_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the OCTOSPI clock point. -----------------------*/
+/* --- Macros and checks for the OCTOSPI clock point. ----------------------*/
 
 /**
  * @brief   OCTOSPI clock register bits.
@@ -4735,14 +4852,17 @@
      (STM32_CFG_OCTOSPI_SEL == RCC_CCIPR2_OCTOSPISEL_SYSCLK)) || \
     defined(__DOXYGEN__)
   #define STM32_OCTOSPI_FREQ                STM32_SYSCLK_FREQ
+  #define STM32_OCTOSPI_CLOCK               STM32_SYSCLK_CLOCK
 #elif (STM32_OCTOSPI_ENABLED == TRUE) && \
       (STM32_CFG_OCTOSPI_SEL == RCC_CCIPR2_OCTOSPISEL_MSIK)
   #define STM32_OCTOSPI_FREQ                STM32_MSIK_FREQ
+  #define STM32_OCTOSPI_CLOCK               STM32_MSIK_CLOCK
 #else
   #define STM32_OCTOSPI_FREQ                0U
+  #define STM32_OCTOSPI_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the SYSTICK clock point. -----------------------*/
+/* --- Macros and checks for the SYSTICK clock point. ----------------------*/
 
 /**
  * @brief   SYSTICK clock register bits.
@@ -4765,17 +4885,21 @@
      (STM32_CFG_SYSTICK_SEL == RCC_CCIPR1_SYSTICKSEL_HCLKDIV8)) || \
     defined(__DOXYGEN__)
   #define STM32_SYSTICK_FREQ                STM32_HCLKDIV8_FREQ
+  #define STM32_SYSTICK_CLOCK               STM32_HCLKDIV8_CLOCK
 #elif (STM32_SYSTICK_ENABLED == TRUE) && \
       (STM32_CFG_SYSTICK_SEL == RCC_CCIPR1_SYSTICKSEL_LSI)
   #define STM32_SYSTICK_FREQ                STM32_LSI_FREQ
+  #define STM32_SYSTICK_CLOCK               STM32_LSI_CLOCK
 #elif (STM32_SYSTICK_ENABLED == TRUE) && \
       (STM32_CFG_SYSTICK_SEL == RCC_CCIPR1_SYSTICKSEL_LSE)
   #define STM32_SYSTICK_FREQ                STM32_LSE_FREQ
+  #define STM32_SYSTICK_CLOCK               STM32_LSE_CLOCK
 #else
   #define STM32_SYSTICK_FREQ                0U
+  #define STM32_SYSTICK_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the TIM16IC clock point. -----------------------*/
+/* --- Macros and checks for the TIM16IC clock point. ----------------------*/
 
 /**
  * @brief   TIM16IC clock register bits.
@@ -4787,15 +4911,17 @@
  */
 #if (STM32_TIM16IC_ENABLED == FALSE) && !defined(__DOXYGEN__)
   #define STM32_TIM16IC_FREQ                0U
+  #define STM32_TIM16IC_CLOCK               0U
 #elif (STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_NOCLOCK) || \
     defined(__DOXYGEN__)
   #define STM32_TIM16IC_FREQ                0U
+  #define STM32_TIM16IC_CLOCK               0U
 #else
-  #define STM32_TIM16IC_FREQ                (hal_lld_get_clock_point(CLK_HSI16) / \
-                                             256U)
+  #define STM32_TIM16IC_FREQ                (STM32_HSI16_FREQ / 256U)
+  #define STM32_TIM16IC_CLOCK               (STM32_HSI16_FREQ / 256U)
 #endif
 
-/*--- Macros and checks for the TIM17IC clock point. -----------------------*/
+/* --- Macros and checks for the TIM17IC clock point. ----------------------*/
 
 /**
  * @brief   TIM17IC clock register bits.
@@ -4807,18 +4933,20 @@
  */
 #if (STM32_TIM17IC_ENABLED == FALSE) && !defined(__DOXYGEN__)
   #define STM32_TIM17IC_FREQ                0U
+  #define STM32_TIM17IC_CLOCK               0U
 #elif (STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_NOCLOCK) || \
     defined(__DOXYGEN__)
   #define STM32_TIM17IC_FREQ                0U
+  #define STM32_TIM17IC_CLOCK               0U
 #elif ((STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIS4) || (STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIK4))
-  #define STM32_TIM17IC_FREQ                (hal_lld_get_clock_point(CLK_MSIS) / \
-                                             1024U)
+  #define STM32_TIM17IC_FREQ                (STM32_MSIS_FREQ / 1024U)
+  #define STM32_TIM17IC_CLOCK               (STM32_MSIS_FREQ / 1024U)
 #else
-  #define STM32_TIM17IC_FREQ                (hal_lld_get_clock_point(CLK_MSIK) / \
-                                             1024U)
+  #define STM32_TIM17IC_FREQ                (STM32_MSIK_FREQ / 1024U)
+  #define STM32_TIM17IC_CLOCK               (STM32_MSIK_FREQ / 1024U)
 #endif
 
-/*--- Macros and checks for the LPTIM2IC clock point. ----------------------*/
+/* --- Macros and checks for the LPTIM2IC clock point. ---------------------*/
 
 /**
  * @brief   LPTIM2IC clock register bits.
@@ -4830,18 +4958,20 @@
  */
 #if (STM32_LPTIM2IC_ENABLED == FALSE) && !defined(__DOXYGEN__)
   #define STM32_LPTIM2IC_FREQ               0U
+  #define STM32_LPTIM2IC_CLOCK              0U
 #elif (STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_NOCLOCK) || \
     defined(__DOXYGEN__)
   #define STM32_LPTIM2IC_FREQ               0U
+  #define STM32_LPTIM2IC_CLOCK              0U
 #elif ((STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIS4) || (STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIK1024_MSIS4))
-  #define STM32_LPTIM2IC_FREQ               (hal_lld_get_clock_point(CLK_MSIS) / \
-                                             4U)
+  #define STM32_LPTIM2IC_FREQ               (STM32_MSIS_FREQ / 4U)
+  #define STM32_LPTIM2IC_CLOCK              (STM32_MSIS_FREQ / 4U)
 #else
-  #define STM32_LPTIM2IC_FREQ               (hal_lld_get_clock_point(CLK_MSIK) / \
-                                             4U)
+  #define STM32_LPTIM2IC_FREQ               (STM32_MSIK_FREQ / 4U)
+  #define STM32_LPTIM2IC_CLOCK              (STM32_MSIK_FREQ / 4U)
 #endif
 
-/*--- Macros and checks for the ICLK clock point. --------------------------*/
+/* --- Macros and checks for the ICLK clock point. -------------------------*/
 
 /**
  * @brief   ICLK clock register bits.
@@ -4881,20 +5011,25 @@
      (STM32_CFG_ICLK_SEL == RCC_CCIPR1_ICLKSEL_HSI48)) || \
     defined(__DOXYGEN__)
   #define STM32_ICLK_FREQ                   STM32_HSI48_FREQ
+  #define STM32_ICLK_CLOCK                  STM32_HSI48_CLOCK
 #elif (STM32_ICLK_ENABLED == TRUE) && \
       (STM32_CFG_ICLK_SEL == RCC_CCIPR1_ICLKSEL_MSIK)
   #define STM32_ICLK_FREQ                   STM32_MSIK_FREQ
+  #define STM32_ICLK_CLOCK                  STM32_MSIK_CLOCK
 #elif (STM32_ICLK_ENABLED == TRUE) && \
       (STM32_CFG_ICLK_SEL == RCC_CCIPR1_ICLKSEL_HSE)
   #define STM32_ICLK_FREQ                   STM32_HSE_FREQ
+  #define STM32_ICLK_CLOCK                  STM32_HSE_CLOCK
 #elif (STM32_ICLK_ENABLED == TRUE) && \
       (STM32_CFG_ICLK_SEL == RCC_CCIPR1_ICLKSEL_SYSCLK)
   #define STM32_ICLK_FREQ                   STM32_SYSCLK_FREQ
+  #define STM32_ICLK_CLOCK                  STM32_SYSCLK_CLOCK
 #else
   #define STM32_ICLK_FREQ                   0U
+  #define STM32_ICLK_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the ICLKDIV2 clock point. ----------------------*/
+/* --- Macros and checks for the ICLKDIV2 clock point. ---------------------*/
 
 /**
  * @brief   ICLKDIV2 clock register bits.
@@ -4906,11 +5041,13 @@
  */
 #if (STM32_ICLKDIV2_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_ICLKDIV2_FREQ               (STM32_ICLK_FREQ / 2U)
+  #define STM32_ICLKDIV2_CLOCK              (STM32_ICLK_CLOCK / 2U)
 #else
   #define STM32_ICLKDIV2_FREQ               0U
+  #define STM32_ICLKDIV2_CLOCK              0U
 #endif
 
-/*--- Macros and checks for the USB clock point. ---------------------------*/
+/* --- Macros and checks for the USB clock point. --------------------------*/
 
 /**
  * @brief   USB clock register bits.
@@ -4938,14 +5075,17 @@
      (STM32_CFG_USB_SEL == RCC_CCIPR1_USB1SEL_ICLK)) || \
     defined(__DOXYGEN__)
   #define STM32_USB_FREQ                    STM32_ICLK_FREQ
+  #define STM32_USB_CLOCK                   STM32_ICLK_CLOCK
 #elif (STM32_USB_ENABLED == TRUE) && \
       (STM32_CFG_USB_SEL == RCC_CCIPR1_USB1SEL_ICLKDIV2)
   #define STM32_USB_FREQ                    STM32_ICLKDIV2_FREQ
+  #define STM32_USB_CLOCK                   STM32_ICLKDIV2_CLOCK
 #else
   #define STM32_USB_FREQ                    0U
+  #define STM32_USB_CLOCK                   0U
 #endif
 
-/*--- Macros and checks for the SDMMC1 clock point. ------------------------*/
+/* --- Macros and checks for the SDMMC1 clock point. -----------------------*/
 
 /**
  * @brief   SDMMC1 clock register bits.
@@ -4957,11 +5097,13 @@
  */
 #if (STM32_SDMMC1_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_SDMMC1_FREQ                 STM32_ICLK_FREQ
+  #define STM32_SDMMC1_CLOCK                STM32_ICLK_CLOCK
 #else
   #define STM32_SDMMC1_FREQ                 0U
+  #define STM32_SDMMC1_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the I2C1 clock point. --------------------------*/
+/* --- Macros and checks for the I2C1 clock point. -------------------------*/
 
 /**
  * @brief   I2C1 clock register bits.
@@ -4989,14 +5131,17 @@
      (STM32_CFG_I2C1_SEL == RCC_CCIPR1_I2C1SEL_PCLK1)) || \
     defined(__DOXYGEN__)
   #define STM32_I2C1_FREQ                   STM32_PCLK1_FREQ
+  #define STM32_I2C1_CLOCK                  STM32_PCLK1_CLOCK
 #elif (STM32_I2C1_ENABLED == TRUE) && \
       (STM32_CFG_I2C1_SEL == RCC_CCIPR1_I2C1SEL_MSIK)
   #define STM32_I2C1_FREQ                   STM32_MSIK_FREQ
+  #define STM32_I2C1_CLOCK                  STM32_MSIK_CLOCK
 #else
   #define STM32_I2C1_FREQ                   0U
+  #define STM32_I2C1_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the I2C2 clock point. --------------------------*/
+/* --- Macros and checks for the I2C2 clock point. -------------------------*/
 
 /**
  * @brief   I2C2 clock register bits.
@@ -5024,14 +5169,17 @@
      (STM32_CFG_I2C2_SEL == RCC_CCIPR1_I2C2SEL_PCLK1)) || \
     defined(__DOXYGEN__)
   #define STM32_I2C2_FREQ                   STM32_PCLK1_FREQ
+  #define STM32_I2C2_CLOCK                  STM32_PCLK1_CLOCK
 #elif (STM32_I2C2_ENABLED == TRUE) && \
       (STM32_CFG_I2C2_SEL == RCC_CCIPR1_I2C2SEL_MSIK)
   #define STM32_I2C2_FREQ                   STM32_MSIK_FREQ
+  #define STM32_I2C2_CLOCK                  STM32_MSIK_CLOCK
 #else
   #define STM32_I2C2_FREQ                   0U
+  #define STM32_I2C2_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the I2C3 clock point. --------------------------*/
+/* --- Macros and checks for the I2C3 clock point. -------------------------*/
 
 /**
  * @brief   I2C3 clock register bits.
@@ -5059,14 +5207,17 @@
      (STM32_CFG_I2C3_SEL == RCC_CCIPR3_I2C3SEL_PCLK3)) || \
     defined(__DOXYGEN__)
   #define STM32_I2C3_FREQ                   STM32_PCLK3_FREQ
+  #define STM32_I2C3_CLOCK                  STM32_PCLK3_CLOCK
 #elif (STM32_I2C3_ENABLED == TRUE) && \
       (STM32_CFG_I2C3_SEL == RCC_CCIPR3_I2C3SEL_MSIK)
   #define STM32_I2C3_FREQ                   STM32_MSIK_FREQ
+  #define STM32_I2C3_CLOCK                  STM32_MSIK_CLOCK
 #else
   #define STM32_I2C3_FREQ                   0U
+  #define STM32_I2C3_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the I3C1 clock point. --------------------------*/
+/* --- Macros and checks for the I3C1 clock point. -------------------------*/
 
 /**
  * @brief   I3C1 clock register bits.
@@ -5094,14 +5245,17 @@
      (STM32_CFG_I3C1_SEL == RCC_CCIPR1_I3C1SEL_PCLK1)) || \
     defined(__DOXYGEN__)
   #define STM32_I3C1_FREQ                   STM32_PCLK1_FREQ
+  #define STM32_I3C1_CLOCK                  STM32_PCLK1_CLOCK
 #elif (STM32_I3C1_ENABLED == TRUE) && \
       (STM32_CFG_I3C1_SEL == RCC_CCIPR1_I3C1SEL_MSIK)
   #define STM32_I3C1_FREQ                   STM32_MSIK_FREQ
+  #define STM32_I3C1_CLOCK                  STM32_MSIK_CLOCK
 #else
   #define STM32_I3C1_FREQ                   0U
+  #define STM32_I3C1_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the I3C2 clock point. --------------------------*/
+/* --- Macros and checks for the I3C2 clock point. -------------------------*/
 
 /**
  * @brief   I3C2 clock register bits.
@@ -5129,14 +5283,17 @@
      (STM32_CFG_I3C2_SEL == RCC_CCIPR1_I3C2SEL_PCLK2)) || \
     defined(__DOXYGEN__)
   #define STM32_I3C2_FREQ                   STM32_PCLK2_FREQ
+  #define STM32_I3C2_CLOCK                  STM32_PCLK2_CLOCK
 #elif (STM32_I3C2_ENABLED == TRUE) && \
       (STM32_CFG_I3C2_SEL == RCC_CCIPR1_I3C2SEL_MSIK)
   #define STM32_I3C2_FREQ                   STM32_MSIK_FREQ
+  #define STM32_I3C2_CLOCK                  STM32_MSIK_CLOCK
 #else
   #define STM32_I3C2_FREQ                   0U
+  #define STM32_I3C2_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the ADCDACICLK clock point. --------------------*/
+/* --- Macros and checks for the ADCDACICLK clock point. -------------------*/
 
 /**
  * @brief   ADCDACICLK clock register bits.
@@ -5171,17 +5328,21 @@
      (STM32_CFG_ADCDACICLK_SEL == RCC_CCIPR2_ADCDACSEL_HCLK)) || \
     defined(__DOXYGEN__)
   #define STM32_ADCDACICLK_FREQ             STM32_HCLK_FREQ
+  #define STM32_ADCDACICLK_CLOCK            STM32_HCLK_CLOCK
 #elif (STM32_ADCDACICLK_ENABLED == TRUE) && \
       (STM32_CFG_ADCDACICLK_SEL == RCC_CCIPR2_ADCDACSEL_HSE)
   #define STM32_ADCDACICLK_FREQ             STM32_HSE_FREQ
+  #define STM32_ADCDACICLK_CLOCK            STM32_HSE_CLOCK
 #elif (STM32_ADCDACICLK_ENABLED == TRUE) && \
       (STM32_CFG_ADCDACICLK_SEL == RCC_CCIPR2_ADCDACSEL_MSIK)
   #define STM32_ADCDACICLK_FREQ             STM32_MSIK_FREQ
+  #define STM32_ADCDACICLK_CLOCK            STM32_MSIK_CLOCK
 #else
   #define STM32_ADCDACICLK_FREQ             0U
+  #define STM32_ADCDACICLK_CLOCK            0U
 #endif
 
-/*--- Macros and checks for the ADCDACPRE clock point. ---------------------*/
+/* --- Macros and checks for the ADCDACPRE clock point. --------------------*/
 
 /**
  * @brief   ADCDACPRE clock register bits.
@@ -5256,11 +5417,14 @@
 #if (STM32_ADCDACPRE_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_ADCDACPRE_FREQ              (STM32_ADCDACICLK_FREQ /        \
                                              STM32_CFG_ADCDACPRE_VALUE)
+  #define STM32_ADCDACPRE_CLOCK             (STM32_ADCDACICLK_CLOCK /       \
+                                             STM32_CFG_ADCDACPRE_VALUE)
 #else
   #define STM32_ADCDACPRE_FREQ              0U
+  #define STM32_ADCDACPRE_CLOCK             0U
 #endif
 
-/*--- Macros and checks for the ADCDAC clock point. ------------------------*/
+/* --- Macros and checks for the ADCDAC clock point. -----------------------*/
 
 /**
  * @brief   ADCDAC clock register bits.
@@ -5272,8 +5436,10 @@
  */
 #if (STM32_ADCDAC_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_ADCDAC_FREQ                 STM32_ADCDACPRE_FREQ
+  #define STM32_ADCDAC_CLOCK                STM32_ADCDACPRE_CLOCK
 #else
   #define STM32_ADCDAC_FREQ                 0U
+  #define STM32_ADCDAC_CLOCK                0U
 #endif
 
 #if !((STM32_ADCDAC_ENABLED != TRUE) ||                                     \
@@ -5281,7 +5447,7 @@
   #error "STM32_ADCDAC_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the DAC1SH clock point. ------------------------*/
+/* --- Macros and checks for the DAC1SH clock point. -----------------------*/
 
 /**
  * @brief   DAC1SH clock register bits.
@@ -5312,14 +5478,17 @@
      (STM32_CFG_DAC1SH_SEL == RCC_CCIPR2_DAC1SHSEL_LSE)) || \
     defined(__DOXYGEN__)
   #define STM32_DAC1SH_FREQ                 STM32_LSE_FREQ
+  #define STM32_DAC1SH_CLOCK                STM32_LSE_CLOCK
 #elif (STM32_DAC1SH_ENABLED == TRUE) && \
       (STM32_CFG_DAC1SH_SEL == RCC_CCIPR2_DAC1SHSEL_LSI)
   #define STM32_DAC1SH_FREQ                 STM32_LSI_FREQ
+  #define STM32_DAC1SH_CLOCK                STM32_LSI_CLOCK
 #else
   #define STM32_DAC1SH_FREQ                 0U
+  #define STM32_DAC1SH_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the RNG clock point. ---------------------------*/
+/* --- Macros and checks for the RNG clock point. --------------------------*/
 
 /**
  * @brief   RNG clock register bits.
@@ -5350,14 +5519,17 @@
      (STM32_CFG_RNG_SEL == RCC_CCIPR2_RNGSEL_HSI48)) || \
     defined(__DOXYGEN__)
   #define STM32_RNG_FREQ                    STM32_HSI48_FREQ
+  #define STM32_RNG_CLOCK                   STM32_HSI48_CLOCK
 #elif (STM32_RNG_ENABLED == TRUE) && \
       (STM32_CFG_RNG_SEL == RCC_CCIPR2_RNGSEL_MSIK)
   #define STM32_RNG_FREQ                    STM32_MSIK_FREQ
+  #define STM32_RNG_CLOCK                   STM32_MSIK_CLOCK
 #else
   #define STM32_RNG_FREQ                    0U
+  #define STM32_RNG_CLOCK                   0U
 #endif
 
-/*--- Macros and checks for the FDCAN1 clock point. ------------------------*/
+/* --- Macros and checks for the FDCAN1 clock point. -----------------------*/
 
 /**
  * @brief   FDCAN1 clock register bits.
@@ -5389,14 +5561,17 @@
      (STM32_CFG_FDCAN1_SEL == RCC_CCIPR1_FDCAN1SEL_SYSCLK)) || \
     defined(__DOXYGEN__)
   #define STM32_FDCAN1_FREQ                 STM32_SYSCLK_FREQ
+  #define STM32_FDCAN1_CLOCK                STM32_SYSCLK_CLOCK
 #elif (STM32_FDCAN1_ENABLED == TRUE) && \
       (STM32_CFG_FDCAN1_SEL == RCC_CCIPR1_FDCAN1SEL_MSIK)
   #define STM32_FDCAN1_FREQ                 STM32_MSIK_FREQ
+  #define STM32_FDCAN1_CLOCK                STM32_MSIK_CLOCK
 #else
   #define STM32_FDCAN1_FREQ                 0U
+  #define STM32_FDCAN1_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the SAI1 clock point. --------------------------*/
+/* --- Macros and checks for the SAI1 clock point. -------------------------*/
 
 /**
  * @brief   SAI1 clock register bits.
@@ -5430,17 +5605,21 @@
      (STM32_CFG_SAI1_SEL == RCC_CCIPR2_SAI1SEL_MSIK)) || \
     defined(__DOXYGEN__)
   #define STM32_SAI1_FREQ                   STM32_MSIK_FREQ
+  #define STM32_SAI1_CLOCK                  STM32_MSIK_CLOCK
 #elif (STM32_SAI1_ENABLED == TRUE) && \
       (STM32_CFG_SAI1_SEL == RCC_CCIPR2_SAI1SEL_AUDIOCLK)
   #define STM32_SAI1_FREQ                   STM32_AUDIOCLK_FREQ
+  #define STM32_SAI1_CLOCK                  STM32_AUDIOCLK_CLOCK
 #elif (STM32_SAI1_ENABLED == TRUE) && \
       (STM32_CFG_SAI1_SEL == RCC_CCIPR2_SAI1SEL_HSE)
   #define STM32_SAI1_FREQ                   STM32_HSE_FREQ
+  #define STM32_SAI1_CLOCK                  STM32_HSE_CLOCK
 #else
   #define STM32_SAI1_FREQ                   0U
+  #define STM32_SAI1_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the ADF1 clock point. --------------------------*/
+/* --- Macros and checks for the ADF1 clock point. -------------------------*/
 
 /**
  * @brief   ADF1 clock register bits.
@@ -5480,17 +5659,22 @@
      (STM32_CFG_ADF1_SEL == RCC_CCIPR2_ADF1SEL_HCLK)) || \
     defined(__DOXYGEN__)
   #define STM32_ADF1_FREQ                   STM32_HCLK_FREQ
+  #define STM32_ADF1_CLOCK                  STM32_HCLK_CLOCK
 #elif (STM32_ADF1_ENABLED == TRUE) && \
       (STM32_CFG_ADF1_SEL == RCC_CCIPR2_ADF1SEL_AUDIOCLK)
   #define STM32_ADF1_FREQ                   STM32_AUDIOCLK_FREQ
+  #define STM32_ADF1_CLOCK                  STM32_AUDIOCLK_CLOCK
 #elif (STM32_ADF1_ENABLED == TRUE) && \
       (STM32_CFG_ADF1_SEL == RCC_CCIPR2_ADF1SEL_HSE)
   #define STM32_ADF1_FREQ                   STM32_HSE_FREQ
+  #define STM32_ADF1_CLOCK                  STM32_HSE_CLOCK
 #elif (STM32_ADF1_ENABLED == TRUE) && \
       (STM32_CFG_ADF1_SEL == RCC_CCIPR2_ADF1SEL_SAI1)
   #define STM32_ADF1_FREQ                   STM32_SAI1_FREQ
+  #define STM32_ADF1_CLOCK                  STM32_SAI1_CLOCK
 #else
   #define STM32_ADF1_FREQ                   0U
+  #define STM32_ADF1_CLOCK                  0U
 #endif
 
 /*
@@ -5514,71 +5698,6 @@
 /*===========================================================================*/
 /* Driver macros.                                                            */
 /*===========================================================================*/
-
-/**
- * @name    Current clock point values
- * @{
- */
-#define STM32_NONE_CLOCK                    STM32_NONE_FREQ
-#define STM32_AUDIOCLK_CLOCK                STM32_AUDIOCLK_FREQ
-#define STM32_HSI16_CLOCK                   hal_lld_get_clock_point(CLK_HSI16)
-#define STM32_HSI48_CLOCK                   hal_lld_get_clock_point(CLK_HSI48)
-#define STM32_HSE_CLOCK                     hal_lld_get_clock_point(CLK_HSE)
-#define STM32_LSE_CLOCK                     STM32_LSE_FREQ
-#define STM32_LSI_CLOCK                     STM32_LSI_FREQ
-#define STM32_MSIRC0_CLOCK                  STM32_MSIRC0_FREQ
-#define STM32_MSIRC1_CLOCK                  STM32_MSIRC1_FREQ
-#define STM32_MSIS_CLOCK                    hal_lld_get_clock_point(CLK_MSIS)
-#define STM32_MSIK_CLOCK                    hal_lld_get_clock_point(CLK_MSIK)
-#define STM32_SYSCLK_CLOCK                  hal_lld_get_clock_point(CLK_SYSCLK)
-#define STM32_HCLK_CLOCK                    hal_lld_get_clock_point(CLK_HCLK)
-#define STM32_PCLK1_CLOCK                   hal_lld_get_clock_point(CLK_PCLK1)
-#define STM32_PCLK1TIM_CLOCK                hal_lld_get_clock_point(CLK_PCLK1TIM)
-#define STM32_PCLK2_CLOCK                   hal_lld_get_clock_point(CLK_PCLK2)
-#define STM32_PCLK2TIM_CLOCK                hal_lld_get_clock_point(CLK_PCLK2TIM)
-#define STM32_PCLK3_CLOCK                   hal_lld_get_clock_point(CLK_PCLK3)
-#define STM32_HSEDIV_CLOCK                  STM32_HSEDIV_FREQ
-#define STM32_HCLKDIV8_CLOCK                STM32_HCLKDIV8_FREQ
-#define STM32_MCO1DIV_CLOCK                 STM32_MCO1DIV_FREQ
-#define STM32_MCO1_CLOCK                    hal_lld_get_clock_point(CLK_MCO1)
-#define STM32_MCO2DIV_CLOCK                 STM32_MCO2DIV_FREQ
-#define STM32_MCO2_CLOCK                    hal_lld_get_clock_point(CLK_MCO2)
-#define STM32_RTC_CLOCK                     STM32_RTC_FREQ
-#define STM32_LSCO_CLOCK                    STM32_LSCO_FREQ
-#define STM32_USART1_CLOCK                  STM32_USART1_FREQ
-#define STM32_USART3_CLOCK                  STM32_USART3_FREQ
-#define STM32_UART4_CLOCK                   STM32_UART4_FREQ
-#define STM32_UART5_CLOCK                   STM32_UART5_FREQ
-#define STM32_LPUART1_CLOCK                 STM32_LPUART1_FREQ
-#define STM32_LPTIM1_CLOCK                  STM32_LPTIM1_FREQ
-#define STM32_LPTIM2_CLOCK                  STM32_LPTIM2_FREQ
-#define STM32_LPTIM34_CLOCK                 STM32_LPTIM34_FREQ
-#define STM32_SPI1_CLOCK                    STM32_SPI1_FREQ
-#define STM32_SPI2_CLOCK                    STM32_SPI2_FREQ
-#define STM32_SPI3_CLOCK                    STM32_SPI3_FREQ
-#define STM32_OCTOSPI_CLOCK                 STM32_OCTOSPI_FREQ
-#define STM32_SYSTICK_CLOCK                 STM32_SYSTICK_FREQ
-#define STM32_TIM16IC_CLOCK                 STM32_TIM16IC_FREQ
-#define STM32_TIM17IC_CLOCK                 STM32_TIM17IC_FREQ
-#define STM32_LPTIM2IC_CLOCK                STM32_LPTIM2IC_FREQ
-#define STM32_ICLK_CLOCK                    STM32_ICLK_FREQ
-#define STM32_ICLKDIV2_CLOCK                STM32_ICLKDIV2_FREQ
-#define STM32_USB_CLOCK                     STM32_USB_FREQ
-#define STM32_SDMMC1_CLOCK                  STM32_SDMMC1_FREQ
-#define STM32_I2C1_CLOCK                    STM32_I2C1_FREQ
-#define STM32_I2C2_CLOCK                    STM32_I2C2_FREQ
-#define STM32_I2C3_CLOCK                    STM32_I2C3_FREQ
-#define STM32_I3C1_CLOCK                    STM32_I3C1_FREQ
-#define STM32_I3C2_CLOCK                    STM32_I3C2_FREQ
-#define STM32_ADCDACICLK_CLOCK              STM32_ADCDACICLK_FREQ
-#define STM32_ADCDACPRE_CLOCK               STM32_ADCDACPRE_FREQ
-#define STM32_ADCDAC_CLOCK                  STM32_ADCDAC_FREQ
-#define STM32_DAC1SH_CLOCK                  STM32_DAC1SH_FREQ
-#define STM32_RNG_CLOCK                     STM32_RNG_FREQ
-#define STM32_FDCAN1_CLOCK                  STM32_FDCAN1_FREQ
-#define STM32_SAI1_CLOCK                    STM32_SAI1_FREQ
-#define STM32_ADF1_CLOCK                    STM32_ADF1_FREQ
-/** @} */
 
 /**
  * @brief   Returns the frequency of a clock point in Hz.

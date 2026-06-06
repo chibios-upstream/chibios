@@ -8,7 +8,7 @@
   +--documentation.html         - Shortcut to the web documentation page.
   +--license.txt                - GPL license text.
   +--demos/                     - Demo projects, one directory per platform.
-  +--docs/                      - Documentation.
+  +--doc/                       - Documentation.
   |  +--common/                 - Documentation common build resources.
   |  +--hal/                    - Builders for HAL.
   |  +--nil/                    - Builders for NIL.
@@ -89,6 +89,7 @@ See .devcontainer/README.md for included tools and usage.
 - FIX; NIL: Fixed wrong alignment check in chThdCreateI() (bug #1306)
        (backported to 21.11.6).
 - FIX: DACv1 trigger mask sized for 3 or 4 bit trigger source identifier
+- NEW: Sensors subsystem in XHAL equivalent to EX for old HAL.
 - NEW: Thread mode for EP0 handling in USB HAL driver.
 - NEW: ADC driver in XHAL.
 - NEW: RTC driver in XHAL.

@@ -25,7 +25,7 @@
 
 #include "vfs.h"
 
-#if (defined(VFS_CFG_ENABLE_DRV_ROMFS) && (VFS_CFG_ENABLE_DRV_ROMFS == TRUE)) || defined(__DOXYGEN__)
+#if (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
@@ -221,6 +221,6 @@ struct vfs_rom_driver_static_struct {
    here.*/
 #include "drvromfs_impl.inc"
 
-#endif /* defined(VFS_CFG_ENABLE_DRV_ROMFS) && (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) */
+#endif /* VFS_CFG_ENABLE_DRV_ROMFS == TRUE */
 
 /** @} */

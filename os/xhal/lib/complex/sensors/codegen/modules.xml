@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE doc [
+  <!ENTITY hal_sensor SYSTEM "hal_sensor.xml">
+  <!ENTITY hal_calibrated_sensor SYSTEM "hal_calibrated_sensor.xml">
+  <!ENTITY hal_accelerometer SYSTEM "hal_accelerometer.xml">
+  <!ENTITY hal_gyroscope SYSTEM "hal_gyroscope.xml">
+  <!ENTITY hal_compass SYSTEM "hal_compass.xml">
+  <!ENTITY hal_barometer SYSTEM "hal_barometer.xml">
+  <!ENTITY hal_thermometer SYSTEM "hal_thermometer.xml">
+  <!ENTITY hal_hygrometer SYSTEM "hal_hygrometer.xml">
+  <!ENTITY hal_rangefinder SYSTEM "hal_rangefinder.xml">
+  <!ENTITY lis302dl SYSTEM "lis302dl.xml">
+]>
+<!-- Class/interfaces definitions -->
+<instance
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd">
+  <paths>
+    <path>../../../../codegen</path>
+    <path>../../../../../common/oop/codegen</path>
+  </paths>
+  <modules>
+    &hal_sensor;
+    &hal_calibrated_sensor;
+    &hal_accelerometer;
+    &hal_gyroscope;
+    &hal_compass;
+    &hal_barometer;
+    &hal_thermometer;
+    &hal_hygrometer;
+    &hal_rangefinder;
+    &lis302dl;
+  </modules>
+</instance>
