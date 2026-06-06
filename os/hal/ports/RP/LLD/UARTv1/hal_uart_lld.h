@@ -18,6 +18,14 @@
  * @file    UARTv1/hal_uart_lld.h
  * @brief   RP UART subsystem low level driver header.
  *
+ * @note    The RP PL011 UART has no transmission-complete interrupt, so the
+ *          physical end of transmission cannot be observed. The "late" TX
+ *          completion path is unsupported: @p txend2_cb is rejected and
+ *          @p uartSendFullTimeout() does not complete (it times out, or
+ *          blocks if called with @p TIME_INFINITE). Use the "early" path
+ *          instead: @p txend1_cb, @p uartSendTimeout(), or the asynchronous
+ *          @p uartStartSend().
+ *
  * @addtogroup UART
  * @{
  */

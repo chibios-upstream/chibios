@@ -29,8 +29,19 @@
 #define UART_TX_PIN          0U
 #define UART_RX_PIN          1U
 
+/* Signals completion of an asynchronous (uartStartSend) transmission. */
+static binary_semaphore_t txdone_sem;
+
+static void txend1_cb(UARTDriver *uartp) {
+
+  (void)uartp;
+  chSysLockFromISR();
+  chBSemSignalI(&txdone_sem);
+  chSysUnlockFromISR();
+}
+
 static const UARTConfig uartcfg = {
-  .txend1_cb  = NULL,
+  .txend1_cb  = txend1_cb,
   .txend2_cb  = NULL,
   .rxend_cb   = NULL,
   .rxchar_cb  = NULL,
@@ -52,6 +63,8 @@ int main(void) {
   halInit();
   chSysInit();
 
+  chBSemObjectInit(&txdone_sem, true);
+
   palSetLineMode(LED_PIN, PAL_MODE_OUTPUT_PUSHPULL);
 
   /* RP2040 Pico UART0 default pins. */
@@ -64,7 +77,18 @@ int main(void) {
   while (true) {
     n = (size_t)chsnprintf(txbuf, sizeof(txbuf),
                            "UARTD0 validation pass %u\r\n", counter++);
-    status = uartSendTimeout(&UARTD0, &n, txbuf, TIME_MS2I(200));
+    /* Exercise both completion paths: the synchronous uartSendTimeout() and
+       the asynchronous uartStartSend() + txend1_cb. The async path runs with
+       the driver's threadtx == NULL and a stale 'early' flag -- the exact
+       case the LLD must accept. */
+    if ((counter & 1U) == 0U) {
+      status = uartSendTimeout(&UARTD0, &n, txbuf, TIME_MS2I(200));
+    }
+    else {
+      chBSemReset(&txdone_sem, true);
+      uartStartSend(&UARTD0, n, txbuf);
+      status = chBSemWaitTimeout(&txdone_sem, TIME_MS2I(200));
+    }
 
     if (status == MSG_OK) {
       palToggleLine(LED_PIN);
