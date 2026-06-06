@@ -97,7 +97,6 @@ See .devcontainer/README.md for included tools and usage.
 - NEW: Added UART driver (LLD) for the RP2040 port.
 - NEW: Added XSHELL_EXIT_HOOK to xshell.
 - NEW: Memory areas functions in OSLIB addressed for portability.
-     |- NEW: Memory areas functions in OSLIB addressed for portability.
 
 - NEW: Implemented better chThdSleepUntil() in NIL using the same logic used
        in the RT implementation.
