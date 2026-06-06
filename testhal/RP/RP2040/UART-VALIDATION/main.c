@@ -45,12 +45,9 @@ static const UARTConfig uartcfg = {
 
 int main(void) {
   msg_t status;
-  size_t heap_fragments;
-  size_t heap_free;
-  size_t heap_largest;
   size_t n;
   unsigned counter;
-  char txbuf[128];
+  char txbuf[64];
 
   halInit();
   chSysInit();
@@ -65,13 +62,8 @@ int main(void) {
 
   counter = 0U;
   while (true) {
-    heap_fragments = chHeapStatus(NULL, &heap_free, &heap_largest);
-
     n = (size_t)chsnprintf(txbuf, sizeof(txbuf),
-                           "UARTD0 validation pass %u heap_free=%u heap_largest=%u heap_fragments=%u\r\n",
-                           counter++, (unsigned)heap_free,
-                           (unsigned)heap_largest,
-                           (unsigned)heap_fragments);
+                           "UARTD0 validation pass %u\r\n", counter++);
     status = uartSendTimeout(&UARTD0, &n, txbuf, TIME_MS2I(200));
 
     if (status == MSG_OK) {

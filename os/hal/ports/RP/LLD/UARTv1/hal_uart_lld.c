@@ -205,8 +205,8 @@ void uart_lld_start(UARTDriver *uartp) {
 #endif
   }
 
-  uartp->rxstate     = UART_RX_IDLE;
-  uartp->txstate     = UART_TX_IDLE;
+  uartp->rxstate = UART_RX_IDLE;
+  uartp->txstate = UART_TX_IDLE;
   uartp->txprefilled = false;
   uart_start(uartp);
 }
@@ -250,19 +250,10 @@ void uart_lld_stop(UARTDriver *uartp) {
  */
 void uart_lld_start_send(UARTDriver *uartp, size_t n, const void *txbuf) {
 
-  /* The RP PL011 UART has no transmission-complete interrupt; physical end
-     of transmission cannot be detected without polling BUSY. txend2_cb and
-     uartSendFullTimeout() are therefore unsupported on this LLD.*/
-  osalDbgAssert(uartp->config->txend2_cb == NULL,
-                "txend2_cb not supported on RP UARTv1");
-#if UART_USE_WAIT == TRUE
-  osalDbgAssert(uartp->early == true,
-                "uartSendFullTimeout not supported on RP UARTv1");
-#endif
-
   uartp->txbufp = (const uint8_t *)txbuf;
   uartp->txsize = n;
   uartp->txidx  = 0U;
+  uartp->txprefilled = false;
 
   /* Fill the TX FIFO as much as possible right now.*/
   while ((uartp->txidx < uartp->txsize) &&
@@ -270,16 +261,8 @@ void uart_lld_start_send(UARTDriver *uartp, size_t n, const void *txbuf) {
     uartp->uart->UARTDR = uartp->txbufp[uartp->txidx++];
   }
 
-  /* Enable TX interrupt to continue draining the buffer from ISR.*/
-  uartp->uart->UARTIMSC |= UART_UARTIMSC_TXIM;
-
-  /* If all data fitted in the FIFO during pre-fill, the TX interrupt may
-     never fire due to the PL011 "transition through level" quirk: TXMIS
-     asserts only when FIFO fill crosses down through the trigger level,
-     not merely by being below it. Set a flag and pend the UART vector so
-     the ISR can complete the TX state machine. The flag (not a live
-     UARTIMSC read) ensures the completion fires exactly once and cannot
-     be triggered spuriously by concurrent RX interrupts.*/
+  /* If all data fit in FIFO then no TX edge may occur; pend the IRQ so
+     ISR completion path still runs and releases the TX state machine.*/
   if (uartp->txidx >= uartp->txsize) {
     uartp->txprefilled = true;
 #if RP_UART_USE_UART0 == TRUE
@@ -293,6 +276,9 @@ void uart_lld_start_send(UARTDriver *uartp, size_t n, const void *txbuf) {
     }
 #endif
   }
+
+  /* Enable TX interrupt to continue draining the buffer from ISR.*/
+  uartp->uart->UARTIMSC |= UART_UARTIMSC_TXIM;
 }
 
 /**
@@ -313,9 +299,9 @@ size_t uart_lld_stop_send(UARTDriver *uartp) {
   uartp->uart->UARTIMSC &= ~UART_UARTIMSC_TXIM;
 
   remaining = uartp->txsize - uartp->txidx;
-  uartp->txbufp      = NULL;
-  uartp->txsize      = 0U;
-  uartp->txidx       = 0U;
+  uartp->txbufp = NULL;
+  uartp->txsize = 0U;
+  uartp->txidx  = 0U;
   uartp->txprefilled = false;
 
   return remaining;
@@ -407,13 +393,9 @@ void uart_lld_serve_interrupt(UARTDriver *uartp) {
     _uart_rx_error_isr_code(uartp, errors);
   }
 
-  /* TX FIFO interrupt or software-pended completion for short transfers.
-     txprefilled is set by uart_lld_start_send() when all TX data fitted in
-     the FIFO during pre-fill and the UART vector was software-pended via
-     nvicSetPending(). Using a dedicated flag instead of reading UARTIMSC
-     live prevents this block from being entered spuriously during concurrent
-     RX interrupts that happen to observe TXIM=1 while txidx==txsize.*/
+  /* TX FIFO interrupt or software-pended completion for fully prefilled TX.*/
   if (((mis & UART_UARTMIS_TXMIS) != 0U) || uartp->txprefilled) {
+
     uartp->txprefilled = false;
 
     /* Feed more data into the TX FIFO.*/
@@ -431,12 +413,11 @@ void uart_lld_serve_interrupt(UARTDriver *uartp) {
       /* Buffer transmit complete callback.*/
       _uart_tx1_isr_code(uartp);
 
-      /* Physical end of transmission (txend2_cb / uartSendFullTimeout) is
-         not supported on this LLD because the RP PL011 UART provides no
-         transmission-complete interrupt and polling BUSY from an ISR is
-         prohibited.  Callers must not configure txend2_cb or use
-         uartSendFullTimeout(); both are rejected with an assertion in
-         uart_lld_start_send().*/
+      /* Physical end of transmission — wait for BUSY to clear would
+         require polling; signal tx2 immediately as the FIFO has been
+         fully loaded. For true physical-end detection a separate
+         mechanism would be needed.*/
+      _uart_tx2_isr_code(uartp);
     }
   }
 

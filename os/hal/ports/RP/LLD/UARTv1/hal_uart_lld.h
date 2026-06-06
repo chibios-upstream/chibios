@@ -247,8 +247,8 @@ struct hal_uart_driver {
    * @brief   Set when all TX data was pre-loaded into the FIFO by
    *          uart_lld_start_send() and the UART vector was software-pended
    *          via nvicSetPending() to trigger ISR completion of the TX state
-   *          machine. Cleared at the top of the ISR TX block so the completion
-   *          fires exactly once, regardless of concurrent RX interrupts.
+   *          machine. Cleared when TX completion is handled or transfer is
+   *          aborted/stopped.
    */
   bool                      txprefilled;
   /**
@@ -291,7 +291,7 @@ extern "C" {
   size_t uart_lld_stop_send(UARTDriver *uartp);
   void uart_lld_start_receive(UARTDriver *uartp, size_t n, void *rxbuf);
   size_t uart_lld_stop_receive(UARTDriver *uartp);
-  void uart_lld_serve_interrupt(UARTDriver *uartp);
+  void uart_lld_serve_interrupt(UARTDriver *auartp);
 #ifdef __cplusplus
 }
 #endif
