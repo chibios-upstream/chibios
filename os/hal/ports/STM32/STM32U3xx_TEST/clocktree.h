@@ -1982,7 +1982,7 @@
  */
 #define STM32_ADF1_ENABLED                  ((STM32_ADF1_REQUIRED_DEMANDED == TRUE))
 
-/*--- Macros and checks for the NONE clock point. --------------------------*/
+/* --- Macros and checks for the NONE clock point. --------------------------*/
 
 /**
  * @brief   NONE nominal source frequency.
@@ -2000,7 +2000,7 @@
 #define STM32_NONE_FREQ                     0U
 #define STM32_NONE_CLOCK                    0U
 
-/*--- Macros and checks for the AUDIOCLK clock point. ----------------------*/
+/* --- Macros and checks for the AUDIOCLK clock point. ----------------------*/
 
 /**
  * @brief   AUDIOCLK nominal source frequency.
@@ -2018,7 +2018,7 @@
 #define STM32_AUDIOCLK_FREQ                 STM32_AUDIOCLK_SOURCE_FREQ
 #define STM32_AUDIOCLK_CLOCK                STM32_AUDIOCLK_SOURCE_FREQ
 
-/*--- Macros and checks for the HSI16 clock point. -------------------------*/
+/* --- Macros and checks for the HSI16 clock point. -------------------------*/
 
 #if !((STM32_CFG_HSI16_ENABLE == TRUE) || (STM32_CFG_HSI16_ENABLE == FALSE)) && \
     !defined(__DOXYGEN__)
@@ -2119,7 +2119,7 @@
 #endif
 #define STM32_HSI16_CLOCK                   hal_lld_get_clock_point(CLK_HSI16)
 
-/*--- Macros and checks for the HSI48 clock point. -------------------------*/
+/* --- Macros and checks for the HSI48 clock point. -------------------------*/
 
 #if !((STM32_CFG_HSI48_ENABLE == TRUE) || (STM32_CFG_HSI48_ENABLE == FALSE)) && \
     !defined(__DOXYGEN__)
@@ -2172,7 +2172,7 @@
 #endif
 #define STM32_HSI48_CLOCK                   hal_lld_get_clock_point(CLK_HSI48)
 
-/*--- Macros and checks for the HSE clock point. ---------------------------*/
+/* --- Macros and checks for the HSE clock point. ---------------------------*/
 
 #if !((STM32_CFG_HSE_ENABLE == TRUE) || (STM32_CFG_HSE_ENABLE == FALSE)) && \
     !defined(__DOXYGEN__)
@@ -2267,7 +2267,7 @@
   #error "STM32_HSE_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the LSE clock point. ---------------------------*/
+/* --- Macros and checks for the LSE clock point. ---------------------------*/
 
 #if !((STM32_CFG_LSE_ENABLE == TRUE) || (STM32_CFG_LSE_ENABLE == FALSE)) && \
     !defined(__DOXYGEN__)
@@ -2375,7 +2375,7 @@
   #error "STM32_LSE_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the LSI clock point. ---------------------------*/
+/* --- Macros and checks for the LSI clock point. ---------------------------*/
 
 #if !((STM32_CFG_LSI_ENABLE == TRUE) || (STM32_CFG_LSI_ENABLE == FALSE)) && \
     !defined(__DOXYGEN__)
@@ -2457,7 +2457,7 @@
   #define STM32_LSI_CLOCK                   0U
 #endif
 
-/*--- Macros and checks for the MSIRC0 clock point. ------------------------*/
+/* --- Macros and checks for the MSIRC0 clock point. ------------------------*/
 
 /**
  * @brief   MSIRC0 nominal source frequency.
@@ -2553,7 +2553,7 @@
   #define STM32_MSIRC0_CLOCK                96000000U
 #endif
 
-/*--- Macros and checks for the MSIRC1 clock point. ------------------------*/
+/* --- Macros and checks for the MSIRC1 clock point. ------------------------*/
 
 /**
  * @brief   MSIRC1 nominal source frequency.
@@ -2893,7 +2893,7 @@
   #define STM32_MSIRC1_CLOCK                24000000U
 #endif
 
-/*--- Macros and checks for the MSIS clock point. --------------------------*/
+/* --- Macros and checks for the MSIS clock point. --------------------------*/
 
 /**
  * @brief   MSIS clock register bits.
@@ -3344,7 +3344,7 @@
 #endif
 #define STM32_MSIS_CLOCK                    hal_lld_get_clock_point(CLK_MSIS)
 
-/*--- Macros and checks for the MSIK clock point. --------------------------*/
+/* --- Macros and checks for the MSIK clock point. --------------------------*/
 
 /**
  * @brief   MSIK clock register bits.
@@ -3795,7 +3795,7 @@
 #endif
 #define STM32_MSIK_CLOCK                    hal_lld_get_clock_point(CLK_MSIK)
 
-/*--- Macros and checks for the SYSCLK clock point. ------------------------*/
+/* --- Macros and checks for the SYSCLK clock point. ------------------------*/
 
 /**
  * @brief   SYSCLK clock register bits.
@@ -3846,7 +3846,7 @@
   #error "STM32_SYSCLK_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the HCLK clock point. --------------------------*/
+/* --- Macros and checks for the HCLK clock point. --------------------------*/
 
 /**
  * @brief   HCLK clock register bits.
@@ -3885,7 +3885,7 @@
   #error "STM32_HCLK_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the PCLK1 clock point. -------------------------*/
+/* --- Macros and checks for the PCLK1 clock point. -------------------------*/
 
 /**
  * @brief   PCLK1 clock register bits.
@@ -3916,7 +3916,7 @@
   #error "STM32_PCLK1_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the PCLK1TIM clock point. ----------------------*/
+/* --- Macros and checks for the PCLK1TIM clock point. ----------------------*/
 
 /**
  * @brief   PCLK1TIM clock register bits.
@@ -3930,7 +3930,7 @@
                                              (STM32_PCLK1_FREQ * 2U))
 #define STM32_PCLK1TIM_CLOCK                hal_lld_get_clock_point(CLK_PCLK1TIM)
 
-/*--- Macros and checks for the PCLK2 clock point. -------------------------*/
+/* --- Macros and checks for the PCLK2 clock point. -------------------------*/
 
 /**
  * @brief   PCLK2 clock register bits.
@@ -3961,7 +3961,7 @@
   #error "STM32_PCLK2_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the PCLK2TIM clock point. ----------------------*/
+/* --- Macros and checks for the PCLK2TIM clock point. ----------------------*/
 
 /**
  * @brief   PCLK2TIM clock register bits.
@@ -3975,7 +3975,7 @@
                                              (STM32_PCLK2_FREQ * 2U))
 #define STM32_PCLK2TIM_CLOCK                hal_lld_get_clock_point(CLK_PCLK2TIM)
 
-/*--- Macros and checks for the PCLK3 clock point. -------------------------*/
+/* --- Macros and checks for the PCLK3 clock point. -------------------------*/
 
 /**
  * @brief   PCLK3 clock register bits.
@@ -4006,7 +4006,7 @@
   #error "STM32_PCLK3_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the HSEDIV clock point. ------------------------*/
+/* --- Macros and checks for the HSEDIV clock point. ------------------------*/
 
 /**
  * @brief   HSEDIV clock register bits.
@@ -4024,7 +4024,7 @@
   #define STM32_HSEDIV_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the HCLKDIV8 clock point. ----------------------*/
+/* --- Macros and checks for the HCLKDIV8 clock point. ----------------------*/
 
 /**
  * @brief   HCLKDIV8 clock register bits.
@@ -4037,7 +4037,7 @@
 #define STM32_HCLKDIV8_FREQ                 (STM32_HCLK_FREQ / 8U)
 #define STM32_HCLKDIV8_CLOCK                (STM32_HCLK_CLOCK / 8U)
 
-/*--- Macros and checks for the MCO1DIV clock point. -----------------------*/
+/* --- Macros and checks for the MCO1DIV clock point. -----------------------*/
 
 /**
  * @brief   MCO1DIV clock register bits.
@@ -4109,7 +4109,7 @@
   #define STM32_MCO1DIV_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the MCO1 clock point. --------------------------*/
+/* --- Macros and checks for the MCO1 clock point. --------------------------*/
 
 /**
  * @brief   MCO1 clock register bits.
@@ -4141,7 +4141,7 @@
                                              STM32_CFG_MCO1_VALUE)
 #define STM32_MCO1_CLOCK                    hal_lld_get_clock_point(CLK_MCO1)
 
-/*--- Macros and checks for the MCO2DIV clock point. -----------------------*/
+/* --- Macros and checks for the MCO2DIV clock point. -----------------------*/
 
 /**
  * @brief   MCO2DIV clock register bits.
@@ -4213,7 +4213,7 @@
   #define STM32_MCO2DIV_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the MCO2 clock point. --------------------------*/
+/* --- Macros and checks for the MCO2 clock point. --------------------------*/
 
 /**
  * @brief   MCO2 clock register bits.
@@ -4245,7 +4245,7 @@
                                              STM32_CFG_MCO2_VALUE)
 #define STM32_MCO2_CLOCK                    hal_lld_get_clock_point(CLK_MCO2)
 
-/*--- Macros and checks for the RTC clock point. ---------------------------*/
+/* --- Macros and checks for the RTC clock point. ---------------------------*/
 
 /**
  * @brief   RTC clock register bits.
@@ -4287,7 +4287,7 @@
   #define STM32_RTC_CLOCK                   0U
 #endif
 
-/*--- Macros and checks for the LSCO clock point. --------------------------*/
+/* --- Macros and checks for the LSCO clock point. --------------------------*/
 
 /**
  * @brief   LSCO clock register bits.
@@ -4323,7 +4323,7 @@
   #define STM32_LSCO_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the USART1 clock point. ------------------------*/
+/* --- Macros and checks for the USART1 clock point. ------------------------*/
 
 /**
  * @brief   USART1 clock register bits.
@@ -4361,7 +4361,7 @@
   #define STM32_USART1_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the USART3 clock point. ------------------------*/
+/* --- Macros and checks for the USART3 clock point. ------------------------*/
 
 /**
  * @brief   USART3 clock register bits.
@@ -4399,7 +4399,7 @@
   #define STM32_USART3_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the UART4 clock point. -------------------------*/
+/* --- Macros and checks for the UART4 clock point. -------------------------*/
 
 /**
  * @brief   UART4 clock register bits.
@@ -4437,7 +4437,7 @@
   #define STM32_UART4_CLOCK                 0U
 #endif
 
-/*--- Macros and checks for the UART5 clock point. -------------------------*/
+/* --- Macros and checks for the UART5 clock point. -------------------------*/
 
 /**
  * @brief   UART5 clock register bits.
@@ -4475,7 +4475,7 @@
   #define STM32_UART5_CLOCK                 0U
 #endif
 
-/*--- Macros and checks for the LPUART1 clock point. -----------------------*/
+/* --- Macros and checks for the LPUART1 clock point. -----------------------*/
 
 /**
  * @brief   LPUART1 clock register bits.
@@ -4534,7 +4534,7 @@
   #define STM32_LPUART1_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the LPTIM1 clock point. ------------------------*/
+/* --- Macros and checks for the LPTIM1 clock point. ------------------------*/
 
 /**
  * @brief   LPTIM1 clock register bits.
@@ -4592,7 +4592,7 @@
   #define STM32_LPTIM1_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the LPTIM2 clock point. ------------------------*/
+/* --- Macros and checks for the LPTIM2 clock point. ------------------------*/
 
 /**
  * @brief   LPTIM2 clock register bits.
@@ -4650,7 +4650,7 @@
   #define STM32_LPTIM2_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the LPTIM34 clock point. -----------------------*/
+/* --- Macros and checks for the LPTIM34 clock point. -----------------------*/
 
 /**
  * @brief   LPTIM34 clock register bits.
@@ -4709,7 +4709,7 @@
   #define STM32_LPTIM34_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the SPI1 clock point. --------------------------*/
+/* --- Macros and checks for the SPI1 clock point. --------------------------*/
 
 /**
  * @brief   SPI1 clock register bits.
@@ -4747,7 +4747,7 @@
   #define STM32_SPI1_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the SPI2 clock point. --------------------------*/
+/* --- Macros and checks for the SPI2 clock point. --------------------------*/
 
 /**
  * @brief   SPI2 clock register bits.
@@ -4785,7 +4785,7 @@
   #define STM32_SPI2_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the SPI3 clock point. --------------------------*/
+/* --- Macros and checks for the SPI3 clock point. --------------------------*/
 
 /**
  * @brief   SPI3 clock register bits.
@@ -4823,7 +4823,7 @@
   #define STM32_SPI3_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the OCTOSPI clock point. -----------------------*/
+/* --- Macros and checks for the OCTOSPI clock point. -----------------------*/
 
 /**
  * @brief   OCTOSPI clock register bits.
@@ -4862,7 +4862,7 @@
   #define STM32_OCTOSPI_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the SYSTICK clock point. -----------------------*/
+/* --- Macros and checks for the SYSTICK clock point. -----------------------*/
 
 /**
  * @brief   SYSTICK clock register bits.
@@ -4899,7 +4899,7 @@
   #define STM32_SYSTICK_CLOCK               0U
 #endif
 
-/*--- Macros and checks for the TIM16IC clock point. -----------------------*/
+/* --- Macros and checks for the TIM16IC clock point. -----------------------*/
 
 /**
  * @brief   TIM16IC clock register bits.
@@ -4921,7 +4921,7 @@
   #define STM32_TIM16IC_CLOCK               (STM32_HSI16_FREQ / 256U)
 #endif
 
-/*--- Macros and checks for the TIM17IC clock point. -----------------------*/
+/* --- Macros and checks for the TIM17IC clock point. -----------------------*/
 
 /**
  * @brief   TIM17IC clock register bits.
@@ -4946,7 +4946,7 @@
   #define STM32_TIM17IC_CLOCK               (STM32_MSIK_FREQ / 1024U)
 #endif
 
-/*--- Macros and checks for the LPTIM2IC clock point. ----------------------*/
+/* --- Macros and checks for the LPTIM2IC clock point. ----------------------*/
 
 /**
  * @brief   LPTIM2IC clock register bits.
@@ -4971,7 +4971,7 @@
   #define STM32_LPTIM2IC_CLOCK              (STM32_MSIK_FREQ / 4U)
 #endif
 
-/*--- Macros and checks for the ICLK clock point. --------------------------*/
+/* --- Macros and checks for the ICLK clock point. --------------------------*/
 
 /**
  * @brief   ICLK clock register bits.
@@ -5029,7 +5029,7 @@
   #define STM32_ICLK_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the ICLKDIV2 clock point. ----------------------*/
+/* --- Macros and checks for the ICLKDIV2 clock point. ----------------------*/
 
 /**
  * @brief   ICLKDIV2 clock register bits.
@@ -5047,7 +5047,7 @@
   #define STM32_ICLKDIV2_CLOCK              0U
 #endif
 
-/*--- Macros and checks for the USB clock point. ---------------------------*/
+/* --- Macros and checks for the USB clock point. ---------------------------*/
 
 /**
  * @brief   USB clock register bits.
@@ -5085,7 +5085,7 @@
   #define STM32_USB_CLOCK                   0U
 #endif
 
-/*--- Macros and checks for the SDMMC1 clock point. ------------------------*/
+/* --- Macros and checks for the SDMMC1 clock point. ------------------------*/
 
 /**
  * @brief   SDMMC1 clock register bits.
@@ -5103,7 +5103,7 @@
   #define STM32_SDMMC1_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the I2C1 clock point. --------------------------*/
+/* --- Macros and checks for the I2C1 clock point. --------------------------*/
 
 /**
  * @brief   I2C1 clock register bits.
@@ -5141,7 +5141,7 @@
   #define STM32_I2C1_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the I2C2 clock point. --------------------------*/
+/* --- Macros and checks for the I2C2 clock point. --------------------------*/
 
 /**
  * @brief   I2C2 clock register bits.
@@ -5179,7 +5179,7 @@
   #define STM32_I2C2_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the I2C3 clock point. --------------------------*/
+/* --- Macros and checks for the I2C3 clock point. --------------------------*/
 
 /**
  * @brief   I2C3 clock register bits.
@@ -5217,7 +5217,7 @@
   #define STM32_I2C3_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the I3C1 clock point. --------------------------*/
+/* --- Macros and checks for the I3C1 clock point. --------------------------*/
 
 /**
  * @brief   I3C1 clock register bits.
@@ -5255,7 +5255,7 @@
   #define STM32_I3C1_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the I3C2 clock point. --------------------------*/
+/* --- Macros and checks for the I3C2 clock point. --------------------------*/
 
 /**
  * @brief   I3C2 clock register bits.
@@ -5293,7 +5293,7 @@
   #define STM32_I3C2_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the ADCDACICLK clock point. --------------------*/
+/* --- Macros and checks for the ADCDACICLK clock point. --------------------*/
 
 /**
  * @brief   ADCDACICLK clock register bits.
@@ -5342,7 +5342,7 @@
   #define STM32_ADCDACICLK_CLOCK            0U
 #endif
 
-/*--- Macros and checks for the ADCDACPRE clock point. ---------------------*/
+/* --- Macros and checks for the ADCDACPRE clock point. ---------------------*/
 
 /**
  * @brief   ADCDACPRE clock register bits.
@@ -5424,7 +5424,7 @@
   #define STM32_ADCDACPRE_CLOCK             0U
 #endif
 
-/*--- Macros and checks for the ADCDAC clock point. ------------------------*/
+/* --- Macros and checks for the ADCDAC clock point. ------------------------*/
 
 /**
  * @brief   ADCDAC clock register bits.
@@ -5447,7 +5447,7 @@
   #error "STM32_ADCDAC_FREQ above maximum frequency"
 #endif
 
-/*--- Macros and checks for the DAC1SH clock point. ------------------------*/
+/* --- Macros and checks for the DAC1SH clock point. ------------------------*/
 
 /**
  * @brief   DAC1SH clock register bits.
@@ -5488,7 +5488,7 @@
   #define STM32_DAC1SH_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the RNG clock point. ---------------------------*/
+/* --- Macros and checks for the RNG clock point. ---------------------------*/
 
 /**
  * @brief   RNG clock register bits.
@@ -5529,7 +5529,7 @@
   #define STM32_RNG_CLOCK                   0U
 #endif
 
-/*--- Macros and checks for the FDCAN1 clock point. ------------------------*/
+/* --- Macros and checks for the FDCAN1 clock point. ------------------------*/
 
 /**
  * @brief   FDCAN1 clock register bits.
@@ -5571,7 +5571,7 @@
   #define STM32_FDCAN1_CLOCK                0U
 #endif
 
-/*--- Macros and checks for the SAI1 clock point. --------------------------*/
+/* --- Macros and checks for the SAI1 clock point. --------------------------*/
 
 /**
  * @brief   SAI1 clock register bits.
@@ -5619,7 +5619,7 @@
   #define STM32_SAI1_CLOCK                  0U
 #endif
 
-/*--- Macros and checks for the ADF1 clock point. --------------------------*/
+/* --- Macros and checks for the ADF1 clock point. --------------------------*/
 
 /**
  * @brief   ADF1 clock register bits.
@@ -5698,7 +5698,6 @@
 /*===========================================================================*/
 /* Driver macros.                                                            */
 /*===========================================================================*/
-
 
 /**
  * @brief   Returns the frequency of a clock point in Hz.
