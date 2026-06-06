@@ -205,8 +205,9 @@ void uart_lld_start(UARTDriver *uartp) {
 #endif
   }
 
-  uartp->rxstate = UART_RX_IDLE;
-  uartp->txstate = UART_TX_IDLE;
+  uartp->rxstate     = UART_RX_IDLE;
+  uartp->txstate     = UART_TX_IDLE;
+  uartp->txprefilled = false;
   uart_start(uartp);
 }
 
@@ -275,9 +276,12 @@ void uart_lld_start_send(UARTDriver *uartp, size_t n, const void *txbuf) {
   /* If all data fitted in the FIFO during pre-fill, the TX interrupt may
      never fire due to the PL011 "transition through level" quirk: TXMIS
      asserts only when FIFO fill crosses down through the trigger level,
-     not merely by being below it. Pend the interrupt manually so the ISR
-     completes the TX state machine.*/
+     not merely by being below it. Set a flag and pend the UART vector so
+     the ISR can complete the TX state machine. The flag (not a live
+     UARTIMSC read) ensures the completion fires exactly once and cannot
+     be triggered spuriously by concurrent RX interrupts.*/
   if (uartp->txidx >= uartp->txsize) {
+    uartp->txprefilled = true;
 #if RP_UART_USE_UART0 == TRUE
     if (uartp == &UARTD0) {
       nvicSetPending(RP_UART0_IRQ_NUMBER);
@@ -309,9 +313,10 @@ size_t uart_lld_stop_send(UARTDriver *uartp) {
   uartp->uart->UARTIMSC &= ~UART_UARTIMSC_TXIM;
 
   remaining = uartp->txsize - uartp->txidx;
-  uartp->txbufp = NULL;
-  uartp->txsize = 0U;
-  uartp->txidx  = 0U;
+  uartp->txbufp      = NULL;
+  uartp->txsize      = 0U;
+  uartp->txidx       = 0U;
+  uartp->txprefilled = false;
 
   return remaining;
 }
@@ -402,8 +407,14 @@ void uart_lld_serve_interrupt(UARTDriver *uartp) {
     _uart_rx_error_isr_code(uartp, errors);
   }
 
-  /* TX FIFO interrupt — continue draining the TX buffer.*/
-  if ((mis & UART_UARTMIS_TXMIS) != 0U) {
+  /* TX FIFO interrupt or software-pended completion for short transfers.
+     txprefilled is set by uart_lld_start_send() when all TX data fitted in
+     the FIFO during pre-fill and the UART vector was software-pended via
+     nvicSetPending(). Using a dedicated flag instead of reading UARTIMSC
+     live prevents this block from being entered spuriously during concurrent
+     RX interrupts that happen to observe TXIM=1 while txidx==txsize.*/
+  if (((mis & UART_UARTMIS_TXMIS) != 0U) || uartp->txprefilled) {
+    uartp->txprefilled = false;
 
     /* Feed more data into the TX FIFO.*/
     while ((uartp->txidx < uartp->txsize) &&

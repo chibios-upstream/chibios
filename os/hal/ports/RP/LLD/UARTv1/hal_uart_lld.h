@@ -244,6 +244,14 @@ struct hal_uart_driver {
    */
   size_t                    txidx;
   /**
+   * @brief   Set when all TX data was pre-loaded into the FIFO by
+   *          uart_lld_start_send() and the UART vector was software-pended
+   *          via nvicSetPending() to trigger ISR completion of the TX state
+   *          machine. Cleared at the top of the ISR TX block so the completion
+   *          fires exactly once, regardless of concurrent RX interrupts.
+   */
+  bool                      txprefilled;
+  /**
    * @brief   Pointer to the active RX buffer.
    */
   uint8_t                   *rxbufp;
