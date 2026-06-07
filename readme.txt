@@ -74,6 +74,8 @@
 *****************************************************************************
 
 *** 21.11.6 ***
+- NEW: STM32G4xx: added FSMC RCC macros, IRQ vector definitions and
+       registry switch for the FMC-capable devices (github PR #7).
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3).
 - FIX: Fixed RT trace halt event can dereference uninitialized trace buffer
