@@ -83,7 +83,7 @@ See .devcontainer/README.md for included tools and usage.
 *** Next ***
 - FIX: Missing SPI2 RCC macros and DMAMUX identifiers in the STM32C0xx
        port, SPI2 was unusable on the devices that have it (forum bug
-       report).
+       report, github PR #12).
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3)
        (backported to 21.11.6).
