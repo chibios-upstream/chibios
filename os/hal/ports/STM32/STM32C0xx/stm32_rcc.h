@@ -412,6 +412,29 @@
  * @api
  */
 #define rccResetSPI1() rccResetAPBR2(RCC_APBRSTR2_SPI1RST)
+
+/**
+ * @brief   Enables the SPI2 peripheral clock.
+ *
+ * @param[in] lp        low power enable flag
+ *
+ * @api
+ */
+#define rccEnableSPI2(lp) rccEnableAPBR1(RCC_APBENR1_SPI2EN, lp)
+
+/**
+ * @brief   Disables the SPI2 peripheral clock.
+ *
+ * @api
+ */
+#define rccDisableSPI2() rccDisableAPBR1(RCC_APBENR1_SPI2EN)
+
+/**
+ * @brief   Resets the SPI2 peripheral.
+ *
+ * @api
+ */
+#define rccResetSPI2() rccResetAPBR1(RCC_APBRSTR1_SPI2RST)
 /** @} */
 
 /**
