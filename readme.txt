@@ -81,6 +81,9 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: OTG1 on STM32H7 kept its ULPI clock gate at the reset-enabled state,
+       preventing sleep mode entry/exit when the driver is active (forum
+       bug report, github PR #13).
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3)
        (backported to 21.11.6).

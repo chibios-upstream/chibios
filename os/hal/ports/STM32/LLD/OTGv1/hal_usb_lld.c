@@ -852,6 +852,17 @@ void usb_lld_start(USBDriver *usbp) {
       rccEnableOTG_FS(true);
       rccResetOTG_FS();
 
+#if defined(rccDisableOTG_FSULPI)
+      /* On platforms where the OTG1 instance has its own ULPI clock gate
+         (STM32H7: USB2OTGHSULPIEN/USB2OTGHSULPILPEN, the latter enabled
+         after reset) the gate is kept disabled: the ULPI interface is not
+         supported on this instance and, if left enabled while unclocked,
+         it prevents the device from entering or leaving sleep mode. Same
+         problem as on OTG2, see:
+         http://forum.chibios.org/phpbb/viewtopic.php?f=16&t=1798.*/
+      rccDisableOTG_FSULPI();
+#endif
+
       /* Enables IRQ vector.*/
       nvicEnableVector(STM32_OTG1_NUMBER, STM32_USB_OTG1_IRQ_PRIORITY);
 
