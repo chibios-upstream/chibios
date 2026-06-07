@@ -91,7 +91,7 @@ See .devcontainer/README.md for included tools and usage.
 - FIX: DACv1 trigger mask sized for 3 or 4 bit trigger source identifier
 - NEW: Added ADDITIONAL_OUTFILES variable to the ARMCMx GCC build rules,
        included makefiles can now add extra generated files to the "all"
-       target.
+       target (github PR #10).
 - NEW: Sensors subsystem in XHAL equivalent to EX for old HAL.
 - NEW: Thread mode for EP0 handling in USB HAL driver.
 - NEW: ADC driver in XHAL.
