@@ -81,6 +81,8 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: Missing STM32_ADC_ADC2_IRQ_HOOK invocations in the STM32 ADCv6 and
+       ADCv7 drivers (forum bug report).
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3)
        (backported to 21.11.6).

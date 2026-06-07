@@ -349,7 +349,9 @@ OSAL_IRQ_HANDLER(STM32_ADC2_HANDLER) {
 
   isr  = ADC2->ISR;
   ADC2->ISR = isr;
-
+#if defined(STM32_ADC_ADC2_IRQ_HOOK)
+  STM32_ADC_ADC2_IRQ_HOOK
+#endif
   adc_lld_serve_interrupt(&ADCD1, isr);
 
   OSAL_IRQ_EPILOGUE();
@@ -370,12 +372,14 @@ OSAL_IRQ_HANDLER(STM32_ADC2_HANDLER) {
 
   isr  = ADC2->ISR;
   ADC2->ISR = isr;
-
+#if defined(STM32_ADC_ADC2_IRQ_HOOK)
+  STM32_ADC_ADC2_IRQ_HOOK
+#endif
   adc_lld_serve_interrupt(&ADCD2, isr);
 
   OSAL_IRQ_EPILOGUE();
 }
-#endif /* STM32_ADC_USE_ADC4 */
+#endif /* STM32_ADC_USE_ADC2 */
 
 #if STM32_ADC_USE_ADC3 || defined(__DOXYGEN__)
 /**
