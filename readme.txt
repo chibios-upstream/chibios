@@ -81,6 +81,9 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- NEW: STM32G4xx: added FSMC RCC macros, IRQ vector definitions and
+       registry switch for the FMC-capable devices (G473/G483/G474/G484),
+       in all four G4 port copies (github PR #14).
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3)
        (backported to 21.11.6).
