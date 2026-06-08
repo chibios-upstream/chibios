@@ -428,11 +428,11 @@ void uart_lld_serve_interrupt(UARTDriver *uartp) {
       _uart_tx1_isr_code(uartp);
 
       /* Physical end of transmission (txend2_cb / uartSendFullTimeout) is
-        not supported on this LLD because the RP PL011 UART provides no
-        transmission-complete interrupt and polling BUSY from an ISR is
-        prohibited.  Callers must not configure txend2_cb or use
-        uartSendFullTimeout(); txend2_cb is rejected at submission time and
-        uartSendFullTimeout() is rejected at completion time by assertions.*/
+         not supported on this LLD because the RP PL011 UART provides no
+         transmission-complete interrupt and polling BUSY from an ISR is
+         prohibited.  Callers must not configure txend2_cb or use
+         uartSendFullTimeout(); txend2_cb is rejected at submission time and
+         uartSendFullTimeout() is rejected at completion time by assertions.*/
     }
   }
 
