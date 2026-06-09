@@ -902,7 +902,7 @@ osEvent osMailGet(osMailQId queue_id, uint32_t millisec) {
       .mail_id = NULL
     }
   };
-  
+
   if (queue_id == NULL) {
     event.status = osErrorParameter;
     return event;
@@ -959,7 +959,7 @@ osStatus osMailFree(osMailQId queue_id, void *mail)
     return osErrorValue;
   }
 
-  chDbgCheck((queue_id != NULL) && (mail != NULL));    
+  chDbgCheck((queue_id != NULL) && (mail != NULL));
 
   syssts_t sts = chSysGetStatusAndLockX();
   chFifoReturnObjectI(queue_id, mail);

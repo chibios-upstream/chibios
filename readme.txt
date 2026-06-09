@@ -82,6 +82,9 @@ See .devcontainer/README.md for included tools and usage.
 
 *** Next ***
 - NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the os/common sources (ports, oop, abstractions), no functional change
+       (github PR #27).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
        the SB (sandbox) sources, no functional change (github PR #26).
 - NEW: Coding-style cleanup of the XHAL OOP driver code generator: a glued
        comparison operator was corrected in the hal_base_driver codegen model
