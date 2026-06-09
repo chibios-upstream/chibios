@@ -81,6 +81,12 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: STM32H5xx RTC alarm/tamper interrupt caused a system halt on the
+       first event: rtc_lld_serve_interrupt() cleared the RTC/TAMP EXTI
+       lines, which are direct event inputs on STM32H5 (no EXTI pending
+       bit) and tripped the extiClearGroup1() fixed-lines assertion. The
+       clear now masks out the direct lines (HAL and XHAL ports)
+       (forum bug report, github PR #15).
 - NEW: STM32G4xx: added FSMC RCC macros, IRQ vector definitions and
        registry switch for the FMC-capable devices (G473/G483/G474/G484),
        in all four G4 port copies (github PR #14)(backported to
