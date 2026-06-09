@@ -136,7 +136,7 @@ See .devcontainer/README.md for included tools and usage.
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3)
        (backported to 21.11.6).
-- FIX: RT: Fixed lign aheap-created thread working area size (bug #1307)
+- FIX: RT: Fixed align heap-created thread working area size (bug #1307)
        (backported to 21.11.6).
 - FIX; NIL: Fixed wrong alignment check in chThdCreateI() (bug #1306)
        (backported to 21.11.6).
