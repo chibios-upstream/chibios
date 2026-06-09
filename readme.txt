@@ -81,6 +81,21 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- NEW: Coding-style cleanup of the XHAL OOP driver code generator: a glued
+       comparison operator was corrected in the hal_base_driver codegen model
+       (os/xhal/codegen) and the generated source regenerated; no functional
+       change (github PR #24).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the VFS sources, no functional change (github PR #23).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the XHAL hand-written sources, no functional change (github PR #22).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the HAL sources, no functional change (github PR #20).
+- FIX: The STM32F303 mcuconf template was missing its I2S driver settings
+       section, so regenerating an F303 configuration silently dropped the
+       I2S settings; the section was restored and all templated mcuconf/
+       xmcuconf configurations were regenerated against their templates
+       (github PR #19).
 - FIX: STM32L4+/L4Rxx clock point name table (CLK_POINT_NAMES) had a comma
        misplaced inside the "PLLSAI2R" string literal, so adjacent string
        literals were concatenated and the table held one entry fewer than
@@ -93,7 +108,8 @@ See .devcontainer/README.md for included tools and usage.
        nearest integer and the achieved tick is checked against the
        tolerance, letting devices whose clock tree cannot produce an
        exact multiple (e.g. STM32U0/U3 with MSI feeding the PLL) run
-       without a clock-rounding system halt (github PR #17).
+       without a clock-rounding system halt (github PR #17). The STM32U0 and
+       STM32U3 device configurations set the tolerance to 0.5% (github PR #18).
 - FIX: STM32U0xx RTC alarm/tamper interrupt could halt the system on the
        first event (assertions enabled): rtc_lld_serve_interrupt() cleared
        the RTC/TAMP EXTI lines, which are direct event inputs on STM32U0
