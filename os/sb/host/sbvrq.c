@@ -344,7 +344,7 @@ void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
 }
 
 void sb_sysc_vrq_set_alarm(sb_class_t *sbp, struct port_extctx *ectxp) {
-  sysinterval_t interval = (sysinterval_t )ectxp->r0;
+  sysinterval_t interval = (sysinterval_t)ectxp->r0;
   bool reload = (bool)ectxp->r1;
 
   if (interval == TIME_IMMEDIATE) {

@@ -314,7 +314,7 @@ void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
        all functions are called in the proper state.*/
     if (unitp->spip->state != HAL_DRV_STATE_READY) {
       ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
-      return ;
+      return;
     }
 
     switch (sub) {

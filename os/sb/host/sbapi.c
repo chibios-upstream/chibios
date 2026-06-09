@@ -65,7 +65,7 @@ static thread_t *sb_msg_wait_timeout_s(sysinterval_t timeout) {
         return NULL;
       }
     }
-  } while(ch_queue_isempty(&currtp->msgqueue));
+  } while (ch_queue_isempty(&currtp->msgqueue));
 
   /* Dequeuing the sender thread and returning it.*/
   tp = threadref(ch_queue_fifo_remove(&currtp->msgqueue));
@@ -110,7 +110,7 @@ void sb_sysc_exit(sb_class_t *sbp, struct port_extctx *ectxp) {
 #if CH_CFG_USE_EVENTS == TRUE
   chEvtBroadcastI(&sb.termination_es);
 #endif
-  chThdExitS((msg_t )ectxp->r0);
+  chThdExitS((msg_t)ectxp->r0);
   chSysUnlock();
 
   /* Cannot get here.*/
@@ -118,7 +118,7 @@ void sb_sysc_exit(sb_class_t *sbp, struct port_extctx *ectxp) {
 }
 
 void sb_sysc_sleep(sb_class_t *sbp, struct port_extctx *ectxp) {
-  sysinterval_t interval = (sysinterval_t )ectxp->r0;
+  sysinterval_t interval = (sysinterval_t)ectxp->r0;
 
   (void)sbp;
 
@@ -133,7 +133,7 @@ void sb_sysc_sleep_until_windowed(sb_class_t *sbp, struct port_extctx *ectxp) {
 
   (void)sbp;
 
-  chThdSleepUntilWindowed((systime_t )ectxp->r0, (systime_t )ectxp->r1);
+  chThdSleepUntilWindowed((systime_t)ectxp->r0, (systime_t)ectxp->r1);
 
   ectxp->r0 = CH_RET_SUCCESS;
 }
@@ -170,7 +170,7 @@ void sb_sysc_reply_message(sb_class_t *sbp, struct port_extctx *ectxp) {
   if (sbp->base.msg_tp != NULL) {
     thread_t *tp = sbp->base.msg_tp;
     sbp->base.msg_tp = NULL;
-    chMsgReleaseS(tp, (msg_t )ectxp->r0);
+    chMsgReleaseS(tp, (msg_t)ectxp->r0);
     ectxp->r0 = CH_RET_SUCCESS;
   }
   else {
@@ -190,8 +190,8 @@ void sb_sysc_wait_one_timeout(sb_class_t *sbp, struct port_extctx *ectxp) {
 #if CH_CFG_USE_EVENTS == TRUE
   (void)sbp;
 
-  ectxp->r0 = (uint32_t)chEvtWaitOneTimeout((eventmask_t )ectxp->r0,
-                                            (sysinterval_t )ectxp->r1);
+  ectxp->r0 = (uint32_t)chEvtWaitOneTimeout((eventmask_t)ectxp->r0,
+                                            (sysinterval_t)ectxp->r1);
 #else
   (void)sbp;
 
@@ -204,8 +204,8 @@ void sb_sysc_wait_any_timeout(sb_class_t *sbp, struct port_extctx *ectxp) {
 #if CH_CFG_USE_EVENTS == TRUE
   (void)sbp;
 
-  ectxp->r0 = (uint32_t)chEvtWaitAnyTimeout((eventmask_t )ectxp->r0,
-                                            (sysinterval_t )ectxp->r1);
+  ectxp->r0 = (uint32_t)chEvtWaitAnyTimeout((eventmask_t)ectxp->r0,
+                                            (sysinterval_t)ectxp->r1);
 #else
   (void)sbp;
 
@@ -218,8 +218,8 @@ void sb_sysc_wait_all_timeout(sb_class_t *sbp, struct port_extctx *ectxp) {
 #if CH_CFG_USE_EVENTS == TRUE
   (void)sbp;
 
-  ectxp->r0 = (uint32_t)chEvtWaitAllTimeout((eventmask_t )ectxp->r0,
-                                            (sysinterval_t )ectxp->r1);
+  ectxp->r0 = (uint32_t)chEvtWaitAllTimeout((eventmask_t)ectxp->r0,
+                                            (sysinterval_t)ectxp->r1);
 #else
   (void)sbp;
 
@@ -230,7 +230,7 @@ void sb_sysc_wait_all_timeout(sb_class_t *sbp, struct port_extctx *ectxp) {
 void sb_sysc_broadcast_flags(sb_class_t *sbp, struct port_extctx *ectxp) {
 #if CH_CFG_USE_EVENTS == TRUE
 
-  chEvtBroadcastFlags(&sbp->base.es, (eventflags_t )ectxp->r0);
+  chEvtBroadcastFlags(&sbp->base.es, (eventflags_t)ectxp->r0);
   ectxp->r0 = CH_RET_SUCCESS;
 #else
   (void)sbp;
