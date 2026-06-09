@@ -951,7 +951,6 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
   /* DAC configuration.*/
   cr = dacp->params->dac->CR;
 
-
 #if STM32_DAC_DUAL_MODE == FALSE
   (void) ch2;
 
@@ -997,7 +996,7 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
   /* Set initial value of DHR/DHRB register(s).*/
   (void) put_channel(dacp, 0U, chx);
   if (nch == 2) {
-    (void) put_channel(dacp,1U, ch2);
+    (void) put_channel(dacp, 1U, ch2);
   }
 
   /* Set trigger for CH1 group.*/

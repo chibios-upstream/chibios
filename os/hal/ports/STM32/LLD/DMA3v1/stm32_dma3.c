@@ -677,7 +677,7 @@ void dma3ServeInterrupt(const stm32_dma3_channel_t *dmachp) {
   uint32_t csr;
   uint32_t selfindex = (uint32_t)(dmachp - __stm32_dma3_channels);
 
-  csr = dmachp->channel->CSR ;
+  csr = dmachp->channel->CSR;
   dmachp->channel->CFCR = csr;
   if ((csr & dmachp->channel->CCR & STM32_DMA3_CSR_ALL_FLAGS) != 0U) {
     if (dma3.channels[selfindex].func) {

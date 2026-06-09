@@ -398,7 +398,7 @@ msg_t i2cSlaveReceiveTimeout(I2CDriver *i2cp,
 msg_t i2cSlaveTransmitTimeout(I2CDriver *i2cp,
                                const uint8_t *txbuf,
                                size_t txbytes,
-                               sysinterval_t timeout){
+                               sysinterval_t timeout) {
   msg_t rdymsg;
 
   osalDbgCheck((i2cp != NULL) &&

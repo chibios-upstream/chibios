@@ -319,7 +319,7 @@ static void i2c_lld_serve_events(I2CDriver *i2cp, uint32_t isr) {
       if (i2cp->state == I2C_ACTIVE_TX) {
         if (((isr & I2C_ISR_DIR) != 0U) && ((isr & I2C_ISR_TXIS) != 0U)) {
           /* Next interrupt is STOP. */
-          return ;
+          return;
         }
       }
     }
@@ -717,7 +717,6 @@ msg_t i2c_lld_start(I2CDriver *i2cp) {
     }
 #endif /* STM32_I2C_USE_I2C4 */
   }
-
 
   /* Reset i2c peripheral, the TCIE bit will be handled separately.*/
   dp->CR1 = i2cp->config->cr1 |
