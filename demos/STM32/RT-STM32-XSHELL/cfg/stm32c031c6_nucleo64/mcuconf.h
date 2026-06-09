@@ -192,6 +192,7 @@
  */
 #define STM32_ST_IRQ_PRIORITY               2
 #define STM32_ST_USE_TIMER                  16
+#define STM32_ST_FREQUENCY_TOLERANCE        0
 
 /*
  * UART driver system settings.
