@@ -116,6 +116,14 @@ Stage C dimensions (deep):
   (issue, knowledge base, separate fix) and leave the author out of it. The same
   principle the CI applies to style (changed lines only) applies to judgment
   findings.
+- **Changelog tagging is fixed project-side:** every change's `readme.txt` entry
+  references its pull request — `(github PR #N)` — and backports add
+  `(backported to <release>)`. Contributors are not expected to get this tagging
+  right: the reviewer checks that the entry itself exists and describes the change
+  (that part IS the author's, Stage B); tagging/format errors (missing PR number,
+  `FIX:`/`NEW:` prefix, wrapping, annotations) are fixed by the reviewer with a
+  small commit pushed directly to the PR branch and a one-line comment — never
+  raised as findings, never a fix round on their own.
 - **Make findings reproducible:** when reporting style findings, include the local
   reproduction hint so the author can self-check before pushing:
   `python3 tools/style/stylecheck.py <file>` (findings are printed as `style:`/
