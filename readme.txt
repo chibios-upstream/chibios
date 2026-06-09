@@ -81,6 +81,12 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: STM32L4+/L4Rxx clock point name table (CLK_POINT_NAMES) had a comma
+       misplaced inside the "PLLSAI2R" string literal, so adjacent string
+       literals were concatenated and the table held one entry fewer than
+       CLK_ARRAY_SIZE; clock point names from PLLSAI2R onward were shifted
+       and the last was NULL. The comma is moved outside the string (HAL and
+       XHAL ports) (github PR #21).
 - NEW: SYSTICKv1 free running mode gained STM32_ST_FREQUENCY_TOLERANCE, the
        allowed ST tick deviation in per-mille (default 0 = exact divisor
        required, unchanged behavior). The prescaler is rounded to the
