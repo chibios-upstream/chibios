@@ -81,6 +81,13 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- NEW: SYSTICKv1 free running mode gained STM32_ST_FREQUENCY_TOLERANCE, the
+       allowed ST tick deviation in per-mille (default 0 = exact divisor
+       required, unchanged behavior). The prescaler is rounded to the
+       nearest integer and the achieved tick is checked against the
+       tolerance, letting devices whose clock tree cannot produce an
+       exact multiple (e.g. STM32U0/U3 with MSI feeding the PLL) run
+       without a clock-rounding system halt (github PR #17).
 - FIX: STM32U0xx RTC alarm/tamper interrupt could halt the system on the
        first event (assertions enabled): rtc_lld_serve_interrupt() cleared
        the RTC/TAMP EXTI lines, which are direct event inputs on STM32U0
