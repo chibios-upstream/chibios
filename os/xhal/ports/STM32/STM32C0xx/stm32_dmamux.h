@@ -42,6 +42,8 @@
 #define STM32_DMAMUX1_I2C1_TX       11
 #define STM32_DMAMUX1_SPI1_RX       16
 #define STM32_DMAMUX1_SPI1_TX       17
+#define STM32_DMAMUX1_SPI2_RX       18
+#define STM32_DMAMUX1_SPI2_TX       19
 #define STM32_DMAMUX1_TIM1_CH1      20
 #define STM32_DMAMUX1_TIM1_CH2      21
 #define STM32_DMAMUX1_TIM1_CH3      22

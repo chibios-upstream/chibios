@@ -171,6 +171,13 @@
 #define STM32_FDCAN3_IT1_NUMBER             89
 
 /*
+ * FSMC unit.
+ */
+#define STM32_FSMC_HANDLER                  Vector100
+
+#define STM32_FSMC_NUMBER                   48
+
+/*
  * I2C units.
  */
 #define STM32_I2C1_EV_HANDLER               VectorBC
