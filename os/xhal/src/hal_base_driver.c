@@ -170,7 +170,7 @@ hal_base_driver_c *drvStartByName(const char *name, msg_t *msgp) {
 
   drvp = drvRegGetFirstX();
   while (drvp != NULL) {
-    if (strcmp(drvGetNameX(drvp), name) ==0) {
+    if (strcmp(drvGetNameX(drvp), name) == 0) {
 
       msg = drvStart(drvp, NULL);
       if (msg != HAL_RET_SUCCESS) {
