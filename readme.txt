@@ -81,6 +81,12 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: STM32U0xx RTC alarm/tamper interrupt could halt the system on the
+       first event (assertions enabled): rtc_lld_serve_interrupt() cleared
+       the RTC/TAMP EXTI lines, which are direct event inputs on STM32U0
+       (no EXTI pending bit) and tripped the extiClearGroup1() fixed-lines
+       assertion. The clear now masks out the direct lines (HAL and XHAL
+       ports). Same defect as the STM32H5 fix in #15 (github PR #16).
 - FIX: STM32H5xx RTC alarm/tamper interrupt caused a system halt on the
        first event: rtc_lld_serve_interrupt() cleared the RTC/TAMP EXTI
        lines, which are direct event inputs on STM32H5 (no EXTI pending

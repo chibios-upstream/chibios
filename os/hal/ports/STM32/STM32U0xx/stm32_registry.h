@@ -62,10 +62,14 @@
                    EXTI_MODE_RISING_EDGE | EXTI_MODE_ACTION_INTERRUPT);     \
 } while (false)
 
-/* Clearing EXTI interrupts. */
+/* Clearing EXTI interrupts. The RTC and TAMP EXTI lines are direct event
+   inputs on STM32U0 (marked fixed in STM32_EXTI_IMR1_MASK): no EXTI pending
+   bit, the source flags are cleared in the RTC peripheral. Masking out the
+   fixed lines makes this a no-op here and keeps the extiClearGroup1() guard.*/
 #define STM32_RTC_CLEAR_ALL_EXTI() do {                                     \
-  extiClearGroup1(EXTI_MASK1(STM32_RTC_EVENT_RTC_EXTI) |                    \
-                  EXTI_MASK1(STM32_RTC_EVENT_TAMP_EXTI));                   \
+  extiClearGroup1((EXTI_MASK1(STM32_RTC_EVENT_RTC_EXTI) |                   \
+                   EXTI_MASK1(STM32_RTC_EVENT_TAMP_EXTI)) &                 \
+                  ~STM32_EXTI_IMR1_MASK);                                   \
 } while (false)
 
 /* Masks used to preserve state of RTC and TAMP register reserved bits. */
