@@ -125,7 +125,6 @@
 #define STM32_SPI_SELECT_MODE               STM32_SPI_SELECT_MODE_LINE
 #endif
 
-
 /**
  * @brief   Filler pattern used when there is nothing to transmit.
  */
@@ -279,7 +278,7 @@
 #define SPI_DEFAULT_CONFIGURATION                                           \
 {                                                                           \
   .mode             = 0U,                                                   \
-  .ssline           = PAL_LINE(STM32_SPI_DEFAULT_PORT, STM32_SPI_DEFAULT_PAD),\
+  .ssline           = PAL_LINE(STM32_SPI_DEFAULT_PORT, STM32_SPI_DEFAULT_PAD), \
   .cr1              = STM32_SPI_DEFAULT_CR1,                                \
   .cr2              = STM32_SPI_DEFAULT_CR2                                 \
 }

@@ -767,7 +767,7 @@ const hal_spi_config_t *spi_lld_selcfg(SPIDriver *spip,
   return (const void *)spi_lld_setcfg(spip, &spi_configurations.cfgs[cfgnum]);
 #else
 
-  if (cfgnum > 0U){
+  if (cfgnum > 0U) {
     return NULL;
   }
 

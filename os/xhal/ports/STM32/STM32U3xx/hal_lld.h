@@ -158,7 +158,6 @@
 #define PWR_VOSR_RANGE2                     PWR_VOSR_R2EN
 /** @} */
 
-
 /**
  * @name    FLASH_ACR register helpers
  * @{
