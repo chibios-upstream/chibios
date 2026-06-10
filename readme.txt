@@ -81,6 +81,11 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- NEW: tools/style/stylecheck.py no longer reports two false positives:
+       "#endif /* defined(X) */" guard comments (the lower-case "defined"
+       operator) and operators/commas inside string literals (only the first
+       string per line was previously blanked). Strictly more permissive
+       (github PR #28).
 - NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
        the os/common sources (ports, oop, abstractions), no functional change
        (github PR #27).

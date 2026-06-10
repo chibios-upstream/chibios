@@ -52,3 +52,7 @@ foo(); /* Multiple lines
 
 /*===========================================================================*/
 
+#endif /* defined(STM32F4XX) */
+/* !defined(STM32F4XX) */
+__asm volatile ("mrs %[p0], CPSR" : [p0] "=r" (sr));
+name = "PLLSAI2R,";
