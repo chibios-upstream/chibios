@@ -137,6 +137,15 @@
        disabled by default (VFS_CFG_ENABLE_DRV_ROMFS). The OOP framework gained
        the supporting oop_random_stream base class and os/common/utils gained
        the packbits helper.
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of the
+       HAL sources, no functional change (github PR #20).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of the
+       os/common sources, no functional change (github PR #27).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of the
+       os/various sources, no functional change (github PR #29).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of the
+       os/hal/lib sources (streams, mfs, serial_nor), no functional change
+       (github PR #30).
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3).
 - FIX: Fixed RT trace halt event can dereference uninitialized trace buffer

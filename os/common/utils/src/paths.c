@@ -372,7 +372,7 @@ size_t path_normalize(char *dst, const char *src, size_t size) {
         do {
           dst--;
           n--;
-        } while(*(dst - 1) != '/');
+        } while (*(dst - 1) != '/');
       }
       continue;
     }

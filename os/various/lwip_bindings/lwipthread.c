@@ -145,7 +145,7 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p) {
   if (((u8_t*)p->payload)[0] & 1) {
     /* broadcast or multicast packet*/
     MIB2_STATS_NETIF_INC(netif, ifoutnucastpkts);
-  } 
+  }
   else {
     /* unicast packet */
     MIB2_STATS_NETIF_INC(netif, ifoutucastpkts);
@@ -206,7 +206,7 @@ static bool low_level_input(struct netif *netif, struct pbuf **pbuf) {
     if (*(uint8_t *)((*pbuf)->payload) & 1) {
       /* broadcast or multicast packet*/
       MIB2_STATS_NETIF_INC(netif, ifinnucastpkts);
-    } 
+    }
     else {
       /* unicast packet*/
       MIB2_STATS_NETIF_INC(netif, ifinucastpkts);
@@ -224,7 +224,7 @@ static bool low_level_input(struct netif *netif, struct pbuf **pbuf) {
     LINK_STATS_INC(link.drop);
     MIB2_STATS_NETIF_INC(netif, ifindiscards);
   }
-  
+
   return true;
 }
 

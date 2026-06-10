@@ -512,7 +512,7 @@ static inline void halRegMaskedWrite16X(volatile uint16_t *p,
 
   osalDbgCheck((value & ~mask) == 0U);
 
-  v= *p;
+  v = *p;
   v &= ~mask;
   v |= value;
   *p = v;

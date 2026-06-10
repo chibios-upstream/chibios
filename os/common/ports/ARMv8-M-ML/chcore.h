@@ -248,7 +248,6 @@
    */
   #define PORT_CORE_VARIANT_NAME        "Cortex-M33"
 
-
 #else
   #error "unknown ARMv8-M variant"
 #endif

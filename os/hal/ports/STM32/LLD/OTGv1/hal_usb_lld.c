@@ -1043,7 +1043,7 @@ void usb_lld_reset(USBDriver *usbp) {
 
   /* Enables also EP-related interrupt sources.*/
   otgp->GINTMSK  |= GINTMSK_RXFLVLM | GINTMSK_OEPM  | GINTMSK_IEPM;
-  otgp->DIEPMSK   = /*DIEPMSK_TOCM    |*/ DIEPMSK_XFRCM;
+  otgp->DIEPMSK   = /* DIEPMSK_TOCM    |*/ DIEPMSK_XFRCM;
   otgp->DOEPMSK   = DOEPMSK_STUPM   | DOEPMSK_XFRCM;
 
   /* EP0 initialization, it is a special case.*/

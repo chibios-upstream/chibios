@@ -482,7 +482,6 @@ typedef enum {
   /* DMA buffers.*/                                                         \
   dac_dmabuf_t                      *dbuf;
 
-
 /**
  * @brief   Low level fields of the DAC configuration structure.
  * @note    In DUAL mode init, cr and mcr (if available) fields hold CH1

@@ -140,7 +140,7 @@ static void adc_lld_vreg_on(ADCDriver *adcp) {
 static void adc_lld_vreg_off(ADCDriver *adcp) {
 
   adcp->adcm->CR = 0;   /* See RM.*/
-  adcp->adcm->CR =ADC_CR_DEEPPWD;
+  adcp->adcm->CR = ADC_CR_DEEPPWD;
 #if STM32_ADC_DUAL_MODE
   adcp->adcs->CR = 0;
   adcp->adcs->CR = ADC_CR_DEEPPWD;
