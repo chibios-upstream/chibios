@@ -175,7 +175,7 @@ static void save_history(ShellHistory *shp, char *line, int length) {
 }
 
 static int get_history(ShellHistory *shp, char *line, int dir) {
-  int count=0;
+  int count = 0;
 
   if (shp == NULL)
     return -1;

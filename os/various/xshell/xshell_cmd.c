@@ -203,7 +203,7 @@ static void cmd_exit(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
     xshellUsage(xshp, "");
     return;
   }
-  
+
   chThdTerminate(chThdGetSelfX());
 }
 #endif

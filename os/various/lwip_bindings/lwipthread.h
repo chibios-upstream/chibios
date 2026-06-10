@@ -185,13 +185,13 @@
  */
 typedef enum {
 #if LWIP_DHCP || defined(__DOXYGEN__)
-    /** 
+    /**
      * @brief   Assign a DHCP given address.
      */
     NET_ADDRESS_DHCP = 1,
 #endif
     /**
-     * @brief   Assign a statically IPv4 address. 
+     * @brief   Assign a statically IPv4 address.
      */
     NET_ADDRESS_STATIC = 2,
 #if LWIP_AUTOIP  || defined(__DOXYGEN__)

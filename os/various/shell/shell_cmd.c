@@ -318,7 +318,7 @@ static void cmd_cat(BaseSequentialStream *chp, int argc, char *argv[]) {
     }
 
     fd = open(argv[0], O_RDONLY);
-    if(fd == -1) {
+    if (fd == -1) {
       chprintf(chp, "Cannot open file" SHELL_NEWLINE_STR);
       break;
     }

@@ -113,7 +113,6 @@ void sslconn_close(sslconn *sk)
     chHeapFree(sk);
 }
 
-
 /* IO Callbacks */
 int wolfssl_send_cb(WOLFSSL* ssl, char *buf, int sz, void *ctx)
 {
@@ -134,7 +133,6 @@ int wolfssl_send_cb(WOLFSSL* ssl, char *buf, int sz, void *ctx)
   else
     return WOLFSSL_CBIO_ERR_WANT_WRITE;
 }
-
 
 #define MAX_SSL_BUF 1460
 static uint8_t ssl_recv_buffer[MAX_SSL_BUF];
@@ -161,7 +159,6 @@ int wolfssl_recv_cb(WOLFSSL *ssl, char *buf, int sz, void *ctx)
         }
         return sz;
     }
-
 
     err = netconn_recv(sk->conn, &inbuf);
     if (err == ERR_OK) {
@@ -203,7 +200,6 @@ int wolfssl_recv_cb(WOLFSSL *ssl, char *buf, int sz, void *ctx)
 #define ST2MS(n) (((n) * 1000UL + CH_CFG_ST_FREQUENCY - 1UL) / CH_CFG_ST_FREQUENCY)
 #endif
 
-
 word32 LowResTimer(void)
 {
     systime_t t = chVTGetSystemTimeX();
@@ -223,7 +219,7 @@ void *chHeapRealloc (void *addr, uint32_t size)
 
     void *ptr;
 
-    if(addr == NULL) {
+    if (addr == NULL) {
         return chHeapAlloc(NULL, size);
     }
 
@@ -231,20 +227,20 @@ void *chHeapRealloc (void *addr, uint32_t size)
     hp = addr - sizeof(union heap_header);
     prev_size = hp->used.size; /* size is always multiple of 8 */
 
-    /* check new size memory alignment */
-    if(size % 8 == 0) {
+    /* Check new size memory alignment */
+    if (size % 8 == 0) {
         new_size = size;
     }
     else {
         new_size = ((int) (size / 8)) * 8 + 8;
     }
 
-    if(prev_size >= new_size) {
+    if (prev_size >= new_size) {
         return addr;
     }
 
     ptr = chHeapAlloc(NULL, size);
-    if(ptr == NULL) {
+    if (ptr == NULL) {
         return NULL;
     }
 
