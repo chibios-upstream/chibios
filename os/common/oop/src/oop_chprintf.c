@@ -138,13 +138,13 @@ int chvprintf(sequential_stream_i *stmp, const char *fmt, va_list ap) {
     if (c == 0) {
       return n;
     }
-    
+
     if (c != '%') {
       stmPut(stmp, (uint8_t)c);
       n++;
       continue;
     }
-    
+
     p = tmpbuf;
     s = tmpbuf;
 
@@ -168,9 +168,9 @@ int chvprintf(sequential_stream_i *stmp, const char *fmt, va_list ap) {
       fmt++;
       filler = '0';
     }
-    
+
     /* Width modifier.*/
-    if ( *fmt == '*') {
+    if (*fmt == '*') {
       width = va_arg(ap, int);
       ++fmt;
       c = *fmt++;
@@ -191,7 +191,7 @@ int chvprintf(sequential_stream_i *stmp, const char *fmt, va_list ap) {
         }
       }
     }
-    
+
     /* Precision modifier.*/
     precision = 0;
     if (c == '.') {
@@ -214,7 +214,7 @@ int chvprintf(sequential_stream_i *stmp, const char *fmt, va_list ap) {
         }
       }
     }
-    
+
     /* Long modifier.*/
     if (c == 'l' || c == 'L') {
       is_long = true;
