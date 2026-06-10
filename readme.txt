@@ -123,6 +123,13 @@
        produce an exact tick). The STM32F303 mcuconf template regained its
        missing I2S driver settings section and the STM32C071 template gained
        its SPI2 settings (chibios-ftl PRs #1-#3; github PRs #18, #19).
+- NEW: Added the Python port of the source-code style checker
+       (tools/style/stylecheck.py plus per-subsystem py_style_*.sh wrappers),
+       functionally matching the existing Perl stylecheck.pl with two
+       false-positive fixes over it: "#endif /* defined(X) */" guard comments
+       (the lower-case "defined" operator) and operators/commas inside string
+       literals (only the first string per line was previously blanked)
+       (github PR #28).
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3).
 - FIX: Fixed RT trace halt event can dereference uninitialized trace buffer
