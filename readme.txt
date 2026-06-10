@@ -76,6 +76,47 @@
 *** 21.11.6 ***
 - NEW: STM32G4xx: added FSMC RCC macros, IRQ vector definitions and
        registry switch for the FMC-capable devices (github PR #7).
+- FIX: STM32U3 RTC was completely non-functional, the driver hung at boot in
+       rtc_enter_init() waiting for INITF. The RTC APB clock was never
+       enabled: hal_lld guarded it on defined(RCC_APB3ENR_RTCAPBEN) (the
+       STM32H5/U5 register), but on STM32U3 the bit is RCC_APB1ENR1_RTCAPBEN
+       (APB1ENR1 bit 30), so the guard was always false and the RTC register
+       interface was unclocked. Enabled via rccEnableAPB1R1() on STM32U3xx.
+       HW-verified on NUCLEO-U385RG (github PR #31).
+- FIX: STM32U3 RTC driver operated on the wrong EXTI lines. The port defined
+       STM32_RTC_GLOBAL_EXTI=17 / STM32_RTC_TAMP_EXTI=19 (copied from STM32H5)
+       and enabled/cleared them, but on U3 those lines are COMP1 and VDDUSB
+       (RM0487 Table 131) and the RTC has no EXTI line at all (RTC interrupts
+       go directly to the NVIC). The RTC EXTI enable/clear are now no-ops
+       (github PR #31).
+- FIX: STM32U0xx RTC alarm/tamper interrupt could halt the system on the
+       first event (assertions enabled): rtc_lld_serve_interrupt() cleared the
+       RTC/TAMP EXTI lines, which are direct event inputs on STM32U0 (no EXTI
+       pending bit) and tripped the extiClearGroup1() fixed-lines assertion.
+       The clear now masks out the direct lines (github PR #16).
+- FIX: STM32H5xx RTC alarm/tamper interrupt caused a system halt on the first
+       event: rtc_lld_serve_interrupt() cleared the RTC/TAMP EXTI lines, which
+       are direct event inputs on STM32H5 (no EXTI pending bit) and tripped the
+       extiClearGroup1() fixed-lines assertion. The clear now masks out the
+       direct lines (forum bug report, github PR #15).
+- FIX: STM32L4+/L4Rxx clock point name table (CLK_POINT_NAMES) had a comma
+       misplaced inside the "PLLSAI2R" string literal, so adjacent string
+       literals were concatenated and the table held one entry fewer than
+       CLK_ARRAY_SIZE; clock point names from PLLSAI2R onward were shifted and
+       the last was NULL. The comma is moved outside the string (github
+       PR #21).
+- FIX: Missing SPI2 RCC macros and DMAMUX identifiers in the STM32C0xx HAL
+       port, SPI2 was unusable on the devices that have it (forum bug report,
+       github PR #12).
+- FIX: Missing STM32_ADC_ADC2_IRQ_HOOK invocations in the STM32 ADCv6 and
+       ADCv7 low level drivers (github PR #11).
+- NEW: SYSTICKv1 free running mode gained STM32_ST_FREQUENCY_TOLERANCE, the
+       allowed ST tick deviation in per-mille (default 0 = exact divisor
+       required, unchanged behavior). The prescaler is rounded to the nearest
+       integer and the achieved tick is checked against the tolerance, letting
+       devices whose clock tree cannot produce an exact multiple (e.g.
+       STM32U0/U3 with MSI feeding the PLL) run without a clock-rounding
+       system halt (github PR #17).
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3).
 - FIX: Fixed RT trace halt event can dereference uninitialized trace buffer

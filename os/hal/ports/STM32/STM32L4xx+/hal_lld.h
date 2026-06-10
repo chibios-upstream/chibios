@@ -100,7 +100,7 @@
 #define CLK_POINT_NAMES                                                     \
   {                                                                         \
     "SYSCLK", "MSI", "MSIS", "PLLP", "PLLQ", "PLLR",                        \
-    "PLLSAI1P", "PLLSAI1Q", "PLLSAI1R", "PLLSAI2P", "PLLSAI2Q", "PLLSAI2R," \
+    "PLLSAI1P", "PLLSAI1Q", "PLLSAI1R", "PLLSAI2P", "PLLSAI2Q", "PLLSAI2R", \
     "HCLK", "PCLK1", "PCLK1TIM", "PCLK2", "PCLK2TIM", "MCO"                 \
   }
 /** @} */
