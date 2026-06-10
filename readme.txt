@@ -81,6 +81,13 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: STM32U3 and STM32U5 RTC drivers operated on the wrong EXTI lines. The
+       ports defined STM32_RTC_GLOBAL_EXTI=17 / STM32_RTC_TAMP_EXTI=19 (copied
+       from STM32H5) and enabled/cleared them, but on U3/U5 those lines are
+       COMP1 and VDDUSB (RM0487 Table 131 / RM0456 Table 187) and the RTC has
+       no EXTI line at all (RTC interrupts go directly to the NVIC). The RTC
+       EXTI enable/clear are now no-ops on both families (HAL and XHAL ports)
+       (github PR #NN).
 - NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
        the os/hal/lib sources (streams, mfs, serial_nor), no functional
        change (github PR #30).
