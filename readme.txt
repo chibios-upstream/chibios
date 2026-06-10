@@ -82,6 +82,9 @@ See .devcontainer/README.md for included tools and usage.
 
 *** Next ***
 - NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the os/hal/lib sources (streams, mfs, serial_nor), no functional
+       change (github PR #30).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
        the os/various sources (shell, xshell, bindings glue), no functional
        change (github PR #29).
 - NEW: tools/style/stylecheck.py no longer reports two false positives:
