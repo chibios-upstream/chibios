@@ -117,6 +117,12 @@
        devices whose clock tree cannot produce an exact multiple (e.g.
        STM32U0/U3 with MSI feeding the PLL) run without a clock-rounding
        system halt (github PR #17).
+- NEW: All templated STM32 mcuconf.h configurations were regenerated against
+       their FreeMarker templates, adding the new STM32_ST_FREQUENCY_TOLERANCE
+       setting (default 0; set to 0.5% on STM32U0/U3 whose clock tree cannot
+       produce an exact tick). The STM32F303 mcuconf template regained its
+       missing I2S driver settings section and the STM32C071 template gained
+       its SPI2 settings (chibios-ftl PRs #1-#3; github PRs #18, #19).
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3).
 - FIX: Fixed RT trace halt event can dereference uninitialized trace buffer
