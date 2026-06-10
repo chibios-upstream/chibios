@@ -130,6 +130,13 @@
        (the lower-case "defined" operator) and operators/commas inside string
        literals (only the first string per line was previously blanked)
        (github PR #28).
+- NEW: The VFS subsystem was updated to the current generation. VFS file nodes
+       now expose a random-access stream (random_stream_i) rather than a plain
+       sequential stream, the driver code-generation models were refreshed, and
+       a new read-only ROMFS driver (optionally packbits-compressed) was added,
+       disabled by default (VFS_CFG_ENABLE_DRV_ROMFS). The OOP framework gained
+       the supporting oop_random_stream base class and os/common/utils gained
+       the packbits helper.
 - FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
        due to overly strict alignment assertion (bug github #3).
 - FIX: Fixed RT trace halt event can dereference uninitialized trace buffer

@@ -106,6 +106,18 @@ static msg_t translate_error(FRESULT res) {
   case FR_NOT_DIRECTORY:
     msg = CH_RET_ENOTDIR;
     break;
+  case FR_INVALID_OBJECT:
+    msg = CH_RET_EBADF;
+    break;
+  case FR_NOT_ENABLED:
+    msg = CH_RET_EIO;
+    break;
+  case FR_LOCKED:
+    msg = CH_RET_EACCES;
+    break;
+  case FR_INVALID_PARAMETER:
+    msg = CH_RET_EINVAL;
+    break;
   default:
     msg = CH_RET_INNER_ERROR;
     break;
@@ -176,6 +188,10 @@ msg_t ffdrvMount(const char *name, bool mountnow) {
 
   res = f_mount(fs, name, (BYTE)(mountnow ? 1 : 0));
   if (res != FR_OK) {
+    /* Deregistering from FatFS before freeing, f_mount() registers the
+       object in the global volume table before attempting the actual mount
+       so a failure leaves a dangling pointer if not cleaned up.*/
+    (void) f_mount(NULL, name, 0);
     chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, (void *)fs);
   }
 
@@ -201,7 +217,11 @@ msg_t ffdrvUnmount(const char *name) {
 
   res = f_unmount(name);
 
-  chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, (void *)fs);
+  /* Only freeing the object if FatFS successfully deregistered it,
+     otherwise the global volume table still references it.*/
+  if (res == FR_OK) {
+    chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, (void *)fs);
+  }
 
   return translate_error(res);
 }
@@ -399,113 +419,6 @@ static vfs_fatfs_dir_node_c *ffdirObjectInit(vfs_fatfs_dir_node_c *self,
 /*===========================================================================*/
 
 /**
- * @name        Interfaces implementation of vfs_fatfs_file_node_c
- * @{
- */
-/**
- * @memberof    vfs_fatfs_file_node_c
- * @private
- *
- * @brief       Implementation of interface method @p stmWrite().
- *
- * @param[in,out] ip            Pointer to the @p sequential_stream_i class
- *                              interface.
- * @param[in]     bp            Pointer to the data buffer.
- * @param[in]     n             The maximum amount of data to be transferred.
- * @return                      The number of bytes transferred. The returned
- *                              value can be less than the specified number of
- *                              bytes if an end-of-file condition has been met.
- */
-static size_t __fffile_stm_write_impl(void *ip, const uint8_t *bp, size_t n) {
-  vfs_fatfs_file_node_c *self = oopIfGetOwner(vfs_fatfs_file_node_c, ip);
-  msg_t msg;
-
-  msg = vfsFileWrite((void *)self, bp, n);
-  if (CH_RET_IS_ERROR(msg)) {
-
-    return (size_t)0;
-  }
-
-  return (size_t)msg;
-}
-
-/**
- * @memberof    vfs_fatfs_file_node_c
- * @private
- *
- * @brief       Implementation of interface method @p stmRead().
- *
- * @param[in,out] ip            Pointer to the @p sequential_stream_i class
- *                              interface.
- * @param[out]    bp            Pointer to the data buffer.
- * @param[in]     n             The maximum amount of data to be transferred.
- * @return                      The number of bytes transferred. The returned
- *                              value can be less than the specified number of
- *                              bytes if an end-of-file condition has been met.
- */
-static size_t __fffile_stm_read_impl(void *ip, uint8_t *bp, size_t n) {
-  vfs_fatfs_file_node_c *self = oopIfGetOwner(vfs_fatfs_file_node_c, ip);
-  msg_t msg;
-
-  msg = vfsFileRead((void *)self, bp, n);
-  if (CH_RET_IS_ERROR(msg)) {
-
-    return (size_t)0;
-  }
-
-  return (size_t)msg;
-}
-
-/**
- * @memberof    vfs_fatfs_file_node_c
- * @private
- *
- * @brief       Implementation of interface method @p stmPut().
- *
- * @param[in,out] ip            Pointer to the @p sequential_stream_i class
- *                              interface.
- * @param[in]     b             The byte value to be written to the stream.
- * @return                      The operation status.
- */
-static int __fffile_stm_put_impl(void *ip, uint8_t b) {
-  vfs_fatfs_file_node_c *self = oopIfGetOwner(vfs_fatfs_file_node_c, ip);
-  msg_t msg;
-
-  msg = vfsFileWrite((void *)self, &b, (size_t)1);
-  if (CH_RET_IS_ERROR(msg)) {
-
-    return STM_TIMEOUT;
-  }
-
-  return msg;
-}
-
-/**
- * @memberof    vfs_fatfs_file_node_c
- * @private
- *
- * @brief       Implementation of interface method @p stmGet().
- *
- * @param[in,out] ip            Pointer to the @p sequential_stream_i class
- *                              interface.
- * @return                      A byte value from the stream.
- */
-static int __fffile_stm_get_impl(void *ip) {
-  vfs_fatfs_file_node_c *self = oopIfGetOwner(vfs_fatfs_file_node_c, ip);
-  msg_t msg;
-  uint8_t b;
-
-  msg = vfsFileRead((void *)self, &b, (size_t)1);
-  if (CH_RET_IS_ERROR(msg)) {
-
-    return STM_TIMEOUT;
-  }
-
-  return (msg_t)b;
-}
-/** @} */
-
-/**
  * @name        Methods implementations of vfs_fatfs_file_node_c
  * @{
  */
@@ -526,18 +439,6 @@ static int __fffile_stm_get_impl(void *ip) {
 static void *__fffile_objinit_impl(void *ip, const void *vmt,
                                    vfs_driver_c *driver, vfs_mode_t mode) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
-
-  /* Initialization of interface sequential_stream_i.*/
-  {
-    static const struct sequential_stream_vmt fffile_stm_vmt = {
-      .instance_offset      = offsetof(vfs_fatfs_file_node_c, stm),
-      .write                = __fffile_stm_write_impl,
-      .read                 = __fffile_stm_read_impl,
-      .put                  = __fffile_stm_put_impl,
-      .get                  = __fffile_stm_get_impl
-    };
-    oopIfObjectInit(&self->stm, &fffile_stm_vmt);
-  }
 
   /* Initialization code.*/
   self = __vfsfile_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);
@@ -692,20 +593,6 @@ static vfs_offset_t __fffile_getpos_impl(void *ip) {
   return (vfs_offset_t)f_tell(&self->file);
 }
 
-/**
- * @memberof    vfs_fatfs_file_node_c
- * @protected
- *
- * @brief       Override of method @p vfsFileGetStream().
- *
- * @param[in,out] ip            Pointer to a @p vfs_fatfs_file_node_c instance.
- * @return                      Pointer to the HAL stream interface.
- */
-static sequential_stream_i *__fffile_getstream_impl(void *ip) {
-  vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
-
-  return &self->stm;
-}
 /** @} */
 
 /**
@@ -721,7 +608,7 @@ static const struct vfs_fatfs_file_node_vmt __vfs_fatfs_file_node_vmt = {
   .write                    = __fffile_write_impl,
   .setpos                   = __fffile_setpos_impl,
   .getpos                   = __fffile_getpos_impl,
-  .getstream                = __fffile_getstream_impl
+  .getstream                = __vfsfile_getstream_impl
 };
 
 /**

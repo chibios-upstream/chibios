@@ -11,7 +11,7 @@
   </imports>
   <public>
     <includes>
-      <include style="regular">oop_sequential_stream.h</include>
+      <include style="regular">oop_random_stream.h</include>
       <include style="regular">lfs.h</include>
     </includes>
     <configs>
@@ -45,10 +45,10 @@
           <field name="cwd" ctype="struct vfs_littlefs_dir_node$I*">
             <brief>Current working directory node.</brief>
           </field>
-          <field name="path_cwd" ctype="char$I$N[LFS_NAME_MAX + 1]">
+          <field name="path_cwd" ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]">
             <brief>Current working directory path.</brief>
           </field>
-          <field name="scratch" ctype="char$I$N[LFS_NAME_MAX + 1]">
+          <field name="scratch1" ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]">
             <brief>Path scratch pad.</brief>
           </field>
         </fields>
@@ -192,26 +192,6 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);]]></impleme
       </class>
       <class type="regular" name="vfs_littlefs_file_node" namespace="lfsfile"
         ancestorname="vfs_file_node" descr="VFS LittleFS file node">
-        <implements>
-          <if name="sequential_stream">
-            <method shortname="write">
-              <implementation><![CDATA[
-]]></implementation>
-            </method>
-            <method shortname="read">
-              <implementation><![CDATA[
-]]></implementation>
-            </method>
-            <method shortname="put">
-              <implementation><![CDATA[
-]]></implementation>
-            </method>
-            <method shortname="get">
-              <implementation><![CDATA[
-]]></implementation>
-            </method>
-          </if>
-        </implements>
         <fields>
           <field name="file" ctype="lfs_file_t">
             <brief>LittleFS inner @p lfs_file_t structure.</brief>

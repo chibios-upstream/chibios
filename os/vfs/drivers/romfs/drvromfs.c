@@ -15,28 +15,21 @@
 */
 
 /**
- * @file        drvchfs.c
- * @brief       Generated VFS ChibiFS Driver source.
+ * @file        drvromfs.c
+ * @brief       Generated VFS ROMFS Driver source.
  * @note        This is a generated file, do not edit directly.
  *
- * @addtogroup  DRVCHFS
+ * @addtogroup  DRVROMFS
  * @{
  */
 
 #include "vfs.h"
 
-#if (VFS_CFG_ENABLE_DRV_CHFS == TRUE) || defined(__DOXYGEN__)
+#if (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
 /*===========================================================================*/
-
-#define b2(x)       (   (x) | (   (x) >> 1))
-#define b4(x)       ( b2(x) | ( b2(x) >> 2))
-#define b8(x)       ( b4(x) | ( b4(x) >> 4))
-#define b16(x)      ( b8(x) | ( b8(x) >> 8))
-#define b32(x)      (b16(x) | (b16(x) >>16))
-#define np2(x)      (b32(x-1) + 1)
 
 /*===========================================================================*/
 /* Module local macros.                                                      */
@@ -47,32 +40,32 @@
 /*===========================================================================*/
 
 /**
- * @brief       Global state of @p vfs_chfs_driver_c.
+ * @brief       Global state of @p vfs_rom_driver_c.
  */
-struct vfs_chfs_driver_static_struct vfs_chfs_driver_static;
+struct vfs_rom_driver_static_struct vfs_rom_driver_static;
 
 /*===========================================================================*/
 /* Module local types.                                                       */
 /*===========================================================================*/
 
 /**
- * @class       vfs_chfs_dir_node_c
+ * @class       vfs_rom_dir_node_c
  * @extends     vfs_directory_node_c
  *
  *
- * @name        Class @p vfs_chfs_dir_node_c structures
+ * @name        Class @p vfs_rom_dir_node_c structures
  * @{
  */
 
 /**
- * @brief       Type of a VFS ChibiFS directory node class.
+ * @brief       Type of a VFS ROMFS directory node class.
  */
-typedef struct vfs_chfs_dir_node vfs_chfs_dir_node_c;
+typedef struct vfs_rom_dir_node vfs_rom_dir_node_c;
 
 /**
- * @brief       Class @p vfs_chfs_dir_node_c virtual methods table.
+ * @brief       Class @p vfs_rom_dir_node_c virtual methods table.
  */
-struct vfs_chfs_dir_node_vmt {
+struct vfs_rom_dir_node_vmt {
   /* From base_object_c.*/
   void (*dispose)(void *ip);
   /* From referenced_object_c.*/
@@ -83,17 +76,17 @@ struct vfs_chfs_dir_node_vmt {
   /* From vfs_directory_node_c.*/
   msg_t (*first)(void *ip, vfs_direntry_info_t *dip);
   msg_t (*next)(void *ip, vfs_direntry_info_t *dip);
-  /* From vfs_chfs_dir_node_c.*/
+  /* From vfs_rom_dir_node_c.*/
 };
 
 /**
- * @brief       Structure representing a VFS ChibiFS directory node class.
+ * @brief       Structure representing a VFS ROMFS directory node class.
  */
-struct vfs_chfs_dir_node {
+struct vfs_rom_dir_node {
   /**
    * @brief       Virtual Methods Table.
    */
-  const struct vfs_chfs_dir_node_vmt *vmt;
+  const struct vfs_rom_dir_node_vmt *vmt;
   /**
    * @brief       Number of references to the object.
    */
@@ -106,27 +99,39 @@ struct vfs_chfs_dir_node {
    * @brief       Node mode information.
    */
   vfs_mode_t                mode;
+  /**
+   * @brief       Exact directory descriptor, root can be @p NULL.
+   */
+  const vfs_romfs_dir_desc_t *dir;
+  /**
+   * @brief       Next scanned directory index.
+   */
+  size_t                    next_dir;
+  /**
+   * @brief       Next scanned file index.
+   */
+  size_t                    next_file;
 };
 /** @} */
 
 /**
- * @class       vfs_chfs_file_node_c
+ * @class       vfs_rom_file_node_c
  * @extends     vfs_file_node_c
  *
  *
- * @name        Class @p vfs_chfs_file_node_c structures
+ * @name        Class @p vfs_rom_file_node_c structures
  * @{
  */
 
 /**
- * @brief       Type of a VFS ChibiFS file node class.
+ * @brief       Type of a VFS ROMFS file node class.
  */
-typedef struct vfs_chfs_file_node vfs_chfs_file_node_c;
+typedef struct vfs_rom_file_node vfs_rom_file_node_c;
 
 /**
- * @brief       Class @p vfs_chfs_file_node_c virtual methods table.
+ * @brief       Class @p vfs_rom_file_node_c virtual methods table.
  */
-struct vfs_chfs_file_node_vmt {
+struct vfs_rom_file_node_vmt {
   /* From base_object_c.*/
   void (*dispose)(void *ip);
   /* From referenced_object_c.*/
@@ -140,17 +145,17 @@ struct vfs_chfs_file_node_vmt {
   msg_t (*setpos)(void *ip, vfs_offset_t offset, vfs_seekmode_t whence);
   vfs_offset_t (*getpos)(void *ip);
   random_stream_i * (*getstream)(void *ip);
-  /* From vfs_chfs_file_node_c.*/
+  /* From vfs_rom_file_node_c.*/
 };
 
 /**
- * @brief       Structure representing a VFS ChibiFS file node class.
+ * @brief       Structure representing a VFS ROMFS file node class.
  */
-struct vfs_chfs_file_node {
+struct vfs_rom_file_node {
   /**
    * @brief       Virtual Methods Table.
    */
-  const struct vfs_chfs_file_node_vmt *vmt;
+  const struct vfs_rom_file_node_vmt *vmt;
   /**
    * @brief       Number of references to the object.
    */
@@ -167,17 +172,29 @@ struct vfs_chfs_file_node {
    * @brief       Implemented interface @p random_stream_i.
    */
   random_stream_i           rstm;
+  /**
+   * @brief       File descriptor.
+   */
+  const vfs_romfs_file_desc_t *file;
+  /**
+   * @brief       Current file position.
+   */
+  vfs_offset_t              position;
+  /**
+   * @brief       Session file size.
+   */
+  vfs_offset_t              size;
+  /**
+   * @brief       Dynamic file session pointer.
+   */
+  void                      *session;
 };
 /** @} */
 
 /**
- * @brief       Global state of @p vfs_chfs_driver_c.
+ * @brief       Global state of @p vfs_rom_driver_c.
  */
-struct vfs_chfs_driver_static_struct {
-  /**
-   * @brief       Pool of file info objects.
-   */
-  memory_pool_t             info_nodes_pool;
+struct vfs_rom_driver_static_struct {
   /**
    * @brief       Pool of directory nodes.
    */
@@ -189,23 +206,11 @@ struct vfs_chfs_driver_static_struct {
   /**
    * @brief       Static storage of directory nodes.
    */
-  vfs_chfs_dir_node_c       dir_nodes[DRV_CFG_CHFS_DIR_NODES_NUM];
+  vfs_rom_dir_node_c        dir_nodes[DRV_CFG_ROM_DIR_NODES_NUM];
   /**
    * @brief       Static storage of file nodes.
    */
-  vfs_chfs_file_node_c      file_nodes[DRV_CFG_CHFS_FILE_NODES_NUM];
-  /**
-   * @brief       Unified buffers cache.
-   */
-  objects_cache_t           cache;
-  /**
-   * @brief       Array of hash table headers.
-   */
-  oc_hash_element_t         cache_headers[np2(DRV_CFG_CHFS_CACHE_BUFFERS_NUM * 2)];
-  /**
-   * @brief       Array of cached objects.
-   */
-  oc_object_t               cache_objects[DRV_CFG_CHFS_CACHE_BUFFERS_NUM];
+  vfs_rom_file_node_c       file_nodes[DRV_CFG_ROM_FILE_NODES_NUM];
 };
 
 /*===========================================================================*/
@@ -214,8 +219,8 @@ struct vfs_chfs_driver_static_struct {
 
 /* Module code has been generated into an hand-editable file and included
    here.*/
-#include "drvchfs_impl.inc"
+#include "drvromfs_impl.inc"
 
-#endif /* VFS_CFG_ENABLE_DRV_CHFS == TRUE */
+#endif /* VFS_CFG_ENABLE_DRV_ROMFS == TRUE */
 
 /** @} */

@@ -5,6 +5,7 @@ include $(CHIBIOS)/os/common/oop/oop.mk
 
 # Required files.
 VFSSRC := $(CHIBIOS)/os/vfs/src/vfspaths.c \
+          $(CHIBIOS)/os/common/utils/src/packbits.c \
           $(CHIBIOS)/os/vfs/src/vfsparser.c \
           $(CHIBIOS)/os/vfs/src/vfsbuffers.c \
           $(CHIBIOS)/os/vfs/src/vfsdrivers.c \
@@ -14,16 +15,19 @@ VFSSRC := $(CHIBIOS)/os/vfs/src/vfspaths.c \
           $(CHIBIOS)/os/vfs/drivers/chfs/drvchfs.c \
           $(CHIBIOS)/os/vfs/drivers/fatfs/drvfatfs.c \
           $(CHIBIOS)/os/vfs/drivers/littlefs/drvlittlefs.c \
+          $(CHIBIOS)/os/vfs/drivers/romfs/drvromfs.c \
           $(CHIBIOS)/os/vfs/drivers/overlay/drvoverlay.c \
           $(CHIBIOS)/os/vfs/drivers/streams/drvstreams.c
 
 # Required include directories
 VFSINC := $(CHIBIOS)/os/common/include \
+          $(CHIBIOS)/os/common/utils/include \
           $(CHIBIOS)/os/vfs/include \
           $(CHIBIOS)/os/vfs/drivers/tmplfs \
           $(CHIBIOS)/os/vfs/drivers/chfs \
           $(CHIBIOS)/os/vfs/drivers/fatfs \
           $(CHIBIOS)/os/vfs/drivers/littlefs \
+          $(CHIBIOS)/os/vfs/drivers/romfs \
           $(CHIBIOS)/os/vfs/drivers/overlay \
           $(CHIBIOS)/os/vfs/drivers/streams
 
