@@ -122,12 +122,10 @@ thread_t *chThdObjectInit(thread_t *tp,
   tp->wabase = (void *)tdp->wbase;
   tp->waend  = (void *)tdp->wend;
 
-#if defined(PORT_SETUP_CONTEXT_BASE)
   /* Initialization of the port-dependent context fields which must be
      valid also for thread objects representing already-running execution
      flows, never going through the full creation path.*/
-  PORT_SETUP_CONTEXT_BASE(&tp->ctx);
-#endif
+  port_setup_context_base(&tp->ctx);
 
   /* Thread-related fields.*/
   tp->hdr.pqueue.prio   = tdp->prio;

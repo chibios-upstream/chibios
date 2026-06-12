@@ -747,20 +747,6 @@ struct port_context {
 #endif
 
 /**
- * @brief   Initialization of the port-dependent part of the context for
- *          threads not created through the full creation path.
- * @details This optional hook is invoked by the kernel on thread objects
- *          representing already-running execution flows (the boot thread
- *          of each instance). Only the fields which are read before being
- *          ever written by a context switch need to be initialized here.
- */
-#if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
-#define PORT_SETUP_CONTEXT_BASE(ctxp) do {                                  \
-  (ctxp)->regions = port_mpu_default_regions;                               \
-} while (false)
-#endif
-
-/**
  * @brief   Context switch area size.
  */
 #define PORT_WA_CTX_SIZE    sizeof (struct port_extctx)
@@ -1057,6 +1043,30 @@ __STATIC_FORCEINLINE void port_wait_for_interrupt(void) {
 }
 
 /**
+ * @brief   Initialization of the base part of a thread context.
+ * @details This function initializes those context fields which must be
+ *          valid also for thread objects representing already-running
+ *          execution flows (the boot thread of each instance), which do
+ *          not go through the full creation path. Only fields which are
+ *          read before being ever written by a context switch belong
+ *          here.
+ * @note    It is also invoked by @p port_setup_context() as part of the
+ *          full context initialization.
+ *
+ * @param[out] ctxp     pointer to the port-dependent context structure
+ */
+static inline void port_setup_context_base(struct port_context *ctxp) {
+
+#if PORT_SWITCHED_REGIONS_NUMBER > 0
+  /* Pointing to the default regions table, all switched regions are
+     disabled there.*/
+  ctxp->regions = port_mpu_default_regions;
+#else
+  (void)ctxp;
+#endif
+}
+
+/**
  * @brief   Platform dependent thread context setup.
  * @details This function is invoked by the thread creation APIs in order
  *          to initialize the port-dependent part of the thread context.
@@ -1070,6 +1080,8 @@ __STATIC_FORCEINLINE void port_wait_for_interrupt(void) {
 static inline void port_setup_context(struct port_context *ctxp,
                                       void *wbase, void *wtop,
                                       void (*pf)(void *), void *arg) {
+
+  port_setup_context_base(ctxp);
 
   (void)wbase;
 
@@ -1095,11 +1107,6 @@ static inline void port_setup_context(struct port_context *ctxp,
   ctxp->sp->fpscr     = FPU->FPDSCR;
 #endif
 
-#if PORT_SWITCHED_REGIONS_NUMBER > 0
-  /* Pointing to the default regions table, all switched regions are
-     disabled there.*/
-  ctxp->regions = port_mpu_default_regions;
-#endif
 }
 
 #if !defined(port_rt_get_counter_value)

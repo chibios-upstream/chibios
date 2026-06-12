@@ -477,6 +477,24 @@ static inline void port_wait_for_interrupt(void) {
 }
 
 /**
+ * @brief   Initialization of the base part of a thread context.
+ * @details This function initializes those context fields which must be
+ *          valid also for thread objects representing already-running
+ *          execution flows (the boot thread of each instance), which do
+ *          not go through the full creation path. Only fields which are
+ *          read before being ever written by a context switch belong
+ *          here.
+ * @note    It is also invoked by @p port_setup_context() as part of the
+ *          full context initialization.
+ *
+ * @param[out] ctxp     pointer to the port-dependent context structure
+ */
+static inline void port_setup_context_base(struct port_context *ctxp) {
+
+  (void)ctxp;
+}
+
+/**
  * @brief   Platform dependent thread context setup.
  * @details This function is invoked by the thread creation APIs in order
  *          to initialize the port-dependent part of the thread context.
@@ -490,6 +508,8 @@ static inline void port_wait_for_interrupt(void) {
 static inline void port_setup_context(struct port_context *ctxp,
                                       void *wbase, void *wtop,
                                       void (*pf)(void *), void *arg) {
+
+  port_setup_context_base(ctxp);
 
   (void)wbase;
 
