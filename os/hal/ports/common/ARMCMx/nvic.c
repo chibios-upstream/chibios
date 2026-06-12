@@ -150,8 +150,15 @@ void nvicSetSystemHandlerPriority(uint32_t handler, uint32_t prio) {
 
 #if defined(__CORE_CM0_H_GENERIC) || defined(__CORE_CM0PLUS_H_GENERIC) ||   \
     defined(__CORE_CM23_H_GENERIC)
-  SCB->__SHPR[_SHP_IDX(handler)] = (SCB->__SHPR[_SHP_IDX(handler)] & ~(0xFFU << _BIT_SHIFT(handler))) |
-                                   (NVIC_PRIORITY_MASK(prio) << _BIT_SHIFT(handler));
+  /* On these cores SCB->SHPR is a word array accessed through the CMSIS
+     _SHP_IDX()/_BIT_SHIFT() macros, which expect the (negative) system
+     exception number, not the positive ChibiOS handler index, so the
+     handler index is converted to the matching exception number here.*/
+  {
+    int32_t irqn = (int32_t)handler - 12;
+    SCB->__SHPR[_SHP_IDX(irqn)] = (SCB->__SHPR[_SHP_IDX(irqn)] & ~(0xFFU << _BIT_SHIFT(irqn))) |
+                                  (NVIC_PRIORITY_MASK(prio) << _BIT_SHIFT(irqn));
+  }
 #else
   SCB->__SHPR[handler] = NVIC_PRIORITY_MASK(prio);
 #endif
