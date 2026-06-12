@@ -4,6 +4,10 @@ This file tracks the current known follow-up work in `os/sb/`.
 It is not meant to be a strict roadmap; it is a grouped backlog of the
 remaining technical points across the SB subsystems.
 
+A prioritized, tiered list of the 2026-06 proposed SB improvements is
+maintained in
+[note_sb_improvement_priorities.md](note_sb_improvement_priorities.md).
+
 ## Common
 
 - Review the SB syscall namespace in `common/sbsysc.h` after the recent VETH addition and keep the fastcall/syscall split semantically strict.
