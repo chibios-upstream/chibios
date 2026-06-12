@@ -451,7 +451,9 @@ static thread_t *sb_start_unprivileged(sb_class_t *sbp,
   utp = chThdSpawnSuspended(&sbp->thread, &td);
 
 #if PORT_SWITCHED_REGIONS_NUMBER > 0
-  /* Switched-region MPU: regions are set up on switch-in.*/
+  /* Switched-region MPU: filling the per-sandbox regions table, the
+     thread context just points at it, regions are loaded on switch-in
+     when the table differs from the currently loaded one.*/
   for (unsigned i = 0U; i < PORT_SWITCHED_REGIONS_NUMBER; i++) {
     port_mpureg_t mpureg;
 
@@ -460,8 +462,16 @@ static thread_t *sb_start_unprivileged(sb_class_t *sbp,
       chThdRelease(utp);
       return NULL;
     }
-    utp->ctx.regions[i] = mpureg;
+#if !defined(PORT_ARCHITECTURE_ARM_V8M_MAINLINE)
+    /* Pre-baking the region number and the VALID bit, the context switch
+       code programs the table through the RBAR/RASR alias registers with
+       no RNR writes. Disabled regions also need this because the write
+       still selects the region to be disabled.*/
+    mpureg.rbar |= MPU_RBAR_VALID | MPU_RBAR_REGION(i);
+#endif
+    sbp->mpuregs[i] = mpureg;
   }
+  utp->ctx.regions = sbp->mpuregs;
 #endif
 
   /* The sandbox is the thread controller, note that it is done after

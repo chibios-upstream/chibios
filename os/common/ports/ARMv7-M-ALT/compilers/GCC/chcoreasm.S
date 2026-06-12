@@ -58,6 +58,23 @@
 #define MPU_RNR         0xE000ED98
 #define MPU_RBAR        0xE000ED9C
 
+/* Size of the integer context portion (sp, basepri, r4-r11, (control),
+   lr_exc), used to recover the context base address after the integer
+   context store.*/
+#if PORT_SAVE_CONTROL
+  #define CONTEXT_INTEGER_SIZE  48
+#else
+  #define CONTEXT_INTEGER_SIZE  44
+#endif
+
+/* Offset of the MPU regions table pointer within the port_context
+   structure.*/
+#if CORTEX_USE_FPU
+  #define CONTEXT_MPU_OFFSET    (CONTEXT_INTEGER_SIZE + 64)
+#else
+  #define CONTEXT_MPU_OFFSET    CONTEXT_INTEGER_SIZE
+#endif
+
                 .syntax unified
                 .cpu    cortex-m4
 #if CORTEX_USE_FPU
@@ -74,12 +91,18 @@
  *--------------------------------------------------------------------------*/
 
                 /* Store integer context through R1.
-                   On entry R2=PSP, R3=BASEPRI, R12=CONTROL.*/
+                   On entry R2=PSP, R3=BASEPRI, R12=CONTROL.
+                   On exit R5=context base address, it is meant to survive
+                   until PORT_LOAD_MPU_CONTEXT, the registers R4-R11 are
+                   free after this point.*/
                 .macro  PORT_STORE_INTEGER_CONTEXT
 #if PORT_SAVE_CONTROL
                 stmia   r1!, {r2-r12,lr}
 #else
                 stmia   r1!, {r2-r11,lr}
+#endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 0
+                sub     r5, r1, #CONTEXT_INTEGER_SIZE
 #endif
                 .endm
 
@@ -121,79 +144,38 @@
 #endif
                 .endm
 
-                /* Store MPU context through R1.*/
-                .macro  PORT_STORE_MPU_CONTEXT
-#if PORT_SWITCHED_REGIONS_NUMBER > 0
-                ldr     r2, =MPU_RBAR
-#if PORT_SWITCHED_REGIONS_NUMBER == 1
-                mov     r3, #0
-                str     r3, [r2, #-4]       /* RNR */
-                ldm     r2, {r4, r5}        /* RBAR0, RASR0 */
-                stmia   r1!, {r4-r5}
-#endif
-#if PORT_SWITCHED_REGIONS_NUMBER == 2
-                mov     r3, #0
-                str     r3, [r2, #-4]       /* RNR */
-                ldm     r2, {r4, r5}        /* RBAR0, RASR0 */
-                add     r3, #1
-                str     r3, [r2, #-4]       /* RNR */
-                ldm     r2, {r6, r7}        /* RBAR1, RASR1 */
-                stmia   r1!, {r4-r7}
-#endif
-#if PORT_SWITCHED_REGIONS_NUMBER == 3
-                mov     r3, #0
-                str     r3, [r2, #-4]       /* RNR */
-                ldm     r2, {r4, r5}        /* RBAR0, RASR0 */
-                add     r3, #1
-                str     r3, [r2, #-4]       /* RNR */
-                ldm     r2, {r6, r7}        /* RBAR1, RASR1 */
-                add     r3, #1
-                str     r3, [r2, #-4]       /* RNR */
-                ldm     r2, {r8, r9}        /* RBAR2, RASR2 */
-                stmia   r1!, {r4-r9}
-#endif
-#if PORT_SWITCHED_REGIONS_NUMBER == 4
-                mov     r3, #0
-                str     r3, [r2, #-4]       /* RNR */
-                ldm     r2, {r4, r5}        /* RBAR0, RASR0 */
-                add     r3, #1
-                str     r3, [r2, #-4]       /* RNR */
-                ldm     r2, {r6, r7}        /* RBAR1, RASR1 */
-                add     r3, #1
-                str     r3, [r2, #-4]       /* RNR */
-                ldm     r2, {r8, r9}        /* RBAR2, RASR2 */
-                add     r3, #1
-                str     r3, [r2, #-4]       /* RNR */
-                ldm     r2, {r10, r11}      /* RBAR3, RASR3 */
-                stmia   r1!, {r4-r11}
-#endif
-#endif /* PORT_SWITCHED_REGIONS_NUMBER > 0 */
-                .endm
-
-                /* Load MPU context through R0.*/
+                /* Compare and load MPU context.
+                   On entry R0=new context base, R5=old context base. The
+                   MPU is reprogrammed only when the two contexts point at
+                   different regions tables; the tables are never written
+                   back. The RBAR values in the tables carry the pre-baked
+                   VALID bit and region number, so the load is a single
+                   burst through the RBAR/RASR alias registers with no RNR
+                   writes. Clobbers R2-R11.*/
                 .macro  PORT_LOAD_MPU_CONTEXT
 #if PORT_SWITCHED_REGIONS_NUMBER > 0
-                ldr     r2, =MPU_RNR
-                mov     r1, #0
-#if PORT_SWITCHED_REGIONS_NUMBER >= 1
-                ldmia   r0!, {r3, r12}
-                stm     r2, {r1, r3, r12}   /* RNR, RBAR0, RASR0 */
+                ldr     r2, [r0, #CONTEXT_MPU_OFFSET]
+                ldr     r3, [r5, #CONTEXT_MPU_OFFSET]
+                cmp     r2, r3
+                beq     1f
+                ldr     r3, =MPU_RBAR
+#if PORT_SWITCHED_REGIONS_NUMBER == 1
+                ldm     r2, {r4, r5}        /* RBAR0, RASR0 */
+                stm     r3, {r4, r5}
 #endif
-#if PORT_SWITCHED_REGIONS_NUMBER >= 2
-                add     r1, #1
-                ldmia   r0!, {r3, r12}
-                stm     r2, {r1, r3, r12}   /* RNR, RBAR1, RASR1 */
+#if PORT_SWITCHED_REGIONS_NUMBER == 2
+                ldm     r2, {r4-r7}         /* RBAR0, RASR0 ... RBAR1, RASR1 */
+                stm     r3, {r4-r7}
 #endif
-#if PORT_SWITCHED_REGIONS_NUMBER >= 3
-                add     r1, #1
-                ldmia   r0!, {r3, r12}
-                stm     r2, {r1, r3, r12}   /* RNR, RBAR2, RASR2 */
+#if PORT_SWITCHED_REGIONS_NUMBER == 3
+                ldm     r2, {r4-r9}         /* RBAR0, RASR0 ... RBAR2, RASR2 */
+                stm     r3, {r4-r9}
 #endif
-#if PORT_SWITCHED_REGIONS_NUMBER >= 4
-                add     r1, #1
-                ldmia   r0!, {r3, r12}
-                stm     r2, {r1, r3, r12}   /* RNR, RBAR3, RASR3 */
+#if PORT_SWITCHED_REGIONS_NUMBER == 4
+                ldm     r2, {r4-r11}        /* RBAR0, RASR0 ... RBAR3, RASR3 */
+                stm     r3, {r4-r11}
 #endif
+1:
 #endif /* PORT_SWITCHED_REGIONS_NUMBER > 0 */
                 .endm
 
@@ -247,7 +229,6 @@ SVC_Handler:
                 mrs     r3, BASEPRI
                 PORT_STORE_INTEGER_CONTEXT
                 PORT_STORE_FLOAT_CONTEXT
-                PORT_STORE_MPU_CONTEXT
 
 #if CH_DBG_SYSTEM_STATE_CHECK || CH_DBG_STATISTICS || CH_CFG_SMP_MODE
                 ldr     r3, [r0, #4]        /* BASEPRI offset */
@@ -270,12 +251,12 @@ SVC_Handler:
 #endif /* CH_DBG_SYSTEM_STATE_CHECK || CH_DBG_STATISTICS || CH_CFG_SMP_MODE */
 
                 /* Context load for new thread through R0.*/
+                PORT_LOAD_MPU_CONTEXT
                 PORT_LOAD_INTEGER_CONTEXT
                 PORT_LOAD_FLOAT_CONTEXT
 #if PORT_SAVE_CONTROL
                 msr     CONTROL, r12        /* Note, after touching FPU regs.*/
 #endif
-                PORT_LOAD_MPU_CONTEXT
 
                 bx      lr
 
@@ -303,7 +284,6 @@ PendSV_Handler:
 #endif
                 PORT_STORE_INTEGER_CONTEXT
                 PORT_STORE_FLOAT_CONTEXT
-                PORT_STORE_MPU_CONTEXT
 
                 /* Context load for new thread through R0.*/
                 adds    r0, #CONTEXT_OFFSET
@@ -328,12 +308,12 @@ PendSV_Handler:
 1:
 #endif /* CH_DBG_SYSTEM_STATE_CHECK || CH_DBG_STATISTICS || CH_CFG_SMP_MODE */
 
+                PORT_LOAD_MPU_CONTEXT
                 PORT_LOAD_INTEGER_CONTEXT
                 PORT_LOAD_FLOAT_CONTEXT
 #if PORT_SAVE_CONTROL
                 msr     CONTROL, r12        /* Note, after touching FPU regs.*/
 #endif
-                PORT_LOAD_MPU_CONTEXT
 
                 bx      lr
 

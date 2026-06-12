@@ -241,6 +241,17 @@ struct sb_class {
    *          attribute @p SB_REG_ATTR_WRITABLE.
    */
   sb_memory_region_t            regions[SB_CFG_NUM_REGIONS];
+#if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
+  /**
+   * @brief   MPU regions table of this sandbox.
+   * @details All threads of this sandbox share this table, their context
+   *          points at it. Updates to this table while the sandbox is
+   *          running must also be written to the MPU registers in the
+   *          same critical section, the context switch code only compares
+   *          table pointers.
+   */
+  port_mpureg_t                 mpuregs[PORT_SWITCHED_REGIONS_NUMBER];
+#endif
   /**
    * @brief   Pointer to the memory area used for data and stack.
    * @note    The user stack pointer is assumed to stay within this area,

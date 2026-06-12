@@ -34,6 +34,30 @@
 /* Module exported variables.                                                */
 /*===========================================================================*/
 
+#if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
+/**
+ * @brief   Default MPU regions table.
+ * @details All switched regions are disabled, the static MPU
+ *          configuration applies. Threads with no specific protection
+ *          domain point at this table.
+ * @note    The region number and the VALID bit are pre-baked in the RBAR
+ *          values because the context switch code programs the table
+ *          through the RBAR/RASR alias registers.
+ */
+const port_mpureg_t port_mpu_default_regions[PORT_SWITCHED_REGIONS_NUMBER] = {
+  {MPU_RBAR_VALID | MPU_REGION_0, 0U},
+#if PORT_SWITCHED_REGIONS_NUMBER > 1
+  {MPU_RBAR_VALID | MPU_REGION_1, 0U},
+#endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 2
+  {MPU_RBAR_VALID | MPU_REGION_2, 0U},
+#endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 3
+  {MPU_RBAR_VALID | MPU_REGION_3, 0U}
+#endif
+};
+#endif
+
 /*===========================================================================*/
 /* Module local types.                                                       */
 /*===========================================================================*/

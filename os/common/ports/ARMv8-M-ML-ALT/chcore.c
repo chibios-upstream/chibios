@@ -34,6 +34,39 @@
 /* Module exported variables.                                                */
 /*===========================================================================*/
 
+#if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
+/**
+ * @brief   Default MPU regions table.
+ * @details All switched regions are disabled, the static MPU
+ *          configuration applies. Threads with no specific protection
+ *          domain point at this table.
+ */
+const port_mpureg_t port_mpu_default_regions[PORT_SWITCHED_REGIONS_NUMBER] = {
+  {0U, 0U},
+#if PORT_SWITCHED_REGIONS_NUMBER > 1
+  {0U, 0U},
+#endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 2
+  {0U, 0U},
+#endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 3
+  {0U, 0U},
+#endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 4
+  {0U, 0U},
+#endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 5
+  {0U, 0U},
+#endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 6
+  {0U, 0U},
+#endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 7
+  {0U, 0U}
+#endif
+};
+#endif
+
 /*===========================================================================*/
 /* Module local types.                                                       */
 /*===========================================================================*/

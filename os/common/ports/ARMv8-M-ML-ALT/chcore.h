@@ -128,10 +128,17 @@
 #endif
 
 /**
- * @brief   Number of MPU regions to be saved/restored during context switch.
+ * @brief   Number of MPU regions to be switched during context switch.
  * @note    The first region is always region zero.
- * @note    The use of this option has an overhead of 8 bytes for each
- *          region for each thread.
+ * @note    Each thread context holds a pointer to a regions table of
+ *          RBAR/RLAR values, tables are shared among threads of a same
+ *          protection domain. The MPU is reprogrammed only when switching
+ *          between threads pointing at different tables; threads with no
+ *          specific protection domain share a default table with all
+ *          switched regions disabled.
+ * @note    The switched regions are entirely owned by the context switch
+ *          machinery, their static initialization values are overridden
+ *          by the first table load.
  * @note    Allowed values are 0..8, zero means none.
  */
 #if !defined(PORT_SWITCHED_REGIONS_NUMBER) || defined(__DOXYGEN__)
@@ -852,7 +859,16 @@ struct port_context {
   struct port_extctx    *sp;
   struct port_intctx    regs;
 #if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
-  port_mpureg_t         regions[PORT_SWITCHED_REGIONS_NUMBER];
+  /**
+   * @brief   Pointer to the MPU regions table of this thread.
+   * @note    Threads of a same protection domain share the same table,
+   *          the context switch code only reprograms the MPU when the
+   *          table pointers differ, the table is never written back.
+   * @note    The pointed table must persist for the whole life of the
+   *          thread and any change to a table which is currently loaded
+   *          must also be written to the MPU registers by the writer.
+   */
+  const port_mpureg_t   *regions;
 #endif
 };
 
@@ -861,6 +877,20 @@ struct port_context {
 /*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/
+
+/**
+ * @brief   Initialization of the port-dependent part of the context for
+ *          threads not created through the full creation path.
+ * @details This optional hook is invoked by the kernel on thread objects
+ *          representing already-running execution flows (the boot thread
+ *          of each instance). Only the fields which are read before being
+ *          ever written by a context switch need to be initialized here.
+ */
+#if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
+#define PORT_SETUP_CONTEXT_BASE(ctxp) do {                                  \
+  (ctxp)->regions = port_mpu_default_regions;                               \
+} while (false)
+#endif
 
 /**
  * @brief   Priority level verification macro.
@@ -1005,6 +1035,9 @@ struct port_context {
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+#if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
+  extern const port_mpureg_t port_mpu_default_regions[PORT_SWITCHED_REGIONS_NUMBER];
 #endif
   void port_init(os_instance_t *oip);
   void __port_thread_start(void);
@@ -1190,11 +1223,9 @@ static inline void port_setup_context(struct port_context *ctxp,
 #endif
 
 #if PORT_SWITCHED_REGIONS_NUMBER > 0
-  /* All switched regions are initially disabled.*/
-  for (unsigned i = 0U; i < (unsigned)PORT_SWITCHED_REGIONS_NUMBER; i++) {
-    ctxp->regions[i].rbar = 0U;
-    ctxp->regions[i].rlar = 0U;
-  }
+  /* Pointing to the default regions table, all switched regions are
+     disabled there.*/
+  ctxp->regions = port_mpu_default_regions;
 #endif
 }
 
