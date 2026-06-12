@@ -105,9 +105,11 @@
  *          between threads pointing at different tables; threads with no
  *          specific protection domain share a default table with all
  *          switched regions disabled.
- * @note    The switched regions are entirely owned by the context switch
- *          machinery, their static initialization values are overridden
- *          by the first table load.
+ * @note    The switched regions are owned by the context switch machinery;
+ *          the default table honors the @p PORT_MPU_RBARx_INIT and
+ *          @p PORT_MPU_RASRx_INIT settings, so the static configuration
+ *          of the switched regions is preserved across protection-domain
+ *          crossings.
  * @note    Allowed values are 0..4, zero means none.
  */
 #if !defined(PORT_SWITCHED_REGIONS_NUMBER) || defined(__DOXYGEN__)

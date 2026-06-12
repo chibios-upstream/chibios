@@ -37,23 +37,26 @@
 #if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
 /**
  * @brief   Default MPU regions table.
- * @details All switched regions are disabled, the static MPU
- *          configuration applies. Threads with no specific protection
- *          domain point at this table.
+ * @details Threads with no specific protection domain point at this
+ *          table. It honors the @p PORT_MPU_RBARx_INIT and
+ *          @p PORT_MPU_RASRx_INIT static settings, so the static MPU
+ *          configuration of the switched regions is preserved across
+ *          protection-domain crossings; with the default settings all
+ *          switched regions are disabled.
  * @note    The region number and the VALID bit are pre-baked in the RBAR
  *          values because the context switch code programs the table
  *          through the RBAR/RASR alias registers.
  */
 const port_mpureg_t port_mpu_default_regions[PORT_SWITCHED_REGIONS_NUMBER] = {
-  {MPU_RBAR_VALID | MPU_REGION_0, 0U},
+  {PORT_MPU_RBAR0_INIT | MPU_RBAR_VALID | MPU_REGION_0, PORT_MPU_RASR0_INIT},
 #if PORT_SWITCHED_REGIONS_NUMBER > 1
-  {MPU_RBAR_VALID | MPU_REGION_1, 0U},
+  {PORT_MPU_RBAR1_INIT | MPU_RBAR_VALID | MPU_REGION_1, PORT_MPU_RASR1_INIT},
 #endif
 #if PORT_SWITCHED_REGIONS_NUMBER > 2
-  {MPU_RBAR_VALID | MPU_REGION_2, 0U},
+  {PORT_MPU_RBAR2_INIT | MPU_RBAR_VALID | MPU_REGION_2, PORT_MPU_RASR2_INIT},
 #endif
 #if PORT_SWITCHED_REGIONS_NUMBER > 3
-  {MPU_RBAR_VALID | MPU_REGION_3, 0U}
+  {PORT_MPU_RBAR3_INIT | MPU_RBAR_VALID | MPU_REGION_3, PORT_MPU_RASR3_INIT}
 #endif
 };
 #endif

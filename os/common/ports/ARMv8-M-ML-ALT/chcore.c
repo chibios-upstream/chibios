@@ -37,32 +37,35 @@
 #if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
 /**
  * @brief   Default MPU regions table.
- * @details All switched regions are disabled, the static MPU
- *          configuration applies. Threads with no specific protection
- *          domain point at this table.
+ * @details Threads with no specific protection domain point at this
+ *          table. It honors the @p PORT_MPU_RBARx_INIT and
+ *          @p PORT_MPU_RLARx_INIT static settings, so the static MPU
+ *          configuration of the switched regions is preserved across
+ *          protection-domain crossings; with the default settings all
+ *          switched regions are disabled.
  */
 const port_mpureg_t port_mpu_default_regions[PORT_SWITCHED_REGIONS_NUMBER] = {
-  {0U, 0U},
+  {PORT_MPU_RBAR0_INIT, PORT_MPU_RLAR0_INIT},
 #if PORT_SWITCHED_REGIONS_NUMBER > 1
-  {0U, 0U},
+  {PORT_MPU_RBAR1_INIT, PORT_MPU_RLAR1_INIT},
 #endif
 #if PORT_SWITCHED_REGIONS_NUMBER > 2
-  {0U, 0U},
+  {PORT_MPU_RBAR2_INIT, PORT_MPU_RLAR2_INIT},
 #endif
 #if PORT_SWITCHED_REGIONS_NUMBER > 3
-  {0U, 0U},
+  {PORT_MPU_RBAR3_INIT, PORT_MPU_RLAR3_INIT},
 #endif
 #if PORT_SWITCHED_REGIONS_NUMBER > 4
-  {0U, 0U},
+  {PORT_MPU_RBAR4_INIT, PORT_MPU_RLAR4_INIT},
 #endif
 #if PORT_SWITCHED_REGIONS_NUMBER > 5
-  {0U, 0U},
+  {PORT_MPU_RBAR5_INIT, PORT_MPU_RLAR5_INIT},
 #endif
 #if PORT_SWITCHED_REGIONS_NUMBER > 6
-  {0U, 0U},
+  {PORT_MPU_RBAR6_INIT, PORT_MPU_RLAR6_INIT},
 #endif
 #if PORT_SWITCHED_REGIONS_NUMBER > 7
-  {0U, 0U}
+  {PORT_MPU_RBAR7_INIT, PORT_MPU_RLAR7_INIT}
 #endif
 };
 #endif
