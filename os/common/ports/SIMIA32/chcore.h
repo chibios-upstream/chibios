@@ -189,30 +189,6 @@ struct port_context {
   p = (void *)((((uint32_t)(p) - (uint32_t)(mod)) & ~(uint32_t)(mask)) + (uint32_t)(mod))
 
 /**
- * @brief   Platform dependent part of the @p chThdCreateI() API.
- * @details This code usually setup the context switching frame represented
- *          by an @p port_intctx structure.
- */
-#define PORT_SETUP_CONTEXT(tp, wbase, wtop, pf, arg) {                      \
-  /*lint -save -e611 -e9033 -e9074 -e9087 [10.8, 11.1, 11.3] Valid casts.*/ \
-  uint8_t *esp = (uint8_t *)wtop;                                           \
-  APUSH(esp, 0);                                                            \
-  uint8_t *savebp = esp;                                                    \
-  AALIGN(esp, 15, 8);                                                       \
-  APUSH(esp, arg);                                                          \
-  APUSH(esp, pf);                                                           \
-  APUSH(esp, 0);                                                            \
-  esp -= sizeof(struct port_intctx);                                        \
-  ((struct port_intctx *)(void *)esp)->eip = (void *)_port_thread_start;    \
-  ((struct port_intctx *)(void *)esp)->ebx = NULL;                          \
-  ((struct port_intctx *)(void *)esp)->edi = NULL;                          \
-  ((struct port_intctx *)(void *)esp)->esi = NULL;                          \
-  ((struct port_intctx *)(void *)esp)->ebp = (void *)savebp;                \
-  (tp)->ctx.sp = (struct port_intctx *)(void *)esp;                         \
-  /*lint -restore*/                                                         \
-}
-
-/**
  * @brief   Computes the thread working area global size.
  * @note    There is no need to perform alignments in this macro.
  */
@@ -426,6 +402,42 @@ static inline void port_enable(void) {
 static inline void port_wait_for_interrupt(void) {
 
   _sim_check_for_interrupts();
+}
+
+/**
+ * @brief   Platform dependent thread context setup.
+ * @details This function is invoked by the thread creation APIs in order
+ *          to initialize the port-dependent part of the thread context.
+ *
+ * @param[out] ctxp     pointer to the port-dependent context structure
+ * @param[in] wbase     working area base address
+ * @param[in] wtop      working area top address
+ * @param[in] pf        thread function pointer
+ * @param[in] arg       thread function argument
+ */
+static inline void port_setup_context(struct port_context *ctxp,
+                                      void *wbase, void *wtop,
+                                      void (*pf)(void *), void *arg) {
+
+  /*lint -save -e611 -e9033 -e9074 -e9087 [10.8, 11.1, 11.3] Valid casts.*/
+  uint8_t *esp = (uint8_t *)wtop;
+
+  (void)wbase;
+
+  APUSH(esp, 0);
+  uint8_t *savebp = esp;
+  AALIGN(esp, 15, 8);
+  APUSH(esp, arg);
+  APUSH(esp, pf);
+  APUSH(esp, 0);
+  esp -= sizeof(struct port_intctx);
+  ((struct port_intctx *)(void *)esp)->eip = (void *)_port_thread_start;
+  ((struct port_intctx *)(void *)esp)->ebx = NULL;
+  ((struct port_intctx *)(void *)esp)->edi = NULL;
+  ((struct port_intctx *)(void *)esp)->esi = NULL;
+  ((struct port_intctx *)(void *)esp)->ebp = (void *)savebp;
+  ctxp->sp = (struct port_intctx *)(void *)esp;
+  /*lint -restore*/
 }
 
 #endif /* !defined(_FROM_ASM_) */

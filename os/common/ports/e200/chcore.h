@@ -343,20 +343,6 @@ struct port_context {
 /*===========================================================================*/
 
 /**
- * @brief   Platform dependent part of the @p chThdCreateI() API.
- * @details This code usually setup the context switching frame represented
- *          by an @p port_intctx structure.
- */
-#define PORT_SETUP_CONTEXT(tp, wbase, wtop, pf, arg) {                      \
-  uint8_t *sp = (uint8_t *)(wtop) - sizeof(struct port_eabi_frame);         \
-  ((struct port_eabi_frame *)sp)->slink = 0;                                \
-  ((struct port_eabi_frame *)sp)->shole = (uint32_t)_port_thread_start;     \
-  (tp)->ctx.sp = (struct port_intctx *)(sp - sizeof(struct port_intctx));   \
-  (tp)->ctx.sp->r31 = (regppc_t)(arg);                                      \
-  (tp)->ctx.sp->r30 = (regppc_t)(pf);                                       \
-}
-
-/**
  * @brief   Computes the thread working area global size.
  * @note    There is no need to perform alignments in this macro.
  */
@@ -669,6 +655,32 @@ static inline void port_wait_for_interrupt(void) {
 #if PPC_ENABLE_WFI_IDLE
   asm volatile ("wait" : : : "memory");
 #endif
+}
+
+/**
+ * @brief   Platform dependent thread context setup.
+ * @details This function is invoked by the thread creation APIs in order
+ *          to initialize the port-dependent part of the thread context.
+ *
+ * @param[out] ctxp     pointer to the port-dependent context structure
+ * @param[in] wbase     working area base address
+ * @param[in] wtop      working area top address
+ * @param[in] pf        thread function pointer
+ * @param[in] arg       thread function argument
+ */
+static inline void port_setup_context(struct port_context *ctxp,
+                                      void *wbase, void *wtop,
+                                      void (*pf)(void *), void *arg) {
+
+  uint8_t *sp = (uint8_t *)wtop - sizeof(struct port_eabi_frame);
+
+  (void)wbase;
+
+  ((struct port_eabi_frame *)sp)->slink = 0;
+  ((struct port_eabi_frame *)sp)->shole = (uint32_t)_port_thread_start;
+  ctxp->sp = (struct port_intctx *)(sp - sizeof(struct port_intctx));
+  ctxp->sp->r31 = (regppc_t)arg;
+  ctxp->sp->r30 = (regppc_t)pf;
 }
 
 /**

@@ -96,10 +96,6 @@
 #error "PORT_IRQ_IS_VALID_KERNEL_PRIORITY not defined in chcore.h"
 #endif
 
-#if !defined(PORT_SETUP_CONTEXT)
-#error "PORT_SETUP_CONTEXT not defined in chcore.h"
-#endif
-
 #if !defined(PORT_WA_SIZE)
 #error "PORT_WA_SIZE not defined in chcore.h"
 #endif

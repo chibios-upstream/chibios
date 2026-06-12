@@ -234,36 +234,6 @@ struct port_context {
 /*===========================================================================*/
 
 /**
- * @brief   Platform dependent part of the @p chThdCreateI() API.
- * @details This code usually setup the context switching frame represented
- *          by an @p port_intctx structure.
- */
-#if defined(__AVR_3_BYTE_PC__) || defined(__DOXYGEN__)
-#define PORT_SETUP_CONTEXT(tp, wbase, wtop, pf, arg) {                      \
-  tp->ctx.sp = (struct port_intctx *)((uint8_t *)(wtop) -                   \
-                                      sizeof(struct port_intctx));          \
-  tp->ctx.sp->r2  = (uint8_t)(0xff & (uint16_t)pf);                         \
-  tp->ctx.sp->r3  = (uint8_t)((uint16_t)(pf) >> 8);                         \
-  tp->ctx.sp->r4  = (uint8_t)(0xff & (uint16_t)arg);                        \
-  tp->ctx.sp->r5  = (uint8_t)((uint16_t)(arg) >> 8);                        \
-  tp->ctx.sp->pcx = (uint8_t)0;                                             \
-  tp->ctx.sp->pcl = (uint16_t)_port_thread_start >> 8;                      \
-  tp->ctx.sp->pch = (uint8_t)(0xff & (uint16_t)_port_thread_start);         \
-}
-#else /* !__AVR_3_BYTE_PC__ */
-#define PORT_SETUP_CONTEXT(tp, wbase, wtop, pf, arg) {                      \
-  tp->ctx.sp = (struct port_intctx *)((uint8_t *)(wtop) -                   \
-                                      sizeof(struct port_intctx));          \
-  tp->ctx.sp->r2  = (uint8_t)(0xff & (uint16_t)pf);                         \
-  tp->ctx.sp->r3  = (uint8_t)((uint16_t)(pf) >> 8);                         \
-  tp->ctx.sp->r4  = (uint8_t)(0xff & (uint16_t)arg);                        \
-  tp->ctx.sp->r5  = (uint8_t)((uint16_t)(arg) >> 8);                        \
-  tp->ctx.sp->pcl = (uint16_t)_port_thread_start >> 8;                      \
-  tp->ctx.sp->pch = (uint8_t)(0xff & (uint16_t)_port_thread_start);         \
-}
-#endif /* !__AVR_3_BYTE_PC__ */
-
-/**
  * @brief   Computes the thread working area global size.
  * @note    There is no need to perform alignments in this macro.
  */
@@ -504,6 +474,36 @@ static inline void port_wait_for_interrupt(void) {
 #if PORT_AVR_WFI_SLEEP_IDLE
   asm volatile ("sleep" : : : "memory");
 #endif
+}
+
+/**
+ * @brief   Platform dependent thread context setup.
+ * @details This function is invoked by the thread creation APIs in order
+ *          to initialize the port-dependent part of the thread context.
+ *
+ * @param[out] ctxp     pointer to the port-dependent context structure
+ * @param[in] wbase     working area base address
+ * @param[in] wtop      working area top address
+ * @param[in] pf        thread function pointer
+ * @param[in] arg       thread function argument
+ */
+static inline void port_setup_context(struct port_context *ctxp,
+                                      void *wbase, void *wtop,
+                                      void (*pf)(void *), void *arg) {
+
+  (void)wbase;
+
+  ctxp->sp = (struct port_intctx *)((uint8_t *)wtop -
+                                    sizeof(struct port_intctx));
+  ctxp->sp->r2  = (uint8_t)(0xff & (uint16_t)pf);
+  ctxp->sp->r3  = (uint8_t)((uint16_t)pf >> 8);
+  ctxp->sp->r4  = (uint8_t)(0xff & (uint16_t)arg);
+  ctxp->sp->r5  = (uint8_t)((uint16_t)arg >> 8);
+#if defined(__AVR_3_BYTE_PC__)
+  ctxp->sp->pcx = (uint8_t)0;
+#endif
+  ctxp->sp->pcl = (uint16_t)_port_thread_start >> 8;
+  ctxp->sp->pch = (uint8_t)(0xff & (uint16_t)_port_thread_start);
 }
 
 /**

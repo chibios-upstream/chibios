@@ -784,7 +784,7 @@ thread_t *chThdCreateI(const thread_descriptor_t *tdp) {
 #endif
 
   /* Port dependent thread initialization.*/
-  PORT_SETUP_CONTEXT(tp, tdp->wbase, tdp->wend, tdp->funcp, tdp->arg);
+  port_setup_context(&tp->ctx, tdp->wbase, tdp->wend, tdp->funcp, tdp->arg);
 
   /* Initialization hook.*/
   CH_CFG_THREAD_EXT_INIT_HOOK(tp);

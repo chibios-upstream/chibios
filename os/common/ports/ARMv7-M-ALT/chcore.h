@@ -731,91 +731,6 @@ struct port_context {
 #endif
 
 /**
- * @brief   Initialization of CONTROL part of thread context.
- */
-#if (PORT_SAVE_CONTROL == TRUE) || defined(__DOXYGEN__)
-  #if (CORTEX_USE_FPU == TRUE) || defined(__DOXYGEN__)
-    #define __PORT_SETUP_CONTEXT_CONTROL(tp)                                \
-      (tp)->ctx.regs.control          = CONTROL_FPCA_Msk
-  #else
-    #define __PORT_SETUP_CONTEXT_CONTROL(tp)                                \
-      (tp)->ctx.regs.control          = 0U
-  #endif
-#else
-  #define __PORT_SETUP_CONTEXT_CONTROL(tp)
-#endif
-
-/**
- * @brief   Initialization of FPU part of thread context.
- * @note    The value of FPDSCR is used, it is meant to be the default.
- */
-#if (CORTEX_USE_FPU == TRUE) || defined(__DOXYGEN__)
-  #define __PORT_SETUP_CONTEXT_FPU(tp)                                      \
-    (tp)->ctx.sp->fpscr               = FPU->FPDSCR
-#else
-  #define __PORT_SETUP_CONTEXT_FPU(tp)
-#endif
-
-/**
- * @brief   Initialization of MPU part of thread context.
- */
-#if (PORT_SWITCHED_REGIONS_NUMBER == 0) || defined(__DOXYGEN__)
-  #define __PORT_SETUP_CONTEXT_MPU(tp)
-
-#elif (PORT_SWITCHED_REGIONS_NUMBER == 1) || defined(__DOXYGEN__)
-  #define __PORT_SETUP_CONTEXT_MPU(tp)                                      \
-    (tp)->ctx.regions[0].rbar   = 0U;                                       \
-    (tp)->ctx.regions[0].rasr   = 0U
-
-#elif (PORT_SWITCHED_REGIONS_NUMBER == 2) || defined(__DOXYGEN__)
-  #define __PORT_SETUP_CONTEXT_MPU(tp)                                      \
-    (tp)->ctx.regions[0].rbar   = 0U;                                       \
-    (tp)->ctx.regions[0].rasr   = 0U;                                       \
-    (tp)->ctx.regions[1].rbar   = 0U;                                       \
-    (tp)->ctx.regions[1].rasr   = 0U
-
-#elif (PORT_SWITCHED_REGIONS_NUMBER == 3) || defined(__DOXYGEN__)
-  #define __PORT_SETUP_CONTEXT_MPU(tp)                                      \
-    (tp)->ctx.regions[0].rbar   = 0U;                                       \
-    (tp)->ctx.regions[0].rasr   = 0U;                                       \
-    (tp)->ctx.regions[1].rbar   = 0U;                                       \
-    (tp)->ctx.regions[1].rasr   = 0U;                                       \
-    (tp)->ctx.regions[2].rbar   = 0U;                                       \
-    (tp)->ctx.regions[2].rasr   = 0U
-
-#elif (PORT_SWITCHED_REGIONS_NUMBER == 4) || defined(__DOXYGEN__)
-  #define __PORT_SETUP_CONTEXT_MPU(tp)                                      \
-    (tp)->ctx.regions[0].rbar   = 0U;                                       \
-    (tp)->ctx.regions[0].rasr   = 0U;                                       \
-    (tp)->ctx.regions[1].rbar   = 0U;                                       \
-    (tp)->ctx.regions[1].rasr   = 0U;                                       \
-    (tp)->ctx.regions[2].rbar   = 0U;                                       \
-    (tp)->ctx.regions[2].rasr   = 0U;                                       \
-    (tp)->ctx.regions[3].rbar   = 0U;                                       \
-    (tp)->ctx.regions[3].rasr   = 0U
-
-#else
-  /* Note, checked above.*/
-#endif
-
-/**
- * @brief   Platform dependent part of the thread creation API.
- */
-#define PORT_SETUP_CONTEXT(tp, wbase, wtop, pf, arg) do {                   \
-  (tp)->ctx.sp = (struct port_extctx *)(void *)                             \
-                 ((uint8_t *)(wtop) - sizeof (struct port_extctx));         \
-  (tp)->ctx.regs.basepri    = CORTEX_BASEPRI_KERNEL;                        \
-  (tp)->ctx.regs.r4         = (uint32_t)(pf);                               \
-  (tp)->ctx.regs.r5         = (uint32_t)(arg);                              \
-  (tp)->ctx.regs.lr_exc     = (uint32_t)CORTEX_EXC_RETURN;                  \
-  (tp)->ctx.sp->pc          = (uint32_t)__port_thread_start;                \
-  (tp)->ctx.sp->xpsr        = (uint32_t)0x01000000;                         \
-  __PORT_SETUP_CONTEXT_CONTROL(tp);                                         \
-  __PORT_SETUP_CONTEXT_FPU(tp);                                             \
-  __PORT_SETUP_CONTEXT_MPU(tp);                                             \
-} while (false)
-
-/**
  * @brief   Context switch area size.
  */
 #define PORT_WA_CTX_SIZE    sizeof (struct port_extctx)
@@ -1105,6 +1020,54 @@ __STATIC_FORCEINLINE void port_wait_for_interrupt(void) {
 
 #if PORT_ENABLE_WFI_IDLE == TRUE
   __WFI();
+#endif
+}
+
+/**
+ * @brief   Platform dependent thread context setup.
+ * @details This function is invoked by the thread creation APIs in order
+ *          to initialize the port-dependent part of the thread context.
+ *
+ * @param[out] ctxp     pointer to the port-dependent context structure
+ * @param[in] wbase     working area base address
+ * @param[in] wtop      working area top address
+ * @param[in] pf        thread function pointer
+ * @param[in] arg       thread function argument
+ */
+static inline void port_setup_context(struct port_context *ctxp,
+                                      void *wbase, void *wtop,
+                                      void (*pf)(void *), void *arg) {
+
+  (void)wbase;
+
+  ctxp->sp = (struct port_extctx *)(void *)((uint8_t *)wtop -
+                                            sizeof (struct port_extctx));
+  ctxp->regs.basepri  = CORTEX_BASEPRI_KERNEL;
+  ctxp->regs.r4       = (uint32_t)pf;
+  ctxp->regs.r5       = (uint32_t)arg;
+  ctxp->regs.lr_exc   = (uint32_t)CORTEX_EXC_RETURN;
+  ctxp->sp->pc        = (uint32_t)__port_thread_start;
+  ctxp->sp->xpsr      = (uint32_t)0x01000000;
+
+#if PORT_SAVE_CONTROL == TRUE
+#if CORTEX_USE_FPU == TRUE
+  ctxp->regs.control  = CONTROL_FPCA_Msk;
+#else
+  ctxp->regs.control  = 0U;
+#endif
+#endif
+
+#if CORTEX_USE_FPU == TRUE
+  /* The initial FPSCR value is taken from FPDSCR, it is the default.*/
+  ctxp->sp->fpscr     = FPU->FPDSCR;
+#endif
+
+#if PORT_SWITCHED_REGIONS_NUMBER > 0
+  /* All switched regions are initially disabled.*/
+  for (unsigned i = 0U; i < (unsigned)PORT_SWITCHED_REGIONS_NUMBER; i++) {
+    ctxp->regions[i].rbar = 0U;
+    ctxp->regions[i].rasr = 0U;
+  }
 #endif
 }
 

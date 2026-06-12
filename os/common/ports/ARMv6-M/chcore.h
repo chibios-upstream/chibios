@@ -350,19 +350,6 @@ struct port_context {
 #define PORT_THD_FUNCTION(tname, arg) void tname(void *arg)
 
 /**
- * @brief   Platform dependent part of the @p chThdCreateI() API.
- * @details This code usually setup the context switching frame represented
- *          by an @p port_intctx structure.
- */
-#define PORT_SETUP_CONTEXT(tp, wbase, wtop, pf, arg) do {                   \
-  (tp)->ctx.sp = (struct port_intctx *)(void *)                             \
-                   ((uint8_t *)(wtop) - sizeof (struct port_intctx));       \
-  (tp)->ctx.sp->r4 = (uint32_t)(pf);                                        \
-  (tp)->ctx.sp->r5 = (uint32_t)(arg);                                       \
-  (tp)->ctx.sp->lr = (uint32_t)__port_thread_start;                         \
-} while (false)
-
-/**
  * @brief   Computes the thread working area global size.
  * @note    There is no need to perform alignments in this macro.
  */
@@ -667,6 +654,30 @@ static inline void port_wait_for_interrupt(void) {
 #if CORTEX_ENABLE_WFI_IDLE == TRUE
   __WFI();
 #endif
+}
+
+/**
+ * @brief   Platform dependent thread context setup.
+ * @details This function is invoked by the thread creation APIs in order
+ *          to initialize the port-dependent part of the thread context.
+ *
+ * @param[out] ctxp     pointer to the port-dependent context structure
+ * @param[in] wbase     working area base address
+ * @param[in] wtop      working area top address
+ * @param[in] pf        thread function pointer
+ * @param[in] arg       thread function argument
+ */
+static inline void port_setup_context(struct port_context *ctxp,
+                                      void *wbase, void *wtop,
+                                      void (*pf)(void *), void *arg) {
+
+  (void)wbase;
+
+  ctxp->sp = (struct port_intctx *)(void *)((uint8_t *)wtop -
+                                            sizeof (struct port_intctx));
+  ctxp->sp->r4 = (uint32_t)pf;
+  ctxp->sp->r5 = (uint32_t)arg;
+  ctxp->sp->lr = (uint32_t)__port_thread_start;
 }
 
 #endif /* !defined(_FROM_ASM_) */

@@ -489,69 +489,6 @@ struct port_context {
 #define PORT_THD_FUNCTION(tname, arg) void tname(void *arg)
 
 /**
- * @brief   Initialization of stack check part of thread context.
- */
-#if (CH_DBG_ENABLE_STACK_CHECK == TRUE) || defined(__DOXYGEN__)
-#define PORT_SETUP_CONTEXT_SPLIM(tp, wbase)                                 \
-  (tp)->ctx.splim = (uint32_t)(wbase)
-#else
-#define PORT_SETUP_CONTEXT_SPLIM(tp, wbase)
-#endif
-
-/**
- * @brief   Initialization of FPU part of thread context.
- */
-#if (CORTEX_USE_FPU == TRUE) || defined(__DOXYGEN__)
-#define PORT_SETUP_CONTEXT_FPU(tp)                                          \
-  (tp)->ctx.sp->fpscr = (uint32_t)0
-#else
-#define PORT_SETUP_CONTEXT_FPU(tp)
-#endif
-
-/**
- * @brief   Initialization of MPU part of thread context.
- */
-#if (PORT_SWITCHED_REGIONS_NUMBER == 0) || defined(__DOXYGEN__)
-#define PORT_SETUP_CONTEXT_MPU(tp)
-#else
-#define PORT_SETUP_CONTEXT_MPU(tp)
-#endif
-
-/**
- * @brief   Initialization of BASEPRI_NS part of thread context.
- * @note    All secure threads have BASEPRI_NS set to mask PendSV, this
- *          way a guest RTOS cannot reschedule while a secure thread
- *          is running, reschedule is delayed to when the non-secure
- *          thread running the guest is activated again.
- */
-#if (PORT_KERNEL_MODE == PORT_KERNEL_MODE_HOST)  || defined(__DOXYGEN__)
-#define PORT_SETUP_CONTEXT_BASEPRI_NS(tp)                                   \
-  (tp)->ctx.basepri_ns = (uint32_t)CORTEX_PRIO_MASK(CORTEX_MINIMUM_PRIORITY)
-#else
-#define PORT_SETUP_CONTEXT_BASEPRI_NS(tp)
-#endif
-
-/**
- * @brief   Platform dependent part of the @p chThdCreateI() API.
- * @details This code usually setup the context switching frame represented
- *          by an @p port_intctx structure.
- */
-#define PORT_SETUP_CONTEXT(tp, wbase, wtop, pf, arg) do {                   \
-  PORT_SETUP_CONTEXT_BASEPRI_NS(tp);                                        \
-  (tp)->ctx.sp = (struct port_intctx *)(void *)                             \
-                   ((uint8_t *)(wtop) - sizeof (struct port_intctx));       \
-  (tp)->ctx.basepri     = CORTEX_BASEPRI_KERNEL;                            \
-  (tp)->ctx.r5          = (uint32_t)(arg);                                  \
-  (tp)->ctx.r4          = (uint32_t)(pf);                                   \
-  PORT_SETUP_CONTEXT_SPLIM(tp, wbase);                                      \
-  (tp)->ctx.lr_exc      = (uint32_t)PORT_EXC_RETURN;                        \
-  (tp)->ctx.sp->pc      = (uint32_t)__port_thread_start;                    \
-  (tp)->ctx.sp->xpsr    = (uint32_t)0x01000000;                             \
-  PORT_SETUP_CONTEXT_FPU(tp);                                               \
-  PORT_SETUP_CONTEXT_MPU(tp);                                               \
-} while (false)
-
-/**
  * @brief   Computes the thread working area global size.
  * @note    There is no need to perform alignments in this macro.
  */
@@ -781,6 +718,46 @@ __STATIC_FORCEINLINE void port_wait_for_interrupt(void) {
 
 #if CORTEX_ENABLE_WFI_IDLE == TRUE
   __WFI();
+#endif
+}
+
+/**
+ * @brief   Platform dependent thread context setup.
+ * @details This function is invoked by the thread creation APIs in order
+ *          to initialize the port-dependent part of the thread context.
+ *
+ * @param[out] ctxp     pointer to the port-dependent context structure
+ * @param[in] wbase     working area base address
+ * @param[in] wtop      working area top address
+ * @param[in] pf        thread function pointer
+ * @param[in] arg       thread function argument
+ */
+static inline void port_setup_context(struct port_context *ctxp,
+                                      void *wbase, void *wtop,
+                                      void (*pf)(void *), void *arg) {
+
+#if PORT_KERNEL_MODE == PORT_KERNEL_MODE_HOST
+  /* All secure threads have BASEPRI_NS set to mask PendSV, this way a
+     guest RTOS cannot reschedule while a secure thread is running,
+     reschedule is delayed to when the non-secure thread running the
+     guest is activated again.*/
+  ctxp->basepri_ns = (uint32_t)CORTEX_PRIO_MASK(CORTEX_MINIMUM_PRIORITY);
+#endif
+  ctxp->sp = (struct port_intctx *)(void *)((uint8_t *)wtop -
+                                            sizeof (struct port_intctx));
+  ctxp->basepri     = CORTEX_BASEPRI_KERNEL;
+  ctxp->r5          = (uint32_t)arg;
+  ctxp->r4          = (uint32_t)pf;
+#if CH_DBG_ENABLE_STACK_CHECK == TRUE
+  ctxp->splim       = (uint32_t)wbase;
+#else
+  (void)wbase;
+#endif
+  ctxp->lr_exc      = (uint32_t)PORT_EXC_RETURN;
+  ctxp->sp->pc      = (uint32_t)__port_thread_start;
+  ctxp->sp->xpsr    = (uint32_t)0x01000000;
+#if CORTEX_USE_FPU == TRUE
+  ctxp->sp->fpscr   = (uint32_t)0;
 #endif
 }
 
