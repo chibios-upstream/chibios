@@ -251,8 +251,8 @@ void uart_lld_stop(UARTDriver *uartp) {
 void uart_lld_start_send(UARTDriver *uartp, size_t n, const void *txbuf) {
 
   /* The RP PL011 UART has no transmission-complete interrupt; physical end
-     of transmission cannot be detected without polling BUSY. The txend2_cb
-     callback is therefore unsupported on this LLD.*/
+     of transmission cannot be detected without polling BUSY. txend2_cb and
+     uartSendFullTimeout() are therefore unsupported on this LLD.*/
   osalDbgAssert(uartp->config->txend2_cb == NULL,
                 "txend2_cb not supported on RP UARTv1");
 
@@ -416,23 +416,23 @@ void uart_lld_serve_interrupt(UARTDriver *uartp) {
       /* Disable TX interrupt.*/
       uartp->uart->UARTIMSC &= ~UART_UARTIMSC_TXIM;
 
-#if UART_USE_WAIT == TRUE
-      /* The uartSendFullTimeout() API (early == false) waits for the
-         physical end of transmission, which this LLD cannot signal — its
-         waiter would never be resumed. The asynchronous uartStartSend()
-         has no waiter (threadtx == NULL) and is fully supported; this
-         guard fires only on the unsupported uartSendFullTimeout() case.*/
+  #if UART_USE_WAIT == TRUE
+      /* Unsupported late-completion path detection must happen here, when
+        a thread is actually waiting. Checking this in start_send() cannot
+        catch uartSendFullTimeout(), because threadtx is not yet suspended.*/
       osalDbgAssert((uartp->early == true) || (uartp->threadtx == NULL),
-                    "uartSendFullTimeout not supported on RP UARTv1");
-#endif
+                "uartSendFullTimeout not supported on RP UARTv1");
+  #endif
 
       /* Buffer transmit complete callback.*/
       _uart_tx1_isr_code(uartp);
 
-      /* The physical end of transmission (txend2_cb, uartSendFullTimeout)
-         is not signalled: the PL011 has no transmission-complete interrupt
-         and polling BUSY from the ISR is prohibited. Both are rejected by
-         assertions; see the notes in hal_uart_lld.h.*/
+      /* Physical end of transmission (txend2_cb / uartSendFullTimeout) is
+         not supported on this LLD because the RP PL011 UART provides no
+         transmission-complete interrupt and polling BUSY from an ISR is
+         prohibited.  Callers must not configure txend2_cb or use
+         uartSendFullTimeout(); txend2_cb is rejected at submission time and
+         uartSendFullTimeout() is rejected at completion time by assertions.*/
     }
   }
 

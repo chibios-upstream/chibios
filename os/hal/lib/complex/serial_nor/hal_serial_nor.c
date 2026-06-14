@@ -746,7 +746,7 @@ void snorStart(SNORDriver *devp, const SNORConfig *config) {
     /* Bus release.*/
     bus_release(devp->config->busp);
   }
-} 
+}
 
 /**
  * @brief   Deactivates the SNOR driver.

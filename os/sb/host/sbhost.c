@@ -255,7 +255,6 @@ static bool get_mpu_settings(const sb_memory_region_t *mrp,
     return true;
   }
 
-
   /* MPU registers base settings.*/
   mpur->rbar = (area_base & MPU_RBAR_BASE_MASK) | MPU_RBAR_SH_OUTER;
   mpur->rlar = ((area_end - 1U) & MPU_RLAR_LIMIT_MASK) | MPU_RLAR_ENABLE;

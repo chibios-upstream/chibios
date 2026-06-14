@@ -89,6 +89,11 @@ ifdef SREC
   OUTFILES += $(BUILDDIR)/$(PROJECT).srec
 endif
 
+# Additional output files, the ADDITIONAL_OUTFILES variable can be populated
+# by makefiles included before this one, the listed files are built as part
+# of the "all" target using user-provided rules.
+ADDITIONAL_OUTFILES ?=
+
 # Source files groups and paths
 SRC      := $(CSRC) $(CPPSRC)
 SRCPATHS += $(sort $(dir $(ASMXSRC)) $(dir $(ASMSRC)) $(dir $(SRC)))
@@ -143,7 +148,8 @@ VPATH     = $(SRCPATHS)
 # Makefile rules
 #
 
-all: PRE_MAKE_ALL_RULE_HOOK $(OBJS) $(OUTFILES) POST_MAKE_ALL_RULE_HOOK
+all: PRE_MAKE_ALL_RULE_HOOK $(OBJS) $(OUTFILES) \
+     $(ADDITIONAL_OUTFILES) POST_MAKE_ALL_RULE_HOOK
 
 PRE_MAKE_ALL_RULE_HOOK:
 

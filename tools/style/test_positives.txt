@@ -63,3 +63,4 @@ a ^^b
 /*Comment*/
 /* comment*/
 /* Comment. */
+x =y; foo("z");

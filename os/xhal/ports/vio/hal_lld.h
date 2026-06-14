@@ -34,7 +34,7 @@
 /**
  * @brief   Specifies implementation of dynamic clock management.
  */
-/*#define HAL_LLD_USE_CLOCK_MANAGEMENT*/
+/* #define HAL_LLD_USE_CLOCK_MANAGEMENT*/
 
 /**
  * @name    Platform identification macros

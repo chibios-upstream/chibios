@@ -14,6 +14,5 @@
     limitations under the License.
 */
 
-
 extern uint8_t __heap_base__;
 extern uint8_t *__sbrk_next;

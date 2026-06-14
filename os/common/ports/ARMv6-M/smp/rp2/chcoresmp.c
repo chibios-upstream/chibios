@@ -136,7 +136,7 @@ void __port_smp_init(os_instance_t *oip) {
   port_timer_enable(oip);
 #endif
 
-#if CH_CFG_SMP_MODE== TRUE
+#if CH_CFG_SMP_MODE == TRUE
   /* FIFO handlers for each core.*/
   SIO->FIFO_ST = SIO_FIFO_ST_ROE | SIO_FIFO_ST_WOF;
   if (oip->core_id == 0U) {

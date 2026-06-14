@@ -108,7 +108,6 @@
 /* Inclusion of the Cortex-Mx implementation specific parameters.*/
 #include "cmparams.h"
 
-
 /**
  * @name    Kernel modes
  * @{

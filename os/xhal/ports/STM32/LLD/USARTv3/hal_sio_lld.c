@@ -625,7 +625,7 @@ const hal_sio_config_t *sio_lld_selcfg(SIODriver *siop,
   return (const void *)sio_lld_setcfg(siop, &sio_configurations.cfgs[cfgnum]);
 #else
 
-  if (cfgnum > 0U){
+  if (cfgnum > 0U) {
     return NULL;
   }
 

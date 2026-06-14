@@ -1499,7 +1499,7 @@
     (STM32_SPI4SEL      == RCC_CCIPR3_SPI4SEL_PLL2P)     ||                 \
     (STM32_SPI5SEL      == RCC_CCIPR3_SPI5SEL_PLL2P)     ||                 \
     (STM32_SPI6SEL      == RCC_CCIPR3_SPI6SEL_PLL2P)     ||                 \
-    (STM32_OSPISEL      == RCC_CCIPR4_OSPISEL_PLL2R )    ||                 \
+    (STM32_OSPISEL      == RCC_CCIPR4_OSPISEL_PLL2R)     ||                 \
     (STM32_SDMMC1SEL    == RCC_CCIPR4_SDMMC1SEL_PLL2R)   ||                 \
     (STM32_SDMMC2SEL    == RCC_CCIPR4_SDMMC2SEL_PLL2R)   ||                 \
     (STM32_ADCDACSEL    == RCC_CCIPR5_ADCDACSEL_PLL2R)   ||                 \

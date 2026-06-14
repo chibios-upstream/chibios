@@ -486,7 +486,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
       rccResetSPI1();
 
 #if STM32_SPI1_FULL_FEATURE == FALSE
-      osalDbgAssert((dsize == 8U) || (dsize ==16U), "invalid frame size");
+      osalDbgAssert((dsize == 8U) || (dsize == 16U), "invalid frame size");
 #endif
     }
 #endif
@@ -505,7 +505,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
       rccResetSPI2();
 
 #if STM32_SPI2_FULL_FEATURE == FALSE
-      osalDbgAssert((dsize == 8U) || (dsize ==16U), "invalid frame size");
+      osalDbgAssert((dsize == 8U) || (dsize == 16U), "invalid frame size");
 #endif
 }
 #endif
@@ -524,7 +524,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
       rccResetSPI3();
 
 #if STM32_SPI3_FULL_FEATURE == FALSE
-      osalDbgAssert((dsize == 8U) || (dsize ==16U), "invalid frame size");
+      osalDbgAssert((dsize == 8U) || (dsize == 16U), "invalid frame size");
 #endif
     }
 #endif
@@ -543,7 +543,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
       rccResetSPI4();
 
 #if STM32_SPI4_FULL_FEATURE == FALSE
-      osalDbgAssert((dsize == 8U) || (dsize ==16U), "invalid frame size");
+      osalDbgAssert((dsize == 8U) || (dsize == 16U), "invalid frame size");
 #endif
     }
 #endif
@@ -562,7 +562,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
       rccResetSPI5();
 
 #if STM32_SPI5_FULL_FEATURE == FALSE
-      osalDbgAssert((dsize == 8U) || (dsize ==16U), "invalid frame size");
+      osalDbgAssert((dsize == 8U) || (dsize == 16U), "invalid frame size");
 #endif
     }
 #endif
@@ -581,7 +581,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
       rccResetSPI6();
 
 #if STM32_SPI6_FULL_FEATURE == FALSE
-      osalDbgAssert((dsize == 8U) || (dsize ==16U), "invalid frame size");
+      osalDbgAssert((dsize == 8U) || (dsize == 16U), "invalid frame size");
 #endif
     }
 #endif

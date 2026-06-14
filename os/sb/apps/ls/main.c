@@ -207,7 +207,7 @@ static char *new_path(char *path) {
   return p;
 }
 
-static bool dostat( struct dirlist *dlp, struct diritem *dip) {
+static bool dostat(struct dirlist *dlp, struct diritem *dip) {
   struct stat stb;
   char *path;
 
@@ -297,7 +297,7 @@ static void build_list_from_args(char *argv[], struct dirlist **dlpp) {
 
   while (*argv != NULL) {
     char *p = *argv++;
-    struct diritem *dip = dirlist_add(dlpp,p);
+    struct diritem *dip = dirlist_add(dlpp, p);
 
     if (ignore_item(p)) {
       dirlist_undo(dlpp);
@@ -342,7 +342,7 @@ static void build_list_from_path(char *path, struct dirlist **dlpp) {
         dirlist_undo(dlpp);
       }
     }
-    else{
+    else {
       switch (dep->d_type) {
       case DT_LNK:
         dip->ftype = 'l';

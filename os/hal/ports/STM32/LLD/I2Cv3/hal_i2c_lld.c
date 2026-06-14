@@ -365,7 +365,7 @@ static void i2c_lld_serve_interrupt(I2CDriver *i2cp, uint32_t isr) {
       if (i2cp->state == I2C_ACTIVE_TX) {
         if (((isr & I2C_ISR_DIR) != 0U) && ((isr & I2C_ISR_TXIS) != 0U)) {
           /* Next interrupt is STOP. */
-          return ;
+          return;
         }
       }
     }

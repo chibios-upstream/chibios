@@ -275,7 +275,7 @@ bool can_lld_start(CANDriver *canp) {
   if (canp->config->op_mode == OPMODE_FDCAN) {
     canp->word_size = FDCAN_SIZE_RAM_WORDS;
   }
-  else if(canp->config->op_mode == OPMODE_CAN) {
+  else if (canp->config->op_mode == OPMODE_CAN) {
     canp->word_size = CAN_SIZE_RAM_WORDS;
   }
   else {
