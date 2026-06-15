@@ -94,12 +94,13 @@ size_t sb_check_string(sb_class_t *sbp, const char *s, size_t max) {
 
 /*
  * Copies a guest string into a privileged buffer in a single pass.
- * Returns the copied length including the terminator, zero on failure.
+ * Returns strlen(dst) + 1 on success, zero on failure.
  */
 size_t sb_copy_string(sb_class_t *sbp, const char *src, char *dst, size_t max) {
   const sb_memory_region_t *rp = &sbp->regions[0];
 
   if (max == (size_t)0) {
+    /* String crosses the region boundary or exceeds max without terminator.*/
     return (size_t)0;
   }
 

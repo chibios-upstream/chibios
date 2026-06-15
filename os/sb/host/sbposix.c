@@ -51,16 +51,13 @@
 /*===========================================================================*/
 
 /*
- * Copies a guest path into one of the private per-sandbox path buffers.
+ * Copies a guest path into pathbuf[slot], slot in range 0..1.
+ * Returns the copied buffer on success, NULL on validation failure.
  */
 static char *sb_io_copy_path(sb_class_t *sbp, const char *path, unsigned slot) {
   char *pathbuf;
 
   chDbgAssert(slot < 2U, "invalid slot");
-
-  if (slot >= 2U) {
-    return NULL;
-  }
 
   pathbuf = sbp->io.pathbuf[slot];
   if (sb_copy_string(sbp, path, pathbuf, VFS_CFG_PATHLEN_MAX + 1U) == (size_t)0) {
