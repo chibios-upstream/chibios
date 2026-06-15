@@ -81,6 +81,11 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: RP2040 early (pre-XOSC) tick generator was configured with a divisor of
+       1 instead of clk/1MHz, so the boot-time microsecond tick ran about six
+       times too fast until clk_ref switched to the XOSC (the post-switch
+       reconfiguration was already correct). The RP2350 path was already
+       correct, a redundant semicolon was removed there (github PR #35).
 - FIX: STM32U3 RTC was completely non-functional - the driver hung at boot in
        rtc_enter_init() waiting for INITF. The RTC APB clock was never enabled:
        hal_lld guarded it on defined(RCC_APB3ENR_RTCAPBEN) (the STM32H5/U5
