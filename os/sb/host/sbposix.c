@@ -53,6 +53,10 @@
 static char *sb_io_copy_path(sb_class_t *sbp, const char *path, unsigned slot) {
   char *pathbuf;
 
+  if (slot >= 2U) {
+    return NULL;
+  }
+
   pathbuf = sbp->io.pathbuf[slot];
   if (sb_copy_string(sbp, path, pathbuf, VFS_CFG_PATHLEN_MAX + 1U) == (size_t)0) {
     return NULL;

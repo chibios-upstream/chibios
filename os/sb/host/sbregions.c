@@ -24,8 +24,6 @@
  * @{
  */
 
-#include <string.h>
-
 #include "sb.h"
 
 /*===========================================================================*/
@@ -104,19 +102,27 @@ size_t sb_copy_string(sb_class_t *sbp, const char *src, char *dst, size_t max) {
   do {
     if (sb_reg_is_memory(rp) &&
         chMemIsSpaceWithinX(&rp->area, src, (size_t)1)) {
+      const char *srcp;
+      char *dstp;
       const uint8_t *srcend;
       size_t n;
-      void *nullp;
 
+      srcp = src;
+      dstp = dst;
       srcend = rp->area.base + rp->area.size;
       n = (size_t)(srcend - (const uint8_t *)src);
       if (n > max) {
         n = max;
       }
-      memcpy(dst, src, n);
-      nullp = memchr(dst, 0, n);
-      if (nullp != NULL) {
-        return (size_t)(((char *)nullp - dst) + 1);
+      while (n > (size_t)0) {
+        char c;
+
+        c = *srcp++;
+        *dstp++ = c;
+        if (c == '\0') {
+          return (size_t)(dstp - dst);
+        }
+        n--;
       }
 
       return (size_t)0;
