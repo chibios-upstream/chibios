@@ -45,6 +45,8 @@
 - `tools/updater` scripts share temporary files, so do not run them in parallel; regenerate sequentially.
 
 ## Repository
-- Repository is subversion, ignore .svn directory, do not use git commands.
+- Repository is git, hosted at github.com/chibios-upstream/chibios. Use git commands; there is no `.svn` directory.
+- `ext` and `tools/ftl` are git submodules (relative URLs). Run `git submodule update --init --recursive` after cloning, or the template/codegen paths under `tools/ftl` will be empty.
+- Branch model: `main` plus `stable-*` maintenance branches; releases are `ver_*` tags. Branch and tag protection is enabled — do not force-push or move tags.
 - Ask for confirmation before touching non-versioned files.
-- Be careful when running `svn add` in newly built demo/test trees: generated `build/` and `.dep/` contents can be scheduled accidentally. Clean derived outputs first, or revert those paths before the final add/status check.
+- Generated `build/` and `.dep/` outputs are git-ignored; avoid a blanket `git add -A` in freshly built demo/test trees and clean derived outputs before committing.

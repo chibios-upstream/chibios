@@ -17,7 +17,7 @@
 /**
  * @file    nullstreams.h
  * @brief   Null streams structures and macros.
- 
+ *
  * @addtogroup HAL_NULL_STREAMS
  * @{
  */

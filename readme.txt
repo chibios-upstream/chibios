@@ -3,11 +3,12 @@
 *****************************************************************************
 
 --{root}                        - ChibiOS directory.
+  +--.devcontainer/             - VS Code dev container configuration.
   +--readme.txt                 - This file.
   +--documentation.html         - Shortcut to the web documentation page.
   +--license.txt                - GPL license text.
   +--demos/                     - Demo projects, one directory per platform.
-  +--docs/                      - Documentation.
+  +--doc/                       - Documentation.
   |  +--common/                 - Documentation common build resources.
   |  +--hal/                    - Builders for HAL.
   |  +--nil/                    - Builders for NIL.
@@ -72,21 +73,117 @@
   +--testex/                    - EX integration test demos.
   +--testhal/                   - HAL integration test demos.
 
+NOTE: The optional VS Code dev container setup is in .devcontainer/.
+See .devcontainer/README.md for included tools and usage.
+
 *****************************************************************************
 *** Releases and Change Log                                               ***
 *****************************************************************************
 
 *** Next ***
-- FIX: RT: Fixed lign aheap-created thread working area size (bug #1307)
-  (backportted to 21.11.6).
+- FIX: STM32U3 RTC was completely non-functional - the driver hung at boot in
+       rtc_enter_init() waiting for INITF. The RTC APB clock was never enabled:
+       hal_lld guarded it on defined(RCC_APB3ENR_RTCAPBEN) (the STM32H5/U5
+       register), but on STM32U3 the bit is RCC_APB1ENR1_RTCAPBEN (APB1ENR1
+       bit 30), so the guard was always false and the RTC register interface
+       was unclocked. Enable it via rccEnableAPB1R1(RCC_APB1ENR1_RTCAPBEN) on
+       STM32U3xx (HAL + XHAL). HW-verified on NUCLEO-U385RG (github PR #31).
+- FIX: STM32U3 and STM32U5 RTC drivers operated on the wrong EXTI lines. The
+       ports defined STM32_RTC_GLOBAL_EXTI=17 / STM32_RTC_TAMP_EXTI=19 (copied
+       from STM32H5) and enabled/cleared them, but on U3/U5 those lines are
+       COMP1 and VDDUSB (RM0487 Table 131 / RM0456 Table 187) and the RTC has
+       no EXTI line at all (RTC interrupts go directly to the NVIC). The RTC
+       EXTI enable/clear are now no-ops on both families (HAL and XHAL ports)
+       (github PR #31).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the os/hal/lib sources (streams, mfs, serial_nor), no functional
+       change (github PR #30).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the os/various sources (shell, xshell, bindings glue), no functional
+       change (github PR #29).
+- NEW: tools/style/stylecheck.py no longer reports two false positives:
+       "#endif /* defined(X) */" guard comments (the lower-case "defined"
+       operator) and operators/commas inside string literals (only the first
+       string per line was previously blanked). Strictly more permissive
+       (github PR #28).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the os/common sources (ports, oop, abstractions), no functional change
+       (github PR #27).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the SB (sandbox) sources, no functional change (github PR #26).
+- NEW: Coding-style cleanup of the XHAL OOP driver code generator: a glued
+       comparison operator was corrected in the hal_base_driver codegen model
+       (os/xhal/codegen) and the generated source regenerated; no functional
+       change (github PR #24).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the VFS sources, no functional change (github PR #23).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the XHAL hand-written sources, no functional change (github PR #22).
+- NEW: Coding-style cleanup (whitespace, spacing and comment formatting) of
+       the HAL sources, no functional change (github PR #20).
+- FIX: The STM32F303 mcuconf template was missing its I2S driver settings
+       section, so regenerating an F303 configuration silently dropped the
+       I2S settings; the section was restored and all templated mcuconf/
+       xmcuconf configurations were regenerated against their templates
+       (github PR #19).
+- FIX: STM32L4+/L4Rxx clock point name table (CLK_POINT_NAMES) had a comma
+       misplaced inside the "PLLSAI2R" string literal, so adjacent string
+       literals were concatenated and the table held one entry fewer than
+       CLK_ARRAY_SIZE; clock point names from PLLSAI2R onward were shifted
+       and the last was NULL. The comma is moved outside the string (HAL and
+       XHAL ports) (github PR #21).
+- NEW: SYSTICKv1 free running mode gained STM32_ST_FREQUENCY_TOLERANCE, the
+       allowed ST tick deviation in per-mille (default 0 = exact divisor
+       required, unchanged behavior). The prescaler is rounded to the
+       nearest integer and the achieved tick is checked against the
+       tolerance, letting devices whose clock tree cannot produce an
+       exact multiple (e.g. STM32U0/U3 with MSI feeding the PLL) run
+       without a clock-rounding system halt (github PR #17). The STM32U0 and
+       STM32U3 device configurations set the tolerance to 0.5% (github PR #18).
+- FIX: STM32U0xx RTC alarm/tamper interrupt could halt the system on the
+       first event (assertions enabled): rtc_lld_serve_interrupt() cleared
+       the RTC/TAMP EXTI lines, which are direct event inputs on STM32U0
+       (no EXTI pending bit) and tripped the extiClearGroup1() fixed-lines
+       assertion. The clear now masks out the direct lines (HAL and XHAL
+       ports). Same defect as the STM32H5 fix in #15 (github PR #16).
+- FIX: STM32H5xx RTC alarm/tamper interrupt caused a system halt on the
+       first event: rtc_lld_serve_interrupt() cleared the RTC/TAMP EXTI
+       lines, which are direct event inputs on STM32H5 (no EXTI pending
+       bit) and tripped the extiClearGroup1() fixed-lines assertion. The
+       clear now masks out the direct lines (HAL and XHAL ports)
+       (forum bug report, github PR #15).
+- NEW: STM32G4xx: added FSMC RCC macros, IRQ vector definitions and
+       registry switch for the FMC-capable devices (G473/G483/G474/G484),
+       in all four G4 port copies (github PR #14)(backported to
+       21.11.6).
+- FIX: OTG1 on STM32H7 kept its ULPI clock gate at the reset-enabled state,
+       preventing sleep mode entry/exit when the driver is active (forum
+       bug report, github PR #13).
+- FIX: Missing SPI2 RCC macros and DMAMUX identifiers in the STM32C0xx
+       HAL and XHAL ports, SPI2 was unusable on the devices that have it (forum
+       bug report, github PR #12).
+- FIX: Missing STM32_ADC_ADC2_IRQ_HOOK invocations in the STM32 ADCv6 and
+       ADCv7 drivers (forum bug report, github PR #11).
+- NEW: Add ADDITIONAL_OUTFILES to the ARMCMx GCC build rules (forum bug
+       report, github PR #10).
+- FIX: RT: Fixed chThdCreateFromMemoryPool() rejects valid fixed memory pools
+       due to overly strict alignment assertion (bug github #3)
+       (backported to 21.11.6).
+- FIX: RT: Fixed align heap-created thread working area size (bug #1307)
+       (backported to 21.11.6).
 - FIX; NIL: Fixed wrong alignment check in chThdCreateI() (bug #1306)
-  (backportted to 21.11.6).
+       (backported to 21.11.6).
 - FIX: DACv1 trigger mask sized for 3 or 4 bit trigger source identifier
+- NEW: Added ADDITIONAL_OUTFILES variable to the ARMCMx GCC build rules,
+       included makefiles can now add extra generated files to the "all"
+       target (github PR #10).
+- NEW: Sensors subsystem in XHAL equivalent to EX for old HAL.
 - NEW: Thread mode for EP0 handling in USB HAL driver.
 - NEW: ADC driver in XHAL.
 - NEW: RTC driver in XHAL.
 - NEW: Added EFL driver for simulator and a simulator MFS test application.
 - NEW: Added simulator support for x84-64 on Posix/Linux.
+- NEW: Added UART driver (LLD) for the RP2040 port.
 - NEW: Added XSHELL_EXIT_HOOK to xshell.
 - NEW: Memory areas functions in OSLIB addressed for portability.
 - NEW: Implemented better chThdSleepUntil() in NIL using the same logic used

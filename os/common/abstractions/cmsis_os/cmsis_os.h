@@ -57,7 +57,7 @@
  * @name    CMSIS Capabilities
  * @{
  */
-#define osFeature_MainThread        1       
+#define osFeature_MainThread        1
 #define osFeature_Pool              1
 #define osFeature_MailQ             1
 #define osFeature_MessageQ          1
@@ -437,7 +437,7 @@ const osMessageQDef_t os_messageQ_def_##name = {                            \
  */
 #if defined(osObjectsExternal)
 #define osMailQDef(name, queue_sz, type)                \
-  extern const osMailQDef_t os_mailQ_def_##name         
+  extern const osMailQDef_t os_mailQ_def_##name
 #else
 #define osMailQDef(name, queue_sz, type)                \
   static msg_t os_mailQ_mb_buf_##name[queue_sz];        \

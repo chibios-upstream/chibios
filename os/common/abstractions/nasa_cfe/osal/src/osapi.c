@@ -2206,7 +2206,7 @@ int32 OS_IntAck(int32 InterruptNumber) {
 /* In ChibiOS exceptions are statically linked, the vectors table is in
    flash.*/
 int32 OS_ExcAttachHandler(uint32 ExceptionNumber,
-                          void (*ExceptionHandler)(uint32, uint32 *,uint32),
+                          void (*ExceptionHandler)(uint32, uint32 *, uint32),
                           int32 parameter) {
 
   (void)ExceptionNumber;

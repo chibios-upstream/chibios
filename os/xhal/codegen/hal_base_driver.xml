@@ -522,7 +522,7 @@ osalSysLock();
 
 drvp = drvRegGetFirstX();
 while (drvp != NULL) {
-  if (strcmp(drvGetNameX(drvp), name) ==0) {
+  if (strcmp(drvGetNameX(drvp), name) == 0) {
     
     msg = drvStart(drvp, NULL);
     if (msg != HAL_RET_SUCCESS) {

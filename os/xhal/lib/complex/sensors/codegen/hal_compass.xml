@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
+  name="hal_compass" descr="Generic Compass Interface" headerpath="include"
+  editcode="false">
+  <brief>Generic compass interface.</brief>
+  <imports>
+    <import>hal_calibrated_sensor.xml</import>
+  </imports>
+  <public>
+    <includes>
+      <include style="regular">hal_calibrated_sensor.h</include>
+    </includes>
+    <definitions_early>
+      <group description="Compass inherited method aliases">
+        <define name="compGetAxesNumber" value="halSensorGetChannelNumber" />
+        <define name="compReadRaw" value="halSensorReadRaw" />
+        <define name="compReadCooked" value="halSensorReadCooked" />
+        <define name="compSetBias" value="halCalibratedSensorSetBias" />
+        <define name="compResetBias" value="halCalibratedSensorResetBias" />
+        <define name="compSetSensitivity"
+          value="halCalibratedSensorSetSensitivity" />
+        <define name="compResetSensitivity"
+          value="halCalibratedSensorResetSensitivity" />
+      </group>
+    </definitions_early>
+    <types>
+      <interface name="hal_compass" namespace="comp"
+        ancestorname="hal_calibrated_sensor" descr="compass">
+        <brief>Generic compass interface.</brief>
+        <details>
+          <![CDATA[This interface represents a generic compass exposing one or
+                   more axes.]]>
+        </details>
+        <note><![CDATA[This interface is part of the XHAL complex sensor support.]]></note>
+        <consts>
+        </consts>
+        <methods>
+        </methods>
+      </interface>
+    </types>
+  </public>
+  <private>
+  </private>
+</module>

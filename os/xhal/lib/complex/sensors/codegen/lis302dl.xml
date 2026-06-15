@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
+  name="lis302dl" descr="LIS302DL Driver" sourcepath="devices/ST"
+  headerpath="devices/ST" editcode="true">
+  <brief>LIS302DL accelerometer chip driver.</brief>
+  <imports>
+    <import>hal_base_driver.xml</import>
+    <import>hal_accelerometer.xml</import>
+  </imports>
+  <public>
+    <includes>
+      <include style="regular">hal.h</include>
+      <include style="regular">hal_accelerometer.h</include>
+    </includes>
+    <definitions_early>
+      <group description="Version identification">
+        <define name="LIS302DL_VERSION" value="&quot;2.0.0&quot;">
+          <brief>LIS302DL driver version string.</brief>
+        </define>
+        <define name="LIS302DL_MAJOR" value="2">
+          <brief>LIS302DL driver version major number.</brief>
+        </define>
+        <define name="LIS302DL_MINOR" value="0">
+          <brief>LIS302DL driver version minor number.</brief>
+        </define>
+        <define name="LIS302DL_PATCH" value="0">
+          <brief>LIS302DL driver version patch number.</brief>
+        </define>
+      </group>
+      <group description="LIS302DL accelerometer characteristics">
+        <define name="LIS302DL_ACC_NUMBER_OF_AXES" value="3U">
+          <brief>Number of accelerometer axes.</brief>
+        </define>
+        <define name="LIS302DL_ACC_2G" value="2.0f">
+          <brief>Accelerometer 2g full-scale value.</brief>
+        </define>
+        <define name="LIS302DL_ACC_8G" value="8.0f">
+          <brief>Accelerometer 8g full-scale value.</brief>
+        </define>
+        <define name="LIS302DL_ACC_SENS_2G" value="18.0f">
+          <brief>Accelerometer sensitivity in 2g mode.</brief>
+        </define>
+        <define name="LIS302DL_ACC_SENS_8G" value="72.0f">
+          <brief>Accelerometer sensitivity in 8g mode.</brief>
+        </define>
+        <define name="LIS302DL_ACC_BIAS" value="0.0f">
+          <brief>Accelerometer default bias.</brief>
+        </define>
+      </group>
+      <group description="LIS302DL SPI command bits">
+        <define name="LIS302DL_MS" value="(1U &lt;&lt; 6)">
+          <brief>Multiple-byte SPI transfer bit.</brief>
+        </define>
+        <define name="LIS302DL_RW" value="(1U &lt;&lt; 7)">
+          <brief>SPI read/write selection bit.</brief>
+        </define>
+      </group>
+      <group description="LIS302DL register addresses">
+        <define name="LIS302DL_AD_WHO_AM_I" value="0x0FU">
+          <brief>WHO_AM_I register address.</brief>
+        </define>
+        <define name="LIS302DL_AD_CTRL_REG1" value="0x20U">
+          <brief>Control register 1 address.</brief>
+        </define>
+        <define name="LIS302DL_AD_CTRL_REG2" value="0x21U">
+          <brief>Control register 2 address.</brief>
+        </define>
+        <define name="LIS302DL_AD_CTRL_REG3" value="0x22U">
+          <brief>Control register 3 address.</brief>
+        </define>
+        <define name="LIS302DL_AD_STATUS_REG" value="0x27U">
+          <brief>Status register address.</brief>
+        </define>
+        <define name="LIS302DL_AD_OUT_X" value="0x29U">
+          <brief>X-axis output register address.</brief>
+        </define>
+        <define name="LIS302DL_AD_OUT_Y" value="0x2BU">
+          <brief>Y-axis output register address.</brief>
+        </define>
+        <define name="LIS302DL_AD_OUT_Z" value="0x2DU">
+          <brief>Z-axis output register address.</brief>
+        </define>
+      </group>
+      <group description="LIS302DL CTRL_REG1 register bits">
+        <define name="LIS302DL_CTRL_REG1_XEN" value="(1U &lt;&lt; 0)">
+          <brief>X-axis enable bit.</brief>
+        </define>
+        <define name="LIS302DL_CTRL_REG1_YEN" value="(1U &lt;&lt; 1)">
+          <brief>Y-axis enable bit.</brief>
+        </define>
+        <define name="LIS302DL_CTRL_REG1_ZEN" value="(1U &lt;&lt; 2)">
+          <brief>Z-axis enable bit.</brief>
+        </define>
+        <define name="LIS302DL_CTRL_REG1_FS_MASK" value="0x20U">
+          <brief>Full-scale selection mask.</brief>
+        </define>
+        <define name="LIS302DL_CTRL_REG1_PD" value="(1U &lt;&lt; 6)">
+          <brief>Power-down control bit.</brief>
+        </define>
+      </group>
+      <group description="LIS302DL CTRL_REG2 register bits">
+        <define name="LIS302DL_CTRL_REG2_HPCF1" value="(1U &lt;&lt; 0)">
+          <brief>High-pass filter cutoff frequency bit 1.</brief>
+        </define>
+        <define name="LIS302DL_CTRL_REG2_HPCF2" value="(1U &lt;&lt; 1)">
+          <brief>High-pass filter cutoff frequency bit 2.</brief>
+        </define>
+        <define name="LIS302DL_CTRL_REG2_HPFFWU1" value="(1U &lt;&lt; 2)">
+          <brief>High-pass filter enable for free-fall/wake-up 1.</brief>
+        </define>
+        <define name="LIS302DL_CTRL_REG2_HPFFWU2" value="(1U &lt;&lt; 3)">
+          <brief>High-pass filter enable for free-fall/wake-up 2.</brief>
+        </define>
+        <define name="LIS302DL_CTRL_REG2_FDS" value="(1U &lt;&lt; 4)">
+          <brief>Filtered data selection bit.</brief>
+        </define>
+      </group>
+    </definitions_early>
+    <configs>
+      <config name="LIS302DL_SHARED_SPI" default="FALSE">
+        <brief>Enables SPI bus locking around LIS302DL transactions.</brief>
+        <assert invalid="($N != FALSE) &amp;&amp; ($N != TRUE)" />
+      </config>
+      <config name="LIS302DL_USE_ADVANCED" default="FALSE">
+        <brief>Enables advanced LIS302DL configuration fields.</brief>
+        <assert invalid="($N != FALSE) &amp;&amp; ($N != TRUE)" />
+      </config>
+    </configs>
+    <definitions_late>
+      <verbatim><![CDATA[
+#if !defined(__CHIBIOS_XHAL_CONF__)
+#error "LIS302DL chip driver requires XHAL"
+#endif
+
+#if HAL_USE_SPI != TRUE
+#error "LIS302DL requires HAL_USE_SPI"
+#endif
+
+#if SPI_USE_SYNCHRONIZATION != TRUE
+#error "LIS302DL requires SPI_USE_SYNCHRONIZATION"
+#endif
+
+#if (LIS302DL_SHARED_SPI == TRUE) && (HAL_USE_MUTUAL_EXCLUSION != TRUE)
+#error "LIS302DL_SHARED_SPI requires HAL_USE_MUTUAL_EXCLUSION"
+#endif]]></verbatim>
+    </definitions_late>
+    <types>
+      <typedef name="lis302dl_config_t">
+        <brief>Type of a LIS302DL driver configuration.</brief>
+        <basetype ctype="struct lis302dl_config" />
+      </typedef>
+      <verbatim><![CDATA[
+/**
+ * @brief       LIS302DL accelerometer full-scale selections.
+ */
+typedef enum {
+  LIS302DL_ACC_FS_2G = 0x00U,  /**< 2g full-scale range.  */
+  LIS302DL_ACC_FS_8G = 0x20U   /**< 8g full-scale range.  */
+} lis302dl_acc_fs_t;
+
+/**
+ * @brief       LIS302DL accelerometer output data rate selections.
+ */
+typedef enum {
+  LIS302DL_ACC_ODR_100HZ = 0x00U, /**< 100Hz output data rate. */
+  LIS302DL_ACC_ODR_400HZ = 0x80U  /**< 400Hz output data rate. */
+} lis302dl_acc_odr_t;
+
+/**
+ * @brief       LIS302DL accelerometer high-pass filter selections.
+ */
+typedef enum {
+  LIS302DL_ACC_HP_DISABLED = 0x00U, /**< High-pass filter disabled. */
+  LIS302DL_ACC_HP_0        = 0x10U, /**< High-pass filter mode 0.   */
+  LIS302DL_ACC_HP_1        = 0x11U, /**< High-pass filter mode 1.   */
+  LIS302DL_ACC_HP_2        = 0x12U, /**< High-pass filter mode 2.   */
+  LIS302DL_ACC_HP_3        = 0x13U  /**< High-pass filter mode 3.   */
+} lis302dl_acc_hp_t;
+]]></verbatim>
+      <struct name="lis302dl_config">
+        <brief>LIS302DL driver configuration structure.</brief>
+        <fields>
+          <field name="spip" ctype="hal_spi_driver_c$I*$N">
+            <brief>SPI driver to be used for physical communication.</brief>
+          </field>
+          <field name="spicfg" ctype="const hal_spi_config_t$I*$N">
+            <brief>SPI driver configuration.</brief>
+          </field>
+          <field name="accsensitivity" ctype="const float$I*$N">
+            <brief>Accelerometer sensitivity values.</brief>
+          </field>
+          <field name="accbias" ctype="const float$I*$N">
+            <brief>Accelerometer bias values.</brief>
+          </field>
+          <field name="accfullscale" ctype="lis302dl_acc_fs_t">
+            <brief>Accelerometer full-scale selection.</brief>
+          </field>
+          <field name="accodr" ctype="lis302dl_acc_odr_t">
+            <brief>Accelerometer output data rate selection.</brief>
+          </field>
+          <condition check="LIS302DL_USE_ADVANCED == TRUE">
+            <field name="acchighpass" ctype="lis302dl_acc_hp_t">
+              <brief>Accelerometer high-pass filter selection.</brief>
+            </field>
+          </condition>
+        </fields>
+      </struct>
+      <class type="regular" name="lis302dl_driver" namespace="lis302dl"
+        ancestorname="hal_base_driver" descr="LIS302DL driver">
+        <brief>LIS302DL accelerometer chip driver class.</brief>
+        <implements>
+          <if name="hal_accelerometer">
+            <method shortname="get_channels_number">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="read_raw">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="read_cooked">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="set_bias">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="reset_bias">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="set_sensitivity">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="reset_sensitivity">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+          </if>
+        </implements>
+        <fields>
+          <field name="accaxes" ctype="size_t">
+            <brief>Accelerometer subsystem axes number.</brief>
+          </field>
+          <field name="accsensitivity"
+            ctype="float$I$N[LIS302DL_ACC_NUMBER_OF_AXES]">
+            <brief>Current accelerometer sensitivity.</brief>
+          </field>
+          <field name="accbias" ctype="float$I$N[LIS302DL_ACC_NUMBER_OF_AXES]">
+            <brief>Current accelerometer bias.</brief>
+          </field>
+          <field name="accfullscale" ctype="float">
+            <brief>Current accelerometer full scale value.</brief>
+          </field>
+        </fields>
+        <methods>
+          <objinit callsuper="true">
+            <implementation><![CDATA[
+self->accaxes     = LIS302DL_ACC_NUMBER_OF_AXES;
+self->accfullscale = LIS302DL_ACC_2G;]]></implementation>
+          </objinit>
+          <dispose>
+            <implementation><![CDATA[]]></implementation>
+          </dispose>
+          <regular>
+            <method name="lis302dlSetFullScale" ctype="msg_t">
+              <brief>Changes the LIS302DL accelerometer full scale value.</brief>
+              <param name="fs" ctype="lis302dl_acc_fs_t" dir="in">
+                New full scale value.
+              </param>
+              <return>The operation status.</return>
+              <retval value="HAL_RET_SUCCESS">if the function succeeded.</retval>
+              <retval value="HAL_RET_CONFIG_ERROR">if the full scale is invalid.</retval>
+              <api />
+              <implementation><![CDATA[]]></implementation>
+            </method>
+          </regular>
+          <override>
+            <method shortname="start">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="stop">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="setcfg">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="selcfg">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+          </override>
+        </methods>
+      </class>
+      <typedef name="LIS302DLDriver">
+        <brief>LIS302DL driver compatibility type.</brief>
+        <basetype ctype="lis302dl_driver_c" />
+      </typedef>
+      <typedef name="LIS302DLConfig">
+        <brief>LIS302DL configuration compatibility type.</brief>
+        <basetype ctype="lis302dl_config_t" />
+      </typedef>
+    </types>
+  </public>
+  <private>
+    <includes_always>
+      <include style="regular">lis302dl.h</include>
+    </includes_always>
+  </private>
+</module>

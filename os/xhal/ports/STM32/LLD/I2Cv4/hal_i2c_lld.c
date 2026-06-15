@@ -633,7 +633,6 @@ msg_t i2c_lld_start(hal_i2c_driver_c *i2cp) {
 #endif /* STM32_I2C_USE_I2C4 */
   }
 
-
   /* Reset i2c peripheral, the TCIE bit will be handled separately.*/
   dp->CR1 = i2c_lld_getcfg(i2cp)->cr1 |
 #if STM32_I2C_USE_DMA == TRUE

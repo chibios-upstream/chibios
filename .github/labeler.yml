@@ -1,0 +1,155 @@
+# ---------------------------------------------------------------------------
+# Automatic PR label configuration for actions/labeler v5.
+#
+# Label rules use the "any" (match if any glob matches) strategy by default.
+# Each top-level key is the exact label name that must exist in the repo.
+# Labels are created/updated by the GitHub Actions workflow in
+# .github/workflows/labeler.yml; this file controls assignment rules only.
+# ---------------------------------------------------------------------------
+
+# ── RTOS cores ──────────────────────────────────────────────────────────────
+rt:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/rt/**'
+      - 'test/rt/**'
+      - 'testrt/**'
+
+nil:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/nil/**'
+      - 'test/nil/**'
+
+oslib:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/oslib/**'
+      - 'test/oslib/**'
+
+# ── HAL ─────────────────────────────────────────────────────────────────────
+hal:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/**'
+      - 'test/hal/**'
+      - 'testhal/**'
+      - 'testex/**'
+
+xhal:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/xhal/**'
+      - 'testxhal/**'
+
+# ── Port families ─────────────────────────────────────────────────────────────
+# Labels are kept at port-family granularity (one label per architecture/vendor
+# port), not per STM32 sub-family: sub-family labels were inconsistent to group
+# and add a new label + glob for every new silicon family. A single port/STM32
+# is enough for triage.
+port/STM32:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/STM32/**'
+      - 'demos/STM32/**'
+      - 'testhal/STM32/**'
+
+port/AVR:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/AVR/**'
+      - 'demos/AVR/**'
+      - 'testhal/AVR/**'
+
+port/RP:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/RP/**'
+      - 'demos/RP/**'
+      - 'testhal/RP/**'
+
+port/SPC5:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/hal/ports/SPC5/**'
+      - 'demos/SPC5/**'
+
+# ── Sandbox (SB / VIO) ───────────────────────────────────────────────────────
+sandbox:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/sb/**'
+      - 'testsb/**'
+      - 'os/xhal/ports/SB/**'
+
+# ── VFS ─────────────────────────────────────────────────────────────────────
+vfs:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/vfs/**'
+      - 'os/vns/**'
+
+# ── EX (external devices) ────────────────────────────────────────────────────
+ex:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'os/ex/**'
+      - 'testex/**'
+
+# ── Code generation / templates ─────────────────────────────────────────────
+codegen:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tools/ftl/**'
+      - 'tools/updater/**'
+      - 'os/xhal/codegen/**'
+
+# ── Demos ────────────────────────────────────────────────────────────────────
+demos:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'demos/**'
+
+# ── Tests ────────────────────────────────────────────────────────────────────
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'test/**'
+      - 'testhal/**'
+      - 'testex/**'
+      - 'testrt/**'
+      - 'testsb/**'
+      - 'testxhal/**'
+
+# ── Documentation ────────────────────────────────────────────────────────────
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'doc/**'
+      - '**/*.md'
+      - '**/*.html'
+      - '**/dox/**'
+
+# ── CI / tooling ─────────────────────────────────────────────────────────────
+ci:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**'
+      - '.devcontainer/**'
+      - '**/Dockerfile'
+      - '**/Dockerfile.*'
+      - '**/docker-compose.yml'
+      - '**/docker-compose.yaml'
+      - '**/compose.yml'
+      - '**/compose.yaml'
+      - 'tools/workflows/**'
+      - 'tools/style/**'
+      - 'tools/mk/**'
+      - 'tools/calc/**'
+
+# ── External / submodules ────────────────────────────────────────────────────
+external:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'ext/**'
+      - '.gitmodules'

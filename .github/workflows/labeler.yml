@@ -1,0 +1,61 @@
+name: Label PR
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  label:
+    name: Apply path-based labels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure labels exist
+        shell: bash
+        # gh label create exits 0 when the label is created and also when it
+        # already exists (--force updates colour/description without failing).
+        run: |
+          # ── RTOS cores (blue) ──────────────────────────────────────────────
+          gh label create "rt"     --color "0075ca" --description "RT RTOS core"        --force --repo "$GITHUB_REPOSITORY"
+          gh label create "nil"    --color "0075ca" --description "NIL RTOS core"       --force --repo "$GITHUB_REPOSITORY"
+          gh label create "oslib"  --color "0075ca" --description "OSLIB shared modules" --force --repo "$GITHUB_REPOSITORY"
+
+          # ── HAL (green) ───────────────────────────────────────────────────
+          gh label create "hal"    --color "0e8a16" --description "HAL component"       --force --repo "$GITHUB_REPOSITORY"
+          gh label create "xhal"   --color "0e8a16" --description "XHAL component"      --force --repo "$GITHUB_REPOSITORY"
+
+          # ── Port families (purple/teal) ───────────────────────────────────
+          gh label create "port/STM32" --color "5319e7" --description "STM32 port"  --force --repo "$GITHUB_REPOSITORY"
+          gh label create "port/AVR"   --color "006b75" --description "AVR port"    --force --repo "$GITHUB_REPOSITORY"
+          gh label create "port/RP"    --color "006b75" --description "RP2xxx port" --force --repo "$GITHUB_REPOSITORY"
+          gh label create "port/SPC5"  --color "006b75" --description "SPC5 port"   --force --repo "$GITHUB_REPOSITORY"
+
+          # ── Subsystems (orange) ───────────────────────────────────────────
+          gh label create "sandbox"    --color "e4900d" --description "SB/VIO sandbox subsystem"    --force --repo "$GITHUB_REPOSITORY"
+          gh label create "vfs"        --color "e4900d" --description "VFS/VNS subsystem"           --force --repo "$GITHUB_REPOSITORY"
+          gh label create "ex"         --color "e4900d" --description "EX external-device drivers"  --force --repo "$GITHUB_REPOSITORY"
+          gh label create "codegen"    --color "e4900d" --description "FTL templates / code gen"    --force --repo "$GITHUB_REPOSITORY"
+
+          # ── General (grey) ────────────────────────────────────────────────
+          gh label create "demos"         --color "cfd3d7" --description "Demo projects"          --force --repo "$GITHUB_REPOSITORY"
+          gh label create "tests"         --color "cfd3d7" --description "Test suites"            --force --repo "$GITHUB_REPOSITORY"
+          gh label create "documentation" --color "cfd3d7" --description "Documentation changes"  --force --repo "$GITHUB_REPOSITORY"
+          gh label create "ci"            --color "cfd3d7" --description "CI/CD, container, and tooling changes"   --force --repo "$GITHUB_REPOSITORY"
+          gh label create "external"      --color "cfd3d7" --description "External libs / submodules" --force --repo "$GITHUB_REPOSITORY"
+
+      - name: Checkout (for labeler config)
+        uses: actions/checkout@v4
+
+      - name: Apply path-based labels
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          sync-labels: true

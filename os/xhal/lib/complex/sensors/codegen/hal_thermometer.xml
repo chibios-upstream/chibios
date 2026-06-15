@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
+  name="hal_thermometer" descr="Generic Thermometer Interface" headerpath="include"
+  editcode="false">
+  <brief>Generic thermometer interface.</brief>
+  <imports>
+    <import>hal_calibrated_sensor.xml</import>
+  </imports>
+  <public>
+    <includes>
+      <include style="regular">hal_calibrated_sensor.h</include>
+    </includes>
+    <definitions_early>
+      <group description="Thermometer inherited method aliases">
+        <define name="thermGetChannelsNumber"
+          value="halSensorGetChannelNumber" />
+        <define name="thermReadRaw" value="halSensorReadRaw" />
+        <define name="thermReadCooked" value="halSensorReadCooked" />
+        <define name="thermSetBias" value="halCalibratedSensorSetBias" />
+        <define name="thermResetBias"
+          value="halCalibratedSensorResetBias" />
+        <define name="thermSetSensitivity"
+          value="halCalibratedSensorSetSensitivity" />
+        <define name="thermResetSensitivity"
+          value="halCalibratedSensorResetSensitivity" />
+      </group>
+    </definitions_early>
+    <types>
+      <interface name="hal_thermometer" namespace="therm"
+        ancestorname="hal_calibrated_sensor" descr="thermometer">
+        <brief>Generic thermometer interface.</brief>
+        <details>
+          <![CDATA[This interface represents a generic thermometer exposing one
+                   or more channels.]]>
+        </details>
+        <note><![CDATA[This interface is part of the XHAL complex sensor support.]]></note>
+        <consts>
+        </consts>
+        <methods>
+        </methods>
+      </interface>
+    </types>
+  </public>
+  <private>
+  </private>
+</module>

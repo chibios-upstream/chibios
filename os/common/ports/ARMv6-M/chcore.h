@@ -187,11 +187,11 @@
 
 /* Handling a GCC problem impacting ARMv6-M.*/
 #if defined(__GNUC__) && !defined(PORT_IGNORE_GCC_VERSION_CHECK)
-  #if ( __GNUC__ > 5 ) && ( __GNUC__ < 10 )
-    #define GCC_VERSION ( __GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__ )
-    #if ( __GNUC__ == 7 ) && ( GCC_VERSION >= 70500 )
-    #elif ( __GNUC__ == 8 ) && ( GCC_VERSION >= 80400 )
-    #elif ( __GNUC__ == 9 ) && ( GCC_VERSION >= 90300 )
+  #if (__GNUC__ > 5) && (__GNUC__ < 10)
+    #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+    #if (__GNUC__ == 7) && (GCC_VERSION >= 70500)
+    #elif (__GNUC__ == 8) && (GCC_VERSION >= 80400)
+    #elif (__GNUC__ == 9) && (GCC_VERSION >= 90300)
     #else
       #warning "This compiler has a know problem with Cortex-M0, see GCC bugs: 88167, 88656."
     #endif
@@ -371,19 +371,46 @@ struct port_context {
                          ((size_t)(n)) + ((size_t)(PORT_INT_REQUIRED_STACK)))
 
 /**
+ * @brief   Debug check for the IRQ priority reservation.
+ * @details Under the alternate (@p PendSV based) switch the priority level
+ *          @p CORTEX_PRIORITY_PENDSV is reserved to @p PendSV. An IRQ
+ *          running below @p CORTEX_MAX_KERNEL_PRIORITY would tie with
+ *          @p PendSV and break the context switch atomicity. The running
+ *          vector is taken from the @p IPSR, covering external interrupts
+ *          and the settable system handlers (@p SysTick, @p SVCall).
+ * @note    Effective only with assertions enabled and the alternate switch;
+ *          compiled out otherwise. On failure the panic reports the
+ *          offending handler name through @p chDbgAssert().
+ */
+#if (CORTEX_ALTERNATE_SWITCH == TRUE) || defined(__DOXYGEN__)
+#define PORT_CHECK_IRQ_PRIORITY()                                           \
+  chDbgAssert(NVIC_GetPriority((IRQn_Type)((int32_t)__get_IPSR() - 16)) >=  \
+              (uint32_t)CORTEX_MAX_KERNEL_PRIORITY,                         \
+              "IRQ priority reserved to PendSV")
+#else
+#define PORT_CHECK_IRQ_PRIORITY()
+#endif
+
+/**
  * @brief   IRQ prologue code.
  * @details This macro must be inserted at the start of all IRQ handlers
  *          enabled to invoke system APIs.
+ * @note    On GCC/Clang/armclang the @p EXC_RETURN value (entry @p LR) is no
+ *          longer captured here: it is delivered as the @p _saved_lr argument
+ *          of the handler body by the trampoline emitted in
+ *          @p PORT_IRQ_HANDLER(). See that macro for the rationale.
  */
 #if defined(__GNUC__) || defined(__DOXYGEN__)
   #define PORT_IRQ_PROLOGUE()                                               \
-    uint32_t _saved_lr = (uint32_t)__builtin_return_address(0)
+    PORT_CHECK_IRQ_PRIORITY()
 #elif defined(__ICCARM__)
   #define PORT_IRQ_PROLOGUE()                                               \
-    uint32_t _saved_lr = (uint32_t)__get_LR()
+    uint32_t _saved_lr = (uint32_t)__get_LR();                              \
+    PORT_CHECK_IRQ_PRIORITY()
 #elif defined(__CC_ARM)
   #define PORT_IRQ_PROLOGUE()                                               \
-    uint32_t _saved_lr = (uint32_t)__return_address()
+    uint32_t _saved_lr = (uint32_t)__return_address();                      \
+    PORT_CHECK_IRQ_PRIORITY()
 #endif
 
 /**
@@ -397,11 +424,56 @@ struct port_context {
  * @brief   IRQ handler function declaration.
  * @note    @p id can be a function name or a vector number depending on the
  *          port implementation.
+ * @details On GCC/Clang/armclang the vector is emitted as a tiny @p naked
+ *          trampoline that captures the @p EXC_RETURN value from @p LR into
+ *          the first argument and tail-branches (via @p BX, which leaves
+ *          @p LR untouched) to the actual handler body. The body receives
+ *          @p EXC_RETURN as the @p _saved_lr argument used by
+ *          @p PORT_IRQ_EPILOGUE().
+ *          @n@n
+ *          Capturing @p LR in the very first instruction of the vector, in a
+ *          dedicated non-foldable trampoline, makes the @p EXC_RETURN value
+ *          immune to @p -fipa-icf (identical-code folding, on at @p -O2 /
+ *          @p -Os). ICF can fold two byte-identical handler bodies and turn
+ *          one vector into a @p "push @p {lr}; @p bl @p body; @p pop @p {pc}"
+ *          thunk; the previous @p __builtin_return_address(0) capture then
+ *          read an @p LR already clobbered by that @p bl, corrupting the
+ *          outermost-ISR test in @p __port_irq_epilogue() and dropping a
+ *          required reschedule on nested interrupts. The trampoline never
+ *          uses @p bl and reads @p LR before anything can clobber it, so the
+ *          captured value is correct even if the body (or the trampoline
+ *          itself) is folded.
+ *          @n@n
+ *          The body is reached with @p "ldr/bx" rather than a plain @p b
+ *          because, with @p -ffunction-sections, the linker may place the
+ *          body outside the @p +/-2KB range of the only unconditional Thumb
+ *          branch available on ARMv6-M.
  */
-#ifdef __cplusplus
-  #define PORT_IRQ_HANDLER(id) extern "C" void id(void)
-#else
-  #define PORT_IRQ_HANDLER(id) void id(void)
+#if defined(__GNUC__) || defined(__DOXYGEN__)
+  #ifdef __cplusplus
+    #define PORT_IRQ_HANDLER_LINKAGE extern "C"
+  #else
+    #define PORT_IRQ_HANDLER_LINKAGE
+  #endif
+  #define PORT_IRQ_HANDLER(id)                                              \
+    static __attribute__((used)) void id##_isr(uint32_t _saved_lr);        \
+    PORT_IRQ_HANDLER_LINKAGE __attribute__((naked, used))                  \
+    void id(void) {                                                        \
+      __asm volatile ("mov   r0, lr            \n\t"                       \
+                      "ldr   r1, =" #id "_isr  \n\t"                       \
+                      "bx    r1                \n\t");                     \
+    }                                                                      \
+    static __attribute__((used)) void id##_isr(uint32_t _saved_lr)
+#else /* IAR (__ICCARM__) / ARMCC5 (__CC_ARM): EXC_RETURN captured in the
+         prologue via a compiler intrinsic; no trampoline.
+         TODO: verify whether these toolchains' duplicate-function merging
+         can produce the same EXC_RETURN hazard and, if so, add an
+         equivalent trampoline. */
+  #ifdef __cplusplus
+    #define PORT_IRQ_HANDLER(id) extern "C" void id(void)
+  #else
+    #define PORT_IRQ_HANDLER(id) void id(void)
+  #endif
 #endif
 
 /**

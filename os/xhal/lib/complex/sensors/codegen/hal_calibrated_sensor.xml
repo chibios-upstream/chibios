@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
+  name="hal_calibrated_sensor" descr="Generic Calibrated Sensor Interface"
+  headerpath="include" editcode="false">
+  <brief>Generic calibrated sensors interface.</brief>
+  <imports>
+    <import>hal_sensor.xml</import>
+  </imports>
+  <public>
+    <includes>
+      <include style="regular">hal_sensor.h</include>
+    </includes>
+    <types>
+      <interface name="hal_calibrated_sensor" namespace="calibratedSensor"
+        ancestorname="hal_sensor" descr="generic calibrated sensor">
+        <brief>Generic calibrated sensors interface.</brief>
+        <details>
+          <![CDATA[This interface represents a generic sensor exposing bias and
+                   sensitivity calibration controls.]]>
+        </details>
+        <consts>
+        </consts>
+        <methods>
+          <method name="halCalibratedSensorSetBias" shortname="set_bias"
+            ctype="msg_t">
+            <brief>Updates sensor bias data from received buffer.</brief>
+            <note><![CDATA[The bias buffer must have the same length of the
+                           sensor channels number.]]></note>
+            <param name="biases" ctype="const float *" dir="in">
+              Pointer to a buffer of bias values.
+            </param>
+            <return>The operation status.</return>
+            <retval value="MSG_OK">if the function succeeded.</retval>
+            <retval value="MSG_RESET">if one or more errors occurred.</retval>
+            <api />
+          </method>
+          <method name="halCalibratedSensorResetBias" shortname="reset_bias"
+            ctype="msg_t">
+            <brief>Reset sensor bias data restoring it to zero.</brief>
+            <return>The operation status.</return>
+            <retval value="MSG_OK">if the function succeeded.</retval>
+            <retval value="MSG_RESET">if one or more errors occurred.</retval>
+            <api />
+          </method>
+          <method name="halCalibratedSensorSetSensitivity"
+            shortname="set_sensitivity" ctype="msg_t">
+            <brief>Updates sensor sensitivity data from received buffer.</brief>
+            <note><![CDATA[The sensitivity buffer must have the same length of
+                           the sensor channels number.]]></note>
+            <param name="sensitivities" ctype="const float *" dir="in">
+              Pointer to a buffer of sensitivity values.
+            </param>
+            <return>The operation status.</return>
+            <retval value="MSG_OK">if the function succeeded.</retval>
+            <retval value="MSG_RESET">if one or more errors occurred.</retval>
+            <api />
+          </method>
+          <method name="halCalibratedSensorResetSensitivity"
+            shortname="reset_sensitivity" ctype="msg_t">
+            <brief>
+              Reset sensor sensitivity data restoring it to its typical value.
+            </brief>
+            <return>The operation status.</return>
+            <retval value="MSG_OK">if the function succeeded.</retval>
+            <retval value="MSG_RESET">if one or more errors occurred.</retval>
+            <api />
+          </method>
+        </methods>
+      </interface>
+    </types>
+  </public>
+  <private>
+  </private>
+</module>

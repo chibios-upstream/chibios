@@ -1,0 +1,26 @@
+# ChibiOS generated build outputs.
+# BUILDDIR / DEPDIR as set in the demo and test makefiles.
+build/
+.dep/
+
+# doc/build holds tracked Doxygen sources, not build artifacts.
+!/doc/build/
+
+# Eclipse / ChibiStudio debug launch configs are per-user and are not
+# versioned by default. The directories below are the intentional
+# exceptions (their launch configs ship with the project).
+*.launch
+!tools/eclipse/**/*.launch
+!demos/LPC21xx/RT-LPC214x-OLIMEX/debug/*.launch
+!demos/RP/RT-RP2040-PICO/debug/*.launch
+!demos/STM32/RT-STM32G474RE-NUCLEO64-SB_HOST_NOSWITCH/debug/*.launch
+!demos/STM32/RT-STM32G474RE-NUCLEO64-SB_HOST_SWITCHED/debug/*.launch
+!demos/STM32/RT-STM32H563ZI-NUCLEO144-SB_HOST_SWITCHED/debug/*.launch
+!demos/STM32/RT-STM32L4R9-DISCOVERY-SB_HOST_DYNAMIC_RAMBOX/debug/*.launch
+!demos/STM32/RT-STM32L4R9-DISCOVERY-SB_HOST_STATIC_RAMBOX/debug/*.launch
+!demos/STM32/RT-STM32L552ZE-NUCLEO144/debug/*.launch
+!demos/STM32/RT-STM32L552ZE-NUCLEO144-TZ_GUEST/debug/*.launch
+!demos/STM32/RT-STM32L552ZE-NUCLEO144-TZ_HOST/debug/*.launch
+!demos/various/RT-ARM7-GENERIC/debug/*.launch
+!testsb/SB_VIO-STM32G474RE-NUCLEO64-HOST/debug/*.launch
+!testsb/SB_VIO-STM32G474RE-NUCLEO64-HOST/debug_win/*.launch

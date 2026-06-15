@@ -63,11 +63,11 @@
 #include "arch/sys_arch.h"
 #include "lwipopts.h"
 
-#ifndef CH_LWIP_USE_MEM_POOLS 
+#ifndef CH_LWIP_USE_MEM_POOLS
 #define CH_LWIP_USE_MEM_POOLS FALSE
 #endif
 
-#if CH_LWIP_USE_MEM_POOLS 
+#if CH_LWIP_USE_MEM_POOLS
 static MEMORYPOOL_DECL(lwip_sys_arch_sem_pool, sizeof(semaphore_t), 4, chCoreAllocAlignedI);
 static MEMORYPOOL_DECL(lwip_sys_arch_mbox_pool, sizeof(mailbox_t) + sizeof(msg_t) * TCPIP_MBOX_SIZE, 4, chCoreAllocAlignedI);
 static MEMORYPOOL_DECL(lwip_sys_arch_thread_pool, THD_WORKING_AREA_SIZE(TCPIP_THREAD_STACKSIZE), PORT_WORKING_AREA_ALIGN, chCoreAllocAlignedI);

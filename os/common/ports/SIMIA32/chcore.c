@@ -116,9 +116,8 @@ void _port_thread_start(msg_t (*pf)(void *), void *p) {
   chSysUnlock();
   pf(p);
   chThdExit(0);
-  while(1);
+  while (1);
 }
-
 
 /**
  * @brief   Returns the current value of the realtime counter.

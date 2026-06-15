@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
+  name="hal_gyroscope" descr="Generic Gyroscope Interface" headerpath="include"
+  editcode="false">
+  <brief>Generic gyroscope interface.</brief>
+  <imports>
+    <import>hal_calibrated_sensor.xml</import>
+  </imports>
+  <public>
+    <includes>
+      <include style="regular">hal_calibrated_sensor.h</include>
+    </includes>
+    <definitions_early>
+      <group description="Gyroscope inherited method aliases">
+        <define name="gyroGetAxesNumber" value="halSensorGetChannelNumber" />
+        <define name="gyroReadRaw" value="halSensorReadRaw" />
+        <define name="gyroReadCooked" value="halSensorReadCooked" />
+        <define name="gyroSetBias" value="halCalibratedSensorSetBias" />
+        <define name="gyroResetBias" value="halCalibratedSensorResetBias" />
+        <define name="gyroSetSensitivity"
+          value="halCalibratedSensorSetSensitivity" />
+        <define name="gyroResetSensitivity"
+          value="halCalibratedSensorResetSensitivity" />
+      </group>
+    </definitions_early>
+    <types>
+      <interface name="hal_gyroscope" namespace="gyro"
+        ancestorname="hal_calibrated_sensor" descr="gyroscope">
+        <brief>Generic gyroscope interface.</brief>
+        <details>
+          <![CDATA[This interface represents a generic gyroscope exposing one
+                   or more axes.]]>
+        </details>
+        <note><![CDATA[This interface is part of the XHAL complex sensor support.]]></note>
+        <consts>
+        </consts>
+        <methods>
+          <method name="gyroSampleBias" shortname="sample_bias"
+            ctype="msg_t">
+            <brief>Gyroscope bias sampling procedure.</brief>
+            <note><![CDATA[During this procedure the gyroscope must be kept in
+                           the rest position. Sampled bias will be
+                           automatically removed after calling this
+                           procedure.]]></note>
+            <return>The operation status.</return>
+            <retval value="MSG_OK">if the function succeeded.</retval>
+            <retval value="MSG_RESET">if one or more errors occurred.</retval>
+            <api />
+          </method>
+        </methods>
+      </interface>
+    </types>
+  </public>
+  <private>
+  </private>
+</module>

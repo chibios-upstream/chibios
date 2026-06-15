@@ -139,13 +139,13 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
     if (c == 0) {
       return n;
     }
-    
+
     if (c != '%') {
       streamPut(chp, (uint8_t)c);
       n++;
       continue;
     }
-    
+
     p = tmpbuf;
     s = tmpbuf;
 
@@ -169,9 +169,9 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
       fmt++;
       filler = '0';
     }
-    
+
     /* Width modifier.*/
-    if ( *fmt == '*') {
+    if (*fmt == '*') {
       width = va_arg(ap, int);
       ++fmt;
       c = *fmt++;
@@ -192,7 +192,7 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
         }
       }
     }
-    
+
     /* Precision modifier.*/
     precision = 0;
     if (c == '.') {
@@ -215,7 +215,7 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
         }
       }
     }
-    
+
     /* Long modifier.*/
     if (c == 'l' || c == 'L') {
       is_long = true;

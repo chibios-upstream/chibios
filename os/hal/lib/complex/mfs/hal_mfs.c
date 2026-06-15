@@ -917,7 +917,7 @@ mfs_error_t mfsStart(MFSDriver *mfsp, const MFSConfig *config) {
   mfsp->config = config;
 
   return mfs_mount(mfsp);
-} 
+}
 
 /**
  * @brief   Deactivates a MFS driver.

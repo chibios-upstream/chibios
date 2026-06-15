@@ -70,11 +70,30 @@
 #if !defined(STM32_ST_OVERRIDE_ALARMS) || defined(__DOXYGEN__)
 #define STM32_ST_OVERRIDE_ALARMS            1
 #endif
+
+/**
+ * @brief   Allowed ST clock frequency deviation, in per-mille (1/1000).
+ * @details In free running mode the timer prescaler is rounded to the
+ *          nearest integer; the resulting tick frequency is then allowed to
+ *          deviate from @p OSAL_ST_FREQUENCY by up to this many per-mille
+ *          (e.g. 5 means 0.5%). The default of zero requires the ST clock to
+ *          be an exact integer multiple of the tick frequency. Useful on
+ *          devices whose clock tree cannot produce an exact multiple, for
+ *          example STM32U0/U3 when the MSI feeds the PLL.
+ * @note    Only meaningful in free running mode.
+ */
+#if !defined(STM32_ST_FREQUENCY_TOLERANCE) || defined(__DOXYGEN__)
+#define STM32_ST_FREQUENCY_TOLERANCE            0
+#endif
 /** @} */
 
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
+
+#if (STM32_ST_FREQUENCY_TOLERANCE < 0) || (STM32_ST_FREQUENCY_TOLERANCE > 1000)
+#error "invalid STM32_ST_FREQUENCY_TOLERANCE value, must be 0..1000 (per-mille)"
+#endif
 
 /* This has to go after transition to shared handlers is complete for all
    platforms.*/

@@ -1128,7 +1128,7 @@
           <select>
             <when condition="STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_NOCLOCK"
                   value="0U" />
-            <otherwise value="(hal_lld_get_clock_point(CLK_HSI16) / 256U)" />
+            <otherwise value="(STM32_HSI16_FREQ / 256U)" />
           </select>
         </frequencies>
       </derived>
@@ -1141,8 +1141,8 @@
             <when condition="STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_NOCLOCK"
                   value="0U" />
             <when condition="(STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIS4) || (STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIK4)"
-                  value="(hal_lld_get_clock_point(CLK_MSIS) / 1024U)" />
-            <otherwise value="(hal_lld_get_clock_point(CLK_MSIK) / 1024U)" />
+                  value="(STM32_MSIS_FREQ / 1024U)" />
+            <otherwise value="(STM32_MSIK_FREQ / 1024U)" />
           </select>
         </frequencies>
       </derived>
@@ -1155,8 +1155,8 @@
             <when condition="STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_NOCLOCK"
                   value="0U" />
             <when condition="(STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIS4) || (STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIK1024_MSIS4)"
-                  value="(hal_lld_get_clock_point(CLK_MSIS) / 4U)" />
-            <otherwise value="(hal_lld_get_clock_point(CLK_MSIK) / 4U)" />
+                  value="(STM32_MSIS_FREQ / 4U)" />
+            <otherwise value="(STM32_MSIK_FREQ / 4U)" />
           </select>
         </frequencies>
       </derived>

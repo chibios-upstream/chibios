@@ -236,7 +236,6 @@ void __port_irq_epilogue(void) {
     (void) __get_FPSCR();
 #endif
 
-
     /* Adding an artificial exception return context, there is no need to
        populate it fully.*/
     psp = __get_PSP();

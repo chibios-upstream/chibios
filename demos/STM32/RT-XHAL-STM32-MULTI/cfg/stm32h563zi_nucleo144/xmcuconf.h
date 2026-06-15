@@ -22,7 +22,7 @@
  * The following settings override the default settings present in
  * the various device driver implementation headers.
  * Note that the settings for each driver only have effect if the whole
- * driver is enabled in xhalconf.h.
+ * driver is enabled in halconf.h.
  *
  * IRQ priorities:
  * 15...0       Lowest...Highest.
@@ -391,6 +391,7 @@
  */
 #define STM32_ST_IRQ_PRIORITY               8
 #define STM32_ST_USE_TIMER                  2
+#define STM32_ST_FREQUENCY_TOLERANCE        0
 
 /*
  * RTC driver system settings.
