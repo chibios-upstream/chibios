@@ -116,6 +116,7 @@ extern "C" {
   bool sb_is_valid_read_range(sb_class_t *sbp, const void *start, size_t size);
   bool sb_is_valid_write_range(sb_class_t *sbp, void *start, size_t size);
   size_t sb_check_string(sb_class_t *sbp, const char *s, size_t max);
+  size_t sb_copy_string(sb_class_t *sbp, const char *src, char *dst, size_t max);
   size_t sb_check_pointers_array(sb_class_t *sbp, const void *pp[], size_t max);
   size_t sb_check_strings_array(sb_class_t *sbp, const char *pp[], size_t max);
 #ifdef __cplusplus

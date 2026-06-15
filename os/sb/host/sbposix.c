@@ -70,8 +70,11 @@ static uint32_t sb_io_stat(sb_class_t *sbp,
                            struct stat *statbuf) {
   msg_t ret;
   vfs_stat_t vstat;
+  size_t pathlen;
+  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
 
-  if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
+  if (pathlen == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
@@ -79,7 +82,7 @@ static uint32_t sb_io_stat(sb_class_t *sbp,
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  ret = vfsDrvStat(sbp->io.vfs_driver, path, &vstat);
+  ret = vfsDrvStat(sbp->io.vfs_driver, pathbuf, &vstat);
   if (!CH_RET_IS_ERROR(ret)) {
     memset((void *)statbuf, 0, sizeof (struct stat));
     statbuf->st_mode  = (mode_t)vstat.mode;
@@ -94,13 +97,16 @@ static uint32_t sb_io_stat(sb_class_t *sbp,
 static uint32_t sb_io_open(sb_class_t *sbp, const char *path, int flags) {
   vfs_node_c *np = NULL;
   msg_t ret;
+  size_t pathlen;
+  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
 
-  if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
+  if (pathlen == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
   do {
-    ret = vfsDrvOpen(sbp->io.vfs_driver, path, (unsigned)flags, &np);
+    ret = vfsDrvOpen(sbp->io.vfs_driver, pathbuf, (unsigned)flags, &np);
     CH_BREAK_ON_ERROR(ret);
 
     ret = create_descriptor(&sbp->io, np);
@@ -360,12 +366,15 @@ static uint32_t sb_io_getdents(sb_class_t *sbp, int fd, void *buf, size_t count)
 }
 
 static uint32_t sb_io_chdir(sb_class_t *sbp, const char *path) {
+  size_t pathlen;
+  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
 
-  if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
+  if (pathlen == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsDrvChangeCurrentDirectory(sbp->io.vfs_driver, path);
+  return (uint32_t)vfsDrvChangeCurrentDirectory(sbp->io.vfs_driver, pathbuf);
 }
 
 static uint32_t sb_io_getcwd(sb_class_t *sbp, char *buf, size_t size) {
@@ -380,45 +389,62 @@ static uint32_t sb_io_getcwd(sb_class_t *sbp, char *buf, size_t size) {
 }
 
 static uint32_t sb_io_unlink(sb_class_t *sbp, const char *path) {
+  size_t pathlen;
+  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
 
-  if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
+  if (pathlen == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsDrvUnlink(sbp->io.vfs_driver, path);
+  return (uint32_t)vfsDrvUnlink(sbp->io.vfs_driver, pathbuf);
 }
 
 static uint32_t sb_io_rename(sb_class_t *sbp,
                              const char *oldpath,
                              const char *newpath) {
+  size_t oldpathlen;
+  size_t newpathlen;
+  char oldpathbuf[VFS_CFG_PATHLEN_MAX + 1U];
+  char newpathbuf[VFS_CFG_PATHLEN_MAX + 1U];
 
-  if (sb_check_string(sbp, (void *)oldpath, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+  oldpathlen = sb_copy_string(sbp, oldpath, oldpathbuf, sizeof oldpathbuf);
+  if (oldpathlen == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  if (sb_check_string(sbp, (void *)newpath, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+  newpathlen = sb_copy_string(sbp, newpath, newpathbuf, sizeof newpathbuf);
+  if (newpathlen == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsDrvRename(sbp->io.vfs_driver, oldpath, newpath);
+  return (uint32_t)vfsDrvRename(sbp->io.vfs_driver, oldpathbuf, newpathbuf);
 }
 
 static uint32_t sb_io_mkdir(sb_class_t *sbp, const char *path, mode_t mode) {
+  size_t pathlen;
+  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
 
-  if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
+  if (pathlen == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsDrvMkdir(sbp->io.vfs_driver, path, (vfs_mode_t)mode);
+  return (uint32_t)vfsDrvMkdir(sbp->io.vfs_driver,
+                               pathbuf,
+                               (vfs_mode_t)mode);
 }
 
 static uint32_t sb_io_rmdir(sb_class_t *sbp, const char *path) {
+  size_t pathlen;
+  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
 
-  if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
+  if (pathlen == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsDrvRmdir(sbp->io.vfs_driver, path);
+  return (uint32_t)vfsDrvRmdir(sbp->io.vfs_driver, pathbuf);
 }
 
 /*===========================================================================*/

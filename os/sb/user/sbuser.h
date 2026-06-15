@@ -154,78 +154,99 @@ typedef uint32_t eventflags_t;
 #define TIME_MAX_SYSTIME    ((systime_t)-1)
 /** @} */
 
+#define __SB_SYSCALL_NUM(x)                                                  \
+  register uint32_t r12 asm ("r12") = (uint32_t)(x)
+
 /**
  * @name   SVC instruction wrappers.
  * @{
  */
 #define __syscall0(x)                                                       \
-  asm volatile ("svc " #x : : : "memory")
+  __SB_SYSCALL_NUM(x);                                                      \
+  asm volatile ("svc #0" : : "r" (r12) : "memory")
 
 #define __syscall0r(x)                                                      \
+  __SB_SYSCALL_NUM(x);                                                      \
   register uint32_t r0 asm ("r0");                                          \
-  asm volatile ("svc " #x : "=r" (r0) : : "memory")
+  asm volatile ("svc #0" : "=r" (r0) : "r" (r12) : "memory")
 
 #define __syscall0rr(x)                                                     \
+  __SB_SYSCALL_NUM(x);                                                      \
   register uint32_t r0 asm ("r0");                                          \
   register uint32_t r1 asm ("r1");                                          \
-  asm volatile ("svc " #x : "=r" (r0), "=r" (r1) : : "memory")
+  asm volatile ("svc #0" : "=r" (r0), "=r" (r1) :                           \
+                            "r" (r12) :                                    \
+                            "memory")
 
 #define __syscall1r(x, p1)                                                  \
+  __SB_SYSCALL_NUM(x);                                                      \
   register uint32_t r0 asm ("r0") = (uint32_t)(p1);                         \
-  asm volatile ("svc " #x : "=r" (r0) : "r" (r0) : "memory")
+  asm volatile ("svc #0" : "=r" (r0) : "r" (r12), "r" (r0) : "memory")
 
 #define __syscall1rr(x, p1)                                                 \
+  __SB_SYSCALL_NUM(x);                                                      \
   register uint32_t r0 asm ("r0") = (uint32_t)(p1);                         \
   register uint32_t r1 asm ("r1");                                          \
-  asm volatile ("svc " #x : "=r" (r0), "=r" (r1) :                          \
-                             "r" (r0) :                                     \
-                             "memory")
+  asm volatile ("svc #0" : "=r" (r0), "=r" (r1) :                           \
+                            "r" (r12),                                     \
+                            "r" (r0) :                                     \
+                            "memory")
 
 #define __syscall2r(x, p1, p2)                                              \
+  __SB_SYSCALL_NUM(x);                                                      \
   register uint32_t r0 asm ("r0") = (uint32_t)(p1);                         \
   register uint32_t r1 asm ("r1") = (uint32_t)(p2);                         \
-  asm volatile ("svc " #x : "=r" (r0) :                                     \
+  asm volatile ("svc #0" : "=r" (r0) :                                      \
+                            "r" (r12),                                      \
                             "r" (r0), "r" (r1) :                            \
                             "memory")
 
 #define __syscall2rr(x, p1, p2)                                             \
+  __SB_SYSCALL_NUM(x);                                                      \
   register uint32_t r0 asm ("r0") = (uint32_t)(p1);                         \
   register uint32_t r1 asm ("r1") = (uint32_t)(p2);                         \
-  asm volatile ("svc " #x : "=r" (r0), "=r" (r1) :                          \
+  asm volatile ("svc #0" : "=r" (r0), "=r" (r1) :                           \
+                            "r" (r12),                                     \
                             "r" (r0), "r" (r1) :                            \
                             "memory")
 
 #define __syscall3r(x, p1, p2, p3)                                          \
+  __SB_SYSCALL_NUM(x);                                                      \
   register uint32_t r0 asm ("r0") = (uint32_t)(p1);                         \
   register uint32_t r1 asm ("r1") = (uint32_t)(p2);                         \
   register uint32_t r2 asm ("r2") = (uint32_t)(p3);                         \
-  asm volatile ("svc " #x : "=r" (r0) : "r" (r0), "r" (r1),                 \
+  asm volatile ("svc #0" : "=r" (r0) : "r" (r12), "r" (r0), "r" (r1),      \
                                         "r" (r2) :                          \
                                         "memory")
 
 #define __syscall3rr(x, p1, p2, p3)                                         \
+  __SB_SYSCALL_NUM(x);                                                      \
   register uint32_t r0 asm ("r0") = (uint32_t)(p1);                         \
   register uint32_t r1 asm ("r1") = (uint32_t)(p2);                         \
   register uint32_t r2 asm ("r2") = (uint32_t)(p3);                         \
-  asm volatile ("svc " #x : "=r" (r0), "=r" (r1) :                          \
+  asm volatile ("svc #0" : "=r" (r0), "=r" (r1) :                           \
+                            "r" (r12),                                     \
                             "r" (r0), "r" (r1), "r" (r2) :                  \
                             "memory")
 
 #define __syscall4r(x, p1, p2, p3, p4)                                      \
+  __SB_SYSCALL_NUM(x);                                                      \
   register uint32_t r0 asm ("r0") = (uint32_t)(p1);                         \
   register uint32_t r1 asm ("r1") = (uint32_t)(p2);                         \
   register uint32_t r2 asm ("r2") = (uint32_t)(p3);                         \
   register uint32_t r3 asm ("r3") = (uint32_t)(p4);                         \
-  asm volatile ("svc " #x : "=r" (r0) : "r" (r0), "r" (r1),                 \
+  asm volatile ("svc #0" : "=r" (r0) : "r" (r12), "r" (r0), "r" (r1),      \
                                         "r" (r2), "r" (r3) :                \
                                         "memory")
 
 #define __syscall4rr(x, p1, p2, p3, p4)                                     \
+  __SB_SYSCALL_NUM(x);                                                      \
   register uint32_t r0 asm ("r0") = (uint32_t)(p1);                         \
   register uint32_t r1 asm ("r1") = (uint32_t)(p2);                         \
   register uint32_t r2 asm ("r2") = (uint32_t)(p3);                         \
   register uint32_t r3 asm ("r3") = (uint32_t)(p4);                         \
-  asm volatile ("svc " #x : "=r" (r0), "=r" (r1) :                          \
+  asm volatile ("svc #0" : "=r" (r0), "=r" (r1) :                           \
+                            "r" (r12),                                     \
                             "r" (r0), "r" (r1), "r" (r2), "r" (r3) :        \
                             "memory")
 /** @} */

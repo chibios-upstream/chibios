@@ -242,8 +242,8 @@ SVC_Handler:
                 /* SVC called from non-privileged mode for a syscall.*/
                 /* Note, LR already contains the return address.*/
                 mrs     r1, PSP             /* Position of the exc.frame.*/
-                ldr     r3, [r1, #24]       /* PC position.*/
-                ldrb    r0, [r3, #-2]       /* SVC parameter.*/
+                ldr     r0, [r1, #16]       /* Stacked R12.*/
+                uxtb    r0, r0              /* Syscall parameter.*/
                 cmp     r0, #0x80
                 blt     __port_do_fastcall_entry
                 bic     r12, #1

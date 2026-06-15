@@ -94,6 +94,39 @@ size_t sb_check_string(sb_class_t *sbp, const char *s, size_t max) {
   return (size_t)0;
 }
 
+size_t sb_copy_string(sb_class_t *sbp, const char *src, char *dst, size_t max) {
+  const sb_memory_region_t *rp = &sbp->regions[0];
+
+  if (max == (size_t)0) {
+    return (size_t)0;
+  }
+
+  do {
+    if (sb_reg_is_memory(rp) &&
+        chMemIsSpaceWithinX(&rp->area, src, (size_t)1)) {
+      const uint8_t *srcend;
+      size_t n;
+      void *zp;
+
+      srcend = rp->area.base + rp->area.size;
+      n = (size_t)(srcend - (const uint8_t *)src);
+      if (n > max) {
+        n = max;
+      }
+      memcpy(dst, src, n);
+      zp = memchr(dst, 0, n);
+      if (zp != NULL) {
+        return (size_t)(((char *)zp - dst) + 1);
+      }
+
+      return (size_t)0;
+    }
+    rp++;
+  } while (rp < &sbp->regions[SB_CFG_NUM_REGIONS]);
+
+  return (size_t)0;
+}
+
 size_t sb_check_pointers_array(sb_class_t *sbp, const void *pp[], size_t max) {
   const sb_memory_region_t *rp = &sbp->regions[0];
 

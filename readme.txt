@@ -81,6 +81,15 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: Sandbox host VFS path-based syscalls and sbElfLoadFile() now copy
+       validated guest path strings into privileged buffers before use, so
+       shared/DMA-backed guest memory cannot mutate the pathname between
+       validation and the VFS load/open/stat/etc. operation. Sandbox user
+       syscall stubs now pass the syscall number in R12 with `svc #0`, and the
+       ARMv7-M-ALT / ARMv8-M-ML-ALT handlers clamp the stacked value before
+       dispatch, removing the privileged read of the SVC immediate from guest
+       code memory. This is a sandbox ABI break; sandbox binaries must be
+       rebuilt.
 - FIX: STM32U3 RTC was completely non-functional - the driver hung at boot in
        rtc_enter_init() waiting for INITF. The RTC APB clock was never enabled:
        hal_lld guarded it on defined(RCC_APB3ENR_RTCAPBEN) (the STM32H5/U5

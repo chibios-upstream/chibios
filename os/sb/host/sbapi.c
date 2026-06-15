@@ -244,13 +244,16 @@ void sb_sysc_loadelf(sb_class_t *sbp, struct port_extctx *ectxp) {
   const char *fname = (const char *)ectxp->r0;
   uint8_t *buf = (uint8_t *)ectxp->r1;
   size_t size = (size_t)ectxp->r2;
+  size_t fnamelen;
+  char fnamebuf[VFS_CFG_PATHLEN_MAX + 1U];
 
   if (sbp->io.vfs_driver == NULL) {
     ectxp->r0 = CH_RET_ENOSYS;
     return;
   }
 
-  if ((sb_check_string(sbp, (void *)fname, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) ||
+  fnamelen = sb_copy_string(sbp, fname, fnamebuf, sizeof fnamebuf);
+  if ((fnamelen == (size_t)0) ||
        !MEM_IS_ALIGNED(buf, MEM_NATURAL_ALIGN) ||
        !MEM_IS_ALIGNED(size, MEM_NATURAL_ALIGN) ||
        !sb_is_valid_write_range(sbp, buf, size)) {
@@ -258,7 +261,7 @@ void sb_sysc_loadelf(sb_class_t *sbp, struct port_extctx *ectxp) {
   }
   else {
     memory_area_t ma = {buf, size};
-    ectxp->r0 = (uint32_t)sbElfLoadFile(sbp->io.vfs_driver, fname, &ma);
+    ectxp->r0 = (uint32_t)sbElfLoadFile(sbp->io.vfs_driver, fnamebuf, &ma);
   }
 #else
   (void)sbp;
