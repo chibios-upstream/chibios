@@ -50,6 +50,17 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+static char *sb_io_copy_path(sb_class_t *sbp, const char *path, unsigned slot) {
+  char *pathbuf;
+
+  pathbuf = sbp->io.pathbuf[slot];
+  if (sb_copy_string(sbp, path, pathbuf, VFS_CFG_PATHLEN_MAX + 1U) == (size_t)0) {
+    return NULL;
+  }
+
+  return pathbuf;
+}
+
 static msg_t create_descriptor(sb_ioblock_t *iop,
                                vfs_node_c *np) {
   unsigned fd;
@@ -68,13 +79,12 @@ static msg_t create_descriptor(sb_ioblock_t *iop,
 static uint32_t sb_io_stat(sb_class_t *sbp,
                            const char *path,
                            struct stat *statbuf) {
+  char *pathbuf;
   msg_t ret;
   vfs_stat_t vstat;
-  size_t pathlen;
-  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
 
-  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
-  if (pathlen == (size_t)0) {
+  pathbuf = sb_io_copy_path(sbp, path, 0U);
+  if (pathbuf == NULL) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
@@ -95,13 +105,12 @@ static uint32_t sb_io_stat(sb_class_t *sbp,
 }
 
 static uint32_t sb_io_open(sb_class_t *sbp, const char *path, int flags) {
+  char *pathbuf;
   vfs_node_c *np = NULL;
   msg_t ret;
-  size_t pathlen;
-  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
 
-  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
-  if (pathlen == (size_t)0) {
+  pathbuf = sb_io_copy_path(sbp, path, 0U);
+  if (pathbuf == NULL) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
@@ -366,11 +375,10 @@ static uint32_t sb_io_getdents(sb_class_t *sbp, int fd, void *buf, size_t count)
 }
 
 static uint32_t sb_io_chdir(sb_class_t *sbp, const char *path) {
-  size_t pathlen;
-  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
+  char *pathbuf;
 
-  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
-  if (pathlen == (size_t)0) {
+  pathbuf = sb_io_copy_path(sbp, path, 0U);
+  if (pathbuf == NULL) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
@@ -389,11 +397,10 @@ static uint32_t sb_io_getcwd(sb_class_t *sbp, char *buf, size_t size) {
 }
 
 static uint32_t sb_io_unlink(sb_class_t *sbp, const char *path) {
-  size_t pathlen;
-  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
+  char *pathbuf;
 
-  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
-  if (pathlen == (size_t)0) {
+  pathbuf = sb_io_copy_path(sbp, path, 0U);
+  if (pathbuf == NULL) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
@@ -403,18 +410,16 @@ static uint32_t sb_io_unlink(sb_class_t *sbp, const char *path) {
 static uint32_t sb_io_rename(sb_class_t *sbp,
                              const char *oldpath,
                              const char *newpath) {
-  size_t oldpathlen;
-  size_t newpathlen;
-  char oldpathbuf[VFS_CFG_PATHLEN_MAX + 1U];
-  char newpathbuf[VFS_CFG_PATHLEN_MAX + 1U];
+  char *oldpathbuf;
+  char *newpathbuf;
 
-  oldpathlen = sb_copy_string(sbp, oldpath, oldpathbuf, sizeof oldpathbuf);
-  if (oldpathlen == (size_t)0) {
+  oldpathbuf = sb_io_copy_path(sbp, oldpath, 0U);
+  if (oldpathbuf == NULL) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  newpathlen = sb_copy_string(sbp, newpath, newpathbuf, sizeof newpathbuf);
-  if (newpathlen == (size_t)0) {
+  newpathbuf = sb_io_copy_path(sbp, newpath, 1U);
+  if (newpathbuf == NULL) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
@@ -422,11 +427,10 @@ static uint32_t sb_io_rename(sb_class_t *sbp,
 }
 
 static uint32_t sb_io_mkdir(sb_class_t *sbp, const char *path, mode_t mode) {
-  size_t pathlen;
-  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
+  char *pathbuf;
 
-  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
-  if (pathlen == (size_t)0) {
+  pathbuf = sb_io_copy_path(sbp, path, 0U);
+  if (pathbuf == NULL) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
@@ -436,11 +440,10 @@ static uint32_t sb_io_mkdir(sb_class_t *sbp, const char *path, mode_t mode) {
 }
 
 static uint32_t sb_io_rmdir(sb_class_t *sbp, const char *path) {
-  size_t pathlen;
-  char pathbuf[VFS_CFG_PATHLEN_MAX + 1U];
+  char *pathbuf;
 
-  pathlen = sb_copy_string(sbp, path, pathbuf, sizeof pathbuf);
-  if (pathlen == (size_t)0) {
+  pathbuf = sb_io_copy_path(sbp, path, 0U);
+  if (pathbuf == NULL) {
     return (uint32_t)CH_RET_EFAULT;
   }
 

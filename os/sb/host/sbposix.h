@@ -69,6 +69,10 @@ typedef struct {
    * @brief   VFS nodes associated to file descriptors.
    */
   vfs_node_c                    *vfs_nodes[SB_CFG_FD_NUM];
+  /**
+   * @brief   Private buffers for copied-in guest paths.
+   */
+  char                          pathbuf[2][VFS_CFG_PATHLEN_MAX + 1U];
 } sb_ioblock_t;
 #endif
 

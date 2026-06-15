@@ -106,7 +106,7 @@ size_t sb_copy_string(sb_class_t *sbp, const char *src, char *dst, size_t max) {
         chMemIsSpaceWithinX(&rp->area, src, (size_t)1)) {
       const uint8_t *srcend;
       size_t n;
-      void *zp;
+      void *nullp;
 
       srcend = rp->area.base + rp->area.size;
       n = (size_t)(srcend - (const uint8_t *)src);
@@ -114,9 +114,9 @@ size_t sb_copy_string(sb_class_t *sbp, const char *src, char *dst, size_t max) {
         n = max;
       }
       memcpy(dst, src, n);
-      zp = memchr(dst, 0, n);
-      if (zp != NULL) {
-        return (size_t)(((char *)zp - dst) + 1);
+      nullp = memchr(dst, 0, n);
+      if (nullp != NULL) {
+        return (size_t)(((char *)nullp - dst) + 1);
       }
 
       return (size_t)0;
