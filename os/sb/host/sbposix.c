@@ -50,8 +50,13 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+/*
+ * Copies a guest path into one of the private per-sandbox path buffers.
+ */
 static char *sb_io_copy_path(sb_class_t *sbp, const char *path, unsigned slot) {
   char *pathbuf;
+
+  chDbgAssert(slot < 2U, "invalid slot");
 
   if (slot >= 2U) {
     return NULL;
