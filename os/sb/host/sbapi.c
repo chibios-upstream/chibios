@@ -245,7 +245,7 @@ void sb_sysc_loadelf(sb_class_t *sbp, struct port_extctx *ectxp) {
   uint8_t *buf = (uint8_t *)ectxp->r1;
   size_t size = (size_t)ectxp->r2;
   size_t fnamelen;
-  char fnamebuf[VFS_CFG_PATHLEN_MAX + 1U];
+  char fnamebuf[sizeof sbp->io.pathbuf[0]];
 
   if (sbp->io.vfs_driver == NULL) {
     ectxp->r0 = CH_RET_ENOSYS;

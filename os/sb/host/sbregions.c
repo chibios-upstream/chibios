@@ -100,7 +100,7 @@ size_t sb_copy_string(sb_class_t *sbp, const char *src, char *dst, size_t max) {
   const sb_memory_region_t *rp = &sbp->regions[0];
 
   if (max == (size_t)0) {
-    /* String crosses the region boundary or exceeds max without terminator.*/
+    /* Zero-length destination buffer.*/
     return (size_t)0;
   }
 
@@ -130,11 +130,13 @@ size_t sb_copy_string(sb_class_t *sbp, const char *src, char *dst, size_t max) {
         n--;
       }
 
+      /* String crosses the region boundary or exceeds max without terminator.*/
       return (size_t)0;
     }
     rp++;
   } while (rp < &sbp->regions[SB_CFG_NUM_REGIONS]);
 
+  /* Source pointer not contained in any readable memory region.*/
   return (size_t)0;
 }
 
