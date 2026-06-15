@@ -60,7 +60,7 @@ static char *sb_io_copy_path(sb_class_t *sbp, const char *path, unsigned slot) {
   chDbgAssert(slot < 2U, "invalid slot");
 
   pathbuf = sbp->io.pathbuf[slot];
-  if (sb_copy_string(sbp, path, pathbuf, sizeof sbp->io.pathbuf[slot]) == (size_t)0) {
+  if (sb_copy_string(sbp, path, pathbuf, sizeof(sbp->io.pathbuf[slot])) == (size_t)0) {
     return NULL;
   }
 
