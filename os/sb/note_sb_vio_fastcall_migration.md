@@ -33,13 +33,28 @@ Already in the target shape (reference, no work):
    that peripheral's existing fastcall sub-codes; update the guest stubs.
 4. Guest ABI change — see "Cross-cutting" for batching.
 5. Validate on HW with `testsb/SB_VIO-STM32G474RE-NUCLEO64-HOST` (the
-   G474 `SB_HOST_SWITCHED` demo only exercises GPIO + UART VIO).
+   G474 `SB_HOST_SWITCHED` demo only exercises GPIO + UART VIO). The test
+   apps run with the state checker on (it asserts any prologue/lock/
+   unlock/epilogue contract violation), so a clean run is the contract
+   proof.
+
+   **Build gotcha:** enable `CH_DBG_SYSTEM_STATE_CHECK` (and the other
+   debug options) in `chconf.h`, *not* via a command-line `UDEFS=-D...`.
+   `UDEFS` reaches only the C compiler (`DEFS`); the assembler uses
+   `ADEFS`/`UADEFS`. Setting it only in `UDEFS` leaves `chcoreasm.S`
+   seeing it FALSE, which compiles out `__port_thread_start`'s
+   `bl __dbg_check_unlock` -> spawned threads run with `lock_cnt=1` -> a
+   spurious `SV#4` on the first locking call. (Cost us a half-day red
+   herring on 2026-06-16.)
 
 ## Order and checklist
 
-- [ ] **1. ADC** (228 -> 100): migrate `START_LINEAR`, `START_CIRCULAR`
-      (`adcStartConversion*`), `STOP` (`adcStopConversion`). Keep
-      `INIT`/`DEINIT`/`SELCFG`. `GCERR` already a fastcall.
+- [x] **1. ADC** (228 -> 100) — **done 2026-06-16**: `START_LINEAR`,
+      `START_CIRCULAR` (`adcStartConversion*I`), `STOP`
+      (`adcStopConversionI`) moved to the fastcall handler; `INIT`/
+      `DEINIT`/`SELCFG` kept on 228; `GCERR` already a fastcall.
+      HW-validated on G474 (`testsb/SB_VIO`, `adc stream`) under the full
+      state checker — START/completion-VRQ/STOP with no `SV#` assertion.
 - [ ] **2. SPI** (226 -> 98): migrate `PULSES`/`RECEIVE`/`SEND`/`EXCHANGE`
       (`spiStart*I`), `STOP` (`spiStopTransferI`), `SELECT`/`UNSELECT`
       (`spiSelectX`/`spiUnselectX`). Keep `INIT`/`DEINIT`/`SELCFG`.
@@ -70,5 +85,6 @@ Already in the target shape (reference, no work):
 
 ## Status
 
-Not started (2026-06-16). Gated on point 5 (IRQ-like fastcalls), not yet
-implemented.
+ADC done and HW-validated (2026-06-16). Mechanism confirmed: IRQ-like
+fastcalls work with the existing OSAL IRQ macros (no port change needed).
+Next: SPI. Remaining: SPI, I2C, GPT, ETH.

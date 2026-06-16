@@ -80,7 +80,7 @@ static inline uint32_t __adc_vadc_start(hal_adc_driver_c *adcp, unsigned grpnum,
 
   subcode = (drvGetStateX(adcp) == ADC_ACTIVE_CIRCULAR) ?
             SB_VADC_START_CIRCULAR : SB_VADC_START_LINEAR;
-  __syscall4r(228, VIO_CALL(subcode, adcp->nvadc),
+  __syscall4r(100, VIO_CALL(subcode, adcp->nvadc),
               grpnum, samples, depth);
   return (uint32_t)r0;
 }
@@ -88,7 +88,7 @@ static inline uint32_t __adc_vadc_start(hal_adc_driver_c *adcp, unsigned grpnum,
 CC_FORCE_INLINE
 static inline uint32_t __adc_vadc_stop(uint32_t nvadc) {
 
-  __syscall1r(228, VIO_CALL(SB_VADC_STOP, nvadc));
+  __syscall1r(100, VIO_CALL(SB_VADC_STOP, nvadc));
   return (uint32_t)r0;
 }
 
