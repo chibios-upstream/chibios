@@ -72,9 +72,17 @@ Already in the target shape (reference, no work):
       contending on `SPID1` with different configurations + a start/abort
       sequence) under the full state checker: 1205 + 2408 iterations, 0
       errors, no `SV#` assertion.
-- [ ] **3. I2C** (230 -> 102): migrate `TX`/`RX` (`i2cStartMaster*I`),
-      `STOP` (`i2cStopTransferI`), `GCERR` (`i2cGetAndClearErrorsX`). Keep
-      `INIT`/`DEINIT` (SELCFG now a fastcall, see below).
+- [~] **3. I2C** (230 -> 102) — **code migrated 2026-06-16, HW validation
+      pending (no I2C device yet)**: `TX`/`RX` (`i2cStartMaster{Transmit,
+      Receive}I`) and `STOP` (`i2cStopTransferI`) moved to `sb_fastc_vio_i2c`
+      as ISR bodies. `SELCFG` and `GCERR` (`i2cGetAndClearErrorsX`) were
+      *already* fastcalls here, so no GCERR unification was needed (the
+      cross-cutting note below was stale on that point). Only `INIT`/`DEINIT`
+      stay on 230. **No sub-code renumber needed**: the I2C fastcall space
+      (`GCERR=0`,`SELCFG=1`) and the migrated codes (`TX=2`,`RX=3`,`STOP=4`)
+      do not collide. Compile-verified on both host and client (I2C
+      temporarily enabled), stylecheck-clean. Not yet HW-validated: needs an
+      I2C device + an `i2c` test command in SB_VIO.
 - [ ] **4. GPT** (229 -> 101): migrate `START`/`STOP`/`CHGI` (swap
       `gptStartContinuous`/`gptStartOneShot`/`gptStopTimer`/
       `gptChangeInterval` for their `...I` forms). Keep
@@ -102,8 +110,9 @@ Already in the target shape (reference, no work):
   part without weakening them.) Now `SELCFG` is a plain fastcall case (no
   prologue/lock, like `GCERR`); only `INIT`/`DEINIT` (`drvStart`/
   `drvStop`, genuinely mutex/blocking) stay syscalls.
-- **`GCERR` should be a fastcall for every peripheral** (it is X-class);
-  today ADC has it as a fastcall, I2C as a syscall — unify while here.
+- **`GCERR` is a fastcall for every peripheral** (it is X-class). Confirmed
+  already true for both ADC and I2C (2026-06-16) — no unification was
+  needed.
 - **One ABI revision, not five.** Host handlers may move one driver at a
   time during development, but the guest-facing change (stub renumbering)
   should be released as a single batch behind the SB ABI version bump.
@@ -114,7 +123,9 @@ Already in the target shape (reference, no work):
 ## Status
 
 ADC and SPI done and HW-validated (2026-06-16). The SB_VIO client now has
-both an `adc` and an `spi` command.
+both an `adc` and an `spi` command. I2C code migrated (2026-06-16),
+compile-verified both sides; HW validation deferred until an I2C device is
+available and an `i2c` SB_VIO command is added.
 
 ## Test harness (per-driver SB_VIO commands)
 
@@ -132,7 +143,14 @@ unit/config wiring (`cfg/vioconf.h`, host `main.c`).
   virtual SPI with `SPID2` (SPI2 on PB12-15), `VIO_CFG_ENABLE_SPI=TRUE`,
   `vrqn=6` matching the guest `VIO_VSPI1_IRQ`. No external device: a
   contract-proof test (MISO floats, rx data not checked).
-- I2C, ETH — add as their migrations land.
+- **I2C** — pending: needs an I2C device on the host bus (unlike SPI, I2C
+  cannot self-test with a floating bus — a master TX with no slave NAKs/
+  errors immediately, so the state checker would still see the fastcall
+  path but the transfer reports an error rather than completing). Add an
+  `i2c` command once a device is available, backed by a host `I2CDx`
+  instance + `VIO_CFG_ENABLE_I2C=TRUE`.
+- ETH — add as its migration lands.
 
 Mechanism confirmed: IRQ-like fastcalls work with the existing OSAL IRQ
-macros (no port change needed). Remaining migrations: I2C, GPT, ETH.
+macros (no port change needed). Remaining migrations: GPT, ETH (I2C code
+done, HW validation pending).

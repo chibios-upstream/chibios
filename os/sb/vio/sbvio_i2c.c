@@ -26,6 +26,8 @@
 
 #include "sb.h"
 
+#include <string.h>
+
 #if (VIO_CFG_ENABLE_I2C == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
@@ -140,113 +142,6 @@ void sb_sysc_vio_i2c(sb_class_t *sbp, struct port_extctx *ectxp) {
         ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
         break;
       }
-    case SB_VI2C_TX:
-      {
-        const sb_vi2c_transfer_t *transferp;
-        sb_vi2c_transfer_t transfer;
-        msg_t msg;
-
-        transferp = (const sb_vi2c_transfer_t *)ectxp->r1;
-        if (!vi2c_get_transfer(sbp, transferp, &transfer)) {
-          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          break;
-        }
-
-        if ((transfer.txbytes == 0U) || (transfer.txbuf == NULL)) {
-          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
-          break;
-        }
-
-        if ((transfer.rxbytes > 0U) && (transfer.rxbuf == NULL)) {
-          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
-          break;
-        }
-
-        if (!sb_is_valid_read_range(sbp, transfer.txbuf,
-                                    (size_t)transfer.txbytes)) {
-          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          break;
-        }
-
-        if ((transfer.rxbytes > 0U) &&
-            !sb_is_valid_write_range(sbp, transfer.rxbuf,
-                                     (size_t)transfer.rxbytes)) {
-          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          break;
-        }
-
-        chSysLock();
-        if (drvGetStateX(unitp->i2cp) != HAL_DRV_STATE_READY) {
-          msg = HAL_RET_INV_STATE;
-        }
-        else {
-          msg = i2cStartMasterTransmitI(unitp->i2cp,
-                                        (i2caddr_t)transfer.addr,
-                                        transfer.txbuf,
-                                        (size_t)transfer.txbytes,
-                                        transfer.rxbuf,
-                                        (size_t)transfer.rxbytes);
-        }
-        chSysUnlock();
-
-        ectxp->r0 = (uint32_t)msg;
-        break;
-      }
-    case SB_VI2C_RX:
-      {
-        const sb_vi2c_transfer_t *transferp;
-        sb_vi2c_transfer_t transfer;
-        msg_t msg;
-
-        transferp = (const sb_vi2c_transfer_t *)ectxp->r1;
-        if (!vi2c_get_transfer(sbp, transferp, &transfer)) {
-          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          break;
-        }
-
-        if ((transfer.addr == 0U) ||
-            (transfer.rxbytes == 0U) || (transfer.rxbuf == NULL)) {
-          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
-          break;
-        }
-
-        if (!sb_is_valid_write_range(sbp, transfer.rxbuf,
-                                     (size_t)transfer.rxbytes)) {
-          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          break;
-        }
-
-        chSysLock();
-        if (drvGetStateX(unitp->i2cp) != HAL_DRV_STATE_READY) {
-          msg = HAL_RET_INV_STATE;
-        }
-        else {
-          msg = i2cStartMasterReceiveI(unitp->i2cp,
-                                       (i2caddr_t)transfer.addr,
-                                       transfer.rxbuf,
-                                       (size_t)transfer.rxbytes);
-        }
-        chSysUnlock();
-
-        ectxp->r0 = (uint32_t)msg;
-        break;
-      }
-    case SB_VI2C_STOP:
-      {
-        msg_t msg;
-
-        chSysLock();
-        if (drvGetStateX(unitp->i2cp) == HAL_DRV_STATE_STOP) {
-          msg = HAL_RET_INV_STATE;
-        }
-        else {
-          msg = i2cStopTransferI(unitp->i2cp);
-        }
-        chSysUnlock();
-
-        ectxp->r0 = (uint32_t)msg;
-        break;
-      }
     default:
       ectxp->r0 = (uint32_t)CH_RET_ENOSYS;
       break;
@@ -300,6 +195,121 @@ void sb_fastc_vio_i2c(sb_class_t *sbp, struct port_extctx *ectxp) {
     case SB_VI2C_GCERR:
       {
         ectxp->r0 = (uint32_t)i2cGetAndClearErrorsX(unitp->i2cp);
+        break;
+      }
+    case SB_VI2C_TX:
+      {
+        const sb_vi2c_transfer_t *transferp;
+        sb_vi2c_transfer_t transfer;
+        msg_t msg;
+
+        transferp = (const sb_vi2c_transfer_t *)ectxp->r1;
+        if (!vi2c_get_transfer(sbp, transferp, &transfer)) {
+          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
+          break;
+        }
+
+        if ((transfer.txbytes == 0U) || (transfer.txbuf == NULL)) {
+          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+          break;
+        }
+
+        if ((transfer.rxbytes > 0U) && (transfer.rxbuf == NULL)) {
+          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+          break;
+        }
+
+        if (!sb_is_valid_read_range(sbp, transfer.txbuf,
+                                    (size_t)transfer.txbytes)) {
+          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
+          break;
+        }
+
+        if ((transfer.rxbytes > 0U) &&
+            !sb_is_valid_write_range(sbp, transfer.rxbuf,
+                                     (size_t)transfer.rxbytes)) {
+          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
+          break;
+        }
+
+        /* IRQ-like fastcall: the transfer start is an I-class async kick,
+           completion is delivered later via VRQ from vi2c_cb().*/
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
+        if (drvGetStateX(unitp->i2cp) != HAL_DRV_STATE_READY) {
+          msg = HAL_RET_INV_STATE;
+        }
+        else {
+          msg = i2cStartMasterTransmitI(unitp->i2cp,
+                                        (i2caddr_t)transfer.addr,
+                                        transfer.txbuf,
+                                        (size_t)transfer.txbytes,
+                                        transfer.rxbuf,
+                                        (size_t)transfer.rxbytes);
+        }
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
+
+        ectxp->r0 = (uint32_t)msg;
+        break;
+      }
+    case SB_VI2C_RX:
+      {
+        const sb_vi2c_transfer_t *transferp;
+        sb_vi2c_transfer_t transfer;
+        msg_t msg;
+
+        transferp = (const sb_vi2c_transfer_t *)ectxp->r1;
+        if (!vi2c_get_transfer(sbp, transferp, &transfer)) {
+          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
+          break;
+        }
+
+        if ((transfer.addr == 0U) ||
+            (transfer.rxbytes == 0U) || (transfer.rxbuf == NULL)) {
+          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+          break;
+        }
+
+        if (!sb_is_valid_write_range(sbp, transfer.rxbuf,
+                                     (size_t)transfer.rxbytes)) {
+          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
+          break;
+        }
+
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
+        if (drvGetStateX(unitp->i2cp) != HAL_DRV_STATE_READY) {
+          msg = HAL_RET_INV_STATE;
+        }
+        else {
+          msg = i2cStartMasterReceiveI(unitp->i2cp,
+                                       (i2caddr_t)transfer.addr,
+                                       transfer.rxbuf,
+                                       (size_t)transfer.rxbytes);
+        }
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
+
+        ectxp->r0 = (uint32_t)msg;
+        break;
+      }
+    case SB_VI2C_STOP:
+      {
+        msg_t msg;
+
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
+        if (drvGetStateX(unitp->i2cp) == HAL_DRV_STATE_STOP) {
+          msg = HAL_RET_INV_STATE;
+        }
+        else {
+          msg = i2cStopTransferI(unitp->i2cp);
+        }
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
+
+        ectxp->r0 = (uint32_t)msg;
         break;
       }
     default:

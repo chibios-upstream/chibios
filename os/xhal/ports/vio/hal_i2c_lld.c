@@ -72,7 +72,7 @@ CC_FORCE_INLINE
 static inline uint32_t __i2c_vi2c_start_tx(uint32_t nvi2c,
                                            const sb_vi2c_transfer_t *tp) {
 
-  __syscall2r(230, VIO_CALL(SB_VI2C_TX, nvi2c), tp);
+  __syscall2r(102, VIO_CALL(SB_VI2C_TX, nvi2c), tp);
   return (uint32_t)r0;
 }
 
@@ -80,14 +80,14 @@ CC_FORCE_INLINE
 static inline uint32_t __i2c_vi2c_start_rx(uint32_t nvi2c,
                                            const sb_vi2c_transfer_t *tp) {
 
-  __syscall2r(230, VIO_CALL(SB_VI2C_RX, nvi2c), tp);
+  __syscall2r(102, VIO_CALL(SB_VI2C_RX, nvi2c), tp);
   return (uint32_t)r0;
 }
 
 CC_FORCE_INLINE
 static inline uint32_t __i2c_vi2c_stop(uint32_t nvi2c) {
 
-  __syscall1r(230, VIO_CALL(SB_VI2C_STOP, nvi2c));
+  __syscall1r(102, VIO_CALL(SB_VI2C_STOP, nvi2c));
   return (uint32_t)r0;
 }
 
