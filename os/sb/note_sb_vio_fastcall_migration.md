@@ -51,29 +51,46 @@ Already in the target shape (reference, no work):
 
 - [x] **1. ADC** (228 -> 100) — **done 2026-06-16**: `START_LINEAR`,
       `START_CIRCULAR` (`adcStartConversion*I`), `STOP`
-      (`adcStopConversionI`) moved to the fastcall handler; `INIT`/
-      `DEINIT`/`SELCFG` kept on 228; `GCERR` already a fastcall.
-      HW-validated on G474 (`testsb/SB_VIO`, `adc stream`) under the full
-      state checker — START/completion-VRQ/STOP with no `SV#` assertion.
+      (`adcStopConversionI`) moved to the fastcall handler as ISR bodies;
+      `SELCFG` (`drvSetCfgX`, now X-class — see cross-cutting) moved as a
+      plain fastcall case; `GCERR` already a fastcall. Only `INIT`/`DEINIT`
+      stay on 228. HW-validated on G474 (`testsb/SB_VIO`, `adc stream`)
+      under the full state checker — SELCFG/START/completion-VRQ/STOP with
+      no `SV#` assertion.
 - [ ] **2. SPI** (226 -> 98): migrate `PULSES`/`RECEIVE`/`SEND`/`EXCHANGE`
       (`spiStart*I`), `STOP` (`spiStopTransferI`), `SELECT`/`UNSELECT`
-      (`spiSelectX`/`spiUnselectX`). Keep `INIT`/`DEINIT`/`SELCFG`.
+      (`spiSelectX`/`spiUnselectX`). Keep `INIT`/`DEINIT` (SELCFG now a fastcall, see below).
       Template case: `validate -> lock -> spiStartReceiveI -> unlock`.
 - [ ] **3. I2C** (230 -> 102): migrate `TX`/`RX` (`i2cStartMaster*I`),
       `STOP` (`i2cStopTransferI`), `GCERR` (`i2cGetAndClearErrorsX`). Keep
-      `INIT`/`DEINIT`/`SELCFG`.
+      `INIT`/`DEINIT` (SELCFG now a fastcall, see below).
 - [ ] **4. GPT** (229 -> 101): migrate `START`/`STOP`/`CHGI` (swap
       `gptStartContinuous`/`gptStartOneShot`/`gptStopTimer`/
       `gptChangeInterval` for their `...I` forms). Keep
-      `INIT`/`DEINIT`/`SELCFG`/`SETCB` and **`PDELAY` (`gptPolledDelay`
+      `INIT`/`DEINIT`/`SETCB` and **`PDELAY` (`gptPolledDelay`
       busy-waits — must stay a syscall)**.
 - [ ] **5. ETH** (227 -> 99): migrate `LINK`, `RXREAD`/`TXWRITE`,
       `RXREL`/`TXREL`, `RXGET`/`TXGET` (handle fetch + copy, all X-class).
-      Keep `INIT`/`DEINIT`/`SELCFG`. Do last: VETH ABI/ownership is still
+      Keep `INIT`/`DEINIT` (SELCFG now a fastcall, see below). Do last: VETH ABI/ownership is still
       in flux (open_points "Host VIO / ETH").
 
 ## Cross-cutting
 
+- **`SELCFG` moves to fastcall for every peripheral** (all use the base
+  `drvSetCfgX`). This was unblocked by fixing `drvSetCfgX`/`drvSelectCfgX`
+  in the base driver: they were named X-class but took `osalSysLock`,
+  which is illegal. **X-class contract:** the function must be safe to
+  call from *any* context (thread, ISR, locked), so it must be atomic by
+  construction — any TOCTOU is handled *inside* the implementation (here:
+  atomic single-word state read and config-pointer write, the in-between
+  race being benign), never by taking the OS lock and never delegated to
+  the caller's context. Fixed at the codegen source
+  (`hal_base_driver.xml`: `<api>`->`<xclass>`, lock removed) and
+  regenerated. (`setcfg`/`selcfg` were already invoked under the lock, so
+  they were already non-blocking — dropping the lock removes the illegal
+  part without weakening them.) Now `SELCFG` is a plain fastcall case (no
+  prologue/lock, like `GCERR`); only `INIT`/`DEINIT` (`drvStart`/
+  `drvStop`, genuinely mutex/blocking) stay syscalls.
 - **`GCERR` should be a fastcall for every peripheral** (it is X-class);
   today ADC has it as a fastcall, I2C as a syscall — unify while here.
 - **One ABI revision, not five.** Host handlers may move one driver at a

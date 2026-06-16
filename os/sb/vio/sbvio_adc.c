@@ -160,6 +160,39 @@ void sb_sysc_vio_adc(sb_class_t *sbp, struct port_extctx *ectxp) {
         ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
         break;
       }
+    default:
+      ectxp->r0 = (uint32_t)CH_RET_ENOSYS;
+      break;
+    }
+  }
+}
+
+void sb_fastc_vio_adc(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t sub  = VIO_CALL_SUBCODE(ectxp->r0);
+  uint32_t unit = VIO_CALL_UNIT(ectxp->r0);
+
+  /* VIO not associated.*/
+  if ((sbp->vioconf == NULL) || (sbp->vioconf->adcs == NULL)) {
+    ectxp->r0 = (uint32_t)HAL_RET_NO_RESOURCE;
+    return;
+  }
+
+  if (unit >= sbp->vioconf->adcs->n) {
+    ectxp->r0 = (uint32_t)HAL_RET_NO_RESOURCE;
+    return;
+  }
+
+  /* API processing.*/
+  {
+    const vio_adc_unit_t *unitp = &sbp->vioconf->adcs->units[unit];
+
+    switch (sub) {
+    case SB_VADC_GCERR:
+      {
+        ectxp->r0 = (uint32_t)adcGetAndClearErrorsX(unitp->adcp,
+                                                    (adcerror_t)-1);
+        break;
+      }
     case SB_VADC_SELCFG:
       {
         uint32_t cfgnum = ectxp->r1;
@@ -192,7 +225,7 @@ void sb_sysc_vio_adc(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        /* Specified VADC configuration.*/
+        /* drvSetCfgX is X-class, callable directly from this fastcall.*/
         confp = &sbp->vioconf->adcconfs->cfgs[cfgnum];
         msg = drvSetCfgX(unitp->adcp, confp);
 
@@ -208,39 +241,6 @@ void sb_sysc_vio_adc(sb_class_t *sbp, struct port_extctx *ectxp) {
           ectxp->r0 = (uint32_t)HAL_RET_CONFIG_ERROR;
         }
 
-        break;
-      }
-    default:
-      ectxp->r0 = (uint32_t)CH_RET_ENOSYS;
-      break;
-    }
-  }
-}
-
-void sb_fastc_vio_adc(sb_class_t *sbp, struct port_extctx *ectxp) {
-  uint32_t sub  = VIO_CALL_SUBCODE(ectxp->r0);
-  uint32_t unit = VIO_CALL_UNIT(ectxp->r0);
-
-  /* VIO not associated.*/
-  if ((sbp->vioconf == NULL) || (sbp->vioconf->adcs == NULL)) {
-    ectxp->r0 = (uint32_t)HAL_RET_NO_RESOURCE;
-    return;
-  }
-
-  if (unit >= sbp->vioconf->adcs->n) {
-    ectxp->r0 = (uint32_t)HAL_RET_NO_RESOURCE;
-    return;
-  }
-
-  /* API processing.*/
-  {
-    const vio_adc_unit_t *unitp = &sbp->vioconf->adcs->units[unit];
-
-    switch (sub) {
-    case SB_VADC_GCERR:
-      {
-        ectxp->r0 = (uint32_t)adcGetAndClearErrorsX(unitp->adcp,
-                                                    (adcerror_t)-1);
         break;
       }
     case SB_VADC_START_LINEAR:

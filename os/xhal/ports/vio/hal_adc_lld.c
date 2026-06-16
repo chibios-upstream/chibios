@@ -69,7 +69,7 @@ CC_FORCE_INLINE
 static inline uint32_t __adc_vadc_selcfg(uint32_t nvadc, uint32_t ncfg,
                                          size_t n, void *p) {
 
-  __syscall4r(228, VIO_CALL(SB_VADC_SELCFG, nvadc), ncfg, n, p);
+  __syscall4r(100, VIO_CALL(SB_VADC_SELCFG, nvadc), ncfg, n, p);
   return (uint32_t)r0;
 }
 
