@@ -57,18 +57,21 @@ Already in the target shape (reference, no work):
       stay on 228. HW-validated on G474 (`testsb/SB_VIO`, `adc stream`)
       under the full state checker — SELCFG/START/completion-VRQ/STOP with
       no `SV#` assertion.
-- [~] **2. SPI** (226 -> 98) — **code migrated 2026-06-16, HW validation
-      pending**: `PULSES`/`RECEIVE`/`SEND`/`EXCHANGE` (`spiStart*I`) and
-      `STOP` (`spiStopTransferI`) moved to `sb_fastc_vio_spi` as ISR bodies;
+- [x] **2. SPI** (226 -> 98) — **done 2026-06-16, HW-validated**:
+      `PULSES`/`RECEIVE`/`SEND`/`EXCHANGE` (`spiStart*I`) and `STOP`
+      (`spiStopTransferI`) moved to `sb_fastc_vio_spi` as ISR bodies;
       `SELECT`/`UNSELECT` (`spiSelectX`/`spiUnselectX`) and `SELCFG`
       (`drvSetCfgX`) are plain fastcall cases. The blanket `state == READY`
       gate at the top of `sb_fastc_vio_spi` was removed (it is incompatible
       with `STOP`, which must abort an *active* transfer) and replaced with
       per-case state checks, matching the ADC handler. Only `INIT`/`DEINIT`
-      stay on 226. Builds host+client, stylecheck-clean. **Not yet
-      HW-validated**: SB_VIO has `VIO_CFG_ENABLE_SPI=FALSE`, no host VSPI
-      instance, and the client has no `spi` command — blocked on the test
-      harness below.
+      stay on 226. Sub-codes were renumbered into one contiguous space
+      (`sbsysc.h`) because the syscall and fastcall spaces formerly overlapped
+      (`PULSES`==`UNSELECT`==2) and now share the fastcall switch.
+      HW-validated on G474 (`testsb/SB_VIO`, new `spi` command: two threads
+      contending on `SPID1` with different configurations + a start/abort
+      sequence) under the full state checker: 1205 + 2408 iterations, 0
+      errors, no `SV#` assertion.
 - [ ] **3. I2C** (230 -> 102): migrate `TX`/`RX` (`i2cStartMaster*I`),
       `STOP` (`i2cStopTransferI`), `GCERR` (`i2cGetAndClearErrorsX`). Keep
       `INIT`/`DEINIT` (SELCFG now a fastcall, see below).
@@ -110,9 +113,8 @@ Already in the target shape (reference, no work):
 
 ## Status
 
-ADC done and HW-validated (2026-06-16). SPI code migrated (2026-06-16) and
-builds + stylecheck clean, but HW validation is blocked on test
-infrastructure: the SB_VIO client can only exercise ADC today.
+ADC and SPI done and HW-validated (2026-06-16). The SB_VIO client now has
+both an `adc` and an `spi` command.
 
 ## Test harness (per-driver SB_VIO commands)
 
@@ -122,12 +124,14 @@ driver under the state checker. Plan: one shell command per driver in
 unit/config wiring (`cfg/vioconf.h`, host `main.c`).
 
 - ADC, GPT — covered.
-- **SPI** — add an `spi` command modeled on `testhal/STM32/multi/SPI`: two
-  threads contending for one virtual SPI, exchanging data under different
-  selected configurations. This exercises `SELCFG` + `SELECT`/`UNSELECT` +
-  `EXCHANGE`/`SEND`/`RECEIVE` + `STOP` under the full state checker, which
-  is the contract proof for the migrated fastcalls. Requires
-  `VIO_CFG_ENABLE_SPI=TRUE` and a host VSPI instance on the G474.
+- **SPI** — done: `spi` command modeled on `testhal/STM32/multi/SPI`, two
+  threads contending for `SPID1` under different selected configurations,
+  plus a start/abort sequence. Exercises `SELCFG` + `SELECT`/`UNSELECT` +
+  `EXCHANGE`/`SEND`/`RECEIVE`/`IGNORE` + `STOP` under the full state
+  checker — the contract proof for the migrated fastcalls. Host backs the
+  virtual SPI with `SPID2` (SPI2 on PB12-15), `VIO_CFG_ENABLE_SPI=TRUE`,
+  `vrqn=6` matching the guest `VIO_VSPI1_IRQ`. No external device: a
+  contract-proof test (MISO floats, rx data not checked).
 - I2C, ETH — add as their migrations land.
 
 Mechanism confirmed: IRQ-like fastcalls work with the existing OSAL IRQ

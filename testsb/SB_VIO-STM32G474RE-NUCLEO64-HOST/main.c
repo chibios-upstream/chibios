@@ -156,6 +156,39 @@ static vio_adc_units_t sb1_adc_units = {
   }
 };
 
+/*
+ * Two SPI configurations differing only in baud rate, exercised by the two
+ * contending threads in the sandbox. 8-bit frames, CPOL=0/CPHA=0, CS on PB12.
+ */
+static const spi_configurations_t sb1_spi_configurations = {
+  .cfgsnum                     = 2U,
+  .cfgs = {
+    [0] = {                              /* High speed.*/
+      .mode                    = SPI_MODE_FSIZE_8,
+      .ssline                  = PAL_LINE(GPIOB, 12U),
+      .cr1                     = SPI_CR1_BR_0,
+      .cr2                     = SPI_CR2_DS_2 | SPI_CR2_DS_1 | SPI_CR2_DS_0
+    },
+    [1] = {                              /* Low speed.*/
+      .mode                    = SPI_MODE_FSIZE_8,
+      .ssline                  = PAL_LINE(GPIOB, 12U),
+      .cr1                     = SPI_CR1_BR_2 | SPI_CR1_BR_1,
+      .cr2                     = SPI_CR2_DS_2 | SPI_CR2_DS_1 | SPI_CR2_DS_0
+    }
+  }
+};
+
+static vio_spi_units_t sb1_spi_units = {
+  .n                           = 1U,
+  .units = {
+    [0] = {
+      .spip                    = &SPID2,
+      .vrqsb                   = &sbx1,
+      .vrqn                    = 6
+    }
+  }
+};
+
 static vio_conf_t vio_config1 = {
   .gpios        = &sb1_gpio_units,
   .adcs         = &sb1_adc_units,
@@ -163,7 +196,9 @@ static vio_conf_t vio_config1 = {
   .gpts         = &sb1_gpt_units,
   .gptconfs     = &sb1_gpt_configurations,
   .uarts        = &sb1_uart_units,
-  .uartconfs    = &sb1_uart_configurations
+  .uartconfs    = &sb1_uart_configurations,
+  .spis         = &sb1_spi_units,
+  .spiconfs     = &sb1_spi_configurations
 };
 
 /*===========================================================================*/
@@ -219,6 +254,19 @@ int main(void) {
   /* Pins used by the ADC test code in the sandbox.*/
   palSetPadMode(GPIOA, 0U, PAL_MODE_INPUT_ANALOG);
   palSetPadMode(GPIOA, 1U, PAL_MODE_INPUT_ANALOG);
+
+  /* SPI2 pins backing the virtual SPI exercised in the sandbox. No external
+     device is attached (contract-proof test): the master clocks normally and
+     MISO floats, the received data is not checked.*/
+  palSetPadMode(GPIOB, 13U, PAL_MODE_ALTERNATE(5) |
+                            PAL_STM32_OSPEED_HIGHEST);    /* SPI2 SCK.  */
+  palSetPadMode(GPIOB, 14U, PAL_MODE_ALTERNATE(5) |
+                            PAL_STM32_OSPEED_HIGHEST);    /* SPI2 MISO. */
+  palSetPadMode(GPIOB, 15U, PAL_MODE_ALTERNATE(5) |
+                            PAL_STM32_OSPEED_HIGHEST);    /* SPI2 MOSI. */
+  palSetPadMode(GPIOB, 12U, PAL_MODE_OUTPUT_PUSHPULL |
+                            PAL_STM32_OSPEED_HIGHEST);    /* SPI2 CS.   */
+  palSetPad(GPIOB, 12U);
 
   /*
    * Sandbox objects initialization, regions are assigned explicitly.

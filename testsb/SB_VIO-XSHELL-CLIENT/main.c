@@ -38,6 +38,21 @@ static uint8_t txbuf[32];
 static adcsample_t adc_linear_samples[ADC_CHANNELS * ADC_LINEAR_DEPTH];
 static adcsample_t adc_stream_samples[ADC_CHANNELS * ADC_STREAM_DEPTH];
 
+#define SPI_CFG_HS                          0U
+#define SPI_CFG_LS                          1U
+#define SPI_XFER_SIZE                       128U
+
+static uint8_t spi_txbuf[SPI_XFER_SIZE];
+static uint8_t spi_rxbuf[SPI_XFER_SIZE];
+
+static THD_STACK(spi_thd1_stack, 512);
+static THD_STACK(spi_thd2_stack, 512);
+static thread_t spi_thd1, spi_thd2;
+
+static volatile bool spi_test_stop;
+static volatile uint32_t spi_thd1_iters, spi_thd1_errs;
+static volatile uint32_t spi_thd2_iters, spi_thd2_errs;
+
 /*===========================================================================*/
 /* Command line related.                                                     */
 /*===========================================================================*/
@@ -151,6 +166,134 @@ static void cmd_adc(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   xshellUsage(xshp, "adc linear|stream");
 }
 
+/*
+ * SPI bus contender 1: exchanges of various sizes using the high-speed
+ * configuration.
+ */
+static THD_FUNCTION(spi_thread_1_func, arg) {
+
+  (void)arg;
+
+  chRegSetThreadName("spi1");
+  while (!spi_test_stop) {
+    drvLock(&SPID1);
+    if (drvSelectCfgX(&SPID1, SPI_CFG_HS) != NULL) {
+      spiSelectX(&SPID1);
+      if (spiExchange(&SPID1, SPI_XFER_SIZE,
+                      spi_txbuf, spi_rxbuf) != HAL_RET_SUCCESS) {
+        spi_thd1_errs++;
+      }
+      if (spiExchange(&SPID1, 64U, spi_txbuf, spi_rxbuf) != HAL_RET_SUCCESS) {
+        spi_thd1_errs++;
+      }
+      if (spiExchange(&SPID1, 1U, spi_txbuf, spi_rxbuf) != HAL_RET_SUCCESS) {
+        spi_thd1_errs++;
+      }
+      spiUnselectX(&SPID1);
+    }
+    else {
+      spi_thd1_errs++;
+    }
+    drvUnlock(&SPID1);
+    spi_thd1_iters++;
+    chThdSleepMilliseconds(1);
+  }
+}
+
+/*
+ * SPI bus contender 2: send/receive/ignore plus a start-then-abort sequence
+ * using the low-speed configuration.
+ */
+static THD_FUNCTION(spi_thread_2_func, arg) {
+  size_t remaining;
+
+  (void)arg;
+
+  chRegSetThreadName("spi2");
+  while (!spi_test_stop) {
+    drvLock(&SPID1);
+    if (drvSelectCfgX(&SPID1, SPI_CFG_LS) != NULL) {
+      spiSelectX(&SPID1);
+      if (spiSend(&SPID1, 64U, spi_txbuf) != HAL_RET_SUCCESS) {
+        spi_thd2_errs++;
+      }
+      if (spiReceive(&SPID1, 64U, spi_rxbuf) != HAL_RET_SUCCESS) {
+        spi_thd2_errs++;
+      }
+      if (spiIgnore(&SPID1, 8U) != HAL_RET_SUCCESS) {
+        spi_thd2_errs++;
+      }
+
+      /* Exercising the abort path: start an asynchronous receive and stop it
+         while still in flight, covering the migrated STOP fastcall.*/
+      if (spiStartReceive(&SPID1, SPI_XFER_SIZE,
+                          spi_rxbuf) == HAL_RET_SUCCESS) {
+        if (spiStopTransfer(&SPID1, &remaining) != HAL_RET_SUCCESS) {
+          spi_thd2_errs++;
+        }
+      }
+      else {
+        spi_thd2_errs++;
+      }
+      spiUnselectX(&SPID1);
+    }
+    else {
+      spi_thd2_errs++;
+    }
+    drvUnlock(&SPID1);
+    spi_thd2_iters++;
+    chThdSleepMilliseconds(1);
+  }
+}
+
+static void cmd_spi(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
+  unsigned i;
+
+  (void)argv;
+  (void)envp;
+
+  if (argc != 1) {
+    xshellUsage(xshp, "spi");
+    return;
+  }
+
+  /* Transmit pattern.*/
+  for (i = 0U; i < SPI_XFER_SIZE; i++) {
+    spi_txbuf[i] = (uint8_t)i;
+  }
+
+  spi_test_stop  = false;
+  spi_thd1_iters = 0U;
+  spi_thd1_errs  = 0U;
+  spi_thd2_iters = 0U;
+  spi_thd2_errs  = 0U;
+
+  static const THD_DECL_STATIC(spi_thd1_desc, "spi1", spi_thd1_stack,
+                               NORMALPRIO + 1, spi_thread_1_func, NULL, NULL);
+  static const THD_DECL_STATIC(spi_thd2_desc, "spi2", spi_thd2_stack,
+                               NORMALPRIO + 1, spi_thread_2_func, NULL, NULL);
+  chThdSpawnRunning(&spi_thd1, &spi_thd1_desc);
+  chThdSpawnRunning(&spi_thd2, &spi_thd2_desc);
+
+  chprintf(xshp->stream,
+           "Two threads contending on SPID1 with different configurations,"
+           XSHELL_NEWLINE_STR "press any key to stop" XSHELL_NEWLINE_STR);
+
+  while (!adc_stop_requested(xshp)) {
+    chThdSleepMilliseconds(100);
+  }
+
+  spi_test_stop = true;
+  chThdWait(&spi_thd1);
+  chThdWait(&spi_thd2);
+
+  chprintf(xshp->stream,
+           "SPI stopped: thd1 iters=%u errs=%u, thd2 iters=%u errs=%u"
+           XSHELL_NEWLINE_STR,
+           (unsigned)spi_thd1_iters, (unsigned)spi_thd1_errs,
+           (unsigned)spi_thd2_iters, (unsigned)spi_thd2_errs);
+}
+
 static void cmd_halt(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 
   (void)argv;
@@ -203,6 +346,7 @@ static void cmd_sbexit(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 
 static const xshell_command_t commands[] = {
   {"adc", cmd_adc},
+  {"spi", cmd_spi},
   {"halt", cmd_halt},
   {"sbcrash", cmd_sbcrash},
   {"sbexit", cmd_sbexit},
@@ -257,6 +401,9 @@ int main(void) {
   }
   if (drvStart(&GPTD1, NULL) != HAL_RET_SUCCESS) {
     chSysHalt("GPTD1 failed");
+  }
+  if (drvStart(&SPID1, NULL) != HAL_RET_SUCCESS) {
+    chSysHalt("SPID1 failed");
   }
 
   /*
