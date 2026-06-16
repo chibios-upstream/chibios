@@ -210,7 +210,7 @@ void sb_fastc_vio_eth(sb_class_t *sbp, struct port_extctx *ectxp) {
       }
     case SB_VETH_LINK:
       {
-        ectxp->r0 = (uint32_t)ethPollLinkStatus(unitp->ethp);
+        ectxp->r0 = (uint32_t)ethPollLinkStatusX(unitp->ethp);
         break;
       }
     case SB_VETH_RXREAD:
@@ -234,7 +234,7 @@ void sb_fastc_vio_eth(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        ectxp->r0 = (uint32_t)ethReadReceiveHandle(unitp->ethp, rxh,
+        ectxp->r0 = (uint32_t)ethReadReceiveHandleX(unitp->ethp, rxh,
                                                    buffer, n);
         break;
       }
@@ -259,7 +259,7 @@ void sb_fastc_vio_eth(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        ectxp->r0 = (uint32_t)ethWriteTransmitHandle(unitp->ethp, txh,
+        ectxp->r0 = (uint32_t)ethWriteTransmitHandleX(unitp->ethp, txh,
                                                      buffer, n);
         break;
       }
@@ -277,7 +277,7 @@ void sb_fastc_vio_eth(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        ethReleaseReceiveHandle(unitp->ethp, rxh);
+        ethReleaseReceiveHandleX(unitp->ethp, rxh);
         ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
         break;
       }
@@ -295,7 +295,7 @@ void sb_fastc_vio_eth(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        ethReleaseTransmitHandle(unitp->ethp, txh);
+        ethReleaseTransmitHandleX(unitp->ethp, txh);
         ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
         break;
       }

@@ -167,13 +167,15 @@ ETH_DRIVER_EXT_INIT_HOOK(self);
           <regular>
 
 
-            <method name="ethPollLinkStatus" ctype="bool">
+            <method name="ethPollLinkStatusX" ctype="bool">
               <brief><![CDATA[Returns the link status.]]></brief>
+              <note>Lock-free (an MDIO poll), takes no OS lock and never
+                deschedules, so it is callable from any context.</note>
               <return><![CDATA[The link status,]]></return>
               <retval value="true"><![CDATA[If the link is active.]]></retval>
               <retval value="false"><![CDATA[If the link is down or the driver is not
                 ready.]]></retval>
-              <api />
+              <xclass />
               <implementation><![CDATA[
 
 if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
@@ -289,25 +291,25 @@ return eth_lld_is_receive_handle_valid(self, rxh);]]></implementation>
 
 return eth_lld_is_transmit_handle_valid(self, txh);]]></implementation>
             </method>
-            <method name="ethReleaseReceiveHandle" ctype="void">
+            <method name="ethReleaseReceiveHandleX" ctype="void">
               <brief><![CDATA[Releases a received frame.]]></brief>
               <param name="rxh" ctype="eth_receive_handle_t"
                 dir="in"><![CDATA[Receive handle.]]></param>
-              <api />
+              <xclass />
               <implementation><![CDATA[
 
 eth_lld_release_receive_handle(self, rxh);]]></implementation>
             </method>
-            <method name="ethReleaseTransmitHandle" ctype="void">
+            <method name="ethReleaseTransmitHandleX" ctype="void">
               <brief><![CDATA[Releases and transmits a frame.]]></brief>
               <param name="txh" ctype="eth_transmit_handle_t"
-                dir="in"><![CDATA[Transmi] handle.]]></param>
-              <api />
+                dir="in"><![CDATA[Transmit handle.]]></param>
+              <xclass />
               <implementation><![CDATA[
 
 eth_lld_release_transmit_handle(self, txh);]]></implementation>
             </method>
-            <method name="ethReadReceiveHandle" ctype="size_t">
+            <method name="ethReadReceiveHandleX" ctype="size_t">
               <brief><![CDATA[Reads data sequentially from a received frame.]]></brief>
               <param name="rxh" ctype="eth_receive_handle_t"
                 dir="in"><![CDATA[Receive handle.]]></param>
@@ -316,13 +318,13 @@ eth_lld_release_transmit_handle(self, txh);]]></implementation>
               <return><![CDATA[The number of bytes read from the handle buffer,
                                this value can be less than the amount specified in the
                                parameter @p size if there are no more bytes to read.]]></return>
-              <api />
+              <xclass />
               <implementation><![CDATA[
 
 return eth_lld_read_receive_handle(self, rxh, bp, n);]]></implementation>
             </method>
-            <method name="ethWriteTransmitHandle" ctype="size_t">
-              <brief><![CDATA[Reads data sequentially from a received frame.]]></brief>
+            <method name="ethWriteTransmitHandleX" ctype="size_t">
+              <brief><![CDATA[Writes data sequentially into a transmit frame.]]></brief>
               <param name="txh" ctype="eth_transmit_handle_t"
                 dir="in"><![CDATA[Transmit handle.]]></param>
               <param name="bp" ctype="const uint8_t *" dir="in"><![CDATA[Transmit data
@@ -331,7 +333,7 @@ return eth_lld_read_receive_handle(self, rxh, bp, n);]]></implementation>
               <return><![CDATA[The number of bytes written into the handle buffer
                                this value can be less than the amount specified in the
                                parameter @p size if the maximum frame size is reached.]]></return>
-              <api />
+              <xclass />
               <implementation><![CDATA[
 
 return eth_lld_write_transmit_handle(self, txh, bp, n);]]></implementation>

@@ -73,12 +73,12 @@ size_t lwip_write_transmit_handle(lwip_transmit_handle_t *txhp,
                                   const uint8_t *bp,
                                   size_t size) {
 
-  return ethWriteTransmitHandle(&ETHD1, *txhp, bp, size);
+  return ethWriteTransmitHandleX(&ETHD1, *txhp, bp, size);
 }
 
 void lwip_release_transmit_handle(lwip_transmit_handle_t *txhp) {
 
-  ethReleaseTransmitHandle(&ETHD1, *txhp);
+  ethReleaseTransmitHandleX(&ETHD1, *txhp);
 }
 
 msg_t lwip_wait_receive_handle(lwip_receive_handle_t *rxhp) {
@@ -91,7 +91,7 @@ size_t lwip_read_receive_handle(lwip_receive_handle_t *rxhp,
                                 uint8_t *bp,
                                 size_t size) {
 
-  return ethReadReceiveHandle(&ETHD1, *rxhp, bp, size);
+  return ethReadReceiveHandleX(&ETHD1, *rxhp, bp, size);
 }
 
 size_t lwip_receive_size(lwip_receive_handle_t *rxhp) {
@@ -110,7 +110,7 @@ size_t lwip_receive_size(lwip_receive_handle_t *rxhp) {
 
 void lwip_release_receive_handle(lwip_receive_handle_t *rxhp) {
 
-  ethReleaseReceiveHandle(&ETHD1, *rxhp);
+  ethReleaseReceiveHandleX(&ETHD1, *rxhp);
 }
 
 event_source_t *lwip_get_event_source(void) {
@@ -125,7 +125,7 @@ eventflags_t lwip_get_receive_event_flag(void) {
 
 bool lwip_poll_link_status(void) {
 
-  return ethPollLinkStatus(&ETHD1);
+  return ethPollLinkStatusX(&ETHD1);
 }
 
 #endif /* defined(__CHIBIOS_XHAL_CONF__) */

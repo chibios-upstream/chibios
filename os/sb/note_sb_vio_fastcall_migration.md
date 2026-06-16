@@ -113,13 +113,14 @@ Already in the target shape (reference, no work):
       copy in/out, descriptor release, MDIO link poll), so they go in as
       plain fastcall cases like `RXGET`/`TXGET`. No sub-code renumber: ETH
       already used one contiguous space (`RXGET=8`,`TXGET=9` vs migrated
-      `2`-`7`). Note: `ethReadReceiveHandle`/`ethWriteTransmitHandle`/
-      `ethReleaseReceiveHandle`/`ethReleaseTransmitHandle`/`ethPollLinkStatus`
-      are still annotated `@api` though they are lock-free and context-safe
-      (like `gptPolledDelay` was) — reclassifying/renaming them `...X` is a
-      candidate follow-up, deferred because they are core ETH API used
-      beyond SB and the VETH ABI is still in flux (open_points "Host VIO /
-      ETH"). Compile-verified: host via the H563 SB host demo
+      `2`-`7`). The five lock-free data-plane ops
+      (`ethReadReceiveHandle`/`ethWriteTransmitHandle`/
+      `ethReleaseReceiveHandle`/`ethReleaseTransmitHandle`/`ethPollLinkStatus`)
+      were mis-annotated `@api` though they are lock-free and context-safe
+      (like `gptPolledDelay` was) — **reclassified `@xclass` and renamed
+      `...X`** in the XHAL ETH codegen (`hal_eth.xml`, regenerated); callers
+      updated (the SB port and the `lwip_bindings/lwipthread_xhal.c`
+      binding). Compile-verified: host via the H563 SB host demo
       (`RT-STM32H563ZI-NUCLEO144-SB_HOST_SWITCHED`, ETH enabled), guest via
       the VIO ETH port. **Not HW-validated**: the G474 bench has no ETH MAC;
       needs an ETH-capable SB host target running under the state checker.

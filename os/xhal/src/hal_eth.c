@@ -209,15 +209,17 @@ const struct hal_eth_driver_vmt __hal_eth_driver_vmt = {
  */
 /**
  * @brief       Returns the link status.
+ * @note        Lock-free (an MDIO poll), takes no OS lock and never
+ *              deschedules, so it is callable from any context.
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
  * @return                      The link status,
  * @retval true                 If the link is active.
  * @retval false                If the link is down or the driver is not ready.
  *
- * @api
+ * @xclass
  */
-bool ethPollLinkStatus(void *ip) {
+bool ethPollLinkStatusX(void *ip) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
   if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
