@@ -352,6 +352,112 @@ guest-invoked thread-level service, VRQ = completion interrupt**.
   dedicated prologue/epilogue variant), invisible to handlers and to the
   portable layer.
 
+### Re-distribution: syscalls that should become fastcalls (2026-06-16)
+
+The current syscall/fastcall split was drawn under the *old* fastcall
+rule ("no RTOS interaction at all", X-class), which forced anything
+touching a kernel object into a syscall — two SVCs + the privileged
+dispatcher round trip — **even when it does not block**. Once fastcalls
+may do I-class work (this point 5), the only thing that still *forces* a
+syscall is **blocking** (S-class — descheduling the caller into a wait).
+Everything else, the non-blocking "post work and wake somebody" calls,
+belongs on the fastcall path as a single exception. Resulting taxonomy:
+**fastcall = guest-raised interrupt (non-blocking, may wake), syscall =
+guest-invoked thread-level service (may block), VRQ = completion
+interrupt.**
+
+Inventory of the current syscall table (128..255) against that rule:
+
+- **Must stay syscalls (genuinely block / S-class wait):** `stdio`/VFS
+  (128), `sleep` (130), `sleep_until_windowed` (131), `wait_message`
+  (132), `wait_one/any/all_timeout` (134-136), `loadelf` (138),
+  `vrq_wait` (255), `exit` (129, special). 128/138 are the async-VFS
+  targets, an orthogonal track.
+- **Migration candidates (non-blocking post-and-wake, verified in
+  source):**
+  - `sb_sysc_broadcast_flags` (137) — `chEvtBroadcastFlags`; **clean
+    move**, `chEvtBroadcastFlagsI` exists.
+  - `sb_sysc_vrq_set_alarm` (253) / `sb_sysc_vrq_reset_alarm` (254) —
+    `chVTSetContinuous`/`chVTSet`/`chVTReset`; **clean move**,
+    `chVTSetContinuousI`/`chVTSetI`/`chVTResetI` all exist.
+  - `sb_sysc_reply_message` (133) — `chSysLock`/`chMsgReleaseS`/
+    `chSysUnlock`, i.e. wake the sender. Conceptually a fastcall, but
+    **blocked: there is no `chMsgReleaseI`** (only `chMsgRelease` and
+    `chMsgReleaseS`). Needs a new I-class release primitive added before
+    it can move, otherwise it stays a syscall.
+**VIO is the larger surface — migrate per sub-code, not per peripheral.**
+This is where the large gains are, and it follows from a design
+principle: **XHAL drivers are asynchronous by default.** `start`/`stop`
+(driver lifecycle) are the exceptions; every transfer, conversion and
+transaction is a non-blocking kick whose completion is delivered
+out-of-band (callback -> VRQ). So for VIO the fastcall path is the
+*rule*, and the syscall path collapses to driver lifecycle plus the few
+genuinely-blocking primitives. The VIO syscall handlers (225-230) are
+correspondingly dominated by *non-blocking* operations, so the split
+must be redrawn at the sub-code level: a
+peripheral's `INIT`/`DEINIT`/`SELCFG` (driver lifecycle via `drvStart`/
+`drvStop`/`drvSetCfgX`, mutex-shaped) stay syscalls, but its data-plane
+ops are async I-class kicks or X-class immediates that belong on the
+fastcall path. Most of them **already call the `...I`/`...X` XHAL
+variants** — they sit on the syscall path only because the old rule
+forbade RTOS interaction in fastcalls. The SPI `RECEIVE` handler is the
+template: `validate -> chSysLock -> spiStartReceiveI -> chSysUnlock` is
+*already* the IRQ-like fastcall body, just reached through two SVCs;
+converting it is mechanical (`chSysLock`/`chSysUnlock` ->
+`...FromISR`, wrap in `CH_IRQ_PROLOGUE`/`EPILOGUE`, body unchanged).
+
+Sub-codes that should move to the fastcall side:
+
+- **SPI (226):** `PULSES`/`RECEIVE`/`SEND`/`EXCHANGE` (`spiStart*I`),
+  `STOP` (`spiStopTransferI`), `SELECT`/`UNSELECT` (`spiSelectX`/
+  `spiUnselectX`).
+- **I2C (230):** `TX`/`RX` (`i2cStartMaster*I`), `STOP`
+  (`i2cStopTransferI`), `GCERR` (`i2cGetAndClearErrorsX`).
+- **ADC (228):** `START_LINEAR`/`START_CIRCULAR`
+  (`adcStartConversion*`), `STOP` (`adcStopConversion`). *(The example
+  that prompted this analysis.)*
+- **GPT (229):** `START`/`STOP`/`CHGI` (swap `gptStartContinuous`/
+  `gptStartOneShot`/`gptStopTimer`/`gptChangeInterval` for their `...I`
+  forms). **Exception: `PDELAY` (`gptPolledDelay`) busy-waits — it stays
+  a syscall.**
+- **ETH (227):** the whole data plane — `LINK`, `RXREAD`/`TXWRITE`,
+  `RXREL`/`TXREL`, `RXGET`/`TXGET` (handle fetch + copy, all
+  non-blocking / X-class).
+- **Stay syscalls everywhere:** `INIT`/`DEINIT`/`SELCFG` (driver
+  lifecycle), GPT `PDELAY` and `SETCB`.
+
+**UART (225) already has this shape:** its data path (`READ`/`WRITE`/
+status) lives in the fastcall handler (97); only `INIT`/`DEINIT` are
+syscalls. So the re-distribution brings SPI/I2C/ADC/GPT/ETH up to UART's
+existing layout — resolving a current inconsistency, not inventing a
+model. (Consistency nit: `GCERR` is a fastcall for ADC but a syscall for
+I2C; it is X-class — make it a fastcall everywhere.)
+
+**Structural consequence:** once the data plane moves, each per-peripheral
+syscall number (225-230) is left with only lifecycle plus the few
+blocking ops, so the two-number-per-peripheral split becomes largely
+vestigial. Whether to keep both numbers or collapse to "one fastcall
+entry + a rare lifecycle syscall" is a VIO API decision worth taking at
+the same time. Either way an op's SVC number and/or sub-code namespace
+moves — a guest ABI change, batch with the other ABI churn.
+
+Caveats for the migration:
+
+- **I-class variants, reschedule deferred.** Each migrant swaps its
+  locking/S-class call for the I-class form, with the reschedule the old
+  variant did inline now handled by the fastcall epilogue (pend PendSV).
+- **ABI / number-space.** Fastcalls are 0..127, syscalls 128..255, so
+  moving an op *changes its number* — a guest ABI change. Batch with the
+  R12 ABI bump or any other ABI churn; do not dribble out.
+- **No new guest semantics for these migrants:** as syscalls they could
+  already deschedule the guest, so the "a fastcall may now deschedule me"
+  surprise the bounds section flags for trivial fastcalls does not apply
+  here.
+- **Coupling with point 1.** Starting with SVC above the kernel mask
+  keeps the implicit atomicity the existing VRQ fastcalls (119-127) rely
+  on, and any migrant inherits it; if SVC later moves into the kernel
+  band, these all join the handler-locking audit.
+
 ## Deliberately left alone
 
 - Fastcall dispatch path: already minimal (handler mode, one table

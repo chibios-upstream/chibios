@@ -49,8 +49,13 @@ done items are marked inline.
    untouched. The *cheapest* item on the whole list (macros, docs,
    state-checker integration — no ABI, no dispatcher, no port surgery)
    and it unlocks single-exception submit/status/cancel for item 5.
-   Do immediately before or alongside item 5. (optimizations note,
-   point 5)
+   Do immediately before or alongside item 5. The *mechanism* is cheap
+   and ABI-free, but it enables a large, broad payoff: most VIO ops
+   (SPI/I2C/ADC/GPT/ETH transfers) are async-by-design and can drop from
+   syscalls to fastcalls — the syscall path collapses to driver
+   lifecycle + blocking primitives. That re-distribution is itself a
+   guest ABI change; see the point-5 addendum in the optimizations note
+   for the per-peripheral list. (optimizations note, point 5)
 7. **MPU region-table design** — ✅ **IMPLEMENTED** (2026-06-12,
    `d9e47421` + `6d2fa405`). Pointer in thread context, per-SB shared
    table, const default table honoring the static init settings,
