@@ -402,14 +402,12 @@ void drvStop(void *ip) {
  * @retval HAL_RET_CONFIG_ERROR If the configuration is invalid and has been
  *                              rejected.
  *
- * @api
+ * @xclass
  */
 msg_t drvSetCfgX(void *ip, const void *config) {
   hal_base_driver_c *self = (hal_base_driver_c *)ip;
   msg_t msg;
   const void *newcfg;
-
-  osalSysLock();
 
   if (self->state != HAL_DRV_STATE_READY) {
     msg = HAL_RET_INV_STATE;
@@ -424,8 +422,6 @@ msg_t drvSetCfgX(void *ip, const void *config) {
       msg = HAL_RET_SUCCESS;
     }
   }
-
-  osalSysUnlock();
 
   return msg;
 }
@@ -444,13 +440,11 @@ msg_t drvSetCfgX(void *ip, const void *config) {
  * @retval NULL                 If the configuration is invalid and has been
  *                              rejected.
  *
- * @api
+ * @xclass
  */
 const void *drvSelectCfgX(void *ip, unsigned cfgnum) {
   hal_base_driver_c *self = (hal_base_driver_c *)ip;
   const void *config = NULL;
-
-  osalSysLock();
 
   if (self->state == HAL_DRV_STATE_READY) {
     config = __drv_sel_cfg(self, cfgnum);
@@ -458,8 +452,6 @@ const void *drvSelectCfgX(void *ip, unsigned cfgnum) {
       self->config = config;
     }
   }
-
-  osalSysUnlock();
 
   return config;
 }

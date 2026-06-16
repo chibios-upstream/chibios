@@ -295,12 +295,10 @@ if (stop) {
                 @p HAL_DRV_STATE_READY state.</retval>
               <retval value="HAL_RET_CONFIG_ERROR"><![CDATA[If the configuration
                 is invalid and has been rejected.]]></retval>
-              <api />
+              <xclass />
               <implementation><![CDATA[]]>
 msg_t msg;
 const void *newcfg;
-
-osalSysLock();
 
 if (self->state != HAL_DRV_STATE_READY) {
   msg = HAL_RET_INV_STATE;
@@ -315,8 +313,6 @@ else {
     msg = HAL_RET_SUCCESS;
   }
 }
-
-osalSysUnlock();
 
 return msg;</implementation>
             </method>
@@ -333,11 +329,9 @@ return msg;</implementation>
               <return>Pointer to the selected configuration.</return>
               <retval value="NULL"><![CDATA[If the configuration
                 is invalid and has been rejected.]]></retval>
-              <api />
+              <xclass />
               <implementation><![CDATA[]]>
 const void *config = NULL;
-
-osalSysLock();
 
 if (self->state == HAL_DRV_STATE_READY) {
   config = __drv_sel_cfg(self, cfgnum);
@@ -345,8 +339,6 @@ if (self->state == HAL_DRV_STATE_READY) {
     self->config = config;
   }
 }
-
-osalSysUnlock();
 
 return config;</implementation>
             </method>
