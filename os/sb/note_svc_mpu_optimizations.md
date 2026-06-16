@@ -161,6 +161,16 @@ construction property is lost and it becomes a guest-indexed `blx`.
 
 ## 3. MPU regions as a shared table pointer (preferred design)
 
+> ✅ **IMPLEMENTED on `chibios-sandboxes-dev`, 2026-06-12** — commits
+> `d9e47421` ("ALT ports: MPU switched regions become a shared table
+> pointer") and `6d2fa405` ("default MPU table honors the static
+> initialization settings"). See `chcore.c` (`port_mpu_default_regions[]`,
+> pre-baked `VALID | region#`) and `chcoreasm.S` `PORT_LOAD_MPU_CONTEXT`
+> (pointer-equality compare on `CONTEXT_MPU_OFFSET`, `ldm`→`stm` burst
+> through the RBAR/RASR alias, no store-back). The writer contract below
+> (live-register update in the same critical section, revocation rule)
+> still applies to the not-yet-written shared-memory API.
+
 Design decision (2026-06-11), superseding the earlier "drop store-back +
 burst load" tweaks by making them correct by construction.
 

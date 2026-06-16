@@ -138,8 +138,9 @@ dispatch -> return sequence needs explicit re-review (see open_points
 Security effects of the designs decided in
 [note_svc_mpu_optimizations.md](note_svc_mpu_optimizations.md):
 
-- **MPU region-table design (its point 3)**: (a) an SB -> kernel switch
-  always loads the const all-disabled default table, so no privileged
+- **MPU region-table design (its point 3)** — ✅ implemented 2026-06-12
+  (`d9e47421` + `6d2fa405`): (a) an SB -> kernel switch
+  always loads the const default table, so no privileged
   thread ever runs with a dead sandbox's regions programmed — the
   "regions only grant, never restrict" AP rule becomes defense-in-depth
   instead of a correctness requirement; (b) the switch code compares

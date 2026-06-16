@@ -11,6 +11,14 @@ Priority logic: live security gaps first, then the features gated on
 them (the SB stall fix being the declared main functional pain), then
 performance/architecture, then minor hardening. Date: 2026-06-12.
 
+**Implementation status (updated 2026-06-16):** item 7 (MPU
+region-table pointer / read-only context switch, no store-back) is
+**implemented** on `chibios-sandboxes-dev` — commits `d9e47421` ("MPU
+switched regions become a shared table pointer") and `6d2fa405`
+("default MPU table honors the static initialization settings"),
+2026-06-12. Item numbers below are kept stable for cross-references;
+done items are marked inline.
+
 ## Tier 1 — Security, live today (small efforts, do first)
 
 1. **VIO native-handle validation** — make it ownership-aware and
@@ -43,15 +51,20 @@ performance/architecture, then minor hardening. Date: 2026-06-12.
    and it unlocks single-exception submit/status/cancel for item 5.
    Do immediately before or alongside item 5. (optimizations note,
    point 5)
-7. **MPU region-table design** — pointer in thread context, per-SB
-   shared table, const all-disabled default table, pointer-equality
-   switch-in with alias-register burst load, no store-back. Perf win on
-   every context switch and the prerequisite for a clean shared-memory
-   API. (point 3)
-8. **Shared-memory region API** — the feature itself. Depends on item 4
-   (copy-in-once) and item 7 (single master table + live-register
-   update in one critical section, revocation rule). (point 3 +
-   isolation note)
+7. **MPU region-table design** — ✅ **IMPLEMENTED** (2026-06-12,
+   `d9e47421` + `6d2fa405`). Pointer in thread context, per-SB shared
+   table, const default table honoring the static init settings,
+   pointer-equality switch-in with alias-register burst load, no
+   store-back. Perf win on every context switch and the prerequisite
+   for a clean shared-memory API. (point 3)
+8. **Shared-memory region API** — the feature itself. Item 7 (its MPU
+   prerequisite) is now in place, so this depends only on item 4
+   (copy-in-once). The note's point 3 imposes the writer contract this
+   API must honor: mutate the SB's master table *and*, iff the running
+   thread points at that table, write the live RBAR/RASR in the same
+   critical section — the revocation direction especially, since the
+   switch code compares pointers only and will not pick up the change.
+   (point 3 + isolation note)
 
 ## Tier 3 — Performance / architecture
 
