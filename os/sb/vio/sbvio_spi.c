@@ -26,6 +26,8 @@
 
 #include "sb.h"
 
+#include <string.h>
+
 #if (VIO_CFG_ENABLE_SPI == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
@@ -136,6 +138,107 @@ void sb_sysc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
         ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
         break;
       }
+    default:
+      ectxp->r0 = (uint32_t)CH_RET_ENOSYS;
+      break;
+    }
+  }
+}
+
+void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t sub  = VIO_CALL_SUBCODE(ectxp->r0);
+  uint32_t unit = VIO_CALL_UNIT(ectxp->r0);
+
+  /* VIO not associated.*/
+  if (sbp->vioconf == NULL) {
+    ectxp->r0 = (uint32_t)HAL_RET_NO_RESOURCE;
+    return;
+  }
+
+  if ((sbp->vioconf->spis == NULL) || (unit >= sbp->vioconf->spis->n)) {
+    ectxp->r0 =  (uint32_t)HAL_RET_NO_RESOURCE;
+    return;
+  }
+
+  /* API processing.*/
+  {
+    const vio_spi_unit_t *unitp = &sbp->vioconf->spis->units[unit];
+
+    switch (sub) {
+    case SB_VSPI_SELCFG:
+      {
+        uint32_t cfgnum = ectxp->r1;
+        size_t n = ectxp->r2;
+        void *p = (void *)ectxp->r3;
+        const void *confp;
+        msg_t msg;
+
+        if (drvGetStateX(unitp->spip) != HAL_DRV_STATE_READY) {
+          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
+          break;
+        }
+
+        /* Check on configuration index.*/
+        if ((sbp->vioconf->spiconfs == NULL) ||
+            (cfgnum >= sbp->vioconf->spiconfs->cfgsnum)) {
+          ectxp->r0 = (uint32_t)HAL_RET_NO_RESOURCE;
+          break;
+        }
+
+        /* Check on configuration buffer size.*/
+        if (n > sizeof (hal_spi_config_t)) {
+          ectxp->r0 = (uint32_t)HAL_RET_CONFIG_ERROR;
+          break;
+        }
+
+        /* Check on configuration buffer area.*/
+        if ((n > 0U) && !sb_is_valid_write_range(sbp, p, n)) {
+          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
+          /* TODO enforce fault instead.*/
+          break;
+        }
+
+        /* Function drvSetCfgX() is X-class, callable directly from this
+           fastcall.*/
+        confp = &sbp->vioconf->spiconfs->cfgs[cfgnum];
+        msg = drvSetCfgX(unitp->spip, confp);
+
+        /* Copying the standard part of the configuration into the sandbox
+           space in the specified position.*/
+        if (msg == HAL_RET_SUCCESS) {
+          if (n > 0U) {
+            memcpy(p, confp, n);
+          }
+          ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
+        }
+        else {
+          ectxp->r0 = (uint32_t)HAL_RET_CONFIG_ERROR;
+        }
+
+        break;
+      }
+    case SB_VSPI_SELECT:
+      {
+        if (drvGetStateX(unitp->spip) != HAL_DRV_STATE_READY) {
+          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
+          break;
+        }
+
+        spiSelectX(unitp->spip);
+        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
+        break;
+      }
+    case SB_VSPI_UNSELECT:
+      {
+        if (drvGetStateX(unitp->spip) != HAL_DRV_STATE_READY) {
+          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
+          break;
+        }
+
+        spiUnselectX(unitp->spip);
+        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
+        break;
+      }
     case SB_VSPI_PULSES:
       {
         msg_t msg;
@@ -146,14 +249,18 @@ void sb_sysc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        chSysLock();
+        /* IRQ-like fastcall: the transfer start is an I-class async kick,
+           completion is delivered later via VRQ from vspi_cb().*/
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
         if (drvGetStateX(unitp->spip) != HAL_DRV_STATE_READY) {
           msg = HAL_RET_INV_STATE;
         }
         else {
           msg = spiStartIgnoreI(unitp->spip, n);
         }
-        chSysUnlock();
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;
@@ -178,14 +285,16 @@ void sb_sysc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        chSysLock();
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
         if (drvGetStateX(unitp->spip) != HAL_DRV_STATE_READY) {
           msg = HAL_RET_INV_STATE;
         }
         else {
           msg = spiStartReceiveI(unitp->spip, n, rxbuf);
         }
-        chSysUnlock();
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;
@@ -210,14 +319,16 @@ void sb_sysc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        chSysLock();
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
         if (drvGetStateX(unitp->spip) != HAL_DRV_STATE_READY) {
           msg = HAL_RET_INV_STATE;
         }
         else {
           msg = spiStartSendI(unitp->spip, n, txbuf);
         }
-        chSysUnlock();
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;
@@ -249,14 +360,16 @@ void sb_sysc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        chSysLock();
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
         if (drvGetStateX(unitp->spip) != HAL_DRV_STATE_READY) {
           msg = HAL_RET_INV_STATE;
         }
         else {
           msg = spiStartExchangeI(unitp->spip, n, txbuf, rxbuf);
         }
-        chSysUnlock();
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;
@@ -272,14 +385,16 @@ void sb_sysc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        chSysLock();
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
         if (drvGetStateX(unitp->spip) == HAL_DRV_STATE_STOP) {
           msg = HAL_RET_INV_STATE;
         }
         else {
           msg = spiStopTransferI(unitp->spip, np);
         }
-        chSysUnlock();
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;
@@ -287,98 +402,6 @@ void sb_sysc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
     default:
       ectxp->r0 = (uint32_t)CH_RET_ENOSYS;
       break;
-    }
-  }
-}
-
-void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
-  uint32_t sub  = VIO_CALL_SUBCODE(ectxp->r0);
-  uint32_t unit = VIO_CALL_UNIT(ectxp->r0);
-
-  /* VIO not associated.*/
-  if (sbp->vioconf == NULL) {
-    ectxp->r0 = (uint32_t)HAL_RET_NO_RESOURCE;
-    return;
-  }
-
-  if ((sbp->vioconf->spis == NULL) || (unit >= sbp->vioconf->spis->n)) {
-    ectxp->r0 =  (uint32_t)HAL_RET_NO_RESOURCE;
-    return;
-  }
-
-  /* API processing.*/
-  {
-    const vio_spi_unit_t *unitp = &sbp->vioconf->spis->units[unit];
-
-    /* We don't want assertion or errors to be caused in host, making sure
-       all functions are called in the proper state.*/
-    if (unitp->spip->state != HAL_DRV_STATE_READY) {
-      ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
-      return;
-    }
-
-    switch (sub) {
-    case SB_VSPI_SELCFG:
-      {
-        uint32_t cfgnum = ectxp->r1;
-        size_t n = ectxp->r2;
-        void *p = (void *)ectxp->r3;
-        const void *confp;
-        msg_t msg;
-
-        /* Check on configuration index.*/
-        if ((sbp->vioconf->spiconfs == NULL) ||
-            (cfgnum >= sbp->vioconf->spiconfs->cfgsnum)) {
-          ectxp->r0 = (uint32_t)HAL_RET_NO_RESOURCE;
-          return;
-        }
-
-        /* Check on configuration buffer size.*/
-        if (n > sizeof (hal_spi_config_t)) {
-          ectxp->r0 = (uint32_t)HAL_RET_CONFIG_ERROR;
-          return;
-        }
-
-        /* Check on configuration buffer area.*/
-        if ((n > 0U) && !sb_is_valid_write_range(sbp, p, n)) {
-          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          /* TODO enforce fault instead.*/
-          break;
-        }
-
-        /* Specified VSPI configuration.*/
-        confp = &sbp->vioconf->spiconfs->cfgs[cfgnum];
-        msg = drvSetCfgX(unitp->spip, confp);
-
-        /* Copying the standard part of the configuration into the sandbox
-           space in the specified position.*/
-        if (msg == HAL_RET_SUCCESS) {
-          if (n > 0U) {
-            memcpy(p, confp, n);
-          }
-          ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
-        }
-        else {
-          ectxp->r0 = (uint32_t)HAL_RET_CONFIG_ERROR;
-        }
-
-        break;
-      }
-    case SB_VSPI_SELECT:
-      {
-        spiSelectX(unitp->spip);
-        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
-        break;
-      }
-    case SB_VSPI_UNSELECT:
-      {
-        spiUnselectX(unitp->spip);
-        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
-        break;
-      }
-    default:
-      ectxp->r0 = (uint32_t)CH_RET_ENOSYS;
-      return;
     }
   }
 }

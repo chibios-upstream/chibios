@@ -57,10 +57,18 @@ Already in the target shape (reference, no work):
       stay on 228. HW-validated on G474 (`testsb/SB_VIO`, `adc stream`)
       under the full state checker — SELCFG/START/completion-VRQ/STOP with
       no `SV#` assertion.
-- [ ] **2. SPI** (226 -> 98): migrate `PULSES`/`RECEIVE`/`SEND`/`EXCHANGE`
-      (`spiStart*I`), `STOP` (`spiStopTransferI`), `SELECT`/`UNSELECT`
-      (`spiSelectX`/`spiUnselectX`). Keep `INIT`/`DEINIT` (SELCFG now a fastcall, see below).
-      Template case: `validate -> lock -> spiStartReceiveI -> unlock`.
+- [~] **2. SPI** (226 -> 98) — **code migrated 2026-06-16, HW validation
+      pending**: `PULSES`/`RECEIVE`/`SEND`/`EXCHANGE` (`spiStart*I`) and
+      `STOP` (`spiStopTransferI`) moved to `sb_fastc_vio_spi` as ISR bodies;
+      `SELECT`/`UNSELECT` (`spiSelectX`/`spiUnselectX`) and `SELCFG`
+      (`drvSetCfgX`) are plain fastcall cases. The blanket `state == READY`
+      gate at the top of `sb_fastc_vio_spi` was removed (it is incompatible
+      with `STOP`, which must abort an *active* transfer) and replaced with
+      per-case state checks, matching the ADC handler. Only `INIT`/`DEINIT`
+      stay on 226. Builds host+client, stylecheck-clean. **Not yet
+      HW-validated**: SB_VIO has `VIO_CFG_ENABLE_SPI=FALSE`, no host VSPI
+      instance, and the client has no `spi` command — blocked on the test
+      harness below.
 - [ ] **3. I2C** (230 -> 102): migrate `TX`/`RX` (`i2cStartMaster*I`),
       `STOP` (`i2cStopTransferI`), `GCERR` (`i2cGetAndClearErrorsX`). Keep
       `INIT`/`DEINIT` (SELCFG now a fastcall, see below).
@@ -102,6 +110,25 @@ Already in the target shape (reference, no work):
 
 ## Status
 
-ADC done and HW-validated (2026-06-16). Mechanism confirmed: IRQ-like
-fastcalls work with the existing OSAL IRQ macros (no port change needed).
-Next: SPI. Remaining: SPI, I2C, GPT, ETH.
+ADC done and HW-validated (2026-06-16). SPI code migrated (2026-06-16) and
+builds + stylecheck clean, but HW validation is blocked on test
+infrastructure: the SB_VIO client can only exercise ADC today.
+
+## Test harness (per-driver SB_VIO commands)
+
+HW validation needs the SB_VIO client to actually drive each migrated
+driver under the state checker. Plan: one shell command per driver in
+`testsb/SB_VIO-XSHELL-CLIENT`, plus the matching host-side VIO enable +
+unit/config wiring (`cfg/vioconf.h`, host `main.c`).
+
+- ADC, GPT — covered.
+- **SPI** — add an `spi` command modeled on `testhal/STM32/multi/SPI`: two
+  threads contending for one virtual SPI, exchanging data under different
+  selected configurations. This exercises `SELCFG` + `SELECT`/`UNSELECT` +
+  `EXCHANGE`/`SEND`/`RECEIVE` + `STOP` under the full state checker, which
+  is the contract proof for the migrated fastcalls. Requires
+  `VIO_CFG_ENABLE_SPI=TRUE` and a host VSPI instance on the G474.
+- I2C, ETH — add as their migrations land.
+
+Mechanism confirmed: IRQ-like fastcalls work with the existing OSAL IRQ
+macros (no port change needed). Remaining migrations: I2C, GPT, ETH.

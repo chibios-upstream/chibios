@@ -225,7 +225,8 @@ void sb_fastc_vio_adc(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        /* drvSetCfgX is X-class, callable directly from this fastcall.*/
+        /* Function drvSetCfgX() is X-class, callable directly from this
+           fastcall.*/
         confp = &sbp->vioconf->adcconfs->cfgs[cfgnum];
         msg = drvSetCfgX(unitp->adcp, confp);
 
