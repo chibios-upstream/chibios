@@ -344,13 +344,15 @@ void gptStopTimer(void *ip) {
 
 /**
  * @brief       Starts the timer in one-shot mode and waits for completion.
+ * @note        This is a busy-wait that does not take the OS lock nor
+ *              deschedule, so it is safe to call from any context.
  *
  * @param[in,out] ip            Pointer to a @p hal_gpt_driver_c instance.
  * @param[in]     interval      Time interval in ticks.
  *
- * @api
+ * @xclass
  */
-void gptPolledDelay(void *ip, gptcnt_t interval) {
+void gptPolledDelayX(void *ip, gptcnt_t interval) {
   hal_gpt_driver_c *self = (hal_gpt_driver_c *)ip;
   osalDbgCheck(self != NULL);
   osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
