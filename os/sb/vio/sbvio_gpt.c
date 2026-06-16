@@ -121,146 +121,6 @@ void sb_sysc_vio_gpt(sb_class_t *sbp, struct port_extctx *ectxp) {
         ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
         break;
       }
-    case SB_VGPT_SETCB:
-      {
-        uint32_t enable = ectxp->r1;
-
-        if (drvGetStateX(unitp->gptp) == HAL_DRV_STATE_STOP) {
-          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
-          break;
-        }
-
-        drvSetCallbackX(unitp->gptp, enable != 0U ? vgpt_cb : NULL);
-
-        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
-        break;
-      }
-    case SB_VGPT_SELCFG:
-      {
-        uint32_t cfgnum = ectxp->r1;
-        size_t n = ectxp->r2;
-        void *p = (void *)ectxp->r3;
-        const void *confp;
-        msg_t msg;
-
-        if (drvGetStateX(unitp->gptp) != HAL_DRV_STATE_READY) {
-          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
-          break;
-        }
-
-        if ((sbp->vioconf->gptconfs == NULL) ||
-            (cfgnum >= sbp->vioconf->gptconfs->cfgsnum)) {
-          ectxp->r0 = (uint32_t)HAL_RET_NO_RESOURCE;
-          break;
-        }
-
-        if (n > sizeof (hal_gpt_config_t)) {
-          ectxp->r0 = (uint32_t)HAL_RET_CONFIG_ERROR;
-          break;
-        }
-
-        if ((n > 0U) && !sb_is_valid_write_range(sbp, p, n)) {
-          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          break;
-        }
-
-        confp = &sbp->vioconf->gptconfs->cfgs[cfgnum];
-        msg = drvSetCfgX(unitp->gptp, confp);
-        if (msg == HAL_RET_SUCCESS) {
-          if (n > 0U) {
-            memcpy(p, confp, n);
-          }
-          ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
-        }
-        else {
-          ectxp->r0 = (uint32_t)HAL_RET_CONFIG_ERROR;
-        }
-
-        break;
-      }
-    case SB_VGPT_PDELAY:
-      {
-        gptcnt_t interval = (gptcnt_t)ectxp->r1;
-
-        if (interval == (gptcnt_t)0) {
-          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
-          break;
-        }
-
-        if (drvGetStateX(unitp->gptp) != HAL_DRV_STATE_READY) {
-          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
-          break;
-        }
-
-        gptPolledDelay(unitp->gptp, interval);
-        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
-        break;
-      }
-    case SB_VGPT_START:
-      {
-        uint32_t mode = ectxp->r1;
-        gptcnt_t interval = (gptcnt_t)ectxp->r2;
-        msg_t msg;
-
-        if (interval == (gptcnt_t)0) {
-          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
-          break;
-        }
-
-        if (drvGetStateX(unitp->gptp) != HAL_DRV_STATE_READY) {
-          msg = HAL_RET_INV_STATE;
-        }
-        else if (mode == SB_VGPT_CONTINUOUS) {
-          gptStartContinuous(unitp->gptp, interval);
-          msg = HAL_RET_SUCCESS;
-        }
-        else if (mode == SB_VGPT_ONESHOT) {
-          gptStartOneShot(unitp->gptp, interval);
-          msg = HAL_RET_SUCCESS;
-        }
-        else {
-          msg = CH_RET_EINVAL;
-        }
-
-        ectxp->r0 = (uint32_t)msg;
-        break;
-      }
-    case SB_VGPT_STOP:
-      {
-        driver_state_t state = drvGetStateX(unitp->gptp);
-
-        if ((state != HAL_DRV_STATE_READY) &&
-            (state != GPT_CONTINUOUS) &&
-            (state != GPT_ONESHOT) &&
-            (state != HAL_DRV_STATE_COMPLETE)) {
-          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
-          break;
-        }
-
-        gptStopTimer(unitp->gptp);
-
-        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
-        break;
-      }
-    case SB_VGPT_CHGI:
-      {
-        gptcnt_t interval = (gptcnt_t)ectxp->r1;
-
-        if (interval == (gptcnt_t)0) {
-          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
-          break;
-        }
-
-        if (drvGetStateX(unitp->gptp) != GPT_CONTINUOUS) {
-          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
-          break;
-        }
-
-        gptChangeInterval(unitp->gptp, interval);
-
-        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
-        break;
-      }
     default:
       ectxp->r0 = (uint32_t)CH_RET_ENOSYS;
       break;
@@ -304,6 +164,172 @@ void sb_fastc_vio_gpt(sb_class_t *sbp, struct port_extctx *ectxp) {
 
         config = (const hal_gpt_config_t *)unitp->gptp->config;
         ectxp->r0 = config != NULL ? (uint32_t)config->frequency : 0U;
+        break;
+      }
+    case SB_VGPT_SETCB:
+      {
+        uint32_t enable = ectxp->r1;
+
+        if (drvGetStateX(unitp->gptp) == HAL_DRV_STATE_STOP) {
+          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
+          break;
+        }
+
+        /* Function drvSetCallbackX() is X-class, callable directly from this
+           fastcall.*/
+        drvSetCallbackX(unitp->gptp, enable != 0U ? vgpt_cb : NULL);
+
+        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
+        break;
+      }
+    case SB_VGPT_PDELAY:
+      {
+        gptcnt_t interval = (gptcnt_t)ectxp->r1;
+
+        if (interval == (gptcnt_t)0) {
+          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+          break;
+        }
+
+        if (drvGetStateX(unitp->gptp) != HAL_DRV_STATE_READY) {
+          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
+          break;
+        }
+
+        /* Function gptPolledDelayX() is X-class (a busy-wait that takes no
+           lock), callable directly from this fastcall.*/
+        gptPolledDelayX(unitp->gptp, interval);
+        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
+        break;
+      }
+    case SB_VGPT_SELCFG:
+      {
+        uint32_t cfgnum = ectxp->r1;
+        size_t n = ectxp->r2;
+        void *p = (void *)ectxp->r3;
+        const void *confp;
+        msg_t msg;
+
+        if (drvGetStateX(unitp->gptp) != HAL_DRV_STATE_READY) {
+          ectxp->r0 = (uint32_t)HAL_RET_INV_STATE;
+          break;
+        }
+
+        if ((sbp->vioconf->gptconfs == NULL) ||
+            (cfgnum >= sbp->vioconf->gptconfs->cfgsnum)) {
+          ectxp->r0 = (uint32_t)HAL_RET_NO_RESOURCE;
+          break;
+        }
+
+        if (n > sizeof (hal_gpt_config_t)) {
+          ectxp->r0 = (uint32_t)HAL_RET_CONFIG_ERROR;
+          break;
+        }
+
+        if ((n > 0U) && !sb_is_valid_write_range(sbp, p, n)) {
+          ectxp->r0 = (uint32_t)CH_RET_EFAULT;
+          break;
+        }
+
+        /* Function drvSetCfgX() is X-class, callable directly from this
+           fastcall.*/
+        confp = &sbp->vioconf->gptconfs->cfgs[cfgnum];
+        msg = drvSetCfgX(unitp->gptp, confp);
+        if (msg == HAL_RET_SUCCESS) {
+          if (n > 0U) {
+            memcpy(p, confp, n);
+          }
+          ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
+        }
+        else {
+          ectxp->r0 = (uint32_t)HAL_RET_CONFIG_ERROR;
+        }
+
+        break;
+      }
+    case SB_VGPT_START:
+      {
+        uint32_t mode = ectxp->r1;
+        gptcnt_t interval = (gptcnt_t)ectxp->r2;
+        msg_t msg;
+
+        if (interval == (gptcnt_t)0) {
+          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+          break;
+        }
+
+        /* IRQ-like fastcall: timer start is a non-blocking I-class kick;
+           completion (one-shot/continuous period) arrives via VRQ from
+           vgpt_cb().*/
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
+        if (drvGetStateX(unitp->gptp) != HAL_DRV_STATE_READY) {
+          msg = HAL_RET_INV_STATE;
+        }
+        else if (mode == SB_VGPT_CONTINUOUS) {
+          gptStartContinuousI(unitp->gptp, interval);
+          msg = HAL_RET_SUCCESS;
+        }
+        else if (mode == SB_VGPT_ONESHOT) {
+          gptStartOneShotI(unitp->gptp, interval);
+          msg = HAL_RET_SUCCESS;
+        }
+        else {
+          msg = CH_RET_EINVAL;
+        }
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
+
+        ectxp->r0 = (uint32_t)msg;
+        break;
+      }
+    case SB_VGPT_STOP:
+      {
+        driver_state_t state;
+        msg_t msg;
+
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
+        state = drvGetStateX(unitp->gptp);
+        if ((state != HAL_DRV_STATE_READY) &&
+            (state != GPT_CONTINUOUS) &&
+            (state != GPT_ONESHOT) &&
+            (state != HAL_DRV_STATE_COMPLETE)) {
+          msg = HAL_RET_INV_STATE;
+        }
+        else {
+          gptStopTimerI(unitp->gptp);
+          msg = HAL_RET_SUCCESS;
+        }
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
+
+        ectxp->r0 = (uint32_t)msg;
+        break;
+      }
+    case SB_VGPT_CHGI:
+      {
+        gptcnt_t interval = (gptcnt_t)ectxp->r1;
+        msg_t msg;
+
+        if (interval == (gptcnt_t)0) {
+          ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+          break;
+        }
+
+        OSAL_IRQ_PROLOGUE();
+        osalSysLockFromISR();
+        if (drvGetStateX(unitp->gptp) != GPT_CONTINUOUS) {
+          msg = HAL_RET_INV_STATE;
+        }
+        else {
+          gptChangeIntervalI(unitp->gptp, interval);
+          msg = HAL_RET_SUCCESS;
+        }
+        osalSysUnlockFromISR();
+        OSAL_IRQ_EPILOGUE();
+
+        ectxp->r0 = (uint32_t)msg;
         break;
       }
     default:

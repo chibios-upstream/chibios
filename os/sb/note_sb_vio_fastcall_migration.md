@@ -83,11 +83,26 @@ Already in the target shape (reference, no work):
       do not collide. Compile-verified on both host and client (I2C
       temporarily enabled), stylecheck-clean. Not yet HW-validated: needs an
       I2C device + an `i2c` test command in SB_VIO.
-- [ ] **4. GPT** (229 -> 101): migrate `START`/`STOP`/`CHGI` (swap
+- [x] **4. GPT** (229 -> 101) — **done 2026-06-16**: every op except
+      `INIT`/`DEINIT` is now a fastcall. `START`/`STOP`/`CHGI` moved to
+      `sb_fastc_vio_gpt` as ISR bodies, swapping the api-class
       `gptStartContinuous`/`gptStartOneShot`/`gptStopTimer`/
-      `gptChangeInterval` for their `...I` forms). Keep
-      `INIT`/`DEINIT`/`SETCB` and **`PDELAY` (`gptPolledDelay`
-      busy-waits — must stay a syscall)**.
+      `gptChangeInterval` for their `...I` forms; `SELCFG`, `SETCB` and
+      `PDELAY` moved as plain fastcall cases. `SETCB` uses the X-class
+      `drvSetCallbackX`. `PDELAY` was unblocked by **reclassifying
+      `gptPolledDelay` as X-class and renaming it `gptPolledDelayX`** in the
+      XHAL GPT driver (codegen `hal_gpt.xml`: `<api>`->`<xclass>`,
+      regenerated) — it is a pure busy-wait that takes no OS lock and never
+      deschedules, so it is context-safe; it was previously mis-classified
+      as `@api`. (Classic-HAL `gptPolledDelay` is a separate API and is
+      unchanged.) Sub-codes
+      were renumbered into one contiguous space (`sbsysc.h`): `PDELAY=2`
+      would otherwise collide with the old fastcall `GETFREQ=2`, so the
+      `GET*` codes moved to 8/9/10. HW-validated on G474 via `adc stream`
+      (drives `gptStartContinuous` + `gptStopTimer` on `GPTD1` to trigger
+      the ADC) under the full state checker — clean stream, no `SV#`
+      assertion. `CHGI`/`SELCFG`/`SETCB`/`PDELAY` are compile-verified but
+      not exercised by that path (same pattern, low risk).
 - [ ] **5. ETH** (227 -> 99): migrate `LINK`, `RXREAD`/`TXWRITE`,
       `RXREL`/`TXREL`, `RXGET`/`TXGET` (handle fetch + copy, all X-class).
       Keep `INIT`/`DEINIT` (SELCFG now a fastcall, see below). Do last: VETH ABI/ownership is still
@@ -152,5 +167,5 @@ unit/config wiring (`cfg/vioconf.h`, host `main.c`).
 - ETH — add as its migration lands.
 
 Mechanism confirmed: IRQ-like fastcalls work with the existing OSAL IRQ
-macros (no port change needed). Remaining migrations: GPT, ETH (I2C code
-done, HW validation pending).
+macros (no port change needed). Remaining migration: ETH (I2C code done,
+HW validation pending a device; GPT done + HW-validated via `adc stream`).

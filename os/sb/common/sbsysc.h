@@ -110,6 +110,9 @@
 
 /**
  * @name    Virtual GPT syscall sub-codes
+ * @note    INIT/DEINIT are handled by the syscall handler (SVC 229); all the
+ *          other sub-codes are handled by the fastcall handler (SVC 101) and
+ *          therefore share a single numbering space.
  * @{
  */
 #define SB_VGPT_INIT            0
@@ -120,9 +123,9 @@
 #define SB_VGPT_CHGI            5
 #define SB_VGPT_SETCB           6
 #define SB_VGPT_SELCFG          7
-#define SB_VGPT_GETI            0
-#define SB_VGPT_GETC            1
-#define SB_VGPT_GETFREQ         2
+#define SB_VGPT_GETI            8
+#define SB_VGPT_GETC            9
+#define SB_VGPT_GETFREQ         10
 #define SB_VGPT_CONTINUOUS      0
 #define SB_VGPT_ONESHOT         1
 /** @} */

@@ -67,7 +67,7 @@ static inline uint32_t __gpt_vgpt_deinit(uint32_t nvgpt) {
 CC_FORCE_INLINE
 static inline uint32_t __gpt_vgpt_pdelay(uint32_t nvgpt, gptcnt_t interval) {
 
-  __syscall2r(229, VIO_CALL(SB_VGPT_PDELAY, nvgpt), interval);
+  __syscall2r(101, VIO_CALL(SB_VGPT_PDELAY, nvgpt), interval);
   return (uint32_t)r0;
 }
 
@@ -75,28 +75,28 @@ CC_FORCE_INLINE
 static inline uint32_t __gpt_vgpt_start(uint32_t nvgpt, uint32_t mode,
                                         gptcnt_t interval) {
 
-  __syscall3r(229, VIO_CALL(SB_VGPT_START, nvgpt), mode, interval);
+  __syscall3r(101, VIO_CALL(SB_VGPT_START, nvgpt), mode, interval);
   return (uint32_t)r0;
 }
 
 CC_FORCE_INLINE
 static inline uint32_t __gpt_vgpt_stop(uint32_t nvgpt) {
 
-  __syscall1r(229, VIO_CALL(SB_VGPT_STOP, nvgpt));
+  __syscall1r(101, VIO_CALL(SB_VGPT_STOP, nvgpt));
   return (uint32_t)r0;
 }
 
 CC_FORCE_INLINE
 static inline uint32_t __gpt_vgpt_chgi(uint32_t nvgpt, gptcnt_t interval) {
 
-  __syscall2r(229, VIO_CALL(SB_VGPT_CHGI, nvgpt), interval);
+  __syscall2r(101, VIO_CALL(SB_VGPT_CHGI, nvgpt), interval);
   return (uint32_t)r0;
 }
 
 CC_FORCE_INLINE
 static inline uint32_t __gpt_vgpt_setcb(uint32_t nvgpt, uint32_t enable) {
 
-  __syscall2r(229, VIO_CALL(SB_VGPT_SETCB, nvgpt), enable);
+  __syscall2r(101, VIO_CALL(SB_VGPT_SETCB, nvgpt), enable);
   return (uint32_t)r0;
 }
 
@@ -104,7 +104,7 @@ CC_FORCE_INLINE
 static inline uint32_t __gpt_vgpt_selcfg(uint32_t nvgpt, uint32_t ncfg,
                                          size_t n, void *p) {
 
-  __syscall4r(229, VIO_CALL(SB_VGPT_SELCFG, nvgpt), ncfg, n, p);
+  __syscall4r(101, VIO_CALL(SB_VGPT_SELCFG, nvgpt), ncfg, n, p);
   return (uint32_t)r0;
 }
 

@@ -418,8 +418,11 @@ Sub-codes that should move to the fastcall side:
   that prompted this analysis.)*
 - **GPT (229):** `START`/`STOP`/`CHGI` (swap `gptStartContinuous`/
   `gptStartOneShot`/`gptStopTimer`/`gptChangeInterval` for their `...I`
-  forms). **Exception: `PDELAY` (`gptPolledDelay`) busy-waits — it stays
-  a syscall.**
+  forms). `PDELAY` also migrated: although `gptPolledDelay` busy-waits, it
+  takes no OS lock and never deschedules, so it was reclassified X-class
+  and renamed `gptPolledDelayX` — a busy-wait is context-safe, so it can
+  run from a fastcall. (Original analysis kept `PDELAY` a syscall; revised
+  2026-06-16.)
 - **ETH (227):** the whole data plane — `LINK`, `RXREAD`/`TXWRITE`,
   `RXREL`/`TXREL`, `RXGET`/`TXGET` (handle fetch + copy, all
   non-blocking / X-class).
