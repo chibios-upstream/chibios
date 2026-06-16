@@ -64,7 +64,7 @@ CC_FORCE_INLINE
 static inline uint32_t __eth_veth_selcfg(uint32_t nveth, uint32_t ncfg,
                                          size_t n, void *p) {
 
-  __syscall4r(227, VIO_CALL(SB_VETH_SELCFG, nveth), ncfg, n, p);
+  __syscall4r(99, VIO_CALL(SB_VETH_SELCFG, nveth), ncfg, n, p);
   return (uint32_t)r0;
 }
 
@@ -257,14 +257,14 @@ bool eth_lld_is_transmit_handle_valid(hal_eth_driver_c *ethp,
 void eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
                                     eth_receive_handle_t rxh) {
 
-  __syscall2r(227, VIO_CALL(SB_VETH_RXREL, ethp->nveth), rxh);
+  __syscall2r(99, VIO_CALL(SB_VETH_RXREL, ethp->nveth), rxh);
   osalDbgAssert(r0 == HAL_RET_SUCCESS, "unexpected failure");
 }
 
 void eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
                                      eth_transmit_handle_t txh) {
 
-  __syscall2r(227, VIO_CALL(SB_VETH_TXREL, ethp->nveth), txh);
+  __syscall2r(99, VIO_CALL(SB_VETH_TXREL, ethp->nveth), txh);
   osalDbgAssert(r0 == HAL_RET_SUCCESS, "unexpected failure");
 }
 
@@ -272,7 +272,7 @@ size_t eth_lld_read_receive_handle(hal_eth_driver_c *ethp,
                                    eth_receive_handle_t rxh,
                                    uint8_t *bp, size_t n) {
 
-  __syscall4r(227, VIO_CALL(SB_VETH_RXREAD, ethp->nveth), rxh, bp, n);
+  __syscall4r(99, VIO_CALL(SB_VETH_RXREAD, ethp->nveth), rxh, bp, n);
   osalDbgAssert(((int32_t)r0) >= 0, "host RXREAD failed");
   return (size_t)r0;
 }
@@ -281,14 +281,14 @@ size_t eth_lld_write_transmit_handle(hal_eth_driver_c *ethp,
                                      eth_transmit_handle_t txh,
                                      const uint8_t *bp, size_t n) {
 
-  __syscall4r(227, VIO_CALL(SB_VETH_TXWRITE, ethp->nveth), txh, bp, n);
+  __syscall4r(99, VIO_CALL(SB_VETH_TXWRITE, ethp->nveth), txh, bp, n);
   osalDbgAssert(((int32_t)r0) >= 0, "host TXWRITE failed");
   return (size_t)r0;
 }
 
 bool eth_lld_poll_link_status(hal_eth_driver_c *ethp) {
 
-  __syscall1r(227, VIO_CALL(SB_VETH_LINK, ethp->nveth));
+  __syscall1r(99, VIO_CALL(SB_VETH_LINK, ethp->nveth));
   return (bool)r0;
 }
 
