@@ -127,9 +127,15 @@ Stage C dimensions (deep):
   - if present but **mis-tagged** (missing PR number, `FIX:`/`NEW:` prefix,
     wrapping, annotations), the reviewer fixes it the same way.
   Either way it is a small, clearly-attributed commit to the PR branch plus a
-  one-line comment — never a finding, never a fix round on its own. Add it late
-  (near merge) to minimise rebasing against other PRs' entries. The author is
-  only expected to make the change itself correct; the changelog line is on the
+  one-line comment — never a finding, never a fix round on its own.
+  **Time it to a clean Stage D:** add the entry as part of the pass that reaches
+  advisory-LGTM — by then content (C) and style (D) have settled, so the entry
+  will not churn, and it lands *with* the PR rather than needing a post-merge
+  follow-up (doing it "near merge" risks the merge happening first). **Exception:**
+  a PR that only refines a feature still under `*** Next ***` (not yet released)
+  needs no entry — it is covered by that feature's existing `NEW:` line; only
+  changes to already-released behaviour/APIs get one. The author is only
+  expected to make the change itself correct; the changelog line is on the
   reviewer.
 - **Make findings reproducible:** when reporting style findings, include the local
   reproduction hint so the author can self-check before pushing:
