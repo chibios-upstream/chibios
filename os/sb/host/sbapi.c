@@ -227,10 +227,18 @@ void sb_sysc_wait_all_timeout(sb_class_t *sbp, struct port_extctx *ectxp) {
 #endif
 }
 
-void sb_sysc_broadcast_flags(sb_class_t *sbp, struct port_extctx *ectxp) {
+void sb_fastc_broadcast_flags(sb_class_t *sbp, struct port_extctx *ectxp) {
 #if CH_CFG_USE_EVENTS == TRUE
 
-  chEvtBroadcastFlags(&sbp->base.es, (eventflags_t)ectxp->r0);
+  /* IRQ-like fastcall: a non-blocking event broadcast that may wake waiters.
+     The wakeup itself is the completion, so there is nothing to block on; the
+     deferred reschedule is handled by the epilogue.*/
+  CH_IRQ_PROLOGUE();
+  chSysLockFromISR();
+  chEvtBroadcastFlagsI(&sbp->base.es, (eventflags_t)ectxp->r0);
+  chSysUnlockFromISR();
+  CH_IRQ_EPILOGUE();
+
   ectxp->r0 = CH_RET_SUCCESS;
 #else
   (void)sbp;

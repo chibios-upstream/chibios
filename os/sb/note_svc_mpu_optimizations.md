@@ -376,15 +376,27 @@ Inventory of the current syscall table (128..255) against that rule:
 - **Migration candidates (non-blocking post-and-wake, verified in
   source):**
   - `sb_sysc_broadcast_flags` (137) — `chEvtBroadcastFlags`; **clean
-    move**, `chEvtBroadcastFlagsI` exists.
+    move — DONE 2026-06-17.** Now `sb_fastc_broadcast_flags` at fastcall
+    slot 3 (beside the other kernel-object fastcalls 1/2), IRQ-like body
+    (`OSAL_IRQ_PROLOGUE` / lock / `chEvtBroadcastFlagsI` / unlock /
+    `OSAL_IRQ_EPILOGUE`). Guest wrapper `sbEventBroadcastFlags` -> `svc 3`.
   - `sb_sysc_vrq_set_alarm` (253) / `sb_sysc_vrq_reset_alarm` (254) —
-    `chVTSetContinuous`/`chVTSet`/`chVTReset`; **clean move**,
-    `chVTSetContinuousI`/`chVTSetI`/`chVTResetI` all exist.
+    `chVTSetContinuous`/`chVTSet`/`chVTReset`; **clean move — DONE
+    2026-06-17.** Now `sb_fastc_vrq_set_alarm` / `sb_fastc_vrq_reset_alarm`
+    at fastcall slots 117/118 (just below the VRQ fastcall block 119-127),
+    IRQ-like bodies using `chVTSetContinuousI`/`chVTSetI`/`chVTResetI` (the
+    `...I` forms reset-if-armed internally, so they are exact drop-ins for
+    the locking forms). Guest wrappers `sbSetAlarm` -> `svc 117`,
+    `sbResetAlarm` -> `svc 118`. Exercised on every guest tick via the
+    virtual ST driver (`hal_st_lld.c` `sbSetAlarm`).
   - `sb_sysc_reply_message` (133) — `chSysLock`/`chMsgReleaseS`/
-    `chSysUnlock`, i.e. wake the sender. Conceptually a fastcall, but
-    **blocked: there is no `chMsgReleaseI`** (only `chMsgRelease` and
-    `chMsgReleaseS`). Needs a new I-class release primitive added before
-    it can move, otherwise it stays a syscall.
+    `chSysUnlock`, i.e. wake the sender. Conceptually a fastcall, but it
+    would need a new I-class release primitive (`chMsgReleaseI` ≈
+    `chSchReadyI` + ready-message, deferring the reschedule to the
+    epilogue), which does not exist. **Decided 2026-06-17: leave it a
+    syscall.** It is not a hot path and is not worth adding public RT
+    kernel API for; the kernel surface stays untouched. This closes the
+    kernel-object re-distribution.
 **VIO is the larger surface — migrate per sub-code, not per peripheral.**
 This is where the large gains are, and it follows from a design
 principle: **XHAL drivers are asynchronous by default.** `start`/`stop`

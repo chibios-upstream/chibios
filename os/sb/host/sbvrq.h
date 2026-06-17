@@ -44,6 +44,8 @@
  * @name    VRQ pseudo-instructions handlers
  * @{
  */
+#define SB_SVC117_HANDLER       sb_fastc_vrq_set_alarm
+#define SB_SVC118_HANDLER       sb_fastc_vrq_reset_alarm
 #define SB_SVC119_HANDLER       sb_fastc_vrq_gcsts
 #define SB_SVC120_HANDLER       sb_fastc_vrq_setwt
 #define SB_SVC121_HANDLER       sb_fastc_vrq_clrwt
@@ -54,8 +56,6 @@
 #define SB_SVC126_HANDLER       sb_fastc_vrq_getisr
 #define SB_SVC127_HANDLER       sb_fastc_vrq_return
 
-#define SB_SVC253_HANDLER       sb_sysc_vrq_set_alarm
-#define SB_SVC254_HANDLER       sb_sysc_vrq_reset_alarm
 #define SB_SVC255_HANDLER       sb_sysc_vrq_wait
 /** @} */
 
@@ -130,8 +130,8 @@ extern "C" {
   void sbVRQSetFlagsI(sb_class_t *sbp, sb_vrqnum_t nvrq, uint32_t flags);
   void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq);
   void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq);
-  void sb_sysc_vrq_set_alarm(sb_class_t *sbp, struct port_extctx *ectxp);
-  void sb_sysc_vrq_reset_alarm(sb_class_t *sbp, struct port_extctx *ectxp);
+  void sb_fastc_vrq_set_alarm(sb_class_t *sbp, struct port_extctx *ectxp);
+  void sb_fastc_vrq_reset_alarm(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_sysc_vrq_wait(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_fastc_vrq_gcsts(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_fastc_vrq_setwt(sb_class_t *sbp, struct port_extctx *ectxp);

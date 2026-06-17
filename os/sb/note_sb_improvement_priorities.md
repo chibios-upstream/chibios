@@ -56,6 +56,14 @@ done items are marked inline.
    lifecycle + blocking primitives. That re-distribution is itself a
    guest ABI change; see the point-5 addendum in the optimizations note
    for the per-peripheral list. (optimizations note, point 5)
+6b. **Kernel-object fastcall moves** — ✅ **DONE (2026-06-17)** for the two
+   unblocked candidates: `broadcast_flags` (137 -> fastcall slot 3) and
+   the VRQ alarm `set`/`reset` (253/254 -> slots 117/118), all rewritten as
+   IRQ-like fastcall bodies. `reply_message` (133) **stays a syscall by
+   decision (2026-06-17)** — not a hot path, not worth a new public
+   `chMsgReleaseI` RT primitive. Kernel-object re-distribution closed.
+   Detail in the optimizations-note point-5 addendum.
+
 7. **MPU region-table design** — ✅ **IMPLEMENTED** (2026-06-12,
    `d9e47421` + `6d2fa405`). Pointer in thread context, per-SB shared
    table, const default table honoring the static init settings,

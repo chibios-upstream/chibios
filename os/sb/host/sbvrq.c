@@ -343,7 +343,7 @@ void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   }
 }
 
-void sb_sysc_vrq_set_alarm(sb_class_t *sbp, struct port_extctx *ectxp) {
+void sb_fastc_vrq_set_alarm(sb_class_t *sbp, struct port_extctx *ectxp) {
   sysinterval_t interval = (sysinterval_t)ectxp->r0;
   bool reload = (bool)ectxp->r1;
 
@@ -352,21 +352,35 @@ void sb_sysc_vrq_set_alarm(sb_class_t *sbp, struct port_extctx *ectxp) {
     return;
   }
 
+  /* IRQ-like fastcall: arming a virtual timer is a non-blocking I-class
+     operation; the alarm fires later through delay_cb() as a VRQ. The
+     ...I variants reset the timer first if already armed, matching the
+     locking forms they replace.*/
+  CH_IRQ_PROLOGUE();
+  chSysLockFromISR();
   if (reload) {
-    chVTSetContinuous(&sbp->vrq.alarm_vt, interval, delay_cb, (void *)sbp);
+    chVTSetContinuousI(&sbp->vrq.alarm_vt, interval, delay_cb, (void *)sbp);
   }
   else {
-    chVTSet(&sbp->vrq.alarm_vt, interval, delay_cb, (void *)sbp);
+    chVTSetI(&sbp->vrq.alarm_vt, interval, delay_cb, (void *)sbp);
   }
+  chSysUnlockFromISR();
+  CH_IRQ_EPILOGUE();
 
   ectxp->r0 = (uint32_t)CH_RET_SUCCESS;
 }
 
-void sb_sysc_vrq_reset_alarm(sb_class_t *sbp, struct port_extctx *ectxp) {
+void sb_fastc_vrq_reset_alarm(sb_class_t *sbp, struct port_extctx *ectxp) {
 
   (void)ectxp;
 
-  chVTReset(&sbp->vrq.alarm_vt);
+  /* IRQ-like fastcall: disarming a virtual timer is a non-blocking I-class
+     operation. chVTResetI() is a no-op if the timer is not armed.*/
+  CH_IRQ_PROLOGUE();
+  chSysLockFromISR();
+  chVTResetI(&sbp->vrq.alarm_vt);
+  chSysUnlockFromISR();
+  CH_IRQ_EPILOGUE();
 }
 
 void sb_sysc_vrq_wait(sb_class_t *sbp, struct port_extctx *ectxp) {

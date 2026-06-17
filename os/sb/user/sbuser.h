@@ -637,7 +637,7 @@ static inline eventmask_t sbEventWaitAllTimeout(eventmask_t events,
  */
 static inline uint32_t sbEventBroadcastFlags(eventflags_t flags) {
 
-  __syscall1r(137, flags);
+  __syscall1r(3, flags);
   return (uint32_t)r0;
 }
 
@@ -898,7 +898,7 @@ static inline void sbSleepMicroseconds(time_usecs_t usecs) {
  */
 static inline msg_t sbSetAlarm(sysinterval_t interval, bool reload) {
 
-  __syscall2r(253, (uint32_t)interval, (uint32_t)reload);
+  __syscall2r(117, (uint32_t)interval, (uint32_t)reload);
   return (msg_t)r0;
 }
 
@@ -909,7 +909,7 @@ static inline msg_t sbSetAlarm(sysinterval_t interval, bool reload) {
  */
 static inline void sbResetAlarm(void) {
 
-  __syscall0(254);
+  __syscall0(118);
 }
 
 /**
