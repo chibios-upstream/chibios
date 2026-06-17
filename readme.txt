@@ -74,6 +74,13 @@
 *****************************************************************************
 
 *** 21.11.6 ***
+- FIX: nvicSetSystemHandlerPriority() programmed the wrong SCB->SHPR field on
+       Cortex-M0, M0+ and M23: the positive ChibiOS handler index was passed
+       to the CMSIS _SHP_IDX()/_BIT_SHIFT() macros, which expect the negative
+       system exception number, so the priority write (e.g. SysTick from the
+       ST driver) landed on the wrong register slot - SysTick was left at its
+       reset priority and another handler's priority was corrupted. The handler
+       index is now converted to the matching exception number (github PR #34).
 - NEW: STM32G4xx: added FSMC RCC macros, IRQ vector definitions and
        registry switch for the FMC-capable devices (github PR #7).
 - FIX: STM32U3 RTC was completely non-functional, the driver hung at boot in
