@@ -77,5 +77,4 @@ Full assessment in [note_sb_isolation_security.md](note_sb_isolation_security.md
 
 ## Cleanup
 
-- Remove or archive the stale backup files `vio/sbvio_eth (copy).c` and `vio/sbvio_eth (copy).h` if they are no longer needed.
 - Periodically sync this file with resolved items so it stays a useful working backlog rather than a historical dump.
