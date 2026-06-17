@@ -88,7 +88,7 @@ See .devcontainer/README.md for included tools and usage.
        ST driver) landed on the wrong register slot - SysTick was left at its
        reset priority and another handler's priority was corrupted. The handler
        index is now converted to the matching exception number (HAL and XHAL
-       ports) (forum bug report, github PR #34).
+       ports) (forum bug report, github PR #34)(backported to 21.11.6).
 - FIX: RP2040 early (pre-XOSC) tick generator was configured with a divisor of
        1 instead of clk/1MHz, so the boot-time microsecond tick ran about six
        times too fast until clk_ref switched to the XOSC (the post-switch
