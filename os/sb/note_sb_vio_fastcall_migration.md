@@ -103,8 +103,8 @@ Already in the target shape (reference, no work):
       the ADC) under the full state checker — clean stream, no `SV#`
       assertion. `CHGI`/`SELCFG`/`SETCB`/`PDELAY` are compile-verified but
       not exercised by that path (same pattern, low risk).
-- [x] **5. ETH** (227 -> 99) — **code migrated 2026-06-16, HW validation
-      pending**: `SELCFG`, `LINK`, `RXREAD`/`TXWRITE`, `RXREL`/`TXREL` moved
+- [x] **5. ETH** (227 -> 99) — **done 2026-06-16, HW-validated on H563**:
+      `SELCFG`, `LINK`, `RXREAD`/`TXWRITE`, `RXREL`/`TXREL` moved
       from `sb_sysc_vio_eth` to `sb_fastc_vio_eth`, joining the already-
       fastcall `RXGET`/`TXGET`. Only `INIT`/`DEINIT` stay on 227. **Pure
       relocation — no ISR bodies needed**: unlike ADC/SPI/I2C/GPT, the ETH
@@ -120,10 +120,17 @@ Already in the target shape (reference, no work):
       (like `gptPolledDelay` was) — **reclassified `@xclass` and renamed
       `...X`** in the XHAL ETH codegen (`hal_eth.xml`, regenerated); callers
       updated (the SB port and the `lwip_bindings/lwipthread_xhal.c`
-      binding). Compile-verified: host via the H563 SB host demo
-      (`RT-STM32H563ZI-NUCLEO144-SB_HOST_SWITCHED`, ETH enabled), guest via
-      the VIO ETH port. **Not HW-validated**: the G474 bench has no ETH MAC;
-      needs an ETH-capable SB host target running under the state checker.
+      binding). HW-validated on an STM32H563ZI Nucleo144 with the
+      `RT-STM32H563ZI-NUCLEO144-SB_HOST_SWITCHED` demo (SB2 = the
+      `SB-CLIENT-RT-XHAL-LWIP-HTTP` sandbox, an lwIP HTTP server on the VIO
+      ETH at 192.168.1.10): a GDB breakpoint on `sb_fastc_vio_eth` caught the
+      RX path repeating cleanly (sub-codes 8 `RXGET` -> 4 `RXREAD` -> 6
+      `RXREL`), `ping` succeeded (RX request + TX reply), and `curl
+      http://192.168.1.10/` returned the full HTTP 200 page — so the whole
+      RX+TX data plane runs through the migrated fastcalls with no
+      fault/halt. (Functional end-to-end validation rather than under the
+      state checker: the ETH fastcall cases are plain X-class with no
+      prologue/lock, and the demo ships with debug off.)
 
 ## Cross-cutting
 
@@ -159,11 +166,11 @@ GPT and ETH; only `INIT`/`DEINIT` remain on the syscall path anywhere.
 
 - ADC, SPI, GPT — HW-validated on G474 under the full state checker
   (SB_VIO `adc`/`spi` commands; GPT via `adc stream`).
+- ETH — HW-validated on H563 (`RT-STM32H563ZI-NUCLEO144-SB_HOST_SWITCHED`
+  lwIP HTTP sandbox): RX path traced via GDB, `ping` + `curl` end-to-end
+  over the migrated fastcalls.
 - I2C — compile-verified both sides; HW validation pending an I2C device +
-  an `i2c` SB_VIO command.
-- ETH — compile-verified (host via the H563 SB host demo, guest via the VIO
-  ETH port); HW validation pending an ETH-capable SB host target under the
-  state checker.
+  an `i2c` SB_VIO command (the only remaining HW validation).
 
 ## Test harness (per-driver SB_VIO commands)
 
