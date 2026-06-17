@@ -130,8 +130,37 @@ misses the guard is direct supervisor-memory corruption.
 The `vrq.isr` / `SB_VRQ_ISR_DISABLED` masking discipline prevents a VRQ
 being injected during the return transition. `sbVRQTriggerI` fires
 asynchronously from ISRs, so the masking atomicity across the entry ->
-dispatch -> return sequence needs explicit re-review (see open_points
-"Host").
+dispatch -> return sequence needed explicit re-review.
+
+**Re-reviewed 2026-06-17 — safe by priority design, now guarded.** The
+fastcall handlers in `host/sbvrq.c` perform unlocked read-modify-write on
+the shared VRQ state (`vrq.isr`, `vrq.wtmask`, `vrq.flags[]`); their
+atomicity against the asynchronous producers `sbVRQTriggerI()` /
+`sbVRQSetFlagsI()` (both I-class) rests on a priority invariant rather than
+a lock. The handlers run at SVCall priority; any IRQ permitted to call an
+I-class function is at `CORTEX_MAX_KERNEL_PRIORITY` or below (numerically
+higher = less urgent), which the ALT ports pin one level under SVCall
+(`CORTEX_MAX_KERNEL_PRIORITY == CORTEX_PRIORITY_SVCALL + 1`,
+`ARMv7-M-ALT`/`ARMv8-M-ML-ALT` `chcore.h`). A VRQ producer therefore cannot
+preempt a handler mid-sequence, so the would-be lost-update windows are
+closed by construction:
+
+- `wtmask` RMW vs. a producer's `|= (1 << nvrq)` — no interleave, no dropped
+  VRQ.
+- `flags[n]` read-and-clear in `gcsts` vs. `sbVRQSetFlagsI`'s `|=` — no
+  interleave, no lost completion flags (this is the VIO completion path).
+- the `isr = 0` -> mask-check window in `vrq_enable` / `vrq_return` — no
+  producer runs between the store and the check; the `asm("":::"memory")`
+  barrier is only compiler-ordering belt-and-suspenders.
+
+The fast-priority band *above* SVCall cannot produce VRQs (it cannot call OS
+primitives). The S-class producer `sbVRQTriggerS()` runs under `chSysLock`,
+same-core only (`owner == currcore` assert), so it cannot overlap a handler
+either. Converting these handlers to the IRQ-fastcall lock contract would be
+redundant overhead. Because the safety depends entirely on
+`CORTEX_PRIORITY_SVCALL < CORTEX_MAX_KERNEL_PRIORITY`, a `#if … #error`
+guard in `host/sbvrq.c` now fails the build if a future port or priority
+reconfiguration breaks that ordering.
 
 ## Design-decision impacts (2026-06-11)
 

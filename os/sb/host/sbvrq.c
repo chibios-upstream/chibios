@@ -32,6 +32,28 @@
 /* Module local definitions.                                                 */
 /*===========================================================================*/
 
+/* The read-modify-write sequences on the shared VRQ state (vrq.isr,
+   vrq.wtmask, vrq.flags[]) in the fastcall handlers below are NOT explicitly
+   locked: their atomicity against the asynchronous producers (sbVRQTriggerI()
+   and sbVRQSetFlagsI(), both I-class) rests entirely on a priority invariant.
+   The handlers run at the SVCall priority, while any IRQ allowed to call an
+   I-class function sits at CORTEX_MAX_KERNEL_PRIORITY or below (numerically
+   higher, i.e. less urgent). SVCall therefore out-prioritizes every VRQ
+   producer and a producer cannot preempt a handler mid-sequence; the
+   sequences are atomic by construction (see note_sb_isolation_security.md,
+   margin 6). The fast-priority band above SVCall cannot produce VRQs because
+   it cannot call OS primitives.
+
+   This guard fails the build if a port or priority reconfiguration ever
+   breaks that ordering, rather than silently reopening the lost-update race.
+   The ALT ports define CORTEX_MAX_KERNEL_PRIORITY == CORTEX_PRIORITY_SVCALL + 1
+   so the invariant holds. (Lower numeric value == higher priority.) */
+#if defined(CORTEX_PRIORITY_SVCALL) && defined(CORTEX_MAX_KERNEL_PRIORITY)
+#if CORTEX_PRIORITY_SVCALL >= CORTEX_MAX_KERNEL_PRIORITY
+#error "VRQ state atomicity requires SVCall to out-prioritize every kernel-preempting IRQ (CORTEX_PRIORITY_SVCALL < CORTEX_MAX_KERNEL_PRIORITY)"
+#endif
+#endif
+
 /*===========================================================================*/
 /* Module exported variables.                                                */
 /*===========================================================================*/

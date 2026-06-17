@@ -26,9 +26,14 @@ done items are marked inline.
    / `vio/sbvio_uart.c`, plus the EFAULT-vs-fault policy decision. The
    only *escape-relevant* gap active today; everything else
    security-wise is crash-resistance. (isolation note, margin 2)
-2. **VRQ masking atomicity re-review** — `vrq.isr` /
-   `SB_VRQ_ISR_DISABLED` discipline across the entry -> dispatch ->
-   return sequence. Live today, supervisor integrity. (margin 6)
+2. **VRQ masking atomicity re-review** — ✅ **DONE (2026-06-17)**:
+   the `vrq.isr` / `SB_VRQ_ISR_DISABLED` (and `wtmask`/`flags[]`) RMW
+   sequences are atomic by priority design — SVCall out-prioritizes every
+   kernel-preempting IRQ in the ALT ports, so no VRQ producer can preempt a
+   handler mid-sequence. No locking needed. Documented in the isolation
+   note (margin 6) and guarded by a `#if … #error`
+   (`CORTEX_PRIORITY_SVCALL < CORTEX_MAX_KERNEL_PRIORITY`) in
+   `host/sbvrq.c`. (margin 6)
 3. **v7-M guard-region coverage verification** — confirm the guard MPU
    region backs the privileged stack base
    (`SB_CFG_PRIVILEGED_STACK_SIZE`) for every sandbox config (no PSPLIM

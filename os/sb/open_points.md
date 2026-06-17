@@ -16,7 +16,7 @@ maintained in
 
 ## Host
 
-- Re-review syscall return and VRQ paths in `host/sbsyscall.c` and `host/sbvrq.c`, especially around restart/teardown windows, late producers, and the `vrq.isr`/`SB_VRQ_ISR_DISABLED` masking atomicity across the entry -> dispatch -> return sequence.
+- Re-review syscall return and VRQ paths in `host/sbsyscall.c` and `host/sbvrq.c`, especially around restart/teardown windows and late producers. **Masking-atomicity part resolved 2026-06-17:** the `vrq.isr`/`SB_VRQ_ISR_DISABLED` masking RMW sequences are atomic by priority design — SVCall out-prioritizes every kernel-preempting (I-class-capable) IRQ in the ALT ports (`CORTEX_PRIORITY_SVCALL < CORTEX_MAX_KERNEL_PRIORITY`), so no VRQ producer can preempt a handler mid-sequence. Documented in `note_sb_isolation_security.md` margin 6 and guarded by a `#if … #error` in `host/sbvrq.c`. Restart/teardown/late-producer review (the `chThdTerminatedX` guards) still open.
 - Decide whether sandbox memory-range violations in host services should keep returning `CH_RET_EFAULT` or escalate to a sandbox fault/termination policy.
 - Add more host-side validation tests for multi-image bring-up, because incorrect flashing order can produce misleading startup failures during debug.
 - Evaluate whether a host-side integration demo/test should be added for the working host + SB1 + SB2 configuration used during VETH/lwIP bring-up.
