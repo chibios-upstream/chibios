@@ -155,9 +155,16 @@ Already in the target shape (reference, no work):
 - **One ABI revision, not five.** Host handlers may move one driver at a
   time during development, but the guest-facing change (stub renumbering)
   should be released as a single batch behind the SB ABI version bump.
+  **Moot as of 2026-06-17: SB is not yet officially released**, so there is
+  no published ABI to preserve — the renumbering stands as-is and no version
+  bump is gated on it. Revisit only if SB ships before further renumbering.
 - Once a peripheral's data plane is all fastcall, its syscall number holds
-  only lifecycle ops — consider whether the two-number per-peripheral
-  split is still worth keeping (see addendum).
+  only lifecycle ops (`INIT`/`DEINIT`). **Decided 2026-06-17: keep the
+  two-number per-peripheral split.** It cannot be collapsed: `INIT`
+  (`drvStart`) can have genuinely blocking parts (mutex/threaded bring-up),
+  so a syscall number must remain alongside the fastcall number for every
+  peripheral. The split is not redundant — it maps directly onto the
+  blocking-vs-non-blocking boundary.
 
 ## Status
 
