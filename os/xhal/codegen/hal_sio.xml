@@ -980,7 +980,8 @@ return (const void *)sio_lld_selcfg(self, cfgnum);]]></implementation>
         </methods>
       </class>
       <class name="hal_buffered_sio" type="regular" namespace="bsio"
-        descr="buffered SIO wrapper" ancestorname="hal_base_driver">
+        descr="buffered SIO wrapper" ancestorname="hal_base_driver"
+        check="SIO_USE_BUFFERING == TRUE">
         <brief>This class implements a buffered channel interface on top of SIO.</brief>
         <implements>
           <if name="asynchronous_channel">

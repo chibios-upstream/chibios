@@ -908,6 +908,8 @@ msg_t sioSynchronizeTXEnd(void *ip, sysinterval_t timeout) {
 /* Module class "hal_buffered_sio_c" methods.                                */
 /*===========================================================================*/
 
+#if (SIO_USE_BUFFERING == TRUE) || defined (__DOXYGEN__)
+
 /**
  * @name        Interfaces implementation of hal_buffered_sio_c
  * @{
@@ -1320,6 +1322,8 @@ msg_t bsRequestDataI(void *ip) {
   return b;
 }
 /** @} */
+
+#endif /* SIO_USE_BUFFERING == TRUE */
 
 #endif /* HAL_USE_SIO == TRUE */
 
