@@ -1450,6 +1450,7 @@
 #define STM32_VOS1_ADCCLK_MAX               55000000
 #define STM32_VOS1_USBCLK_MIN               47880000
 #define STM32_VOS1_USBCLK_MAX               48120000
+#define STM32_VOS1_SDMMCCLK_MAX             208000000
 #if ((STM32_FLASH_ACR & FLASH_ACR_LPM) == 0) || \
     defined(__DOXYGEN__)
 #define STM32_VOS1_FLASH_0WS_MAX            32000000
@@ -1586,6 +1587,7 @@
 #define STM32_VOS2_ADCCLK_MAX               55000000
 #define STM32_VOS2_USBCLK_MIN               47880000
 #define STM32_VOS2_USBCLK_MAX               48120000
+#define STM32_VOS2_SDMMCCLK_MAX             208000000
 #if ((STM32_FLASH_ACR & FLASH_ACR_LPM) == 0) || \
     defined(__DOXYGEN__)
 #define STM32_VOS2_FLASH_0WS_MAX            30000000
@@ -1722,6 +1724,7 @@
 #define STM32_VOS3_ADCCLK_MAX               55000000
 #define STM32_VOS3_USBCLK_MIN               47880000
 #define STM32_VOS3_USBCLK_MAX               48120000
+#define STM32_VOS3_SDMMCCLK_MAX             208000000
 #if ((STM32_FLASH_ACR & FLASH_ACR_LPM) == 0) || \
     defined(__DOXYGEN__)
 #define STM32_VOS3_FLASH_0WS_MAX            24000000
@@ -1858,6 +1861,7 @@
 #define STM32_VOS4_ADCCLK_MAX               25000000
 #define STM32_VOS4_USBCLK_MIN               47880000
 #define STM32_VOS4_USBCLK_MAX               48120000
+#define STM32_VOS4_SDMMCCLK_MAX             208000000
 #if ((STM32_FLASH_ACR & FLASH_ACR_LPM) == 0) || \
     defined(__DOXYGEN__)
 #define STM32_VOS4_FLASH_0WS_MAX            12000000
@@ -1983,6 +1987,7 @@
 #define STM32_ADCCLK_MAX                    STM32_VOS1_ADCCLK_MAX
 #define STM32_USBCLK_MIN                    STM32_VOS1_USBCLK_MIN
 #define STM32_USBCLK_MAX                    STM32_VOS1_USBCLK_MAX
+#define STM32_SDMMCCLK_MAX                  STM32_VOS1_SDMMCCLK_MAX
 #define STM32_FLASH_0WS_MAX                 STM32_VOS1_FLASH_0WS_MAX
 #define STM32_FLASH_1WS_MAX                 STM32_VOS1_FLASH_1WS_MAX
 #define STM32_FLASH_2WS_MAX                 STM32_VOS1_FLASH_2WS_MAX
@@ -2022,6 +2027,7 @@
 #define STM32_ADCCLK_MAX                    STM32_VOS2_ADCCLK_MAX
 #define STM32_USBCLK_MIN                    STM32_VOS2_USBCLK_MIN
 #define STM32_USBCLK_MAX                    STM32_VOS2_USBCLK_MAX
+#define STM32_SDMMCCLK_MAX                  STM32_VOS2_SDMMCCLK_MAX
 #define STM32_FLASH_0WS_MAX                 STM32_VOS2_FLASH_0WS_MAX
 #define STM32_FLASH_1WS_MAX                 STM32_VOS2_FLASH_1WS_MAX
 #define STM32_FLASH_2WS_MAX                 STM32_VOS2_FLASH_2WS_MAX
@@ -2061,6 +2067,7 @@
 #define STM32_ADCCLK_MAX                    STM32_VOS3_ADCCLK_MAX
 #define STM32_USBCLK_MIN                    STM32_VOS3_USBCLK_MIN
 #define STM32_USBCLK_MAX                    STM32_VOS3_USBCLK_MAX
+#define STM32_SDMMCCLK_MAX                  STM32_VOS3_SDMMCCLK_MAX
 #define STM32_FLASH_0WS_MAX                 STM32_VOS3_FLASH_0WS_MAX
 #define STM32_FLASH_1WS_MAX                 STM32_VOS3_FLASH_1WS_MAX
 #define STM32_FLASH_2WS_MAX                 STM32_VOS3_FLASH_2WS_MAX
@@ -2100,6 +2107,7 @@
 #define STM32_ADCCLK_MAX                    STM32_VOS4_ADCCLK_MAX
 #define STM32_USBCLK_MIN                    STM32_VOS4_USBCLK_MIN
 #define STM32_USBCLK_MAX                    STM32_VOS4_USBCLK_MAX
+#define STM32_SDMMCCLK_MAX                  STM32_VOS4_SDMMCCLK_MAX
 #define STM32_FLASH_0WS_MAX                 STM32_VOS4_FLASH_0WS_MAX
 #define STM32_FLASH_1WS_MAX                 STM32_VOS4_FLASH_1WS_MAX
 #define STM32_FLASH_2WS_MAX                 STM32_VOS4_FLASH_2WS_MAX
@@ -6351,6 +6359,18 @@
 #else
   #define STM32_SDMMC_FREQ                  0U
   #define STM32_SDMMC_CLOCK                 0U
+#endif
+
+#if !(!((STM32_SDMMC_ENABLED == TRUE) &&                                    \
+      (STM32_CFG_SDMMC_SEL == RCC_CCIPR2_SDMMCSEL_ICLK)) ||                 \
+     (STM32_ICLK_FREQ <= STM32_SDMMCCLK_MAX)) && !defined(__DOXYGEN__)
+  #error "STM32_SDMMC_FREQ above maximum frequency"
+#endif
+
+#if !(!((STM32_SDMMC_ENABLED == TRUE) &&                                    \
+      (STM32_CFG_SDMMC_SEL == RCC_CCIPR2_SDMMCSEL_PLL1P)) ||                \
+     (STM32_PLL1P_FREQ <= STM32_SDMMCCLK_MAX)) && !defined(__DOXYGEN__)
+  #error "STM32_SDMMC_FREQ above maximum frequency"
 #endif
 
 /* --- Macros and checks for the SDMMC1 clock point. -----------------------*/

@@ -278,6 +278,14 @@
 #define STM32_PWR_PDCRI                     (0U)
 #endif
 
+#if !defined(STM32_PWR_PUCRJ) || defined(__DOXYGEN__)
+#define STM32_PWR_PUCRJ                     (0U)
+#endif
+
+#if !defined(STM32_PWR_PDCRJ) || defined(__DOXYGEN__)
+#define STM32_PWR_PDCRJ                     (0U)
+#endif
+
 /** @} */
 
 /**
@@ -401,7 +409,7 @@
 /**
  * @brief   Maximum allowed SDMMC kernel clock frequency.
  */
-#define STM32_SDMMC_MAXCLK                  208000000U
+#define STM32_SDMMC_MAXCLK                  STM32_SDMMCCLK_MAX
 
 /*===========================================================================*/
 /* Driver data structures and types.                                         */

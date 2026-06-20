@@ -299,8 +299,14 @@ __STATIC_INLINE void hal_lld_set_static_pwr(void) {
   halRegWrite32X(&PWR->PDCRG,    STM32_PWR_PDCRG,    true);
   halRegWrite32X(&PWR->PUCRH,    STM32_PWR_PUCRH,    true);
   halRegWrite32X(&PWR->PDCRH,    STM32_PWR_PDCRH,    true);
+#if STM32_HAS_GPIOI
   halRegWrite32X(&PWR->PUCRI,    STM32_PWR_PUCRI,    true);
   halRegWrite32X(&PWR->PDCRI,    STM32_PWR_PDCRI,    true);
+#endif
+#if STM32_HAS_GPIOJ
+  halRegWrite32X(&PWR->PUCRJ,    STM32_PWR_PUCRJ,    true);
+  halRegWrite32X(&PWR->PDCRJ,    STM32_PWR_PDCRJ,    true);
+#endif
 }
 
 /**

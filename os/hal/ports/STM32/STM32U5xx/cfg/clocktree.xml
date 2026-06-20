@@ -202,6 +202,7 @@
       <limit name="PCLK3" min="no" max="yes" />
       <limit name="ADCCLK" min="no" max="yes" />
       <limit name="USBCLK" min="yes" max="yes" />
+      <limit name="SDMMCCLK" min="no" max="yes" />
       <limit name="FLASH_0WS" min="no" max="yes" />
       <limit name="FLASH_1WS" min="no" max="yes" />
       <limit name="FLASH_2WS" min="no" max="yes" />
@@ -241,6 +242,7 @@
         <limit name="PCLK3" max="160000000" />
         <limit name="ADCCLK" max="55000000" />
         <limit name="USBCLK" min="47880000" max="48120000" />
+        <limit name="SDMMCCLK" max="208000000" />
         <limit name="FLASH_0WS">
           <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="32000000" />
           <default max="10000000" />
@@ -327,6 +329,7 @@
         <limit name="PCLK3" max="110000000" />
         <limit name="ADCCLK" max="55000000" />
         <limit name="USBCLK" min="47880000" max="48120000" />
+        <limit name="SDMMCCLK" max="208000000" />
         <limit name="FLASH_0WS">
           <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="30000000" />
           <default max="10000000" />
@@ -413,6 +416,7 @@
         <limit name="PCLK3" max="55000000" />
         <limit name="ADCCLK" max="55000000" />
         <limit name="USBCLK" min="47880000" max="48120000" />
+        <limit name="SDMMCCLK" max="208000000" />
         <limit name="FLASH_0WS">
           <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="24000000" />
           <default max="10000000" />
@@ -499,6 +503,7 @@
         <limit name="PCLK3" max="25000000" />
         <limit name="ADCCLK" max="25000000" />
         <limit name="USBCLK" min="47880000" max="48120000" />
+        <limit name="SDMMCCLK" max="208000000" />
         <limit name="FLASH_0WS">
           <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="12000000" />
           <default max="8000000" />
@@ -1176,6 +1181,7 @@
     </clock>
     <clock point="SDMMC" enable="auto" dynamic="no">
       <description>SDMMC clock</description>
+      <limits ref="SDMMCCLK" />
       <mux name="SDMMC" field="RCC_CCIPR2_SDMMCSEL" offset="14U">
         <input point="ICLK" encoding="0U" default="yes" />
         <input point="PLL1P" encoding="1U" />
