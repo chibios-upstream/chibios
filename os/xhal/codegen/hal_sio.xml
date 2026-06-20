@@ -1105,36 +1105,6 @@ self->siop = siop;]]></implementation>
             <implementation><![CDATA[
 __drv_dispose_impl(self);]]></implementation>
           </dispose>
-          <override>
-            <method shortname="start">
-              <implementation><![CDATA[
-msg_t msg;
-
-/* Starting the undelying SIO driver.*/
-msg = drvStart(self->siop, config);
-if (msg == HAL_RET_SUCCESS) {
-  self->config = self->siop->config;
-  drvSetArgumentX(self->siop, self);
-  drvSetCallbackX(self->siop, &__bsio_default_cb);
-  sioWriteEnableFlagsX(self->siop,
-                       SIO_EV_ALL_ERRORS | SIO_EV_RX_NOTEMPTY |
-                       SIO_EV_RX_IDLE);
-}
-
-return msg;]]></implementation>
-            </method>
-            <method shortname="stop">
-              <implementation><![CDATA[
-
-drvStop(self->siop);]]></implementation>
-            </method>
-            <method shortname="setcfg">
-              <implementation><![CDATA[
-
-/* Configuring the underlying SIO driver.*/
-return __sio_setcfg_impl(self->siop, config);]]></implementation>
-            </method>
-          </override>
           <regular>
             <method name="bsIncomingDataI" ctype="void">
               <brief>Handles incoming data.</brief>
@@ -1197,6 +1167,36 @@ return b;]]></implementation>
 osalEventBroadcastFlagsI(&self->event, flags);]]></implementation>
             </method>
           </inline>
+          <override>
+            <method shortname="start">
+              <implementation><![CDATA[
+msg_t msg;
+
+/* Starting the undelying SIO driver.*/
+msg = drvStart(self->siop, config);
+if (msg == HAL_RET_SUCCESS) {
+  self->config = self->siop->config;
+  drvSetArgumentX(self->siop, self);
+  drvSetCallbackX(self->siop, &__bsio_default_cb);
+  sioWriteEnableFlagsX(self->siop,
+                       SIO_EV_ALL_ERRORS | SIO_EV_RX_NOTEMPTY |
+                       SIO_EV_RX_IDLE);
+}
+
+return msg;]]></implementation>
+            </method>
+            <method shortname="stop">
+              <implementation><![CDATA[
+
+drvStop(self->siop);]]></implementation>
+            </method>
+            <method shortname="setcfg">
+              <implementation><![CDATA[
+
+/* Configuring the underlying SIO driver.*/
+return __sio_setcfg_impl(self->siop, config);]]></implementation>
+            </method>
+          </override>
         </methods>
       </class>
       

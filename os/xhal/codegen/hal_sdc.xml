@@ -328,10 +328,10 @@ return sdcGetInfo(self, bdip);]]></implementation>
           <field name="capacity" ctype="uint32_t">
             <brief>Card capacity expressed in logical blocks.</brief>
           </field>
-          <field name="cid[4]" ctype="uint32_t">
+          <field name="cid" ctype="uint32_t$I$N[4]">
             <brief>Card CID register image.</brief>
           </field>
-          <field name="csd[4]" ctype="uint32_t">
+          <field name="csd" ctype="uint32_t$I$N[4]">
             <brief>Card CSD register image.</brief>
           </field>
           <condition check="SDC_USE_SYNCHRONIZATION == TRUE">

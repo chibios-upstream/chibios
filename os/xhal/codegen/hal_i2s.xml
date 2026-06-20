@@ -11,12 +11,6 @@
     <includes_always>
       <include style="regular">hal_cb_driver.h</include>
     </includes_always>
-    <configs>
-      <config name="I2S_USE_SYNCHRONIZATION" default="TRUE">
-        <brief>Support for thread synchronization API.</brief>
-        <assert invalid="($N != FALSE) &amp;&amp; ($N != TRUE)" />
-      </config>
-    </configs>
     <definitions_early>
       <group description="I2S event flags">
         <define name="I2S_EVENT_HALF" value="(1U &lt;&lt; 0)">
@@ -27,6 +21,12 @@
         </define>
       </group>
     </definitions_early>
+    <configs>
+      <config name="I2S_USE_SYNCHRONIZATION" default="TRUE">
+        <brief>Support for thread synchronization API.</brief>
+        <assert invalid="($N != FALSE) &amp;&amp; ($N != TRUE)" />
+      </config>
+    </configs>
     <macros>
       <group description="Macro functions">
         <macro name="i2sIsBufferComplete">
@@ -406,7 +406,7 @@ return errors;]]></implementation>
             </method>
           </inline>
           <override>
-            <method name="start" shortname="start" ctype="msg_t">
+            <method shortname="start">
               <implementation><![CDATA[
 if (config != NULL) {
   self->config = __i2s_setcfg_impl(self, config);
@@ -424,20 +424,18 @@ self->errors = I2S_NO_ERROR;
 
 return i2s_lld_start(self);]]></implementation>
             </method>
-            <method name="stop" shortname="stop" ctype="void">
+            <method shortname="stop">
               <implementation><![CDATA[
 i2s_lld_stop(self);
 self->events = 0U;
 self->errors = I2S_NO_ERROR;]]></implementation>
             </method>
-            <method name="setcfg" shortname="setcfg" ctype="const void *">
-              <param name="config" ctype="const void *" dir="in">New driver configuration.</param>
+            <method shortname="setcfg">
               <implementation><![CDATA[
 return (const void *)i2s_lld_setcfg(self,
                                     (const hal_i2s_config_t *)config);]]></implementation>
             </method>
-            <method name="selcfg" shortname="selcfg" ctype="const void *">
-              <param name="cfgnum" ctype="unsigned" dir="in">Driver configuration number.</param>
+            <method shortname="selcfg">
               <implementation><![CDATA[
 return (const void *)i2s_lld_selcfg(self, cfgnum);]]></implementation>
             </method>

@@ -156,13 +156,13 @@ drv_reg_remove(self);
                 ignored, calls with a non-@p NULL configuration perform a live
                 reconfiguration equivalent to @p drvSetCfgX().]]>
               </details>
-              <param ctype="const void *" name="config" dir="in">Driver
-                configuration or @p NULL.</param>
               <note><![CDATA[The function can fail with error
                 @p HAL_RET_INV_STATE if called while the driver is already
                 being started or stopped. In case you need multiple threads
                 to perform start and stop operation on the driver then it is
                 suggested to lock/unlock the driver during such operations.]]></note>
+              <param ctype="const void *" name="config" dir="in">Driver
+                configuration or @p NULL.</param>
               <return>The operation status.</return>
               <retval value="HAL_RET_SUCCESS">Operation successful.</retval>
               <retval value="HAL_RET_INV_STATE"><![CDATA[If the driver was
