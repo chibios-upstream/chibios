@@ -14,13 +14,29 @@
     limitations under the License.
 */
 
+/*
+ * This file has been automatically generated using ChibiStudio board
+ * generator plugin. Do not edit manually.
+ */
+
 #include "hal.h"
 #include "stm32_gpio.h"
+
+/*===========================================================================*/
+/* Driver local definitions.                                                 */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Driver exported variables.                                                */
+/*===========================================================================*/
 
 /*===========================================================================*/
 /* Driver local variables and types.                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   Type of STM32 GPIO port setup.
+ */
 typedef struct {
   uint32_t              moder;
   uint32_t              otyper;
@@ -32,6 +48,9 @@ typedef struct {
   uint32_t              lockr;
 } gpio_setup_t;
 
+/**
+ * @brief   Type of STM32 GPIO initialization data.
+ */
 typedef struct {
 #if STM32_HAS_GPIOA || defined(__DOXYGEN__)
   gpio_setup_t          PAData;
@@ -57,8 +76,17 @@ typedef struct {
 #if STM32_HAS_GPIOH || defined(__DOXYGEN__)
   gpio_setup_t          PHData;
 #endif
+#if STM32_HAS_GPIOI || defined(__DOXYGEN__)
+  gpio_setup_t          PIData;
+#endif
+#if STM32_HAS_GPIOJ || defined(__DOXYGEN__)
+  gpio_setup_t          PJData;
+#endif
 } gpio_config_t;
 
+/**
+ * @brief   STM32 GPIO static initialization data.
+ */
 static const gpio_config_t gpio_default_config = {
 #if STM32_HAS_GPIOA
   {VAL_GPIOA_MODER, VAL_GPIOA_OTYPER, VAL_GPIOA_OSPEEDR, VAL_GPIOA_PUPDR,
@@ -92,6 +120,14 @@ static const gpio_config_t gpio_default_config = {
   {VAL_GPIOH_MODER, VAL_GPIOH_OTYPER, VAL_GPIOH_OSPEEDR, VAL_GPIOH_PUPDR,
    VAL_GPIOH_ODR,   VAL_GPIOH_AFRL,   VAL_GPIOH_AFRH,    VAL_GPIOH_LOCKR},
 #endif
+#if STM32_HAS_GPIOI
+  {VAL_GPIOI_MODER, VAL_GPIOI_OTYPER, VAL_GPIOI_OSPEEDR, VAL_GPIOI_PUPDR,
+   VAL_GPIOI_ODR,   VAL_GPIOI_AFRL,   VAL_GPIOI_AFRH,    VAL_GPIOI_LOCKR},
+#endif
+#if STM32_HAS_GPIOJ
+  {VAL_GPIOJ_MODER, VAL_GPIOJ_OTYPER, VAL_GPIOJ_OSPEEDR, VAL_GPIOJ_PUPDR,
+   VAL_GPIOJ_ODR,   VAL_GPIOJ_AFRL,   VAL_GPIOJ_AFRH,    VAL_GPIOJ_LOCKR},
+#endif
 };
 
 /*===========================================================================*/
@@ -112,10 +148,12 @@ static void gpio_init(stm32_gpio_t *gpiop, const gpio_setup_t *config) {
 
 static void stm32_gpio_init(void) {
 
-  /* Enabling GPIO-related clocks, the mask comes from the registry file.*/
+  /* Enabling GPIO-related clocks, the mask comes from the
+     registry header file.*/
   rccResetAHB2R1(STM32_GPIO_EN_MASK);
   rccEnableAHB2R1(STM32_GPIO_EN_MASK, true);
 
+  /* Initializing all the defined GPIO ports.*/
 #if STM32_HAS_GPIOA
   gpio_init(GPIOA, &gpio_default_config.PAData);
 #endif
@@ -140,18 +178,81 @@ static void stm32_gpio_init(void) {
 #if STM32_HAS_GPIOH
   gpio_init(GPIOH, &gpio_default_config.PHData);
 #endif
+#if STM32_HAS_GPIOI
+  gpio_init(GPIOI, &gpio_default_config.PIData);
+#endif
+#if STM32_HAS_GPIOJ
+  gpio_init(GPIOJ, &gpio_default_config.PJData);
+#endif
 }
+
+/*===========================================================================*/
+/* Driver interrupt handlers.                                                */
+/*===========================================================================*/
 
 /*===========================================================================*/
 /* Driver exported functions.                                                */
 /*===========================================================================*/
 
+/**
+ * @brief   Early initialization code.
+ * @details GPIO ports and system clocks are initialized before everything
+ *          else.
+ */
 void __early_init(void) {
 
   stm32_gpio_init();
   stm32_clock_init();
 }
 
+#if HAL_USE_SDC || defined(__DOXYGEN__)
+/**
+ * @brief   SDC card detection.
+ */
+bool sdc_lld_is_card_inserted(SDCDriver *sdcp) {
+
+  (void)sdcp;
+  /* CHTODO: Fill the implementation.*/
+  return true;
+}
+
+/**
+ * @brief   SDC card write protection detection.
+ */
+bool sdc_lld_is_write_protected(SDCDriver *sdcp) {
+
+  (void)sdcp;
+  /* CHTODO: Fill the implementation.*/
+  return false;
+}
+#endif /* HAL_USE_SDC */
+
+#if HAL_USE_MMC_SPI || defined(__DOXYGEN__)
+/**
+ * @brief   MMC_SPI card detection.
+ */
+bool mmc_lld_is_card_inserted(MMCDriver *mmcp) {
+
+  (void)mmcp;
+  /* CHTODO: Fill the implementation.*/
+  return true;
+}
+
+/**
+ * @brief   MMC_SPI card write protection detection.
+ */
+bool mmc_lld_is_write_protected(MMCDriver *mmcp) {
+
+  (void)mmcp;
+  /* CHTODO: Fill the implementation.*/
+  return false;
+}
+#endif
+
+/**
+ * @brief   Board-specific initialization code.
+ * @note    You can add your board-specific code here.
+ */
 void boardInit(void) {
 
 }
