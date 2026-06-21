@@ -310,7 +310,7 @@ void chGuardedPoolLoadArray(guarded_memory_pool_t *gmp, void *p, size_t n) {
  * @pre     The guarded memory pool must already be initialized.
  *
  * @param[in] gmp       pointer to a @p guarded_memory_pool_t object
- * @param[in] timeout   number of ticks before the operation timeouts,
+ * @param[in] timeout   number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -336,7 +336,7 @@ void *chGuardedPoolAllocTimeoutS(guarded_memory_pool_t *gmp,
  * @pre     The guarded memory pool must already be initialized.
  *
  * @param[in] gmp       pointer to a @p guarded_memory_pool_t object
- * @param[in] timeout   number of ticks before the operation timeouts,
+ * @param[in] timeout   number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.

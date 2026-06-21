@@ -318,8 +318,8 @@ void chVTObjectDispose(virtual_timer_t *vtp) {
  * @note    The callback function is invoked from interrupt context.
  *
  * @param[out] vtp      pointer to a @p virtual_timer_t object
- * @param[in] delay     the number of ticks before the operation timeouts, the
- *                      special values are handled as follow:
+ * @param[in] delay     the number of ticks before the operation times out, the
+ *                      special values are handled as follows:
  *                      - @a TIME_INFINITE is allowed but interpreted as a
  *                        normal time specification.
  *                      - @a TIME_IMMEDIATE this value is not allowed.
@@ -355,8 +355,8 @@ void chVTDoSetI(virtual_timer_t *vtp, sysinterval_t delay,
  * @note    The callback function is invoked from interrupt context.
  *
  * @param[out] vtp      pointer to a @p virtual_timer_t object
- * @param[in] delay     the number of ticks before the operation timeouts, the
- *                      special values are handled as follow:
+ * @param[in] delay     the number of ticks before the operation times out, the
+ *                      special values are handled as follows:
  *                      - @a TIME_INFINITE is allowed but interpreted as a
  *                        normal time specification.
  *                      - @a TIME_IMMEDIATE this value is not allowed.

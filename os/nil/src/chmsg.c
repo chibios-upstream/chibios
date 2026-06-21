@@ -119,7 +119,7 @@ thread_t *chMsgWait(void) {
  * @note    The reference counter of the sender thread is not increased, the
  *          returned pointer is a temporary reference.
  *
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -151,7 +151,7 @@ thread_t *chMsgWaitTimeout(sysinterval_t timeout) {
  * @note    The reference counter of the sender thread is not increased, the
  *          returned pointer is a temporary reference.
  *
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_INFINITE no timeout.
  * @return              A pointer to the thread carrying the message.

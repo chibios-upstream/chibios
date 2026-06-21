@@ -740,7 +740,7 @@ return events;]]></implementation>
                 </retval>
                 <retval value="MSG_TIMEOUT">If synchronization timed out.
                 </retval>
-                <retval value="MSG_RESET">It the driver has been stopped
+                <retval value="MSG_RESET">If the driver has been stopped
                   while
                   waiting.
                 </retval>
@@ -793,7 +793,7 @@ return msg;]]></implementation>
                 </retval>
                 <retval value="MSG_TIMEOUT">If synchronization timed out.
                 </retval>
-                <retval value="MSG_RESET">It the driver has been stopped
+                <retval value="MSG_RESET">If the driver has been stopped
                   while
                   waiting.
                 </retval>
@@ -850,7 +850,7 @@ return msg;]]></implementation>
                 </retval>
                 <retval value="MSG_TIMEOUT">If synchronization timed out.
                 </retval>
-                <retval value="MSG_RESET">It the driver has been stopped
+                <retval value="MSG_RESET">If the driver has been stopped
                   while
                   waiting.
                 </retval>
@@ -894,7 +894,7 @@ return msg;]]></implementation>
                 </retval>
                 <retval value="MSG_TIMEOUT">If synchronization timed out.
                 </retval>
-                <retval value="MSG_RESET">It the driver has been stopped
+                <retval value="MSG_RESET">If the driver has been stopped
                   while
                   waiting.
                 </retval>
@@ -1172,7 +1172,7 @@ osalEventBroadcastFlagsI(&self->event, flags);]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-/* Starting the undelying SIO driver.*/
+/* Starting the underlying SIO driver.*/
 msg = drvStart(self->siop, config);
 if (msg == HAL_RET_SUCCESS) {
   self->config = self->siop->config;

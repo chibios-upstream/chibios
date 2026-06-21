@@ -65,11 +65,11 @@
         <basetype ctype="uintptr_t" />
       </typedef>
       <typedef name="hal_eth_driver_c">
-        <brief>Type of structure representing a ETH driver.</brief>
+        <brief>Type of structure representing an ETH driver.</brief>
         <basetype ctype="struct hal_eth_driver" />
       </typedef>
       <typedef name="hal_eth_config_t">
-        <brief>Type of structure representing a ETH configuration.</brief>
+        <brief>Type of structure representing an ETH configuration.</brief>
         <basetype ctype="struct hal_eth_config" />
       </typedef>
       <verbatim><![CDATA[
@@ -95,7 +95,7 @@
           <verbatim><![CDATA[
 /* End of the mandatory fields.*/
 eth_lld_config_fields;]]></verbatim>
-          <condition check="defined(ETH_CONFIG_EXT_FIELS)">
+          <condition check="defined(ETH_CONFIG_EXT_FIELDS)">
             <verbatim><![CDATA[
 ETH_CONFIG_EXT_FIELDS]]></verbatim>
           </condition>
@@ -117,8 +117,8 @@ ETH_CONFIG_EXT_FIELDS]]></verbatim>
         </fields>
       </struct>
       <class type="regular" name="hal_eth_driver" namespace="eth"
-        ancestorname="hal_cb_driver" descr="ETH driver">
-        <brief>Class of a ETH driver.</brief>
+        ancestorname="hal_cb_driver" descr="network driver">
+        <brief>Class of an ETH driver.</brief>
         <fields>
           <condition check="ETH_USE_SYNCHRONIZATION == TRUE">
             <field name="txqueue" ctype="threads_queue_t">
@@ -137,7 +137,7 @@ ETH_CONFIG_EXT_FIELDS]]></verbatim>
             <brief>Cached ETH callback event flags.</brief>
           </field>
           <verbatim><![CDATA[
-#if defined(ETH_DRIVER_EXT_FIELS)
+#if defined(ETH_DRIVER_EXT_FIELDS)
 ETH_DRIVER_EXT_FIELDS
 #endif
 /* End of the mandatory fields.*/

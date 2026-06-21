@@ -565,7 +565,7 @@ struct nil_os_instance {
   /**
    * @brief   Pointer to the next thread to be executed.
    * @note    This pointer must point at the same thread pointed by @p current
-   *          or to an higher priority thread if a switch is required.
+   *          or to a higher priority thread if a switch is required.
    */
   thread_t              *next;
 #if (CH_CFG_ST_TIMEDELTA == 0) || defined(__DOXYGEN__)
@@ -1085,7 +1085,7 @@ struct nil_os_instance {
 /**
  * @brief   Enters the kernel lock state from within an interrupt handler.
  * @note    This API may do nothing on some architectures, it is required
- *          because on ports that support preemptable interrupt handlers
+ *          because on ports that support preemptible interrupt handlers
  *          it is required to raise the interrupt mask to the same level of
  *          the system mutual exclusion zone.<br>
  *          It is good practice to invoke this API before invoking any I-class
@@ -1103,7 +1103,7 @@ struct nil_os_instance {
  * @brief   Leaves the kernel lock state from within an interrupt handler.
  *
  * @note    This API may do nothing on some architectures, it is required
- *          because on ports that support preemptable interrupt handlers
+ *          because on ports that support preemptible interrupt handlers
  *          it is required to raise the interrupt mask to the same level of
  *          the system mutual exclusion zone.<br>
  *          It is good practice to invoke this API after invoking any I-class

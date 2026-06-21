@@ -80,7 +80,7 @@
 /**
  * @brief   Global RAM affinity macro.
  * @details Global RAM, the memory is optimally accessed by all cores.
- * @note    This is equivalent to a normal C non-initialized variable, the
+ * @note    This is equivalent to a normal C uninitialized variable, the
  *          port layer has the option to enforce some kind of attribute when
  *          this modifier is used.
  * @note    Only uninitialized variables can be tagged with this attribute.

@@ -401,7 +401,7 @@ static inline void chSysUnlock(void) {
 /**
  * @brief   Enters the kernel lock state from within an interrupt handler.
  * @note    This API may do nothing on some architectures, it is required
- *          because on ports that support preemptable interrupt handlers
+ *          because on ports that support preemptible interrupt handlers
  *          it is required to raise the interrupt mask to the same level of
  *          the system mutual exclusion zone.<br>
  *          It is good practice to invoke this API before invoking any I-class
@@ -423,7 +423,7 @@ static inline void chSysLockFromISR(void) {
  * @brief   Leaves the kernel lock state from within an interrupt handler.
  *
  * @note    This API may do nothing on some architectures, it is required
- *          because on ports that support preemptable interrupt handlers
+ *          because on ports that support preemptible interrupt handlers
  *          it is required to raise the interrupt mask to the same level of
  *          the system mutual exclusion zone.<br>
  *          It is good practice to invoke this API after invoking any I-class

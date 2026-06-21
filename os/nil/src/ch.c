@@ -658,7 +658,7 @@ void chSchRescheduleS(void) {
  *          awakened with a @p MSG_TIMEOUT low level message.
  *
  * @param[in] newstate  the new thread state or a semaphore pointer
- * @param[in] timeout   the number of ticks before the operation timeouts.
+ * @param[in] timeout   the number of ticks before the operation times out.
  *                      the following special values are allowed:
  *                      - @a TIME_INFINITE no timeout.
  * @return              The wakeup message.
@@ -895,11 +895,11 @@ msg_t chThdWait(thread_t *tp) {
  *          context.
  *
  * @param[in] trp       a pointer to a thread reference object
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
- * @return              The wake up message.
+ * @return              The wakeup message.
  *
  * @sclass
  */
@@ -1006,11 +1006,11 @@ void chThdSleepUntil(systime_t abstime) {
 /**
  * @brief   Enqueues the caller thread on a threads queue object.
  * @details The caller thread is enqueued and put to sleep until it is
- *          dequeued or the specified timeouts expires.
+ *          dequeued or the specified timeout expires.
  *
  * @param[in] tqp       pointer to a @p threads_queue_t structure
  * @param[in] timeout   the timeout in system ticks, the special values are
- *                      handled as follow:
+ *                      handled as follows:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
  * @return              The message from @p osalQueueWakeupOneI() or

@@ -191,7 +191,7 @@ const void *__eth_selcfg_impl(void *ip, unsigned cfgnum) {
 /** @} */
 
 /**
- * @brief       VMT structure of ETH driver class.
+ * @brief       VMT structure of network driver class.
  * @note        It is public because accessed by the inlined constructor.
  */
 const struct hal_eth_driver_vmt __hal_eth_driver_vmt = {

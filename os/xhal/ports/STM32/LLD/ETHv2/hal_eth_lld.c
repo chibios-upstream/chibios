@@ -724,7 +724,7 @@ void eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
  * @brief       Releases and transmits a frame.
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
- * @param[in]     txh           Transmi] handle.
+ * @param[in]     txh           Transmit handle.
  *
  * @notapi
  */

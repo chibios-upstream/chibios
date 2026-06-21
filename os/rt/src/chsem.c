@@ -242,7 +242,7 @@ msg_t chSemWaitS(semaphore_t *sp) {
  * @brief   Performs a wait operation on a semaphore with timeout specification.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -270,7 +270,7 @@ msg_t chSemWaitTimeout(semaphore_t *sp, sysinterval_t timeout) {
  * @brief   Performs a wait operation on a semaphore with timeout specification.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.

@@ -231,7 +231,7 @@ typedef void (*evhandler_t)(eventid_t id);
  *          lowest event id. The function is meant to be invoked into a loop
  *          in order to serve all the pending events.<br>
  *          This means that Event Listeners with a lower event identifier have
- *          an higher priority.
+ *          a higher priority.
  *
  * @param[in] events    events that the function should wait
  *                      for, @p ALL_EVENTS enables all the events

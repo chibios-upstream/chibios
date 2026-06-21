@@ -21,7 +21,7 @@
  * @brief   Objects Caches code.
  * @details Objects caches.
  *          <h2>Operation mode</h2>
- *          An object cache allows to retrieve and release objects from a
+ *          An object cache allows retrieving and releasing objects from a
  *          slow media, for example a disk or flash.<br>
  *          The most recently used objects are kept in a series of RAM
  *          buffers making access faster. Objects are identified by a

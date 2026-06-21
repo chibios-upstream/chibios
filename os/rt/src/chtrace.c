@@ -204,7 +204,7 @@ void __trace_halt(const char *reason) {
 }
 
 /**
- * @brief   Adds an user trace record to the trace buffer.
+ * @brief   Adds a user trace record to the trace buffer.
  *
  * @param[in] up1       user parameter 1
  * @param[in] up2       user parameter 2
@@ -226,7 +226,7 @@ void chTraceWriteI(void *up1, void *up2) {
 }
 
 /**
- * @brief   Adds an user trace record to the trace buffer.
+ * @brief   Adds a user trace record to the trace buffer.
  *
  * @param[in] up1       user parameter 1
  * @param[in] up2       user parameter 2

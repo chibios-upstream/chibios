@@ -348,11 +348,11 @@ void chEvtDispatch(const evhandler_t *handlers, eventmask_t events) {
  *          lowest event id. The function is meant to be invoked into a loop
  *          in order to serve all the pending events.<br>
  *          This means that Event Listeners with a lower event identifier have
- *          an higher priority.
+ *          a higher priority.
  *
  * @param[in] events    events that the function should wait
  *                      for, @p ALL_EVENTS enables all the events
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -396,7 +396,7 @@ eventmask_t chEvtWaitOneTimeout(eventmask_t events, sysinterval_t timeout) {
  *
  * @param[in] mask      mask of the event flags that the function should wait
  *                      for, @p ALL_EVENTS enables all the events
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -437,7 +437,7 @@ eventmask_t chEvtWaitAnyTimeout(eventmask_t mask, sysinterval_t timeout) {
  *
  * @param[in] mask      mask of the event flags that the function should wait
  *                      for, @p ALL_EVENTS enables all the events
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.

@@ -197,7 +197,7 @@ struct ch_thread {
   stkline_t                     *wabase;
   /**
    * @brief   Working area end address.
-   * @note    It is the 1st address after the working area.
+   * @note    It is the first address after the working area.
    */
   stkline_t                    *waend;
   /**
@@ -229,7 +229,7 @@ struct ch_thread {
   thread_dispose_t              dispose;
   /**
    * @brief   Thread controller object or @p NULL.
-   * @note    This field can be used to associate an user object to the
+   * @note    This field can be used to associate a user object to the
    *          thread.
    */
   void                          *object;

@@ -18,10 +18,10 @@
  * @file    nil/templates/chconf.h
  * @brief   Configuration file template.
  * @details A copy of this file must be placed in each project directory, it
- *          contains the application specific kernel settings.
+ *          contains the application-specific kernel settings.
  *
  * @addtogroup NIL_CONFIG
- * @details Kernel related settings and hooks.
+ * @details Kernel-related settings and hooks.
  * @{
  */
 
@@ -44,7 +44,7 @@
  *          implicitly handled.
  * @note    Set this value to be exactly equal to the number of threads you
  *          will use or you would be wasting RAM and cycles.
- * @note    This values also defines the number of available priorities
+ * @note    This value also defines the number of available priorities
  *          (0..CH_CFG_MAX_THREADS-1).
  */
 #if !defined(CH_CFG_MAX_THREADS)
