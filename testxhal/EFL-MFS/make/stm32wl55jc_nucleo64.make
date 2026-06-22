@@ -5,7 +5,7 @@
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -O0 -ggdb -fomit-frame-pointer --specs=nano.specs -falign-functions=16
+  USE_OPT = -O0 -ggdb -fomit-frame-pointer -falign-functions=16
 endif
 
 # C specific options here (added to USE_OPT).
@@ -108,6 +108,10 @@ include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMv7-M/compilers/GCC/mk/port.mk
 # Auto-build files in ./source recursively.
 include $(CHIBIOS)/tools/mk/autobuild.mk
+# Other files (optional).
+include $(CHIBIOS)/os/test/test.mk
+include $(CHIBIOS)/test/mfs/mfs_test.mk
+include $(CHIBIOS)/os/hal/lib/complex/mfs/hal_mfs.mk
 
 # Define linker script file here.
 LDSCRIPT= $(STARTUPLD)/STM32WLxxxC.ld
@@ -115,6 +119,7 @@ LDSCRIPT= $(STARTUPLD)/STM32WLxxxC.ld
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
 CSRC = $(ALLCSRC) \
+       $(TESTSRC) \
        $(CONFDIR)/portab.c \
        main.c
 
@@ -129,7 +134,7 @@ ASMSRC = $(ALLASMSRC)
 ASMXSRC = $(ALLXASMSRC)
 
 # Inclusion directories.
-INCDIR = $(CONFDIR) $(ALLINC)
+INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
 
 # Define C warning options here.
 CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -Wcast-align=strict

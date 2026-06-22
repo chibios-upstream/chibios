@@ -111,7 +111,7 @@
 /* Flash attributes.*/
 #define STM32_FLASH_NUMBER_OF_BANKS         1
 #if !defined(STM32_FLASH_SECTORS_PER_BANK) || defined(__DOXYGEN__)
-#define STM32_FLASH_SECTORS_PER_BANK        256 /* Maximum, can be redefined.*/
+#define STM32_FLASH_SECTORS_PER_BANK        128   /* Maximum, can be redefined.*/
 #endif
 
 /* FSMC attributes.*/

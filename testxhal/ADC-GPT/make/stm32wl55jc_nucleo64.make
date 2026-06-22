@@ -86,7 +86,7 @@ endif
 PROJECT = ch
 
 # Target settings.
-MCU  = cortex-m33
+MCU  = cortex-m4
 
 # Imported source files and paths.
 CHIBIOS  := ../../
@@ -110,7 +110,7 @@ include $(CHIBIOS)/os/common/ports/ARMv7-M/compilers/GCC/mk/port.mk
 include $(CHIBIOS)/tools/mk/autobuild.mk
 
 # Define linker script file here.
-LDSCRIPT= $(STARTUPLD)/STM32H563xI.ld
+LDSCRIPT= $(STARTUPLD)/STM32WLxxxC.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.

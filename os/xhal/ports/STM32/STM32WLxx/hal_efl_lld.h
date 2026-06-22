@@ -16,7 +16,7 @@
 
 /**
  * @file    hal_efl_lld.h
- * @brief   STM32L4xx Embedded Flash subsystem low level driver header.
+ * @brief   STM32WLxx Embedded Flash subsystem low level driver header.
  *
  * @addtogroup HAL_EFL
  * @{
@@ -86,25 +86,26 @@
 /*===========================================================================*/
 
 #if !defined(__DOXYGEN__)
-extern EFlashDriver EFLD1;
+extern hal_efl_driver_c EFLD1;
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
   void efl_lld_init(void);
-  void efl_lld_start(EFlashDriver *eflp);
-  void efl_lld_stop(EFlashDriver *eflp);
-  const flash_descriptor_t *efl_lld_get_descriptor(void *instance);
-  flash_error_t efl_lld_read(void *instance, flash_offset_t offset,
+  msg_t efl_lld_start(hal_efl_driver_c *self);
+  void efl_lld_stop(hal_efl_driver_c *self);
+  flash_error_t efl_lld_read(hal_efl_driver_c *self, flash_offset_t offset,
                              size_t n, uint8_t *rp);
-  flash_error_t efl_lld_program(void *instance, flash_offset_t offset,
-                                size_t n, const uint8_t *pp);
-  flash_error_t efl_lld_start_erase_all(void *instance);
-  flash_error_t efl_lld_start_erase_sector(void *instance,
+  flash_error_t efl_lld_program(hal_efl_driver_c *self,
+                                flash_offset_t offset, size_t n,
+                                const uint8_t *pp);
+  flash_error_t efl_lld_start_erase_all(hal_efl_driver_c *self);
+  flash_error_t efl_lld_start_erase_sector(hal_efl_driver_c *self,
                                            flash_sector_t sector);
-  flash_error_t efl_lld_query_erase(void *instance, uint32_t *msec);
-  flash_error_t efl_lld_verify_erase(void *instance, flash_sector_t sector);
+  flash_error_t efl_lld_query_erase(hal_efl_driver_c *self, unsigned *msec);
+  flash_error_t efl_lld_verify_erase(hal_efl_driver_c *self,
+                                     flash_sector_t sector);
 #ifdef __cplusplus
 }
 #endif

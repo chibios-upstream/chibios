@@ -16,7 +16,7 @@
 
 /**
  * @file    hal_efl_lld.c
- * @brief   STM32L4xx Embedded Flash subsystem low level driver source.
+ * @brief   STM32WLxx Embedded Flash subsystem low level driver source.
  *
  * @addtogroup HAL_EFL
  * @{
@@ -36,14 +36,8 @@
 #define STM32_FLASH_LINE_SIZE               8U
 #define STM32_FLASH_LINE_MASK               (STM32_FLASH_LINE_SIZE - 1U)
 
-#define FLASH_PDKEY1                        0x04152637U
-#define FLASH_PDKEY2                        0xFAFBFCFDU
-
 #define FLASH_KEY1                          0x45670123U
 #define FLASH_KEY2                          0xCDEF89ABU
-
-#define FLASH_OPTKEY1                       0x08192A3BU
-#define FLASH_OPTKEY2                       0x4C5D6E7FU
 
 /*===========================================================================*/
 /* Driver exported variables.                                                */
@@ -52,13 +46,13 @@
 /**
  * @brief   EFL1 driver identifier.
  */
-EFlashDriver EFLD1;
+hal_efl_driver_c EFLD1;
 
 /*===========================================================================*/
 /* Driver local variables and types.                                         */
 /*===========================================================================*/
 
-static const flash_descriptor_t efl_lld_descriptor = {
+static const flash_descriptor_t efl_lld_desc = {
  .attributes        = FLASH_ATTR_ERASED_IS_ONE |
                       FLASH_ATTR_MEMORY_MAPPED |
                       FLASH_ATTR_ECC_CAPABLE   |
@@ -78,44 +72,44 @@ static const flash_descriptor_t efl_lld_descriptor = {
 /* Driver local functions.                                                   */
 /*===========================================================================*/
 
-static inline void stm32_flash_lock(EFlashDriver *eflp) {
+static inline void stm32_flash_lock(hal_efl_driver_c *self) {
 
-  eflp->flash->CR |= FLASH_CR_LOCK;
+  self->flash->CR |= FLASH_CR_LOCK;
 }
 
-static inline void stm32_flash_unlock(EFlashDriver *eflp) {
+static inline void stm32_flash_unlock(hal_efl_driver_c *self) {
 
-  eflp->flash->KEYR |= FLASH_KEY1;
-  eflp->flash->KEYR |= FLASH_KEY2;
+  self->flash->KEYR |= FLASH_KEY1;
+  self->flash->KEYR |= FLASH_KEY2;
 }
 
-static inline void stm32_flash_enable_pgm(EFlashDriver *eflp) {
+static inline void stm32_flash_enable_pgm(hal_efl_driver_c *self) {
 
-  eflp->flash->CR |= FLASH_CR_PG;
+  self->flash->CR |= FLASH_CR_PG;
 }
 
-static inline void stm32_flash_disable_pgm(EFlashDriver *eflp) {
+static inline void stm32_flash_disable_pgm(hal_efl_driver_c *self) {
 
-  eflp->flash->CR &= ~FLASH_CR_PG;
+  self->flash->CR &= ~FLASH_CR_PG;
 }
 
-static inline void stm32_flash_clear_status(EFlashDriver *eflp) {
+static inline void stm32_flash_clear_status(hal_efl_driver_c *self) {
 
-  eflp->flash->SR = 0x0000FFFFU;
+  self->flash->SR = 0x0000FFFFU;
 }
 
-static inline void stm32_flash_wait_busy(EFlashDriver *eflp) {
+static inline void stm32_flash_wait_busy(hal_efl_driver_c *self) {
 
   /* Wait for busy bit clear.*/
-  while ((eflp->flash->SR & FLASH_SR_BSY) != 0U) {
+  while ((self->flash->SR & FLASH_SR_BSY) != 0U) {
   }
 }
 
-static inline flash_error_t stm32_flash_check_errors(EFlashDriver *eflp) {
-  uint32_t sr = eflp->flash->SR;
+static inline flash_error_t stm32_flash_check_errors(hal_efl_driver_c *self) {
+  uint32_t sr = self->flash->SR;
 
   /* Clearing error conditions.*/
-  eflp->flash->SR = sr & 0x0000FFFFU;
+  self->flash->SR = sr & 0x0000FFFFU;
 
   /* Some errors are only caught by assertion.*/
   osalDbgAssert((sr & (FLASH_SR_FASTERR |
@@ -128,7 +122,7 @@ static inline flash_error_t stm32_flash_check_errors(EFlashDriver *eflp) {
   }
 
   if ((sr & (FLASH_SR_PGAERR | FLASH_SR_PROGERR | FLASH_SR_OPERR)) != 0U) {
-    return eflp->state == FLASH_PGM ? FLASH_ERROR_PROGRAM : FLASH_ERROR_ERASE;
+    return self->state == FLASH_PGM ? FLASH_ERROR_PROGRAM : FLASH_ERROR_ERASE;
   }
 
   return FLASH_NO_ERROR;
@@ -152,94 +146,62 @@ void efl_lld_init(void) {
   /* Driver initialization.*/
   eflObjectInit(&EFLD1);
   EFLD1.flash = FLASH;
+  EFLD1.descriptor = efl_lld_desc;
 }
 
 /**
  * @brief   Configures and activates the Embedded Flash peripheral.
  *
- * @param[in] eflp      pointer to a @p EFlashDriver structure
+ * @param[in,out] self          Pointer to an EFL driver instance.
+ * @return                      The operation status.
  *
  * @notapi
  */
-void efl_lld_start(EFlashDriver *eflp) {
+msg_t efl_lld_start(hal_efl_driver_c *self) {
 
-  stm32_flash_unlock(eflp);
+  stm32_flash_unlock(self);
   FLASH->CR = 0x00000000U;
+
+  return HAL_RET_SUCCESS;
 }
 
 /**
  * @brief   Deactivates the Embedded Flash peripheral.
  *
- * @param[in] eflp      pointer to a @p EFlashDriver structure
+ * @param[in,out] self          Pointer to an EFL driver instance.
  *
  * @notapi
  */
-void efl_lld_stop(EFlashDriver *eflp) {
+void efl_lld_stop(hal_efl_driver_c *self) {
 
-  stm32_flash_lock(eflp);
-}
-
-/**
- * @brief   Gets the flash descriptor structure.
- *
- * @param[in] ip                    pointer to a @p EFlashDriver instance
- * @return                          A flash device descriptor.
- *
- * @notapi
- */
-const flash_descriptor_t *efl_lld_get_descriptor(void *instance) {
-
-  (void)instance;
-
-  return &efl_lld_descriptor;
+  stm32_flash_lock(self);
 }
 
 /**
  * @brief   Read operation.
  *
- * @param[in] ip                    pointer to a @p EFlashDriver instance
- * @param[in] offset                flash offset
- * @param[in] n                     number of bytes to be read
- * @param[out] rp                   pointer to the data buffer
- * @return                          An error code.
- * @retval FLASH_NO_ERROR           if there is no erase operation in progress.
- * @retval FLASH_BUSY_ERASING       if there is an erase operation in progress.
- * @retval FLASH_ERROR_READ         if the read operation failed.
- * @retval FLASH_ERROR_HW_FAILURE   if access to the memory failed.
+ * @param[in,out] self          Pointer to an EFL driver instance.
+ * @param[in]     offset        Offset within the flash address space.
+ * @param[in]     n             Number of bytes to be read.
+ * @param[out]    rp            Pointer to the data buffer.
+ * @return                      An error code.
  *
  * @notapi
  */
-flash_error_t efl_lld_read(void *instance, flash_offset_t offset,
+flash_error_t efl_lld_read(hal_efl_driver_c *self, flash_offset_t offset,
                            size_t n, uint8_t *rp) {
-  EFlashDriver *devp = (EFlashDriver *)instance;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgCheck((instance != NULL) && (rp != NULL) && (n > 0U));
-  osalDbgCheck((size_t)offset + n <= (size_t)efl_lld_descriptor.size);
-  osalDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
-                "invalid state");
+  osalDbgCheck((self != NULL) && (rp != NULL) && (n > 0U));
+  osalDbgCheck((size_t)offset + n <= (size_t)self->descriptor.size);
+  osalDbgAssert(self->state == FLASH_READ, "invalid state");
 
-  /* No reading while erasing.*/
-  if (devp->state == FLASH_ERASE) {
-    return FLASH_BUSY_ERASING;
-  }
+  stm32_flash_clear_status(self);
+  memcpy((void *)rp, (const void *)(self->descriptor.address + offset), n);
 
-  /* FLASH_READY state while the operation is performed.*/
-  devp->state = FLASH_READ;
-
-  /* Clearing error status bits.*/
-  stm32_flash_clear_status(devp);
-
-  /* Actual read implementation.*/
-  memcpy((void *)rp, (const void *)efl_lld_descriptor.address + offset, n);
-
-  /* Checking for errors after reading.*/
-  if ((devp->flash->SR & FLASH_SR_RDERR) != 0U) {
+  if ((self->flash->SR & FLASH_SR_RDERR) != 0U) {
     err = FLASH_ERROR_READ;
   }
-
-  /* Ready state again.*/
-  devp->state = FLASH_READY;
 
   return err;
 
@@ -247,49 +209,30 @@ flash_error_t efl_lld_read(void *instance, flash_offset_t offset,
 
 /**
  * @brief   Program operation.
- * @note    The device supports ECC, it is only possible to write erased
- *          pages once except when writing all zeroes.
  *
- * @param[in] ip                    pointer to a @p EFlashDriver instance
- * @param[in] offset                flash offset
- * @param[in] n                     number of bytes to be programmed
- * @param[in] pp                    pointer to the data buffer
- * @return                          An error code.
- * @retval FLASH_NO_ERROR           if there is no erase operation in progress.
- * @retval FLASH_BUSY_ERASING       if there is an erase operation in progress.
- * @retval FLASH_ERROR_PROGRAM      if the program operation failed.
- * @retval FLASH_ERROR_HW_FAILURE   if access to the memory failed.
+ * @param[in,out] self          Pointer to an EFL driver instance.
+ * @param[in]     offset        Offset within the flash address space.
+ * @param[in]     n             Number of bytes to be programmed.
+ * @param[in]     pp            Pointer to the data buffer.
+ * @return                      An error code.
  *
  * @notapi
  */
-flash_error_t efl_lld_program(void *instance, flash_offset_t offset,
+flash_error_t efl_lld_program(hal_efl_driver_c *self, flash_offset_t offset,
                               size_t n, const uint8_t *pp) {
-  EFlashDriver *devp = (EFlashDriver *)instance;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgCheck((instance != NULL) && (pp != NULL) && (n > 0U));
-  osalDbgCheck((size_t)offset + n <= (size_t)efl_lld_descriptor.size);
+  osalDbgCheck((self != NULL) && (pp != NULL) && (n > 0U));
+  osalDbgCheck((size_t)offset + n <= (size_t)self->descriptor.size);
+  osalDbgAssert(self->state == FLASH_PGM, "invalid state");
 
-  osalDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
-                "invalid state");
-
-  /* No programming while erasing.*/
-  if (devp->state == FLASH_ERASE) {
-    return FLASH_BUSY_ERASING;
-  }
-
-  /* FLASH_PGM state while the operation is performed.*/
-  devp->state = FLASH_PGM;
-
-  /* Clearing error status bits.*/
-  stm32_flash_clear_status(devp);
-
-  /* Enabling PGM mode in the controller.*/
-  stm32_flash_enable_pgm(devp);
+  stm32_flash_clear_status(self);
+  stm32_flash_enable_pgm(self);
 
   /* Actual program implementation.*/
   while (n > 0U) {
     volatile uint32_t *address;
+    uintptr_t address_value;
 
     union {
       uint32_t  w[STM32_FLASH_LINE_SIZE / sizeof (uint32_t)];
@@ -300,9 +243,11 @@ flash_error_t efl_lld_program(void *instance, flash_offset_t offset,
     line.w[0] = 0xFFFFFFFFU;
     line.w[1] = 0xFFFFFFFFU;
 
-    /* Programming address aligned to flash lines.*/
-    address = (volatile uint32_t *)(efl_lld_descriptor.address +
-                                    (offset & ~STM32_FLASH_LINE_MASK));
+    address_value = (uintptr_t)self->descriptor.address +
+                    (uintptr_t)(offset & ~STM32_FLASH_LINE_MASK);
+    osalDbgAssert((address_value & (uintptr_t)(sizeof(uint32_t) - 1U)) == 0U,
+                  "unaligned flash line");
+    address = (volatile uint32_t *)address_value;
 
     /* Copying data inside the prepared line.*/
     do {
@@ -316,117 +261,84 @@ flash_error_t efl_lld_program(void *instance, flash_offset_t offset,
     /* Programming line.*/
     address[0] = line.w[0];
     address[1] = line.w[1];
-    stm32_flash_wait_busy(devp);
-    err = stm32_flash_check_errors(devp);
+    stm32_flash_wait_busy(self);
+    err = stm32_flash_check_errors(self);
     if (err != FLASH_NO_ERROR) {
       break;
     }
   }
 
-  /* Disabling PGM mode in the controller.*/
-  stm32_flash_disable_pgm(devp);
-
-  /* Ready state again.*/
-  devp->state = FLASH_READY;
+  stm32_flash_disable_pgm(self);
 
   return err;
 }
 
 /**
  * @brief   Starts a whole-device erase operation.
- * @note    This function only erases bank 2 if it is present. Bank 1 is not
- *          touched because it is where the program is running on.
- *          Pages on bank 1 can be individually erased.
  *
- * @param[in] ip                    pointer to a @p EFlashDriver instance
- * @return                          An error code.
- * @retval FLASH_NO_ERROR           if there is no erase operation in progress.
- * @retval FLASH_BUSY_ERASING       if there is an erase operation in progress.
- * @retval FLASH_ERROR_HW_FAILURE   if access to the memory failed.
+ * @param[in,out] self          Pointer to an EFL driver instance.
+ * @return                      An error code.
  *
  * @notapi
  */
-flash_error_t efl_lld_start_erase_all(void *instance) {
-  EFlashDriver *devp = (EFlashDriver *)instance;
+flash_error_t efl_lld_start_erase_all(hal_efl_driver_c *self) {
 
-  osalDbgCheck(instance != NULL);
-  osalDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
-                "invalid state");
-
-  /* No erasing while erasing.*/
-  if (devp->state == FLASH_ERASE) {
-    return FLASH_BUSY_ERASING;
-  }
-
-  /* FLASH_PGM state while the operation is performed.*/
-  devp->state = FLASH_ERASE;
+  osalDbgCheck(self != NULL);
+  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   /* Clearing error status bits.*/
-  stm32_flash_clear_status(devp);
+  stm32_flash_clear_status(self);
 
 #if defined(FLASH_CR_MER2)
-  devp->flash->CR |= FLASH_CR_MER2;
-  devp->flash->CR |= FLASH_CR_STRT;
+  self->flash->CR |= FLASH_CR_MER2;
+  self->flash->CR |= FLASH_CR_STRT;
 #endif
 
   return FLASH_NO_ERROR;
 }
 
 /**
- * @brief   Starts an sector erase operation.
+ * @brief   Starts a sector erase operation.
  *
- * @param[in] ip                    pointer to a @p EFlashDriver instance
- * @param[in] sector                sector to be erased
- * @return                          An error code.
- * @retval FLASH_NO_ERROR           if there is no erase operation in progress.
- * @retval FLASH_BUSY_ERASING       if there is an erase operation in progress.
- * @retval FLASH_ERROR_HW_FAILURE   if access to the memory failed.
+ * @param[in,out] self          Pointer to an EFL driver instance.
+ * @param[in]     sector        Sector to be erased.
+ * @return                      An error code.
  *
  * @notapi
  */
-flash_error_t efl_lld_start_erase_sector(void *instance,
+flash_error_t efl_lld_start_erase_sector(hal_efl_driver_c *self,
                                          flash_sector_t sector) {
-  EFlashDriver *devp = (EFlashDriver *)instance;
 
-  osalDbgCheck(instance != NULL);
-  osalDbgCheck(sector < efl_lld_descriptor.sectors_count);
-  osalDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
-                "invalid state");
-
-  /* No erasing while erasing.*/
-  if (devp->state == FLASH_ERASE) {
-    return FLASH_BUSY_ERASING;
-  }
-
-  /* FLASH_PGM state while the operation is performed.*/
-  devp->state = FLASH_ERASE;
+  osalDbgCheck(self != NULL);
+  osalDbgCheck(sector < self->descriptor.sectors_count);
+  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   /* Clearing error status bits.*/
-  stm32_flash_clear_status(devp);
+  stm32_flash_clear_status(self);
 
   /* Enable page erase.*/
-  devp->flash->CR |= FLASH_CR_PER;
+  self->flash->CR |= FLASH_CR_PER;
 
 #if defined(FLASH_CR_BKER)
   /* Bank selection.*/
   if (sector < STM32_FLASH_SECTORS_PER_BANK) {
     /* First bank.*/
-    devp->flash->CR &= ~FLASH_CR_BKER;
+    self->flash->CR &= ~FLASH_CR_BKER;
   }
   else {
     /* Second bank.*/
-    devp->flash->CR |= FLASH_CR_BKER;
+    self->flash->CR |= FLASH_CR_BKER;
   }
 #endif
 
   /* Mask off the page selection bits.*/
-  devp->flash->CR &= ~FLASH_CR_PNB;
+  self->flash->CR &= ~FLASH_CR_PNB;
 
   /* Set the page selection bits.*/
-  devp->flash->CR |= sector << FLASH_CR_PNB_Pos;
+  self->flash->CR |= sector << FLASH_CR_PNB_Pos;
 
   /* Start the erase.*/
-  devp->flash->CR |= FLASH_CR_STRT;
+  self->flash->CR |= FLASH_CR_STRT;
 
   return FLASH_NO_ERROR;
 }
@@ -434,102 +346,72 @@ flash_error_t efl_lld_start_erase_sector(void *instance,
 /**
  * @brief   Queries the driver for erase operation progress.
  *
- * @param[in] ip                    pointer to a @p EFlashDriver instance
- * @param[out] msec                 recommended time, in milliseconds, that
- *                                  should be spent before calling this
- *                                  function again, can be @p NULL
- * @return                          An error code.
- * @retval FLASH_NO_ERROR           if there is no erase operation in progress.
- * @retval FLASH_BUSY_ERASING       if there is an erase operation in progress.
- * @retval FLASH_ERROR_ERASE        if the erase operation failed.
- * @retval FLASH_ERROR_HW_FAILURE   if access to the memory failed.
+ * @param[in,out] self          Pointer to an EFL driver instance.
+ * @param[out]    msec          Recommended delay before polling again.
+ * @return                      An error code.
  *
- * @api
+ * @notapi
  */
-flash_error_t efl_lld_query_erase(void *instance, uint32_t *msec) {
-  EFlashDriver *devp = (EFlashDriver *)instance;
-  flash_error_t err;
+flash_error_t efl_lld_query_erase(hal_efl_driver_c *self, unsigned *msec) {
 
-  /* If there is an erase in progress then the device must be checked.*/
-  if (devp->state == FLASH_ERASE) {
+  osalDbgCheck(self != NULL);
+  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
-    /* Checking for operation in progress.*/
-    if ((devp->flash->SR & FLASH_SR_BSY) == 0U) {
+  /* Checking for operation in progress.*/
+  if ((self->flash->SR & FLASH_SR_BSY) == 0U) {
 
-      /* Disabling the various erase control bits.*/
-      devp->flash->CR &= ~(FLASH_CR_MER |
-                           FLASH_CR_PER);
+    /* Disabling the various erase control bits.*/
+    self->flash->CR &= ~(FLASH_CR_MER |
+                          FLASH_CR_PER);
 
-      /* No operation in progress, checking for errors.*/
-      err = stm32_flash_check_errors(devp);
-
-      /* Back to ready state.*/
-      devp->state = FLASH_READY;
-    }
-    else {
-      /* Recommended time before polling again, this is a simplified
-         implementation.*/
-      if (msec != NULL) {
-        *msec = (uint32_t)STM32_FLASH_WAIT_TIME_MS;
-      }
-
-      err = FLASH_BUSY_ERASING;
-    }
-  }
-  else {
-    err = FLASH_NO_ERROR;
+    /* No operation in progress, checking for errors.*/
+    return stm32_flash_check_errors(self);
   }
 
-  return err;
+  /* Recommended time before polling again, this is a simplified
+      implementation.*/
+  if (msec != NULL) {
+    *msec = (uint32_t)STM32_FLASH_WAIT_TIME_MS;
+  }
+
+    return FLASH_BUSY_ERASING;
 }
 
 /**
  * @brief   Returns the erase state of a sector.
  *
- * @param[in] ip                    pointer to a @p EFlashDriver instance
- * @param[in] sector                sector to be verified
- * @return                          An error code.
- * @retval FLASH_NO_ERROR           if the sector is erased.
- * @retval FLASH_BUSY_ERASING       if there is an erase operation in progress.
- * @retval FLASH_ERROR_VERIFY       if the verify operation failed.
- * @retval FLASH_ERROR_HW_FAILURE   if access to the memory failed.
+ * @param[in,out] self          Pointer to an EFL driver instance.
+ * @param[in]     sector        Sector to be verified.
+ * @return                      An error code.
  *
  * @notapi
  */
-flash_error_t efl_lld_verify_erase(void *instance, flash_sector_t sector) {
-  EFlashDriver *devp = (EFlashDriver *)instance;
+flash_error_t efl_lld_verify_erase(hal_efl_driver_c *self,
+                                   flash_sector_t sector) {
   uint32_t *address;
+  uintptr_t address_value;
   flash_error_t err = FLASH_NO_ERROR;
+  uint32_t sector_size;
   unsigned i;
 
-  osalDbgCheck(instance != NULL);
-  osalDbgCheck(sector < efl_lld_descriptor.sectors_count);
-  osalDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
-                "invalid state");
+  osalDbgCheck(self != NULL);
+  osalDbgCheck(sector < self->descriptor.sectors_count);
+  osalDbgAssert(self->state == FLASH_READ, "invalid state");
 
-  /* No verifying while erasing.*/
-  if (devp->state == FLASH_ERASE) {
-    return FLASH_BUSY_ERASING;
-  }
+  address_value = (uintptr_t)self->descriptor.address +
+                  (uintptr_t)flashGetSectorOffset(self, sector);
+  osalDbgAssert((address_value & (uintptr_t)(sizeof(uint32_t) - 1U)) == 0U,
+                "unaligned flash sector");
+  address = (uint32_t *)address_value;
+  sector_size = flashGetSectorSize(self, sector);
 
-  /* Address of the sector.*/
-  address = (uint32_t *)(efl_lld_descriptor.address +
-                         flashGetSectorOffset(getBaseFlash(devp), sector));
-
-  /* FLASH_READY state while the operation is performed.*/
-  devp->state = FLASH_READ;
-
-  /* Scanning the sector space.*/
-  for (i = 0U; i < STM32_FLASH_SECTOR_SIZE / sizeof(uint32_t); i++) {
+  for (i = 0U; i < (unsigned)(sector_size / sizeof(uint32_t)); i++) {
     if (*address != 0xFFFFFFFFU) {
       err = FLASH_ERROR_VERIFY;
       break;
     }
     address++;
   }
-
-  /* Ready state again.*/
-  devp->state = FLASH_READY;
 
   return err;
 }

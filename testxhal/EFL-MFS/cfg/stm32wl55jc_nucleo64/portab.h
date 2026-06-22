@@ -29,16 +29,17 @@
 #define PORTAB_LED_OFF              PAL_LOW
 #define PORTAB_LED_ON               PAL_HIGH
 
-#define PORTAB_LINE_BUTTON          LINE_BUTTON
-#define PORTAB_BUTTON_PRESSED       PAL_HIGH
+#define PORTAB_LINE_BUTTON          LINE_BUTTON_1
+#define PORTAB_BUTTON_PRESSED       PAL_LOW
 
-#define PORTAB_SIO1                 LPSIOD1
+#define PORTAB_SIO1                 SIOD2
 
 #define MFS_BANK_SIZE               4096U
-#define MFS_BANK0_START             252U
+#define MFS_BANK0_START             120U
 #define MFS_BANK0_SECTORS           2U
-#define MFS_BANK1_START             254U
+#define MFS_BANK1_START             122U
 #define MFS_BANK1_SECTORS           2U
+
 
 #ifdef __cplusplus
 extern "C" {
