@@ -40,7 +40,6 @@
 #define MFS_BANK1_START             122U
 #define MFS_BANK1_SECTORS           2U
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
