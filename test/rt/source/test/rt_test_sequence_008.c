@@ -256,6 +256,10 @@ static void rt_test_008_001_setup(void) {
   chMtxObjectInit(&m1);
 }
 
+static void rt_test_008_001_teardown(void) {
+  chMtxObjectDispose(&m1);
+}
+
 static void rt_test_008_001_execute(void) {
   tprio_t prio;
 
@@ -301,7 +305,7 @@ static void rt_test_008_001_execute(void) {
 static const testcase_t rt_test_008_001 = {
   "Priority enqueuing test",
   rt_test_008_001_setup,
-  NULL,
+  rt_test_008_001_teardown,
   rt_test_008_001_execute
 };
 
@@ -335,6 +339,10 @@ static const testcase_t rt_test_008_001 = {
 
 static void rt_test_008_002_setup(void) {
   chMtxObjectInit(&m1);
+}
+
+static void rt_test_008_002_teardown(void) {
+  chMtxObjectDispose(&m1);
 }
 
 static void rt_test_008_002_execute(void) {
@@ -374,7 +382,7 @@ static void rt_test_008_002_execute(void) {
 static const testcase_t rt_test_008_002 = {
   "Priority inheritance, simple case",
   rt_test_008_002_setup,
-  NULL,
+  rt_test_008_002_teardown,
   rt_test_008_002_execute
 };
 #endif /* CH_DBG_THREADS_PROFILING == TRUE */
@@ -409,6 +417,11 @@ static const testcase_t rt_test_008_002 = {
 static void rt_test_008_003_setup(void) {
   chMtxObjectInit(&m1); /* Mutex B.*/
   chMtxObjectInit(&m2); /* Mutex A.*/
+}
+
+static void rt_test_008_003_teardown(void) {
+  chMtxObjectDispose(&m1);
+  chMtxObjectDispose(&m2);
 }
 
 static void rt_test_008_003_execute(void) {
@@ -450,7 +463,7 @@ static void rt_test_008_003_execute(void) {
 static const testcase_t rt_test_008_003 = {
   "Priority inheritance, complex case",
   rt_test_008_003_setup,
-  NULL,
+  rt_test_008_003_teardown,
   rt_test_008_003_execute
 };
 #endif /* CH_DBG_THREADS_PROFILING == TRUE */
@@ -494,6 +507,8 @@ static void rt_test_008_004_setup(void) {
 
 static void rt_test_008_004_teardown(void) {
   test_wait_threads();
+  chMtxObjectDispose(&m1);
+  chMtxObjectDispose(&m2);
 }
 
 static void rt_test_008_004_execute(void) {
@@ -613,6 +628,10 @@ static void rt_test_008_005_setup(void) {
   chMtxObjectInit(&m1);
 }
 
+static void rt_test_008_005_teardown(void) {
+  chMtxObjectDispose(&m1);
+}
+
 static void rt_test_008_005_execute(void) {
   bool b;
   tprio_t prio;
@@ -684,7 +703,7 @@ static void rt_test_008_005_execute(void) {
 static const testcase_t rt_test_008_005 = {
   "Repeated locks, non recursive scenario",
   rt_test_008_005_setup,
-  NULL,
+  rt_test_008_005_teardown,
   rt_test_008_005_execute
 };
 #endif /* CH_CFG_USE_MUTEXES_RECURSIVE == FALSE */
@@ -724,6 +743,10 @@ static const testcase_t rt_test_008_005 = {
 
 static void rt_test_008_006_setup(void) {
   chMtxObjectInit(&m1);
+}
+
+static void rt_test_008_006_teardown(void) {
+  chMtxObjectDispose(&m1);
 }
 
 static void rt_test_008_006_execute(void) {
@@ -830,7 +853,7 @@ static void rt_test_008_006_execute(void) {
 static const testcase_t rt_test_008_006 = {
   "Repeated locks using, recursive scenario",
   rt_test_008_006_setup,
-  NULL,
+  rt_test_008_006_teardown,
   rt_test_008_006_execute
 };
 #endif /* CH_CFG_USE_MUTEXES_RECURSIVE == TRUE */
@@ -864,6 +887,11 @@ static const testcase_t rt_test_008_006 = {
 static void rt_test_008_007_setup(void) {
   chCondObjectInit(&c1);
   chMtxObjectInit(&m1);
+}
+
+static void rt_test_008_007_teardown(void) {
+  chCondObjectDispose(&c1);
+  chMtxObjectDispose(&m1);
 }
 
 static void rt_test_008_007_execute(void) {
@@ -903,7 +931,7 @@ static void rt_test_008_007_execute(void) {
 static const testcase_t rt_test_008_007 = {
   "Condition Variable signal test",
   rt_test_008_007_setup,
-  NULL,
+  rt_test_008_007_teardown,
   rt_test_008_007_execute
 };
 #endif /* CH_CFG_USE_CONDVARS == TRUE */
@@ -937,6 +965,11 @@ static void rt_test_008_008_setup(void) {
   chMtxObjectInit(&m1);
 }
 
+static void rt_test_008_008_teardown(void) {
+  chCondObjectDispose(&c1);
+  chMtxObjectDispose(&m1);
+}
+
 static void rt_test_008_008_execute(void) {
 
   /* [8.8.1] Starting the five threads with increasing priority, the
@@ -966,7 +999,7 @@ static void rt_test_008_008_execute(void) {
 static const testcase_t rt_test_008_008 = {
   "Condition Variable broadcast test",
   rt_test_008_008_setup,
-  NULL,
+  rt_test_008_008_teardown,
   rt_test_008_008_execute
 };
 #endif /* CH_CFG_USE_CONDVARS == TRUE */
@@ -1009,6 +1042,12 @@ static void rt_test_008_009_setup(void) {
   chCondObjectInit(&c1);
   chMtxObjectInit(&m1);
   chMtxObjectInit(&m2);
+}
+
+static void rt_test_008_009_teardown(void) {
+  chCondObjectDispose(&c1);
+  chMtxObjectDispose(&m1);
+  chMtxObjectDispose(&m2);
 }
 
 static void rt_test_008_009_execute(void) {
@@ -1073,7 +1112,7 @@ static void rt_test_008_009_execute(void) {
 static const testcase_t rt_test_008_009 = {
   "Condition Variable priority boost test",
   rt_test_008_009_setup,
-  NULL,
+  rt_test_008_009_teardown,
   rt_test_008_009_execute
 };
 #endif /* CH_CFG_USE_CONDVARS == TRUE */

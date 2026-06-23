@@ -34,6 +34,7 @@
  * - @subpage rt_test_005_002
  * - @subpage rt_test_005_003
  * - @subpage rt_test_005_004
+ * - @subpage rt_test_005_005
  * .
  */
 
@@ -339,6 +340,107 @@ static const testcase_t rt_test_005_004 = {
 };
 #endif /* CH_CFG_USE_MUTEXES == TRUE */
 
+#if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_005_005 [5.5] Threads registry functionality
+ *
+ * <h2>Description</h2>
+ * The functionality of the threads registry APIs is tested together
+ * with static threads creation.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_USE_REGISTRY == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [5.5.1] The current thread registry name is changed and then
+ *   restored.
+ * - [5.5.2] A static thread is created then retrieved by name, pointer
+ *   and working area.
+ * - [5.5.3] The registry is scanned forward until the end and the
+ *   created thread is found in the scan.
+ * .
+ */
+
+static void rt_test_005_005_teardown(void) {
+  test_wait_threads();
+}
+
+static void rt_test_005_005_execute(void) {
+  thread_t *tp, *ntp;
+  const char *oldname, *newname;
+  bool found;
+
+  /* [5.5.1] The current thread registry name is changed and then
+     restored.*/
+  test_set_step(1);
+  {
+    tp = chThdGetSelfX();
+    oldname = chRegGetThreadNameX(tp);
+    newname = "registry-main";
+    chRegSetThreadName(newname);
+    test_assert(chRegGetThreadNameX(tp) == newname, "name not set");
+    chRegSetThreadName(oldname);
+    test_assert(chRegGetThreadNameX(tp) == oldname, "name not restored");
+  }
+  test_end_step(1);
+
+  /* [5.5.2] A static thread is created then retrieved by name, pointer
+     and working area.*/
+  test_set_step(2);
+  {
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()-1, thread, "R");
+    test_assert(threads[0] != NULL, "thread creation failed");
+    chRegSetThreadNameX(threads[0], "registry-worker");
+
+    tp = chRegFindThreadByName("registry-worker");
+    test_assert(tp == threads[0], "not found by name");
+    chThdRelease(tp);
+
+    tp = chRegFindThreadByPointer(threads[0]);
+    test_assert(tp == threads[0], "not found by pointer");
+    chThdRelease(tp);
+
+    tp = chRegFindThreadByWorkingArea(wa[0]);
+    test_assert(tp == threads[0], "not found by working area");
+    chThdRelease(tp);
+
+    tp = chRegFindThreadByName("registry-missing");
+    test_assert(tp == NULL, "unexpected thread found");
+  }
+  test_end_step(2);
+
+  /* [5.5.3] The registry is scanned forward until the end and the
+     created thread is found in the scan.*/
+  test_set_step(3);
+  {
+    found = false;
+    tp = chRegFirstThread();
+    do {
+      if (tp == threads[0]) {
+        found = true;
+      }
+      ntp = chRegNextThread(tp);
+      tp = ntp;
+    } while (tp != NULL);
+
+    test_assert(found, "not found in registry scan");
+    test_wait_threads();
+    test_assert_sequence("R", "invalid sequence");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t rt_test_005_005 = {
+  "Threads registry functionality",
+  NULL,
+  rt_test_005_005_teardown,
+  rt_test_005_005_execute
+};
+#endif /* CH_CFG_USE_REGISTRY == TRUE */
+
 /****************************************************************************
  * Exported data.
  ****************************************************************************/
@@ -352,6 +454,9 @@ const testcase_t * const rt_test_sequence_005_array[] = {
   &rt_test_005_003,
 #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
   &rt_test_005_004,
+#endif
+#if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
+  &rt_test_005_005,
 #endif
   NULL
 };

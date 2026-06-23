@@ -515,6 +515,11 @@ static void rt_test_010_007_setup(void) {
   chEvtObjectInit(&es2);
 }
 
+static void rt_test_010_007_teardown(void) {
+  chEvtObjectDispose(&es1);
+  chEvtObjectDispose(&es2);
+}
+
 static void rt_test_010_007_execute(void) {
   eventmask_t m;
   event_listener_t el1, el2;
@@ -569,7 +574,7 @@ static void rt_test_010_007_execute(void) {
 static const testcase_t rt_test_010_007 = {
   "Broadcasting using chEvtBroadcast()",
   rt_test_010_007_setup,
-  NULL,
+  rt_test_010_007_teardown,
   rt_test_010_007_execute
 };
 

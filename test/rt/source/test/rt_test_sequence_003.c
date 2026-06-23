@@ -32,6 +32,7 @@
  * <h2>Test Cases</h2>
  * - @subpage rt_test_003_001
  * - @subpage rt_test_003_002
+ * - @subpage rt_test_003_003
  * .
  */
 
@@ -40,6 +41,10 @@
  ****************************************************************************/
 
 #include "ch.h"
+
+#if CH_CFG_USE_TM || defined(__DOXYGEN__)
+static time_measurement_t tm1, tm2;
+#endif
 
 /****************************************************************************
  * Test cases.
@@ -153,6 +158,95 @@ static const testcase_t rt_test_003_002 = {
   rt_test_003_002_execute
 };
 
+#if (CH_CFG_USE_TM == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_003_003 [3.3] Time Measurement functionality
+ *
+ * <h2>Description</h2>
+ * The functionality of Time Measurement objects is tested.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_USE_TM == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [3.3.1] The initialized measurement objects are verified.
+ * - [3.3.2] A measurement is performed and its result is verified.
+ * - [3.3.3] The first measurement is chained to the second one and
+ *   both objects are verified.
+ * .
+ */
+
+static void rt_test_003_003_setup(void) {
+  chTMObjectInit(&tm1);
+  chTMObjectInit(&tm2);
+}
+
+static void rt_test_003_003_teardown(void) {
+  chTMObjectDispose(&tm1);
+  chTMObjectDispose(&tm2);
+}
+
+static void rt_test_003_003_execute(void) {
+  rtcnt_t first;
+
+  /* [3.3.1] The initialized measurement objects are verified.*/
+  test_set_step(1);
+  {
+    test_assert(tm1.best == (rtcnt_t)-1, "invalid best");
+    test_assert(tm1.worst == (rtcnt_t)0, "invalid worst");
+    test_assert(tm1.last == (rtcnt_t)0, "invalid last");
+    test_assert(tm1.n == (ucnt_t)0, "invalid counter");
+    test_assert(tm1.cumulative == (rttime_t)0, "invalid cumulative");
+  }
+  test_end_step(1);
+
+  /* [3.3.2] A measurement is performed and its result is verified.*/
+  test_set_step(2);
+  {
+    chTMStartMeasurementX(&tm1);
+    chSysPolledDelayX((rtcnt_t)100);
+    chTMStopMeasurementX(&tm1);
+
+    test_assert(tm1.n == (ucnt_t)1, "invalid counter");
+    test_assert(tm1.last > (rtcnt_t)0, "invalid last");
+    test_assert(tm1.best == tm1.last, "invalid best");
+    test_assert(tm1.worst == tm1.last, "invalid worst");
+    test_assert(tm1.cumulative == (rttime_t)tm1.last, "invalid cumulative");
+    first = tm1.last;
+  }
+  test_end_step(2);
+
+  /* [3.3.3] The first measurement is chained to the second one and
+     both objects are verified.*/
+  test_set_step(3);
+  {
+    chTMChainMeasurementToX(&tm1, &tm2);
+    chSysPolledDelayX((rtcnt_t)10);
+    chTMStopMeasurementX(&tm2);
+
+    test_assert(tm1.n == (ucnt_t)2, "invalid counter");
+    test_assert(tm1.last > (rtcnt_t)0, "invalid last");
+    test_assert(tm1.best <= tm1.worst, "invalid range");
+    test_assert(tm1.cumulative >= (rttime_t)first, "invalid cumulative");
+    test_assert(tm2.n == (ucnt_t)1, "invalid counter");
+    test_assert(tm2.last > (rtcnt_t)0, "invalid last");
+    test_assert(tm2.best == tm2.last, "invalid best");
+    test_assert(tm2.worst == tm2.last, "invalid worst");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t rt_test_003_003 = {
+  "Time Measurement functionality",
+  rt_test_003_003_setup,
+  rt_test_003_003_teardown,
+  rt_test_003_003_execute
+};
+#endif /* CH_CFG_USE_TM == TRUE */
+
 /****************************************************************************
  * Exported data.
  ****************************************************************************/
@@ -163,6 +257,9 @@ static const testcase_t rt_test_003_002 = {
 const testcase_t * const rt_test_sequence_003_array[] = {
   &rt_test_003_001,
   &rt_test_003_002,
+#if (CH_CFG_USE_TM == TRUE) || defined(__DOXYGEN__)
+  &rt_test_003_003,
+#endif
   NULL
 };
 
