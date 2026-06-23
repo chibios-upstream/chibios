@@ -1052,7 +1052,7 @@ static const testcase_t rt_test_012_013 = {
 };
 #endif /* CH_CFG_USE_SEMAPHORES == TRUE */
 
-#if (CH_CFG_USE_MUTEXES ==TRUE) || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
 /**
  * @page rt_test_012_014 [12.14] Mutexes lock/unlock performance
  *
@@ -1065,7 +1065,7 @@ static const testcase_t rt_test_012_013 = {
  * <h2>Conditions</h2>
  * This test is only executed if the following preprocessor condition
  * evaluates to true:
- * - CH_CFG_USE_MUTEXES ==TRUE
+ * - CH_CFG_USE_MUTEXES == TRUE
  * .
  *
  * <h2>Test Steps</h2>
@@ -1124,7 +1124,7 @@ static const testcase_t rt_test_012_014 = {
   NULL,
   rt_test_012_014_execute
 };
-#endif /* CH_CFG_USE_MUTEXES ==TRUE */
+#endif /* CH_CFG_USE_MUTEXES == TRUE */
 
 /**
  * @page rt_test_012_015 [12.15] RAM Footprint
@@ -1281,7 +1281,7 @@ const testcase_t * const rt_test_sequence_012_array[] = {
 #if (CH_CFG_USE_SEMAPHORES == TRUE) || defined(__DOXYGEN__)
   &rt_test_012_013,
 #endif
-#if (CH_CFG_USE_MUTEXES ==TRUE) || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
   &rt_test_012_014,
 #endif
   &rt_test_012_015,

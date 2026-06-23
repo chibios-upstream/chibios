@@ -6224,7 +6224,7 @@ test_println(" wait+signal/S");]]></value>
             </value>
           </description>
           <condition>
-            <value><![CDATA[CH_CFG_USE_MUTEXES ==TRUE]]></value>
+            <value><![CDATA[CH_CFG_USE_MUTEXES == TRUE]]></value>
           </condition>
           <various_code>
             <setup_code>
