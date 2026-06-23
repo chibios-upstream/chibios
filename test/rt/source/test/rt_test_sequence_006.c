@@ -31,6 +31,7 @@
  *
  * <h2>Test Cases</h2>
  * - @subpage rt_test_006_001
+ * - @subpage rt_test_006_002
  * .
  */
 
@@ -39,12 +40,39 @@
  ****************************************************************************/
 
 static thread_reference_t tr1;
+static threads_queue_t tq1;
+static msg_t qmsg1;
+static msg_t qmsg2;
 
 static THD_FUNCTION(thread1, p) {
 
   chSysLock();
   chThdResumeI(&tr1, MSG_OK);
   chSchRescheduleS();
+  chSysUnlock();
+  test_emit_token(*(char *)p);
+}
+
+static THD_FUNCTION(thread2, p) {
+
+  chSysLock();
+  chThdResumeS(&tr1, MSG_RESET);
+  chSysUnlock();
+  test_emit_token(*(char *)p);
+}
+
+static THD_FUNCTION(queue_thread1, p) {
+
+  chSysLock();
+  qmsg1 = chThdEnqueueTimeoutS(&tq1, TIME_INFINITE);
+  chSysUnlock();
+  test_emit_token(*(char *)p);
+}
+
+static THD_FUNCTION(queue_thread2, p) {
+
+  chSysLock();
+  qmsg2 = chThdEnqueueTimeoutS(&tq1, TIME_INFINITE);
   chSysUnlock();
   test_emit_token(*(char *)p);
 }
@@ -57,14 +85,17 @@ static THD_FUNCTION(thread1, p) {
  * @page rt_test_006_001 [6.1] Suspend and Resume functionality
  *
  * <h2>Description</h2>
- * The functionality of chThdSuspendTimeoutS() and chThdResumeI() is
- * tested.
+ * The functionality of chThdSuspendTimeoutS() and chThdSuspendS() are
+ * tested together with chThdResumeI() and chThdResumeS().
  *
  * <h2>Test Steps</h2>
  * - [6.1.1] The function chThdSuspendTimeoutS() is invoked, the thread
  *   is remotely resumed with message @p MSG_OK. On return the message
  *   and the state of the reference are tested.
- * - [6.1.2] The function chThdSuspendTimeoutS() is invoked, the thread
+ * - [6.1.2] The function chThdSuspendS() is invoked, the thread is
+ *   remotely resumed with message @p MSG_RESET using chThdResumeS().
+ *   On return the message and the state of the reference are tested.
+ * - [6.1.3] The function chThdSuspendTimeoutS() is invoked, the thread
  *   is not resumed so a timeout must occur. On return the message and
  *   the state of the reference are tested.
  * .
@@ -72,6 +103,10 @@ static THD_FUNCTION(thread1, p) {
 
 static void rt_test_006_001_setup(void) {
   tr1 = NULL;
+}
+
+static void rt_test_006_001_teardown(void) {
+  test_wait_threads();
 }
 
 static void rt_test_006_001_execute(void) {
@@ -90,13 +125,30 @@ static void rt_test_006_001_execute(void) {
     test_assert(NULL == tr1, "not NULL");
     test_assert(MSG_OK == msg,"wrong returned message");
     test_wait_threads();
+    test_assert_sequence("A", "invalid sequence");
   }
   test_end_step(1);
 
-  /* [6.1.2] The function chThdSuspendTimeoutS() is invoked, the thread
+  /* [6.1.2] The function chThdSuspendS() is invoked, the thread is
+     remotely resumed with message @p MSG_RESET using chThdResumeS().
+     On return the message and the state of the reference are tested.*/
+  test_set_step(2);
+  {
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()-1, thread2, "B");
+    chSysLock();
+    msg = chThdSuspendS(&tr1);
+    chSysUnlock();
+    test_assert(NULL == tr1, "not NULL");
+    test_assert(MSG_RESET == msg, "wrong returned message");
+    test_wait_threads();
+    test_assert_sequence("B", "invalid sequence");
+  }
+  test_end_step(2);
+
+  /* [6.1.3] The function chThdSuspendTimeoutS() is invoked, the thread
      is not resumed so a timeout must occur. On return the message and
      the state of the reference are tested.*/
-  test_set_step(2);
+  test_set_step(3);
   {
     chSysLock();
     time = chVTGetSystemTimeX();
@@ -108,14 +160,118 @@ static void rt_test_006_001_execute(void) {
     test_assert(NULL == tr1, "not NULL");
     test_assert(MSG_TIMEOUT == msg, "wrong returned message");
   }
-  test_end_step(2);
+  test_end_step(3);
 }
 
 static const testcase_t rt_test_006_001 = {
   "Suspend and Resume functionality",
   rt_test_006_001_setup,
-  NULL,
+  rt_test_006_001_teardown,
   rt_test_006_001_execute
+};
+
+/**
+ * @page rt_test_006_002 [6.2] Threads queue object lifecycle
+ *
+ * <h2>Description</h2>
+ * The lifecycle and normal wakeup operations of a threads queue object
+ * are tested.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.2.1] A threads queue is initialized, tested as empty, then
+ *   touched with empty dequeue operations.
+ * - [6.2.2] Immediate timeout enqueue is tested on an empty queue.
+ * - [6.2.3] One queued thread is resumed using chThdDequeueNextI().
+ * - [6.2.4] Two queued threads are resumed using chThdDequeueAllI().
+ * .
+ */
+
+static void rt_test_006_002_setup(void) {
+  chThdQueueObjectInit(&tq1);
+  qmsg1 = MSG_OK;
+  qmsg2 = MSG_OK;
+}
+
+static void rt_test_006_002_teardown(void) {
+  test_wait_threads();
+  chThdQueueObjectDispose(&tq1);
+}
+
+static void rt_test_006_002_execute(void) {
+  msg_t msg;
+  bool empty;
+
+  /* [6.2.1] A threads queue is initialized, tested as empty, then
+     touched with empty dequeue operations.*/
+  test_set_step(1);
+  {
+    chSysLock();
+    empty = chThdQueueIsEmptyI(&tq1);
+    chThdDequeueNextI(&tq1, MSG_OK);
+    chThdDequeueAllI(&tq1, MSG_OK);
+    chSysUnlock();
+    test_assert(empty, "queue not empty");
+  }
+  test_end_step(1);
+
+  /* [6.2.2] Immediate timeout enqueue is tested on an empty queue.*/
+  test_set_step(2);
+  {
+    chSysLock();
+    msg = chThdEnqueueTimeoutS(&tq1, TIME_IMMEDIATE);
+    empty = chThdQueueIsEmptyI(&tq1);
+    chSysUnlock();
+    test_assert(msg == MSG_TIMEOUT, "wrong returned message");
+    test_assert(empty, "queue not empty");
+  }
+  test_end_step(2);
+
+  /* [6.2.3] One queued thread is resumed using chThdDequeueNextI().*/
+  test_set_step(3);
+  {
+    qmsg1 = MSG_OK;
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX(),
+                                   queue_thread1, "C");
+    chThdYield();
+    chSysLock();
+    empty = chThdQueueIsEmptyI(&tq1);
+    chThdDequeueNextI(&tq1, MSG_RESET);
+    chSysUnlock();
+    test_assert(!empty, "queue empty");
+    test_wait_threads();
+    test_assert(qmsg1 == MSG_RESET, "wrong returned message");
+    test_assert_sequence("C", "invalid sequence");
+  }
+  test_end_step(3);
+
+  /* [6.2.4] Two queued threads are resumed using chThdDequeueAllI().*/
+  test_set_step(4);
+  {
+    qmsg1 = MSG_OK;
+    qmsg2 = MSG_OK;
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX(),
+                                   queue_thread1, "D");
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, chThdGetPriorityX(),
+                                   queue_thread2, "E");
+    chThdYield();
+    chSysLock();
+    empty = chThdQueueIsEmptyI(&tq1);
+    chThdDequeueAllI(&tq1, MSG_RESET);
+    chSysUnlock();
+    test_assert(!empty, "queue empty");
+    test_wait_threads();
+    test_assert(qmsg1 == MSG_RESET, "wrong returned message");
+    test_assert(qmsg2 == MSG_RESET, "wrong returned message");
+    test_assert_sequence("DE", "invalid sequence");
+  }
+  test_end_step(4);
+}
+
+static const testcase_t rt_test_006_002 = {
+  "Threads queue object lifecycle",
+  rt_test_006_002_setup,
+  rt_test_006_002_teardown,
+  rt_test_006_002_execute
 };
 
 /****************************************************************************
@@ -127,6 +283,7 @@ static const testcase_t rt_test_006_001 = {
  */
 const testcase_t * const rt_test_sequence_006_array[] = {
   &rt_test_006_001,
+  &rt_test_006_002,
   NULL
 };
 

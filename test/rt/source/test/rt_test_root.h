@@ -93,9 +93,29 @@ extern "C" {
 #define WA_SIZE MEM_ALIGN_NEXT(THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE),	\
                                PORT_WORKING_AREA_ALIGN)
 
-extern uint8_t test_buffer[WA_SIZE * 5];
+typedef union {
+  uint8_t wa[WA_SIZE];
+  struct {
+    stkline_t stack[THD_STACK_SIZE(THREADS_STACK_SIZE) / sizeof (stkline_t)];
+    thread_t thread;
+  } instance;
+} test_thread_slot_t;
+
+#define TEST_THREAD_STACK_BASE(n) ((stkline_t *)(void *)                  \
+                                   test_thread_slots[n].instance.stack)
+#define TEST_THREAD_STACK_END(n)  (TEST_THREAD_STACK_BASE(n) +            \
+                                   (THD_STACK_SIZE(THREADS_STACK_SIZE) /   \
+                                    sizeof (stkline_t)))
+#define TEST_THREAD_OBJECT(n)     (&test_thread_slots[n].instance.thread)
+#define TEST_THREAD_WA_BASE(n)    ((stkline_t *)(void *)test_thread_slots[n].wa)
+#define TEST_THREAD_WA_END(n)     ((stkline_t *)(void *)                 \
+                                   (test_thread_slots[n].wa + WA_SIZE))
+#define TEST_SHARED_BUFFER        ((void *)test_thread_slots)
+#define TEST_SHARED_BUFFER_SIZE   sizeof test_thread_slots
+
+extern test_thread_slot_t test_thread_slots[MAX_THREADS];
 extern thread_t *threads[MAX_THREADS];
-extern void * ROMCONST wa[5];
+extern void * ROMCONST wa[MAX_THREADS];
 
 void test_print_port_info(void);
 void test_terminate_threads(void);

@@ -93,7 +93,8 @@ static THD_FUNCTION(dyn_thread1, p) {
  */
 
 static void rt_test_011_001_setup(void) {
-  chHeapObjectInit(&heap1, test_buffer, sizeof test_buffer);
+  chHeapObjectInit(&heap1, TEST_SHARED_BUFFER,
+                   TEST_SHARED_BUFFER_SIZE);
 }
 
 static void rt_test_011_001_teardown(void) {
@@ -313,7 +314,8 @@ static const testcase_t rt_test_011_002 = {
  */
 
 static void rt_test_011_003_setup(void) {
-  chHeapObjectInit(&heap1, test_buffer, sizeof test_buffer);
+  chHeapObjectInit(&heap1, TEST_SHARED_BUFFER,
+                   TEST_SHARED_BUFFER_SIZE);
 }
 
 static void rt_test_011_003_teardown(void) {
