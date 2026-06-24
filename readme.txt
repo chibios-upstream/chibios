@@ -86,10 +86,10 @@ See .devcontainer/README.md for included tools and usage.
        and chRegNextThread() did not count the reference they hand out while
        chThdRelease() still released it, risking a reference-count underflow.
        The registry lookups now reference threads unconditionally (github
-       PR #51).
+       PR #51)(backported to 21.11.6).
 - FIX: NASA OSAL OS_TaskGetInfo() computed the task working-area size before
        validating the task id, dereferencing a possibly-invalid thread pointer;
-       the computation is now done after the validity check (github PR #51).
+       the computation is now done after the validity check (github PR #51)(backported to 21.11.6).
 - FIX: nvicSetSystemHandlerPriority() programmed the wrong SCB->SHPR field on
        Cortex-M0, M0+ and M23: the positive ChibiOS handler index was passed
        to the CMSIS _SHP_IDX()/_BIT_SHIFT() macros, which expect the negative
