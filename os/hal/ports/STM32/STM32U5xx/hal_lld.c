@@ -153,6 +153,7 @@ const halclkcfg_t hal_clkcfg_default = {
   .plls = {
     [0] = {
       .cfgr             = STM32_PLL1IN_BITS    | STM32_PLL1REF_BITS  |
+                          STM32_PLL1MBOOST_BITS |
 #if STM32_PLL1P_ENABLED == TRUE
                           RCC_PLL1CFGR_PLL1PEN |
 #endif
@@ -447,6 +448,16 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   hal_lld_pll_setup(0U, &ccp->plls[0]);
   hal_lld_pll_setup(1U, &ccp->plls[1]);
   hal_lld_pll_setup(2U, &ccp->plls[2]);
+
+#if STM32_BOOSTER_ENABLED == TRUE
+  halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr | PWR_VOSR_BOOSTEN, true);
+  if (halRegWaitAllSet32X(&PWR->VOSR,
+                          PWR_VOSR_BOOSTRDY,
+                          STM32_REGULATORS_TRANSITION_TIME,
+                          NULL)) {
+    return true;
+  }
+#endif
 
   cr = ccp->rcc_cr | RCC_CR_MSISON;
   halRegWrite32X(&RCC->CR, cr, true);

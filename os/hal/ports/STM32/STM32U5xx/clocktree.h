@@ -157,6 +157,12 @@
 #define RCC_BDCR_LSCOSEL_NOCLOCK            0U
 #define RCC_BDCR_LSCOSEL_LSI                RCC_BDCR_LSCOEN
 #define RCC_BDCR_LSCOSEL_LSE                (RCC_BDCR_LSCOEN | RCC_BDCR_LSCOSEL)
+#define RCC_PLL1CFGR_PLL1RGE_4TO8           (2U << RCC_PLL1CFGR_PLL1RGE_Pos)
+#define RCC_PLL1CFGR_PLL1RGE_8TO16          (3U << RCC_PLL1CFGR_PLL1RGE_Pos)
+#define RCC_PLL2CFGR_PLL2RGE_4TO8           (2U << RCC_PLL2CFGR_PLL2RGE_Pos)
+#define RCC_PLL2CFGR_PLL2RGE_8TO16          (3U << RCC_PLL2CFGR_PLL2RGE_Pos)
+#define RCC_PLL3CFGR_PLL3RGE_4TO8           (2U << RCC_PLL3CFGR_PLL3RGE_Pos)
+#define RCC_PLL3CFGR_PLL3RGE_8TO16          (3U << RCC_PLL3CFGR_PLL3RGE_Pos)
 /** @} */
 
 /**
@@ -191,7 +197,7 @@
 #define RCC_CFGR1_SW_MSIS                   ((0U) << 0U)
 #define RCC_CFGR1_SW_HSI16                  ((1U) << 0U)
 #define RCC_CFGR1_SW_HSE                    ((2U) << 0U)
-#define RCC_CFGR1_SW_PLL1P                  ((3U) << 0U)
+#define RCC_CFGR1_SW_PLL1R                  ((3U) << 0U)
 
 #define RCC_CFGR1_MCOSEL_NOCLOCK            ((0U) << 24U)
 #define RCC_CFGR1_MCOSEL_SYSCLK             ((1U) << 24U)
@@ -781,7 +787,7 @@
  *          - MSIS.
  *          - HSI16.
  *          - HSE.
- *          - PLL1P.
+ *          - PLL1R.
  */
 #if !defined(STM32_CFG_SYSCLK_SEL) || defined(__DOXYGEN__)
   #define STM32_CFG_SYSCLK_SEL              RCC_CFGR1_SW_MSIS
@@ -2780,8 +2786,6 @@
  * @brief   PLL1P clock derived enable state.
  */
 #define STM32_PLL1P_ENABLED                 ((STM32_PLL1P_REQUIRED_DEMANDED == TRUE) || \
-                                             ((STM32_SYSCLK_ENABLED == TRUE) && \
-                                              (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_PLL1P)) || \
                                              ((STM32_SDMMC_ENABLED == TRUE) && \
                                               (STM32_CFG_SDMMC_SEL == RCC_CCIPR2_SDMMCSEL_PLL1P)) || \
                                              ((STM32_SAI1_ENABLED == TRUE) && \
@@ -2808,6 +2812,8 @@
  * @brief   PLL1R clock derived enable state.
  */
 #define STM32_PLL1R_ENABLED                 ((STM32_PLL1R_REQUIRED_DEMANDED == TRUE) || \
+                                             ((STM32_SYSCLK_ENABLED == TRUE) && \
+                                              (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_PLL1R)) || \
                                              ((STM32_MCODIV_ENABLED == TRUE) && \
                                               (STM32_CFG_MCODIV_SEL == RCC_CFGR1_MCOSEL_PLL1R)))
 
@@ -4856,8 +4862,8 @@
   #define STM32_SYSCLK_BITS                 RCC_CFGR1_SW_HSI16
 #elif (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_HSE)
   #define STM32_SYSCLK_BITS                 RCC_CFGR1_SW_HSE
-#elif (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_PLL1P)
-  #define STM32_SYSCLK_BITS                 RCC_CFGR1_SW_PLL1P
+#elif (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_PLL1R)
+  #define STM32_SYSCLK_BITS                 RCC_CFGR1_SW_PLL1R
 #else
   #error "invalid STM32_CFG_SYSCLK_SEL value specified"
 #endif
@@ -4876,8 +4882,8 @@
       (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_HSE)
   #define STM32_SYSCLK_FREQ                 STM32_HSE_FREQ
 #elif (STM32_SYSCLK_ENABLED == TRUE) && \
-      (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_PLL1P)
-  #define STM32_SYSCLK_FREQ                 STM32_PLL1P_FREQ
+      (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_PLL1R)
+  #define STM32_SYSCLK_FREQ                 STM32_PLL1R_FREQ
 #else
   #define STM32_SYSCLK_FREQ                 0U
 #endif
@@ -4902,8 +4908,8 @@
 #endif
 
 #if !(!((STM32_SYSCLK_ENABLED == TRUE) &&                                   \
-      (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_PLL1P)) ||                      \
-     (STM32_PLL1P_FREQ <= STM32_SYSCLK_MAX)) && !defined(__DOXYGEN__)
+      (STM32_CFG_SYSCLK_SEL == RCC_CFGR1_SW_PLL1R)) ||                      \
+     (STM32_PLL1R_FREQ <= STM32_SYSCLK_MAX)) && !defined(__DOXYGEN__)
   #error "STM32_SYSCLK_FREQ above maximum frequency"
 #endif
 

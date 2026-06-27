@@ -73,6 +73,18 @@
       <define name="RCC_BDCR_LSCOSEL_LSI" value="RCC_BDCR_LSCOEN" />
       <define name="RCC_BDCR_LSCOSEL_LSE"
               value="(RCC_BDCR_LSCOEN | RCC_BDCR_LSCOSEL)" />
+      <define name="RCC_PLL1CFGR_PLL1RGE_4TO8"
+              value="(2U &lt;&lt; RCC_PLL1CFGR_PLL1RGE_Pos)" />
+      <define name="RCC_PLL1CFGR_PLL1RGE_8TO16"
+              value="(3U &lt;&lt; RCC_PLL1CFGR_PLL1RGE_Pos)" />
+      <define name="RCC_PLL2CFGR_PLL2RGE_4TO8"
+              value="(2U &lt;&lt; RCC_PLL2CFGR_PLL2RGE_Pos)" />
+      <define name="RCC_PLL2CFGR_PLL2RGE_8TO16"
+              value="(3U &lt;&lt; RCC_PLL2CFGR_PLL2RGE_Pos)" />
+      <define name="RCC_PLL3CFGR_PLL3RGE_4TO8"
+              value="(2U &lt;&lt; RCC_PLL3CFGR_PLL3RGE_Pos)" />
+      <define name="RCC_PLL3CFGR_PLL3RGE_8TO16"
+              value="(3U &lt;&lt; RCC_PLL3CFGR_PLL3RGE_Pos)" />
     </definitions>
     <configs>
       <config name="CLOCK_DYNAMIC" type="bool" default="FALSE"
@@ -851,7 +863,7 @@
         <input point="MSIS" encoding="0U" default="yes" />
         <input point="HSI16" encoding="1U" />
         <input point="HSE" encoding="2U" />
-        <input point="PLL1P" encoding="3U" />
+        <input point="PLL1R" encoding="3U" />
       </mux>
     </clock>
     <clock point="HCLK" enable="always" dynamic="yes">
