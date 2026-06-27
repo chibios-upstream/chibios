@@ -45,6 +45,7 @@
  * - @subpage rt_test_008_007
  * - @subpage rt_test_008_008
  * - @subpage rt_test_008_009
+ * - @subpage rt_test_008_010
  * .
  */
 
@@ -197,6 +198,13 @@ static THD_FUNCTION(thread4B, p) {
   chSysUnlock();
 }
 
+static THD_FUNCTION(thread5, p) {
+
+  chMtxLock(&m2);
+  test_emit_token(*(char *)p);
+  chMtxUnlock(&m2);
+}
+
 #if CH_CFG_USE_CONDVARS || defined(__DOXYGEN__)
 static THD_FUNCTION(thread6, p) {
 
@@ -256,6 +264,10 @@ static void rt_test_008_001_setup(void) {
   chMtxObjectInit(&m1);
 }
 
+static void rt_test_008_001_teardown(void) {
+  chMtxObjectDispose(&m1);
+}
+
 static void rt_test_008_001_execute(void) {
   tprio_t prio;
 
@@ -301,7 +313,7 @@ static void rt_test_008_001_execute(void) {
 static const testcase_t rt_test_008_001 = {
   "Priority enqueuing test",
   rt_test_008_001_setup,
-  NULL,
+  rt_test_008_001_teardown,
   rt_test_008_001_execute
 };
 
@@ -335,6 +347,10 @@ static const testcase_t rt_test_008_001 = {
 
 static void rt_test_008_002_setup(void) {
   chMtxObjectInit(&m1);
+}
+
+static void rt_test_008_002_teardown(void) {
+  chMtxObjectDispose(&m1);
 }
 
 static void rt_test_008_002_execute(void) {
@@ -374,7 +390,7 @@ static void rt_test_008_002_execute(void) {
 static const testcase_t rt_test_008_002 = {
   "Priority inheritance, simple case",
   rt_test_008_002_setup,
-  NULL,
+  rt_test_008_002_teardown,
   rt_test_008_002_execute
 };
 #endif /* CH_DBG_THREADS_PROFILING == TRUE */
@@ -409,6 +425,11 @@ static const testcase_t rt_test_008_002 = {
 static void rt_test_008_003_setup(void) {
   chMtxObjectInit(&m1); /* Mutex B.*/
   chMtxObjectInit(&m2); /* Mutex A.*/
+}
+
+static void rt_test_008_003_teardown(void) {
+  chMtxObjectDispose(&m1);
+  chMtxObjectDispose(&m2);
 }
 
 static void rt_test_008_003_execute(void) {
@@ -450,7 +471,7 @@ static void rt_test_008_003_execute(void) {
 static const testcase_t rt_test_008_003 = {
   "Priority inheritance, complex case",
   rt_test_008_003_setup,
-  NULL,
+  rt_test_008_003_teardown,
   rt_test_008_003_execute
 };
 #endif /* CH_DBG_THREADS_PROFILING == TRUE */
@@ -494,6 +515,8 @@ static void rt_test_008_004_setup(void) {
 
 static void rt_test_008_004_teardown(void) {
   test_wait_threads();
+  chMtxObjectDispose(&m1);
+  chMtxObjectDispose(&m2);
 }
 
 static void rt_test_008_004_execute(void) {
@@ -581,9 +604,133 @@ static const testcase_t rt_test_008_004 = {
   rt_test_008_004_execute
 };
 
+/**
+ * @page rt_test_008_005 [8.5] Contended mutex handoff variants
+ *
+ * <h2>Description</h2>
+ * Contended mutex handoff is tested for chMtxUnlockS() and
+ * chMtxUnlockAllS(). A same-priority waiter is also used to exercise
+ * the lock path without priority inheritance boosting.
+ *
+ * <h2>Test Steps</h2>
+ * - [8.5.1] Getting current thread priority for later checks.
+ * - [8.5.2] A same-priority waiter is queued on the mutex, verifying
+ *   that no priority boost is performed.
+ * - [8.5.3] A higher-priority waiter is handed the mutex by
+ *   chMtxUnlockS().
+ * - [8.5.4] A higher-priority waiter is handed the mutex by
+ *   chMtxUnlockAllS().
+ * - [8.5.5] Priority is recomputed while chMtxUnlockS() hands off a
+ *   mutex and another owned mutex still has a waiter.
+ * .
+ */
+
+static void rt_test_008_005_setup(void) {
+  chMtxObjectInit(&m1);
+  chMtxObjectInit(&m2);
+}
+
+static void rt_test_008_005_teardown(void) {
+  test_wait_threads();
+  chMtxObjectDispose(&m1);
+  chMtxObjectDispose(&m2);
+}
+
+static void rt_test_008_005_execute(void) {
+  tprio_t prio;
+
+  /* [8.5.1] Getting current thread priority for later checks.*/
+  test_set_step(1);
+  {
+    prio = chThdGetPriorityX();
+  }
+  test_end_step(1);
+
+  /* [8.5.2] A same-priority waiter is queued on the mutex, verifying
+     that no priority boost is performed.*/
+  test_set_step(2);
+  {
+    chMtxLock(&m1);
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio, thread1, "A");
+    chThdYield();
+    test_assert(chThdGetPriorityX() == prio, "wrong priority level");
+    chMtxUnlock(&m1);
+    test_wait_threads();
+    test_assert_sequence("A", "invalid sequence");
+  }
+  test_end_step(2);
+
+  /* [8.5.3] A higher-priority waiter is handed the mutex by
+     chMtxUnlockS().*/
+  test_set_step(3);
+  {
+    chMtxLock(&m1);
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1, thread1, "B");
+    test_assert(chThdGetPriorityX() == prio + 1, "wrong priority level");
+
+    chSysLock();
+    chMtxUnlockS(&m1);
+    chSchRescheduleS();
+    chSysUnlock();
+
+    test_wait_threads();
+    test_assert(chThdGetPriorityX() == prio, "wrong priority level");
+    test_assert_sequence("B", "invalid sequence");
+  }
+  test_end_step(3);
+
+  /* [8.5.4] A higher-priority waiter is handed the mutex by
+     chMtxUnlockAllS().*/
+  test_set_step(4);
+  {
+    chMtxLock(&m1);
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1, thread1, "C");
+    test_assert(chThdGetPriorityX() == prio + 1, "wrong priority level");
+
+    chSysLock();
+    chMtxUnlockAllS();
+    chSysUnlock();
+
+    test_wait_threads();
+    test_assert(chThdGetPriorityX() == prio, "wrong priority level");
+    test_assert_sequence("C", "invalid sequence");
+  }
+  test_end_step(4);
+
+  /* [8.5.5] Priority is recomputed while chMtxUnlockS() hands off a
+     mutex and another owned mutex still has a waiter.*/
+  test_set_step(5);
+  {
+    chMtxLock(&m2);
+    chMtxLock(&m1);
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1, thread5, "E");
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2, thread1, "D");
+    test_assert(chThdGetPriorityX() == prio + 2, "wrong priority level");
+
+    chSysLock();
+    chMtxUnlockS(&m1);
+    chSchRescheduleS();
+    chSysUnlock();
+
+    test_assert(chThdGetPriorityX() == prio + 1, "wrong priority level");
+    chMtxUnlock(&m2);
+    test_wait_threads();
+    test_assert(chThdGetPriorityX() == prio, "wrong priority level");
+    test_assert_sequence("DE", "invalid sequence");
+  }
+  test_end_step(5);
+}
+
+static const testcase_t rt_test_008_005 = {
+  "Contended mutex handoff variants",
+  rt_test_008_005_setup,
+  rt_test_008_005_teardown,
+  rt_test_008_005_execute
+};
+
 #if (CH_CFG_USE_MUTEXES_RECURSIVE == FALSE) || defined(__DOXYGEN__)
 /**
- * @page rt_test_008_005 [8.5] Repeated locks, non recursive scenario
+ * @page rt_test_008_006 [8.6] Repeated locks, non recursive scenario
  *
  * <h2>Description</h2>
  * The behavior of multiple mutex locks from the same thread is tested
@@ -596,134 +743,25 @@ static const testcase_t rt_test_008_004 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [8.5.1] Getting current thread priority for later checks.
- * - [8.5.2] Locking the mutex first time, it must be possible because
- *   it is not owned.
- * - [8.5.3] Locking the mutex second time, it must fail because it is
- *   already owned.
- * - [8.5.4] Unlocking the mutex then it must not be owned anymore and
- *   the queue must be empty.
- * - [8.5.5] Testing that priority has not changed after operations.
- * - [8.5.6] Testing chMtxUnlockAll() behavior.
- * - [8.5.7] Testing that priority has not changed after operations.
- * .
- */
-
-static void rt_test_008_005_setup(void) {
-  chMtxObjectInit(&m1);
-}
-
-static void rt_test_008_005_execute(void) {
-  bool b;
-  tprio_t prio;
-
-  /* [8.5.1] Getting current thread priority for later checks.*/
-  test_set_step(1);
-  {
-    prio = chThdGetPriorityX();
-  }
-  test_end_step(1);
-
-  /* [8.5.2] Locking the mutex first time, it must be possible because
-     it is not owned.*/
-  test_set_step(2);
-  {
-    b = chMtxTryLock(&m1);
-    test_assert(b, "already locked");
-  }
-  test_end_step(2);
-
-  /* [8.5.3] Locking the mutex second time, it must fail because it is
-     already owned.*/
-  test_set_step(3);
-  {
-    b = chMtxTryLock(&m1);
-    test_assert(!b, "not locked");
-  }
-  test_end_step(3);
-
-  /* [8.5.4] Unlocking the mutex then it must not be owned anymore and
-     the queue must be empty.*/
-  test_set_step(4);
-  {
-    chMtxUnlock(&m1);
-    test_assert(m1.owner == NULL, "still owned");
-    test_assert(ch_queue_isempty(&m1.queue), "queue not empty");
-  }
-  test_end_step(4);
-
-  /* [8.5.5] Testing that priority has not changed after operations.*/
-  test_set_step(5);
-  {
-    test_assert(chThdGetPriorityX() == prio, "wrong priority level");
-  }
-  test_end_step(5);
-
-  /* [8.5.6] Testing chMtxUnlockAll() behavior.*/
-  test_set_step(6);
-  {
-    b = chMtxTryLock(&m1);
-    test_assert(b, "already locked");
-    b = chMtxTryLock(&m1);
-    test_assert(!b, "not locked");
-
-    chMtxUnlockAll();
-    test_assert(m1.owner == NULL, "still owned");
-    test_assert(ch_queue_isempty(&m1.queue), "queue not empty");
-  }
-  test_end_step(6);
-
-  /* [8.5.7] Testing that priority has not changed after operations.*/
-  test_set_step(7);
-  {
-    test_assert(chThdGetPriorityX() == prio, "wrong priority level");
-  }
-  test_end_step(7);
-}
-
-static const testcase_t rt_test_008_005 = {
-  "Repeated locks, non recursive scenario",
-  rt_test_008_005_setup,
-  NULL,
-  rt_test_008_005_execute
-};
-#endif /* CH_CFG_USE_MUTEXES_RECURSIVE == FALSE */
-
-#if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
-/**
- * @page rt_test_008_006 [8.6] Repeated locks using, recursive scenario
- *
- * <h2>Description</h2>
- * The behavior of multiple mutex locks from the same thread is tested
- * when recursion is enabled.
- *
- * <h2>Conditions</h2>
- * This test is only executed if the following preprocessor condition
- * evaluates to true:
- * - CH_CFG_USE_MUTEXES_RECURSIVE == TRUE
- * .
- *
- * <h2>Test Steps</h2>
  * - [8.6.1] Getting current thread priority for later checks.
  * - [8.6.2] Locking the mutex first time, it must be possible because
  *   it is not owned.
- * - [8.6.3] Locking the mutex second time, it must be possible because
- *   it is recursive.
- * - [8.6.4] Unlocking the mutex then it must be still owned because
- *   recursivity.
- * - [8.6.5] Unlocking the mutex then it must not be owned anymore and
+ * - [8.6.3] Locking the mutex second time, it must fail because it is
+ *   already owned.
+ * - [8.6.4] Unlocking the mutex then it must not be owned anymore and
  *   the queue must be empty.
- * - [8.6.6] Testing that priority has not changed after operations.
- * - [8.6.7] Testing consecutive chMtxTryLock()/chMtxTryLockS() calls
- *   and a final chMtxUnlockAllS().
- * - [8.6.8] Testing consecutive chMtxLock()/chMtxLockS() calls and a
- *   final chMtxUnlockAll().
- * - [8.6.9] Testing that priority has not changed after operations.
+ * - [8.6.5] Testing that priority has not changed after operations.
+ * - [8.6.6] Testing chMtxUnlockAll() behavior.
+ * - [8.6.7] Testing that priority has not changed after operations.
  * .
  */
 
 static void rt_test_008_006_setup(void) {
   chMtxObjectInit(&m1);
+}
+
+static void rt_test_008_006_teardown(void) {
+  chMtxObjectDispose(&m1);
 }
 
 static void rt_test_008_006_execute(void) {
@@ -746,7 +784,124 @@ static void rt_test_008_006_execute(void) {
   }
   test_end_step(2);
 
-  /* [8.6.3] Locking the mutex second time, it must be possible because
+  /* [8.6.3] Locking the mutex second time, it must fail because it is
+     already owned.*/
+  test_set_step(3);
+  {
+    b = chMtxTryLock(&m1);
+    test_assert(!b, "not locked");
+  }
+  test_end_step(3);
+
+  /* [8.6.4] Unlocking the mutex then it must not be owned anymore and
+     the queue must be empty.*/
+  test_set_step(4);
+  {
+    chMtxUnlock(&m1);
+    test_assert(m1.owner == NULL, "still owned");
+    test_assert(ch_queue_isempty(&m1.queue), "queue not empty");
+  }
+  test_end_step(4);
+
+  /* [8.6.5] Testing that priority has not changed after operations.*/
+  test_set_step(5);
+  {
+    test_assert(chThdGetPriorityX() == prio, "wrong priority level");
+  }
+  test_end_step(5);
+
+  /* [8.6.6] Testing chMtxUnlockAll() behavior.*/
+  test_set_step(6);
+  {
+    b = chMtxTryLock(&m1);
+    test_assert(b, "already locked");
+    b = chMtxTryLock(&m1);
+    test_assert(!b, "not locked");
+
+    chMtxUnlockAll();
+    test_assert(m1.owner == NULL, "still owned");
+    test_assert(ch_queue_isempty(&m1.queue), "queue not empty");
+  }
+  test_end_step(6);
+
+  /* [8.6.7] Testing that priority has not changed after operations.*/
+  test_set_step(7);
+  {
+    test_assert(chThdGetPriorityX() == prio, "wrong priority level");
+  }
+  test_end_step(7);
+}
+
+static const testcase_t rt_test_008_006 = {
+  "Repeated locks, non recursive scenario",
+  rt_test_008_006_setup,
+  rt_test_008_006_teardown,
+  rt_test_008_006_execute
+};
+#endif /* CH_CFG_USE_MUTEXES_RECURSIVE == FALSE */
+
+#if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_008_007 [8.7] Repeated locks using, recursive scenario
+ *
+ * <h2>Description</h2>
+ * The behavior of multiple mutex locks from the same thread is tested
+ * when recursion is enabled.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_USE_MUTEXES_RECURSIVE == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [8.7.1] Getting current thread priority for later checks.
+ * - [8.7.2] Locking the mutex first time, it must be possible because
+ *   it is not owned.
+ * - [8.7.3] Locking the mutex second time, it must be possible because
+ *   it is recursive.
+ * - [8.7.4] Unlocking the mutex then it must be still owned because
+ *   recursivity.
+ * - [8.7.5] Unlocking the mutex then it must not be owned anymore and
+ *   the queue must be empty.
+ * - [8.7.6] Testing that priority has not changed after operations.
+ * - [8.7.7] Testing consecutive chMtxTryLock()/chMtxTryLockS() calls
+ *   and a final chMtxUnlockAllS().
+ * - [8.7.8] Testing consecutive chMtxLock()/chMtxLockS() calls and a
+ *   final chMtxUnlockAll().
+ * - [8.7.9] Testing that priority has not changed after operations.
+ * .
+ */
+
+static void rt_test_008_007_setup(void) {
+  chMtxObjectInit(&m1);
+}
+
+static void rt_test_008_007_teardown(void) {
+  chMtxObjectDispose(&m1);
+}
+
+static void rt_test_008_007_execute(void) {
+  bool b;
+  tprio_t prio;
+
+  /* [8.7.1] Getting current thread priority for later checks.*/
+  test_set_step(1);
+  {
+    prio = chThdGetPriorityX();
+  }
+  test_end_step(1);
+
+  /* [8.7.2] Locking the mutex first time, it must be possible because
+     it is not owned.*/
+  test_set_step(2);
+  {
+    b = chMtxTryLock(&m1);
+    test_assert(b, "already locked");
+  }
+  test_end_step(2);
+
+  /* [8.7.3] Locking the mutex second time, it must be possible because
      it is recursive.*/
   test_set_step(3);
   {
@@ -755,7 +910,7 @@ static void rt_test_008_006_execute(void) {
   }
   test_end_step(3);
 
-  /* [8.6.4] Unlocking the mutex then it must be still owned because
+  /* [8.7.4] Unlocking the mutex then it must be still owned because
      recursivity.*/
   test_set_step(4);
   {
@@ -764,7 +919,7 @@ static void rt_test_008_006_execute(void) {
   }
   test_end_step(4);
 
-  /* [8.6.5] Unlocking the mutex then it must not be owned anymore and
+  /* [8.7.5] Unlocking the mutex then it must not be owned anymore and
      the queue must be empty.*/
   test_set_step(5);
   {
@@ -774,14 +929,14 @@ static void rt_test_008_006_execute(void) {
   }
   test_end_step(5);
 
-  /* [8.6.6] Testing that priority has not changed after operations.*/
+  /* [8.7.6] Testing that priority has not changed after operations.*/
   test_set_step(6);
   {
     test_assert(chThdGetPriorityX() == prio, "wrong priority level");
   }
   test_end_step(6);
 
-  /* [8.6.7] Testing consecutive chMtxTryLock()/chMtxTryLockS() calls
+  /* [8.7.7] Testing consecutive chMtxTryLock()/chMtxTryLockS() calls
      and a final chMtxUnlockAllS().*/
   test_set_step(7);
   {
@@ -801,7 +956,7 @@ static void rt_test_008_006_execute(void) {
   }
   test_end_step(7);
 
-  /* [8.6.8] Testing consecutive chMtxLock()/chMtxLockS() calls and a
+  /* [8.7.8] Testing consecutive chMtxLock()/chMtxLockS() calls and a
      final chMtxUnlockAll().*/
   test_set_step(8);
   {
@@ -819,7 +974,7 @@ static void rt_test_008_006_execute(void) {
   }
   test_end_step(8);
 
-  /* [8.6.9] Testing that priority has not changed after operations.*/
+  /* [8.7.9] Testing that priority has not changed after operations.*/
   test_set_step(9);
   {
     test_assert(chThdGetPriorityX() == prio, "wrong priority level");
@@ -827,17 +982,17 @@ static void rt_test_008_006_execute(void) {
   test_end_step(9);
 }
 
-static const testcase_t rt_test_008_006 = {
+static const testcase_t rt_test_008_007 = {
   "Repeated locks using, recursive scenario",
-  rt_test_008_006_setup,
-  NULL,
-  rt_test_008_006_execute
+  rt_test_008_007_setup,
+  rt_test_008_007_teardown,
+  rt_test_008_007_execute
 };
 #endif /* CH_CFG_USE_MUTEXES_RECURSIVE == TRUE */
 
 #if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
 /**
- * @page rt_test_008_007 [8.7] Condition Variable signal test
+ * @page rt_test_008_008 [8.8] Condition Variable signal test
  *
  * <h2>Description</h2>
  * Five threads take a mutex and then enter a conditional variable
@@ -853,22 +1008,27 @@ static const testcase_t rt_test_008_006 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [8.7.1] Starting the five threads with increasing priority, the
+ * - [8.8.1] Starting the five threads with increasing priority, the
  *   threads will queue on the condition variable.
- * - [8.7.2] Atomically signaling the condition variable five times
+ * - [8.8.2] Atomically signaling the condition variable five times
  *   then waiting for the threads to terminate in priority order, the
  *   order is tested.
  * .
  */
 
-static void rt_test_008_007_setup(void) {
+static void rt_test_008_008_setup(void) {
   chCondObjectInit(&c1);
   chMtxObjectInit(&m1);
 }
 
-static void rt_test_008_007_execute(void) {
+static void rt_test_008_008_teardown(void) {
+  chCondObjectDispose(&c1);
+  chMtxObjectDispose(&m1);
+}
 
-  /* [8.7.1] Starting the five threads with increasing priority, the
+static void rt_test_008_008_execute(void) {
+
+  /* [8.8.1] Starting the five threads with increasing priority, the
      threads will queue on the condition variable.*/
   test_set_step(1);
   {
@@ -881,7 +1041,7 @@ static void rt_test_008_007_execute(void) {
   }
   test_end_step(1);
 
-  /* [8.7.2] Atomically signaling the condition variable five times
+  /* [8.8.2] Atomically signaling the condition variable five times
      then waiting for the threads to terminate in priority order, the
      order is tested.*/
   test_set_step(2);
@@ -900,17 +1060,17 @@ static void rt_test_008_007_execute(void) {
   test_end_step(2);
 }
 
-static const testcase_t rt_test_008_007 = {
+static const testcase_t rt_test_008_008 = {
   "Condition Variable signal test",
-  rt_test_008_007_setup,
-  NULL,
-  rt_test_008_007_execute
+  rt_test_008_008_setup,
+  rt_test_008_008_teardown,
+  rt_test_008_008_execute
 };
 #endif /* CH_CFG_USE_CONDVARS == TRUE */
 
 #if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
 /**
- * @page rt_test_008_008 [8.8] Condition Variable broadcast test
+ * @page rt_test_008_009 [8.9] Condition Variable broadcast test
  *
  * <h2>Description</h2>
  * Five threads take a mutex and then enter a conditional variable
@@ -925,21 +1085,26 @@ static const testcase_t rt_test_008_007 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [8.8.1] Starting the five threads with increasing priority, the
+ * - [8.9.1] Starting the five threads with increasing priority, the
  *   threads will queue on the condition variable.
- * - [8.8.2] Broarcasting on the condition variable then waiting for
+ * - [8.9.2] Broarcasting on the condition variable then waiting for
  *   the threads to terminate in priority order, the order is tested.
  * .
  */
 
-static void rt_test_008_008_setup(void) {
+static void rt_test_008_009_setup(void) {
   chCondObjectInit(&c1);
   chMtxObjectInit(&m1);
 }
 
-static void rt_test_008_008_execute(void) {
+static void rt_test_008_009_teardown(void) {
+  chCondObjectDispose(&c1);
+  chMtxObjectDispose(&m1);
+}
 
-  /* [8.8.1] Starting the five threads with increasing priority, the
+static void rt_test_008_009_execute(void) {
+
+  /* [8.9.1] Starting the five threads with increasing priority, the
      threads will queue on the condition variable.*/
   test_set_step(1);
   {
@@ -952,7 +1117,7 @@ static void rt_test_008_008_execute(void) {
   }
   test_end_step(1);
 
-  /* [8.8.2] Broarcasting on the condition variable then waiting for
+  /* [8.9.2] Broarcasting on the condition variable then waiting for
      the threads to terminate in priority order, the order is tested.*/
   test_set_step(2);
   {
@@ -963,17 +1128,17 @@ static void rt_test_008_008_execute(void) {
   test_end_step(2);
 }
 
-static const testcase_t rt_test_008_008 = {
+static const testcase_t rt_test_008_009 = {
   "Condition Variable broadcast test",
-  rt_test_008_008_setup,
-  NULL,
-  rt_test_008_008_execute
+  rt_test_008_009_setup,
+  rt_test_008_009_teardown,
+  rt_test_008_009_execute
 };
 #endif /* CH_CFG_USE_CONDVARS == TRUE */
 
 #if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
 /**
- * @page rt_test_008_009 [8.9] Condition Variable priority boost test
+ * @page rt_test_008_010 [8.10] Condition Variable priority boost test
  *
  * <h2>Description</h2>
  * This test case verifies the priority boost of a thread waiting on a
@@ -990,38 +1155,44 @@ static const testcase_t rt_test_008_008 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [8.9.1] Reading current base priority.
- * - [8.9.2] Thread A is created at priority P(+1), it locks M2, locks
+ * - [8.10.1] Reading current base priority.
+ * - [8.10.2] Thread A is created at priority P(+1), it locks M2, locks
  *   M1 and goes to wait on C1.
- * - [8.9.3] Thread C is created at priority P(+2), it enqueues on M1
+ * - [8.10.3] Thread C is created at priority P(+2), it enqueues on M1
  *   and boosts TA priority at P(+2).
- * - [8.9.4] Thread B is created at priority P(+3), it enqueues on M2
+ * - [8.10.4] Thread B is created at priority P(+3), it enqueues on M2
  *   and boosts TA priority at P(+3).
- * - [8.9.5] Signaling C1: TA wakes up, unlocks M1 and priority goes to
- *   P(+2). TB locks M1, unlocks M1 and completes. TA unlocks M2 and
+ * - [8.10.5] Signaling C1: TA wakes up, unlocks M1 and priority goes
+ *   to P(+2). TB locks M1, unlocks M1 and completes. TA unlocks M2 and
  *   priority goes to P(+1). TC waits on C1. TA completes.
- * - [8.9.6] Signaling C1: TC wakes up, unlocks M1 and completes.
- * - [8.9.7] Checking the order of operations.
+ * - [8.10.6] Signaling C1: TC wakes up, unlocks M1 and completes.
+ * - [8.10.7] Checking the order of operations.
  * .
  */
 
-static void rt_test_008_009_setup(void) {
+static void rt_test_008_010_setup(void) {
   chCondObjectInit(&c1);
   chMtxObjectInit(&m1);
   chMtxObjectInit(&m2);
 }
 
-static void rt_test_008_009_execute(void) {
+static void rt_test_008_010_teardown(void) {
+  chCondObjectDispose(&c1);
+  chMtxObjectDispose(&m1);
+  chMtxObjectDispose(&m2);
+}
+
+static void rt_test_008_010_execute(void) {
   tprio_t prio;
 
-  /* [8.9.1] Reading current base priority.*/
+  /* [8.10.1] Reading current base priority.*/
   test_set_step(1);
   {
     prio = chThdGetPriorityX();
   }
   test_end_step(1);
 
-  /* [8.9.2] Thread A is created at priority P(+1), it locks M2, locks
+  /* [8.10.2] Thread A is created at priority P(+1), it locks M2, locks
      M1 and goes to wait on C1.*/
   test_set_step(2);
   {
@@ -1029,7 +1200,7 @@ static void rt_test_008_009_execute(void) {
   }
   test_end_step(2);
 
-  /* [8.9.3] Thread C is created at priority P(+2), it enqueues on M1
+  /* [8.10.3] Thread C is created at priority P(+2), it enqueues on M1
      and boosts TA priority at P(+2).*/
   test_set_step(3);
   {
@@ -1037,7 +1208,7 @@ static void rt_test_008_009_execute(void) {
   }
   test_end_step(3);
 
-  /* [8.9.4] Thread B is created at priority P(+3), it enqueues on M2
+  /* [8.10.4] Thread B is created at priority P(+3), it enqueues on M2
      and boosts TA priority at P(+3).*/
   test_set_step(4);
   {
@@ -1045,8 +1216,8 @@ static void rt_test_008_009_execute(void) {
   }
   test_end_step(4);
 
-  /* [8.9.5] Signaling C1: TA wakes up, unlocks M1 and priority goes to
-     P(+2). TB locks M1, unlocks M1 and completes. TA unlocks M2 and
+  /* [8.10.5] Signaling C1: TA wakes up, unlocks M1 and priority goes
+     to P(+2). TB locks M1, unlocks M1 and completes. TA unlocks M2 and
      priority goes to P(+1). TC waits on C1. TA completes.*/
   test_set_step(5);
   {
@@ -1054,14 +1225,14 @@ static void rt_test_008_009_execute(void) {
   }
   test_end_step(5);
 
-  /* [8.9.6] Signaling C1: TC wakes up, unlocks M1 and completes.*/
+  /* [8.10.6] Signaling C1: TC wakes up, unlocks M1 and completes.*/
   test_set_step(6);
   {
     chCondSignal(&c1);
   }
   test_end_step(6);
 
-  /* [8.9.7] Checking the order of operations.*/
+  /* [8.10.7] Checking the order of operations.*/
   test_set_step(7);
   {
     test_wait_threads();
@@ -1070,11 +1241,11 @@ static void rt_test_008_009_execute(void) {
   test_end_step(7);
 }
 
-static const testcase_t rt_test_008_009 = {
+static const testcase_t rt_test_008_010 = {
   "Condition Variable priority boost test",
-  rt_test_008_009_setup,
-  NULL,
-  rt_test_008_009_execute
+  rt_test_008_010_setup,
+  rt_test_008_010_teardown,
+  rt_test_008_010_execute
 };
 #endif /* CH_CFG_USE_CONDVARS == TRUE */
 
@@ -1094,13 +1265,11 @@ const testcase_t * const rt_test_sequence_008_array[] = {
   &rt_test_008_003,
 #endif
   &rt_test_008_004,
-#if (CH_CFG_USE_MUTEXES_RECURSIVE == FALSE) || defined(__DOXYGEN__)
   &rt_test_008_005,
-#endif
-#if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MUTEXES_RECURSIVE == FALSE) || defined(__DOXYGEN__)
   &rt_test_008_006,
 #endif
-#if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
   &rt_test_008_007,
 #endif
 #if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
@@ -1108,6 +1277,9 @@ const testcase_t * const rt_test_sequence_008_array[] = {
 #endif
 #if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
   &rt_test_008_009,
+#endif
+#if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
+  &rt_test_008_010,
 #endif
   NULL
 };

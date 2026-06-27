@@ -1903,7 +1903,8 @@ int32 OS_TaskDelete(uint32 task_id) {
   funcptr_t fp;
 
   /* Check for thread validity, getting a reference.*/
-  if (chRegFindThreadByPointer(tp) == NULL) {
+  tp = chRegFindThreadByPointer(tp);
+  if (tp == NULL) {
     return OS_ERR_INVALID_ID;
   }
 
@@ -1947,7 +1948,8 @@ int32 OS_TaskWait(uint32 task_id) {
   thread_t *tp = (thread_t *)task_id;
 
   /* Check for thread validity, getting a reference.*/
-  if (chRegFindThreadByPointer(tp) == NULL) {
+  tp = chRegFindThreadByPointer(tp);
+  if (tp == NULL) {
     return OS_ERR_INVALID_ID;
   }
 
@@ -2001,7 +2003,8 @@ int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority) {
   }
 
   /* Check for thread validity.*/
-  if (chRegFindThreadByPointer(tp) == NULL) {
+  tp = chRegFindThreadByPointer(tp);
+  if (tp == NULL) {
     return OS_ERR_INVALID_ID;
   }
 
@@ -2126,7 +2129,7 @@ int32 OS_TaskGetIdByName(uint32 *task_id, const char *task_name) {
  */
 int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop) {
   thread_t *tp = (thread_t *)task_id;
-  size_t wasize = (size_t)tp - (size_t)tp->wabase + sizeof (thread_t);
+  size_t wasize;
 
   /* NULL pointer checks.*/
   if (task_prop == NULL) {
@@ -2134,9 +2137,12 @@ int32 OS_TaskGetInfo(uint32 task_id, OS_task_prop_t *task_prop) {
   }
 
   /* Check for thread validity.*/
-  if (chRegFindThreadByPointer(tp) == NULL) {
+  tp = chRegFindThreadByPointer(tp);
+  if (tp == NULL) {
     return OS_ERR_INVALID_ID;
   }
+
+  wasize = (size_t)tp - (size_t)tp->wabase + sizeof (thread_t);
 
   strncpy(task_prop->name, tp->name, OS_MAX_API_NAME - 1);
   task_prop->creator    = (uint32)chSysGetIdleThreadX();

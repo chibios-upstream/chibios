@@ -268,8 +268,8 @@ msg_t chCondWaitS(condition_variable_t *cp) {
  *          mutex, the mutex ownership is lost.
  *
  * @param[in] cp        pointer to a @p condition_variable_t object
- * @param[in] timeout   the number of ticks before the operation timeouts, the
- *                      special values are handled as follow:
+ * @param[in] timeout   the number of ticks before the operation times out, the
+ *                      special values are handled as follows:
  *                      - @a TIME_INFINITE no timeout.
  *                      - @a TIME_IMMEDIATE this value is not allowed.
  * @return              A message specifying how the invoking thread has been
@@ -305,8 +305,8 @@ msg_t chCondWaitTimeout(condition_variable_t *cp, sysinterval_t timeout) {
  *          mutex, the mutex ownership is lost.
  *
  * @param[in] cp        pointer to a @p condition_variable_t object
- * @param[in] timeout   the number of ticks before the operation timeouts, the
- *                      special values are handled as follow:
+ * @param[in] timeout   the number of ticks before the operation times out, the
+ *                      special values are handled as follows:
  *                      - @a TIME_INFINITE no timeout.
  *                      - @a TIME_IMMEDIATE this value is not allowed.
  * @return              A message specifying how the invoking thread has been

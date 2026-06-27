@@ -164,7 +164,7 @@ static inline msg_t chBSemWaitS(binary_semaphore_t *bsp) {
  * @brief   Wait operation on the binary semaphore.
  *
  * @param[in] bsp       pointer to a @p binary_semaphore_t object
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -190,7 +190,7 @@ static inline msg_t chBSemWaitTimeoutS(binary_semaphore_t *bsp,
  * @brief   Wait operation on the binary semaphore.
  *
  * @param[in] bsp       pointer to a @p binary_semaphore_t object
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.

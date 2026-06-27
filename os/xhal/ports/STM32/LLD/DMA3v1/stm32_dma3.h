@@ -419,7 +419,7 @@ extern const stm32_dma3_channel_t __stm32_dma3_channels[STM32_DMA3_NUM_CHANNELS]
    the symbol needs to be aligned to a 64k boundary and marks the base of an
    area where all symbols with names starting with __dma3_ are collected.
    On devices with data cache this area shall be placed at beginning of a
-   non-cachable area.*/
+   non-cacheable area.*/
 extern uint32_t __dma3_base__;
 
 #ifdef __cplusplus

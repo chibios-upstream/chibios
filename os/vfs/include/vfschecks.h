@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    vfs/include/vfschchecks.h
+ * @file    vfs/include/vfschecks.h
  * @brief   Configuration file checks header.
  *
  * @addtogroup VFS_CHECKS

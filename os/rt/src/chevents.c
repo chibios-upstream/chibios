@@ -46,9 +46,8 @@
  *          a thread or an interrupt service routine. Broadcasting an Event
  *          Source has the effect that all the threads registered on the
  *          Event Source will be signaled with an events mask.<br>
- *          An unlimited number of Event Sources can exists in a system and
- *          each thread can be listening on an unlimited number of
- *          them.
+ *          An unlimited number of Event Sources can exist in a system and
+ *          each thread can listen on an unlimited number of them.
  * @pre     In order to use the Events APIs the @p CH_CFG_USE_EVENTS option
  *          must be enabled in @p chconf.h.
  * @post    Enabling events requires 1-4 (depending on the architecture)
@@ -560,7 +559,7 @@ eventmask_t chEvtWaitAll(eventmask_t events) {
  *
  * @param[in] events    events that the function should wait
  *                      for, @p ALL_EVENTS enables all the events
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -602,7 +601,7 @@ eventmask_t chEvtWaitOneTimeout(eventmask_t events, sysinterval_t timeout) {
  *
  * @param[in] events    events that the function should wait
  *                      for, @p ALL_EVENTS enables all the events
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -642,7 +641,7 @@ eventmask_t chEvtWaitAnyTimeout(eventmask_t events, sysinterval_t timeout) {
  *
  * @param[in] events    events that the function should wait
  *                      for, @p ALL_EVENTS requires all the events
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.

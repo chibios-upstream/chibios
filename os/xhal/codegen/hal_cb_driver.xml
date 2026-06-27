@@ -173,7 +173,7 @@ return self->cb;]]></implementation>
               <details><![CDATA[The @p HAL_DRV_STATE_HALF state is used by
                 those drivers triggering multiple callbacks for a single
                 asynchronous operation, it marks the filling of the first
-                half of the tranfer buffer.]]></details>
+                half of the transfer buffer.]]></details>
               <note><![CDATA[This function is meant to be called exclusively
                 from the driver callback.]]></note>
               <return>The check result.</return>
@@ -189,7 +189,7 @@ return (bool)(self->state == HAL_DRV_STATE_HALF);]]></implementation>
               <details><![CDATA[The @p HAL_DRV_STATE_COMPLETE state is used by
                 those drivers triggering multiple callbacks for a single
                 asynchronous operation, it marks the complete filling of the
-                tranfer buffer.]]></details>
+                transfer buffer.]]></details>
               <note><![CDATA[This function is meant to be called exclusively
                 from the driver callback.]]></note>
               <return>The check result.</return>

@@ -23,7 +23,7 @@
  * @addtogroup kernel_info
  * @details This header includes all the required kernel headers so it is the
  *          only kernel header you usually want to include in your application.
- * @details Kernel related info.
+ * @details Kernel-related info.
  * @{
  */
 

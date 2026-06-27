@@ -64,6 +64,12 @@
 #include "stm32_exti19.inc"
 #include "stm32_exti20_21.inc"
 
+#include "stm32_i2c1.inc"
+#include "stm32_i2c2.inc"
+#include "stm32_i2c3.inc"
+#include "stm32_i2c4.inc"
+#include "stm32_i2c5.inc"
+
 #include "stm32_usart1.inc"
 #include "stm32_usart2.inc"
 #include "stm32_usart3.inc"
@@ -119,6 +125,12 @@ void irqInit(void) {
   exti19_irq_init();
   exti20_exti21_irq_init();
 
+  i2c1_irq_init();
+  i2c2_irq_init();
+  i2c3_irq_init();
+  i2c4_irq_init();
+  i2c5_irq_init();
+
   tim1_irq_init();
   tim2_irq_init();
   tim3_irq_init();
@@ -170,6 +182,12 @@ void irqDeinit(void) {
   exti18_irq_deinit();
   exti19_irq_deinit();
   exti20_exti21_irq_deinit();
+
+  i2c1_irq_deinit();
+  i2c2_irq_deinit();
+  i2c3_irq_deinit();
+  i2c4_irq_deinit();
+  i2c5_irq_deinit();
 
   tim1_irq_deinit();
   tim2_irq_deinit();

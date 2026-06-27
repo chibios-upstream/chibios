@@ -740,7 +740,7 @@ return events;]]></implementation>
                 </retval>
                 <retval value="MSG_TIMEOUT">If synchronization timed out.
                 </retval>
-                <retval value="MSG_RESET">It the driver has been stopped
+                <retval value="MSG_RESET">If the driver has been stopped
                   while
                   waiting.
                 </retval>
@@ -793,7 +793,7 @@ return msg;]]></implementation>
                 </retval>
                 <retval value="MSG_TIMEOUT">If synchronization timed out.
                 </retval>
-                <retval value="MSG_RESET">It the driver has been stopped
+                <retval value="MSG_RESET">If the driver has been stopped
                   while
                   waiting.
                 </retval>
@@ -850,7 +850,7 @@ return msg;]]></implementation>
                 </retval>
                 <retval value="MSG_TIMEOUT">If synchronization timed out.
                 </retval>
-                <retval value="MSG_RESET">It the driver has been stopped
+                <retval value="MSG_RESET">If the driver has been stopped
                   while
                   waiting.
                 </retval>
@@ -894,7 +894,7 @@ return msg;]]></implementation>
                 </retval>
                 <retval value="MSG_TIMEOUT">If synchronization timed out.
                 </retval>
-                <retval value="MSG_RESET">It the driver has been stopped
+                <retval value="MSG_RESET">If the driver has been stopped
                   while
                   waiting.
                 </retval>
@@ -980,7 +980,8 @@ return (const void *)sio_lld_selcfg(self, cfgnum);]]></implementation>
         </methods>
       </class>
       <class name="hal_buffered_sio" type="regular" namespace="bsio"
-        descr="buffered SIO wrapper" ancestorname="hal_base_driver">
+        descr="buffered SIO wrapper" ancestorname="hal_base_driver"
+        check="SIO_USE_BUFFERING == TRUE">
         <brief>This class implements a buffered channel interface on top of SIO.</brief>
         <implements>
           <if name="asynchronous_channel">
@@ -1104,36 +1105,6 @@ self->siop = siop;]]></implementation>
             <implementation><![CDATA[
 __drv_dispose_impl(self);]]></implementation>
           </dispose>
-          <override>
-            <method shortname="start">
-              <implementation><![CDATA[
-msg_t msg;
-
-/* Starting the undelying SIO driver.*/
-msg = drvStart(self->siop, config);
-if (msg == HAL_RET_SUCCESS) {
-  self->config = self->siop->config;
-  drvSetArgumentX(self->siop, self);
-  drvSetCallbackX(self->siop, &__bsio_default_cb);
-  sioWriteEnableFlagsX(self->siop,
-                       SIO_EV_ALL_ERRORS | SIO_EV_RX_NOTEMPTY |
-                       SIO_EV_RX_IDLE);
-}
-
-return msg;]]></implementation>
-            </method>
-            <method shortname="stop">
-              <implementation><![CDATA[
-
-drvStop(self->siop);]]></implementation>
-            </method>
-            <method shortname="setcfg">
-              <implementation><![CDATA[
-
-/* Configuring the underlying SIO driver.*/
-return __sio_setcfg_impl(self->siop, config);]]></implementation>
-            </method>
-          </override>
           <regular>
             <method name="bsIncomingDataI" ctype="void">
               <brief>Handles incoming data.</brief>
@@ -1196,6 +1167,36 @@ return b;]]></implementation>
 osalEventBroadcastFlagsI(&self->event, flags);]]></implementation>
             </method>
           </inline>
+          <override>
+            <method shortname="start">
+              <implementation><![CDATA[
+msg_t msg;
+
+/* Starting the underlying SIO driver.*/
+msg = drvStart(self->siop, config);
+if (msg == HAL_RET_SUCCESS) {
+  self->config = self->siop->config;
+  drvSetArgumentX(self->siop, self);
+  drvSetCallbackX(self->siop, &__bsio_default_cb);
+  sioWriteEnableFlagsX(self->siop,
+                       SIO_EV_ALL_ERRORS | SIO_EV_RX_NOTEMPTY |
+                       SIO_EV_RX_IDLE);
+}
+
+return msg;]]></implementation>
+            </method>
+            <method shortname="stop">
+              <implementation><![CDATA[
+
+drvStop(self->siop);]]></implementation>
+            </method>
+            <method shortname="setcfg">
+              <implementation><![CDATA[
+
+/* Configuring the underlying SIO driver.*/
+return __sio_setcfg_impl(self->siop, config);]]></implementation>
+            </method>
+          </override>
         </methods>
       </class>
       

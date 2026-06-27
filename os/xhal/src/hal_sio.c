@@ -736,7 +736,7 @@ sioevents_t sioGetEvents(void *ip) {
  * @return                      The synchronization result.
  * @retval MSG_OK               If there is data in the RX FIFO.
  * @retval MSG_TIMEOUT          If synchronization timed out.
- * @retval MSG_RESET            It the driver has been stopped while waiting.
+ * @retval MSG_RESET            If the driver has been stopped while waiting.
  * @retval SIO_MSG_ERRORS       It RX errors occurred before or during wait.
  *
  * @api
@@ -783,7 +783,7 @@ msg_t sioSynchronizeRX(void *ip, sysinterval_t timeout) {
  * @return                      The synchronization result.
  * @retval MSG_OK               If there is data in the RX FIFO.
  * @retval MSG_TIMEOUT          If synchronization timed out.
- * @retval MSG_RESET            It the driver has been stopped while waiting.
+ * @retval MSG_RESET            If the driver has been stopped while waiting.
  * @retval SIO_MSG_ERRORS       It RX errors occurred before or during wait.
  *
  * @api
@@ -832,7 +832,7 @@ msg_t sioSynchronizeRXIdle(void *ip, sysinterval_t timeout) {
  * @return                      The synchronization result.
  * @retval MSG_OK               If there is space in the TX FIFO.
  * @retval MSG_TIMEOUT          If synchronization timed out.
- * @retval MSG_RESET            It the driver has been stopped while waiting.
+ * @retval MSG_RESET            If the driver has been stopped while waiting.
  *
  * @api
  */
@@ -872,7 +872,7 @@ msg_t sioSynchronizeTX(void *ip, sysinterval_t timeout) {
  * @return                      The synchronization result.
  * @retval MSG_OK               If there is space in the TX FIFO.
  * @retval MSG_TIMEOUT          If synchronization timed out.
- * @retval MSG_RESET            It the driver has been stopped while waiting.
+ * @retval MSG_RESET            If the driver has been stopped while waiting.
  *
  * @api
  */
@@ -907,6 +907,8 @@ msg_t sioSynchronizeTXEnd(void *ip, sysinterval_t timeout) {
 /*===========================================================================*/
 /* Module class "hal_buffered_sio_c" methods.                                */
 /*===========================================================================*/
+
+#if (SIO_USE_BUFFERING == TRUE) || defined (__DOXYGEN__)
 
 /**
  * @name        Interfaces implementation of hal_buffered_sio_c
@@ -1210,7 +1212,7 @@ msg_t __bsio_start_impl(void *ip, const void *config) {
   hal_buffered_sio_c *self = (hal_buffered_sio_c *)ip;
   msg_t msg;
 
-  /* Starting the undelying SIO driver.*/
+  /* Starting the underlying SIO driver.*/
   msg = drvStart(self->siop, config);
   if (msg == HAL_RET_SUCCESS) {
     self->config = self->siop->config;
@@ -1320,6 +1322,8 @@ msg_t bsRequestDataI(void *ip) {
   return b;
 }
 /** @} */
+
+#endif /* SIO_USE_BUFFERING == TRUE */
 
 #endif /* HAL_USE_SIO == TRUE */
 

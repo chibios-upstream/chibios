@@ -70,9 +70,29 @@
 #define WA_SIZE MEM_ALIGN_NEXT(THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE),	\
                                PORT_WORKING_AREA_ALIGN)
 
-extern uint8_t test_buffer[WA_SIZE * 5];
+typedef union {
+  uint8_t wa[WA_SIZE];
+  struct {
+    stkline_t stack[THD_STACK_SIZE(THREADS_STACK_SIZE) / sizeof (stkline_t)];
+    thread_t thread;
+  } instance;
+} test_thread_slot_t;
+
+#define TEST_THREAD_STACK_BASE(n) ((stkline_t *)(void *)                  \
+                                   test_thread_slots[n].instance.stack)
+#define TEST_THREAD_STACK_END(n)  (TEST_THREAD_STACK_BASE(n) +            \
+                                   (THD_STACK_SIZE(THREADS_STACK_SIZE) /   \
+                                    sizeof (stkline_t)))
+#define TEST_THREAD_OBJECT(n)     (&test_thread_slots[n].instance.thread)
+#define TEST_THREAD_WA_BASE(n)    ((stkline_t *)(void *)test_thread_slots[n].wa)
+#define TEST_THREAD_WA_END(n)     ((stkline_t *)(void *)                 \
+                                   (test_thread_slots[n].wa + WA_SIZE))
+#define TEST_SHARED_BUFFER        ((void *)test_thread_slots)
+#define TEST_SHARED_BUFFER_SIZE   sizeof test_thread_slots
+
+extern test_thread_slot_t test_thread_slots[MAX_THREADS];
 extern thread_t *threads[MAX_THREADS];
-extern void * ROMCONST wa[5];
+extern void * ROMCONST wa[MAX_THREADS];
 
 void test_print_port_info(void);
 void test_terminate_threads(void);
@@ -81,9 +101,11 @@ systime_t test_wait_tick(void);]]></value>
     </global_definitions>
     <global_code>
       <value><![CDATA[/*
- * Global test buffer holding 5 working areas.
+ * Shared thread storage, usable as legacy working areas or as stack/object
+ * pairs for descriptor-based thread creation.
  */
-ALIGNED_VAR(PORT_WORKING_AREA_ALIGN) uint8_t test_buffer[WA_SIZE * 5];
+ALIGNED_VAR(PORT_WORKING_AREA_ALIGN) test_thread_slot_t
+  test_thread_slots[MAX_THREADS];
 
 /*
  * Pointers to the spawned threads.
@@ -93,11 +115,11 @@ thread_t *threads[MAX_THREADS];
 /*
  * Pointers to the working areas.
  */
-void * ROMCONST wa[5] = {test_buffer + (WA_SIZE * 0),
-                         test_buffer + (WA_SIZE * 1),
-                         test_buffer + (WA_SIZE * 2),
-                         test_buffer + (WA_SIZE * 3),
-                         test_buffer + (WA_SIZE * 4)};
+void * ROMCONST wa[MAX_THREADS] = {(void *)test_thread_slots[0].wa,
+                                   (void *)test_thread_slots[1].wa,
+                                   (void *)test_thread_slots[2].wa,
+                                   (void *)test_thread_slots[3].wa,
+                                   (void *)test_thread_slots[4].wa};
 
 /*
  * Sets a termination request in all the test-spawned threads.
@@ -670,7 +692,11 @@ chSysEnable();]]></value>
         <value />
       </condition>
       <shared_code>
-        <value><![CDATA[#include "ch.h"]]></value>
+        <value><![CDATA[#include "ch.h"
+
+#if CH_CFG_USE_TM || defined(__DOXYGEN__)
+static time_measurement_t tm1, tm2;
+#endif]]></value>
       </shared_code>
       <cases>
         <case>
@@ -807,6 +833,92 @@ test_assert(b == false, "in range");
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Time Measurement functionality.</value>
+          </brief>
+          <description>
+            <value>The functionality of Time Measurement objects is
+              tested.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_TM == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chTMObjectInit(&tm1);
+chTMObjectInit(&tm2);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chTMObjectDispose(&tm1);
+chTMObjectDispose(&tm2);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[rtcnt_t first;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The initialized measurement objects are verified.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(tm1.best == (rtcnt_t)-1, "invalid best");
+test_assert(tm1.worst == (rtcnt_t)0, "invalid worst");
+test_assert(tm1.last == (rtcnt_t)0, "invalid last");
+test_assert(tm1.n == (ucnt_t)0, "invalid counter");
+test_assert(tm1.cumulative == (rttime_t)0, "invalid cumulative");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A measurement is performed and its result is verified.
+                </value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chTMStartMeasurementX(&tm1);
+chSysPolledDelayX((rtcnt_t)100);
+chTMStopMeasurementX(&tm1);
+
+test_assert(tm1.n == (ucnt_t)1, "invalid counter");
+test_assert(tm1.last > (rtcnt_t)0, "invalid last");
+test_assert(tm1.best == tm1.last, "invalid best");
+test_assert(tm1.worst == tm1.last, "invalid worst");
+test_assert(tm1.cumulative == (rttime_t)tm1.last, "invalid cumulative");
+first = tm1.last;]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The first measurement is chained to the second one
+                  and both objects are verified.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chTMChainMeasurementToX(&tm1, &tm2);
+chSysPolledDelayX((rtcnt_t)10);
+chTMStopMeasurementX(&tm2);
+
+test_assert(tm1.n == (ucnt_t)2, "invalid counter");
+test_assert(tm1.last > (rtcnt_t)0, "invalid last");
+test_assert(tm1.best <= tm1.worst, "invalid range");
+test_assert(tm1.cumulative >= (rttime_t)first, "invalid cumulative");
+test_assert(tm2.n == (ucnt_t)1, "invalid counter");
+test_assert(tm2.last > (rtcnt_t)0, "invalid last");
+test_assert(tm2.best == tm2.last, "invalid best");
+test_assert(tm2.worst == tm2.last, "invalid worst");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
     <sequence>
@@ -903,6 +1015,22 @@ do {
         <value><![CDATA[static THD_FUNCTION(thread, p) {
 
   test_emit_token(*(char *)p);
+}
+
+static void setup_thread_descriptor(thread_descriptor_t *tdp,
+                                    const char *name,
+                                    stkline_t *wbase,
+                                    stkline_t *wend,
+                                    tprio_t prio,
+                                    void *arg) {
+
+  tdp->name  = name;
+  tdp->wbase = wbase;
+  tdp->wend  = wend;
+  tdp->prio  = prio;
+  tdp->funcp = thread;
+  tdp->arg   = arg;
+  tdp->owner = NULL;
 }]]></value>
       </shared_code>
       <cases>
@@ -1010,6 +1138,22 @@ test_assert_time_window(chTimeAddX(time, TIME_S2I(1)),
 chThdSleepUntil(chTimeAddX(time, 100));
 test_assert_time_window(chTimeAddX(time, 100),
                         chTimeAddX(time, 100 + CH_CFG_ST_TIMEDELTA + 1),
+                        "out of time window");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Function chThdSleepUntilWindowed() is tested with
+                  an active time window.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[time = chVTGetSystemTimeX();
+time = chThdSleepUntilWindowed(time, chTimeAddX(time, 20));
+test_assert_time_window(time,
+                        chTimeAddX(time, CH_CFG_ST_TIMEDELTA + 1),
                         "out of time window");]]></value>
               </code>
             </step>
@@ -1237,6 +1381,318 @@ chSysUnlock();]]></value>
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Thread spawning from descriptors.</value>
+          </brief>
+          <description>
+            <value>The new descriptor-based spawning APIs are tested using
+              stack-only buffers and explicit thread objects.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[thread_descriptor_t td;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A suspended thread is spawned then started using
+                  normal APIs.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "spawn-suspended",
+                        TEST_THREAD_STACK_BASE(0), TEST_THREAD_STACK_END(0),
+                        chThdGetPriorityX() - 1, "A");
+threads[0] = chThdSpawnSuspended(TEST_THREAD_OBJECT(0), &td);
+test_assert(threads[0] == TEST_THREAD_OBJECT(0), "wrong thread object");
+test_assert(chThdGetWorkingAreaX(threads[0]) == TEST_THREAD_STACK_BASE(0),
+            "wrong stack base");
+chThdStart(threads[0]);
+test_wait_threads();
+test_assert_sequence("A", "invalid sequence");
+chThdObjectDispose(TEST_THREAD_OBJECT(0));]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A running thread is spawned using normal APIs.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "spawn-running",
+                        TEST_THREAD_STACK_BASE(1), TEST_THREAD_STACK_END(1),
+                        chThdGetPriorityX() - 1, "B");
+threads[1] = chThdSpawnRunning(TEST_THREAD_OBJECT(1), &td);
+test_assert(threads[1] == TEST_THREAD_OBJECT(1), "wrong thread object");
+test_wait_threads();
+test_assert_sequence("B", "invalid sequence");
+chThdObjectDispose(TEST_THREAD_OBJECT(1));]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A suspended thread is spawned then started using
+                  I-class APIs.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "spawn-suspended-i",
+                        TEST_THREAD_STACK_BASE(2), TEST_THREAD_STACK_END(2),
+                        chThdGetPriorityX() - 1, "C");
+chSysLock();
+threads[2] = chThdSpawnSuspendedI(TEST_THREAD_OBJECT(2), &td);
+chThdStartI(threads[2]);
+chSysUnlock();
+test_assert(threads[2] == TEST_THREAD_OBJECT(2), "wrong thread object");
+test_wait_threads();
+test_assert_sequence("C", "invalid sequence");
+chThdObjectDispose(TEST_THREAD_OBJECT(2));]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A running thread is spawned using I-class APIs.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "spawn-running-i",
+                        TEST_THREAD_STACK_BASE(3), TEST_THREAD_STACK_END(3),
+                        chThdGetPriorityX() - 1, "D");
+chSysLock();
+threads[3] = chThdSpawnRunningI(TEST_THREAD_OBJECT(3), &td);
+chSysUnlock();
+test_assert(threads[3] == TEST_THREAD_OBJECT(3), "wrong thread object");
+test_wait_threads();
+test_assert_sequence("D", "invalid sequence");
+chThdObjectDispose(TEST_THREAD_OBJECT(3));]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Thread creation from descriptors.</value>
+          </brief>
+          <description>
+            <value>The new descriptor-based thread creation APIs are tested
+              using full working areas.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[thread_descriptor_t td;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A suspended thread is created then started using
+                  normal APIs.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "create-suspended",
+                        TEST_THREAD_WA_BASE(0), TEST_THREAD_WA_END(0),
+                        chThdGetPriorityX() - 1, "E");
+threads[0] = chThdCreateSuspended(&td);
+test_assert(threads[0] != NULL, "thread creation failed");
+test_assert(chThdGetWorkingAreaX(threads[0]) == TEST_THREAD_WA_BASE(0),
+            "wrong working area");
+chThdStart(threads[0]);
+test_wait_threads();
+test_assert_sequence("E", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A running thread is created using normal APIs.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "create-running",
+                        TEST_THREAD_WA_BASE(0), TEST_THREAD_WA_END(0),
+                        chThdGetPriorityX() - 1, "F");
+threads[0] = chThdCreate(&td);
+test_assert(threads[0] != NULL, "thread creation failed");
+test_wait_threads();
+test_assert_sequence("F", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A suspended thread is created then started using
+                  I-class APIs.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "create-suspended-i",
+                        TEST_THREAD_WA_BASE(0), TEST_THREAD_WA_END(0),
+                        chThdGetPriorityX() - 1, "G");
+chSysLock();
+threads[0] = chThdCreateSuspendedI(&td);
+chThdStartI(threads[0]);
+chSysUnlock();
+test_assert(threads[0] != NULL, "thread creation failed");
+test_wait_threads();
+test_assert_sequence("G", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A running thread is created using I-class APIs.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "create-running-i",
+                        TEST_THREAD_WA_BASE(0), TEST_THREAD_WA_END(0),
+                        chThdGetPriorityX() - 1, "H");
+chSysLock();
+threads[0] = chThdCreateI(&td);
+chSysUnlock();
+test_assert(threads[0] != NULL, "thread creation failed");
+test_wait_threads();
+test_assert_sequence("H", "invalid sequence");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Threads registry functionality.</value>
+          </brief>
+          <description>
+            <value>The functionality of the threads registry APIs is tested
+              together with static threads creation.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_REGISTRY == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[thread_t *tp, *ntp;
+const char *oldname, *newname;
+bool found;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The current thread registry name is changed and then
+                  restored.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[tp = chThdGetSelfX();
+oldname = chRegGetThreadNameX(tp);
+newname = "registry-main";
+chRegSetThreadName(newname);
+test_assert(chRegGetThreadNameX(tp) == newname, "name not set");
+chRegSetThreadName(oldname);
+test_assert(chRegGetThreadNameX(tp) == oldname, "name not restored");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A static thread is created then retrieved by name,
+                  pointer and working area.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()-1, thread, "R");
+test_assert(threads[0] != NULL, "thread creation failed");
+chRegSetThreadNameX(threads[0], "registry-worker");
+
+tp = chThdAddRef(threads[0]);
+test_assert(tp == threads[0], "wrong referenced thread");
+chThdRelease(tp);
+
+tp = chRegFindThreadByName("registry-worker");
+test_assert(tp == threads[0], "not found by name");
+chThdRelease(tp);
+
+tp = chRegFindThreadByPointer(threads[0]);
+test_assert(tp == threads[0], "not found by pointer");
+chThdRelease(tp);
+
+tp = chRegFindThreadByWorkingArea(wa[0]);
+test_assert(tp == threads[0], "not found by working area");
+chThdRelease(tp);
+
+tp = chRegFindThreadByName("registry-missing");
+test_assert(tp == NULL, "unexpected thread found");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The registry is scanned forward until the end and
+                  the created thread is found in the scan.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[found = false;
+tp = chRegFirstThread();
+do {
+  if (tp == threads[0]) {
+    found = true;
+  }
+  ntp = chRegNextThread(tp);
+  tp = ntp;
+} while (tp != NULL);
+
+test_assert(found, "not found in registry scan");
+test_wait_threads();
+test_assert_sequence("R", "invalid sequence");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
     <sequence>
@@ -1255,12 +1711,39 @@ chSysUnlock();]]></value>
       </condition>
       <shared_code>
         <value><![CDATA[static thread_reference_t tr1;
+static threads_queue_t tq1;
+static msg_t qmsg1;
+static msg_t qmsg2;
 
 static THD_FUNCTION(thread1, p) {
 
   chSysLock();
   chThdResumeI(&tr1, MSG_OK);
   chSchRescheduleS();
+  chSysUnlock();
+  test_emit_token(*(char *)p);
+}
+
+static THD_FUNCTION(thread2, p) {
+
+  chSysLock();
+  chThdResumeS(&tr1, MSG_RESET);
+  chSysUnlock();
+  test_emit_token(*(char *)p);
+}
+
+static THD_FUNCTION(queue_thread1, p) {
+
+  chSysLock();
+  qmsg1 = chThdEnqueueTimeoutS(&tq1, TIME_INFINITE);
+  chSysUnlock();
+  test_emit_token(*(char *)p);
+}
+
+static THD_FUNCTION(queue_thread2, p) {
+
+  chSysLock();
+  qmsg2 = chThdEnqueueTimeoutS(&tq1, TIME_INFINITE);
   chSysUnlock();
   test_emit_token(*(char *)p);
 }]]></value>
@@ -1272,7 +1755,8 @@ static THD_FUNCTION(thread1, p) {
           </brief>
           <description>
             <value>The functionality of chThdSuspendTimeoutS() and
-              chThdResumeI() is tested.</value>
+              chThdSuspendS() are tested together with chThdResumeI()
+              and chThdResumeS().</value>
           </description>
           <condition>
             <value />
@@ -1282,7 +1766,7 @@ static THD_FUNCTION(thread1, p) {
               <value><![CDATA[tr1 = NULL;]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[test_wait_threads();]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[systime_t time;
@@ -1307,7 +1791,29 @@ msg = chThdSuspendTimeoutS(&tr1, TIME_INFINITE);
 chSysUnlock();
 test_assert(NULL == tr1, "not NULL");
 test_assert(MSG_OK == msg,"wrong returned message");
-test_wait_threads();]]></value>
+test_wait_threads();
+test_assert_sequence("A", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The function chThdSuspendS() is invoked, the thread
+                  is remotely resumed with message @p MSG_RESET using
+                  chThdResumeS(). On return the message and the state of
+                  the reference are tested.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()-1, thread2, "B");
+chSysLock();
+msg = chThdSuspendS(&tr1);
+chSysUnlock();
+test_assert(NULL == tr1, "not NULL");
+test_assert(MSG_RESET == msg, "wrong returned message");
+test_wait_threads();
+test_assert_sequence("B", "invalid sequence");]]></value>
               </code>
             </step>
             <step>
@@ -1330,6 +1836,120 @@ test_assert_time_window(chTimeAddX(time, TIME_MS2I(10)),
                         "out of time window");
 test_assert(NULL == tr1, "not NULL");
 test_assert(MSG_TIMEOUT == msg, "wrong returned message");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Threads queue object lifecycle.</value>
+          </brief>
+          <description>
+            <value>The lifecycle and normal wakeup operations of a threads
+              queue object are tested.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chThdQueueObjectInit(&tq1);
+qmsg1 = MSG_OK;
+qmsg2 = MSG_OK;]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();
+chThdQueueObjectDispose(&tq1);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[msg_t msg;
+bool empty;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A threads queue is initialized, tested as empty,
+                  then touched with empty dequeue operations.
+                </value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+empty = chThdQueueIsEmptyI(&tq1);
+chThdDequeueNextI(&tq1, MSG_OK);
+chThdDequeueAllI(&tq1, MSG_OK);
+chSysUnlock();
+test_assert(empty, "queue not empty");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Immediate timeout enqueue is tested on an empty
+                  queue.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+msg = chThdEnqueueTimeoutS(&tq1, TIME_IMMEDIATE);
+empty = chThdQueueIsEmptyI(&tq1);
+chSysUnlock();
+test_assert(msg == MSG_TIMEOUT, "wrong returned message");
+test_assert(empty, "queue not empty");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>One queued thread is resumed using
+                  chThdDequeueNextI().</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[qmsg1 = MSG_OK;
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX(),
+                               queue_thread1, "C");
+chThdYield();
+chSysLock();
+empty = chThdQueueIsEmptyI(&tq1);
+chThdDequeueNextI(&tq1, MSG_RESET);
+chSysUnlock();
+test_assert(!empty, "queue empty");
+test_wait_threads();
+test_assert(qmsg1 == MSG_RESET, "wrong returned message");
+test_assert_sequence("C", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Two queued threads are resumed using
+                  chThdDequeueAllI().</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[qmsg1 = MSG_OK;
+qmsg2 = MSG_OK;
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX(),
+                               queue_thread1, "D");
+threads[1] = chThdCreateStatic(wa[1], WA_SIZE, chThdGetPriorityX(),
+                               queue_thread2, "E");
+chThdYield();
+chSysLock();
+empty = chThdQueueIsEmptyI(&tq1);
+chThdDequeueAllI(&tq1, MSG_RESET);
+chSysUnlock();
+test_assert(!empty, "queue empty");
+test_wait_threads();
+test_assert(qmsg1 == MSG_RESET, "wrong returned message");
+test_assert(qmsg2 == MSG_RESET, "wrong returned message");
+test_assert_sequence("DE", "invalid sequence");]]></value>
               </code>
             </step>
           </steps>
@@ -1400,7 +2020,8 @@ static THD_FUNCTION(thread4, p) {
               <value><![CDATA[chSemObjectInit(&sem1, 1);]]></value>
             </setup_code>
             <teardown_code>
-              <value><![CDATA[chSemReset(&sem1, 0);]]></value>
+              <value><![CDATA[chSemReset(&sem1, 0);
+chSemObjectDispose(&sem1);]]></value>
             </teardown_code>
             <local_variables>
               <value />
@@ -1472,7 +2093,7 @@ test_assert_lock(chSemGetCounterI(&sem1) == 2, "wrong counter value");]]></value
               <value><![CDATA[chSemObjectInit(&sem1, 0);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chSemObjectDispose(&sem1);]]></value>
             </teardown_code>
             <local_variables>
               <value />
@@ -1540,7 +2161,7 @@ test_assert_sequence("ABCDE", "invalid sequence");
               <value><![CDATA[chSemObjectInit(&sem1, 0);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chSemObjectDispose(&sem1);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[unsigned i;
@@ -1620,7 +2241,7 @@ test_assert_time_window(target_time,
               <value><![CDATA[chSemObjectInit(&sem1, 0);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chSemObjectDispose(&sem1);]]></value>
             </teardown_code>
             <local_variables>
               <value />
@@ -1682,7 +2303,8 @@ test_assert_sequence("A", "invalid sequence");]]></value>
               <value><![CDATA[chSemObjectInit(&sem1, 0);]]></value>
             </setup_code>
             <teardown_code>
-              <value><![CDATA[test_wait_threads();]]></value>
+              <value><![CDATA[test_wait_threads();
+chSemObjectDispose(&sem1);]]></value>
             </teardown_code>
             <local_variables>
               <value />
@@ -2009,6 +2631,13 @@ static THD_FUNCTION(thread4B, p) {
   chSysUnlock();
 }
 
+static THD_FUNCTION(thread5, p) {
+
+  chMtxLock(&m2);
+  test_emit_token(*(char *)p);
+  chMtxUnlock(&m2);
+}
+
 #if CH_CFG_USE_CONDVARS || defined(__DOXYGEN__)
 static THD_FUNCTION(thread6, p) {
 
@@ -2060,7 +2689,7 @@ static THD_FUNCTION(thread9, p) {
               <value><![CDATA[chMtxObjectInit(&m1);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chMtxObjectDispose(&m1);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[tprio_t prio;]]></value>
@@ -2145,7 +2774,7 @@ test_assert_sequence("ABCDE", "invalid sequence");]]></value>
               <value><![CDATA[chMtxObjectInit(&m1);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chMtxObjectDispose(&m1);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[systime_t time;]]></value>
@@ -2219,7 +2848,8 @@ test_assert_sequence("ABC", "invalid sequence");]]></value>
 chMtxObjectInit(&m2); /* Mutex A.*/]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chMtxObjectDispose(&m1);
+chMtxObjectDispose(&m2);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[systime_t time;]]></value>
@@ -2297,7 +2927,9 @@ test_assert_sequence("ABCDE", "invalid sequence");]]></value>
 chMtxObjectInit(&m2);]]></value>
             </setup_code>
             <teardown_code>
-              <value><![CDATA[test_wait_threads();]]></value>
+              <value><![CDATA[test_wait_threads();
+chMtxObjectDispose(&m1);
+chMtxObjectDispose(&m2);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[tprio_t p, pa, pb;]]></value>
@@ -2422,6 +3054,139 @@ test_assert(chThdGetPriorityX() == p, "wrong priority level");]]></value>
         </case>
         <case>
           <brief>
+            <value>Contended mutex handoff variants.</value>
+          </brief>
+          <description>
+            <value>Contended mutex handoff is tested for chMtxUnlockS()
+              and chMtxUnlockAllS(). A same-priority waiter is also used
+              to exercise the lock path without priority inheritance
+              boosting.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chMtxObjectInit(&m1);
+chMtxObjectInit(&m2);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();
+chMtxObjectDispose(&m1);
+chMtxObjectDispose(&m2);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[tprio_t prio;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Getting current thread priority for later checks.
+                </value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[prio = chThdGetPriorityX();]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A same-priority waiter is queued on the mutex,
+                  verifying that no priority boost is performed.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chMtxLock(&m1);
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio, thread1, "A");
+chThdYield();
+test_assert(chThdGetPriorityX() == prio, "wrong priority level");
+chMtxUnlock(&m1);
+test_wait_threads();
+test_assert_sequence("A", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A higher-priority waiter is handed the mutex by
+                  chMtxUnlockS().</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chMtxLock(&m1);
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1, thread1, "B");
+test_assert(chThdGetPriorityX() == prio + 1, "wrong priority level");
+
+chSysLock();
+chMtxUnlockS(&m1);
+chSchRescheduleS();
+chSysUnlock();
+
+test_wait_threads();
+test_assert(chThdGetPriorityX() == prio, "wrong priority level");
+test_assert_sequence("B", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A higher-priority waiter is handed the mutex by
+                  chMtxUnlockAllS().</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chMtxLock(&m1);
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1, thread1, "C");
+test_assert(chThdGetPriorityX() == prio + 1, "wrong priority level");
+
+chSysLock();
+chMtxUnlockAllS();
+chSysUnlock();
+
+test_wait_threads();
+test_assert(chThdGetPriorityX() == prio, "wrong priority level");
+test_assert_sequence("C", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Priority is recomputed while chMtxUnlockS()
+                  hands off a mutex and another owned mutex still has a
+                  waiter.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chMtxLock(&m2);
+chMtxLock(&m1);
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1, thread5, "E");
+threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2, thread1, "D");
+test_assert(chThdGetPriorityX() == prio + 2, "wrong priority level");
+
+chSysLock();
+chMtxUnlockS(&m1);
+chSchRescheduleS();
+chSysUnlock();
+
+test_assert(chThdGetPriorityX() == prio + 1, "wrong priority level");
+chMtxUnlock(&m2);
+test_wait_threads();
+test_assert(chThdGetPriorityX() == prio, "wrong priority level");
+test_assert_sequence("DE", "invalid sequence");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
             <value>Repeated locks, non recursive scenario.</value>
           </brief>
           <description>
@@ -2436,7 +3201,7 @@ test_assert(chThdGetPriorityX() == p, "wrong priority level");]]></value>
               <value><![CDATA[chMtxObjectInit(&m1);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chMtxObjectDispose(&m1);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[bool b;
@@ -2556,7 +3321,7 @@ test_assert(ch_queue_isempty(&m1.queue), "queue not empty");]]></value>
               <value><![CDATA[chMtxObjectInit(&m1);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chMtxObjectDispose(&m1);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[bool b;
@@ -2724,7 +3489,8 @@ test_assert(m1.cnt == 0, "invalid recursion counter");]]></value>
 chMtxObjectInit(&m1);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chCondObjectDispose(&c1);
+chMtxObjectDispose(&m1);]]></value>
             </teardown_code>
             <local_variables>
               <value />
@@ -2795,7 +3561,8 @@ test_assert_sequence("ABCDE", "invalid sequence");]]></value>
 chMtxObjectInit(&m1);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chCondObjectDispose(&c1);
+chMtxObjectDispose(&m1);]]></value>
             </teardown_code>
             <local_variables>
               <value />
@@ -2860,7 +3627,9 @@ chMtxObjectInit(&m1);
 chMtxObjectInit(&m2);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chCondObjectDispose(&c1);
+chMtxObjectDispose(&m1);
+chMtxObjectDispose(&m2);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[tprio_t prio;]]></value>
@@ -2979,6 +3748,21 @@ test_assert_sequence("ABC", "invalid sequence");]]></value>
   chMsgSend(p, 'B');
   chMsgSend(p, 'C');
   chMsgSend(p, 'D');
+}
+
+static THD_FUNCTION(msg_thread2, p) {
+  msg_t msg;
+
+  msg = chMsgSend(p, 'E');
+  test_emit_token(msg);
+}
+
+static THD_FUNCTION(msg_thread3, p) {
+  msg_t msg;
+
+  chThdSleepMilliseconds(50);
+  msg = chMsgSend(p, 'F');
+  test_emit_token(msg);
 }]]></value>
       </shared_code>
       <cases>
@@ -3040,6 +3824,192 @@ for (i = 0; i < 4; i++) {
 }
 test_wait_threads();
 test_assert_sequence("ABCD", "invalid sequence");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Messages polling.</value>
+          </brief>
+          <description>
+            <value>Polling for incoming messages is tested both in the
+              no-message case and in the pending-message case.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[thread_t *tp;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Polling without pending messages, NULL is
+                  expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[tp = chMsgPoll();
+test_assert(tp == NULL, "unexpected message");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Starting a sender thread, it will queue one
+                  message and wait for a reply.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX() + 1,
+                               msg_thread2, chThdGetSelfX());]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Polling with a pending message, the sender is
+                  expected and released with a reply.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[tp = chMsgPoll();
+test_assert(tp == threads[0], "wrong sender");
+msg = chMsgGet(tp);
+test_assert(msg == 'E', "wrong message");
+chMsgRelease(tp, 'e');
+test_wait_threads();
+test_assert_sequence("e", "invalid sequence");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Messages timeout.</value>
+          </brief>
+          <description>
+            <value>A message wait with timeout is tested when no sender
+              queues a message.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[thread_t *tp;
+systime_t target_time;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Waiting for a message with timeout, NULL is
+                  expected after the timeout expires.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[target_time = chTimeAddX(test_wait_tick(), TIME_MS2I(50));
+tp = chMsgWaitTimeout(TIME_MS2I(50));
+test_assert(tp == NULL, "unexpected message");
+test_assert_time_window(target_time,
+                        chTimeAddX(target_time, ALLOWED_DELAY),
+                        "out of time window");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Messages timeout success.</value>
+          </brief>
+          <description>
+            <value>A message wait with timeout is tested when a sender
+              queues a message before the timeout expires and when a
+              message is already pending.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[thread_t *tp;
+msg_t msg;
+systime_t target_time;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Starting a delayed sender thread then waiting for
+                  its message using a longer timeout.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[target_time = chTimeAddX(test_wait_tick(), TIME_MS2I(50));
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX() - 1,
+                               msg_thread3, chThdGetSelfX());
+tp = chMsgWaitTimeout(TIME_MS2I(500));
+test_assert(tp == threads[0], "wrong sender");
+test_assert_time_window(target_time,
+                        chTimeAddX(target_time, ALLOWED_DELAY),
+                        "out of time window");
+msg = chMsgGet(tp);
+test_assert(msg == 'F', "wrong message");
+chMsgRelease(tp, 'f');
+test_wait_threads();
+test_assert_sequence("f", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Starting a sender thread at higher priority makes
+                  the message pending before the timeout wait is
+                  invoked.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX() + 1,
+                               msg_thread2, chThdGetSelfX());
+tp = chMsgWaitTimeout(TIME_MS2I(500));
+test_assert(tp == threads[0], "wrong sender");
+msg = chMsgGet(tp);
+test_assert(msg == 'E', "wrong message");
+chMsgRelease(tp, 'e');
+test_wait_threads();
+test_assert_sequence("e", "invalid sequence");]]></value>
               </code>
             </step>
           </steps>
@@ -3202,6 +4172,129 @@ test_assert_lock(!chEvtIsListeningI(&es1), "stuck listener");]]></value>
               <code>
                 <value><![CDATA[chEvtDispatch(evhndl, 7);
 test_assert_sequence("ABC", "invalid sequence");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Event flags retrieval and pending waits.</value>
+          </brief>
+          <description>
+            <value>Listener flag retrieval and immediate completion of
+              pending event waits are tested.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_EVENTS_TIMEOUT == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chEvtGetAndClearEvents(ALL_EVENTS);
+chEvtObjectInit(&es1);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chEvtGetAndClearEvents(ALL_EVENTS);
+chEvtObjectDispose(&es1);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[eventflags_t f;
+eventmask_t m;
+event_listener_t el;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A listener is registered with a restricted flag
+                  mask.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chEvtRegisterMaskWithFlags(&es1, &el, 1, (eventflags_t)5);
+test_assert_lock(chEvtIsListeningI(&es1), "no listener");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Unwanted and wanted flags are broadcast, the
+                  listener flags and pending events are verified.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chEvtBroadcastFlags(&es1, (eventflags_t)2);
+f = chEvtGetAndClearFlags(&el);
+test_assert(f == (eventflags_t)0, "unexpected flags");
+m = chEvtGetAndClearEvents(ALL_EVENTS);
+test_assert(m == 0, "spurious event");
+
+chEvtBroadcastFlags(&es1, (eventflags_t)1);
+f = chEvtGetAndClearFlags(&el);
+test_assert(f == (eventflags_t)1, "wrong flags");
+m = chEvtWaitOne(ALL_EVENTS);
+test_assert(m == 1, "event flag error");
+m = chEvtGetAndClearEvents(ALL_EVENTS);
+test_assert(m == 0, "stuck event");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The I-class broadcast and flag retrieval paths are
+                  exercised.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+chEvtBroadcastFlagsI(&es1, (eventflags_t)4);
+f = chEvtGetAndClearFlagsI(&el);
+chSchRescheduleS();
+chSysUnlock();
+
+test_assert(f == (eventflags_t)4, "wrong flags");
+m = chEvtWaitOne(ALL_EVENTS);
+test_assert(m == 1, "event flag error");
+m = chEvtGetAndClearEvents(ALL_EVENTS);
+test_assert(m == 0, "stuck event");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Timeout-capable wait functions are invoked with
+                  already-pending events.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chEvtAddEvents(7);
+m = chEvtWaitOneTimeout(ALL_EVENTS, TIME_INFINITE);
+test_assert(m == 1, "single event error");
+m = chEvtWaitAnyTimeout(ALL_EVENTS, TIME_INFINITE);
+test_assert(m == 6, "unexpected pending bit");
+
+chEvtAddEvents(5);
+m = chEvtWaitAllTimeout(5, TIME_INFINITE);
+test_assert(m == 5, "event flags error");
+m = chEvtGetAndClearEvents(ALL_EVENTS);
+test_assert(m == 0, "stuck event");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The listener is unregistered, the Event Source
+                  must not have listeners.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chEvtUnregister(&es1, &el);
+test_assert_lock(!chEvtIsListeningI(&es1), "stuck listener");]]></value>
               </code>
             </step>
           </steps>
@@ -3561,7 +4654,8 @@ chEvtObjectInit(&es1);
 chEvtObjectInit(&es2);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chEvtObjectDispose(&es1);
+chEvtObjectDispose(&es2);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[eventmask_t m;
@@ -3680,10 +4774,11 @@ static THD_FUNCTION(dyn_thread1, p) {
           </condition>
           <various_code>
             <setup_code>
-              <value><![CDATA[chHeapObjectInit(&heap1, test_buffer, sizeof test_buffer);]]></value>
+              <value><![CDATA[chHeapObjectInit(&heap1, TEST_SHARED_BUFFER,
+                 TEST_SHARED_BUFFER_SIZE);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chHeapObjectDispose(&heap1);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[size_t n1, total1, largest1;
@@ -3810,7 +4905,7 @@ test_assert(largest1 == largest2, "largest fragment size changed");]]></value>
               <value><![CDATA[chPoolObjectInit(&mp1, THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE), NULL);]]></value>
             </setup_code>
             <teardown_code>
-              <value />
+              <value><![CDATA[chPoolObjectDispose(&mp1);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[unsigned i;
@@ -3903,6 +4998,124 @@ test_assert(chPoolAlloc(&mp1) == NULL, "pool list not empty");]]></value>
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Detached dynamic thread recovery.</value>
+          </brief>
+          <description>
+            <value>A dynamic thread allocated from a heap is detached while
+              still active. After termination its memory is recovered by a
+              registry scan.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_HEAP == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chHeapObjectInit(&heap1, TEST_SHARED_BUFFER,
+                 TEST_SHARED_BUFFER_SIZE);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[{
+  thread_t *tp, *ntp;
+
+  tp = chRegFirstThread();
+  do {
+    ntp = chRegNextThread(tp);
+    tp = ntp;
+  } while (tp != NULL);
+}
+chHeapObjectDispose(&heap1);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[size_t n1, total1, largest1;
+size_t n2, total2, largest2;
+size_t n3, total3, largest3;
+thread_t *tp, *ntp, *dtp;
+tprio_t prio;
+bool found;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Getting heap status and base priority before the
+                  test.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[prio = chThdGetPriorityX();
+n1 = chHeapStatus(&heap1, &total1, &largest1);
+test_assert(n1 == 1, "heap fragmented");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A dynamic thread is created from the heap then its
+                  initial reference is released before it can run.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[dtp = chThdCreateFromHeap(&heap1,
+                            THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE),
+                            "dyn-detached",
+                            prio-1, dyn_thread1, "D");
+test_assert(dtp != NULL, "thread creation failed");
+threads[0] = dtp;
+chThdRelease(dtp);
+threads[0] = NULL;]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The detached thread is allowed to terminate, it is
+                  expected to keep its heap allocation until the registry is
+                  scanned.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chThdSleepMilliseconds(50);
+test_assert_sequence("D", "invalid sequence");
+n2 = chHeapStatus(&heap1, &total2, &largest2);
+test_assert(total2 < total1, "memory already recovered");
+(void)n2;
+(void)largest2;]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The registry is scanned forward, the detached final
+                  thread is found and its memory is recovered.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[found = false;
+tp = chRegFirstThread();
+do {
+  if (tp == dtp) {
+    found = true;
+  }
+  ntp = chRegNextThread(tp);
+  tp = ntp;
+} while (tp != NULL);
+
+test_assert(found, "not found in registry scan");
+n3 = chHeapStatus(&heap1, &total3, &largest3);
+test_assert(n1 == n3, "fragmentation changed");
+test_assert(total1 == total3, "total free space changed");
+test_assert(largest1 == largest3, "largest fragment size changed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
     <sequence>
@@ -3937,6 +5150,17 @@ static void tmo(virtual_timer_t *vtp, void *param) {
 
   (void)vtp;
   (void)param;
+}
+
+static virtual_timer_t vt1, vt2;
+static volatile uint32_t vt_counter;
+
+static void vt_continuous_cb(virtual_timer_t *vtp, void *param) {
+
+  (void)vtp;
+  (void)param;
+
+  vt_counter++;
 }
 
 #if CH_CFG_USE_MESSAGES
@@ -4643,6 +5867,208 @@ test_println(" ctxswc/S");]]></value>
         </case>
         <case>
           <brief>
+            <value>Virtual Timer object lifecycle.</value>
+          </brief>
+          <description>
+            <value>Virtual timer objects are explicitly initialized, armed,
+              queried for remaining intervals, reset and disposed.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chVTObjectInit(&vt1);
+chVTObjectInit(&vt2);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chVTReset(&vt1);
+chVTReset(&vt2);
+chVTObjectDispose(&vt1);
+chVTObjectDispose(&vt2);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[sysinterval_t remaining;
+bool armed;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The initialized timer is verified to be disarmed.
+                </value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(chVTIsArmed(&vt1) == false, "timer armed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Two timers are armed, the second timer's remaining
+                  interval is queried, then both timers are reset.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+chVTDoSetI(&vt1, TIME_MS2I(100), tmo, NULL);
+chVTDoSetI(&vt2, TIME_MS2I(200), tmo, NULL);
+armed = chVTIsArmedI(&vt1) && chVTIsArmedI(&vt2);
+remaining = chVTGetRemainingIntervalI(&vt2);
+chVTDoResetI(&vt2);
+chVTDoResetI(&vt1);
+chSysUnlock();
+
+test_assert(armed, "timer not armed");
+test_assert(remaining > (sysinterval_t)0, "no remaining interval");
+test_assert(chVTIsArmed(&vt1) == false, "timer still armed");
+test_assert(chVTIsArmed(&vt2) == false, "timer still armed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Continuous Virtual Timer.</value>
+          </brief>
+          <description>
+            <value>A continuous virtual timer is armed, allowed to fire
+              multiple times, then reset and checked for inactivity.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chVTObjectInit(&vt2);
+vt_counter = 0;]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chVTReset(&vt2);
+chVTObjectDispose(&vt2);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[sysinterval_t remaining;
+uint32_t count;
+bool armed;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The continuous timer is armed and its remaining
+                  interval is queried.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+chVTDoSetContinuousI(&vt2, TIME_MS2I(10), vt_continuous_cb, NULL);
+armed = chVTIsArmedI(&vt2);
+remaining = chVTGetRemainingIntervalI(&vt2);
+chSysUnlock();
+
+test_assert(armed, "timer not armed");
+test_assert(remaining > (sysinterval_t)0, "no remaining interval");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The timer is allowed to reload and fire multiple
+                  times.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chThdSleepMilliseconds(50);
+count = vt_counter;
+test_assert(count >= 2U, "timer not reloaded");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The timer is reset and verified not to fire again.
+                </value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+chVTDoResetI(&vt2);
+armed = chVTIsArmedI(&vt2);
+chSysUnlock();
+
+test_assert(!armed, "timer still armed");
+count = vt_counter;
+chThdSleepMilliseconds(30);
+test_assert(vt_counter == count, "timer still running");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Timestamp reset.</value>
+          </brief>
+          <description>
+            <value>The timestamp counter is reset and verified to remain
+              usable and monotonic.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_TIMESTAMP == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[systimestamp_t stamp1, stamp2;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The timestamp counter is reset from system-locked
+                  context.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+chVTResetTimeStampI();
+stamp1 = chVTGetTimeStampI();
+chSysUnlock();]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A later timestamp is verified to be monotonic.
+                </value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chThdSleep(1);
+stamp2 = chVTGetTimeStamp();
+test_assert(stamp1 <= stamp2, "not monotonic");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
             <value>Virtual Timers set/reset performance.</value>
           </brief>
           <description>
@@ -4798,7 +6224,7 @@ test_println(" wait+signal/S");]]></value>
             </value>
           </description>
           <condition>
-            <value><![CDATA[CH_CFG_USE_MUTEXES ==TRUE]]></value>
+            <value><![CDATA[CH_CFG_USE_MUTEXES == TRUE]]></value>
           </condition>
           <various_code>
             <setup_code>

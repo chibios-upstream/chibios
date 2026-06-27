@@ -24,8 +24,8 @@
  * @details Core Memory Manager related APIs and services.
  *          <h2>Operation mode</h2>
  *          The core memory manager is a simplified allocator that only
- *          allows to allocate memory blocks without the possibility to
- *          free them.<br>
+ *          allows allocating memory blocks without the possibility of
+ *          freeing them.<br>
  *          This allocator is meant as a memory blocks provider for the
  *          other allocators such as:
  *          - C-Runtime allocator (through a compiler specific adapter module).

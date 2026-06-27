@@ -324,7 +324,7 @@ static inline drv_cb_t drvGetCallbackX(void *ip) {
  * @details     The @p HAL_DRV_STATE_HALF state is used by those drivers
  *              triggering multiple callbacks for a single asynchronous
  *              operation, it marks the filling of the first half of the
- *              tranfer buffer.
+ *              transfer buffer.
  * @note        This function is meant to be called exclusively from the driver
  *              callback.
  *
@@ -347,7 +347,8 @@ static inline bool drvStateIsHalfX(void *ip) {
  * @brief       Checks for @p HAL_DRV_STATE_COMPLETE state.
  * @details     The @p HAL_DRV_STATE_COMPLETE state is used by those drivers
  *              triggering multiple callbacks for a single asynchronous
- *              operation, it marks the complete filling of the tranfer buffer.
+ *              operation, it marks the complete filling of the transfer
+ *              buffer.
  * @note        This function is meant to be called exclusively from the driver
  *              callback.
  *

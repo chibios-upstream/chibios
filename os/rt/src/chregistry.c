@@ -97,11 +97,7 @@ ROMCONST chdebug_t ch_debug = {
 #endif
   .off_state                = (uint8_t)__CH_OFFSETOF(thread_t, state),
   .off_flags                = (uint8_t)__CH_OFFSETOF(thread_t, flags),
-#if CH_CFG_USE_DYNAMIC == TRUE
   .off_refs                 = (uint8_t)__CH_OFFSETOF(thread_t, refs),
-#else
-  .off_refs                 = (uint8_t)0,
-#endif
 #if CH_CFG_TIME_QUANTUM > 0
   .off_preempt              = (uint8_t)__CH_OFFSETOF(thread_t, ticks),
 #else
@@ -162,9 +158,9 @@ thread_t *chRegFirstThread(void) {
   chSysLock();
   p = (uint8_t *)REG_HEADER(currcore)->next;
   tp = __CH_OWNEROF(p, thread_t, rqueue);
-#if CH_CFG_USE_DYNAMIC == TRUE
+  chDbgAssert(tp->refs < (trefs_t)255, "too many references");
+
   tp->refs++;
-#endif
   chSysUnlock();
 
   return tp;
@@ -196,16 +192,12 @@ thread_t *chRegNextThread(thread_t *tp) {
     uint8_t *p = (uint8_t *)nqp;
     ntp = __CH_OWNEROF(p, thread_t, rqueue);
 
-#if CH_CFG_USE_DYNAMIC == TRUE
     chDbgAssert(ntp->refs < (trefs_t)255, "too many references");
 
     ntp->refs++;
-#endif
   }
   chSysUnlock();
-#if CH_CFG_USE_DYNAMIC == TRUE
   chThdRelease(tp);
-#endif
 
   return ntp;
 }

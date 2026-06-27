@@ -857,7 +857,7 @@ void chThdTerminate(thread_t *tp) {
  * @brief   Suspends the invoking thread for the specified time.
  *
  * @param[in] time      the delay in system ticks, the special values are
- *                      handled as follow:
+ *                      handled as follows:
  *                      - @a TIME_INFINITE the thread enters an infinite sleep
  *                        state.
  *                      - @a TIME_IMMEDIATE this value is not allowed.
@@ -942,7 +942,7 @@ void chThdYield(void) {
  *          context.
  *
  * @param[in] trp       a pointer to a thread reference object
- * @return              The wake up message.
+ * @return              The wakeup message.
  *
  * @sclass
  */
@@ -965,13 +965,13 @@ msg_t chThdSuspendS(thread_reference_t *trp) {
  *
  * @param[in] trp       a pointer to a thread reference object
  * @param[in] timeout   the timeout in system ticks, the special values are
- *                      handled as follow:
+ *                      handled as follows:
  *                      - @a TIME_INFINITE the thread enters an infinite sleep
  *                        state.
  *                      - @a TIME_IMMEDIATE the thread is not suspended and
  *                        the function returns @p MSG_TIMEOUT as if a timeout
  *                        occurred.
- * @return              The wake up message.
+ * @return              The wakeup message.
  * @retval MSG_TIMEOUT  if the operation timed out.
  *
  * @sclass
@@ -1099,11 +1099,11 @@ void chThdQueueObjectDispose(threads_queue_t *tqp) {
 /**
  * @brief   Enqueues the caller thread on a threads queue object.
  * @details The caller thread is enqueued and put to sleep until it is
- *          dequeued or the specified timeouts expires.
+ *          dequeued or the specified timeout expires.
  *
  * @param[in] tqp       pointer to a @p threads_queue_t object
  * @param[in] timeout   the timeout in system ticks, the special values are
- *                      handled as follow:
+ *                      handled as follows:
  *                      - @a TIME_INFINITE the thread enters an infinite sleep
  *                        state.
  *                      - @a TIME_IMMEDIATE the thread is not enqueued and

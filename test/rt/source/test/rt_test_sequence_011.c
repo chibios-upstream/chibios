@@ -38,6 +38,7 @@
  * <h2>Test Cases</h2>
  * - @subpage rt_test_011_001
  * - @subpage rt_test_011_002
+ * - @subpage rt_test_011_003
  * .
  */
 
@@ -92,7 +93,12 @@ static THD_FUNCTION(dyn_thread1, p) {
  */
 
 static void rt_test_011_001_setup(void) {
-  chHeapObjectInit(&heap1, test_buffer, sizeof test_buffer);
+  chHeapObjectInit(&heap1, TEST_SHARED_BUFFER,
+                   TEST_SHARED_BUFFER_SIZE);
+}
+
+static void rt_test_011_001_teardown(void) {
+  chHeapObjectDispose(&heap1);
 }
 
 static void rt_test_011_001_execute(void) {
@@ -171,7 +177,7 @@ static void rt_test_011_001_execute(void) {
 static const testcase_t rt_test_011_001 = {
   "Threads creation from Memory Heap",
   rt_test_011_001_setup,
-  NULL,
+  rt_test_011_001_teardown,
   rt_test_011_001_execute
 };
 #endif /* CH_CFG_USE_HEAP == TRUE */
@@ -204,6 +210,10 @@ static const testcase_t rt_test_011_001 = {
 
 static void rt_test_011_002_setup(void) {
   chPoolObjectInit(&mp1, THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE), NULL);
+}
+
+static void rt_test_011_002_teardown(void) {
+  chPoolObjectDispose(&mp1);
 }
 
 static void rt_test_011_002_execute(void) {
@@ -271,10 +281,132 @@ static void rt_test_011_002_execute(void) {
 static const testcase_t rt_test_011_002 = {
   "Threads creation from Memory Pool",
   rt_test_011_002_setup,
-  NULL,
+  rt_test_011_002_teardown,
   rt_test_011_002_execute
 };
 #endif /* CH_CFG_USE_MEMPOOLS == TRUE */
+
+#if (CH_CFG_USE_HEAP == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_011_003 [11.3] Detached dynamic thread recovery
+ *
+ * <h2>Description</h2>
+ * A dynamic thread allocated from a heap is detached while still
+ * active. After termination its memory is recovered by a registry
+ * scan.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_USE_HEAP == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [11.3.1] Getting heap status and base priority before the test.
+ * - [11.3.2] A dynamic thread is created from the heap then its
+ *   initial reference is released before it can run.
+ * - [11.3.3] The detached thread is allowed to terminate, it is
+ *   expected to keep its heap allocation until the registry is
+ *   scanned.
+ * - [11.3.4] The registry is scanned forward, the detached final
+ *   thread is found and its memory is recovered.
+ * .
+ */
+
+static void rt_test_011_003_setup(void) {
+  chHeapObjectInit(&heap1, TEST_SHARED_BUFFER,
+                   TEST_SHARED_BUFFER_SIZE);
+}
+
+static void rt_test_011_003_teardown(void) {
+  {
+    thread_t *tp, *ntp;
+
+    tp = chRegFirstThread();
+    do {
+      ntp = chRegNextThread(tp);
+      tp = ntp;
+    } while (tp != NULL);
+  }
+  chHeapObjectDispose(&heap1);
+}
+
+static void rt_test_011_003_execute(void) {
+  size_t n1, total1, largest1;
+  size_t n2, total2, largest2;
+  size_t n3, total3, largest3;
+  thread_t *tp, *ntp, *dtp;
+  tprio_t prio;
+  bool found;
+
+  /* [11.3.1] Getting heap status and base priority before the test.*/
+  test_set_step(1);
+  {
+    prio = chThdGetPriorityX();
+    n1 = chHeapStatus(&heap1, &total1, &largest1);
+    test_assert(n1 == 1, "heap fragmented");
+  }
+  test_end_step(1);
+
+  /* [11.3.2] A dynamic thread is created from the heap then its
+     initial reference is released before it can run.*/
+  test_set_step(2);
+  {
+    dtp = chThdCreateFromHeap(&heap1,
+                                THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE),
+                                "dyn-detached",
+                                prio-1, dyn_thread1, "D");
+    test_assert(dtp != NULL, "thread creation failed");
+    threads[0] = dtp;
+    chThdRelease(dtp);
+    threads[0] = NULL;
+  }
+  test_end_step(2);
+
+  /* [11.3.3] The detached thread is allowed to terminate, it is
+     expected to keep its heap allocation until the registry is
+     scanned.*/
+  test_set_step(3);
+  {
+    chThdSleepMilliseconds(50);
+    test_assert_sequence("D", "invalid sequence");
+    n2 = chHeapStatus(&heap1, &total2, &largest2);
+    test_assert(total2 < total1, "memory already recovered");
+    (void)n2;
+    (void)largest2;
+  }
+  test_end_step(3);
+
+  /* [11.3.4] The registry is scanned forward, the detached final
+     thread is found and its memory is recovered.*/
+  test_set_step(4);
+  {
+    found = false;
+    tp = chRegFirstThread();
+    do {
+      if (tp == dtp) {
+        found = true;
+      }
+      ntp = chRegNextThread(tp);
+      tp = ntp;
+    } while (tp != NULL);
+
+    test_assert(found, "not found in registry scan");
+    n3 = chHeapStatus(&heap1, &total3, &largest3);
+    test_assert(n1 == n3, "fragmentation changed");
+    test_assert(total1 == total3, "total free space changed");
+    test_assert(largest1 == largest3, "largest fragment size changed");
+  }
+  test_end_step(4);
+}
+
+static const testcase_t rt_test_011_003 = {
+  "Detached dynamic thread recovery",
+  rt_test_011_003_setup,
+  rt_test_011_003_teardown,
+  rt_test_011_003_execute
+};
+#endif /* CH_CFG_USE_HEAP == TRUE */
 
 /****************************************************************************
  * Exported data.
@@ -289,6 +421,9 @@ const testcase_t * const rt_test_sequence_011_array[] = {
 #endif
 #if (CH_CFG_USE_MEMPOOLS == TRUE) || defined(__DOXYGEN__)
   &rt_test_011_002,
+#endif
+#if (CH_CFG_USE_HEAP == TRUE) || defined(__DOXYGEN__)
+  &rt_test_011_003,
 #endif
   NULL
 };

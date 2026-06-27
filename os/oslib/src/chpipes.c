@@ -263,7 +263,7 @@ void chPipeReset(pipe_t *pp) {
  * @param[in] bp        pointer to the data buffer
  * @param[in] n         number of bytes to be written, the value 0 is
  *                      reserved
- * @param[in] timeout   number of ticks before the operation timeouts,
+ * @param[in] timeout   number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -327,7 +327,7 @@ size_t chPipeWriteTimeout(pipe_t *pp, const uint8_t *bp,
  * @param[out] bp       pointer to the data buffer
  * @param[in] n         number of bytes to be read, the value 0 is
  *                      reserved
- * @param[in] timeout   number of ticks before the operation timeouts,
+ * @param[in] timeout   number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.

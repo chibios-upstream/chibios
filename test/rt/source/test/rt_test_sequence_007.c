@@ -110,6 +110,7 @@ static void rt_test_007_001_setup(void) {
 
 static void rt_test_007_001_teardown(void) {
   chSemReset(&sem1, 0);
+  chSemObjectDispose(&sem1);
 }
 
 static void rt_test_007_001_execute(void) {
@@ -174,6 +175,10 @@ static void rt_test_007_002_setup(void) {
   chSemObjectInit(&sem1, 0);
 }
 
+static void rt_test_007_002_teardown(void) {
+  chSemObjectDispose(&sem1);
+}
+
 static void rt_test_007_002_execute(void) {
 
   /* [7.2.1] Five threads are created with mixed priority levels (not
@@ -211,7 +216,7 @@ static void rt_test_007_002_execute(void) {
 static const testcase_t rt_test_007_002 = {
   "Semaphore enqueuing test",
   rt_test_007_002_setup,
-  NULL,
+  rt_test_007_002_teardown,
   rt_test_007_002_execute
 };
 
@@ -234,6 +239,10 @@ static const testcase_t rt_test_007_002 = {
 
 static void rt_test_007_003_setup(void) {
   chSemObjectInit(&sem1, 0);
+}
+
+static void rt_test_007_003_teardown(void) {
+  chSemObjectDispose(&sem1);
 }
 
 static void rt_test_007_003_execute(void) {
@@ -286,7 +295,7 @@ static void rt_test_007_003_execute(void) {
 static const testcase_t rt_test_007_003 = {
   "Semaphore timeout test",
   rt_test_007_003_setup,
-  NULL,
+  rt_test_007_003_teardown,
   rt_test_007_003_execute
 };
 
@@ -306,6 +315,10 @@ static const testcase_t rt_test_007_003 = {
 
 static void rt_test_007_004_setup(void) {
   chSemObjectInit(&sem1, 0);
+}
+
+static void rt_test_007_004_teardown(void) {
+  chSemObjectDispose(&sem1);
 }
 
 static void rt_test_007_004_execute(void) {
@@ -335,7 +348,7 @@ static void rt_test_007_004_execute(void) {
 static const testcase_t rt_test_007_004 = {
   "Testing chSemAddCounterI() functionality",
   rt_test_007_004_setup,
-  NULL,
+  rt_test_007_004_teardown,
   rt_test_007_004_execute
 };
 
@@ -368,6 +381,7 @@ static void rt_test_007_005_setup(void) {
 
 static void rt_test_007_005_teardown(void) {
   test_wait_threads();
+  chSemObjectDispose(&sem1);
 }
 
 static void rt_test_007_005_execute(void) {

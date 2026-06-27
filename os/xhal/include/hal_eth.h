@@ -141,12 +141,12 @@ typedef uintptr_t eth_receive_handle_t;
 typedef uintptr_t eth_transmit_handle_t;
 
 /**
- * @brief       Type of structure representing a ETH driver.
+ * @brief       Type of structure representing an ETH driver.
  */
 typedef struct hal_eth_driver hal_eth_driver_c;
 
 /**
- * @brief       Type of structure representing a ETH configuration.
+ * @brief       Type of structure representing an ETH configuration.
  */
 typedef struct hal_eth_config hal_eth_config_t;
 
@@ -173,9 +173,9 @@ struct hal_eth_config {
   const uint8_t             *mac_address;
   /* End of the mandatory fields.*/
   eth_lld_config_fields;
-#if (defined(ETH_CONFIG_EXT_FIELS)) || defined (__DOXYGEN__)
+#if (defined(ETH_CONFIG_EXT_FIELDS)) || defined (__DOXYGEN__)
   ETH_CONFIG_EXT_FIELDS
-#endif /* defined(ETH_CONFIG_EXT_FIELS) */
+#endif /* defined(ETH_CONFIG_EXT_FIELDS) */
 };
 
 /**
@@ -201,14 +201,14 @@ struct eth_configurations {
  * @class       hal_eth_driver_c
  * @extends     hal_cb_driver_c
  *
- * @brief       Class of a ETH driver.
+ * @brief       Class of an ETH driver.
  *
  * @name        Class @p hal_eth_driver_c structures
  * @{
  */
 
 /**
- * @brief       Type of a ETH driver class.
+ * @brief       Type of a network driver class.
  */
 typedef struct hal_eth_driver hal_eth_driver_c;
 
@@ -229,7 +229,7 @@ struct hal_eth_driver_vmt {
 };
 
 /**
- * @brief       Structure representing a ETH driver class.
+ * @brief       Structure representing a network driver class.
  */
 struct hal_eth_driver {
   /**
@@ -293,7 +293,7 @@ struct hal_eth_driver {
    * @brief       Cached ETH callback event flags.
    */
   eventflags_t              lastflags;
-#if defined(ETH_DRIVER_EXT_FIELS)
+#if defined(ETH_DRIVER_EXT_FIELDS)
   ETH_DRIVER_EXT_FIELDS
 #endif
   /* End of the mandatory fields.*/

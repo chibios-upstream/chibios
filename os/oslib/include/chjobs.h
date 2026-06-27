@@ -201,7 +201,7 @@ static inline job_descriptor_t *chJobGetI(jobs_queue_t *jqp) {
  * @brief   Allocates a free job object.
  *
  * @param[in] jqp       pointer to a @p jobs_queue_t object
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -221,7 +221,7 @@ static inline job_descriptor_t *chJobGetTimeoutS(jobs_queue_t *jqp,
  * @brief   Allocates a free job object.
  *
  * @param[in] jqp       pointer to a @p jobs_queue_t object
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -384,7 +384,7 @@ static inline msg_t chJobDispatch(jobs_queue_t *jqp) {
  * @brief   Waits for a job then executes it.
  *
  * @param[in] jqp       pointer to a @p jobs_queue_t object
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.

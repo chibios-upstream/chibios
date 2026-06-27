@@ -46,6 +46,9 @@
  * - @subpage rt_test_012_010
  * - @subpage rt_test_012_011
  * - @subpage rt_test_012_012
+ * - @subpage rt_test_012_013
+ * - @subpage rt_test_012_014
+ * - @subpage rt_test_012_015
  * .
  */
 
@@ -64,6 +67,17 @@ static void tmo(virtual_timer_t *vtp, void *param) {
 
   (void)vtp;
   (void)param;
+}
+
+static virtual_timer_t vt1, vt2;
+static volatile uint32_t vt_counter;
+
+static void vt_continuous_cb(virtual_timer_t *vtp, void *param) {
+
+  (void)vtp;
+  (void)param;
+
+  vt_counter++;
 }
 
 #if CH_CFG_USE_MESSAGES
@@ -707,7 +721,203 @@ static const testcase_t rt_test_012_008 = {
 };
 
 /**
- * @page rt_test_012_009 [12.9] Virtual Timers set/reset performance
+ * @page rt_test_012_009 [12.9] Virtual Timer object lifecycle
+ *
+ * <h2>Description</h2>
+ * Virtual timer objects are explicitly initialized, armed, queried for
+ * remaining intervals, reset and disposed.
+ *
+ * <h2>Test Steps</h2>
+ * - [12.9.1] The initialized timer is verified to be disarmed.
+ * - [12.9.2] Two timers are armed, the second timer's remaining
+ *   interval is queried, then both timers are reset.
+ * .
+ */
+
+static void rt_test_012_009_setup(void) {
+  chVTObjectInit(&vt1);
+  chVTObjectInit(&vt2);
+}
+
+static void rt_test_012_009_teardown(void) {
+  chVTReset(&vt1);
+  chVTReset(&vt2);
+  chVTObjectDispose(&vt1);
+  chVTObjectDispose(&vt2);
+}
+
+static void rt_test_012_009_execute(void) {
+  sysinterval_t remaining;
+  bool armed;
+
+  /* [12.9.1] The initialized timer is verified to be disarmed.*/
+  test_set_step(1);
+  {
+    test_assert(chVTIsArmed(&vt1) == false, "timer armed");
+  }
+  test_end_step(1);
+
+  /* [12.9.2] Two timers are armed, the second timer's remaining
+     interval is queried, then both timers are reset.*/
+  test_set_step(2);
+  {
+    chSysLock();
+    chVTDoSetI(&vt1, TIME_MS2I(100), tmo, NULL);
+    chVTDoSetI(&vt2, TIME_MS2I(200), tmo, NULL);
+    armed = chVTIsArmedI(&vt1) && chVTIsArmedI(&vt2);
+    remaining = chVTGetRemainingIntervalI(&vt2);
+    chVTDoResetI(&vt2);
+    chVTDoResetI(&vt1);
+    chSysUnlock();
+
+    test_assert(armed, "timer not armed");
+    test_assert(remaining > (sysinterval_t)0, "no remaining interval");
+    test_assert(chVTIsArmed(&vt1) == false, "timer still armed");
+    test_assert(chVTIsArmed(&vt2) == false, "timer still armed");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t rt_test_012_009 = {
+  "Virtual Timer object lifecycle",
+  rt_test_012_009_setup,
+  rt_test_012_009_teardown,
+  rt_test_012_009_execute
+};
+
+/**
+ * @page rt_test_012_010 [12.10] Continuous Virtual Timer
+ *
+ * <h2>Description</h2>
+ * A continuous virtual timer is armed, allowed to fire multiple times,
+ * then reset and checked for inactivity.
+ *
+ * <h2>Test Steps</h2>
+ * - [12.10.1] The continuous timer is armed and its remaining interval
+ *   is queried.
+ * - [12.10.2] The timer is allowed to reload and fire multiple times.
+ * - [12.10.3] The timer is reset and verified not to fire again.
+ * .
+ */
+
+static void rt_test_012_010_setup(void) {
+  chVTObjectInit(&vt2);
+  vt_counter = 0;
+}
+
+static void rt_test_012_010_teardown(void) {
+  chVTReset(&vt2);
+  chVTObjectDispose(&vt2);
+}
+
+static void rt_test_012_010_execute(void) {
+  sysinterval_t remaining;
+  uint32_t count;
+  bool armed;
+
+  /* [12.10.1] The continuous timer is armed and its remaining interval
+     is queried.*/
+  test_set_step(1);
+  {
+    chSysLock();
+    chVTDoSetContinuousI(&vt2, TIME_MS2I(10), vt_continuous_cb, NULL);
+    armed = chVTIsArmedI(&vt2);
+    remaining = chVTGetRemainingIntervalI(&vt2);
+    chSysUnlock();
+
+    test_assert(armed, "timer not armed");
+    test_assert(remaining > (sysinterval_t)0, "no remaining interval");
+  }
+  test_end_step(1);
+
+  /* [12.10.2] The timer is allowed to reload and fire multiple
+     times.*/
+  test_set_step(2);
+  {
+    chThdSleepMilliseconds(50);
+    count = vt_counter;
+    test_assert(count >= 2U, "timer not reloaded");
+  }
+  test_end_step(2);
+
+  /* [12.10.3] The timer is reset and verified not to fire again.*/
+  test_set_step(3);
+  {
+    chSysLock();
+    chVTDoResetI(&vt2);
+    armed = chVTIsArmedI(&vt2);
+    chSysUnlock();
+
+    test_assert(!armed, "timer still armed");
+    count = vt_counter;
+    chThdSleepMilliseconds(30);
+    test_assert(vt_counter == count, "timer still running");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t rt_test_012_010 = {
+  "Continuous Virtual Timer",
+  rt_test_012_010_setup,
+  rt_test_012_010_teardown,
+  rt_test_012_010_execute
+};
+
+#if (CH_CFG_USE_TIMESTAMP == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_012_011 [12.11] Timestamp reset
+ *
+ * <h2>Description</h2>
+ * The timestamp counter is reset and verified to remain usable and
+ * monotonic.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_USE_TIMESTAMP == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [12.11.1] The timestamp counter is reset from system-locked
+ *   context.
+ * - [12.11.2] A later timestamp is verified to be monotonic.
+ * .
+ */
+
+static void rt_test_012_011_execute(void) {
+  systimestamp_t stamp1, stamp2;
+
+  /* [12.11.1] The timestamp counter is reset from system-locked
+     context.*/
+  test_set_step(1);
+  {
+    chSysLock();
+    chVTResetTimeStampI();
+    stamp1 = chVTGetTimeStampI();
+    chSysUnlock();
+  }
+  test_end_step(1);
+
+  /* [12.11.2] A later timestamp is verified to be monotonic.*/
+  test_set_step(2);
+  {
+    chThdSleep(1);
+    stamp2 = chVTGetTimeStamp();
+    test_assert(stamp1 <= stamp2, "not monotonic");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t rt_test_012_011 = {
+  "Timestamp reset",
+  NULL,
+  NULL,
+  rt_test_012_011_execute
+};
+#endif /* CH_CFG_USE_TIMESTAMP == TRUE */
+
+/**
+ * @page rt_test_012_012 [12.12] Virtual Timers set/reset performance
  *
  * <h2>Description</h2>
  * A virtual timer is set and immediately reset into a continuous
@@ -715,18 +925,18 @@ static const testcase_t rt_test_012_008 = {
  * iterations after a second of continuous operations.
  *
  * <h2>Test Steps</h2>
- * - [12.9.1] Two timers are set then reset without waiting for their
+ * - [12.12.1] Two timers are set then reset without waiting for their
  *   counter to elapse. The operation is repeated continuously in a
  *   one-second time window.
- * - [12.9.2] The score is printed.
+ * - [12.12.2] The score is printed.
  * .
  */
 
-static void rt_test_012_009_execute(void) {
+static void rt_test_012_012_execute(void) {
   static virtual_timer_t vt1, vt2;
   uint32_t n;
 
-  /* [12.9.1] Two timers are set then reset without waiting for their
+  /* [12.12.1] Two timers are set then reset without waiting for their
      counter to elapse. The operation is repeated continuously in a
      one-second time window.*/
   test_set_step(1);
@@ -751,7 +961,7 @@ static void rt_test_012_009_execute(void) {
   }
   test_end_step(1);
 
-  /* [12.9.2] The score is printed.*/
+  /* [12.12.2] The score is printed.*/
   test_set_step(2);
   {
     test_print("--- Score : ");
@@ -761,16 +971,16 @@ static void rt_test_012_009_execute(void) {
   test_end_step(2);
 }
 
-static const testcase_t rt_test_012_009 = {
+static const testcase_t rt_test_012_012 = {
   "Virtual Timers set/reset performance",
   NULL,
   NULL,
-  rt_test_012_009_execute
+  rt_test_012_012_execute
 };
 
 #if (CH_CFG_USE_SEMAPHORES == TRUE) || defined(__DOXYGEN__)
 /**
- * @page rt_test_012_010 [12.10] Semaphores wait/signal performance
+ * @page rt_test_012_013 [12.13] Semaphores wait/signal performance
  *
  * <h2>Description</h2>
  * A counting semaphore is taken/released into a continuous loop, no
@@ -785,20 +995,20 @@ static const testcase_t rt_test_012_009 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [12.10.1] A semaphore is teken and released. The operation is
+ * - [12.13.1] A semaphore is teken and released. The operation is
  *   repeated continuously in a one-second time window.
- * - [12.10.2] The score is printed.
+ * - [12.13.2] The score is printed.
  * .
  */
 
-static void rt_test_012_010_setup(void) {
+static void rt_test_012_013_setup(void) {
   chSemObjectInit(&sem1, 1);
 }
 
-static void rt_test_012_010_execute(void) {
+static void rt_test_012_013_execute(void) {
   uint32_t n;
 
-  /* [12.10.1] A semaphore is teken and released. The operation is
+  /* [12.13.1] A semaphore is teken and released. The operation is
      repeated continuously in a one-second time window.*/
   test_set_step(1);
   {
@@ -824,7 +1034,7 @@ static void rt_test_012_010_execute(void) {
   }
   test_end_step(1);
 
-  /* [12.10.2] The score is printed.*/
+  /* [12.13.2] The score is printed.*/
   test_set_step(2);
   {
     test_print("--- Score : ");
@@ -834,17 +1044,17 @@ static void rt_test_012_010_execute(void) {
   test_end_step(2);
 }
 
-static const testcase_t rt_test_012_010 = {
+static const testcase_t rt_test_012_013 = {
   "Semaphores wait/signal performance",
-  rt_test_012_010_setup,
+  rt_test_012_013_setup,
   NULL,
-  rt_test_012_010_execute
+  rt_test_012_013_execute
 };
 #endif /* CH_CFG_USE_SEMAPHORES == TRUE */
 
-#if (CH_CFG_USE_MUTEXES ==TRUE) || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
 /**
- * @page rt_test_012_011 [12.11] Mutexes lock/unlock performance
+ * @page rt_test_012_014 [12.14] Mutexes lock/unlock performance
  *
  * <h2>Description</h2>
  * A mutex is locked/unlocked into a continuous loop, no Context Switch
@@ -855,24 +1065,24 @@ static const testcase_t rt_test_012_010 = {
  * <h2>Conditions</h2>
  * This test is only executed if the following preprocessor condition
  * evaluates to true:
- * - CH_CFG_USE_MUTEXES ==TRUE
+ * - CH_CFG_USE_MUTEXES == TRUE
  * .
  *
  * <h2>Test Steps</h2>
- * - [12.11.1] A mutex is locked and unlocked. The operation is
+ * - [12.14.1] A mutex is locked and unlocked. The operation is
  *   repeated continuously in a one-second time window.
- * - [12.11.2] The score is printed.
+ * - [12.14.2] The score is printed.
  * .
  */
 
-static void rt_test_012_011_setup(void) {
+static void rt_test_012_014_setup(void) {
   chMtxObjectInit(&mtx1);
 }
 
-static void rt_test_012_011_execute(void) {
+static void rt_test_012_014_execute(void) {
   uint32_t n;
 
-  /* [12.11.1] A mutex is locked and unlocked. The operation is
+  /* [12.14.1] A mutex is locked and unlocked. The operation is
      repeated continuously in a one-second time window.*/
   test_set_step(1);
   {
@@ -898,7 +1108,7 @@ static void rt_test_012_011_execute(void) {
   }
   test_end_step(1);
 
-  /* [12.11.2] The score is printed.*/
+  /* [12.14.2] The score is printed.*/
   test_set_step(2);
   {
     test_print("--- Score : ");
@@ -908,36 +1118,36 @@ static void rt_test_012_011_execute(void) {
   test_end_step(2);
 }
 
-static const testcase_t rt_test_012_011 = {
+static const testcase_t rt_test_012_014 = {
   "Mutexes lock/unlock performance",
-  rt_test_012_011_setup,
+  rt_test_012_014_setup,
   NULL,
-  rt_test_012_011_execute
+  rt_test_012_014_execute
 };
-#endif /* CH_CFG_USE_MUTEXES ==TRUE */
+#endif /* CH_CFG_USE_MUTEXES == TRUE */
 
 /**
- * @page rt_test_012_012 [12.12] RAM Footprint
+ * @page rt_test_012_015 [12.15] RAM Footprint
  *
  * <h2>Description</h2>
  * The memory size of the various kernel objects is printed.
  *
  * <h2>Test Steps</h2>
- * - [12.12.1] The size of the system area is printed.
- * - [12.12.2] The size of a thread structure is printed.
- * - [12.12.3] The size of a virtual timer structure is printed.
- * - [12.12.4] The size of a semaphore structure is printed.
- * - [12.12.5] The size of a mutex is printed.
- * - [12.12.6] The size of a condition variable is printed.
- * - [12.12.7] The size of an event source is printed.
- * - [12.12.8] The size of an event listener is printed.
- * - [12.12.9] The size of a mailbox is printed.
+ * - [12.15.1] The size of the system area is printed.
+ * - [12.15.2] The size of a thread structure is printed.
+ * - [12.15.3] The size of a virtual timer structure is printed.
+ * - [12.15.4] The size of a semaphore structure is printed.
+ * - [12.15.5] The size of a mutex is printed.
+ * - [12.15.6] The size of a condition variable is printed.
+ * - [12.15.7] The size of an event source is printed.
+ * - [12.15.8] The size of an event listener is printed.
+ * - [12.15.9] The size of a mailbox is printed.
  * .
  */
 
-static void rt_test_012_012_execute(void) {
+static void rt_test_012_015_execute(void) {
 
-  /* [12.12.1] The size of the system area is printed.*/
+  /* [12.15.1] The size of the system area is printed.*/
   test_set_step(1);
   {
     test_print("--- OS    : ");
@@ -946,7 +1156,7 @@ static void rt_test_012_012_execute(void) {
   }
   test_end_step(1);
 
-  /* [12.12.2] The size of a thread structure is printed.*/
+  /* [12.15.2] The size of a thread structure is printed.*/
   test_set_step(2);
   {
     test_print("--- Thread: ");
@@ -955,7 +1165,7 @@ static void rt_test_012_012_execute(void) {
   }
   test_end_step(2);
 
-  /* [12.12.3] The size of a virtual timer structure is printed.*/
+  /* [12.15.3] The size of a virtual timer structure is printed.*/
   test_set_step(3);
   {
     test_print("--- Timer : ");
@@ -964,7 +1174,7 @@ static void rt_test_012_012_execute(void) {
   }
   test_end_step(3);
 
-  /* [12.12.4] The size of a semaphore structure is printed.*/
+  /* [12.15.4] The size of a semaphore structure is printed.*/
   test_set_step(4);
   {
 #if CH_CFG_USE_SEMAPHORES || defined(__DOXYGEN__)
@@ -975,7 +1185,7 @@ static void rt_test_012_012_execute(void) {
   }
   test_end_step(4);
 
-  /* [12.12.5] The size of a mutex is printed.*/
+  /* [12.15.5] The size of a mutex is printed.*/
   test_set_step(5);
   {
 #if CH_CFG_USE_MUTEXES || defined(__DOXYGEN__)
@@ -986,7 +1196,7 @@ static void rt_test_012_012_execute(void) {
   }
   test_end_step(5);
 
-  /* [12.12.6] The size of a condition variable is printed.*/
+  /* [12.15.6] The size of a condition variable is printed.*/
   test_set_step(6);
   {
 #if CH_CFG_USE_CONDVARS || defined(__DOXYGEN__)
@@ -997,7 +1207,7 @@ static void rt_test_012_012_execute(void) {
   }
   test_end_step(6);
 
-  /* [12.12.7] The size of an event source is printed.*/
+  /* [12.15.7] The size of an event source is printed.*/
   test_set_step(7);
   {
 #if CH_CFG_USE_EVENTS || defined(__DOXYGEN__)
@@ -1008,7 +1218,7 @@ static void rt_test_012_012_execute(void) {
   }
   test_end_step(7);
 
-  /* [12.12.8] The size of an event listener is printed.*/
+  /* [12.15.8] The size of an event listener is printed.*/
   test_set_step(8);
   {
 #if CH_CFG_USE_EVENTS || defined(__DOXYGEN__)
@@ -1019,7 +1229,7 @@ static void rt_test_012_012_execute(void) {
   }
   test_end_step(8);
 
-  /* [12.12.9] The size of a mailbox is printed.*/
+  /* [12.15.9] The size of a mailbox is printed.*/
   test_set_step(9);
   {
 #if CH_CFG_USE_MAILBOXES || defined(__DOXYGEN__)
@@ -1031,11 +1241,11 @@ static void rt_test_012_012_execute(void) {
   test_end_step(9);
 }
 
-static const testcase_t rt_test_012_012 = {
+static const testcase_t rt_test_012_015 = {
   "RAM Footprint",
   NULL,
   NULL,
-  rt_test_012_012_execute
+  rt_test_012_015_execute
 };
 
 /****************************************************************************
@@ -1063,13 +1273,18 @@ const testcase_t * const rt_test_sequence_012_array[] = {
 #endif
   &rt_test_012_008,
   &rt_test_012_009,
-#if (CH_CFG_USE_SEMAPHORES == TRUE) || defined(__DOXYGEN__)
   &rt_test_012_010,
-#endif
-#if (CH_CFG_USE_MUTEXES ==TRUE) || defined(__DOXYGEN__)
+#if (CH_CFG_USE_TIMESTAMP == TRUE) || defined(__DOXYGEN__)
   &rt_test_012_011,
 #endif
   &rt_test_012_012,
+#if (CH_CFG_USE_SEMAPHORES == TRUE) || defined(__DOXYGEN__)
+  &rt_test_012_013,
+#endif
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
+  &rt_test_012_014,
+#endif
+  &rt_test_012_015,
   NULL
 };
 

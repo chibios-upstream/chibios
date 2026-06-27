@@ -326,8 +326,8 @@ static inline void chVTReset(virtual_timer_t *vtp) {
  *          or @p chVTDoSetI().
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
- * @param[in] delay     the number of ticks before the operation timeouts, the
- *                      special values are handled as follow:
+ * @param[in] delay     the number of ticks before the operation times out, the
+ *                      special values are handled as follows:
  *                      - @a TIME_INFINITE is allowed but interpreted as a
  *                        normal time specification.
  *                      - @a TIME_IMMEDIATE this value is not allowed.
@@ -354,8 +354,8 @@ static inline void chVTSetI(virtual_timer_t *vtp, sysinterval_t delay,
  *          or @p chVTDoSetI().
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
- * @param[in] delay     the number of ticks before the operation timeouts, the
- *                      special values are handled as follow:
+ * @param[in] delay     the number of ticks before the operation times out, the
+ *                      special values are handled as follows:
  *                      - @a TIME_INFINITE is allowed but interpreted as a
  *                        normal time specification.
  *                      - @a TIME_IMMEDIATE this value is not allowed.
@@ -383,8 +383,8 @@ static inline void chVTSet(virtual_timer_t *vtp, sysinterval_t delay,
  *          or @p chVTDoSetI().
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
- * @param[in] delay     the number of ticks before the operation timeouts, the
- *                      special values are handled as follow:
+ * @param[in] delay     the number of ticks before the operation times out, the
+ *                      special values are handled as follows:
  *                      - @a TIME_INFINITE is allowed but interpreted as a
  *                        normal time specification.
  *                      - @a TIME_IMMEDIATE this value is not allowed.
@@ -411,8 +411,8 @@ static inline void chVTSetContinuousI(virtual_timer_t *vtp, sysinterval_t delay,
  *          or @p chVTDoSetI().
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
- * @param[in] delay     the number of ticks before the operation timeouts, the
- *                      special values are handled as follow:
+ * @param[in] delay     the number of ticks before the operation times out, the
+ *                      special values are handled as follows:
  *                      - @a TIME_INFINITE is allowed but interpreted as a
  *                        normal time specification.
  *                      - @a TIME_IMMEDIATE this value is not allowed.

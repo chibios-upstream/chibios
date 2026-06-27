@@ -34,6 +34,12 @@
 
 #define PORTAB_SIO1                 LPSIOD1
 
+#define MFS_BANK_SIZE               4096U
+#define MFS_BANK0_START             252U
+#define MFS_BANK0_SECTORS           2U
+#define MFS_BANK1_START             254U
+#define MFS_BANK1_SECTORS           2U
+
 #ifdef __cplusplus
 extern "C" {
 #endif

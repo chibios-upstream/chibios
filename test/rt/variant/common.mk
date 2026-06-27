@@ -33,8 +33,13 @@ ifeq ($(USE_LINK_GC),)
 endif
 
 # Linker extra options here.
+# The SIM ports have no linker script, so the main-thread stack-boundary
+# symbols referenced by ch_core0_cfg (chsys.c) are not provided; define them
+# as 0 (the simulator does not use the main-thread stack bounds), matching the
+# RT-Posix-Simulator demo. Without this the RT test binaries fail to link on
+# strict linkers (e.g. binutils 2.42).
 ifeq ($(USE_LDOPT),)
-  USE_LDOPT = 
+  USE_LDOPT = --defsym=__main_thread_stack_base__=0,--defsym=__main_thread_stack_end__=0
 endif
 
 # Enable this if you want link time optimizations (LTO).

@@ -179,7 +179,7 @@ void chMBResetI(mailbox_t *mbp) {
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[in] msg       message to be posted on the mailbox
- * @param[in] timeout   number of ticks before the operation timeouts,
+ * @param[in] timeout   number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -207,7 +207,7 @@ msg_t chMBPostTimeout(mailbox_t *mbp, msg_t msg, sysinterval_t timeout) {
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[in] msg       message to be posted on the mailbox
- * @param[in] timeout   number of ticks before the operation timeouts,
+ * @param[in] timeout   number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -302,7 +302,7 @@ msg_t chMBPostI(mailbox_t *mbp, msg_t msg) {
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[in] msg       message to be posted on the mailbox
- * @param[in] timeout   number of ticks before the operation timeouts,
+ * @param[in] timeout   number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -330,7 +330,7 @@ msg_t chMBPostAheadTimeout(mailbox_t *mbp, msg_t msg, sysinterval_t timeout) {
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[in] msg       message to be posted on the mailbox
- * @param[in] timeout   number of ticks before the operation timeouts,
+ * @param[in] timeout   number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -425,7 +425,7 @@ msg_t chMBPostAheadI(mailbox_t *mbp, msg_t msg) {
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[out] msgp     pointer to a message variable for the received message
- * @param[in] timeout   the number of ticks before the operation timeouts,
+ * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -453,7 +453,7 @@ msg_t chMBFetchTimeout(mailbox_t *mbp, msg_t *msgp, sysinterval_t timeout) {
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[out] msgp     pointer to a message variable for the received message
- * @param[in] timeout   number of ticks before the operation timeouts,
+ * @param[in] timeout   number of ticks before the operation times out,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.

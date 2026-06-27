@@ -94,9 +94,11 @@ const testsuite_t rt_test_suite = {
 /*===========================================================================*/
 
 /*
- * Global test buffer holding 5 working areas.
+ * Shared thread storage, usable as legacy working areas or as stack/object
+ * pairs for descriptor-based thread creation.
  */
-ALIGNED_VAR(PORT_WORKING_AREA_ALIGN) uint8_t test_buffer[WA_SIZE * 5];
+ALIGNED_VAR(PORT_WORKING_AREA_ALIGN) test_thread_slot_t
+  test_thread_slots[MAX_THREADS];
 
 /*
  * Pointers to the spawned threads.
@@ -106,11 +108,11 @@ thread_t *threads[MAX_THREADS];
 /*
  * Pointers to the working areas.
  */
-void * ROMCONST wa[5] = {test_buffer + (WA_SIZE * 0),
-                         test_buffer + (WA_SIZE * 1),
-                         test_buffer + (WA_SIZE * 2),
-                         test_buffer + (WA_SIZE * 3),
-                         test_buffer + (WA_SIZE * 4)};
+void * ROMCONST wa[MAX_THREADS] = {(void *)test_thread_slots[0].wa,
+                                   (void *)test_thread_slots[1].wa,
+                                   (void *)test_thread_slots[2].wa,
+                                   (void *)test_thread_slots[3].wa,
+                                   (void *)test_thread_slots[4].wa};
 
 /*
  * Sets a termination request in all the test-spawned threads.

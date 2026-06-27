@@ -5,8 +5,7 @@ PLATFORMSRC := $(CHIBIOS)/os/xhal/ports/common/ARMCMx/nvic.c \
 
 # Required include directories.
 PLATFORMINC := $(CHIBIOS)/os/xhal/ports/common/ARMCMx \
-               $(CHIBIOS)/os/xhal/ports/STM32/STM32U3xx \
-               $(CHIBIOS)/os/xhal/ports/STM32/LLD/SPI
+               $(CHIBIOS)/os/xhal/ports/STM32/STM32U3xx
 
 # Optional platform files.
 ifeq ($(USE_SMART_BUILD),yes)

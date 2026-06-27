@@ -349,8 +349,8 @@ void chSchGoSleepS(tstate_t newstate) {
  *          @ref thread_states are defined into @p chschd.h.
  *
  * @param[in] newstate  the new thread state
- * @param[in] timeout   the number of ticks before the operation timeouts, the
- *                      special values are handled as follow:
+ * @param[in] timeout   the number of ticks before the operation times out, the
+ *                      special values are handled as follows:
  *                      - @a TIME_INFINITE the thread enters an infinite sleep
  *                        state, this is equivalent to invoking
  *                        @p chSchGoSleepS() but, of course, less efficient.
