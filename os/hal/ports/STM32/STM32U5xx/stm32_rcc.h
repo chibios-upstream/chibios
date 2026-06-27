@@ -442,6 +442,10 @@
 #define rccEnableFDCAN1(lp) rccEnableAPB1R2(RCC_APB1ENR2_FDCAN1EN, lp)
 #define rccDisableFDCAN1() rccDisableAPB1R2(RCC_APB1ENR2_FDCAN1EN)
 #define rccResetFDCAN1() rccResetAPB1R2(RCC_APB1RSTR2_FDCAN1RST)
+
+#define rccEnableFDCAN(lp) rccEnableFDCAN1(lp)
+#define rccDisableFDCAN() rccDisableFDCAN1()
+#define rccResetFDCAN() rccResetFDCAN1()
 /** @} */
 
 /**
@@ -578,6 +582,55 @@
 #define rccEnableSPI3(lp) rccEnableAPB3(RCC_APB3ENR_SPI3EN, lp)
 #define rccDisableSPI3() rccDisableAPB3(RCC_APB3ENR_SPI3EN)
 #define rccResetSPI3() rccResetAPB3(RCC_APB3RSTR_SPI3RST)
+/** @} */
+
+/**
+ * @name    TIM peripherals specific RCC operations
+ * @{
+ */
+#define rccEnableTIM1(lp) rccEnableAPB2(RCC_APB2ENR_TIM1EN, lp)
+#define rccDisableTIM1() rccDisableAPB2(RCC_APB2ENR_TIM1EN)
+#define rccResetTIM1() rccResetAPB2(RCC_APB2RSTR_TIM1RST)
+
+#define rccEnableTIM2(lp) rccEnableAPB1R1(RCC_APB1ENR1_TIM2EN, lp)
+#define rccDisableTIM2() rccDisableAPB1R1(RCC_APB1ENR1_TIM2EN)
+#define rccResetTIM2() rccResetAPB1R1(RCC_APB1RSTR1_TIM2RST)
+
+#define rccEnableTIM3(lp) rccEnableAPB1R1(RCC_APB1ENR1_TIM3EN, lp)
+#define rccDisableTIM3() rccDisableAPB1R1(RCC_APB1ENR1_TIM3EN)
+#define rccResetTIM3() rccResetAPB1R1(RCC_APB1RSTR1_TIM3RST)
+
+#define rccEnableTIM4(lp) rccEnableAPB1R1(RCC_APB1ENR1_TIM4EN, lp)
+#define rccDisableTIM4() rccDisableAPB1R1(RCC_APB1ENR1_TIM4EN)
+#define rccResetTIM4() rccResetAPB1R1(RCC_APB1RSTR1_TIM4RST)
+
+#define rccEnableTIM5(lp) rccEnableAPB1R1(RCC_APB1ENR1_TIM5EN, lp)
+#define rccDisableTIM5() rccDisableAPB1R1(RCC_APB1ENR1_TIM5EN)
+#define rccResetTIM5() rccResetAPB1R1(RCC_APB1RSTR1_TIM5RST)
+
+#define rccEnableTIM6(lp) rccEnableAPB1R1(RCC_APB1ENR1_TIM6EN, lp)
+#define rccDisableTIM6() rccDisableAPB1R1(RCC_APB1ENR1_TIM6EN)
+#define rccResetTIM6() rccResetAPB1R1(RCC_APB1RSTR1_TIM6RST)
+
+#define rccEnableTIM7(lp) rccEnableAPB1R1(RCC_APB1ENR1_TIM7EN, lp)
+#define rccDisableTIM7() rccDisableAPB1R1(RCC_APB1ENR1_TIM7EN)
+#define rccResetTIM7() rccResetAPB1R1(RCC_APB1RSTR1_TIM7RST)
+
+#define rccEnableTIM8(lp) rccEnableAPB2(RCC_APB2ENR_TIM8EN, lp)
+#define rccDisableTIM8() rccDisableAPB2(RCC_APB2ENR_TIM8EN)
+#define rccResetTIM8() rccResetAPB2(RCC_APB2RSTR_TIM8RST)
+
+#define rccEnableTIM15(lp) rccEnableAPB2(RCC_APB2ENR_TIM15EN, lp)
+#define rccDisableTIM15() rccDisableAPB2(RCC_APB2ENR_TIM15EN)
+#define rccResetTIM15() rccResetAPB2(RCC_APB2RSTR_TIM15RST)
+
+#define rccEnableTIM16(lp) rccEnableAPB2(RCC_APB2ENR_TIM16EN, lp)
+#define rccDisableTIM16() rccDisableAPB2(RCC_APB2ENR_TIM16EN)
+#define rccResetTIM16() rccResetAPB2(RCC_APB2RSTR_TIM16RST)
+
+#define rccEnableTIM17(lp) rccEnableAPB2(RCC_APB2ENR_TIM17EN, lp)
+#define rccDisableTIM17() rccDisableAPB2(RCC_APB2ENR_TIM17EN)
+#define rccResetTIM17() rccResetAPB2(RCC_APB2RSTR_TIM17RST)
 /** @} */
 
 /**
