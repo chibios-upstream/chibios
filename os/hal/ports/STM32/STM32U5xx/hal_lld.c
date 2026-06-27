@@ -57,6 +57,12 @@
 #define STM32_RCC_PLL3FRACR_RESET       0U
 /** @} */
 
+#if STM32_BOOSTER_ENABLED == TRUE
+#define STM32_PWR_VOSR_DEFAULT          (STM32_CFG_PWR_VOSR | PWR_VOSR_BOOSTEN)
+#else
+#define STM32_PWR_VOSR_DEFAULT          STM32_CFG_PWR_VOSR
+#endif
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -106,7 +112,7 @@ const halclkcfg_t hal_clkcfg_reset = {
  * @note    This is the configuration defined in mcuconf.h.
  */
 const halclkcfg_t hal_clkcfg_default = {
-  .pwr_vosr             = STM32_CFG_PWR_VOSR,
+  .pwr_vosr             = STM32_PWR_VOSR_DEFAULT,
   .rcc_cr               = STM32_CR_HSI16_BITS  | STM32_CR_HSI48_BITS |
                           STM32_CR_SHSI_BITS   | STM32_CR_HSE_BITS   |
                           STM32_CR_MSIS_BITS   | STM32_CR_MSIK_BITS  |
@@ -387,7 +393,7 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   halRegWrite32X(&FLASH->ACR, STM32_FLASH_ACR_RESET, true);
 
   /* Voltage scaling must be ready before high-frequency clocks are used.*/
-  halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr, true);
+  halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr & ~PWR_VOSR_BOOSTEN, true);
   if (halRegWaitAllSet32X(&PWR->VOSR,
                           PWR_VOSR_VOSRDY,
                           STM32_REGULATORS_TRANSITION_TIME,
@@ -449,15 +455,15 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   hal_lld_pll_setup(1U, &ccp->plls[1]);
   hal_lld_pll_setup(2U, &ccp->plls[2]);
 
-#if STM32_BOOSTER_ENABLED == TRUE
-  halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr | PWR_VOSR_BOOSTEN, true);
-  if (halRegWaitAllSet32X(&PWR->VOSR,
-                          PWR_VOSR_BOOSTRDY,
-                          STM32_REGULATORS_TRANSITION_TIME,
-                          NULL)) {
-    return true;
+  if ((ccp->pwr_vosr & PWR_VOSR_BOOSTEN) != 0U) {
+    halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr, true);
+    if (halRegWaitAllSet32X(&PWR->VOSR,
+                            PWR_VOSR_BOOSTRDY,
+                            STM32_REGULATORS_TRANSITION_TIME,
+                            NULL)) {
+      return true;
+    }
   }
-#endif
 
   cr = ccp->rcc_cr | RCC_CR_MSISON;
   halRegWrite32X(&RCC->CR, cr, true);

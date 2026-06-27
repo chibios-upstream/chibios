@@ -80,6 +80,8 @@
 #include "stm32_spi2.inc"
 #include "stm32_spi3.inc"
 
+#include "stm32_sdmmc1.inc"
+
 #include "stm32_tim1.inc"
 #include "stm32_tim2.inc"
 #include "stm32_tim3.inc"
@@ -138,6 +140,8 @@ void irqInit(void) {
   spi2_irq_init();
   spi3_irq_init();
 
+  sdmmc1_irq_init();
+
   tim1_irq_init();
   tim2_irq_init();
   tim3_irq_init();
@@ -192,6 +196,8 @@ void irqDeinit(void) {
   spi1_irq_deinit();
   spi2_irq_deinit();
   spi3_irq_deinit();
+
+  sdmmc1_irq_deinit();
 
   tim1_irq_deinit();
   tim2_irq_deinit();
