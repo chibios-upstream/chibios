@@ -22,7 +22,7 @@
  *
  * This first demo-oriented configuration keeps the device on its reset clock
  * setup and only enables the pieces required by RT-STM32-MULTI: PAL plus the
- * STLINK VCOM through LPUART1.
+ * STLINK VCOM through USART1.
  */
 
 #define STM32U5xx_MCUCONF
@@ -42,7 +42,7 @@
 #define STM32_CFG_HSE_ENABLE                FALSE
 #define STM32_CFG_LSI_ENABLE                FALSE
 #define STM32_CFG_LSE_ENABLE                FALSE
-#define STM32_CFG_LPUART1_SEL               RCC_CCIPR3_LPUART1SEL_PCLK3
+#define STM32_CFG_USART1_SEL                RCC_CCIPR1_USART1SEL_PCLK2
 
 /*
  * IRQ system settings.
@@ -64,12 +64,12 @@
 #define STM32_IRQ_EXTI14_PRIORITY           6
 #define STM32_IRQ_EXTI15_PRIORITY           6
 
-#define STM32_IRQ_LPUART1_PRIORITY          12
+#define STM32_IRQ_USART1_PRIORITY           12
 
 /*
  * SERIAL driver system settings.
  */
-#define STM32_SERIAL_USE_USART1             FALSE
+#define STM32_SERIAL_USE_USART1             TRUE
 #define STM32_SERIAL_USE_USART2             FALSE
 #define STM32_SERIAL_USE_USART3             FALSE
 #define STM32_SERIAL_USE_UART4              FALSE
@@ -79,6 +79,6 @@
 #define STM32_SERIAL_USE_UART8              FALSE
 #define STM32_SERIAL_USE_UART9              FALSE
 #define STM32_SERIAL_USE_USART10            FALSE
-#define STM32_SERIAL_USE_LPUART1            TRUE
+#define STM32_SERIAL_USE_LPUART1            FALSE
 
 #endif /* MCUCONF_H */
