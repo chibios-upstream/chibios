@@ -290,7 +290,8 @@
                                              RCC_AHB2ENR1_GPIOEEN |         \
                                              RCC_AHB2ENR1_GPIOFEN |         \
                                              RCC_AHB2ENR1_GPIOGEN |         \
-                                             RCC_AHB2ENR1_GPIOHEN)
+                                             RCC_AHB2ENR1_GPIOHEN |         \
+                                             RCC_AHB2ENR1_GPIOIEN)
 
 /* I2C attributes.*/
 #define STM32_I2C_SINGLE_IRQ                FALSE
