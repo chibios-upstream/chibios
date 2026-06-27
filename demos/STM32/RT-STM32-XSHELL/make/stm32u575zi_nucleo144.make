@@ -5,7 +5,7 @@
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -O2 -ggdb -fomit-frame-pointer -falign-functions=16
+  USE_OPT = -O2 -ggdb -fomit-frame-pointer --specs=nano.specs -falign-functions=16
 endif
 
 # C specific options here (added to USE_OPT).
@@ -71,7 +71,7 @@ endif
 
 # FPU-related options.
 ifeq ($(USE_FPU_OPT),)
-  USE_FPU_OPT = -mfloat-abi=$(USE_FPU) -mfpu=fpv4-sp-d16
+  USE_FPU_OPT = -mfloat-abi=$(USE_FPU) -mfpu=fpv5-sp-d16
 endif
 
 #
@@ -99,22 +99,22 @@ include $(CHIBIOS)/os/license/license.mk
 # Startup files.
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32u5xx.mk
 # HAL-OSAL files (optional).
-#include $(CHIBIOS)/os/hal/hal.mk
-#include $(CHIBIOS)/os/hal/ports/STM32/STM32H5xx/platform.mk
-#include $(CHIBIOS)/os/hal/boards/ST_NUCLEO144_H563ZI/board.mk
-#include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
+include $(CHIBIOS)/os/hal/hal.mk
+include $(CHIBIOS)/os/hal/ports/STM32/STM32U5xx/platform.mk
+include $(CHIBIOS)/os/hal/boards/ST_NUCLEO144_U575ZI_Q/board.mk
+include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
-#include $(CHIBIOS)/os/rt/rt.mk
+include $(CHIBIOS)/os/rt/rt.mk
 #include $(CHIBIOS)/os/common/ports/ARMv8-M-ML/compilers/GCC/mk/port.mk
+include $(CHIBIOS)/os/common/ports/ARMv8-M-ML-ALT/compilers/GCC/mk/port.mk
 # Auto-build files in ./source recursively.
-AUTOBUILD_ROOT := ./nosource/
 include $(CHIBIOS)/tools/mk/autobuild.mk
 # Other files (optional).
-#include $(CHIBIOS)/os/test/test.mk
-#include $(CHIBIOS)/test/rt/rt_test.mk
-#include $(CHIBIOS)/test/oslib/oslib_test.mk
-#include $(CHIBIOS)/os/hal/lib/streams/streams.mk
-#include $(CHIBIOS)/os/various/xshell/xshell.mk
+include $(CHIBIOS)/os/test/test.mk
+include $(CHIBIOS)/test/rt/rt_test.mk
+include $(CHIBIOS)/test/oslib/oslib_test.mk
+include $(CHIBIOS)/os/hal/lib/streams/streams.mk
+include $(CHIBIOS)/os/various/xshell/xshell.mk
 
 # Define linker script file here.
 LDSCRIPT= $(STARTUPLD)/STM32U575xI.ld
@@ -123,8 +123,8 @@ LDSCRIPT= $(STARTUPLD)/STM32U575xI.ld
 # setting.
 CSRC = $(ALLCSRC) \
        $(TESTSRC) \
-       main_naked.c
-#       $(CONFDIR)/portab.c \
+       $(CONFDIR)/portab.c \
+       main.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -154,7 +154,7 @@ CPPWARN = -Wall -Wextra -Wundef
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS = -DSTM32U575xx
+UDEFS = -D__TEST_RT -D__TEST_OSLIB -DSTM32U575xx
 
 # Define ASM defines here
 UADEFS = -DSTM32U575xx
