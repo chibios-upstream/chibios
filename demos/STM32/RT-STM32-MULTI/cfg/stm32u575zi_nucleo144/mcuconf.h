@@ -20,8 +20,8 @@
 /*
  * STM32U5xx drivers configuration.
  *
- * This first demo-oriented configuration keeps the device on its reset clock
- * setup and only enables the pieces required by RT-STM32-MULTI: PAL plus the
+ * This first demo-oriented configuration uses the default Nucleo high-speed
+ * clock setup and enables the pieces required by RT-STM32-MULTI: PAL plus the
  * STLINK VCOM through USART1.
  */
 
@@ -37,11 +37,26 @@
 /*
  * Clock settings.
  */
+#define STM32_FLASH_ACR                     (FLASH_ACR_PRFTEN | FLASH_ACR_LATENCY_4WS)
+#define STM32_CFG_MSIS_RANGE                RCC_ICSCR1_MSISRANGE_RANGE0_48M
+#define STM32_CFG_MSIK_RANGE                RCC_ICSCR1_MSIKRANGE_RANGE0_48M
 #define STM32_CFG_HSI16_ENABLE              FALSE
-#define STM32_CFG_HSI48_ENABLE              FALSE
+#define STM32_CFG_HSI48_ENABLE              TRUE
 #define STM32_CFG_HSE_ENABLE                FALSE
 #define STM32_CFG_LSI_ENABLE                FALSE
 #define STM32_CFG_LSE_ENABLE                FALSE
+#define STM32_CFG_PLL1REF_VALUE             3
+#define STM32_CFG_PLL1VCO_VALUE             10
+#define STM32_CFG_PLL1P_VALUE               1
+#define STM32_CFG_PLL1Q_VALUE               1
+#define STM32_CFG_PLL1R_VALUE               1
+#define STM32_CFG_SYSCLK_SEL                RCC_CFGR1_SW_PLL1R
+#define STM32_CFG_HCLK_VALUE                1
+#define STM32_CFG_PCLK1_VALUE               1
+#define STM32_CFG_PCLK2_VALUE               1
+#define STM32_CFG_PCLK3_VALUE               1
+#define STM32_CFG_ICLK_SEL                  RCC_CCIPR1_ICLKSEL_HSI48
+#define STM32_CFG_SDMMC_SEL                 RCC_CCIPR2_SDMMCSEL_PLL1P
 #define STM32_CFG_USART1_SEL                RCC_CCIPR1_USART1SEL_PCLK2
 
 /*

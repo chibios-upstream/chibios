@@ -455,14 +455,14 @@
  * @brief   Selects the MSIS frequency range.
  */
 #if !defined(STM32_CFG_MSIS_RANGE) || defined(__DOXYGEN__)
-  #define STM32_CFG_MSIS_RANGE              RCC_ICSCR1_MSISRANGE_RANGE4_4M
+  #define STM32_CFG_MSIS_RANGE              RCC_ICSCR1_MSISRANGE_RANGE0_48M
 #endif
 
 /**
  * @brief   Selects the MSIK frequency range.
  */
 #if !defined(STM32_CFG_MSIK_RANGE) || defined(__DOXYGEN__)
-  #define STM32_CFG_MSIK_RANGE              RCC_ICSCR1_MSIKRANGE_RANGE4_4M
+  #define STM32_CFG_MSIK_RANGE              RCC_ICSCR1_MSIKRANGE_RANGE0_48M
 #endif
 
 /**
@@ -609,7 +609,7 @@
  * @brief   Enables the HSI48 clock source.
  */
 #if !defined(STM32_CFG_HSI48_ENABLE) || defined(__DOXYGEN__)
-  #define STM32_CFG_HSI48_ENABLE            FALSE
+  #define STM32_CFG_HSI48_ENABLE            TRUE
 #endif
 
 /**
@@ -656,35 +656,35 @@
  * @brief   Configures the PLL1REF clock divider value.
  */
 #if !defined(STM32_CFG_PLL1REF_VALUE) || defined(__DOXYGEN__)
-  #define STM32_CFG_PLL1REF_VALUE           1
+  #define STM32_CFG_PLL1REF_VALUE           3
 #endif
 
 /**
  * @brief   Configures the PLL1VCO clock multiplier value.
  */
 #if !defined(STM32_CFG_PLL1VCO_VALUE) || defined(__DOXYGEN__)
-  #define STM32_CFG_PLL1VCO_VALUE           32
+  #define STM32_CFG_PLL1VCO_VALUE           10
 #endif
 
 /**
  * @brief   Configures the PLL1P clock divider value.
  */
 #if !defined(STM32_CFG_PLL1P_VALUE) || defined(__DOXYGEN__)
-  #define STM32_CFG_PLL1P_VALUE             4
+  #define STM32_CFG_PLL1P_VALUE             1
 #endif
 
 /**
  * @brief   Configures the PLL1Q clock divider value.
  */
 #if !defined(STM32_CFG_PLL1Q_VALUE) || defined(__DOXYGEN__)
-  #define STM32_CFG_PLL1Q_VALUE             4
+  #define STM32_CFG_PLL1Q_VALUE             1
 #endif
 
 /**
  * @brief   Configures the PLL1R clock divider value.
  */
 #if !defined(STM32_CFG_PLL1R_VALUE) || defined(__DOXYGEN__)
-  #define STM32_CFG_PLL1R_VALUE             4
+  #define STM32_CFG_PLL1R_VALUE             1
 #endif
 
 /**
@@ -790,7 +790,7 @@
  *          - PLL1R.
  */
 #if !defined(STM32_CFG_SYSCLK_SEL) || defined(__DOXYGEN__)
-  #define STM32_CFG_SYSCLK_SEL              RCC_CFGR1_SW_MSIS
+  #define STM32_CFG_SYSCLK_SEL              RCC_CFGR1_SW_PLL1R
 #endif
 
 /**
@@ -1069,7 +1069,7 @@
  *          - PLL1P.
  */
 #if !defined(STM32_CFG_SDMMC_SEL) || defined(__DOXYGEN__)
-  #define STM32_CFG_SDMMC_SEL               RCC_CCIPR2_SDMMCSEL_ICLK
+  #define STM32_CFG_SDMMC_SEL               RCC_CCIPR2_SDMMCSEL_PLL1P
 #endif
 
 /**
