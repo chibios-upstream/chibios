@@ -81,6 +81,10 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- NEW: STM32U5 support extended: EPOD booster clock handling and a generated
+       clock tree, the STM32U575ZI-Nucleo144 board and RT-STM32-MULTI demo
+       configuration, and the STM32U575xx mcuconf template and updater
+       (github PR #56).
 - FIX: RT thread registry reference accounting was inconsistent when dynamic
        threads are disabled (CH_CFG_USE_DYNAMIC = FALSE): chRegFirstThread()
        and chRegNextThread() did not count the reference they hand out while
