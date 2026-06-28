@@ -1,0 +1,2 @@
+# Cross-configuration assertions emit explicit preprocessor checks.
+#error "invalid TST_CFG_REF value for fast mode"

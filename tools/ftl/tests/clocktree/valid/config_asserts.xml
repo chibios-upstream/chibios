@@ -1,0 +1,28 @@
+<clocktree>
+  <settings>
+    <prefixes clock_points="TCLK_" macros="TST_" cfgs="TST_CFG_" />
+    <suffixes frequency="_FREQ" values="_VALUE" bits="_BITS"
+              selector="_SEL" enable="_ENABLE" enabled="_ENABLED" />
+    <configs>
+      <config name="MODE" type="set" default="MODE_FAST"
+              values="MODE_FAST MODE_SLOW">
+        <description>Selects the operating mode.</description>
+      </config>
+      <config name="REF" type="set" default="REF_A"
+              values="REF_A REF_B">
+        <description>Selects the reference source.</description>
+      </config>
+    </configs>
+    <asserts>
+      <assert name="MODE_REF_PAIR"
+              condition="(TST_CFG_MODE != MODE_FAST) || (TST_CFG_REF == REF_A)"
+              message="invalid TST_CFG_REF value for fast mode" />
+    </asserts>
+  </settings>
+  <clocks>
+    <clock point="ROOT" enable="always" dynamic="no">
+      <description>root clock</description>
+      <derived frequency="8000000U" />
+    </clock>
+  </clocks>
+</clocktree>

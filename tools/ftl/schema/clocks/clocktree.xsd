@@ -946,6 +946,7 @@
         <xs:element name="definitions" type="definitionsType" maxOccurs="1" minOccurs="0"></xs:element>
         <xs:element name="configs" type="configsType" maxOccurs="1" minOccurs="1"></xs:element>
         <xs:element name="derived-configs" type="derivedConfigsType" maxOccurs="1" minOccurs="0"></xs:element>
+        <xs:element name="asserts" type="assertsType" maxOccurs="1" minOccurs="0"></xs:element>
         <xs:element name="states" type="statesType" maxOccurs="1" minOccurs="0"></xs:element>
         <xs:element name="limit-set" type="limitSetType" maxOccurs="1" minOccurs="0"></xs:element>
         <xs:element name="limit-values" type="limitValuesType" maxOccurs="1" minOccurs="0"></xs:element>
@@ -1038,6 +1039,40 @@
       <xs:sequence>
         <xs:element name="derived-config" type="derivedConfigType" maxOccurs="unbounded" minOccurs="1"></xs:element>
       </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="assertsType">
+      <xs:sequence>
+        <xs:element name="assert" type="assertType" maxOccurs="unbounded" minOccurs="1"></xs:element>
+      </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="assertType">
+      <xs:attribute name="name" use="required">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"></xs:minLength>
+            <xs:whiteSpace value="collapse"></xs:whiteSpace>
+            <xs:pattern value="[A-Za-z_][A-Za-z0-9_]*"></xs:pattern>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="condition" use="required">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"></xs:minLength>
+            <xs:whiteSpace value="collapse"></xs:whiteSpace>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="message" use="required">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"></xs:minLength>
+            <xs:whiteSpace value="collapse"></xs:whiteSpace>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
     </xs:complexType>
 
     <xs:complexType name="derivedConfigType">

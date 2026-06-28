@@ -37,6 +37,9 @@ jar.
 - Generic configurations currently support `bool`, `value`, `set`, and `raw`
   types. `bool`, constrained `value`, and `set` configurations emit generated
   compile-time checks.
+- `settings/asserts/assert` provides cross-configuration compile-time
+  assertions for constraints that involve multiple settings, such as valid
+  oscillator reference/frequency combinations.
 - Semantic generator settings are marked by `role`; `CLOCK_DYNAMIC` is a
   generic boolean config name with role `dynamic_mode`, emitted using the
   configured configuration prefix.

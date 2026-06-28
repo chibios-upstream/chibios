@@ -651,6 +651,29 @@ function ParseDerivedConfigurations(definitions, configs)
   return dconfigs
 endfunction
 
+/* Parses cross-configuration assertions.*/
+function ParseConfigurationAssertions()
+  local names = []
+  local asserts = []
+
+  if doc1.clocktree.settings.asserts[0]??
+    list doc1.clocktree.settings.asserts.assert as assertion
+      local name = assertion.@name[0]?string
+      local condition = assertion.@condition[0]?string
+      local message = assertion.@message[0]?string
+
+      if names?seq_contains(name)
+        stop ">>>> Duplicate configuration assertion '" + name + "'"
+      endif
+      local names = names + [name]
+
+      local asserts = asserts + [{"name":name, "condition":condition, "message":message}]
+    endlist
+  endif
+
+  return asserts
+endfunction
+
 /* Parses terminal clock sinks.*/
 function ParseSinks(clocknames)
   local names = []
@@ -844,6 +867,7 @@ function Initialize()
   local definitions = ParseDefinitions()
   local configs = ParseConfigurations()
   local dconfigs = ParseDerivedConfigurations(definitions, configs)
+  local asserts = ParseConfigurationAssertions()
   local limitmodel = ParseLimitModel()
   local clocknames = []
   local clocks = []
@@ -931,7 +955,7 @@ function Initialize()
     endif
   endlist
 
-  return {"definitions":definitions, "configs":configs, "derived_configs":dconfigs, "limits":limitmodel, "clocknames":clocknames, "clocks":clocks, "points":points, "muxes":muxes, "dividers":dividers, "multipliers":multipliers, "sinks":sinks}
+  return {"definitions":definitions, "configs":configs, "derived_configs":dconfigs, "asserts":asserts, "limits":limitmodel, "clocknames":clocknames, "clocks":clocks, "points":points, "muxes":muxes, "dividers":dividers, "multipliers":multipliers, "sinks":sinks}
 endfunction
 
 /* Static data parsed at startup.*/
@@ -1401,6 +1425,10 @@ endfunction
 
 /* Returns true if generic configuration checks are emitted.*/
 function HasGenericConfigChecks()
+  if model["asserts"]?size > 0
+    return true
+  endif
+
   list model["configs"] as config
     if HasGenericConfigCheck(config)
       return true
@@ -1409,6 +1437,13 @@ function HasGenericConfigChecks()
 
   return false
 endfunction
+
+/* Emits one cross-configuration assertion.*/
+macro EmitOneConfigAssertion(assertion)
+  ppcode.EmitPPAssert(
+    expression=assertion["condition"],
+    message="\"" + assertion["message"] + "\"")
+endmacro
 
 /* Formats one preprocessor condition term.*/
 function FormatConditionTerm(term)
@@ -1664,6 +1699,14 @@ macro EmitGenericConfigChecks()
         EmitOneGenericConfigChecks(config=config)
         local emitted = true
       endif
+    endlist
+
+    list model["asserts"] as assertion
+      if emitted
+        emit "\e"
+      endif
+      EmitOneConfigAssertion(assertion=assertion)
+      local emitted = true
     endlist
   endif
 endmacro

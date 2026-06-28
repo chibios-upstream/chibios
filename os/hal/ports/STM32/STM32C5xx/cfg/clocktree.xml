@@ -1,0 +1,764 @@
+<clocktree
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/clocks/clocktree.xsd">
+  <settings>
+    <prefixes clock_points="CLK_" macros="STM32_" cfgs="STM32_CFG_" />
+    <suffixes frequency="_FREQ" clock="_CLOCK" values="_VALUE" bits="_BITS"
+              selector="_SEL" enable="_ENABLE" enabled="_ENABLED" />
+    <enums>
+      <enum name="RCC_CR2_PSIFREQ" field="RCC_CR2_PSIFREQ_Pos">
+        <item name="FREQ100M" value="0U" />
+        <item name="FREQ144M" value="1U" />
+        <item name="FREQ160M" value="2U" />
+      </enum>
+      <enum name="RCC_CR2_PSIREF" field="RCC_CR2_PSIREF_Pos">
+        <item name="REF32K768" value="0U" />
+        <item name="REF8M" value="1U" />
+        <item name="REF16M" value="2U" />
+        <item name="REF24M" value="3U" />
+        <item name="REF25M" value="4U" />
+        <item name="REF32M" value="5U" />
+        <item name="REF48M" value="6U" />
+        <item name="REF50M" value="7U" />
+      </enum>
+      <enum name="RCC_CR2_PSIREFSRC" field="RCC_CR2_PSIREFSRC_Pos">
+        <item name="HSE" value="0U" />
+        <item name="LSE" value="1U" />
+        <item name="HSI18" value="2U" />
+      </enum>
+      <enum name="RCC_CR2_HSIKDIV" field="RCC_CR2_HSIKDIV_Pos">
+        <item name="DIV1" value="0U" />
+        <item name="DIV1_5" value="2U" />
+        <item name="DIV2" value="3U" />
+        <item name="DIV2_5" value="4U" />
+        <item name="DIV3" value="5U" />
+        <item name="DIV3_5" value="6U" />
+        <item name="DIV4" value="7U" />
+        <item name="DIV4_5" value="8U" />
+        <item name="DIV5" value="9U" />
+        <item name="DIV5_5" value="10U" />
+        <item name="DIV6" value="11U" />
+        <item name="DIV6_5" value="12U" />
+        <item name="DIV7" value="13U" />
+        <item name="DIV7_5" value="14U" />
+        <item name="DIV8" value="15U" />
+      </enum>
+      <enum name="RCC_CR2_PSIKDIV" field="RCC_CR2_PSIKDIV_Pos">
+        <item name="DIV1" value="0U" />
+        <item name="DIV1_5" value="2U" />
+        <item name="DIV2" value="3U" />
+        <item name="DIV2_5" value="4U" />
+        <item name="DIV3" value="5U" />
+        <item name="DIV3_5" value="6U" />
+        <item name="DIV4" value="7U" />
+        <item name="DIV4_5" value="8U" />
+        <item name="DIV5" value="9U" />
+        <item name="DIV5_5" value="10U" />
+        <item name="DIV6" value="11U" />
+        <item name="DIV6_5" value="12U" />
+        <item name="DIV7" value="13U" />
+        <item name="DIV7_5" value="14U" />
+        <item name="DIV8" value="15U" />
+      </enum>
+    </enums>
+    <definitions>
+      <define name="RCC_RTCCR_RTCSEL_NOCLOCK" value="0U" />
+      <define name="RCC_RTCCR_RTCSEL_LSE"
+              value="(RCC_RTCCR_RTCEN | (1U &lt;&lt; RCC_RTCCR_RTCSEL_Pos))" />
+      <define name="RCC_RTCCR_RTCSEL_LSI"
+              value="(RCC_RTCCR_RTCEN | (2U &lt;&lt; RCC_RTCCR_RTCSEL_Pos))" />
+      <define name="RCC_RTCCR_RTCSEL_HSEDIV"
+              value="(RCC_RTCCR_RTCEN | (3U &lt;&lt; RCC_RTCCR_RTCSEL_Pos))" />
+      <define name="RCC_RTCCR_LSCOSEL_NOCLOCK" value="0U" />
+      <define name="RCC_RTCCR_LSCOSEL_LSI" value="RCC_RTCCR_LSCOEN" />
+      <define name="RCC_RTCCR_LSCOSEL_LSE"
+              value="(RCC_RTCCR_LSCOEN | RCC_RTCCR_LSCOSEL)" />
+      <define name="RCC_CFGR1_MCO1SEL_SYSCLK"
+              value="(0U &lt;&lt; RCC_CFGR1_MCO1SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO1SEL_HSE"
+              value="(1U &lt;&lt; RCC_CFGR1_MCO1SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO1SEL_LSE"
+              value="(2U &lt;&lt; RCC_CFGR1_MCO1SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO1SEL_LSI"
+              value="(3U &lt;&lt; RCC_CFGR1_MCO1SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO1SEL_PSIK"
+              value="(4U &lt;&lt; RCC_CFGR1_MCO1SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO1SEL_HSIK"
+              value="(5U &lt;&lt; RCC_CFGR1_MCO1SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO1SEL_PSIS"
+              value="(6U &lt;&lt; RCC_CFGR1_MCO1SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO1SEL_HSIS"
+              value="(7U &lt;&lt; RCC_CFGR1_MCO1SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO2SEL_SYSCLK"
+              value="(0U &lt;&lt; RCC_CFGR1_MCO2SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO2SEL_HSE"
+              value="(1U &lt;&lt; RCC_CFGR1_MCO2SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO2SEL_LSE"
+              value="(2U &lt;&lt; RCC_CFGR1_MCO2SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO2SEL_LSI"
+              value="(3U &lt;&lt; RCC_CFGR1_MCO2SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO2SEL_PSIK"
+              value="(4U &lt;&lt; RCC_CFGR1_MCO2SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO2SEL_HSIK"
+              value="(5U &lt;&lt; RCC_CFGR1_MCO2SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO2SEL_PSIDIV3"
+              value="(6U &lt;&lt; RCC_CFGR1_MCO2SEL_Pos)" />
+      <define name="RCC_CFGR1_MCO2SEL_HSIDIV3"
+              value="(7U &lt;&lt; RCC_CFGR1_MCO2SEL_Pos)" />
+    </definitions>
+    <configs>
+      <config name="CLOCK_DYNAMIC" type="bool" default="FALSE"
+              role="dynamic_mode">
+        <description>Enables dynamic clock handling.</description>
+      </config>
+      <config name="PSI_FREQ" type="set" default="RCC_CR2_PSIFREQ_FREQ144M"
+              values="RCC_CR2_PSIFREQ_FREQ100M RCC_CR2_PSIFREQ_FREQ144M RCC_CR2_PSIFREQ_FREQ160M">
+        <description>Selects the PSI oscillator nominal frequency.</description>
+      </config>
+      <config name="PSI_REFSRC" type="set" default="RCC_CR2_PSIREFSRC_HSI18"
+              values="RCC_CR2_PSIREFSRC_HSE RCC_CR2_PSIREFSRC_LSE RCC_CR2_PSIREFSRC_HSI18">
+        <description>Selects the PSI oscillator reference source.</description>
+      </config>
+      <config name="PSI_REF" type="set" default="RCC_CR2_PSIREF_REF8M"
+              values="RCC_CR2_PSIREF_REF32K768 RCC_CR2_PSIREF_REF8M RCC_CR2_PSIREF_REF16M RCC_CR2_PSIREF_REF24M RCC_CR2_PSIREF_REF25M RCC_CR2_PSIREF_REF32M RCC_CR2_PSIREF_REF48M RCC_CR2_PSIREF_REF50M">
+        <description>Selects the PSI oscillator reference frequency.</description>
+      </config>
+      <config name="HSIKDIV" type="set" default="RCC_CR2_HSIKDIV_DIV1"
+              values="RCC_CR2_HSIKDIV_DIV1 RCC_CR2_HSIKDIV_DIV1_5 RCC_CR2_HSIKDIV_DIV2 RCC_CR2_HSIKDIV_DIV2_5 RCC_CR2_HSIKDIV_DIV3 RCC_CR2_HSIKDIV_DIV3_5 RCC_CR2_HSIKDIV_DIV4 RCC_CR2_HSIKDIV_DIV4_5 RCC_CR2_HSIKDIV_DIV5 RCC_CR2_HSIKDIV_DIV5_5 RCC_CR2_HSIKDIV_DIV6 RCC_CR2_HSIKDIV_DIV6_5 RCC_CR2_HSIKDIV_DIV7 RCC_CR2_HSIKDIV_DIV7_5 RCC_CR2_HSIKDIV_DIV8">
+        <description>Selects the HSIK output divider.</description>
+      </config>
+      <config name="PSIKDIV" type="set" default="RCC_CR2_PSIKDIV_DIV1"
+              values="RCC_CR2_PSIKDIV_DIV1 RCC_CR2_PSIKDIV_DIV1_5 RCC_CR2_PSIKDIV_DIV2 RCC_CR2_PSIKDIV_DIV2_5 RCC_CR2_PSIKDIV_DIV3 RCC_CR2_PSIKDIV_DIV3_5 RCC_CR2_PSIKDIV_DIV4 RCC_CR2_PSIKDIV_DIV4_5 RCC_CR2_PSIKDIV_DIV5 RCC_CR2_PSIKDIV_DIV5_5 RCC_CR2_PSIKDIV_DIV6 RCC_CR2_PSIKDIV_DIV6_5 RCC_CR2_PSIKDIV_DIV7 RCC_CR2_PSIKDIV_DIV7_5 RCC_CR2_PSIKDIV_DIV8">
+        <description>Selects the PSIK output divider.</description>
+      </config>
+      <config name="MCO1_SEL" type="set" default="RCC_CFGR1_MCO1SEL_SYSCLK"
+              values="RCC_CFGR1_MCO1SEL_SYSCLK RCC_CFGR1_MCO1SEL_HSE RCC_CFGR1_MCO1SEL_LSE RCC_CFGR1_MCO1SEL_LSI RCC_CFGR1_MCO1SEL_PSIK RCC_CFGR1_MCO1SEL_HSIK RCC_CFGR1_MCO1SEL_PSIS RCC_CFGR1_MCO1SEL_HSIS">
+        <description>Selects the MCO1 clock source.</description>
+      </config>
+      <config name="MCO1PRE_VALUE" type="value" default="0" min="0"
+              max="15">
+        <description>Configures the MCO1 clock prescaler, zero disables MCO1.</description>
+      </config>
+      <config name="MCO2_SEL" type="set" default="RCC_CFGR1_MCO2SEL_SYSCLK"
+              values="RCC_CFGR1_MCO2SEL_SYSCLK RCC_CFGR1_MCO2SEL_HSE RCC_CFGR1_MCO2SEL_LSE RCC_CFGR1_MCO2SEL_LSI RCC_CFGR1_MCO2SEL_PSIK RCC_CFGR1_MCO2SEL_HSIK RCC_CFGR1_MCO2SEL_PSIDIV3 RCC_CFGR1_MCO2SEL_HSIDIV3">
+        <description>Selects the MCO2 clock source.</description>
+      </config>
+      <config name="MCO2PRE_VALUE" type="value" default="0" min="0"
+              max="15">
+        <description>Configures the MCO2 clock prescaler, zero disables MCO2.</description>
+      </config>
+    </configs>
+    <asserts>
+      <assert name="PSI_HSE_REFERENCE"
+              condition="(STM32_CFG_PSI_REFSRC != RCC_CR2_PSIREFSRC_HSE) ||
+                         (((STM32_CFG_PSI_FREQ == RCC_CR2_PSIFREQ_FREQ100M) &amp;&amp;
+                           ((STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF8M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF16M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF24M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF25M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF32M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF48M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF50M))) ||
+                          ((STM32_CFG_PSI_FREQ == RCC_CR2_PSIFREQ_FREQ144M) &amp;&amp;
+                           ((STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF8M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF16M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF24M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF32M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF48M))) ||
+                          ((STM32_CFG_PSI_FREQ == RCC_CR2_PSIFREQ_FREQ160M) &amp;&amp;
+                           ((STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF8M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF16M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF24M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF32M) ||
+                            (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF48M))))"
+              message="invalid STM32_CFG_PSI_REF value for HSE-referenced PSI" />
+      <assert name="PSI_HSI18_REFERENCE"
+              condition="(STM32_CFG_PSI_REFSRC != RCC_CR2_PSIREFSRC_HSI18) ||
+                         (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF8M)"
+              message="invalid STM32_CFG_PSI_REF value for HSI/18-referenced PSI" />
+      <assert name="PSI_LSE_REFERENCE"
+              condition="(STM32_CFG_PSI_REFSRC != RCC_CR2_PSIREFSRC_LSE) ||
+                         (STM32_CFG_PSI_REF == RCC_CR2_PSIREF_REF32K768)"
+              message="invalid STM32_CFG_PSI_REF value for LSE-referenced PSI" />
+    </asserts>
+    <states>
+      <state name="normal" when="TRUE" />
+    </states>
+    <limit-set>
+      <limit name="HSECLK" min="yes" max="yes" />
+      <limit name="LSECLK" min="yes" max="yes" />
+      <limit name="SYSCLK" min="no" max="yes" />
+      <limit name="HCLK" min="no" max="yes" />
+      <limit name="PCLK1" min="no" max="yes" />
+      <limit name="PCLK2" min="no" max="yes" />
+      <limit name="PCLK3" min="no" max="yes" />
+      <limit name="HSE1M" min="no" max="yes" />
+      <limit name="FLASH_0WS" min="no" max="yes" />
+      <limit name="FLASH_1WS" min="no" max="yes" />
+      <limit name="FLASH_2WS" min="no" max="yes" />
+      <limit name="FLASH_3WS" min="no" max="yes" />
+      <limit name="FLASH_4WS" min="no" max="yes" />
+    </limit-set>
+    <limit-values>
+      <state-values state="normal">
+        <limit name="HSECLK" min="4000000U" max="50000000U" />
+        <limit name="LSECLK" min="32768U" max="32768U" />
+        <limit name="SYSCLK" max="144000000U" />
+        <limit name="HCLK" max="144000000U" />
+        <limit name="PCLK1" max="144000000U" />
+        <limit name="PCLK2" max="144000000U" />
+        <limit name="PCLK3" max="144000000U" />
+        <limit name="HSE1M" max="1000000U" />
+        <limit name="FLASH_0WS" max="34000000U" />
+        <limit name="FLASH_1WS" max="68000000U" />
+        <limit name="FLASH_2WS" max="102000000U" />
+        <limit name="FLASH_3WS" max="136000000U" />
+        <limit name="FLASH_4WS" max="144000000U" />
+      </state-values>
+    </limit-values>
+  </settings>
+  <sources>
+    <source point="NONE" enable="never" dynamic="no" frequency="0U">
+      <description>no clock source</description>
+    </source>
+    <source point="HSI" enable="always" dynamic="yes" private="true"
+            frequency="HSI_VALUE">
+      <description>high-speed internal oscillator</description>
+    </source>
+    <source point="PSI" enable="auto" dynamic="yes" private="true">
+      <description>programmable speed internal oscillator</description>
+      <bits target="CR2"
+            enabled="(STM32_CFG_PSI_FREQ | STM32_CFG_PSI_REF | STM32_CFG_PSI_REFSRC)"
+            disabled="0U" />
+      <frequencies>
+        <select>
+          <when condition="STM32_CFG_PSI_FREQ == RCC_CR2_PSIFREQ_FREQ100M"
+                value="100000000U" />
+          <when condition="STM32_CFG_PSI_FREQ == RCC_CR2_PSIFREQ_FREQ160M"
+                value="160000000U" />
+          <otherwise value="144000000U" />
+        </select>
+      </frequencies>
+    </source>
+    <source point="HSE" enable="manual" default="FALSE" dynamic="yes"
+            frequency="STM32_HSECLK">
+      <description>high-speed external oscillator</description>
+      <bits target="CR1" enabled="RCC_CR1_HSEON" disabled="0U" />
+      <limits ref="HSECLK" />
+    </source>
+    <source point="LSI" enable="manual" default="FALSE" dynamic="no"
+            frequency="LSI_VALUE">
+      <description>low-speed internal oscillator</description>
+      <bits target="RTCCR" enabled="RCC_RTCCR_LSION" disabled="0U" />
+    </source>
+    <source point="LSE" enable="manual" default="FALSE" dynamic="no"
+            frequency="STM32_LSECLK">
+      <description>low-speed external oscillator</description>
+      <bits target="RTCCR" enabled="RCC_RTCCR_LSEON" disabled="0U" />
+      <limits ref="LSECLK" />
+    </source>
+  </sources>
+  <clocks>
+    <clock point="HSIS" enable="manual" default="FALSE" dynamic="yes">
+      <description>high-speed internal system clock</description>
+      <bits target="CR1" enabled="RCC_CR1_HSISON" disabled="0U" />
+      <derived input="HSI" frequency="%I%" />
+    </clock>
+    <clock point="HSIDIV3" enable="manual" default="TRUE" dynamic="yes">
+      <description>high-speed internal oscillator divided by 3</description>
+      <bits target="CR1" enabled="RCC_CR1_HSIDIV3ON" disabled="0U" />
+      <derived input="HSI" frequency="(%I% / 3U)" />
+    </clock>
+    <clock point="HSIK" enable="manual" default="FALSE" dynamic="yes">
+      <description>high-speed internal kernel clock</description>
+      <bits target="CR1" enabled="RCC_CR1_HSIKON" disabled="0U" />
+      <derived>
+        <frequencies>
+          <select>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV1_5"
+                  value="((STM32_HSI_FREQ * 2U) / 3U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV2"
+                  value="(STM32_HSI_FREQ / 2U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV2_5"
+                  value="((STM32_HSI_FREQ * 2U) / 5U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV3"
+                  value="(STM32_HSI_FREQ / 3U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV3_5"
+                  value="((STM32_HSI_FREQ * 2U) / 7U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV4"
+                  value="(STM32_HSI_FREQ / 4U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV4_5"
+                  value="((STM32_HSI_FREQ * 2U) / 9U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV5"
+                  value="(STM32_HSI_FREQ / 5U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV5_5"
+                  value="((STM32_HSI_FREQ * 2U) / 11U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV6"
+                  value="(STM32_HSI_FREQ / 6U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV6_5"
+                  value="((STM32_HSI_FREQ * 2U) / 13U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV7"
+                  value="(STM32_HSI_FREQ / 7U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV7_5"
+                  value="((STM32_HSI_FREQ * 2U) / 15U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_HSIKDIV == RCC_CR2_HSIKDIV_DIV8"
+                  value="(STM32_HSI_FREQ / 8U)">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </when>
+            <otherwise value="STM32_HSI_FREQ">
+              <bits target="CR2" value="STM32_CFG_HSIKDIV"
+                    mask="RCC_CR2_HSIKDIV_Msk" />
+            </otherwise>
+          </select>
+        </frequencies>
+      </derived>
+    </clock>
+    <clock point="PSIS" enable="auto" dynamic="yes">
+      <description>programmable speed internal system clock</description>
+      <bits target="CR1" enabled="RCC_CR1_PSISON" disabled="0U" />
+      <derived input="PSI" frequency="%I%" />
+    </clock>
+    <clock point="PSIDIV3" enable="manual" default="FALSE" dynamic="yes">
+      <description>programmable speed internal oscillator divided by 3</description>
+      <bits target="CR1" enabled="RCC_CR1_PSIDIV3ON" disabled="0U" />
+      <derived input="PSI" frequency="(%I% / 3U)" />
+    </clock>
+    <clock point="PSIK" enable="manual" default="FALSE" dynamic="yes">
+      <description>programmable speed internal kernel clock</description>
+      <bits target="CR1" enabled="RCC_CR1_PSIKON" disabled="0U" />
+      <derived>
+        <frequencies>
+          <select>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV1_5"
+                  value="((STM32_PSI_FREQ * 2U) / 3U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV2"
+                  value="(STM32_PSI_FREQ / 2U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV2_5"
+                  value="((STM32_PSI_FREQ * 2U) / 5U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV3"
+                  value="(STM32_PSI_FREQ / 3U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV3_5"
+                  value="((STM32_PSI_FREQ * 2U) / 7U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV4"
+                  value="(STM32_PSI_FREQ / 4U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV4_5"
+                  value="((STM32_PSI_FREQ * 2U) / 9U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV5"
+                  value="(STM32_PSI_FREQ / 5U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV5_5"
+                  value="((STM32_PSI_FREQ * 2U) / 11U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV6"
+                  value="(STM32_PSI_FREQ / 6U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV6_5"
+                  value="((STM32_PSI_FREQ * 2U) / 13U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV7"
+                  value="(STM32_PSI_FREQ / 7U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV7_5"
+                  value="((STM32_PSI_FREQ * 2U) / 15U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <when condition="STM32_CFG_PSIKDIV == RCC_CR2_PSIKDIV_DIV8"
+                  value="(STM32_PSI_FREQ / 8U)">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </when>
+            <otherwise value="STM32_PSI_FREQ">
+              <bits target="CR2" value="STM32_CFG_PSIKDIV"
+                    mask="RCC_CR2_PSIKDIV_Msk" />
+            </otherwise>
+          </select>
+        </frequencies>
+      </derived>
+    </clock>
+    <clock point="SYSCLK" enable="always" dynamic="yes">
+      <description>system clock</description>
+      <limits ref="SYSCLK" />
+      <mux name="SW" field="RCC_CFGR1_SW" offset="0U">
+        <input point="HSIDIV3" encoding="0U" default="yes" />
+        <input point="HSIS" encoding="1U" />
+        <input point="HSE" encoding="2U" />
+        <input point="PSIS" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="HCLK" enable="always" dynamic="yes">
+      <description>AHB clock</description>
+      <limits ref="HCLK" />
+      <divider name="HPRE" input="SYSCLK" field="RCC_CFGR2_HPRE"
+               offset="0U">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="8U" />
+          <choice item="DIV4" value="4" encoding="9U" />
+          <choice item="DIV8" value="8" encoding="10U" />
+          <choice item="DIV16" value="16" encoding="11U" />
+          <choice item="DIV64" value="64" encoding="12U" />
+          <choice item="DIV128" value="128" encoding="13U" />
+          <choice item="DIV256" value="256" encoding="14U" />
+          <choice item="DIV512" value="512" encoding="15U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="PCLK1" enable="always" dynamic="yes">
+      <description>APB1 clock</description>
+      <limits ref="PCLK1" />
+      <divider name="PPRE1" input="HCLK" field="RCC_CFGR2_PPRE1"
+               offset="4U">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="4U" />
+          <choice item="DIV4" value="4" encoding="5U" />
+          <choice item="DIV8" value="8" encoding="6U" />
+          <choice item="DIV16" value="16" encoding="7U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="PCLK1TIM" enable="always" dynamic="yes">
+      <description>APB1 timer clock</description>
+      <derived input="HCLK" frequency="%I%" />
+    </clock>
+    <clock point="PCLK2" enable="always" dynamic="yes">
+      <description>APB2 clock</description>
+      <limits ref="PCLK2" />
+      <divider name="PPRE2" input="HCLK" field="RCC_CFGR2_PPRE2"
+               offset="8U">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="4U" />
+          <choice item="DIV4" value="4" encoding="5U" />
+          <choice item="DIV8" value="8" encoding="6U" />
+          <choice item="DIV16" value="16" encoding="7U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="PCLK2TIM" enable="always" dynamic="yes">
+      <description>APB2 timer clock</description>
+      <derived input="HCLK" frequency="%I%" />
+    </clock>
+    <clock point="PCLK3" enable="always" dynamic="yes">
+      <description>APB3 clock</description>
+      <limits ref="PCLK3" />
+      <divider name="PPRE3" input="HCLK" field="RCC_CFGR2_PPRE3"
+               offset="12U">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="4U" />
+          <choice item="DIV4" value="4" encoding="5U" />
+          <choice item="DIV8" value="8" encoding="6U" />
+          <choice item="DIV16" value="16" encoding="7U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="HSEDIV" enable="auto" dynamic="no">
+      <description>HSE divided RTC clock</description>
+      <limits ref="HSE1M" />
+      <divider name="RTCPRE" input="HSE" field="RCC_CFGR1_RTCPRE"
+               offset="7U">
+        <value min="2" max="511" default="32">
+          <bits value="(%N% &lt;&lt; RCC_CFGR1_RTCPRE_Pos)"
+                mask="RCC_CFGR1_RTCPRE_Msk" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="RTCCLK" enable="always" dynamic="no">
+      <description>RTC clock</description>
+      <mux name="RTCSEL">
+        <input point="NONE" label="NOCLOCK" default="yes">
+          <bits value="RCC_RTCCR_RTCSEL_NOCLOCK" />
+        </input>
+        <input point="LSE">
+          <bits value="RCC_RTCCR_RTCSEL_LSE" />
+        </input>
+        <input point="LSI">
+          <bits value="RCC_RTCCR_RTCSEL_LSI" />
+        </input>
+        <input point="HSEDIV">
+          <bits value="RCC_RTCCR_RTCSEL_HSEDIV" />
+        </input>
+      </mux>
+    </clock>
+    <clock point="LSCO" enable="always" dynamic="no">
+      <description>LSCO output pin</description>
+      <mux name="LSCOSEL">
+        <input point="NONE" label="NOCLOCK" default="yes">
+          <bits value="RCC_RTCCR_LSCOSEL_NOCLOCK" />
+        </input>
+        <input point="LSI">
+          <bits value="RCC_RTCCR_LSCOSEL_LSI" />
+        </input>
+        <input point="LSE">
+          <bits value="RCC_RTCCR_LSCOSEL_LSE" />
+        </input>
+      </mux>
+    </clock>
+    <clock point="MCO1" enable="always" dynamic="yes">
+      <description>MCO1 output pin</description>
+      <derived>
+        <frequencies>
+          <select>
+            <when condition="STM32_CFG_MCO1PRE_VALUE == 0" value="0U">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO1_SEL | (STM32_CFG_MCO1PRE_VALUE &lt;&lt; RCC_CFGR1_MCO1PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO1SEL_Msk | RCC_CFGR1_MCO1PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_SYSCLK"
+                  value="(STM32_SYSCLK_FREQ / STM32_CFG_MCO1PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO1_SEL | (STM32_CFG_MCO1PRE_VALUE &lt;&lt; RCC_CFGR1_MCO1PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO1SEL_Msk | RCC_CFGR1_MCO1PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSE"
+                  value="(STM32_HSE_FREQ / STM32_CFG_MCO1PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO1_SEL | (STM32_CFG_MCO1PRE_VALUE &lt;&lt; RCC_CFGR1_MCO1PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO1SEL_Msk | RCC_CFGR1_MCO1PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_LSE"
+                  value="(STM32_LSE_FREQ / STM32_CFG_MCO1PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO1_SEL | (STM32_CFG_MCO1PRE_VALUE &lt;&lt; RCC_CFGR1_MCO1PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO1SEL_Msk | RCC_CFGR1_MCO1PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_LSI"
+                  value="(STM32_LSI_FREQ / STM32_CFG_MCO1PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO1_SEL | (STM32_CFG_MCO1PRE_VALUE &lt;&lt; RCC_CFGR1_MCO1PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO1SEL_Msk | RCC_CFGR1_MCO1PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_PSIK"
+                  value="(STM32_PSIK_FREQ / STM32_CFG_MCO1PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO1_SEL | (STM32_CFG_MCO1PRE_VALUE &lt;&lt; RCC_CFGR1_MCO1PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO1SEL_Msk | RCC_CFGR1_MCO1PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSIK"
+                  value="(STM32_HSIK_FREQ / STM32_CFG_MCO1PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO1_SEL | (STM32_CFG_MCO1PRE_VALUE &lt;&lt; RCC_CFGR1_MCO1PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO1SEL_Msk | RCC_CFGR1_MCO1PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_PSIS"
+                  value="(STM32_PSIS_FREQ / STM32_CFG_MCO1PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO1_SEL | (STM32_CFG_MCO1PRE_VALUE &lt;&lt; RCC_CFGR1_MCO1PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO1SEL_Msk | RCC_CFGR1_MCO1PRE_Msk)" />
+            </when>
+            <otherwise value="(STM32_HSIS_FREQ / STM32_CFG_MCO1PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO1_SEL | (STM32_CFG_MCO1PRE_VALUE &lt;&lt; RCC_CFGR1_MCO1PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO1SEL_Msk | RCC_CFGR1_MCO1PRE_Msk)" />
+            </otherwise>
+          </select>
+        </frequencies>
+      </derived>
+    </clock>
+    <clock point="MCO2" enable="always" dynamic="yes">
+      <description>MCO2 output pin</description>
+      <derived>
+        <frequencies>
+          <select>
+            <when condition="STM32_CFG_MCO2PRE_VALUE == 0" value="0U">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO2_SEL | (STM32_CFG_MCO2PRE_VALUE &lt;&lt; RCC_CFGR1_MCO2PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO2SEL_Msk | RCC_CFGR1_MCO2PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_SYSCLK"
+                  value="(STM32_SYSCLK_FREQ / STM32_CFG_MCO2PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO2_SEL | (STM32_CFG_MCO2PRE_VALUE &lt;&lt; RCC_CFGR1_MCO2PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO2SEL_Msk | RCC_CFGR1_MCO2PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSE"
+                  value="(STM32_HSE_FREQ / STM32_CFG_MCO2PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO2_SEL | (STM32_CFG_MCO2PRE_VALUE &lt;&lt; RCC_CFGR1_MCO2PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO2SEL_Msk | RCC_CFGR1_MCO2PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_LSE"
+                  value="(STM32_LSE_FREQ / STM32_CFG_MCO2PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO2_SEL | (STM32_CFG_MCO2PRE_VALUE &lt;&lt; RCC_CFGR1_MCO2PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO2SEL_Msk | RCC_CFGR1_MCO2PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_LSI"
+                  value="(STM32_LSI_FREQ / STM32_CFG_MCO2PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO2_SEL | (STM32_CFG_MCO2PRE_VALUE &lt;&lt; RCC_CFGR1_MCO2PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO2SEL_Msk | RCC_CFGR1_MCO2PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_PSIK"
+                  value="(STM32_PSIK_FREQ / STM32_CFG_MCO2PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO2_SEL | (STM32_CFG_MCO2PRE_VALUE &lt;&lt; RCC_CFGR1_MCO2PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO2SEL_Msk | RCC_CFGR1_MCO2PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSIK"
+                  value="(STM32_HSIK_FREQ / STM32_CFG_MCO2PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO2_SEL | (STM32_CFG_MCO2PRE_VALUE &lt;&lt; RCC_CFGR1_MCO2PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO2SEL_Msk | RCC_CFGR1_MCO2PRE_Msk)" />
+            </when>
+            <when condition="STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_PSIDIV3"
+                  value="(STM32_PSIDIV3_FREQ / STM32_CFG_MCO2PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO2_SEL | (STM32_CFG_MCO2PRE_VALUE &lt;&lt; RCC_CFGR1_MCO2PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO2SEL_Msk | RCC_CFGR1_MCO2PRE_Msk)" />
+            </when>
+            <otherwise value="(STM32_HSIDIV3_FREQ / STM32_CFG_MCO2PRE_VALUE)">
+              <bits target="CFGR1"
+                    value="(STM32_CFG_MCO2_SEL | (STM32_CFG_MCO2PRE_VALUE &lt;&lt; RCC_CFGR1_MCO2PRE_Pos))"
+                    mask="(RCC_CFGR1_MCO2SEL_Msk | RCC_CFGR1_MCO2PRE_Msk)" />
+            </otherwise>
+          </select>
+        </frequencies>
+      </derived>
+    </clock>
+
+    <!--
+      STM32C5 clock tree work queue:
+      - Validate PSI reference source/frequency combinations from RM0522 table 66.
+      - Check PSI accuracy when locked on LSE: generated nominal frequencies can
+        be approximate, similarly to MSI-derived clocks on U3/U5 devices.
+      - Add RCC_CCIPR1/2/3 peripheral kernel clocks.
+      - Add generated selector definitions and register-targeted bits.
+    -->
+  </clocks>
+  <sinks>
+    <sink name="PSIK_SOURCE" input="PSI"
+          condition="STM32_PSIK_ENABLED == TRUE">
+      <description>PSIK conditional frequency dependency on PSI</description>
+    </sink>
+    <sink name="MCO1_HSE_SOURCE" input="HSE"
+          condition="(STM32_CFG_MCO1PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSE)">
+      <description>MCO1 demands HSE when selected as its output source.</description>
+    </sink>
+    <sink name="MCO1_LSE_SOURCE" input="LSE"
+          condition="(STM32_CFG_MCO1PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_LSE)">
+      <description>MCO1 demands LSE when selected as its output source.</description>
+    </sink>
+    <sink name="MCO1_LSI_SOURCE" input="LSI"
+          condition="(STM32_CFG_MCO1PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_LSI)">
+      <description>MCO1 demands LSI when selected as its output source.</description>
+    </sink>
+    <sink name="MCO1_PSIK_SOURCE" input="PSIK"
+          condition="(STM32_CFG_MCO1PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_PSIK)">
+      <description>MCO1 demands PSIK when selected as its output source.</description>
+    </sink>
+    <sink name="MCO1_HSIK_SOURCE" input="HSIK"
+          condition="(STM32_CFG_MCO1PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSIK)">
+      <description>MCO1 demands HSIK when selected as its output source.</description>
+    </sink>
+    <sink name="MCO1_PSIS_SOURCE" input="PSIS"
+          condition="(STM32_CFG_MCO1PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_PSIS)">
+      <description>MCO1 demands PSIS when selected as its output source.</description>
+    </sink>
+    <sink name="MCO1_HSIS_SOURCE" input="HSIS"
+          condition="(STM32_CFG_MCO1PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSIS)">
+      <description>MCO1 demands HSIS when selected as its output source.</description>
+    </sink>
+    <sink name="MCO2_HSE_SOURCE" input="HSE"
+          condition="(STM32_CFG_MCO2PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSE)">
+      <description>MCO2 demands HSE when selected as its output source.</description>
+    </sink>
+    <sink name="MCO2_LSE_SOURCE" input="LSE"
+          condition="(STM32_CFG_MCO2PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_LSE)">
+      <description>MCO2 demands LSE when selected as its output source.</description>
+    </sink>
+    <sink name="MCO2_LSI_SOURCE" input="LSI"
+          condition="(STM32_CFG_MCO2PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_LSI)">
+      <description>MCO2 demands LSI when selected as its output source.</description>
+    </sink>
+    <sink name="MCO2_PSIK_SOURCE" input="PSIK"
+          condition="(STM32_CFG_MCO2PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_PSIK)">
+      <description>MCO2 demands PSIK when selected as its output source.</description>
+    </sink>
+    <sink name="MCO2_HSIK_SOURCE" input="HSIK"
+          condition="(STM32_CFG_MCO2PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSIK)">
+      <description>MCO2 demands HSIK when selected as its output source.</description>
+    </sink>
+    <sink name="MCO2_PSIDIV3_SOURCE" input="PSIDIV3"
+          condition="(STM32_CFG_MCO2PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_PSIDIV3)">
+      <description>MCO2 demands PSIDIV3 when selected as its output source.</description>
+    </sink>
+    <sink name="MCO2_HSIDIV3_SOURCE" input="HSIDIV3"
+          condition="(STM32_CFG_MCO2PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSIDIV3)">
+      <description>MCO2 demands HSIDIV3 when selected as its output source.</description>
+    </sink>
+  </sinks>
+</clocktree>
