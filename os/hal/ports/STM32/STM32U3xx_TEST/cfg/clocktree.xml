@@ -279,7 +279,7 @@
       <description>low frequency internal oscillator</description>
       <bits enabled="RCC_CSR_LSION" disabled="0U" />
     </source>
-    <source point="MSIRC0" enable="auto" dynamic="no">
+    <source point="MSIRC0" enable="auto" dynamic="yes" private="true">
       <description>MSI 96MHz internal oscillator</description>
         <frequencies>
           <select>
@@ -310,7 +310,7 @@
           </select>
         </frequencies>
     </source>
-    <source point="MSIRC1" enable="auto" dynamic="no">
+    <source point="MSIRC1" enable="auto" dynamic="yes" private="true">
       <description>MSI 24MHz internal oscillator</description>
         <frequencies>
           <select>

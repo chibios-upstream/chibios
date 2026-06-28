@@ -166,7 +166,7 @@
     </source>
   </sources>
   <clocks>
-    <clock point="PLLIN" enable="auto" dynamic="no">
+    <clock point="PLLIN" enable="auto" dynamic="yes" private="true">
       <description>PLL input</description>
       <mux name="PLLSRC">
         <input point="NONE">
@@ -180,7 +180,7 @@
         </input>
       </mux>
     </clock>
-    <clock point="PLLREF" enable="auto" dynamic="no">
+    <clock point="PLLREF" enable="auto" dynamic="yes" private="true">
       <description>PLL reference</description>
       <limits ref="PLLIN" />
       <divider name="PLLM" input="PLLIN">
@@ -189,7 +189,7 @@
         </value>
       </divider>
     </clock>
-     <clock point="PLLVCO" enable="auto" dynamic="no">
+     <clock point="PLLVCO" enable="auto" dynamic="yes" private="true">
       <description>PLL VCO</description>
       <limits ref="PLLVCO" />
       <multiplier name="PLLN" input="PLLREF">
