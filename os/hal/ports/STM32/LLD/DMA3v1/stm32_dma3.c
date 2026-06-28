@@ -78,6 +78,31 @@
 #define STM32_DMA32_CH6                 GPDMA1_Channel14
 #define STM32_DMA32_CH7                 GPDMA1_Channel15
 
+#elif defined(LPDMA1_CH0)
+/* DMA3 is named LPDMA in this device.*/
+#define STM32_DMA31_CH0                 LPDMA1_CH0
+#define STM32_DMA31_CH1                 LPDMA1_CH1
+#define STM32_DMA31_CH2                 LPDMA1_CH2
+#define STM32_DMA31_CH3                 LPDMA1_CH3
+#if STM32_DMA31_NUM_CHANNELS > 4
+#define STM32_DMA31_CH4                 LPDMA1_CH4
+#define STM32_DMA31_CH5                 LPDMA1_CH5
+#define STM32_DMA31_CH6                 LPDMA1_CH6
+#define STM32_DMA31_CH7                 LPDMA1_CH7
+#endif
+#if STM32_DMA32_NUM_CHANNELS > 0
+#define STM32_DMA32_CH0                 LPDMA2_CH0
+#define STM32_DMA32_CH1                 LPDMA2_CH1
+#define STM32_DMA32_CH2                 LPDMA2_CH2
+#define STM32_DMA32_CH3                 LPDMA2_CH3
+#endif
+#if STM32_DMA32_NUM_CHANNELS > 4
+#define STM32_DMA32_CH4                 LPDMA2_CH4
+#define STM32_DMA32_CH5                 LPDMA2_CH5
+#define STM32_DMA32_CH6                 LPDMA2_CH6
+#define STM32_DMA32_CH7                 LPDMA2_CH7
+#endif
+
 #else
 #error "DMA3 definitions not found or not recognized"
 #endif
