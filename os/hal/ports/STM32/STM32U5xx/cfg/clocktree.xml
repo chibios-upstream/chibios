@@ -695,7 +695,7 @@
       <bits target="ICSCR1" enabled="(RCC_ICSCR1_MSIRGSEL_ICSCR1 | STM32_CFG_MSIBIAS)" disabled="0U" />
       <derived input="MSIKDIV" frequency="%I%" />
     </clock>
-    <clock point="PLL1IN" enable="auto" dynamic="yes">
+    <clock point="PLL1IN" enable="auto" dynamic="yes" private="true">
       <description>PLL1 input clock</description>
       <mux name="PLL1SRC" field="RCC_PLL1CFGR_PLL1SRC" offset="0U">
         <input point="NONE" label="NOCLOCK" encoding="0U" />
@@ -704,7 +704,7 @@
         <input point="HSE" encoding="3U" />
       </mux>
     </clock>
-    <clock point="PLL1REF" enable="auto" dynamic="yes">
+    <clock point="PLL1REF" enable="auto" dynamic="yes" private="true">
       <description>PLL1 reference clock</description>
       <limits ref="PLLIN" />
       <divider name="PLL1M" input="PLL1IN">
@@ -713,7 +713,7 @@
         </value>
       </divider>
     </clock>
-    <clock point="PLL1VCO" enable="auto" dynamic="yes">
+    <clock point="PLL1VCO" enable="auto" dynamic="yes" private="true">
       <description>PLL1 VCO clock</description>
       <limits ref="PLLVCO" />
       <multiplier name="PLL1N" input="PLL1REF">
@@ -749,7 +749,7 @@
         </set>
       </divider>
     </clock>
-    <clock point="PLL2IN" enable="auto" dynamic="yes">
+    <clock point="PLL2IN" enable="auto" dynamic="yes" private="true">
       <description>PLL2 input clock</description>
       <mux name="PLL2SRC" field="RCC_PLL2CFGR_PLL2SRC" offset="0U">
         <input point="NONE" label="NOCLOCK" encoding="0U" />
@@ -758,7 +758,7 @@
         <input point="HSE" encoding="3U" />
       </mux>
     </clock>
-    <clock point="PLL2REF" enable="auto" dynamic="yes">
+    <clock point="PLL2REF" enable="auto" dynamic="yes" private="true">
       <description>PLL2 reference clock</description>
       <limits ref="PLLIN" />
       <divider name="PLL2M" input="PLL2IN">
@@ -767,7 +767,7 @@
         </value>
       </divider>
     </clock>
-    <clock point="PLL2VCO" enable="auto" dynamic="yes">
+    <clock point="PLL2VCO" enable="auto" dynamic="yes" private="true">
       <description>PLL2 VCO clock</description>
       <limits ref="PLLVCO" />
       <multiplier name="PLL2N" input="PLL2REF">
@@ -803,7 +803,7 @@
         </value>
       </divider>
     </clock>
-    <clock point="PLL3IN" enable="auto" dynamic="yes">
+    <clock point="PLL3IN" enable="auto" dynamic="yes" private="true">
       <description>PLL3 input clock</description>
       <mux name="PLL3SRC" field="RCC_PLL3CFGR_PLL3SRC" offset="0U">
         <input point="NONE" label="NOCLOCK" encoding="0U" />
@@ -812,7 +812,7 @@
         <input point="HSE" encoding="3U" />
       </mux>
     </clock>
-    <clock point="PLL3REF" enable="auto" dynamic="yes">
+    <clock point="PLL3REF" enable="auto" dynamic="yes" private="true">
       <description>PLL3 reference clock</description>
       <limits ref="PLLIN" />
       <divider name="PLL3M" input="PLL3IN">
@@ -821,7 +821,7 @@
         </value>
       </divider>
     </clock>
-    <clock point="PLL3VCO" enable="auto" dynamic="yes">
+    <clock point="PLL3VCO" enable="auto" dynamic="yes" private="true">
       <description>PLL3 VCO clock</description>
       <limits ref="PLLVCO" />
       <multiplier name="PLL3N" input="PLL3REF">

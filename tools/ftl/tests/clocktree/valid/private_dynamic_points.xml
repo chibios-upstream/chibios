@@ -1,0 +1,31 @@
+<clocktree>
+  <settings>
+    <prefixes clock_points="TCLK_" macros="TST_" cfgs="TST_CFG_" />
+    <suffixes frequency="_FREQ" values="_VALUE" bits="_BITS"
+              selector="_SEL" enable="_ENABLE" enabled="_ENABLED" />
+    <configs>
+      <config name="CLOCK_DYNAMIC" type="bool" default="FALSE"
+              role="dynamic_mode">
+        <description>Enables dynamic clock handling.</description>
+      </config>
+    </configs>
+  </settings>
+  <clocks>
+    <clock point="OSC" enable="always" dynamic="yes">
+      <description>public dynamic oscillator</description>
+      <derived frequency="16000000U" />
+    </clock>
+    <clock point="INTERNAL" enable="always" dynamic="yes" private="true">
+      <description>private dynamic divider</description>
+      <divider name="INTERNALDIV" input="OSC">
+        <value min="1" max="8" default="2">
+          <bits value="INTERNALDIV_BITS(%N%)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="OUTPUT" enable="always" dynamic="yes">
+      <description>public dynamic output</description>
+      <derived input="INTERNAL" frequency="%I%" />
+    </clock>
+  </clocks>
+</clocktree>

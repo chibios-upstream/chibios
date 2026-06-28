@@ -250,21 +250,12 @@ static halfreq_t clock_points[CLK_ARRAY_SIZE] = {
   [CLK_HSE]             = STM32_HSE_FREQ,
   [CLK_MSIS]            = STM32_MSIS_FREQ,
   [CLK_MSIK]            = STM32_MSIK_FREQ,
-  [CLK_PLL1IN]          = STM32_PLL1IN_FREQ,
-  [CLK_PLL1REF]         = STM32_PLL1REF_FREQ,
-  [CLK_PLL1VCO]         = STM32_PLL1VCO_FREQ,
   [CLK_PLL1P]           = STM32_PLL1P_FREQ,
   [CLK_PLL1Q]           = STM32_PLL1Q_FREQ,
   [CLK_PLL1R]           = STM32_PLL1R_FREQ,
-  [CLK_PLL2IN]          = STM32_PLL2IN_FREQ,
-  [CLK_PLL2REF]         = STM32_PLL2REF_FREQ,
-  [CLK_PLL2VCO]         = STM32_PLL2VCO_FREQ,
   [CLK_PLL2P]           = STM32_PLL2P_FREQ,
   [CLK_PLL2Q]           = STM32_PLL2Q_FREQ,
   [CLK_PLL2R]           = STM32_PLL2R_FREQ,
-  [CLK_PLL3IN]          = STM32_PLL3IN_FREQ,
-  [CLK_PLL3REF]         = STM32_PLL3REF_FREQ,
-  [CLK_PLL3VCO]         = STM32_PLL3VCO_FREQ,
   [CLK_PLL3P]           = STM32_PLL3P_FREQ,
   [CLK_PLL3Q]           = STM32_PLL3Q_FREQ,
   [CLK_PLL3R]           = STM32_PLL3R_FREQ,
@@ -991,26 +982,17 @@ static bool hal_lld_clock_check_tree(const halclkcfg_t *ccp) {
                               &pll1pclk, &pll1qclk, &pll1rclk)) {
     return true;
   }
-  if ((ccp->rcc_cr & RCC_CR_PLL1ON) == 0U) {
-    pll1inclk = 0U;
-  }
 
   if (hal_lld_clock_check_pll(ccp, 1U, pll2inclk, slp,
                               &pll2refclk, &pll2vcoclk,
                               &pll2pclk, &pll2qclk, &pll2rclk)) {
     return true;
   }
-  if ((ccp->rcc_cr & RCC_CR_PLL2ON) == 0U) {
-    pll2inclk = 0U;
-  }
 
   if (hal_lld_clock_check_pll(ccp, 2U, pll3inclk, slp,
                               &pll3refclk, &pll3vcoclk,
                               &pll3pclk, &pll3qclk, &pll3rclk)) {
     return true;
-  }
-  if ((ccp->rcc_cr & RCC_CR_PLL3ON) == 0U) {
-    pll3inclk = 0U;
   }
 
   switch (ccp->rcc_cfgr1 & RCC_CFGR1_SW_Msk) {
@@ -1116,21 +1098,12 @@ static bool hal_lld_clock_check_tree(const halclkcfg_t *ccp) {
   clock_points[CLK_HSE]     = hseclk;
   clock_points[CLK_MSIS]    = msisclk;
   clock_points[CLK_MSIK]    = msikclk;
-  clock_points[CLK_PLL1IN]  = pll1inclk;
-  clock_points[CLK_PLL1REF] = pll1refclk;
-  clock_points[CLK_PLL1VCO] = pll1vcoclk;
   clock_points[CLK_PLL1P]   = pll1pclk;
   clock_points[CLK_PLL1Q]   = pll1qclk;
   clock_points[CLK_PLL1R]   = pll1rclk;
-  clock_points[CLK_PLL2IN]  = pll2inclk;
-  clock_points[CLK_PLL2REF] = pll2refclk;
-  clock_points[CLK_PLL2VCO] = pll2vcoclk;
   clock_points[CLK_PLL2P]   = pll2pclk;
   clock_points[CLK_PLL2Q]   = pll2qclk;
   clock_points[CLK_PLL2R]   = pll2rclk;
-  clock_points[CLK_PLL3IN]  = pll3inclk;
-  clock_points[CLK_PLL3REF] = pll3refclk;
-  clock_points[CLK_PLL3VCO] = pll3vcoclk;
   clock_points[CLK_PLL3P]   = pll3pclk;
   clock_points[CLK_PLL3Q]   = pll3qclk;
   clock_points[CLK_PLL3R]   = pll3rclk;

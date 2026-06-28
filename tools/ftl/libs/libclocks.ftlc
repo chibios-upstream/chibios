@@ -691,6 +691,7 @@ function ParseClockPoint(clock, sourceonly)
   local clockenable = clock.@enable[0]?string
   local clockdefault = (clock.@default[0]!"")?string
   local clockdynamic = clock.@dynamic[0]?string
+  local clockprivate = (clock.@private[0]!"false")?string
   if clock.description[0]??
     local clockdescr = clock.description[0]?string?word_list?join(" ")
   else
@@ -731,10 +732,10 @@ function ParseClockPoint(clock, sourceonly)
       if clockinput != ""
         stop ">>>> Conditional frequency " + kind?lower_case + " clock point '" + clockname + "' cannot use an input clock"
       endif
-      return {"type":"source", "subtype":"frequencies", "sourceonly":sourceonly, "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "bits":clockbits, "limits":clocklimits, "frequencies":ParseFrequencyCases(node, clockname), "input":""}
+      return {"type":"source", "subtype":"frequencies", "sourceonly":sourceonly, "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "private":clockprivate, "bits":clockbits, "limits":clocklimits, "frequencies":ParseFrequencyCases(node, clockname), "input":""}
     else
       local clockfreq = node.@frequency[0]?string
-      return {"type":"source", "subtype":"fixed", "sourceonly":sourceonly, "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "bits":clockbits, "limits":clocklimits, "frequency":clockfreq, "input":clockinput}
+      return {"type":"source", "subtype":"fixed", "sourceonly":sourceonly, "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "private":clockprivate, "bits":clockbits, "limits":clocklimits, "frequency":clockfreq, "input":clockinput}
     endif
 
   elseif clock.mux[0]??
@@ -797,7 +798,7 @@ function ParseClockPoint(clock, sourceonly)
       local muxvalues = muxvalues + [inactivevalue]
       local muxbranches = muxbranches + [{"type":"inactive", "point":"", "value":inactivevalue, "bits":inactivebits, "default":"no", "condition":inactivecondition}]
     endlist
-    return {"type":"mux", "name":clockname, "muxname":muxname, "field":muxfield, "setting":muxsetting, "inputs":muxinputs, "branches":muxbranches, "selectors":muxselectors, "default":muxdefault, "description":clockdescr, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "bits":clockbits, "limits":clocklimits}
+    return {"type":"mux", "name":clockname, "muxname":muxname, "field":muxfield, "setting":muxsetting, "inputs":muxinputs, "branches":muxbranches, "selectors":muxselectors, "default":muxdefault, "description":clockdescr, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "private":clockprivate, "bits":clockbits, "limits":clocklimits}
 
   elseif clock.divider[0]??
     /* It is a divided clock.*/
@@ -805,7 +806,7 @@ function ParseClockPoint(clock, sourceonly)
     local divinput = clock.divider[0].@input[0]?string
     local divsetting = (clock.divider[0].@setting[0]!"")?string
     local divparsed = ParseScaler(clock.divider[0])
-    return {"type":"divider", "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "bits":clockbits, "limits":clocklimits, "divname":divname, "input":divinput, "setting":divsetting, "kind":divparsed["kind"], "data":divparsed["data"]}
+    return {"type":"divider", "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "private":clockprivate, "bits":clockbits, "limits":clocklimits, "divname":divname, "input":divinput, "setting":divsetting, "kind":divparsed["kind"], "data":divparsed["data"]}
 
   elseif clock.multiplier[0]??
     /* It is a multiplied clock.*/
@@ -813,7 +814,7 @@ function ParseClockPoint(clock, sourceonly)
     local mulinput = clock.multiplier[0].@input[0]?string
     local mulsetting = (clock.multiplier[0].@setting[0]!"")?string
     local mulparsed = ParseScaler(clock.multiplier[0])
-    return {"type":"multiplier", "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "bits":clockbits, "limits":clocklimits, "mulname":mulname, "input":mulinput, "setting":mulsetting, "kind":mulparsed["kind"], "data":mulparsed["data"]}
+    return {"type":"multiplier", "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "private":clockprivate, "bits":clockbits, "limits":clocklimits, "mulname":mulname, "input":mulinput, "setting":mulsetting, "kind":mulparsed["kind"], "data":mulparsed["data"]}
   endif
 
   stop ">>>> Unknown clock point type for '" + clockname + "'"
@@ -936,11 +937,16 @@ endfunction
 /* Static data parsed at startup.*/
 model = Initialize()
 
-/* Returns the clock points belonging to the dynamic set.*/
+/* Returns true if a dynamic clock point is part of the public runtime API.*/
+function IsPublicDynamicPoint(point)
+  return point["dynamic"] == "yes" && (point["private"]!"false") != "true"
+endfunction
+
+/* Returns the clock points belonging to the public dynamic set.*/
 function GetDynamicPoints()
   local points = []
   list model["clocks"] as point
-    if point["dynamic"] == "yes"
+    if IsPublicDynamicPoint(point)
       local points = points + [point]
     endif
   endlist
@@ -1184,11 +1190,11 @@ endfunction
 function GetRuntimeFrequencyExpression(name)
   local point = GetClockPoint(name)
 
-  if point["dynamic"] == "yes"
+  if IsPublicDynamicPoint(point)
     return "hal_lld_get_clock_point(" + GetClockIndexMacro(name) + ")"
   endif
 
-  return GetClockFrequencyMacro(name)
+  return GetClockCurrentMacro(name)
 endfunction
 
 /* Returns the selector/configuration macro used by a mux clock point.*/
@@ -2054,7 +2060,7 @@ endmacro
 macro EmitFrequencyAndCurrentAt(point, frequency, current, indent)
   local freqmacro = premacro + point["name"] + postclocks
   ppcode.EmitPPDefineAt(name=freqmacro, value=frequency, level=indent)
-  if point["dynamic"] != "yes"
+  if !IsPublicDynamicPoint(point)
     ppcode.EmitPPDefineAt(name=GetClockCurrentMacro(point["name"]), value=current, level=indent)
   endif
 endmacro
@@ -2067,7 +2073,7 @@ macro EmitFrequencyDefinition(point, frequency, current)
 
   if point["enable"] == "always"
     ppcode.EmitPPDefine(name=freqmacro, value=frequency)
-    if point["dynamic"] == "yes"
+    if IsPublicDynamicPoint(point)
       EmitDynamicCurrentClockDefinition(point=point)
     else
       ppcode.EmitPPDefine(name=clockmacro, value=current)
@@ -2078,16 +2084,16 @@ macro EmitFrequencyDefinition(point, frequency, current)
   else
     ppcode.EmitPPIf(expression="(" + enmacro + " == TRUE) || defined(__DOXYGEN__)")
     ppcode.EmitPPDefine(name=freqmacro, value=frequency)
-    if point["dynamic"] != "yes"
+    if !IsPublicDynamicPoint(point)
       ppcode.EmitPPDefine(name=clockmacro, value=current)
     endif
     ppcode.EmitPPElse()
     ppcode.EmitPPDefine(name=freqmacro, value="0U")
-    if point["dynamic"] != "yes"
+    if !IsPublicDynamicPoint(point)
       ppcode.EmitPPDefine(name=clockmacro, value="0U")
     endif
     ppcode.EmitPPEndif()
-    if point["dynamic"] == "yes"
+    if IsPublicDynamicPoint(point)
       EmitDynamicCurrentClockDefinition(point=point)
     endif
   endif
@@ -2524,7 +2530,7 @@ macro EmitClockFrequency(point)
       else
         ppcode.EmitPPIfAt(expression="(" + enmacro + " == FALSE) && !defined(__DOXYGEN__)", level=0)
         ppcode.EmitPPDefineAt(name=freqmacro, value="0U", level=1)
-        if point["dynamic"] != "yes"
+        if !IsPublicDynamicPoint(point)
           ppcode.EmitPPDefineAt(name=clockmacro, value="0U", level=1)
         endif
         list point["frequencies"] as frequency
@@ -2538,12 +2544,12 @@ macro EmitClockFrequency(point)
 """
           endif
           ppcode.EmitPPDefineAt(name=freqmacro, value=frequency["value"], level=1)
-          if point["dynamic"] != "yes"
+          if !IsPublicDynamicPoint(point)
             ppcode.EmitPPDefineAt(name=clockmacro, value=frequency["value"], level=1)
           endif
         endlist
         ppcode.EmitPPEndifAt(level=0)
-        if point["dynamic"] == "yes"
+        if IsPublicDynamicPoint(point)
           EmitDynamicCurrentClockDefinition(point=point)
         endif
       endif
@@ -2577,17 +2583,17 @@ macro EmitClockFrequency(point)
       endif
       local inputfreq = GetDefaultFrequencyExpression(input["point"])
       ppcode.EmitPPDefineAt(name=freqmacro, value=inputfreq, level=1)
-      if point["dynamic"] != "yes"
+      if !IsPublicDynamicPoint(point)
         ppcode.EmitPPDefineAt(name=clockmacro, value=GetClockCurrentMacro(input["point"]), level=1)
       endif
     endlist
     ppcode.EmitPPElseAt(level=0)
     ppcode.EmitPPDefineAt(name=freqmacro, value="0U", level=1)
-    if point["dynamic"] != "yes"
+    if !IsPublicDynamicPoint(point)
       ppcode.EmitPPDefineAt(name=clockmacro, value="0U", level=1)
     endif
     ppcode.EmitPPEndifAt(level=0)
-    if point["dynamic"] == "yes"
+    if IsPublicDynamicPoint(point)
       EmitDynamicCurrentClockDefinition(point=point)
     endif
   elseif point["type"] == "divider"

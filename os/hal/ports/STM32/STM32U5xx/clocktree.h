@@ -38,33 +38,24 @@
 #define CLK_HSE                 3U
 #define CLK_MSIS                4U
 #define CLK_MSIK                5U
-#define CLK_PLL1IN              6U
-#define CLK_PLL1REF             7U
-#define CLK_PLL1VCO             8U
-#define CLK_PLL1P               9U
-#define CLK_PLL1Q               10U
-#define CLK_PLL1R               11U
-#define CLK_PLL2IN              12U
-#define CLK_PLL2REF             13U
-#define CLK_PLL2VCO             14U
-#define CLK_PLL2P               15U
-#define CLK_PLL2Q               16U
-#define CLK_PLL2R               17U
-#define CLK_PLL3IN              18U
-#define CLK_PLL3REF             19U
-#define CLK_PLL3VCO             20U
-#define CLK_PLL3P               21U
-#define CLK_PLL3Q               22U
-#define CLK_PLL3R               23U
-#define CLK_SYSCLK              24U
-#define CLK_HCLK                25U
-#define CLK_PCLK1               26U
-#define CLK_PCLK1TIM            27U
-#define CLK_PCLK2               28U
-#define CLK_PCLK2TIM            29U
-#define CLK_PCLK3               30U
-#define CLK_MCO                 31U
-#define CLK_ARRAY_SIZE          32U
+#define CLK_PLL1P               6U
+#define CLK_PLL1Q               7U
+#define CLK_PLL1R               8U
+#define CLK_PLL2P               9U
+#define CLK_PLL2Q               10U
+#define CLK_PLL2R               11U
+#define CLK_PLL3P               12U
+#define CLK_PLL3Q               13U
+#define CLK_PLL3R               14U
+#define CLK_SYSCLK              15U
+#define CLK_HCLK                16U
+#define CLK_PCLK1               17U
+#define CLK_PCLK1TIM            18U
+#define CLK_PCLK2               19U
+#define CLK_PCLK2TIM            20U
+#define CLK_PCLK3               21U
+#define CLK_MCO                 22U
+#define CLK_ARRAY_SIZE          23U
 
 #define CLK_POINT_NAMES                                                     \
   {                                                                         \
@@ -74,21 +65,12 @@
     "HSE",                                                                  \
     "MSIS",                                                                 \
     "MSIK",                                                                 \
-    "PLL1IN",                                                               \
-    "PLL1REF",                                                              \
-    "PLL1VCO",                                                              \
     "PLL1P",                                                                \
     "PLL1Q",                                                                \
     "PLL1R",                                                                \
-    "PLL2IN",                                                               \
-    "PLL2REF",                                                              \
-    "PLL2VCO",                                                              \
     "PLL2P",                                                                \
     "PLL2Q",                                                                \
     "PLL2R",                                                                \
-    "PLL3IN",                                                               \
-    "PLL3REF",                                                              \
-    "PLL3VCO",                                                              \
     "PLL3P",                                                                \
     "PLL3Q",                                                                \
     "PLL3R",                                                                \
@@ -4122,19 +4104,23 @@
      (STM32_CFG_PLL1IN_SEL == RCC_PLL1CFGR_PLL1SRC_NOCLOCK)) || \
     defined(__DOXYGEN__)
   #define STM32_PLL1IN_FREQ                 STM32_NONE_FREQ
+  #define STM32_PLL1IN_CLOCK                STM32_NONE_CLOCK
 #elif (STM32_PLL1IN_ENABLED == TRUE) && \
       (STM32_CFG_PLL1IN_SEL == RCC_PLL1CFGR_PLL1SRC_MSIS)
   #define STM32_PLL1IN_FREQ                 STM32_MSIS_FREQ
+  #define STM32_PLL1IN_CLOCK                STM32_MSIS_CLOCK
 #elif (STM32_PLL1IN_ENABLED == TRUE) && \
       (STM32_CFG_PLL1IN_SEL == RCC_PLL1CFGR_PLL1SRC_HSI16)
   #define STM32_PLL1IN_FREQ                 STM32_HSI16_FREQ
+  #define STM32_PLL1IN_CLOCK                STM32_HSI16_CLOCK
 #elif (STM32_PLL1IN_ENABLED == TRUE) && \
       (STM32_CFG_PLL1IN_SEL == RCC_PLL1CFGR_PLL1SRC_HSE)
   #define STM32_PLL1IN_FREQ                 STM32_HSE_FREQ
+  #define STM32_PLL1IN_CLOCK                STM32_HSE_CLOCK
 #else
   #define STM32_PLL1IN_FREQ                 0U
+  #define STM32_PLL1IN_CLOCK                0U
 #endif
-#define STM32_PLL1IN_CLOCK                  hal_lld_get_clock_point(CLK_PLL1IN)
 
 /* --- Macros and checks for the PLL1REF clock point. ----------------------*/
 
@@ -4159,10 +4145,12 @@
 #if (STM32_PLL1REF_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_PLL1REF_FREQ                (STM32_PLL1IN_FREQ /            \
                                              STM32_CFG_PLL1REF_VALUE)
+  #define STM32_PLL1REF_CLOCK               (STM32_PLL1IN_CLOCK /           \
+                                             STM32_CFG_PLL1REF_VALUE)
 #else
   #define STM32_PLL1REF_FREQ                0U
+  #define STM32_PLL1REF_CLOCK               0U
 #endif
-#define STM32_PLL1REF_CLOCK                 hal_lld_get_clock_point(CLK_PLL1REF)
 
 #if !((STM32_PLL1REF_ENABLED != TRUE) ||                                    \
      (STM32_PLL1REF_FREQ >= STM32_PLLIN_MIN)) && !defined(__DOXYGEN__)
@@ -4197,10 +4185,12 @@
 #if (STM32_PLL1VCO_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_PLL1VCO_FREQ                (STM32_PLL1REF_FREQ *           \
                                              STM32_CFG_PLL1VCO_VALUE)
+  #define STM32_PLL1VCO_CLOCK               (STM32_PLL1REF_CLOCK *          \
+                                             STM32_CFG_PLL1VCO_VALUE)
 #else
   #define STM32_PLL1VCO_FREQ                0U
+  #define STM32_PLL1VCO_CLOCK               0U
 #endif
-#define STM32_PLL1VCO_CLOCK                 hal_lld_get_clock_point(CLK_PLL1VCO)
 
 #if !((STM32_PLL1VCO_ENABLED != TRUE) ||                                    \
      (STM32_PLL1VCO_FREQ >= STM32_PLLVCO_MIN)) && !defined(__DOXYGEN__)
@@ -4400,19 +4390,23 @@
      (STM32_CFG_PLL2IN_SEL == RCC_PLL2CFGR_PLL2SRC_NOCLOCK)) || \
     defined(__DOXYGEN__)
   #define STM32_PLL2IN_FREQ                 STM32_NONE_FREQ
+  #define STM32_PLL2IN_CLOCK                STM32_NONE_CLOCK
 #elif (STM32_PLL2IN_ENABLED == TRUE) && \
       (STM32_CFG_PLL2IN_SEL == RCC_PLL2CFGR_PLL2SRC_MSIS)
   #define STM32_PLL2IN_FREQ                 STM32_MSIS_FREQ
+  #define STM32_PLL2IN_CLOCK                STM32_MSIS_CLOCK
 #elif (STM32_PLL2IN_ENABLED == TRUE) && \
       (STM32_CFG_PLL2IN_SEL == RCC_PLL2CFGR_PLL2SRC_HSI16)
   #define STM32_PLL2IN_FREQ                 STM32_HSI16_FREQ
+  #define STM32_PLL2IN_CLOCK                STM32_HSI16_CLOCK
 #elif (STM32_PLL2IN_ENABLED == TRUE) && \
       (STM32_CFG_PLL2IN_SEL == RCC_PLL2CFGR_PLL2SRC_HSE)
   #define STM32_PLL2IN_FREQ                 STM32_HSE_FREQ
+  #define STM32_PLL2IN_CLOCK                STM32_HSE_CLOCK
 #else
   #define STM32_PLL2IN_FREQ                 0U
+  #define STM32_PLL2IN_CLOCK                0U
 #endif
-#define STM32_PLL2IN_CLOCK                  hal_lld_get_clock_point(CLK_PLL2IN)
 
 /* --- Macros and checks for the PLL2REF clock point. ----------------------*/
 
@@ -4437,10 +4431,12 @@
 #if (STM32_PLL2REF_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_PLL2REF_FREQ                (STM32_PLL2IN_FREQ /            \
                                              STM32_CFG_PLL2REF_VALUE)
+  #define STM32_PLL2REF_CLOCK               (STM32_PLL2IN_CLOCK /           \
+                                             STM32_CFG_PLL2REF_VALUE)
 #else
   #define STM32_PLL2REF_FREQ                0U
+  #define STM32_PLL2REF_CLOCK               0U
 #endif
-#define STM32_PLL2REF_CLOCK                 hal_lld_get_clock_point(CLK_PLL2REF)
 
 #if !((STM32_PLL2REF_ENABLED != TRUE) ||                                    \
      (STM32_PLL2REF_FREQ >= STM32_PLLIN_MIN)) && !defined(__DOXYGEN__)
@@ -4475,10 +4471,12 @@
 #if (STM32_PLL2VCO_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_PLL2VCO_FREQ                (STM32_PLL2REF_FREQ *           \
                                              STM32_CFG_PLL2VCO_VALUE)
+  #define STM32_PLL2VCO_CLOCK               (STM32_PLL2REF_CLOCK *          \
+                                             STM32_CFG_PLL2VCO_VALUE)
 #else
   #define STM32_PLL2VCO_FREQ                0U
+  #define STM32_PLL2VCO_CLOCK               0U
 #endif
-#define STM32_PLL2VCO_CLOCK                 hal_lld_get_clock_point(CLK_PLL2VCO)
 
 #if !((STM32_PLL2VCO_ENABLED != TRUE) ||                                    \
      (STM32_PLL2VCO_FREQ >= STM32_PLLVCO_MIN)) && !defined(__DOXYGEN__)
@@ -4647,19 +4645,23 @@
      (STM32_CFG_PLL3IN_SEL == RCC_PLL3CFGR_PLL3SRC_NOCLOCK)) || \
     defined(__DOXYGEN__)
   #define STM32_PLL3IN_FREQ                 STM32_NONE_FREQ
+  #define STM32_PLL3IN_CLOCK                STM32_NONE_CLOCK
 #elif (STM32_PLL3IN_ENABLED == TRUE) && \
       (STM32_CFG_PLL3IN_SEL == RCC_PLL3CFGR_PLL3SRC_MSIS)
   #define STM32_PLL3IN_FREQ                 STM32_MSIS_FREQ
+  #define STM32_PLL3IN_CLOCK                STM32_MSIS_CLOCK
 #elif (STM32_PLL3IN_ENABLED == TRUE) && \
       (STM32_CFG_PLL3IN_SEL == RCC_PLL3CFGR_PLL3SRC_HSI16)
   #define STM32_PLL3IN_FREQ                 STM32_HSI16_FREQ
+  #define STM32_PLL3IN_CLOCK                STM32_HSI16_CLOCK
 #elif (STM32_PLL3IN_ENABLED == TRUE) && \
       (STM32_CFG_PLL3IN_SEL == RCC_PLL3CFGR_PLL3SRC_HSE)
   #define STM32_PLL3IN_FREQ                 STM32_HSE_FREQ
+  #define STM32_PLL3IN_CLOCK                STM32_HSE_CLOCK
 #else
   #define STM32_PLL3IN_FREQ                 0U
+  #define STM32_PLL3IN_CLOCK                0U
 #endif
-#define STM32_PLL3IN_CLOCK                  hal_lld_get_clock_point(CLK_PLL3IN)
 
 /* --- Macros and checks for the PLL3REF clock point. ----------------------*/
 
@@ -4684,10 +4686,12 @@
 #if (STM32_PLL3REF_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_PLL3REF_FREQ                (STM32_PLL3IN_FREQ /            \
                                              STM32_CFG_PLL3REF_VALUE)
+  #define STM32_PLL3REF_CLOCK               (STM32_PLL3IN_CLOCK /           \
+                                             STM32_CFG_PLL3REF_VALUE)
 #else
   #define STM32_PLL3REF_FREQ                0U
+  #define STM32_PLL3REF_CLOCK               0U
 #endif
-#define STM32_PLL3REF_CLOCK                 hal_lld_get_clock_point(CLK_PLL3REF)
 
 #if !((STM32_PLL3REF_ENABLED != TRUE) ||                                    \
      (STM32_PLL3REF_FREQ >= STM32_PLLIN_MIN)) && !defined(__DOXYGEN__)
@@ -4722,10 +4726,12 @@
 #if (STM32_PLL3VCO_ENABLED == TRUE) || defined(__DOXYGEN__)
   #define STM32_PLL3VCO_FREQ                (STM32_PLL3REF_FREQ *           \
                                              STM32_CFG_PLL3VCO_VALUE)
+  #define STM32_PLL3VCO_CLOCK               (STM32_PLL3REF_CLOCK *          \
+                                             STM32_CFG_PLL3VCO_VALUE)
 #else
   #define STM32_PLL3VCO_FREQ                0U
+  #define STM32_PLL3VCO_CLOCK               0U
 #endif
-#define STM32_PLL3VCO_CLOCK                 hal_lld_get_clock_point(CLK_PLL3VCO)
 
 #if !((STM32_PLL3VCO_ENABLED != TRUE) ||                                    \
      (STM32_PLL3VCO_FREQ >= STM32_PLLVCO_MIN)) && !defined(__DOXYGEN__)
@@ -7221,21 +7227,12 @@
    (clkpt) == CLK_HSE          ? STM32_HSE_FREQ           :                 \
    (clkpt) == CLK_MSIS         ? STM32_MSIS_FREQ          :                 \
    (clkpt) == CLK_MSIK         ? STM32_MSIK_FREQ          :                 \
-   (clkpt) == CLK_PLL1IN       ? STM32_PLL1IN_FREQ        :                 \
-   (clkpt) == CLK_PLL1REF      ? STM32_PLL1REF_FREQ       :                 \
-   (clkpt) == CLK_PLL1VCO      ? STM32_PLL1VCO_FREQ       :                 \
    (clkpt) == CLK_PLL1P        ? STM32_PLL1P_FREQ         :                 \
    (clkpt) == CLK_PLL1Q        ? STM32_PLL1Q_FREQ         :                 \
    (clkpt) == CLK_PLL1R        ? STM32_PLL1R_FREQ         :                 \
-   (clkpt) == CLK_PLL2IN       ? STM32_PLL2IN_FREQ        :                 \
-   (clkpt) == CLK_PLL2REF      ? STM32_PLL2REF_FREQ       :                 \
-   (clkpt) == CLK_PLL2VCO      ? STM32_PLL2VCO_FREQ       :                 \
    (clkpt) == CLK_PLL2P        ? STM32_PLL2P_FREQ         :                 \
    (clkpt) == CLK_PLL2Q        ? STM32_PLL2Q_FREQ         :                 \
    (clkpt) == CLK_PLL2R        ? STM32_PLL2R_FREQ         :                 \
-   (clkpt) == CLK_PLL3IN       ? STM32_PLL3IN_FREQ        :                 \
-   (clkpt) == CLK_PLL3REF      ? STM32_PLL3REF_FREQ       :                 \
-   (clkpt) == CLK_PLL3VCO      ? STM32_PLL3VCO_FREQ       :                 \
    (clkpt) == CLK_PLL3P        ? STM32_PLL3P_FREQ         :                 \
    (clkpt) == CLK_PLL3Q        ? STM32_PLL3Q_FREQ         :                 \
    (clkpt) == CLK_PLL3R        ? STM32_PLL3R_FREQ         :                 \

@@ -176,6 +176,20 @@
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>
+      <xs:attribute name="private" use="optional" default="false">
+        <xs:annotation>
+          <xs:documentation>
+            Clock point is internal to the generated clock tree and is not
+            exported as a public runtime clock point.
+          </xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="true"></xs:enumeration>
+            <xs:enumeration value="false"></xs:enumeration>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
       <xs:attribute name="frequency" use="optional">
         <xs:simpleType>
           <xs:restriction base="xs:string">
@@ -249,6 +263,20 @@
           <xs:restriction base="xs:string">
             <xs:enumeration value="yes"></xs:enumeration>
             <xs:enumeration value="no"></xs:enumeration>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="private" use="optional" default="false">
+        <xs:annotation>
+          <xs:documentation>
+            Clock point is internal to the generated clock tree and is not
+            exported as a public runtime clock point.
+          </xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="true"></xs:enumeration>
+            <xs:enumeration value="false"></xs:enumeration>
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>
