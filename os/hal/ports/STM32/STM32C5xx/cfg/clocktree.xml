@@ -105,11 +105,40 @@
               value="(6U &lt;&lt; RCC_CFGR1_MCO2SEL_Pos)" />
       <define name="RCC_CFGR1_MCO2SEL_HSIDIV3"
               value="(7U &lt;&lt; RCC_CFGR1_MCO2SEL_Pos)" />
+      <define name="RCC_CCIPR3_ETH1REFCLKSEL_RMII_REF_CLK" value="0U" />
+      <define name="RCC_CCIPR3_ETH1REFCLKSEL_FB"
+              value="(1U &lt;&lt; RCC_CCIPR3_ETH1REFCLKSEL_Pos)" />
     </definitions>
     <configs>
       <config name="CLOCK_DYNAMIC" type="bool" default="FALSE"
               role="dynamic_mode">
         <description>Enables dynamic clock handling.</description>
+      </config>
+      <config name="AUDIOCLK" type="value" default="0U">
+        <description>Selects the external audio clock frequency.</description>
+      </config>
+      <config name="DAC1SH_REQUIRED" type="bool" default="FALSE">
+        <description>Enables demand for the DAC1 sample-and-hold clock.</description>
+      </config>
+      <config name="LPTIM1_REQUIRED" type="bool" default="FALSE">
+        <description>Enables demand for the LPTIM1 clock.</description>
+      </config>
+      <config name="I3C1_REQUIRED" type="bool" default="FALSE">
+        <description>Enables demand for the I3C1 clock.</description>
+      </config>
+      <config name="XSPI1_REQUIRED" type="bool" default="FALSE">
+        <description>Enables demand for the XSPI1 clock.</description>
+      </config>
+      <config name="ETH1_REQUIRED" type="bool" default="FALSE">
+        <description>Enables demand for the ETH1 clock.</description>
+      </config>
+      <config name="ETH1PTP_REQUIRED" type="bool" default="FALSE">
+        <description>Enables demand for the ETH1 PTP clock.</description>
+      </config>
+      <config name="ETH1REFCLK_SEL" type="set"
+              default="RCC_CCIPR3_ETH1REFCLKSEL_RMII_REF_CLK"
+              values="RCC_CCIPR3_ETH1REFCLKSEL_RMII_REF_CLK RCC_CCIPR3_ETH1REFCLKSEL_FB">
+        <description>Selects the ETH1 RMII reference clock source.</description>
       </config>
       <config name="PSI_FREQ" type="set" default="RCC_CR2_PSIFREQ_FREQ144M"
               values="RCC_CR2_PSIFREQ_FREQ100M RCC_CR2_PSIFREQ_FREQ144M RCC_CR2_PSIFREQ_FREQ160M">
@@ -193,6 +222,7 @@
       <limit name="PCLK2" min="no" max="yes" />
       <limit name="PCLK3" min="no" max="yes" />
       <limit name="HSE1M" min="no" max="yes" />
+      <limit name="CK48CLK" min="yes" max="yes" />
       <limit name="FLASH_0WS" min="no" max="yes" />
       <limit name="FLASH_1WS" min="no" max="yes" />
       <limit name="FLASH_2WS" min="no" max="yes" />
@@ -209,6 +239,7 @@
         <limit name="PCLK2" max="144000000U" />
         <limit name="PCLK3" max="144000000U" />
         <limit name="HSE1M" max="1000000U" />
+        <limit name="CK48CLK" min="47880000U" max="48120000U" />
         <limit name="FLASH_0WS" max="34000000U" />
         <limit name="FLASH_1WS" max="68000000U" />
         <limit name="FLASH_2WS" max="102000000U" />
@@ -220,6 +251,10 @@
   <sources>
     <source point="NONE" enable="never" dynamic="no" frequency="0U">
       <description>no clock source</description>
+    </source>
+    <source point="AUDIOCLK" enable="always" dynamic="no"
+            frequency="STM32_CFG_AUDIOCLK">
+      <description>external audio clock</description>
     </source>
     <source point="HSI" enable="always" dynamic="yes" private="true"
             frequency="HSI_VALUE">
@@ -525,6 +560,256 @@
         </choices>
       </divider>
     </clock>
+    <clock point="HCLK4" enable="auto" dynamic="yes">
+      <description>AHB4 clock</description>
+      <bits target="CFGR2" enabled="0U" disabled="(1U &lt;&lt; 19U)" />
+      <derived input="HCLK" frequency="%I%" />
+    </clock>
+    <clock point="USART1" enable="auto" dynamic="no">
+      <description>USART1 clock</description>
+      <mux name="USART1" field="RCC_CCIPR1_USART1SEL" offset="0U">
+        <input point="PCLK2" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+        <input point="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="USART2" enable="auto" dynamic="no">
+      <description>USART2 clock</description>
+      <mux name="USART2" field="RCC_CCIPR1_USART2SEL" offset="2U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+        <input point="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="USART3" enable="auto" dynamic="no">
+      <description>USART3 clock</description>
+      <mux name="USART3" field="RCC_CCIPR1_USART3SEL" offset="4U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+        <input point="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="UART4" enable="auto" dynamic="no">
+      <description>UART4 clock</description>
+      <mux name="UART4" field="RCC_CCIPR1_UART4SEL" offset="6U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+        <input point="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="UART5" enable="auto" dynamic="no">
+      <description>UART5 clock</description>
+      <mux name="UART5" field="RCC_CCIPR1_UART5SEL" offset="8U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+        <input point="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="USART6" enable="auto" dynamic="no">
+      <description>USART6 clock</description>
+      <mux name="USART6" field="RCC_CCIPR1_USART6SEL" offset="10U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+        <input point="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="UART7" enable="auto" dynamic="no">
+      <description>UART7 clock</description>
+      <mux name="UART7" field="RCC_CCIPR1_UART7SEL" offset="12U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+        <input point="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="LPUART1" enable="auto" dynamic="no">
+      <description>LPUART1 clock</description>
+      <mux name="LPUART1" field="RCC_CCIPR1_LPUART1SEL" offset="14U">
+        <input point="PCLK3" encoding="0U" default="yes" />
+        <input point="HSIK" encoding="1U" />
+        <input point="LSE" encoding="2U" />
+        <input point="LSI" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="SPI1" enable="auto" dynamic="no">
+      <description>SPI1 clock</description>
+      <mux name="SPI1" field="RCC_CCIPR1_SPI1SEL" offset="16U">
+        <input point="PCLK2" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+        <input point="AUDIOCLK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="SPI2" enable="auto" dynamic="no">
+      <description>SPI2 clock</description>
+      <mux name="SPI2" field="RCC_CCIPR1_SPI2SEL" offset="18U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+        <input point="AUDIOCLK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="SPI3" enable="auto" dynamic="no">
+      <description>SPI3 clock</description>
+      <mux name="SPI3" field="RCC_CCIPR1_SPI3SEL" offset="20U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+        <input point="AUDIOCLK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="FDCAN" enable="auto" dynamic="no">
+      <description>FDCAN clock</description>
+      <mux name="FDCAN" field="RCC_CCIPR1_FDCANSEL" offset="26U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIS" encoding="1U" />
+        <input point="PSIK" encoding="2U" />
+        <input point="HSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="I2C1" enable="auto" dynamic="no">
+      <description>I2C1 clock</description>
+      <mux name="I2C1" field="RCC_CCIPR2_I2C1SEL" offset="0U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+      </mux>
+    </clock>
+    <clock point="I2C2" enable="auto" dynamic="no">
+      <description>I2C2 clock</description>
+      <mux name="I2C2" field="RCC_CCIPR2_I2C2SEL" offset="2U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+      </mux>
+    </clock>
+    <clock point="I3C1" enable="auto" dynamic="no">
+      <description>I3C1 clock</description>
+      <mux name="I3C1" field="RCC_CCIPR2_I3C1SEL" offset="6U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+      </mux>
+    </clock>
+    <clock point="ADCDACICLK" enable="auto" dynamic="no">
+      <description>ADC and DAC intermediate clock</description>
+      <mux name="ADCDAC" field="RCC_CCIPR2_ADCDACSEL" offset="10U">
+        <input point="HCLK" encoding="0U" />
+        <input point="PSIS" encoding="1U" default="yes" />
+        <input point="PSIK" encoding="2U" />
+        <input point="HSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="ADCDACPRE" enable="auto" dynamic="no">
+      <description>ADC and DAC prescaled clock</description>
+      <divider name="ADCDACPRE" input="ADCDACICLK"
+               field="RCC_CCIPR2_ADCDACPRE" offset="12U">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="1U" />
+          <choice item="DIV4" value="4" encoding="2U" />
+          <choice item="DIV8" value="8" encoding="3U" />
+          <choice item="DIV16" value="16" encoding="4U" />
+          <choice item="DIV32" value="32" encoding="5U" />
+          <choice item="DIV64" value="64" encoding="6U" />
+          <choice item="DIV128" value="128" encoding="7U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="ADCDAC" enable="auto" dynamic="no">
+      <description>ADC and DAC clock</description>
+      <derived input="ADCDACPRE" frequency="%I%" />
+    </clock>
+    <clock point="DAC1SH" enable="auto" dynamic="no">
+      <description>DAC1 sample and hold clock</description>
+      <mux name="DAC1SH" field="RCC_CCIPR2_DACSEL" offset="15U">
+        <input point="LSE" encoding="0U" default="yes" />
+        <input point="LSI" encoding="1U" />
+      </mux>
+    </clock>
+    <clock point="LPTIM1" enable="auto" dynamic="no">
+      <description>LPTIM1 clock</description>
+      <mux name="LPTIM1" field="RCC_CCIPR2_LPTIM1SEL" offset="16U">
+        <input point="PCLK3" encoding="0U" default="yes" />
+        <input point="HSIK" encoding="1U" />
+        <input point="LSE" encoding="2U" />
+        <input point="LSI" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="CK48" enable="auto" dynamic="no">
+      <description>USB and RNG 48MHz clock</description>
+      <limits ref="CK48CLK" />
+      <mux name="CK48" field="RCC_CCIPR2_CK48SEL" offset="24U">
+        <input point="PSIDIV3" encoding="1U" />
+        <input point="HSIDIV3" encoding="2U" default="yes" />
+        <input point="HSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="USB" enable="auto" dynamic="no">
+      <description>USB clock</description>
+      <derived input="CK48" frequency="%I%" />
+    </clock>
+    <clock point="RNG" enable="auto" dynamic="no">
+      <description>RNG clock</description>
+      <derived input="CK48" frequency="%I%" />
+    </clock>
+    <clock point="XSPI1" enable="auto" dynamic="no">
+      <description>XSPI1 clock</description>
+      <mux name="XSPI1" field="RCC_CCIPR3_XSPI1SEL" offset="0U">
+        <input point="HCLK4" encoding="0U" default="yes" />
+        <input point="PSIK" encoding="1U" />
+        <input point="HSIK" encoding="2U" />
+      </mux>
+    </clock>
+    <clock point="ETH1REFCLK" enable="always" dynamic="no" private="true">
+      <description>ETH1 RMII reference clock selector</description>
+      <bits target="CCIPR3" enabled="STM32_CFG_ETH1REFCLK_SEL"
+            disabled="0U" mask="RCC_CCIPR3_ETH1REFCLKSEL_Msk" />
+      <derived input="NONE" frequency="0U" />
+    </clock>
+    <clock point="ETH1CLKIN" enable="auto" dynamic="no">
+      <description>ETH1 input clock</description>
+      <mux name="ETH1CLK" field="RCC_CCIPR3_ETH1CLKSEL" offset="13U">
+        <input point="PSIS" encoding="1U" default="yes" />
+        <input point="PSIK" encoding="2U" />
+        <input point="HSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="ETH1CLK" enable="auto" dynamic="no">
+      <description>ETH1 clock</description>
+      <divider name="ETH1CLKDIV" input="ETH1CLKIN"
+               field="RCC_CCIPR3_ETH1CLKDIV" offset="26U">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="1U" />
+          <choice item="DIV4" value="4" encoding="2U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="ETH1PTPCLKIN" enable="auto" dynamic="no">
+      <description>ETH1 PTP input clock</description>
+      <mux name="ETH1PTPCLK" field="RCC_CCIPR3_ETH1PTPCLKSEL"
+           offset="10U">
+        <input point="HCLK" label="HCLK1" encoding="1U" default="yes" />
+        <input point="PSIS" encoding="2U" />
+        <input point="PSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="ETH1PTPCLK" enable="auto" dynamic="no">
+      <description>ETH1 PTP clock</description>
+      <divider name="ETH1PTPDIV" input="ETH1PTPCLKIN"
+               field="RCC_CCIPR3_ETH1PTPDIV" offset="28U">
+        <value min="1" max="16" default="1">
+          <bits value="((%N% - 1U) &lt;&lt; 28U)" mask="(15U &lt;&lt; 28U)" />
+        </value>
+      </divider>
+    </clock>
     <clock point="HSEDIV" enable="auto" dynamic="no">
       <description>HSE divided RTC clock</description>
       <limits ref="HSE1M" />
@@ -695,14 +980,149 @@
       - Validate PSI reference source/frequency combinations from RM0522 table 66.
       - Check PSI accuracy when locked on LSE: generated nominal frequencies can
         be approximate, similarly to MSI-derived clocks on U3/U5 devices.
-      - Add RCC_CCIPR1/2/3 peripheral kernel clocks.
-      - Add generated selector definitions and register-targeted bits.
+      - Review SBS PHY mode handling with the ETH setup code.
     -->
   </clocks>
   <sinks>
     <sink name="PSIK_SOURCE" input="PSI"
           condition="STM32_PSIK_ENABLED == TRUE">
       <description>PSIK conditional frequency dependency on PSI</description>
+    </sink>
+    <sink name="USART1_SERIAL_DRIVER" input="USART1"
+          condition="(STM32_HAS_USART1 == TRUE) &amp;&amp; (HAL_USE_SERIAL == TRUE) &amp;&amp; (STM32_SERIAL_USE_USART1 == TRUE)">
+      <description>Serial driver demands the USART1 clock when enabled.</description>
+    </sink>
+    <sink name="USART1_SIO_DRIVER" input="USART1"
+          condition="(STM32_HAS_USART1 == TRUE) &amp;&amp; (HAL_USE_SIO == TRUE) &amp;&amp; (STM32_SIO_USE_USART1 == TRUE)">
+      <description>SIO driver demands the USART1 clock when enabled.</description>
+    </sink>
+    <sink name="USART2_SERIAL_DRIVER" input="USART2"
+          condition="(STM32_HAS_USART2 == TRUE) &amp;&amp; (HAL_USE_SERIAL == TRUE) &amp;&amp; (STM32_SERIAL_USE_USART2 == TRUE)">
+      <description>Serial driver demands the USART2 clock when enabled.</description>
+    </sink>
+    <sink name="USART2_SIO_DRIVER" input="USART2"
+          condition="(STM32_HAS_USART2 == TRUE) &amp;&amp; (HAL_USE_SIO == TRUE) &amp;&amp; (STM32_SIO_USE_USART2 == TRUE)">
+      <description>SIO driver demands the USART2 clock when enabled.</description>
+    </sink>
+    <sink name="USART3_SERIAL_DRIVER" input="USART3"
+          condition="(STM32_HAS_USART3 == TRUE) &amp;&amp; (HAL_USE_SERIAL == TRUE) &amp;&amp; (STM32_SERIAL_USE_USART3 == TRUE)">
+      <description>Serial driver demands the USART3 clock when enabled.</description>
+    </sink>
+    <sink name="USART3_SIO_DRIVER" input="USART3"
+          condition="(STM32_HAS_USART3 == TRUE) &amp;&amp; (HAL_USE_SIO == TRUE) &amp;&amp; (STM32_SIO_USE_USART3 == TRUE)">
+      <description>SIO driver demands the USART3 clock when enabled.</description>
+    </sink>
+    <sink name="UART4_SERIAL_DRIVER" input="UART4"
+          condition="(STM32_HAS_UART4 == TRUE) &amp;&amp; (HAL_USE_SERIAL == TRUE) &amp;&amp; (STM32_SERIAL_USE_UART4 == TRUE)">
+      <description>Serial driver demands the UART4 clock when enabled.</description>
+    </sink>
+    <sink name="UART4_SIO_DRIVER" input="UART4"
+          condition="(STM32_HAS_UART4 == TRUE) &amp;&amp; (HAL_USE_SIO == TRUE) &amp;&amp; (STM32_SIO_USE_UART4 == TRUE)">
+      <description>SIO driver demands the UART4 clock when enabled.</description>
+    </sink>
+    <sink name="UART5_SERIAL_DRIVER" input="UART5"
+          condition="(STM32_HAS_UART5 == TRUE) &amp;&amp; (HAL_USE_SERIAL == TRUE) &amp;&amp; (STM32_SERIAL_USE_UART5 == TRUE)">
+      <description>Serial driver demands the UART5 clock when enabled.</description>
+    </sink>
+    <sink name="UART5_SIO_DRIVER" input="UART5"
+          condition="(STM32_HAS_UART5 == TRUE) &amp;&amp; (HAL_USE_SIO == TRUE) &amp;&amp; (STM32_SIO_USE_UART5 == TRUE)">
+      <description>SIO driver demands the UART5 clock when enabled.</description>
+    </sink>
+    <sink name="USART6_SERIAL_DRIVER" input="USART6"
+          condition="(STM32_HAS_USART6 == TRUE) &amp;&amp; (HAL_USE_SERIAL == TRUE) &amp;&amp; (STM32_SERIAL_USE_USART6 == TRUE)">
+      <description>Serial driver demands the USART6 clock when enabled.</description>
+    </sink>
+    <sink name="USART6_SIO_DRIVER" input="USART6"
+          condition="(STM32_HAS_USART6 == TRUE) &amp;&amp; (HAL_USE_SIO == TRUE) &amp;&amp; (STM32_SIO_USE_USART6 == TRUE)">
+      <description>SIO driver demands the USART6 clock when enabled.</description>
+    </sink>
+    <sink name="UART7_SERIAL_DRIVER" input="UART7"
+          condition="(STM32_HAS_UART7 == TRUE) &amp;&amp; (HAL_USE_SERIAL == TRUE) &amp;&amp; (STM32_SERIAL_USE_UART7 == TRUE)">
+      <description>Serial driver demands the UART7 clock when enabled.</description>
+    </sink>
+    <sink name="UART7_SIO_DRIVER" input="UART7"
+          condition="(STM32_HAS_UART7 == TRUE) &amp;&amp; (HAL_USE_SIO == TRUE) &amp;&amp; (STM32_SIO_USE_UART7 == TRUE)">
+      <description>SIO driver demands the UART7 clock when enabled.</description>
+    </sink>
+    <sink name="LPUART1_SERIAL_DRIVER" input="LPUART1"
+          condition="(STM32_HAS_LPUART1 == TRUE) &amp;&amp; (HAL_USE_SERIAL == TRUE) &amp;&amp; (STM32_SERIAL_USE_LPUART1 == TRUE)">
+      <description>Serial driver demands the LPUART1 clock when enabled.</description>
+    </sink>
+    <sink name="LPUART1_SIO_DRIVER" input="LPUART1"
+          condition="(STM32_HAS_LPUART1 == TRUE) &amp;&amp; (HAL_USE_SIO == TRUE) &amp;&amp; (STM32_SIO_USE_LPUART1 == TRUE)">
+      <description>SIO driver demands the LPUART1 clock when enabled.</description>
+    </sink>
+    <sink name="SPI1_DRIVER" input="SPI1"
+          condition="(STM32_HAS_SPI1 == TRUE) &amp;&amp; (HAL_USE_SPI == TRUE) &amp;&amp; (STM32_SPI_USE_SPI1 == TRUE)">
+      <description>SPI driver demands the SPI1 clock when enabled.</description>
+    </sink>
+    <sink name="SPI2_DRIVER" input="SPI2"
+          condition="(STM32_HAS_SPI2 == TRUE) &amp;&amp; (HAL_USE_SPI == TRUE) &amp;&amp; (STM32_SPI_USE_SPI2 == TRUE)">
+      <description>SPI driver demands the SPI2 clock when enabled.</description>
+    </sink>
+    <sink name="SPI3_DRIVER" input="SPI3"
+          condition="(STM32_HAS_SPI3 == TRUE) &amp;&amp; (HAL_USE_SPI == TRUE) &amp;&amp; (STM32_SPI_USE_SPI3 == TRUE)">
+      <description>SPI driver demands the SPI3 clock when enabled.</description>
+    </sink>
+    <sink name="FDCAN_DRIVER" input="FDCAN"
+          condition="(HAL_USE_CAN == TRUE) &amp;&amp; (((STM32_HAS_FDCAN1 == TRUE) &amp;&amp; (STM32_CAN_USE_FDCAN1 == TRUE)) || ((STM32_HAS_FDCAN2 == TRUE) &amp;&amp; (STM32_CAN_USE_FDCAN2 == TRUE)))">
+      <description>CAN driver demands the FDCAN clock when enabled.</description>
+    </sink>
+    <sink name="I2C1_DRIVER" input="I2C1"
+          condition="(STM32_HAS_I2C1 == TRUE) &amp;&amp; (HAL_USE_I2C == TRUE) &amp;&amp; (STM32_I2C_USE_I2C1 == TRUE)">
+      <description>I2C driver demands the I2C1 clock when enabled.</description>
+    </sink>
+    <sink name="I2C2_DRIVER" input="I2C2"
+          condition="(STM32_HAS_I2C2 == TRUE) &amp;&amp; (HAL_USE_I2C == TRUE) &amp;&amp; (STM32_I2C_USE_I2C2 == TRUE)">
+      <description>I2C driver demands the I2C2 clock when enabled.</description>
+    </sink>
+    <sink name="I3C1_REQUIRED" input="I3C1"
+          condition="STM32_CFG_I3C1_REQUIRED == TRUE">
+      <description>Local option demands the I3C1 clock when enabled.</description>
+    </sink>
+    <sink name="ADCDAC_ADC_DRIVER" input="ADCDAC"
+          condition="(STM32_HAS_ADC1 == TRUE) &amp;&amp; (HAL_USE_ADC == TRUE) &amp;&amp; (STM32_ADC_USE_ADC1 == TRUE)">
+      <description>ADC driver demands the ADCDAC clock when enabled.</description>
+    </sink>
+    <sink name="ADCDAC_DAC_DRIVER" input="ADCDAC"
+          condition="(HAL_USE_DAC == TRUE) &amp;&amp; (((STM32_HAS_DAC1_CH1 == TRUE) &amp;&amp; (STM32_DAC_USE_DAC1_CH1 == TRUE)) || ((STM32_HAS_DAC1_CH2 == TRUE) &amp;&amp; (STM32_DAC_USE_DAC1_CH2 == TRUE)))">
+      <description>DAC driver demands the ADCDAC clock when enabled.</description>
+    </sink>
+    <sink name="DAC1SH_REQUIRED" input="DAC1SH"
+          condition="STM32_CFG_DAC1SH_REQUIRED == TRUE">
+      <description>DAC sample-and-hold logic demands the DAC1SH clock when enabled.</description>
+    </sink>
+    <sink name="LPTIM1_REQUIRED" input="LPTIM1"
+          condition="STM32_CFG_LPTIM1_REQUIRED == TRUE">
+      <description>Local option demands the LPTIM1 clock when enabled.</description>
+    </sink>
+    <sink name="USB1_DRIVER" input="USB"
+          condition="(HAL_USE_USB == TRUE) &amp;&amp; (STM32_USB_USE_USB1 == TRUE)">
+      <description>USB driver demands the USB clock when enabled.</description>
+    </sink>
+    <sink name="RNG_DRIVER" input="RNG"
+          condition="(HAL_USE_TRNG == TRUE) &amp;&amp; (STM32_TRNG_USE_RNG1 == TRUE)">
+      <description>TRNG driver demands the RNG clock when enabled.</description>
+    </sink>
+    <sink name="XSPI1_REQUIRED" input="XSPI1"
+          condition="STM32_CFG_XSPI1_REQUIRED == TRUE">
+      <description>Local option demands the XSPI1 clock when enabled.</description>
+    </sink>
+    <sink name="XSPI1_WSPI_DRIVER" input="XSPI1"
+          condition="defined(STM32_WSPI_USE_XSPI1) &amp;&amp; (HAL_USE_WSPI == TRUE) &amp;&amp; (STM32_WSPI_USE_XSPI1 == TRUE)">
+      <description>WSPI driver demands the XSPI1 clock when enabled.</description>
+    </sink>
+    <sink name="ETH1_REQUIRED" input="ETH1CLK"
+          condition="STM32_CFG_ETH1_REQUIRED == TRUE">
+      <description>Local option demands the ETH1 clock when enabled.</description>
+    </sink>
+    <sink name="ETH1_MAC_DRIVER" input="ETH1CLK"
+          condition="(STM32_HAS_ETH == TRUE) &amp;&amp; (HAL_USE_MAC == TRUE)">
+      <description>MAC driver demands the ETH1 clock when enabled.</description>
+    </sink>
+    <sink name="ETH1PTP_REQUIRED" input="ETH1PTPCLK"
+          condition="STM32_CFG_ETH1PTP_REQUIRED == TRUE">
+      <description>Local option demands the ETH1 PTP clock when enabled.</description>
     </sink>
     <sink name="MCO1_HSE_SOURCE" input="HSE"
           condition="(STM32_CFG_MCO1PRE_VALUE != 0) &amp;&amp; (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSE)">
