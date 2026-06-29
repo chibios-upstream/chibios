@@ -151,6 +151,13 @@
 #error "MFS_CFG_BUFFER_SIZE is not a power of two"
 #endif
 
+/* Write verification reads data back into the upper half of the buffer when
+   the source aliases the buffer itself (header writes and flash copies). That
+   half must be able to hold a whole 16-bytes record/bank header.*/
+#if (MFS_CFG_WRITE_VERIFY == TRUE) && (MFS_CFG_BUFFER_SIZE < 32)
+#error "MFS_CFG_WRITE_VERIFY requires MFS_CFG_BUFFER_SIZE to be at least 32"
+#endif
+
 #if (MFS_CFG_MEMORY_ALIGNMENT < 1) ||                                       \
     (MFS_CFG_MEMORY_ALIGNMENT > MFS_CFG_BUFFER_SIZE)
 #error "invalid MFS_CFG_MEMORY_ALIGNMENT value"

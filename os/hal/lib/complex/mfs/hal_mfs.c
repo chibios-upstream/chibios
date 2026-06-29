@@ -246,19 +246,48 @@ static mfs_error_t mfs_flash_write(MFSDriver *mfsp,
   mfs_flash_release(mfsp);
 
 #if MFS_CFG_WRITE_VERIFY == TRUE
-  /* Verifying the written data by reading it back and comparing.*/
-  while (n > 0U) {
-    size_t chunk = n <= MFS_CFG_BUFFER_SIZE ? n : MFS_CFG_BUFFER_SIZE;
+  {
+    /* Verifying the written data by reading it back and comparing.
+       Note, header writes and mfs_flash_copy() pass a source pointer that
+       aliases the non-cacheable buffer. Reading back into that same buffer
+       would overwrite the data being compared, making the verification a
+       buffer-against-itself comparison that always succeeds. In that case
+       the upper half of the buffer is used as a disjoint read-back scratch;
+       such writes always fit in the lower half (enforced at compile time on
+       MFS_CFG_BUFFER_SIZE and asserted below).*/
+    uint8_t *vbuf;
+    size_t vmax;
 
-    RET_ON_ERROR(mfs_flash_read(mfsp, offset, chunk, mfsp->ncbuf->data8));
+    /* Address comparisons are done on integers because relational comparisons
+       between pointers belonging to different objects are not defined.*/
+    uintptr_t wpa  = (uintptr_t)wp;
+    uintptr_t bufa = (uintptr_t)&mfsp->ncbuf->data8[0];
 
-    if (memcmp((void *)mfsp->ncbuf->data8, (void *)wp, chunk)) {
-      mfsp->state = MFS_ERROR;
-      return MFS_ERR_FLASH_FAILURE;
+    if ((wpa >= bufa) && (wpa < (bufa + (uintptr_t)MFS_CFG_BUFFER_SIZE))) {
+      osalDbgAssert((wpa + (uintptr_t)n) <=
+                    (bufa + (uintptr_t)(MFS_CFG_BUFFER_SIZE / 2U)),
+                    "aliased write does not fit in the lower buffer half");
+      vbuf = &mfsp->ncbuf->data8[MFS_CFG_BUFFER_SIZE / 2U];
+      vmax = (size_t)(MFS_CFG_BUFFER_SIZE / 2U);
     }
-    n -= chunk;
-    offset += (flash_offset_t)chunk;
-    wp += chunk;
+    else {
+      vbuf = &mfsp->ncbuf->data8[0];
+      vmax = (size_t)MFS_CFG_BUFFER_SIZE;
+    }
+
+    while (n > 0U) {
+      size_t chunk = n <= vmax ? n : vmax;
+
+      RET_ON_ERROR(mfs_flash_read(mfsp, offset, chunk, vbuf));
+
+      if (memcmp((void *)vbuf, (void *)wp, chunk)) {
+        mfsp->state = MFS_ERROR;
+        return MFS_ERR_FLASH_FAILURE;
+      }
+      n -= chunk;
+      offset += (flash_offset_t)chunk;
+      wp += chunk;
+    }
   }
 #endif
 
@@ -283,11 +312,20 @@ static mfs_error_t mfs_flash_copy(MFSDriver *mfsp,
                                   flash_offset_t soffset,
                                   uint32_t n) {
 
+#if MFS_CFG_WRITE_VERIFY == TRUE
+  /* With write verification enabled mfs_flash_write() reads the data back
+     into the upper half of the buffer, so copies must stage their data in
+     the lower half only, keeping source and read-back scratch disjoint.*/
+  const size_t copy_unit = (size_t)(MFS_CFG_BUFFER_SIZE / 2U);
+#else
+  const size_t copy_unit = (size_t)MFS_CFG_BUFFER_SIZE;
+#endif
+
   /* Splitting the operation in smaller operations because the buffer is
      small.*/
   while (n > 0U) {
     /* Data size that can be written in a single program page operation.*/
-    size_t chunk = (size_t)(((doffset | (MFS_CFG_BUFFER_SIZE - 1U)) + 1U) -
+    size_t chunk = (size_t)(((doffset | (copy_unit - 1U)) + 1U) -
                             doffset);
     if (chunk > n) {
       chunk = n;
@@ -504,9 +542,9 @@ static mfs_error_t mfs_bank_scan_records(MFSDriver *mfsp,
      header.*/
   while (hdr_offset < end_offset - ALIGNED_DHDR_SIZE) {
     mfs_data_header_t dhdr;
-    uint16_t crc;
     flash_offset_t data_offset;
     flash_offset_t data_available;
+    bool valid;
 
     /* Reading the current record header.*/
     RET_ON_ERROR(mfs_flash_read(mfsp, hdr_offset,
@@ -540,29 +578,41 @@ static mfs_error_t mfs_bank_scan_records(MFSDriver *mfsp,
     /* Copying the non-cached buffer locally.*/
     dhdr = mfsp->ncbuf->dhdr;
 
-    /* Finally checking the CRC, we need to perform it in chunks because
-       we have a limited buffer.*/
-    crc = 0xFFFFU;
-    if (dhdr.fields.size > 0U) {
-      uint32_t total = dhdr.fields.size;
+#if MFS_CFG_STRONG_CHECKING == TRUE
+    /* Strong checking, the whole record data is read back and its CRC is
+       verified, this is slow but detects data corruption at mount time.
+       The CRC is computed in chunks because we have a limited buffer.*/
+    {
+      uint16_t crc = 0xFFFFU;
 
-      while (total > 0U) {
-        uint32_t chunk = total > MFS_CFG_BUFFER_SIZE ? MFS_CFG_BUFFER_SIZE :
-                                                       total;
+      if (dhdr.fields.size > 0U) {
+        uint32_t total = dhdr.fields.size;
 
-        /* Reading the data chunk.*/
-        RET_ON_ERROR(mfs_flash_read(mfsp, data_offset, chunk,
-                                    mfsp->ncbuf->data8));
+        while (total > 0U) {
+          uint32_t chunk = total > MFS_CFG_BUFFER_SIZE ? MFS_CFG_BUFFER_SIZE :
+                                                         total;
 
-        /* CRC on the read data chunk.*/
-        crc = crc16(crc, &mfsp->ncbuf->data8[0], chunk);
+          /* Reading the data chunk.*/
+          RET_ON_ERROR(mfs_flash_read(mfsp, data_offset, chunk,
+                                      mfsp->ncbuf->data8));
 
-        /* Next chunk.*/
-        data_offset += chunk;
-        total -= chunk;
+          /* CRC on the read data chunk.*/
+          crc = crc16(crc, &mfsp->ncbuf->data8[0], chunk);
+
+          /* Next chunk.*/
+          data_offset += chunk;
+          total -= chunk;
+        }
       }
+      valid = (crc == dhdr.fields.crc);
     }
-    if (crc != dhdr.fields.crc) {
+#else
+    /* Normal checking, only metadata has been validated, data integrity is
+       checked on read so the record is accepted here.*/
+    valid = true;
+#endif
+
+    if (!valid) {
       /* If the CRC is invalid then this record is ignored but scanning
          continues because there could be more valid records afterward.*/
       *wflagp = true;
@@ -1486,7 +1536,13 @@ mfs_error_t mfsCommitTransaction(MFSDriver *mfsp) {
     }
     else {
       /* It is an erase.*/
-      mfsp->used_space           -= ALIGNED_REC_SIZE(mfsp->descriptors[i].size);
+      if (mfsp->descriptors[i].offset != 0U) {
+        /* The space is subtracted only if the record actually exists, this
+           guards against multiple erase operations on the same identifier
+           within a single transaction, which would otherwise subtract the
+           used space more than once and corrupt the accounting.*/
+        mfsp->used_space         -= ALIGNED_REC_SIZE(mfsp->descriptors[i].size);
+      }
       mfsp->descriptors[i].offset = 0U;
       mfsp->descriptors[i].size   = 0U;
     }

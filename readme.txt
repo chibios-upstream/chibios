@@ -74,6 +74,11 @@
 *****************************************************************************
 
 *** 21.11.6 ***
+- FIX: MFS write verification could pass spuriously when the source data
+       aliased the shared non-cacheable buffer; the read-back now uses a
+       disjoint buffer half. MFS_CFG_STRONG_CHECKING is now honored during
+       mount scans, and a duplicate in-transaction erase no longer corrupts
+       the used-space accounting (github PR #58).
 - FIX: RT thread registry reference accounting was inconsistent when dynamic
        threads are disabled (CH_CFG_USE_DYNAMIC = FALSE): chRegFirstThread()
        and chRegNextThread() did not count the reference they hand out while
