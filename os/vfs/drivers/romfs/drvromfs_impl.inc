@@ -243,6 +243,10 @@ static ssize_t romfs_chunked_read(void *session, vfs_offset_t offset,
     return CH_RET_EINVAL;
   }
 
+  if ((offset == descp->size) || (n == 0U)) {
+    return 0;
+  }
+
   transferred = 0U;
   while (n > 0U) {
     size_t chunk_index;
@@ -265,6 +269,9 @@ static ssize_t romfs_chunked_read(void *session, vfs_offset_t offset,
     copied = reader(descp, chunk_index, chunk_offset, buf, chunk_available);
     if (CH_RET_IS_ERROR(copied)) {
       return copied;
+    }
+    if ((copied == (ssize_t)0) || ((size_t)copied > chunk_available)) {
+      return CH_RET_EINVAL;
     }
 
     transferred += (size_t)copied;
@@ -989,9 +996,19 @@ static msg_t __romfile_setpos_impl(void *ip, vfs_offset_t offset,
     newpos = offset;
     break;
   case VFS_SEEK_CUR:
+    if (((offset > (vfs_offset_t)0) &&
+         (offset > (self->size - self->position))) ||
+        ((offset < (vfs_offset_t)0) &&
+         (offset < ((vfs_offset_t)0 - self->position)))) {
+      return CH_RET_EINVAL;
+    }
     newpos = self->position + offset;
     break;
   case VFS_SEEK_END:
+    if ((offset > (vfs_offset_t)0) ||
+        (offset < ((vfs_offset_t)0 - self->size))) {
+      return CH_RET_EINVAL;
+    }
     newpos = self->size + offset;
     break;
   default:
