@@ -42,6 +42,10 @@ typedef struct hal_wdg_config WDGConfig;
           <verbatim><![CDATA[
 /* End of the mandatory fields.*/
 wdg_lld_config_fields;]]></verbatim>
+          <condition check="defined(WDG_CONFIG_EXT_FIELDS)">
+            <verbatim><![CDATA[
+WDG_CONFIG_EXT_FIELDS]]></verbatim>
+          </condition>
         </fields>
       </struct>
       <class type="regular" name="hal_wdg_driver" namespace="wdg"

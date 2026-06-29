@@ -32,6 +32,10 @@ typedef struct hal_efl_config EFlashConfig;
           <verbatim><![CDATA[
 /* End of the mandatory fields.*/
 efl_lld_config_fields;]]></verbatim>
+          <condition check="defined(EFL_CONFIG_EXT_FIELDS)">
+            <verbatim><![CDATA[
+EFL_CONFIG_EXT_FIELDS]]></verbatim>
+          </condition>
         </fields>
       </struct>
       <class type="regular" name="hal_efl_driver" namespace="efl"

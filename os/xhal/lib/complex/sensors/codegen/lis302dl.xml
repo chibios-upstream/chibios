@@ -204,6 +204,10 @@ typedef enum {
               <brief>Accelerometer high-pass filter selection.</brief>
             </field>
           </condition>
+          <condition check="defined(LIS302DL_CONFIG_EXT_FIELDS)">
+            <verbatim><![CDATA[
+LIS302DL_CONFIG_EXT_FIELDS]]></verbatim>
+          </condition>
         </fields>
       </struct>
       <class type="regular" name="lis302dl_driver" namespace="lis302dl"

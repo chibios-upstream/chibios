@@ -157,6 +157,9 @@ struct hal_usb_cdc_config {
   uint16_t                  bulk_in_maxsize;
   uint16_t                  bulk_out_maxsize;
   uint16_t                  int_in_maxsize;
+#if (defined(USB_CDC_CONFIG_EXT_FIELDS)) || defined (__DOXYGEN__)
+  USB_CDC_CONFIG_EXT_FIELDS
+#endif /* defined(USB_CDC_CONFIG_EXT_FIELDS) */
 };
 
 /**

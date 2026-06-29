@@ -88,6 +88,9 @@ typedef struct hal_wdg_config WDGConfig;
 struct hal_wdg_config {
   /* End of the mandatory fields.*/
   wdg_lld_config_fields;
+#if (defined(WDG_CONFIG_EXT_FIELDS)) || defined (__DOXYGEN__)
+  WDG_CONFIG_EXT_FIELDS
+#endif /* defined(WDG_CONFIG_EXT_FIELDS) */
 };
 
 /**

@@ -155,6 +155,9 @@ struct hal_mmc_spi_config {
    * @brief Opaque callback argument.
    */
   void                     *arg;
+#if (defined(MMC_SPI_CONFIG_EXT_FIELDS)) || defined (__DOXYGEN__)
+  MMC_SPI_CONFIG_EXT_FIELDS
+#endif /* defined(MMC_SPI_CONFIG_EXT_FIELDS) */
 };
 
 /**

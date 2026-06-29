@@ -176,6 +176,10 @@
           <field name="options" ctype="int">
             <brief>Device-dependent options, used by subclasses only.</brief>
           </field>
+          <condition check="defined(XSNOR_CONFIG_EXT_FIELDS)">
+            <verbatim><![CDATA[
+XSNOR_CONFIG_EXT_FIELDS]]></verbatim>
+          </condition>
         </fields>
       </struct>
       <class name="hal_xsnor_base" type="abstract" namespace="xsnor"

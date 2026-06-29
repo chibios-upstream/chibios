@@ -73,6 +73,9 @@ typedef struct hal_efl_config EFlashConfig;
 struct hal_efl_config {
   /* End of the mandatory fields.*/
   efl_lld_config_fields;
+#if (defined(EFL_CONFIG_EXT_FIELDS)) || defined (__DOXYGEN__)
+  EFL_CONFIG_EXT_FIELDS
+#endif /* defined(EFL_CONFIG_EXT_FIELDS) */
 };
 
 /**

@@ -73,6 +73,9 @@ typedef struct hal_trng_config TRNGConfig;
 struct hal_trng_config {
   /* End of the mandatory fields.*/
   trng_lld_config_fields;
+#if (defined(TRNG_CONFIG_EXT_FIELDS)) || defined (__DOXYGEN__)
+  TRNG_CONFIG_EXT_FIELDS
+#endif /* defined(TRNG_CONFIG_EXT_FIELDS) */
 };
 
 /**

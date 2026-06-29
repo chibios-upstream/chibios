@@ -32,6 +32,10 @@ typedef struct hal_trng_config TRNGConfig;
           <verbatim><![CDATA[
 /* End of the mandatory fields.*/
 trng_lld_config_fields;]]></verbatim>
+          <condition check="defined(TRNG_CONFIG_EXT_FIELDS)">
+            <verbatim><![CDATA[
+TRNG_CONFIG_EXT_FIELDS]]></verbatim>
+          </condition>
         </fields>
       </struct>
       <class type="regular" name="hal_trng_driver" namespace="trng"

@@ -341,6 +341,9 @@ struct lis302dl_config {
    */
   lis302dl_acc_hp_t         acchighpass;
 #endif /* LIS302DL_USE_ADVANCED == TRUE */
+#if (defined(LIS302DL_CONFIG_EXT_FIELDS)) || defined (__DOXYGEN__)
+  LIS302DL_CONFIG_EXT_FIELDS
+#endif /* defined(LIS302DL_CONFIG_EXT_FIELDS) */
 };
 
 /**

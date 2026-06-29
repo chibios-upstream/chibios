@@ -269,6 +269,9 @@ struct xsnor_config {
    * @brief       Device-dependent options, used by subclasses only.
    */
   int                       options;
+#if (defined(XSNOR_CONFIG_EXT_FIELDS)) || defined (__DOXYGEN__)
+  XSNOR_CONFIG_EXT_FIELDS
+#endif /* defined(XSNOR_CONFIG_EXT_FIELDS) */
 };
 
 /**
