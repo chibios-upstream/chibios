@@ -570,7 +570,7 @@ thread_t *chThdCreateStatic(stkline_t *wbase, size_t wsize,
 #endif
 
   /* Initializing the thread_t structure using the passed parameters.*/
-  THD_DESC_DECL(desc, "noname", wbase, wend, prio, func, arg, currcore, NULL);
+  THD_DESC_DECL(desc, "noname", wbase, wend, prio, func, arg, currcore);
   tp = chThdObjectInit(threadref(stktop), &desc);
 
   /* Setting up the port-dependent part of the working area.*/

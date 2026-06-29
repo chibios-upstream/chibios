@@ -308,7 +308,7 @@ typedef struct {
  * @deprecated
  */
 #define __THD_DESC_DATA(tname, twbase, twend, tprio,                        \
-                        tfunc, targ, towner, tdispose) {                    \
+                        tfunc, targ, towner) {                              \
   .name         = (tname),                                                  \
   .wbase        = (stkline_t *)(void *)(twbase),                            \
   .wend         = (stkline_t *)(void *)(twend),                             \
@@ -329,14 +329,13 @@ typedef struct {
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
  * @param[in] towner    thread owner OS instance or @p NULL
- * @param[in] tdispose  thread dispose function or @p NULL
  *
  * @deprecated
  */
 #define THD_DESC_DECL(var, tname, twbase, twend, tprio,                     \
-                      tfunc, targ, towner, tdispose)                        \
+                      tfunc, targ, towner)                                  \
   thread_descriptor_t var = __THD_DESC_DATA(tname, twbase, twend, tprio,    \
-                                            tfunc, targ, towner, tdispose)
+                                            tfunc, targ, towner)
 
 /**
  * @brief   Thread descriptor initializer with no affinity.
@@ -351,7 +350,7 @@ typedef struct {
  * @deprecated
  */
 #define THD_DESCRIPTOR(tname, wb, we, tprio, tfunc, targ)                   \
-  __THD_DESC_DATA(tname, wb, we, tprio, tfunc, targ, NULL, NULL)
+  __THD_DESC_DATA(tname, wb, we, tprio, tfunc, targ, NULL)
 
 /**
  * @brief   Thread descriptor initializer with no affinity.
@@ -367,7 +366,7 @@ typedef struct {
  * @deprecated
  */
 #define THD_DESCRIPTOR_AFFINITY(tname, wb, we, tprio, tfunc, targ, oip)     \
-  __THD_DESC_DATA(tname, wb, we, tprio, tfunc, targ, oip, NULL)
+  __THD_DESC_DATA(tname, wb, we, tprio, tfunc, targ, oip)
 /** @} */
 
 /**

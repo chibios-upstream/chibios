@@ -1209,10 +1209,10 @@ typedef struct {
 #define __THD_DECL_DATA(tname,twbase,twend,tprio,tfunc,targ,towner) { .name = (tname), .wbase = (stkline_t *)(void *)(twbase), .wend = (stkline_t *)(void *)(twend), .prio = (tprio), .funcp = (tfunc), .arg = (targ), .owner = (towner) }
 #define THD_DECL(var,tname,twbase,twend,tprio,tfunc,targ,towner) thread_descriptor_t var = __THD_DECL_DATA(tname, twbase, twend, tprio, tfunc, targ, towner)
 #define THD_DECL_STATIC(var,tname,twname,tprio,tfunc,targ,towner) thread_descriptor_t var = __THD_DECL_DATA(tname, THD_WORKING_AREA_BASE(twname), THD_WORKING_AREA_END(twname), tprio, tfunc, targ, towner)
-#define __THD_DESC_DATA(tname,twbase,twend,tprio,tfunc,targ,towner,tdispose) { .name = (tname), .wbase = (stkline_t *)(void *)(twbase), .wend = (stkline_t *)(void *)(twend), .prio = (tprio), .funcp = (tfunc), .arg = (targ), .owner = (towner), }
-#define THD_DESC_DECL(var,tname,twbase,twend,tprio,tfunc,targ,towner,tdispose) thread_descriptor_t var = __THD_DESC_DATA(tname, twbase, twend, tprio, tfunc, targ, towner, tdispose)
-#define THD_DESCRIPTOR(tname,wb,we,tprio,tfunc,targ) __THD_DESC_DATA(tname, wb, we, tprio, tfunc, targ, NULL, NULL)
-#define THD_DESCRIPTOR_AFFINITY(tname,wb,we,tprio,tfunc,targ,oip) __THD_DESC_DATA(tname, wb, we, tprio, tfunc, targ, oip, NULL)
+#define __THD_DESC_DATA(tname,twbase,twend,tprio,tfunc,targ,towner) { .name = (tname), .wbase = (stkline_t *)(void *)(twbase), .wend = (stkline_t *)(void *)(twend), .prio = (tprio), .funcp = (tfunc), .arg = (targ), .owner = (towner), }
+#define THD_DESC_DECL(var,tname,twbase,twend,tprio,tfunc,targ,towner) thread_descriptor_t var = __THD_DESC_DATA(tname, twbase, twend, tprio, tfunc, targ, towner)
+#define THD_DESCRIPTOR(tname,wb,we,tprio,tfunc,targ) __THD_DESC_DATA(tname, wb, we, tprio, tfunc, targ, NULL)
+#define THD_DESCRIPTOR_AFFINITY(tname,wb,we,tprio,tfunc,targ,oip) __THD_DESC_DATA(tname, wb, we, tprio, tfunc, targ, oip)
 #define chThdSleepSeconds(sec) chThdSleep(TIME_S2I(sec))
 #define chThdSleepMilliseconds(msec) chThdSleep(TIME_MS2I(msec))
 #define chThdSleepMicroseconds(usec) chThdSleep(TIME_US2I(usec))
