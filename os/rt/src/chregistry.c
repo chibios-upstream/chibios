@@ -283,6 +283,35 @@ thread_t *chRegFindThreadByWorkingArea(stkline_t *wa) {
   return NULL;
 }
 
+/**
+ * @brief   Confirms that a working area is being used by some active thread.
+ *
+ * @param[in] wa        pointer to a static working area
+ * @retval true         if a matching thread has been found.
+ * @retval false        if a matching thread has not been found.
+ *
+ * @iclass
+ */
+bool chRegIsWorkingAreaInUseI(stkline_t *wa) {
+  ch_queue_t *tqp;
+
+  chDbgCheckClassI();
+
+  /* Scanning registry.*/
+  tqp = REG_HEADER(currcore)->next;
+  while (tqp != REG_HEADER(currcore)) {
+    thread_t *ctp = __CH_OWNEROF((uint8_t *)tqp, thread_t, rqueue);
+
+    if (chThdGetWorkingAreaX(ctp) == wa) {
+      return true;
+    }
+
+    tqp = tqp->next;
+  }
+
+  return false;
+}
+
 #endif /* CH_CFG_USE_REGISTRY == TRUE */
 
 /** @} */
