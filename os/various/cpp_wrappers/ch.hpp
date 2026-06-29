@@ -407,7 +407,7 @@ namespace chibios_rt {
      */
     static void rescheduleS(void) {
 
-      void chSchRescheduleS();
+      chSchRescheduleS();
     }
   };
 
@@ -584,6 +584,8 @@ namespace chibios_rt {
    *            an object of this type.
    */
   class ThreadReference final {
+    friend class Registry;
+
     /**
      * @brief   Pointer to the system thread.
      */
@@ -756,6 +758,25 @@ namespace chibios_rt {
      */
     bool isPendingMessage(void) const {
 
+      bool pending;
+
+      chSysLock();
+      pending = chMsgIsPendingI(thread_ref);
+      chSysUnlock();
+
+      return pending;
+    }
+
+    /**
+     * @brief   Returns true if there is at least one message in queue.
+     *
+     * @retval true             A message is waiting in queue.
+     * @retval false            A message is not waiting in queue.
+     *
+     * @iclass
+     */
+    bool isPendingMessageI(void) const {
+
       return chMsgIsPendingI(thread_ref);
     }
 
@@ -859,15 +880,18 @@ namespace chibios_rt {
      * @details The reference counter of the specified thread is decremented and
      *          the reference counter of the returned thread is incremented.
      *
-     * @param[in] tref      reference to the thread
+     * @param[in,out] tref  reference to the thread
      * @return              A reference to the next thread. The reference is
      *                      set to @p nullptr if there is no next thread.
      *
      * @api
      */
-    static ThreadReference nextThread(ThreadReference tref) {
+    static ThreadReference nextThread(ThreadReference &tref) {
+      thread_t *tp = tref.thread_ref;
 
-      return ThreadReference(chRegNextThread(tref.getInner()));
+      tref.thread_ref = nullptr;
+
+      return ThreadReference(chRegNextThread(tp));
     }
 
     /**
@@ -1448,6 +1472,12 @@ namespace chibios_rt {
    * @note      No other uses.
    */
   class SynchronizationObject {
+  public:
+    SynchronizationObject(void) {
+    }
+
+    SynchronizationObject(const SynchronizationObject &) = delete;
+    SynchronizationObject &operator=(const SynchronizationObject &) = delete;
   };
 
   /*------------------------------------------------------------------------*
@@ -1473,10 +1503,6 @@ namespace chibios_rt {
 
       chThdQueueObjectInit(&threads_queue);
     }
-
-    /* Prohibit copy construction and assignment.*/
-    ThreadsQueue(const ThreadsQueue &) = delete;
-    ThreadsQueue &operator=(const ThreadsQueue &) = delete;
 
     /**
      * @brief   Enqueues the caller thread on a threads queue object.
@@ -1529,7 +1555,7 @@ namespace chibios_rt {
 
       chThdDequeueAllI(&threads_queue, msg);
     }
-};
+  };
 
 #if (CH_CFG_USE_SEMAPHORES == TRUE) || defined(__DOXYGEN__)
   /*------------------------------------------------------------------------*
@@ -2313,6 +2339,12 @@ namespace chibios_rt {
      */
     event_listener_t ev_listener;
 
+    EventListener(void) {
+    }
+
+    EventListener(const EventListener &) = delete;
+    EventListener &operator=(const EventListener &) = delete;
+
     /**
      * @brief   Returns the pending flags from the listener and clears them.
      *
@@ -2365,6 +2397,9 @@ namespace chibios_rt {
 
       chEvtObjectInit(&ev_source);
     }
+
+    EventSource(const EventSource &) = delete;
+    EventSource &operator=(const EventSource &) = delete;
 
     /**
      * @brief   Registers a listener on the event source.
@@ -2476,6 +2511,9 @@ namespace chibios_rt {
       chMBObjectInit(&mb, buf, n);
     }
 
+    MailboxBase(const MailboxBase &) = delete;
+    MailboxBase &operator=(const MailboxBase &) = delete;
+
     /**
      * @brief   Resets a Mailbox object.
      * @details All the waiting threads are resumed with status @p MSG_RESET
@@ -2518,7 +2556,7 @@ namespace chibios_rt {
      */
     msg_t post(T msg, sysinterval_t timeout) {
 
-      return chMBPostTimeout(&mb, reinterpret_cast<msg_t>(msg), timeout);
+      return chMBPostTimeout(&mb, (msg_t)msg, timeout);
     }
 
     /**
@@ -2541,7 +2579,7 @@ namespace chibios_rt {
      */
     msg_t postS(T msg, sysinterval_t timeout) {
 
-      return chMBPostTimeoutS(&mb, reinterpret_cast<msg_t>(msg), timeout);
+      return chMBPostTimeoutS(&mb, (msg_t)msg, timeout);
     }
 
     /**
@@ -2559,7 +2597,7 @@ namespace chibios_rt {
      */
     msg_t postI(T msg) {
 
-      return chMBPostI(&mb, reinterpret_cast<msg_t>(msg));
+      return chMBPostI(&mb, (msg_t)msg);
     }
 
     /**
@@ -2582,7 +2620,7 @@ namespace chibios_rt {
      */
     msg_t postAhead(T msg, sysinterval_t timeout) {
 
-      return chMBPostAheadTimeout(&mb, reinterpret_cast<msg_t>(msg), timeout);
+      return chMBPostAheadTimeout(&mb, (msg_t)msg, timeout);
     }
 
     /**
@@ -2605,7 +2643,7 @@ namespace chibios_rt {
      */
     msg_t postAheadS(T msg, sysinterval_t timeout) {
 
-      return chMBPostAheadTimeoutS(&mb, reinterpret_cast<msg_t>(msg), timeout);
+      return chMBPostAheadTimeoutS(&mb, (msg_t)msg, timeout);
     }
 
     /**
@@ -2623,7 +2661,7 @@ namespace chibios_rt {
      */
     msg_t postAheadI(T msg) {
 
-      return chMBPostAheadI(&mb, reinterpret_cast<msg_t>(msg));
+      return chMBPostAheadI(&mb, (msg_t)msg);
     }
 
     /**
@@ -2645,8 +2683,15 @@ namespace chibios_rt {
      * @api
      */
     msg_t fetch(T *msgp, sysinterval_t timeout) {
+      msg_t msg;
+      msg_t msg_status;
 
-      return chMBFetchTimeout(&mb, reinterpret_cast<msg_t*>(msgp), timeout);
+      msg_status = chMBFetchTimeout(&mb, &msg, timeout);
+      if (msg_status == MSG_OK) {
+        *msgp = (T)msg;
+      }
+
+      return msg_status;
     }
 
     /**
@@ -2668,8 +2713,15 @@ namespace chibios_rt {
      * @sclass
      */
     msg_t fetchS(T *msgp, sysinterval_t timeout) {
+      msg_t msg;
+      msg_t msg_status;
 
-      return chMBFetchTimeoutS(&mb, reinterpret_cast<msg_t*>(msgp), timeout);
+      msg_status = chMBFetchTimeoutS(&mb, &msg, timeout);
+      if (msg_status == MSG_OK) {
+        *msgp = (T)msg;
+      }
+
+      return msg_status;
     }
 
     /**
@@ -2687,8 +2739,15 @@ namespace chibios_rt {
      * @iclass
      */
     msg_t fetchI(T *msgp) {
+      msg_t msg;
+      msg_t msg_status;
 
-      return chMBFetchI(&mb, reinterpret_cast<msg_t*>(msgp));
+      msg_status = chMBFetchI(&mb, &msg);
+      if (msg_status == MSG_OK) {
+        *msgp = (T)msg;
+      }
+
+      return msg_status;
     }
 
     /**
@@ -2704,7 +2763,9 @@ namespace chibios_rt {
      */
     T peekI(const mailbox_t *mbp) const {
 
-      return chMBPeekI(&mb);
+      (void)mbp;
+
+      return (T)chMBPeekI(&mb);
     }
 
     /**
@@ -2777,10 +2838,18 @@ namespace chibios_rt {
    * @brief   Class encapsulating a memory pool.
    */
   class MemoryPool {
+    template<size_t S, size_t N, const char *C> friend class ThreadsPool;
+
     /**
      * @brief   Embedded @p memory_pool_t structure.
      */
     memory_pool_t pool;
+
+  protected:
+    static constexpr size_t roundObjectSize(size_t size) {
+
+      return (size + sizeof (void *) - 1U) & ~(sizeof (void *) - 1U);
+    }
 
   public:
     /**
@@ -2927,12 +2996,14 @@ namespace chibios_rt {
    */
   template<class T, size_t N>
   class ObjectsPool : public MemoryPool {
+    static constexpr size_t object_size = roundObjectSize(sizeof (T));
+
     /* The buffer is declared as an array of pointers to void for two
        reasons:
        1) The objects must be properly aligned to hold a pointer as
           first field.
        2) Objects are dirtied when loaded in the pool.*/
-    void *pool_buf[(N * sizeof (T)) / sizeof (void *)];
+    void *pool_buf[(N * object_size) / sizeof (void *)];
 
   public:
     /**
@@ -2940,7 +3011,7 @@ namespace chibios_rt {
      *
      * @init
      */
-    ObjectsPool(void) : MemoryPool(sizeof (T), nullptr) {
+    ObjectsPool(void) : MemoryPool(object_size, nullptr) {
 
       loadArray(pool_buf, N);
     }
