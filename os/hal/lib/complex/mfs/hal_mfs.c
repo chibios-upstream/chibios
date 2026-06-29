@@ -542,9 +542,9 @@ static mfs_error_t mfs_bank_scan_records(MFSDriver *mfsp,
      header.*/
   while (hdr_offset < end_offset - ALIGNED_DHDR_SIZE) {
     mfs_data_header_t dhdr;
-    uint16_t crc;
     flash_offset_t data_offset;
     flash_offset_t data_available;
+    bool valid;
 
     /* Reading the current record header.*/
     RET_ON_ERROR(mfs_flash_read(mfsp, hdr_offset,
@@ -578,29 +578,41 @@ static mfs_error_t mfs_bank_scan_records(MFSDriver *mfsp,
     /* Copying the non-cached buffer locally.*/
     dhdr = mfsp->ncbuf->dhdr;
 
-    /* Finally checking the CRC, we need to perform it in chunks because
-       we have a limited buffer.*/
-    crc = 0xFFFFU;
-    if (dhdr.fields.size > 0U) {
-      uint32_t total = dhdr.fields.size;
+#if MFS_CFG_STRONG_CHECKING == TRUE
+    /* Strong checking, the whole record data is read back and its CRC is
+       verified, this is slow but detects data corruption at mount time.
+       The CRC is computed in chunks because we have a limited buffer.*/
+    {
+      uint16_t crc = 0xFFFFU;
 
-      while (total > 0U) {
-        uint32_t chunk = total > MFS_CFG_BUFFER_SIZE ? MFS_CFG_BUFFER_SIZE :
-                                                       total;
+      if (dhdr.fields.size > 0U) {
+        uint32_t total = dhdr.fields.size;
 
-        /* Reading the data chunk.*/
-        RET_ON_ERROR(mfs_flash_read(mfsp, data_offset, chunk,
-                                    mfsp->ncbuf->data8));
+        while (total > 0U) {
+          uint32_t chunk = total > MFS_CFG_BUFFER_SIZE ? MFS_CFG_BUFFER_SIZE :
+                                                         total;
 
-        /* CRC on the read data chunk.*/
-        crc = crc16(crc, &mfsp->ncbuf->data8[0], chunk);
+          /* Reading the data chunk.*/
+          RET_ON_ERROR(mfs_flash_read(mfsp, data_offset, chunk,
+                                      mfsp->ncbuf->data8));
 
-        /* Next chunk.*/
-        data_offset += chunk;
-        total -= chunk;
+          /* CRC on the read data chunk.*/
+          crc = crc16(crc, &mfsp->ncbuf->data8[0], chunk);
+
+          /* Next chunk.*/
+          data_offset += chunk;
+          total -= chunk;
+        }
       }
+      valid = (crc == dhdr.fields.crc);
     }
-    if (crc != dhdr.fields.crc) {
+#else
+    /* Normal checking, only metadata has been validated, data integrity is
+       checked on read so the record is accepted here.*/
+    valid = true;
+#endif
+
+    if (!valid) {
       /* If the CRC is invalid then this record is ignored but scanning
          continues because there could be more valid records afterward.*/
       *wflagp = true;
@@ -1524,7 +1536,13 @@ mfs_error_t mfsCommitTransaction(MFSDriver *mfsp) {
     }
     else {
       /* It is an erase.*/
-      mfsp->used_space           -= ALIGNED_REC_SIZE(mfsp->descriptors[i].size);
+      if (mfsp->descriptors[i].offset != 0U) {
+        /* The space is subtracted only if the record actually exists, this
+           guards against multiple erase operations on the same identifier
+           within a single transaction, which would otherwise subtract the
+           used space more than once and corrupt the accounting.*/
+        mfsp->used_space         -= ALIGNED_REC_SIZE(mfsp->descriptors[i].size);
+      }
       mfsp->descriptors[i].offset = 0U;
       mfsp->descriptors[i].size   = 0U;
     }
