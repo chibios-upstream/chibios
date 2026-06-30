@@ -122,7 +122,7 @@ include $(CHIBIOS)/os/common/startup/ARMCRx/compilers/GCC/mk/startup_armcr8.mk
 #include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
-include $(CHIBIOS)/os/common/ports/ARMv7-R/compilers/GCC/mk/port.mk
+include $(CHIBIOS)/os/common/ports/ARMv7-R/compilers/GCC/mk/port_simulator.mk
 # Auto-build files in ./source recursively.
 include $(CHIBIOS)/tools/mk/autobuild.mk
 # Other files (optional).
@@ -185,9 +185,7 @@ CPPWARN = -Wall -Wextra -Wundef
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS = -DARMCR8_HAS_GIC=1                                   \
-        -DGIC_INTERFACE_BASE=0xAE000100U                      \
-        -DGIC_DISTRIBUTOR_BASE=0xAE001000U
+UDEFS =
 
 # The generic Renode Cortex-R8 model has an FPU. When the demo is built with
 # USE_FPU enabled then declare the generic device as FPU-capable.

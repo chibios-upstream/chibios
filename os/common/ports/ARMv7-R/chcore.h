@@ -475,6 +475,16 @@
 #else /* CH_CFG_SMP_MODE != TRUE */
 #endif /* CH_CFG_SMP_MODE != TRUE */
 
+/* Inclusion of platform sub-port support, if present.*/
+#if defined(PORT_HAS_PLATFORM) || defined(__DOXYGEN__)
+#if (PORT_HAS_PLATFORM != TRUE) && !defined(__DOXYGEN__)
+#error "PORT_HAS_PLATFORM must be set to TRUE when defined"
+#endif
+#if !defined(_FROM_ASM_)
+#include "port_platform.h"
+#endif
+#endif
+
 /*===========================================================================*/
 /* Module data structures and types.                                         */
 /*===========================================================================*/
@@ -646,6 +656,10 @@ static inline void port_init(os_instance_t *oip) {
 
 #if PORT_MPU_INITIALIZE == TRUE
   __port_mpu_init();
+#endif
+
+#if defined(port_platform_init)
+  port_platform_init(oip);
 #endif
 
 #if defined(port_smp_init)
