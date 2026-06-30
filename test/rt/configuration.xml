@@ -4902,7 +4902,8 @@ test_assert(largest1 == largest2, "largest fragment size changed");]]></value>
           </condition>
           <various_code>
             <setup_code>
-              <value><![CDATA[chPoolObjectInit(&mp1, THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE), NULL);]]></value>
+              <value><![CDATA[chPoolObjectInitAligned(&mp1, THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE),
+                        PORT_WORKING_AREA_ALIGN, NULL);]]></value>
             </setup_code>
             <teardown_code>
               <value><![CDATA[chPoolObjectDispose(&mp1);]]></value>

@@ -209,7 +209,8 @@ static const testcase_t rt_test_011_001 = {
  */
 
 static void rt_test_011_002_setup(void) {
-  chPoolObjectInit(&mp1, THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE), NULL);
+  chPoolObjectInitAligned(&mp1, THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE),
+                          PORT_WORKING_AREA_ALIGN, NULL);
 }
 
 static void rt_test_011_002_teardown(void) {
