@@ -98,8 +98,8 @@ __port_switch_arm:
  *      |     r2     |  | External context: IRQ handler frame
  *      |     r1     |  |
  *      |     r0     |  |
- *      |   LR_IRQ   |  |   (user code return address)
- *      |   PSR_USR  | -+   (user code status)
+ *      |    CPSR    |  |   (user code status)
+ *      |     PC     | -+   (user code return address)
  *      |    ....    | <- chSchDoReschedule() stack frame
  *      |     LR     | -+   (system code return address)
  *      |     r11    |  |
@@ -122,14 +122,13 @@ Irq_Handler:
                 beq     .Lirq_return
 
                 /* Now the frame is created in the system stack, the IRQ
-                   stack is empty.*/
+                   stack is empty. The IRQ return state is stored using the
+                   ARMv7-R SRS instruction, then completed with the remaining
+                   volatile registers in system mode.*/
+                sub     lr, lr, #4
+                srsdb   sp!, #MODE_SYS
                 msr     CPSR_c, #(MODE_SYS | I_BIT)
                 stmfd   sp!, {r0-r3, r12, lr}
-                msr     CPSR_c, #(MODE_IRQ | I_BIT)
-                mrs     r0, SPSR
-                mov     r1, lr
-                msr     CPSR_c, #(MODE_SYS | I_BIT)
-                stmfd   sp!, {r0, r1}
 
                 /* Context switch.*/
 #if CH_DBG_SYSTEM_STATE_CHECK
@@ -140,14 +139,10 @@ Irq_Handler:
                 bl      __dbg_check_unlock
 #endif
 
-                /* Re-establish the IRQ conditions again.*/
-                ldmfd   sp!, {r0, r1}
-                msr     CPSR_c, #(MODE_IRQ | I_BIT)
-                msr     SPSR_fsxc, r0
-                mov     lr, r1
-                msr     CPSR_c, #(MODE_SYS | I_BIT)
+                /* The new thread exception frame is restored from the system
+                   stack using the ARMv7-R RFE instruction.*/
                 ldmfd   sp!, {r0-r3, r12, lr}
-                msr     CPSR_c, #(MODE_IRQ | I_BIT)
+                rfeia   sp!
 .Lirq_return:
                 subs    pc, lr, #4
 

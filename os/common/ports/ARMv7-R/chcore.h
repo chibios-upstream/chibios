@@ -489,8 +489,8 @@
  *          interrupt handler when preemption is required.
  */
 struct port_extctx {
-  uint32_t              spsr_irq;
-  uint32_t              lr_irq;
+  uint32_t              pc_irq;
+  uint32_t              cpsr_irq;
   uint32_t              r0;
   uint32_t              r1;
   uint32_t              r2;
