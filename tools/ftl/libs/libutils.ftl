@@ -1,18 +1,20 @@
 [#ftl]
 [#--
-    ChibiOS/RT - Copyright (C) 2006..2018 Giovanni Di Sirio
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
 
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
+    This file is part of ChibiOS.
 
-        http://www.apache.org/licenses/LICENSE-2.0
+    ChibiOS is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation version 3 of the License.
 
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
+    ChibiOS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
   --]
 
 [#--
@@ -21,25 +23,25 @@
   -- added.
   --]
 [#function WithDot s]
-  [#local s = s?trim /]
+  [#local s = s?trim]
   [#if s == ""]
-    [#return s /]
+    [#return s]
   [/#if]
   [#if s?ends_with(".")]
-    [#return s /]
+    [#return s]
   [/#if]
-  [#return s + "." /]
+  [#return s + "."]
 [/#function]
 
 [#--
   -- Returns the trimmed text "s" making sure it is not terminated by a dot.
   --]
 [#function WithoutDot s]
-  [#local s = s?trim /]
+  [#local s = s?trim]
   [#if s?ends_with(".")]
-    [#return s?substring(0, s?length - 1) /]
+    [#return s?substring(0, s?length - 1)]
   [/#if]
-  [#return s /]
+  [#return s]
 [/#function]
 
 [#--
@@ -51,11 +53,11 @@
   -- added.
   --]
 [#function IntelligentDot s]
-  [#local s = s?trim /]
+  [#local s = s?trim]
   [#if s?contains(". ")]
-    [#return WithDot(s) /]
+    [#return WithDot(s)]
   [/#if]
-  [#return WithoutDot(s) /]
+  [#return WithoutDot(s)]
 [/#function]
 
 [#--
@@ -65,26 +67,26 @@
   -- a single space.
   --]
 [#function StringToText len1 lenn s]
-  [#local words=s?word_list /]
-  [#local line="" /]
-  [#local lines=[] /]
+  [#local words=s?word_list]
+  [#local line=""]
+  [#local lines=[]]
   [#list words as word]
     [#if lines?size == 0]
-      [#local len = len1 /]
+      [#local len = len1]
     [#else]
-      [#local len = lenn /]
+      [#local len = lenn]
     [/#if]
     [#if (line?length + word?length + 1 > len)]
-      [#local lines = lines + [line?trim] /]
-      [#local line = word + " " /]
+      [#local lines = lines + [line?trim]]
+      [#local line = word + " "]
     [#else]
-      [#local line = line + word + " " /]
+      [#local line = line + word + " "]
     [/#if]
   [/#list]
   [#if line != ""]
-    [#local lines = lines + [line?trim] /]
+    [#local lines = lines + [line?trim]]
   [/#if]
-  [#return lines /]
+  [#return lines]
 [/#function]
 
 [#--
@@ -94,7 +96,7 @@
   -- White spaces are normalized between words.
   --]
 [#macro FormatStringAsText p1 pn s len]
-  [#local lines = StringToText(len - p1?length, len - pn?length, s) /]
+  [#local lines = StringToText(len - p1?length, len - pn?length, s)]
   [#list lines as line]
     [#if line_index == 0]
 ${p1}${line}
@@ -109,7 +111,7 @@ ${pn}${line}
   -- specified tab size and line prefix.
   --]
 [#macro EmitIndentedCCode start tab ccode]
-  [#assign lines = ccode?string?split("^", "rm") /]
+  [#assign lines = ccode?string?split("^", "rm")]
   [#list lines as line]
     [#if (line_index > 0) || (line?trim?length > 0)]
       [#if line?trim?length > 0]
