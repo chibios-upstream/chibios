@@ -1,13 +1,12 @@
 [#ftl]
 [#--
-    ChibiOS - Copyright (C) 2006..2018 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
 
     This file is part of ChibiOS.
 
     ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 3 of the License, or
-    (at your option) any later version.
+    the Free Software Foundation version 3 of the License.
 
     ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -47,9 +46,21 @@
 #define STM32F756_MCUCONF
 
 /*
- * HAL driver system settings.
+ * General settings.
  */
 #define STM32_NO_INIT                       ${doc.STM32_NO_INIT!"FALSE"}
+
+/*
+ * Memory attributes settings.
+ */
+#define STM32_NOCACHE_ENABLE                ${doc.STM32_NOCACHE_ENABLE!"FALSE"}
+#define STM32_NOCACHE_MPU_REGION            ${doc.STM32_NOCACHE_MPU_REGION!"MPU_REGION_6"}
+#define STM32_NOCACHE_RBAR                  ${doc.STM32_NOCACHE_RBAR!"0x2004C000U"}
+#define STM32_NOCACHE_RASR                  ${doc.STM32_NOCACHE_RASR!"MPU_RASR_SIZE_16K"}
+
+/*
+ * HAL driver system settings.
+ */
 #define STM32_PVD_ENABLE                    ${doc.STM32_PVD_ENABLE!"FALSE"}
 #define STM32_PLS                           ${doc.STM32_PLS!"STM32_PLS_LEV0"}
 #define STM32_BKPRAM_ENABLE                 ${doc.STM32_BKPRAM_ENABLE!"FALSE"}
@@ -105,7 +116,6 @@
 #define STM32_CECSEL                        ${doc.STM32_CECSEL!"STM32_CECSEL_LSE"}
 #define STM32_CK48MSEL                      ${doc.STM32_CK48MSEL!"STM32_CK48MSEL_PLL"}
 #define STM32_SDMMC1SEL                     ${doc.STM32_SDMMC1SEL!"STM32_SDMMC1SEL_PLL48CLK"}
-#define STM32_SRAM2_NOCACHE                 ${doc.STM32_SRAM2_NOCACHE!"FALSE"}
 
 /*
  * IRQ system settings.
@@ -282,7 +292,6 @@
 /*
  * PWM driver system settings.
  */
-#define STM32_PWM_USE_ADVANCED              ${doc.STM32_PWM_USE_ADVANCED!"FALSE"}
 #define STM32_PWM_USE_TIM1                  ${doc.STM32_PWM_USE_TIM1!"FALSE"}
 #define STM32_PWM_USE_TIM2                  ${doc.STM32_PWM_USE_TIM2!"FALSE"}
 #define STM32_PWM_USE_TIM3                  ${doc.STM32_PWM_USE_TIM3!"FALSE"}
@@ -309,8 +318,8 @@
  */
 #define STM32_SDC_USE_SDMMC1                ${doc.STM32_SDC_USE_SDMMC1!"FALSE"}
 #define STM32_SDC_SDMMC_UNALIGNED_SUPPORT   ${doc.STM32_SDC_SDMMC_UNALIGNED_SUPPORT!"TRUE"}
-#define STM32_SDC_SDMMC_WRITE_TIMEOUT       ${doc.STM32_SDC_SDMMC_WRITE_TIMEOUT!"1000"}
-#define STM32_SDC_SDMMC_READ_TIMEOUT        ${doc.STM32_SDC_SDMMC_READ_TIMEOUT!"1000"}
+#define STM32_SDC_SDMMC_WRITE_TIMEOUT       ${doc.STM32_SDC_SDMMC_WRITE_TIMEOUT!"10000"}
+#define STM32_SDC_SDMMC_READ_TIMEOUT        ${doc.STM32_SDC_SDMMC_READ_TIMEOUT!"10000"}
 #define STM32_SDC_SDMMC_CLOCK_DELAY         ${doc.STM32_SDC_SDMMC_CLOCK_DELAY!"10"}
 #define STM32_SDC_SDMMC1_DMA_STREAM         ${doc.STM32_SDC_SDMMC1_DMA_STREAM!"STM32_DMA_STREAM_ID(2, 3)"}
 #define STM32_SDC_SDMMC1_DMA_PRIORITY       ${doc.STM32_SDC_SDMMC1_DMA_PRIORITY!"3"}
@@ -327,6 +336,18 @@
 #define STM32_SERIAL_USE_USART6             ${doc.STM32_SERIAL_USE_USART6!"FALSE"}
 #define STM32_SERIAL_USE_UART7              ${doc.STM32_SERIAL_USE_UART7!"FALSE"}
 #define STM32_SERIAL_USE_UART8              ${doc.STM32_SERIAL_USE_UART8!"FALSE"}
+
+/*
+ * SIO driver system settings.
+ */
+#define STM32_SIO_USE_USART1                ${doc.STM32_SIO_USE_USART1!"FALSE"}
+#define STM32_SIO_USE_USART2                ${doc.STM32_SIO_USE_USART2!"FALSE"}
+#define STM32_SIO_USE_USART3                ${doc.STM32_SIO_USE_USART3!"FALSE"}
+#define STM32_SIO_USE_UART4                 ${doc.STM32_SIO_USE_UART4!"FALSE"}
+#define STM32_SIO_USE_UART5                 ${doc.STM32_SIO_USE_UART5!"FALSE"}
+#define STM32_SIO_USE_USART6                ${doc.STM32_SIO_USE_USART6!"FALSE"}
+#define STM32_SIO_USE_UART7                 ${doc.STM32_SIO_USE_UART7!"FALSE"}
+#define STM32_SIO_USE_UART8                 ${doc.STM32_SIO_USE_UART8!"FALSE"}
 
 /*
  * SPI driver system settings.

@@ -1,13 +1,12 @@
 [#ftl]
 [#--
-    ChibiOS - Copyright (C) 2006..2018 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
 
     This file is part of ChibiOS.
 
     ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 3 of the License, or
-    (at your option) any later version.
+    the Free Software Foundation version 3 of the License.
 
     ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -43,6 +42,8 @@
 #define MCUCONF_H
 
 #define STM32L4xx_MCUCONF
+#define STM32L4P5_MCUCONF
+#define STM32L4Q5_MCUCONF
 #define STM32L4R5_MCUCONF
 #define STM32L4S5_MCUCONF
 #define STM32L4R7_MCUCONF
@@ -54,9 +55,30 @@
  * HAL driver system settings.
  */
 #define STM32_NO_INIT                       ${doc.STM32_NO_INIT!"FALSE"}
+#define STM32_CLOCK_DYNAMIC                 ${doc.STM32_CLOCK_DYNAMIC!"FALSE"}
 #define STM32_VOS                           ${doc.STM32_VOS!"STM32_VOS_RANGE1"}
-#define STM32_PVD_ENABLE                    ${doc.STM32_PVD_ENABLE!"FALSE"}
-#define STM32_PLS                           ${doc.STM32_PLS!"STM32_PLS_LEV0"}
+#define STM32_PWR_BOOST                     ${doc.STM32_PWR_BOOST!"TRUE"}
+#define STM32_PWR_CR2                       ${doc.STM32_PWR_CR2!"(PWR_CR2_PLS_LEV0 | PWR_CR2_IOSV | PWR_CR2_USV)"}
+#define STM32_PWR_CR3                       ${doc.STM32_PWR_CR3!"(PWR_CR3_EIWF)"}
+#define STM32_PWR_CR4                       ${doc.STM32_PWR_CR4!"(0U)"}
+#define STM32_PWR_PUCRA                     ${doc.STM32_PWR_PUCRA!"(0U)"}
+#define STM32_PWR_PDCRA                     ${doc.STM32_PWR_PDCRA!"(0U)"}
+#define STM32_PWR_PUCRB                     ${doc.STM32_PWR_PUCRB!"(0U)"}
+#define STM32_PWR_PDCRB                     ${doc.STM32_PWR_PDCRB!"(0U)"}
+#define STM32_PWR_PUCRC                     ${doc.STM32_PWR_PUCRC!"(0U)"}
+#define STM32_PWR_PDCRC                     ${doc.STM32_PWR_PDCRC!"(0U)"}
+#define STM32_PWR_PUCRD                     ${doc.STM32_PWR_PUCRD!"(0U)"}
+#define STM32_PWR_PDCRD                     ${doc.STM32_PWR_PDCRD!"(0U)"}
+#define STM32_PWR_PUCRE                     ${doc.STM32_PWR_PUCRE!"(0U)"}
+#define STM32_PWR_PDCRE                     ${doc.STM32_PWR_PDCRE!"(0U)"}
+#define STM32_PWR_PUCRF                     ${doc.STM32_PWR_PUCRF!"(0U)"}
+#define STM32_PWR_PDCRF                     ${doc.STM32_PWR_PDCRF!"(0U)"}
+#define STM32_PWR_PUCRG                     ${doc.STM32_PWR_PUCRG!"(0U)"}
+#define STM32_PWR_PDCRG                     ${doc.STM32_PWR_PDCRG!"(0U)"}
+#define STM32_PWR_PUCRH                     ${doc.STM32_PWR_PUCRH!"(0U)"}
+#define STM32_PWR_PDCRH                     ${doc.STM32_PWR_PDCRH!"(0U)"}
+#define STM32_PWR_PUCRI                     ${doc.STM32_PWR_PUCRI!"(0U)"}
+#define STM32_PWR_PDCRI                     ${doc.STM32_PWR_PDCRI!"(0U)"}
 #define STM32_HSI16_ENABLED                 ${doc.STM32_HSI16_ENABLED!"FALSE"}
 #define STM32_HSI48_ENABLED                 ${doc.STM32_HSI48_ENABLED!"FALSE"}
 #define STM32_LSI_ENABLED                   ${doc.STM32_LSI_ENABLED!"TRUE"}
@@ -81,13 +103,13 @@
 #define STM32_MCOPRE                        ${doc.STM32_MCOPRE!"STM32_MCOPRE_DIV1"}
 #define STM32_LSCOSEL                       ${doc.STM32_LSCOSEL!"STM32_LSCOSEL_NOCLOCK"}
 #define STM32_PLLSAI1M_VALUE                ${doc.STM32_PLLSAI1M_VALUE!"1"}
-#define STM32_PLLSAI1N_VALUE                ${doc.STM32_PLLSAI1N_VALUE!"72"}
+#define STM32_PLLSAI1N_VALUE                ${doc.STM32_PLLSAI1N_VALUE!"60"}
 #define STM32_PLLSAI1PDIV_VALUE             ${doc.STM32_PLLSAI1PDIV_VALUE!"6"}
 #define STM32_PLLSAI1P_VALUE                ${doc.STM32_PLLSAI1P_VALUE!"7"}
 #define STM32_PLLSAI1Q_VALUE                ${doc.STM32_PLLSAI1Q_VALUE!"6"}
 #define STM32_PLLSAI1R_VALUE                ${doc.STM32_PLLSAI1R_VALUE!"6"}
 #define STM32_PLLSAI2M_VALUE                ${doc.STM32_PLLSAI2M_VALUE!"1"}
-#define STM32_PLLSAI2N_VALUE                ${doc.STM32_PLLSAI2N_VALUE!"72"}
+#define STM32_PLLSAI2N_VALUE                ${doc.STM32_PLLSAI2N_VALUE!"60"}
 #define STM32_PLLSAI2PDIV_VALUE             ${doc.STM32_PLLSAI2PDIV_VALUE!"6"}
 #define STM32_PLLSAI2P_VALUE                ${doc.STM32_PLLSAI2P_VALUE!"7"}
 #define STM32_PLLSAI2Q_VALUE                ${doc.STM32_PLLSAI2Q_VALUE!"6"}
@@ -135,6 +157,11 @@
 #define STM32_IRQ_EXTI19_PRIORITY           ${doc.STM32_IRQ_EXTI19_PRIORITY!"6"}
 #define STM32_IRQ_EXTI20_PRIORITY           ${doc.STM32_IRQ_EXTI20_PRIORITY!"6"}
 #define STM32_IRQ_EXTI21_22_PRIORITY        ${doc.STM32_IRQ_EXTI21_22_PRIORITY!"6"}
+
+#define STM32_IRQ_I2C1_PRIORITY             ${doc.STM32_IRQ_I2C1_PRIORITY!"5"}
+#define STM32_IRQ_I2C2_PRIORITY             ${doc.STM32_IRQ_I2C2_PRIORITY!"5"}
+#define STM32_IRQ_I2C3_PRIORITY             ${doc.STM32_IRQ_I2C3_PRIORITY!"5"}
+#define STM32_IRQ_I2C4_PRIORITY             ${doc.STM32_IRQ_I2C4_PRIORITY!"5"}
 
 #define STM32_IRQ_SDMMC1_PRIORITY           ${doc.STM32_IRQ_SDMMC1_PRIORITY!"9"}
 
@@ -212,18 +239,10 @@
 #define STM32_I2C_USE_I2C3                  ${doc.STM32_I2C_USE_I2C3!"FALSE"}
 #define STM32_I2C_USE_I2C4                  ${doc.STM32_I2C_USE_I2C4!"FALSE"}
 #define STM32_I2C_BUSY_TIMEOUT              ${doc.STM32_I2C_BUSY_TIMEOUT!"50"}
-#define STM32_I2C_I2C1_RX_DMA_STREAM        ${doc.STM32_I2C_I2C1_RX_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
-#define STM32_I2C_I2C1_TX_DMA_STREAM        ${doc.STM32_I2C_I2C1_TX_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
-#define STM32_I2C_I2C2_RX_DMA_STREAM        ${doc.STM32_I2C_I2C2_RX_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
-#define STM32_I2C_I2C2_TX_DMA_STREAM        ${doc.STM32_I2C_I2C2_TX_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
-#define STM32_I2C_I2C3_RX_DMA_STREAM        ${doc.STM32_I2C_I2C3_RX_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
-#define STM32_I2C_I2C3_TX_DMA_STREAM        ${doc.STM32_I2C_I2C3_TX_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
-#define STM32_I2C_I2C4_RX_DMA_STREAM        ${doc.STM32_I2C_I2C4_RX_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
-#define STM32_I2C_I2C4_TX_DMA_STREAM        ${doc.STM32_I2C_I2C4_TX_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
-#define STM32_I2C_I2C1_IRQ_PRIORITY         ${doc.STM32_I2C_I2C1_IRQ_PRIORITY!"5"}
-#define STM32_I2C_I2C2_IRQ_PRIORITY         ${doc.STM32_I2C_I2C2_IRQ_PRIORITY!"5"}
-#define STM32_I2C_I2C3_IRQ_PRIORITY         ${doc.STM32_I2C_I2C3_IRQ_PRIORITY!"5"}
-#define STM32_I2C_I2C4_IRQ_PRIORITY         ${doc.STM32_I2C_I2C4_IRQ_PRIORITY!"5"}
+#define STM32_I2C_I2C1_DMA_CHANNEL          ${doc.STM32_I2C_I2C1_DMA_CHANNEL!"STM32_DMA_STREAM_ID_ANY"}
+#define STM32_I2C_I2C2_DMA_CHANNEL          ${doc.STM32_I2C_I2C2_DMA_CHANNEL!"STM32_DMA_STREAM_ID_ANY"}
+#define STM32_I2C_I2C3_DMA_CHANNEL          ${doc.STM32_I2C_I2C3_DMA_CHANNEL!"STM32_DMA_STREAM_ID_ANY"}
+#define STM32_I2C_I2C4_DMA_CHANNEL          ${doc.STM32_I2C_I2C4_DMA_CHANNEL!"STM32_DMA_STREAM_ID_ANY"}
 #define STM32_I2C_I2C1_DMA_PRIORITY         ${doc.STM32_I2C_I2C1_DMA_PRIORITY!"3"}
 #define STM32_I2C_I2C2_DMA_PRIORITY         ${doc.STM32_I2C_I2C2_DMA_PRIORITY!"3"}
 #define STM32_I2C_I2C3_DMA_PRIORITY         ${doc.STM32_I2C_I2C3_DMA_PRIORITY!"3"}
@@ -246,7 +265,6 @@
 /*
  * PWM driver system settings.
  */
-#define STM32_PWM_USE_ADVANCED              ${doc.STM32_PWM_USE_ADVANCED!"FALSE"}
 #define STM32_PWM_USE_TIM1                  ${doc.STM32_PWM_USE_TIM1!"FALSE"}
 #define STM32_PWM_USE_TIM2                  ${doc.STM32_PWM_USE_TIM2!"FALSE"}
 #define STM32_PWM_USE_TIM3                  ${doc.STM32_PWM_USE_TIM3!"FALSE"}
@@ -270,8 +288,8 @@
  */
 #define STM32_SDC_USE_SDMMC1                ${doc.STM32_SDC_USE_SDMMC1!"FALSE"}
 #define STM32_SDC_SDMMC_UNALIGNED_SUPPORT   ${doc.STM32_SDC_SDMMC_UNALIGNED_SUPPORT!"TRUE"}
-#define STM32_SDC_SDMMC_WRITE_TIMEOUT       ${doc.STM32_SDC_SDMMC_WRITE_TIMEOUT!"1000000"}
-#define STM32_SDC_SDMMC_READ_TIMEOUT        ${doc.STM32_SDC_SDMMC_READ_TIMEOUT!"1000000"}
+#define STM32_SDC_SDMMC_WRITE_TIMEOUT       ${doc.STM32_SDC_SDMMC_WRITE_TIMEOUT!"10000"}
+#define STM32_SDC_SDMMC_READ_TIMEOUT        ${doc.STM32_SDC_SDMMC_READ_TIMEOUT!"10000"}
 #define STM32_SDC_SDMMC_CLOCK_DELAY         ${doc.STM32_SDC_SDMMC_CLOCK_DELAY!"10"}
 #define STM32_SDC_SDMMC_PWRSAV              ${doc.STM32_SDC_SDMMC_PWRSAV!"TRUE"}
 #define STM32_SDC_SDMMC1_IRQ_PRIORITY       ${doc.STM32_SDC_SDMMC1_IRQ_PRIORITY!"9"}
@@ -285,6 +303,16 @@
 #define STM32_SERIAL_USE_UART4              ${doc.STM32_SERIAL_USE_UART4!"FALSE"}
 #define STM32_SERIAL_USE_UART5              ${doc.STM32_SERIAL_USE_UART5!"FALSE"}
 #define STM32_SERIAL_USE_LPUART1            ${doc.STM32_SERIAL_USE_LPUART1!"FALSE"}
+
+/*
+ * SIO driver system settings.
+ */
+#define STM32_SIO_USE_USART1                ${doc.STM32_SIO_USE_USART1!"FALSE"}
+#define STM32_SIO_USE_USART2                ${doc.STM32_SIO_USE_USART2!"FALSE"}
+#define STM32_SIO_USE_USART3                ${doc.STM32_SIO_USE_USART3!"FALSE"}
+#define STM32_SIO_USE_UART4                 ${doc.STM32_SIO_USE_UART4!"FALSE"}
+#define STM32_SIO_USE_UART5                 ${doc.STM32_SIO_USE_UART5!"FALSE"}
+#define STM32_SIO_USE_LPUART1               ${doc.STM32_SIO_USE_LPUART1!"FALSE"}
 
 /*
  * SPI driver system settings.
@@ -361,6 +389,10 @@
 #define STM32_WSPI_USE_OCTOSPI2             ${doc.STM32_WSPI_USE_OCTOSPI2!"FALSE"}
 #define STM32_WSPI_OCTOSPI1_PRESCALER_VALUE ${doc.STM32_WSPI_OCTOSPI1_PRESCALER_VALUE!"1"}
 #define STM32_WSPI_OCTOSPI2_PRESCALER_VALUE ${doc.STM32_WSPI_OCTOSPI2_PRESCALER_VALUE!"1"}
+#define STM32_WSPI_OCTOSPI1_SSHIFT          ${doc.STM32_WSPI_OCTOSPI1_SSHIFT!"FALSE"}
+#define STM32_WSPI_OCTOSPI2_SSHIFT          ${doc.STM32_WSPI_OCTOSPI2_SSHIFT!"FALSE"}
+#define STM32_WSPI_OCTOSPI1_DHQC            ${doc.STM32_WSPI_OCTOSPI1_DHQC!"FALSE"}
+#define STM32_WSPI_OCTOSPI2_DHQC            ${doc.STM32_WSPI_OCTOSPI2_DHQC!"FALSE"}
 #define STM32_WSPI_OCTOSPI1_IRQ_PRIORITY    ${doc.STM32_WSPI_OCTOSPI1_IRQ_PRIORITY!"10"}
 #define STM32_WSPI_OCTOSPI2_IRQ_PRIORITY    ${doc.STM32_WSPI_OCTOSPI2_IRQ_PRIORITY!"10"}
 #define STM32_WSPI_OCTOSPI1_DMA_STREAM      ${doc.STM32_WSPI_OCTOSPI1_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
@@ -369,6 +401,6 @@
 #define STM32_WSPI_OCTOSPI2_DMA_PRIORITY    ${doc.STM32_WSPI_OCTOSPI2_DMA_PRIORITY!"1"}
 #define STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY ${doc.STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY!"10"}
 #define STM32_WSPI_OCTOSPI2_DMA_IRQ_PRIORITY ${doc.STM32_WSPI_OCTOSPI2_DMA_IRQ_PRIORITY!"10"}
-#define STM32_WSPI_DMA_ERROR_HOOK(qspip)    ${doc.STM32_WSPI_DMA_ERROR_HOOK!"osalSysHalt(\"DMA failure\")"}
+#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    ${doc.STM32_WSPI_DMA_ERROR_HOOK!"osalSysHalt(\"DMA failure\")"}
 
 #endif /* MCUCONF_H */

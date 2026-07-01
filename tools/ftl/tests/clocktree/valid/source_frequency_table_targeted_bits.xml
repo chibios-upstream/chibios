@@ -1,0 +1,53 @@
+<clocktree>
+  <settings>
+    <prefixes clock_points="TCLK_" macros="TST_" cfgs="TST_CFG_" />
+    <suffixes frequency="_FREQ" values="_VALUE" bits="_BITS"
+              selector="_SEL" enable="_ENABLE" enabled="_ENABLED" />
+    <configs>
+      <config name="CLOCK_DYNAMIC" type="bool" default="FALSE"
+              role="dynamic_mode">
+        <description>Enables dynamic clock handling.</description>
+      </config>
+      <config name="OSC_MODE" type="set" default="OSC_FAST"
+              values="OSC_FAST OSC_SLOW">
+        <description>Selects the oscillator range.</description>
+      </config>
+      <config name="OSC_FINE" type="bool" default="FALSE">
+        <description>Enables fine oscillator trimming.</description>
+      </config>
+    </configs>
+  </settings>
+  <sources>
+    <source point="NONE" enable="never" dynamic="no" frequency="0U">
+      <description>pseudo-clock for disabled sources</description>
+    </source>
+    <source point="TABLEOSC" enable="manual" dynamic="yes">
+      <description>table-driven oscillator with targeted register bits</description>
+      <bits target="CR" enabled="OSC_ON" disabled="0U" />
+      <frequencies>
+        <select>
+          <when condition="TST_CFG_OSC_MODE == OSC_FAST">
+            <bits target="CR" value="OSC_FAST_CR_BITS" />
+            <select>
+              <when condition="TST_CFG_OSC_FINE == TRUE" value="50000000U">
+                <bits target="CFGR" value="OSC_FINE_BITS" />
+              </when>
+              <otherwise value="48000000U">
+                <bits target="CFGR" value="OSC_FAST_BITS" />
+              </otherwise>
+            </select>
+          </when>
+          <otherwise value="12000000U">
+            <bits target="CFGR" value="OSC_SLOW_BITS" />
+          </otherwise>
+        </select>
+      </frequencies>
+    </source>
+  </sources>
+  <clocks>
+    <clock point="ROOT" enable="always" dynamic="no">
+      <description>root clock selected from table oscillator</description>
+      <derived input="TABLEOSC" frequency="%I%" />
+    </clock>
+  </clocks>
+</clocktree>

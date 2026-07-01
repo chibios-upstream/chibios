@@ -1,13 +1,12 @@
 [#ftl]
 [#--
-    ChibiOS - Copyright (C) 2006..2018 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
 
     This file is part of ChibiOS.
 
     ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 3 of the License, or
-    (at your option) any later version.
+    the Free Software Foundation version 3 of the License.
 
     ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -50,6 +49,7 @@
 #define STM32H755_MCUCONF
 #define STM32H747_MCUCONF
 #define STM32H757_MCUCONF
+#define STM32H750_MCUCONF
 
 /*
  * General settings.
@@ -60,9 +60,10 @@
 /*
  * Memory attributes settings.
  */
+#define STM32_NOCACHE_ENABLE                ${doc.STM32_NOCACHE_ENABLE!"FALSE"}
 #define STM32_NOCACHE_MPU_REGION            ${doc.STM32_NOCACHE_MPU_REGION!"MPU_REGION_6"}
-#define STM32_NOCACHE_SRAM1_SRAM2           ${doc.STM32_NOCACHE_SRAM1_SRAM2!"FALSE"}
-#define STM32_NOCACHE_SRAM3                 ${doc.STM32_NOCACHE_SRAM3!"TRUE"}
+#define STM32_NOCACHE_RBAR                  ${doc.STM32_NOCACHE_RBAR!"0x24000000U"}
+#define STM32_NOCACHE_RASR                  ${doc.STM32_NOCACHE_RASR!"MPU_RASR_SIZE_16K"}
 
 /*
  * PWR system settings.
@@ -154,7 +155,7 @@
 #define STM32_CKPERSEL                      ${doc.STM32_CKPERSEL!"STM32_CKPERSEL_HSE_CK"}
 #define STM32_SDMMCSEL                      ${doc.STM32_SDMMCSEL!"STM32_SDMMCSEL_PLL1_Q_CK"}
 #define STM32_QSPISEL                       ${doc.STM32_QSPISEL!"STM32_QSPISEL_HCLK"}
-#define STM32_FMCSEL                        ${doc.STM32_FMCSEL!"STM32_QSPISEL_HCLK"}
+#define STM32_FMCSEL                        ${doc.STM32_FMCSEL!"STM32_FMCSEL_HCLK"}
 #define STM32_SWPSEL                        ${doc.STM32_SWPSEL!"STM32_SWPSEL_PCLK1"}
 #define STM32_FDCANSEL                      ${doc.STM32_FDCANSEL!"STM32_FDCANSEL_HSE_CK"}
 #define STM32_DFSDM1SEL                     ${doc.STM32_DFSDM1SEL!"STM32_DFSDM1SEL_PCLK2"}
@@ -239,6 +240,8 @@
 #define STM32_ADC_USE_ADC12                 ${doc.STM32_ADC_USE_ADC12!"TRUE"}
 #define STM32_ADC_USE_ADC3                  ${doc.STM32_ADC_USE_ADC3!"FALSE"}
 #define STM32_ADC_ADC12_DMA_STREAM          ${doc.STM32_ADC_ADC12_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
+#define STM32_ADC_ADC3_DMA_STREAM           ${doc.STM32_ADC_ADC3_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
+#define STM32_ADC_ADC3_USE_BDMA             ${doc.STM32_ADC_ADC3_USE_BDMA!"FALSE"}
 #define STM32_ADC_ADC3_BDMA_STREAM          ${doc.STM32_ADC_ADC3_BDMA_STREAM!"STM32_BDMA_STREAM_ID_ANY"}
 #define STM32_ADC_ADC12_DMA_PRIORITY        ${doc.STM32_ADC_ADC12_DMA_PRIORITY!"2"}
 #define STM32_ADC_ADC3_DMA_PRIORITY         ${doc.STM32_ADC_ADC3_DMA_PRIORITY!"2"}
@@ -335,12 +338,11 @@
 #define STM32_MAC_PHY_TIMEOUT               ${doc.STM32_MAC_PHY_TIMEOUT!"100"}
 #define STM32_MAC_ETH1_CHANGE_PHY_STATE     ${doc.STM32_MAC_ETH1_CHANGE_PHY_STATE!"TRUE"}
 #define STM32_MAC_ETH1_IRQ_PRIORITY         ${doc.STM32_MAC_ETH1_IRQ_PRIORITY!"13"}
-#define STM32_MAC_IP_CHECKSUM_OFFLOAD       ${doc.STM32_MAC_IP_CHECKSUM_OFFLOAD!"0"}
+#define STM32_MAC_IP_CHECKSUM_OFFLOAD       ${doc.STM32_MAC_IP_CHECKSUM_OFFLOAD!"FALSE"}
 
 /*
  * PWM driver system settings.
  */
-#define STM32_PWM_USE_ADVANCED              ${doc.STM32_PWM_USE_ADVANCED!"FALSE"}
 #define STM32_PWM_USE_TIM1                  ${doc.STM32_PWM_USE_TIM1!"FALSE"}
 #define STM32_PWM_USE_TIM2                  ${doc.STM32_PWM_USE_TIM2!"FALSE"}
 #define STM32_PWM_USE_TIM3                  ${doc.STM32_PWM_USE_TIM3!"FALSE"}
@@ -368,8 +370,8 @@
 #define STM32_SDC_USE_SDMMC1                ${doc.STM32_SDC_USE_SDMMC1!"FALSE"}
 #define STM32_SDC_USE_SDMMC2                ${doc.STM32_SDC_USE_SDMMC2!"FALSE"}
 #define STM32_SDC_SDMMC_UNALIGNED_SUPPORT   ${doc.STM32_SDC_SDMMC_UNALIGNED_SUPPORT!"TRUE"}
-#define STM32_SDC_SDMMC_WRITE_TIMEOUT       ${doc.STM32_SDC_SDMMC_WRITE_TIMEOUT!"1000000"}
-#define STM32_SDC_SDMMC_READ_TIMEOUT        ${doc.STM32_SDC_SDMMC_READ_TIMEOUT!"1000000"}
+#define STM32_SDC_SDMMC_WRITE_TIMEOUT       ${doc.STM32_SDC_SDMMC_WRITE_TIMEOUT!"10000"}
+#define STM32_SDC_SDMMC_READ_TIMEOUT        ${doc.STM32_SDC_SDMMC_READ_TIMEOUT!"10000"}
 #define STM32_SDC_SDMMC_CLOCK_DELAY         ${doc.STM32_SDC_SDMMC_CLOCK_DELAY!"10"}
 #define STM32_SDC_SDMMC_PWRSAV              ${doc.STM32_SDC_SDMMC_PWRSAV!"TRUE"}
 
@@ -385,6 +387,19 @@
 #define STM32_SERIAL_USE_UART7              ${doc.STM32_SERIAL_USE_UART7!"FALSE"}
 #define STM32_SERIAL_USE_UART8              ${doc.STM32_SERIAL_USE_UART8!"FALSE"}
 #define STM32_SERIAL_USE_LPUART1            ${doc.STM32_SERIAL_USE_LPUART1!"FALSE"}
+
+/*
+ * SIO driver system settings.
+ */
+#define STM32_SIO_USE_USART1                ${doc.STM32_SIO_USE_USART1!"FALSE"}
+#define STM32_SIO_USE_USART2                ${doc.STM32_SIO_USE_USART2!"FALSE"}
+#define STM32_SIO_USE_USART3                ${doc.STM32_SIO_USE_USART3!"FALSE"}
+#define STM32_SIO_USE_UART4                 ${doc.STM32_SIO_USE_UART4!"FALSE"}
+#define STM32_SIO_USE_UART5                 ${doc.STM32_SIO_USE_UART5!"FALSE"}
+#define STM32_SIO_USE_USART6                ${doc.STM32_SIO_USE_USART6!"FALSE"}
+#define STM32_SIO_USE_UART7                 ${doc.STM32_SIO_USE_UART7!"FALSE"}
+#define STM32_SIO_USE_UART8                 ${doc.STM32_SIO_USE_UART8!"FALSE"}
+#define STM32_SIO_USE_LPUART1               ${doc.STM32_SIO_USE_LPUART1!"FALSE"}
 
 /*
  * SPI driver system settings.
@@ -490,8 +505,9 @@
  */
 #define STM32_WSPI_USE_QUADSPI1             ${doc.STM32_WSPI_USE_QUADSPI1!"FALSE"}
 #define STM32_WSPI_QUADSPI1_PRESCALER_VALUE ${doc.STM32_WSPI_QUADSPI1_PRESCALER_VALUE!"1"}
+#define STM32_WSPI_SET_CR_SSHIFT            ${doc.STM32_WSPI_SET_CR_SSHIFT!"TRUE"}
 #define STM32_WSPI_QUADSPI1_MDMA_CHANNEL    ${doc.STM32_WSPI_QUADSPI1_MDMA_CHANNEL!"STM32_MDMA_CHANNEL_ID_ANY"}
 #define STM32_WSPI_QUADSPI1_MDMA_PRIORITY   ${doc.STM32_WSPI_QUADSPI1_MDMA_PRIORITY!"1"}
-#define STM32_WSPI_MDMA_ERROR_HOOK(qspip)   ${doc.STM32_WSPI_MDMA_ERROR_HOOK!"osalSysHalt(\"MDMA failure\")"}
+#define STM32_WSPI_MDMA_ERROR_HOOK(wspip)   ${doc.STM32_WSPI_MDMA_ERROR_HOOK!"osalSysHalt(\"MDMA failure\")"}
 
 #endif /* MCUCONF_H */
