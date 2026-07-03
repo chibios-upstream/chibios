@@ -89,6 +89,7 @@ include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_rp2350.mk
 # HAL-OSAL files (optional).
 include $(CHIBIOS)/os/hal/hal.mk
 include $(CHIBIOS)/os/hal/ports/RP/RP2350/platform.mk
+include $(CHIBIOS)/os/hal/ports/RP/rp_uf2_image.mk
 include $(CHIBIOS)/os/hal/boards/RP_PICO2_RP2350/board.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
@@ -174,11 +175,7 @@ include $(RULESPATH)/rules.mk
 # Custom rules
 #
 
-PICOTOOL ?= picotool
-
-$(BUILDDIR)/$(PROJECT).uf2: $(BUILDDIR)/$(PROJECT).elf
-	$(PICOTOOL) uf2 convert $(BUILDDIR)/$(PROJECT).elf $(BUILDDIR)/$(PROJECT).uf2
-
+# basic firmware uploading via bootloader, requires uf2 build via rp_uf2_image.mk
 upload: $(BUILDDIR)/$(PROJECT).uf2
 	$(PICOTOOL) load -v -x $(BUILDDIR)/$(PROJECT).uf2
 
