@@ -55,7 +55,8 @@
  *          in the kernel. The meaning is:
  *          - 0: No checks, maximum performance.
  *          - 1: Reasonable checks.
- *          - 2: All checks.
+ *          - 2: All checks except forward link pointer validation.
+ *          - 3: All checks.
  *          .
  */
 #if !defined(CH_CFG_HARDENING_LEVEL)

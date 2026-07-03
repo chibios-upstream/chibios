@@ -18,10 +18,10 @@
  * @file    rt/templates/chconf.h
  * @brief   Configuration file template.
  * @details A copy of this file must be placed in each project directory, it
- *          contains the application specific kernel settings.
+ *          contains the application-specific kernel settings.
  *
  * @addtogroup config
- * @details Kernel related settings and hooks.
+ * @details Kernel-related settings and hooks.
  * @{
  */
 
@@ -41,7 +41,7 @@
 /**
  * @brief   Handling of instances.
  * @note    If enabled then threads assigned to various instances can
- *          interact each other using the same synchronization objects.
+ *          interact with each other using the same synchronization objects.
  *          If disabled then each OS instance is a separate world, no
  *          direct interactions are handled by the OS.
  */
@@ -52,10 +52,11 @@
 /**
  * @brief   Kernel hardening level.
  * @details This option is the level of functional-safety checks enabled
- *          in the kerkel. The meaning is:
+ *          in the kernel. The meaning is:
  *          - 0: No checks, maximum performance.
  *          - 1: Reasonable checks.
- *          - 2: All checks.
+ *          - 2: All checks except forward link pointer validation.
+ *          - 3: All checks.
  *          .
  */
 #if !defined(CH_CFG_HARDENING_LEVEL)
@@ -664,7 +665,7 @@
 /**
  * @brief   Debug option, threads profiling.
  * @details If enabled then a field is added to the @p thread_t structure that
- *          counts the system ticks occurred while executing the thread.
+ *          counts the system ticks that occurred while executing the thread.
  *
  * @note    The default is @p FALSE.
  * @note    This debug option is not currently compatible with the
@@ -848,9 +849,6 @@
 /*===========================================================================*/
 /* Port-specific settings (override port settings defaulted in chcore.h).    */
 /*===========================================================================*/
-
-#define PORT_USE_SYSCALL                    TRUE
-#define PORT_SWITCHED_REGIONS_NUMBER        2
 
 #endif  /* CHCONF_H */
 
