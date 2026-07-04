@@ -71,8 +71,7 @@ const halclkcfg_t hal_clkcfg_reset = {
  * @note    This is the configuration defined in mcuconf.h.
  */
 const halclkcfg_t hal_clkcfg_default = {
-  .rcc_cr1              = STM32_CR1_HSI_BITS     |
-                          STM32_CR1_HSE_BITS     |
+  .rcc_cr1              = STM32_CR1_HSE_BITS     |
                           STM32_CR1_HSIS_BITS    |
                           STM32_CR1_HSIDIV3_BITS |
                           STM32_CR1_HSIK_BITS    |

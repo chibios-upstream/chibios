@@ -35,16 +35,24 @@
  */
 #define STM32_TIM1_SUPPRESS_ISR
 #define STM32_TIM2_SUPPRESS_ISR
+#define STM32_TIM3_SUPPRESS_ISR
+#define STM32_TIM4_SUPPRESS_ISR
+#define STM32_TIM5_SUPPRESS_ISR
 #define STM32_TIM6_SUPPRESS_ISR
 #define STM32_TIM7_SUPPRESS_ISR
 #define STM32_TIM8_SUPPRESS_ISR
 #define STM32_TIM12_SUPPRESS_ISR
 #define STM32_TIM15_SUPPRESS_ISR
+#define STM32_TIM16_SUPPRESS_ISR
+#define STM32_TIM17_SUPPRESS_ISR
 
 #define STM32_USART1_SUPPRESS_ISR
 #define STM32_USART2_SUPPRESS_ISR
+#define STM32_USART3_SUPPRESS_ISR
 #define STM32_UART4_SUPPRESS_ISR
 #define STM32_UART5_SUPPRESS_ISR
+#define STM32_USART6_SUPPRESS_ISR
+#define STM32_UART7_SUPPRESS_ISR
 #define STM32_LPUART1_SUPPRESS_ISR
 /** @} */
 
@@ -52,6 +60,24 @@
  * @name    ISR names and numbers
  * @{
  */
+/*
+ * ADC units.
+ */
+#define STM32_ADC1_HANDLER                  VectorC0
+#define STM32_ADC2_HANDLER                  VectorC4
+#define STM32_ADC3_HANDLER                  Vector1C8
+
+#define STM32_ADC1_NUMBER                   32
+#define STM32_ADC2_NUMBER                   33
+#define STM32_ADC3_NUMBER                   98
+
+/*
+ * DAC unit.
+ */
+#define STM32_DAC1_HANDLER                  Vector174
+
+#define STM32_DAC1_NUMBER                   77
+
 /*
  * DMA units.
  */
@@ -127,6 +153,19 @@
 #define STM32_EXTI15_NUMBER                 22
 
 /*
+ * FDCAN units.
+ */
+#define STM32_FDCAN1_IT0_HANDLER            VectorC8
+#define STM32_FDCAN1_IT1_HANDLER            VectorCC
+#define STM32_FDCAN2_IT0_HANDLER            Vector198
+#define STM32_FDCAN2_IT1_HANDLER            Vector19C
+
+#define STM32_FDCAN1_IT0_NUMBER             34
+#define STM32_FDCAN1_IT1_NUMBER             35
+#define STM32_FDCAN2_IT0_NUMBER             86
+#define STM32_FDCAN2_IT1_NUMBER             87
+
+/*
  * ETH unit.
  */
 #define STM32_ETH_HANDLER                   Vector1B8
@@ -149,6 +188,15 @@
 #define STM32_I2C2_ER_NUMBER                71
 
 /*
+ * I3C unit.
+ */
+#define STM32_I3C1_EV_HANDLER               VectorF8
+#define STM32_I3C1_ER_HANDLER               VectorFC
+
+#define STM32_I3C1_EV_NUMBER                46
+#define STM32_I3C1_ER_NUMBER                47
+
+/*
  * SPI units.
  */
 #define STM32_SPI1_HANDLER                  Vector100
@@ -158,6 +206,35 @@
 #define STM32_SPI1_NUMBER                   48
 #define STM32_SPI2_NUMBER                   49
 #define STM32_SPI3_NUMBER                   50
+
+/*
+ * System helper units.
+ */
+#define STM32_CRS_HANDLER                   Vector13C
+#define STM32_RNG_HANDLER                   Vector140
+#define STM32_FPU_HANDLER                   Vector144
+#define STM32_ICACHE_HANDLER                Vector148
+#define STM32_CORDIC_HANDLER                Vector14C
+#define STM32_AES_HANDLER                   Vector150
+#define STM32_HASH_HANDLER                  Vector154
+#define STM32_COMP1_HANDLER                 Vector170
+#define STM32_COMP2_HANDLER                 Vector1A0
+#define STM32_XSPI1_HANDLER                 Vector1AC
+#define STM32_SAES_HANDLER                  Vector1B0
+#define STM32_PKA_HANDLER                   Vector1B4
+
+#define STM32_CRS_NUMBER                    63
+#define STM32_RNG_NUMBER                    64
+#define STM32_FPU_NUMBER                    65
+#define STM32_ICACHE_NUMBER                 66
+#define STM32_CORDIC_NUMBER                 67
+#define STM32_AES_NUMBER                    68
+#define STM32_HASH_NUMBER                   69
+#define STM32_COMP1_NUMBER                  76
+#define STM32_COMP2_NUMBER                  88
+#define STM32_XSPI1_NUMBER                  91
+#define STM32_SAES_NUMBER                   92
+#define STM32_PKA_NUMBER                    93
 
 /*
  * TIM units.
@@ -211,6 +288,13 @@
 #define STM32_TIM8_TRGCO_NUMBER             STM32_TIM8_TRGCO_DIR_IDX_NUMBER
 
 /*
+ * LPTIM units.
+ */
+#define STM32_LPTIM1_HANDLER                Vector124
+
+#define STM32_LPTIM1_NUMBER                 57
+
+/*
  * USART units.
  */
 #define STM32_USART1_HANDLER                Vector10C
@@ -230,6 +314,13 @@
 #define STM32_USART6_NUMBER                 96
 #define STM32_UART7_NUMBER                  97
 #define STM32_LPUART1_NUMBER                56
+
+/*
+ * USB units.
+ */
+#define STM32_USB1_HANDLER                  Vector138
+
+#define STM32_USB1_NUMBER                   62
 /** @} */
 
 /*===========================================================================*/
@@ -256,6 +347,7 @@
 extern "C" {
 #endif
   void irqInit(void);
+  void irqDeinit(void);
 #ifdef __cplusplus
 }
 #endif

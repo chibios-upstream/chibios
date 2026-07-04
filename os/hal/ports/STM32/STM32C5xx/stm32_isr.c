@@ -28,6 +28,13 @@
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
 
+#define exti_serve_irq(pr, channel) {                                       \
+                                                                            \
+  if ((pr) & (1U << (channel))) {                                           \
+    _pal_isr_code(channel);                                                 \
+  }                                                                         \
+}
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -44,16 +51,183 @@
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
+#include "stm32_dac1.inc"
+
+#include "stm32_exti0.inc"
+#include "stm32_exti1.inc"
+#include "stm32_exti2.inc"
+#include "stm32_exti3.inc"
+#include "stm32_exti4.inc"
+#include "stm32_exti5.inc"
+#include "stm32_exti6.inc"
+#include "stm32_exti7.inc"
+#include "stm32_exti8.inc"
+#include "stm32_exti9.inc"
+#include "stm32_exti10.inc"
+#include "stm32_exti11.inc"
+#include "stm32_exti12.inc"
+#include "stm32_exti13.inc"
+#include "stm32_exti14.inc"
+#include "stm32_exti15.inc"
+
+#include "stm32_fdcan1.inc"
+#include "stm32_fdcan2.inc"
+
+#include "stm32_i2c1.inc"
+#include "stm32_i2c2.inc"
+
+#include "stm32_spi1.inc"
+#include "stm32_spi2.inc"
+#include "stm32_spi3.inc"
+
+#include "stm32_tim1.inc"
+#include "stm32_tim2.inc"
+#include "stm32_tim3.inc"
+#include "stm32_tim4.inc"
+#include "stm32_tim5.inc"
+#include "stm32_tim6.inc"
+#include "stm32_tim7.inc"
+#include "stm32_tim8.inc"
+#include "stm32_tim12.inc"
+#include "stm32_tim15.inc"
+#include "stm32_tim16.inc"
+#include "stm32_tim17.inc"
+
+#include "stm32_usart1.inc"
+#include "stm32_usart2.inc"
+#include "stm32_usart3.inc"
+#include "stm32_uart4.inc"
+#include "stm32_uart5.inc"
+#include "stm32_usart6.inc"
+#include "stm32_uart7.inc"
+#include "stm32_lpuart1.inc"
+
+#include "stm32_usb1.inc"
+
 /*===========================================================================*/
 /* Driver exported functions.                                                */
 /*===========================================================================*/
 
 /**
- * @brief   IRQ subsystem initialization.
+ * @brief   Enables IRQ sources.
  *
- * @init
+ * @notapi
  */
 void irqInit(void) {
+
+  dac1_irq_init();
+
+  exti0_irq_init();
+  exti1_irq_init();
+  exti2_irq_init();
+  exti3_irq_init();
+  exti4_irq_init();
+  exti5_irq_init();
+  exti6_irq_init();
+  exti7_irq_init();
+  exti8_irq_init();
+  exti9_irq_init();
+  exti10_irq_init();
+  exti11_irq_init();
+  exti12_irq_init();
+  exti13_irq_init();
+  exti14_irq_init();
+  exti15_irq_init();
+
+  fdcan1_irq_init();
+  fdcan2_irq_init();
+
+  i2c1_irq_init();
+  i2c2_irq_init();
+
+  spi1_irq_init();
+  spi2_irq_init();
+  spi3_irq_init();
+
+  tim1_irq_init();
+  tim2_irq_init();
+  tim3_irq_init();
+  tim4_irq_init();
+  tim5_irq_init();
+  tim6_irq_init();
+  tim7_irq_init();
+  tim8_irq_init();
+  tim12_irq_init();
+  tim15_irq_init();
+  tim16_irq_init();
+  tim17_irq_init();
+
+  usart1_irq_init();
+  usart2_irq_init();
+  usart3_irq_init();
+  uart4_irq_init();
+  uart5_irq_init();
+  usart6_irq_init();
+  uart7_irq_init();
+  lpuart1_irq_init();
+
+  usb1_irq_init();
+}
+
+/**
+ * @brief   Disables IRQ sources.
+ *
+ * @notapi
+ */
+void irqDeinit(void) {
+
+  dac1_irq_deinit();
+
+  exti0_irq_deinit();
+  exti1_irq_deinit();
+  exti2_irq_deinit();
+  exti3_irq_deinit();
+  exti4_irq_deinit();
+  exti5_irq_deinit();
+  exti6_irq_deinit();
+  exti7_irq_deinit();
+  exti8_irq_deinit();
+  exti9_irq_deinit();
+  exti10_irq_deinit();
+  exti11_irq_deinit();
+  exti12_irq_deinit();
+  exti13_irq_deinit();
+  exti14_irq_deinit();
+  exti15_irq_deinit();
+
+  fdcan1_irq_deinit();
+  fdcan2_irq_deinit();
+
+  i2c1_irq_deinit();
+  i2c2_irq_deinit();
+
+  spi1_irq_deinit();
+  spi2_irq_deinit();
+  spi3_irq_deinit();
+
+  tim1_irq_deinit();
+  tim2_irq_deinit();
+  tim3_irq_deinit();
+  tim4_irq_deinit();
+  tim5_irq_deinit();
+  tim6_irq_deinit();
+  tim7_irq_deinit();
+  tim8_irq_deinit();
+  tim12_irq_deinit();
+  tim15_irq_deinit();
+  tim16_irq_deinit();
+  tim17_irq_deinit();
+
+  usart1_irq_deinit();
+  usart2_irq_deinit();
+  usart3_irq_deinit();
+  uart4_irq_deinit();
+  uart5_irq_deinit();
+  usart6_irq_deinit();
+  uart7_irq_deinit();
+  lpuart1_irq_deinit();
+
+  usb1_irq_deinit();
 }
 
 /** @} */

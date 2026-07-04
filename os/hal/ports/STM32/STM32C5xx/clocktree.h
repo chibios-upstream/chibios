@@ -1087,7 +1087,7 @@
 /**
  * @brief   PSIK_SOURCE sink demand state.
  */
-#if (STM32_PSIK_ENABLED == TRUE) || defined(__DOXYGEN__)
+#if (STM32_CFG_PSIK_ENABLE == TRUE) || defined(__DOXYGEN__)
   #define STM32_PSIK_SOURCE_DEMANDED        TRUE
 #else
   #define STM32_PSIK_SOURCE_DEMANDED        FALSE

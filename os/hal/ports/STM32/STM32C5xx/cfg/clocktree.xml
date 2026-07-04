@@ -985,7 +985,7 @@
   </clocks>
   <sinks>
     <sink name="PSIK_SOURCE" input="PSI"
-          condition="STM32_PSIK_ENABLED == TRUE">
+          condition="STM32_CFG_PSIK_ENABLE == TRUE">
       <description>PSIK conditional frequency dependency on PSI</description>
     </sink>
     <sink name="USART1_SERIAL_DRIVER" input="USART1"

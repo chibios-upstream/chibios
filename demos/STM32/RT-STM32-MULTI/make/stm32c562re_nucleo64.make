@@ -38,6 +38,12 @@ ifeq ($(USE_VERBOSE_COMPILE),)
   USE_VERBOSE_COMPILE = no
 endif
 
+# If enabled, this option makes the build process faster by not compiling
+# modules not used in the current configuration.
+ifeq ($(USE_SMART_BUILD),)
+  USE_SMART_BUILD = yes
+endif
+
 #
 # Build global options
 ##############################################################################
@@ -84,11 +90,31 @@ MCU  = cortex-m33
 
 # Imported source files and paths.
 CHIBIOS  := ../../..
+CONFDIR  := ./cfg/stm32c562re_nucleo64
 BUILDDIR := ./build/stm32c562re_nucleo64
 DEPDIR   := ./.dep/stm32c562re_nucleo64
 
+# Licensing files.
+include $(CHIBIOS)/os/license/license.mk
 # Startup files.
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32c5xx.mk
+# HAL-OSAL files (optional).
+include $(CHIBIOS)/os/hal/hal.mk
+include $(CHIBIOS)/os/hal/ports/STM32/STM32C5xx/platform.mk
+include $(CHIBIOS)/os/hal/boards/ST_NUCLEO64_C562RE/board.mk
+include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
+# RTOS files (optional).
+include $(CHIBIOS)/os/rt/rt.mk
+#include $(CHIBIOS)/os/common/ports/ARMv8-M-ML/compilers/GCC/mk/port.mk
+include $(CHIBIOS)/os/common/ports/ARMv8-M-ML-ALT/compilers/GCC/mk/port.mk
+# Auto-build files in ./source recursively.
+include $(CHIBIOS)/tools/mk/autobuild.mk
+# Other files (optional).
+include $(CHIBIOS)/os/test/test.mk
+include $(CHIBIOS)/test/rt/rt_test.mk
+include $(CHIBIOS)/test/oslib/oslib_test.mk
+#include $(CHIBIOS)/os/hal/lib/streams/streams.mk
+#include $(CHIBIOS)/os/various/shell/shell.mk
 
 # Define linker script file here.
 LDSCRIPT= $(STARTUPLD)/STM32C562xE.ld
@@ -96,7 +122,9 @@ LDSCRIPT= $(STARTUPLD)/STM32C562xE.ld
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
 CSRC = $(ALLCSRC) \
-       main_naked.c
+       $(TESTSRC) \
+       $(CONFDIR)/portab.c \
+       main.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -109,7 +137,7 @@ ASMSRC = $(ALLASMSRC)
 ASMXSRC = $(ALLXASMSRC)
 
 # Inclusion directories.
-INCDIR = $(ALLINC)
+INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
 
 # Define C warning options here.
 CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -Wcast-align=strict
@@ -126,7 +154,7 @@ CPPWARN = -Wall -Wextra -Wundef
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS = -DSTM32C562xx
+UDEFS = -D__TEST_RT -D__TEST_OSLIB -DSTM32C562xx
 
 # Define ASM defines here
 UADEFS = -DSTM32C562xx
