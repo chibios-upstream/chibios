@@ -7,7 +7,7 @@
   </processor>
   <processor class="board" target="STM32C5xx">
     <name>STM32C5xx Board Configuration</name>
-    <path>resources/gencfg/processors/boards/stm32h5xx/templates</path>
+    <path>resources/gencfg/processors/boards/stm32c5xx/templates</path>
     <default>resources/gencfg/xml/stm32c5board.xml</default>
     <basefilename>board</basefilename>
   </processor>
