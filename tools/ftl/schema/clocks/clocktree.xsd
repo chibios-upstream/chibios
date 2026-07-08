@@ -23,6 +23,10 @@
         <xs:selector xpath="settings/enums/enum"></xs:selector>
         <xs:field xpath="@name"></xs:field>
       </xs:key>
+      <xs:key name="variantNameKey">
+        <xs:selector xpath="variants/variant"></xs:selector>
+        <xs:field xpath="@name"></xs:field>
+      </xs:key>
       <xs:key name="limitNameKey">
         <xs:selector xpath="settings/limit-set/limit"></xs:selector>
         <xs:field xpath="@name"></xs:field>
@@ -55,11 +59,14 @@
     
     <xs:complexType name="clocktreeType">
       <xs:sequence>
-            <xs:element name="settings" type="settingsType" maxOccurs="1" minOccurs="1"></xs:element>
+        <xs:element name="settings" type="settingsType" maxOccurs="1" minOccurs="1"></xs:element>
+        <xs:element name="variants" type="variantsType" maxOccurs="1"
+          minOccurs="0">
+        </xs:element>
         <xs:element name="sources" type="sourcesType" maxOccurs="1"
           minOccurs="0">
         </xs:element>
-            <xs:element name="clocks" type="clocksType" maxOccurs="1"
+        <xs:element name="clocks" type="clocksType" maxOccurs="1"
           minOccurs="1">
         </xs:element>
         <xs:element name="sinks" type="sinksType" maxOccurs="1"
@@ -118,6 +125,44 @@
         </xs:simpleType>
       </xs:attribute>
       <xs:attribute name="condition" use="optional">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"></xs:minLength>
+            <xs:whiteSpace value="collapse"></xs:whiteSpace>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="variants" type="variantRefsType" use="optional">
+      </xs:attribute>
+    </xs:complexType>
+
+    <xs:simpleType name="variantRefsType">
+      <xs:restriction base="xs:string">
+        <xs:minLength value="1"></xs:minLength>
+        <xs:whiteSpace value="collapse"></xs:whiteSpace>
+        <xs:pattern value="[A-Za-z_][A-Za-z0-9_]*([ ,][A-Za-z_][A-Za-z0-9_]*)*"></xs:pattern>
+      </xs:restriction>
+    </xs:simpleType>
+
+    <xs:complexType name="variantsType">
+      <xs:sequence>
+        <xs:element name="variant" type="variantType" maxOccurs="unbounded"
+          minOccurs="1">
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="variantType">
+      <xs:attribute name="name" use="required">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"></xs:minLength>
+            <xs:whiteSpace value="collapse"></xs:whiteSpace>
+            <xs:pattern value="[A-Za-z_][A-Za-z0-9_]*"></xs:pattern>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="condition" use="required">
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:minLength value="1"></xs:minLength>
@@ -196,6 +241,8 @@
             <xs:minLength value="1"></xs:minLength>
           </xs:restriction>
         </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="variants" type="variantRefsType" use="optional">
       </xs:attribute>
     </xs:complexType>
 
@@ -279,6 +326,8 @@
             <xs:enumeration value="false"></xs:enumeration>
           </xs:restriction>
         </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="variants" type="variantRefsType" use="optional">
       </xs:attribute>
     </xs:complexType>
 
@@ -459,6 +508,8 @@
             <xs:pattern value="[A-Za-z_][A-Za-z0-9_]*"></xs:pattern>
           </xs:restriction>
         </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="variants" type="variantRefsType" use="optional">
       </xs:attribute>
     </xs:complexType>
 
@@ -664,6 +715,8 @@
             <xs:whiteSpace value="collapse"></xs:whiteSpace>
           </xs:restriction>
         </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="variants" type="variantRefsType" use="optional">
       </xs:attribute>
     </xs:complexType>
 
@@ -981,6 +1034,8 @@
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>
+      <xs:attribute name="variants" type="variantRefsType" use="optional">
+      </xs:attribute>
     </xs:complexType>
 
     <xs:complexType name="enumItemType">
@@ -1026,6 +1081,8 @@
             <xs:whiteSpace value="collapse"></xs:whiteSpace>
           </xs:restriction>
         </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="variants" type="variantRefsType" use="optional">
       </xs:attribute>
     </xs:complexType>
 
@@ -1073,6 +1130,8 @@
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>
+      <xs:attribute name="variants" type="variantRefsType" use="optional">
+      </xs:attribute>
     </xs:complexType>
 
     <xs:complexType name="derivedConfigType">
@@ -1099,6 +1158,8 @@
             <xs:whiteSpace value="collapse"></xs:whiteSpace>
           </xs:restriction>
         </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="variants" type="variantRefsType" use="optional">
       </xs:attribute>
     </xs:complexType>
 
@@ -1168,6 +1229,8 @@
             <xs:whiteSpace value="collapse"></xs:whiteSpace>
           </xs:restriction>
         </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="variants" type="variantRefsType" use="optional">
       </xs:attribute>
     </xs:complexType>
 

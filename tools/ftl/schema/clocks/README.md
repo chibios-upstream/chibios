@@ -146,20 +146,18 @@ clock point values from RCC register state stays in `hal_lld.c` for now because
 it depends on device-specific decoding and initialization semantics that are not
 fully modeled in the XML.
 
-## Future Variant Support
+## Variant Support
 
 Some STM32 families need one generated `clocktree.h` to support multiple device
-parts whose RCC fields and peripherals differ. The intended direction is to add
-variant feature groups to the XML, associate each group with one or more CMSIS
-part-number macros, and allow schema elements to declare an optional
-`variants="..."` attribute. Missing `variants` means the element applies to all
-parts.
+parts whose RCC fields and peripherals differ. A clock tree can declare
+top-level variant feature groups and associate schema elements with those groups
+using an optional `variants="..."` attribute. Missing `variants` means the
+element applies to all parts.
 
-Variant handling must be compile-time in the generated header, not a generator
-filter. The header should detect the active part from CMSIS `STM32...` macros,
-derive generated `STM32_CLOCKTREE_HAS_<FEATURE>` flags, and emit `#error` if no
-known part macro matches. This preserves a single generated header for the whole
-family.
+Variant handling is compile-time in the generated header, not a generator
+filter. The header derives generated `STM32_CLOCKTREE_VARIANT_<NAME>` flags
+from the variant conditions and emits `#error` if no variant or more than one
+variant matches. This preserves a single generated header for the whole family.
 
 Absent variant-specific clocks and sinks should still emit inert definitions
 instead of disappearing. A sink outside the active variant should demand
@@ -167,12 +165,11 @@ instead of disappearing. A sink outside the active variant should demand
 bits, and zero frequency/current-clock macros. This keeps auto-propagation
 expressions stable and avoids undefined generated clock symbols.
 
-The generator still needs variant awareness wherever XML expressions reference
-device-header symbols that do not exist on smaller parts, such as optional RCC
-register fields. Those definitions, config checks, selector constants, and
-register-bit expressions must be wrapped in the proper feature guards. This is a
-larger generator rework and should be applied consistently to the existing G4,
-U3, U5, and C5 XMLs when implemented.
+The same variant guards are applied to variant-specific support definitions,
+settings, derived configurations, assertions, selector constants and register
+bit expressions. This is intended for optional RCC register fields that do not
+exist on smaller parts. Existing G4, U3, U5, and C5 XMLs still need a review
+pass to assign concrete variants where the family data requires it.
 
 ## Dynamic Reconfiguration Contract
 

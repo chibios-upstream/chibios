@@ -1,0 +1,17 @@
+TST_CLOCKTREE_VARIANT_base
+TST_CLOCKTREE_VARIANT_full
+"unable to select clock tree variant"
+"multiple clock tree variants selected"
+#if (TST_CLOCKTREE_VARIANT_full == TRUE) || defined(__DOXYGEN__)
+#define RCC_OPTION_FULL
+#define TST_SERIAL_DRIVER_DEMANDED
+#define TST_SERIAL_ENABLED
+#define TST_SERIAL_BITS
+#define TST_SERIAL_FREQ
+#define TST_SERIAL_CLOCK
+#else
+#define TST_SERIAL_DRIVER_DEMANDED
+#define TST_SERIAL_ENABLED
+#define TST_SERIAL_BITS
+#define TST_SERIAL_FREQ
+#define TST_SERIAL_CLOCK

@@ -1,0 +1,47 @@
+<clocktree>
+  <settings>
+    <prefixes clock_points="TCLK_" macros="TST_" cfgs="TST_CFG_" />
+    <suffixes frequency="_FREQ" values="_VALUE" bits="_BITS"
+              selector="_SEL" enable="_ENABLE" enabled="_ENABLED" />
+    <definitions>
+      <define name="RCC_OPTION_FULL" value="1U" variants="full" />
+    </definitions>
+    <configs>
+      <config name="CLOCK_DYNAMIC" type="bool" default="FALSE"
+              role="dynamic_mode">
+        <description>Enables dynamic clock handling.</description>
+      </config>
+      <config name="FULL_OPTION" type="set" default="RCC_OPTION_FULL"
+              values="RCC_OPTION_FULL" variants="full">
+        <description>Selects the full variant option.</description>
+      </config>
+    </configs>
+  </settings>
+  <variants>
+    <variant name="base" condition="defined(TEST_BASE)" />
+    <variant name="full" condition="defined(TEST_FULL)" />
+  </variants>
+  <clocks>
+    <clock point="PCLK" enable="always" dynamic="no">
+      <description>peripheral clock</description>
+      <derived frequency="4000000U" />
+    </clock>
+    <clock point="OSC" enable="always" dynamic="no">
+      <description>fixed oscillator</description>
+      <derived frequency="8000000U" />
+    </clock>
+    <clock point="SERIAL" enable="always" dynamic="no" variants="full">
+      <description>serial clock</description>
+      <mux name="SERIALSEL" field="RCC_CCIPR_SERIALSEL" offset="4U">
+        <input point="PCLK" encoding="0U" default="yes" />
+        <input point="OSC" encoding="1U" />
+      </mux>
+    </clock>
+  </clocks>
+  <sinks>
+    <sink name="SERIAL_DRIVER" input="SERIAL" condition="HAL_USE_SERIAL == TRUE"
+          variants="full">
+      <description>Serial driver clock demand.</description>
+    </sink>
+  </sinks>
+</clocktree>

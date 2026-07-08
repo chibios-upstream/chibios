@@ -45,6 +45,7 @@
  */
 [@clocktree.EmitClockPointConstants /]
 /** @} */
+[@clocktree.EmitVariantSelection /]
 [@clocktree.EmitDefinitions /]
 [@clocktree.EmitMuxSelectorConstants /]
 [@clocktree.EmitScalerSelectorConstants /]
