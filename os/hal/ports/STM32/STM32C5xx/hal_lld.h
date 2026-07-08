@@ -118,6 +118,7 @@
 #define STM32_FLASH_ACR                     0U
 #endif
 
+#include "stm32_clock_usage.h"
 #include "clocktree.h"
 
 /* Clock compatibility aliases used by STM32 LLD drivers.*/
