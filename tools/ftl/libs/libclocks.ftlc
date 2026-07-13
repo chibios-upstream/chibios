@@ -2666,7 +2666,9 @@ endfunction
 macro EmitOneSinkFrequencyChecks(sink)
   if HasSinkFrequencyChecks(sink)
     local freqmacro = premacro + sink["input"] + postclocks
-    if IsVariantSpecific(sink)
+    if sink["implicit_mode"]
+      local active = GetSinkDemandMacro(sink) + " == TRUE"
+    elseif IsVariantSpecific(sink)
       local active = "(" + sink["variant_condition"] + ") && (" + sink["condition"] + ")"
     else
       local active = sink["condition"]

@@ -155,6 +155,7 @@
 #define STM32_FLASH_ACR                     (FLASH_ACR_PRFTEN)
 #endif
 
+#include "stm32_clock_usage.h"
 #include "clocktree.h"
 
 /**

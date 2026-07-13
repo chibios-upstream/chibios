@@ -9,6 +9,17 @@
         <description>Enables dynamic clock handling.</description>
       </config>
     </configs>
+    <states>
+      <state name="normal" when="TRUE" />
+    </states>
+    <limit-set>
+      <limit name="PERIPHCLK" min="yes" max="yes" />
+    </limit-set>
+    <limit-values>
+      <state-values state="normal">
+        <limit name="PERIPHCLK" min="1000000U" max="1000000U" />
+      </state-values>
+    </limit-values>
   </settings>
   <clocks>
     <clock point="PERIPH" enable="auto" dynamic="no">
@@ -19,6 +30,7 @@
   <sinks>
     <sink name="PERIPH" input="PERIPH">
       <description>External software demands the peripheral clock.</description>
+      <limits ref="PERIPHCLK" />
     </sink>
   </sinks>
 </clocktree>
