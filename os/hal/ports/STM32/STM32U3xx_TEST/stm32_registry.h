@@ -388,6 +388,8 @@
 #define STM32_HAS_IWDG                      TRUE
 #define STM32_IWDG_IS_WINDOWED              TRUE
 
+#else
+#error "STM32U3xx device not specified"
 #endif /* defined(STM32U375xx) || defined(STM32U385xx) */
 
 /** @} */
