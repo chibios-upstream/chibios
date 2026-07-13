@@ -43,7 +43,9 @@ jobs:
           HEAD_SHA="${{ github.sha }}"
           BASE_SHA="$(git rev-parse "${HEAD_SHA}^1")"
 
-          mapfile -t CHANGED < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- '*.c' '*.h')
+          # Externally provided sources retain their upstream formatting.
+          mapfile -t CHANGED < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- \
+                                  '*.c' '*.h' ':(exclude)os/common/ext/**')
 
           if [ "${#CHANGED[@]}" -eq 0 ]; then
             echo "No changed .c/.h files in this pull request."

@@ -30,7 +30,6 @@
 /*===========================================================================*/
 
 #define PORTAB_LINE_LED1            LINE_LED_GREEN
-//#define PORTAB_LINE_LED2            LINE_LED2
 
 #define PORTAB_LINE_BUTTON          LINE_BUTTON
 #define PORTAB_BUTTON_PRESSED       PAL_HIGH

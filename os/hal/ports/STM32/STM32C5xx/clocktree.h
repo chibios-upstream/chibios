@@ -4670,7 +4670,6 @@
   #error "STM32_CK48_FREQ below minimum frequency"
 #endif
 
-
 #if !(!((STM32_CK48_ENABLED == TRUE) &&                                     \
       (STM32_CFG_CK48_SEL == RCC_CCIPR2_CK48SEL_PSIDIV3)) ||                \
      (STM32_PSIDIV3_FREQ <= STM32_CK48CLK_MAX)) && !defined(__DOXYGEN__)

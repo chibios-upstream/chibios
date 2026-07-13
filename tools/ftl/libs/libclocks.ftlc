@@ -2608,9 +2608,10 @@ macro EmitClockFrequencyChecks(point)
       endif
 
       if maxval != ""
+        local maxemitted = false
         list point["inputs"] as input
           if !IsNoClockPoint(input["point"])
-            if emitted
+            if maxemitted
               emit "\e"
             endif
             local inputfreq = GetDefaultFrequencyExpression(input["point"])
@@ -2620,7 +2621,7 @@ macro EmitClockFrequencyChecks(point)
               expression="!(" + active + ") || (" + inputfreq + " <= " + maxval + ")",
               message="\"" + freqmacro + " above maximum frequency\"",
               requires=requires)
-            local emitted = true
+            local maxemitted = true
           endif
         endlist
       endif
