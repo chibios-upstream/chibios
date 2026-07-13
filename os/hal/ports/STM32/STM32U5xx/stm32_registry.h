@@ -434,6 +434,8 @@
 /* DCMI attributes.*/
 #define STM32_HAS_DCMI                      TRUE
 
+#else
+#error "STM32U5xx device not specified"
 #endif /* defined(STM32U575xx) || defined(STM32U585xx) */
 
 /** @} */
