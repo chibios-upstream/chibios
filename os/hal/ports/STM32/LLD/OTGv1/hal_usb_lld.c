@@ -886,10 +886,33 @@ void usb_lld_start(USBDriver *usbp) {
 
 #if STM32_USB_USE_OTG2
     if (&USBD2 == usbp) {
+#if defined(STM32U5XX)
+      /* The USB power booster must be ready before clocking the PHY.*/
+      PWR->VOSR &= ~PWR_VOSR_VDD11USBDIS;
+      PWR->VOSR |= PWR_VOSR_USBPWREN | PWR_VOSR_USBBOOSTEN;
+      while ((PWR->VOSR & PWR_VOSR_USBBOOSTRDY) == 0U) {
+      }
+
+      /* Integrated high-speed PHY clocks.*/
+      rccEnableSYSCFG(true);
+      rccEnableUSBPHYC(true);
+#endif
+
       /* OTG HS clock enable and reset.*/
       rccEnableOTG_HS(true);
       rccResetOTG_HS();
 
+#if defined(STM32U5XX)
+      /* Reference clock and mandatory PHY tuning values from the RM.*/
+      SYSCFG->OTGHSPHYCR = STM32_OTGHS_PHY_CLKSEL;
+      SYSCFG->OTGHSPHYTUNER2 =
+        (SYSCFG->OTGHSPHYTUNER2 &
+         ~(SYSCFG_OTGHSPHYTUNER2_COMPDISTUNE_Msk |
+           SYSCFG_OTGHSPHYTUNER2_SQRXTUNE_Msk)) |
+        SYSCFG_OTGHSPHYTUNER2_COMPDISTUNE_1;
+      SYSCFG->OTGHSPHYCR |= SYSCFG_OTGHSPHYCR_EN;
+
+#else /* !defined(STM32U5XX) */
       /* ULPI clock is managed depending on the presence of an external
          PHY.*/
 #if defined(BOARD_OTG2_USES_ULPI)
@@ -899,13 +922,17 @@ void usb_lld_start(USBDriver *usbp) {
          http://forum.chibios.org/phpbb/viewtopic.php?f=16&t=1798.*/
       rccDisableOTG_HSULPI();
 #endif
+#endif /* !defined(STM32U5XX) */
 
       /* Enables IRQ vector.*/
       nvicEnableVector(STM32_OTG2_NUMBER, STM32_USB_OTG2_IRQ_PRIORITY);
 
       /* - Forced device mode.
          - USB turn-around time = TRDT_VALUE_HS or TRDT_VALUE_FS.*/
-#if defined(BOARD_OTG2_USES_ULPI)
+#if defined(STM32U5XX)
+      /* Integrated high-speed UTMI PHY.*/
+      otgp->GUSBCFG = GUSBCFG_FDMOD | GUSBCFG_TRDT(TRDT_VALUE_HS);
+#elif defined(BOARD_OTG2_USES_ULPI)
       /* High speed ULPI PHY.*/
       otgp->GUSBCFG = GUSBCFG_FDMOD | GUSBCFG_TRDT(TRDT_VALUE_HS) |
                       GUSBCFG_SRPCAP | GUSBCFG_HNPCAP;
@@ -914,7 +941,15 @@ void usb_lld_start(USBDriver *usbp) {
                       GUSBCFG_PHYSEL;
 #endif
 
-#if defined(BOARD_OTG2_USES_ULPI)
+#if defined(STM32U5XX)
+#if STM32_USE_USB_OTG2_HS
+      /* Integrated PHY in high-speed mode.*/
+      otgp->DCFG = 0x02200000 | DCFG_DSPD_HS;
+#else
+      /* Integrated high-speed PHY operating at full speed.*/
+      otgp->DCFG = 0x02200000 | DCFG_DSPD_HS_FS;
+#endif
+#elif defined(BOARD_OTG2_USES_ULPI)
 #if STM32_USE_USB_OTG2_HS
       /* USB 2.0 High Speed PHY in HS mode.*/
       otgp->DCFG = 0x02200000 | DCFG_DSPD_HS | BOARD_OTG2_ULPI_CHIRP_DELAY_MASK;
@@ -1014,7 +1049,14 @@ void usb_lld_stop(USBDriver *usbp) {
 #if STM32_USB_USE_OTG2
     if (&USBD2 == usbp) {
       nvicDisableVector(STM32_OTG2_NUMBER);
+#if defined(STM32U5XX)
+      SYSCFG->OTGHSPHYCR &= ~SYSCFG_OTGHSPHYCR_EN;
+#endif
       rccDisableOTG_HS();
+#if defined(STM32U5XX)
+      rccDisableUSBPHYC();
+      PWR->VOSR &= ~(PWR_VOSR_USBPWREN | PWR_VOSR_USBBOOSTEN);
+#endif
 #if defined(BOARD_OTG2_USES_ULPI)
       rccDisableOTG_HSULPI();
 #endif

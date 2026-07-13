@@ -447,7 +447,7 @@
 #define STM32_MDF1CLK                       STM32_MDF1_CLOCK
 #define STM32_ADF1CLK                       STM32_ADF1_CLOCK
 #define STM32_HSPI1CLK                      STM32_HSPI1_CLOCK
-#define STM32_OTGHSCLK                      STM32_USBPHYC_CLOCK
+#define STM32_OTGHSCLK                      STM32_USBPHYC_FREQ
 #define STM32_DSICLK                        STM32_DSI_CLOCK
 #define STM32_LTDCCLK                       STM32_LTDC_CLOCK
 #define STM32_SAESCLK                       STM32_SAES_CLOCK

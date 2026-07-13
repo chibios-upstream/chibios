@@ -670,6 +670,13 @@
 #define rccDisableUSB() rccDisableAHB2R1(RCC_AHB2ENR1_OTGEN)
 #define rccResetUSB() rccResetAHB2R1(RCC_AHB2RSTR1_OTGRST)
 
+#define rccEnableUSBPHYC(lp) rccEnableAHB2R1(RCC_AHB2ENR1_USBPHYCEN, lp)
+#define rccDisableUSBPHYC() rccDisableAHB2R1(RCC_AHB2ENR1_USBPHYCEN)
+
+#define rccEnableOTG_HS(lp) rccEnableUSB(lp)
+#define rccDisableOTG_HS() rccDisableUSB()
+#define rccResetOTG_HS() rccResetUSB()
+
 #define rccEnableUCPD1(lp) rccEnableAPB1R2(RCC_APB1ENR2_UCPD1EN, lp)
 #define rccDisableUCPD1() rccDisableAPB1R2(RCC_APB1ENR2_UCPD1EN)
 #define rccResetUCPD1() rccResetAPB1R2(RCC_APB1RSTR2_UCPD1RST)

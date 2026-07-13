@@ -543,6 +543,12 @@ __STATIC_INLINE void hal_lld_pll_setup(uint32_t pll,
  */
 static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   uint32_t cr, wtmask;
+#if defined(PWR_VOSR_USBPWREN)
+  uint32_t usbpower;
+
+  /* Preserve an active OTG_HS transceiver across dynamic clock changes.*/
+  usbpower = PWR->VOSR & (PWR_VOSR_USBPWREN | PWR_VOSR_USBBOOSTEN);
+#endif
 
   /* Use the safest flash latency while the current clock tree is unknown.*/
   halRegWrite32X(&FLASH->ACR, FLASH_ACR_LATENCY_15WS, true);
@@ -573,7 +579,13 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   halRegWrite32X(&FLASH->ACR, STM32_FLASH_ACR_RESET, true);
 
   /* Voltage scaling must be ready before high-frequency clocks are used.*/
+#if defined(PWR_VOSR_USBPWREN)
+  halRegWrite32X(&PWR->VOSR,
+                 (ccp->pwr_vosr & ~PWR_VOSR_BOOSTEN) | usbpower,
+                 true);
+#else
   halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr & ~PWR_VOSR_BOOSTEN, true);
+#endif
   if (halRegWaitAllSet32X(&PWR->VOSR,
                           PWR_VOSR_VOSRDY,
                           STM32_REGULATORS_TRANSITION_TIME,
@@ -636,7 +648,11 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   hal_lld_pll_setup(2U, &ccp->plls[2]);
 
   if ((ccp->pwr_vosr & PWR_VOSR_BOOSTEN) != 0U) {
+#if defined(PWR_VOSR_USBPWREN)
+    halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr | usbpower, true);
+#else
     halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr, true);
+#endif
     if (halRegWaitAllSet32X(&PWR->VOSR,
                             PWR_VOSR_BOOSTRDY,
                             STM32_REGULATORS_TRANSITION_TIME,

@@ -103,7 +103,7 @@
 /**
  * @brief   Enables HS mode on OTG2 else FS mode.
  * @note    The default is @p TRUE.
- * @note    Has effect only if @p BOARD_OTG2_USES_ULPI is defined.
+ * @note    Has effect only when OTG2 uses a high-speed PHY.
  */
 #if !defined(STM32_USE_USB_OTG2_HS) || defined(__DOXYGEN__)
 #define STM32_USE_USB_OTG2_HS               TRUE
@@ -233,7 +233,7 @@
 #elif defined(STM32F10X_CL)
 #define STM32_USBCLK                        STM32_OTGFSCLK
 #elif defined(STM32L4XX) || defined(STM32L4XXP)
-/**/
+/* RCC operations and clock definitions are provided by the L4 platform.*/
 #elif  defined(STM32H7XX)
 /* Defines directly STM32_USBCLK.*/
 #define rccEnableOTG_FS                     rccEnableUSB2_OTG_FS
@@ -245,6 +245,8 @@
 #define rccEnableOTG_HSULPI                 rccEnableUSB1_HSULPI
 #define rccDisableOTG_HSULPI                rccDisableUSB1_HSULPI
 #define rccDisableOTG_FSULPI                rccDisableUSB2_HSULPI
+#elif defined(STM32U5XX)
+/* RCC operations and clock definitions are provided by the U5 platform.*/
 #else
 #error "unsupported STM32 platform for OTG functionality"
 #endif
@@ -252,6 +254,33 @@
 #if (STM32_USB_HOST_WAKEUP_DURATION < 2) || (STM32_USB_HOST_WAKEUP_DURATION > 15)
 #error "invalid STM32_USB_HOST_WAKEUP_DURATION setting, it must be between 2 and 15"
 #endif
+
+#if defined(STM32U5XX)
+
+/* The integrated OTG_HS transceiver requires voltage range 1 or 2.*/
+#if (STM32_CFG_PWR_VOSR != PWR_VOSR_VOS_RANGE1) &&                         \
+    (STM32_CFG_PWR_VOSR != PWR_VOSR_VOS_RANGE2)
+#error "the STM32 OTG_HS PHY requires voltage range 1 or 2"
+#endif
+
+/* Integrated OTG_HS PHY reference frequency selection.*/
+#if STM32_OTGHSCLK == 16000000U
+#define STM32_OTGHS_PHY_CLKSEL              (3U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#elif STM32_OTGHSCLK == 19200000U
+#define STM32_OTGHS_PHY_CLKSEL              (8U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#elif STM32_OTGHSCLK == 20000000U
+#define STM32_OTGHS_PHY_CLKSEL              (9U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#elif STM32_OTGHSCLK == 24000000U
+#define STM32_OTGHS_PHY_CLKSEL              (10U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#elif STM32_OTGHSCLK == 26000000U
+#define STM32_OTGHS_PHY_CLKSEL              (14U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#elif STM32_OTGHSCLK == 32000000U
+#define STM32_OTGHS_PHY_CLKSEL              (11U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#else
+#error "invalid STM32 OTG_HS PHY reference clock"
+#endif
+
+#else /* !defined(STM32U5XX) */
 
 /* Allowing for a small tolerance.*/
 #if (STM32_USB_48MHZ_DELTA < 0) || (STM32_USB_48MHZ_DELTA > 120000)
@@ -262,6 +291,8 @@
     (STM32_USBCLK > (48000000 + STM32_USB_48MHZ_DELTA))
 #error "the USB USBv1 driver requires a 48MHz clock"
 #endif
+
+#endif /* !defined(STM32U5XX) */
 
 /*===========================================================================*/
 /* Driver data structures and types.                                         */
