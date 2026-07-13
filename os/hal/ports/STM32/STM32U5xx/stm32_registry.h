@@ -235,14 +235,22 @@
 #define STM32_TAMP_IER_MASK                 0x003C0007
 
 /*===========================================================================*/
-/* STM32U575xx, STM32U585xx.                                                 */
+/* STM32U575xx, STM32U585xx, STM32U595xx, STM32U599xx, STM32U5A5xx,         */
+/* STM32U5A9xx.                                                              */
 /*===========================================================================*/
 
-#if defined(STM32U575xx) || defined(STM32U585xx) || defined(__DOXYGEN__)
+#if defined(STM32U575xx) || defined(STM32U585xx) || defined(STM32U595xx) || \
+    defined(STM32U599xx) || defined(STM32U5A5xx) || defined(STM32U5A9xx) || \
+    defined(__DOXYGEN__)
 
 /* ADC attributes.*/
 #define STM32_HAS_ADC1                      TRUE
+#if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
+    defined(STM32U5A9xx) || defined(__DOXYGEN__)
+#define STM32_HAS_ADC2                      TRUE
+#else
 #define STM32_HAS_ADC2                      FALSE
+#endif
 #define STM32_HAS_ADC3                      FALSE
 #define STM32_HAS_ADC4                      TRUE
 
@@ -281,7 +289,14 @@
 #define STM32_HAS_GPIOG                     TRUE
 #define STM32_HAS_GPIOH                     TRUE
 #define STM32_HAS_GPIOI                     TRUE
+#if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
+    defined(STM32U5A9xx) || defined(__DOXYGEN__)
+#define STM32_HAS_GPIOJ                     TRUE
+#define STM32_GPIOJ_EN                      RCC_AHB2ENR1_GPIOJEN
+#else
 #define STM32_HAS_GPIOJ                     FALSE
+#define STM32_GPIOJ_EN                      0U
+#endif
 #define STM32_HAS_GPIOK                     FALSE
 #define STM32_GPIO_EN_MASK                  (RCC_AHB2ENR1_GPIOAEN |         \
                                              RCC_AHB2ENR1_GPIOBEN |         \
@@ -291,7 +306,8 @@
                                              RCC_AHB2ENR1_GPIOFEN |         \
                                              RCC_AHB2ENR1_GPIOGEN |         \
                                              RCC_AHB2ENR1_GPIOHEN |         \
-                                             RCC_AHB2ENR1_GPIOIEN)
+                                             RCC_AHB2ENR1_GPIOIEN |         \
+                                             STM32_GPIOJ_EN)
 
 /* I2C attributes.*/
 #define STM32_I2C_SINGLE_IRQ                FALSE
@@ -299,6 +315,14 @@
 #define STM32_HAS_I2C2                      TRUE
 #define STM32_HAS_I2C3                      TRUE
 #define STM32_HAS_I2C4                      TRUE
+#if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
+    defined(STM32U5A9xx) || defined(__DOXYGEN__)
+#define STM32_HAS_I2C5                      TRUE
+#define STM32_HAS_I2C6                      TRUE
+#else
+#define STM32_HAS_I2C5                      FALSE
+#define STM32_HAS_I2C6                      FALSE
+#endif
 
 /* RCC attributes.*/
 #define STM32_RCC_HAS_LSI                   TRUE
@@ -411,7 +435,12 @@
 #define STM32_HAS_USART3                    TRUE
 #define STM32_HAS_UART4                     TRUE
 #define STM32_HAS_UART5                     TRUE
+#if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
+    defined(STM32U5A9xx) || defined(__DOXYGEN__)
+#define STM32_HAS_USART6                    TRUE
+#else
 #define STM32_HAS_USART6                    FALSE
+#endif
 #define STM32_HAS_UART7                     FALSE
 #define STM32_HAS_UART8                     FALSE
 #define STM32_HAS_UART9                     FALSE
@@ -421,8 +450,25 @@
 #define STM32_HAS_LPUART1                   TRUE
 
 /* USB attributes.*/
+#if defined(STM32U575xx) || defined(STM32U585xx) || defined(__DOXYGEN__)
 #define STM32_HAS_USB1                      TRUE
 #define STM32_USB_PMA_SIZE                  2048
+#define STM32_HAS_OTG1                      FALSE
+#define STM32_HAS_OTG2                      FALSE
+#else
+#define STM32_OTG_STEPPING                  3
+#define STM32_HAS_USB1                      FALSE
+#define STM32_HAS_OTG1                      FALSE
+#define STM32_HAS_OTG2                      TRUE
+#define STM32_OTG2_ENDPOINTS                9
+#endif
+
+/* LTDC attributes.*/
+#if defined(STM32U599xx) || defined(STM32U5A9xx) || defined(__DOXYGEN__)
+#define STM32_HAS_LTDC                      TRUE
+#else
+#define STM32_HAS_LTDC                      FALSE
+#endif
 
 /* IWDG attributes.*/
 #define STM32_HAS_IWDG                      TRUE
@@ -436,7 +482,7 @@
 
 #else
 #error "STM32U5xx device not specified"
-#endif /* defined(STM32U575xx) || defined(STM32U585xx) */
+#endif /* STM32U575xx...STM32U5A9xx */
 
 /** @} */
 

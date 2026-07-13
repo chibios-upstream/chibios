@@ -40,7 +40,12 @@
                                          RCC_ICSCR1_MSISRANGE_RANGE4_4M |   \
                                          RCC_ICSCR1_MSIKRANGE_RANGE4_4M)
 #define STM32_RCC_CFGR1_RESET           0U
+#if (STM32_CLOCKTREE_VARIANT_U575 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U585 == TRUE)
 #define STM32_RCC_CFGR2_RESET           0U
+#else
+#define STM32_RCC_CFGR2_RESET           0x00006000U
+#endif
 #define STM32_RCC_CFGR3_RESET           0U
 #define STM32_RCC_BDCR_RESET            0U
 #define STM32_RCC_CCIPR1_RESET          0U
@@ -58,6 +63,13 @@
 /** @} */
 
 #define STM32_WS_THRESHOLDS             16U
+
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE)
+#define STM32_RCC_CFGR2_FIXED_BITS      0x00006000U
+#else
+#define STM32_RCC_CFGR2_FIXED_BITS      0U
+#endif
 
 #if STM32_BOOSTER_ENABLED == TRUE
 #define STM32_PWR_VOSR_DEFAULT          (STM32_CFG_PWR_VOSR | PWR_VOSR_BOOSTEN)
@@ -136,7 +148,8 @@ const halclkcfg_t hal_clkcfg_default = {
                           STM32_SYSCLK_BITS    | STM32_CFG_STOPWUCK  |
                           STM32_CFG_STOPKERWUCK,
   .rcc_cfgr2            = STM32_HCLK_BITS      | STM32_PCLK1_BITS    |
-                          STM32_PCLK2_BITS,
+                          STM32_PCLK2_BITS     | STM32_DPHY_BITS     |
+                          STM32_RCC_CFGR2_FIXED_BITS,
   .rcc_cfgr3            = STM32_PCLK3_BITS,
   .rcc_bdcr             = STM32_BDCR_LSE_BITS  | STM32_BDCR_LSI_BITS |
                           STM32_BDCR_LSESYS_BITS |
@@ -150,8 +163,12 @@ const halclkcfg_t hal_clkcfg_default = {
                           STM32_FDCAN1_BITS    | STM32_ICLK_BITS     |
                           STM32_CFG_TIMICSEL,
   .rcc_ccipr2           = STM32_MDF1_BITS      | STM32_SAI1_BITS     |
-                          STM32_SAI2_BITS      | STM32_RNG_BITS      |
-                          STM32_SDMMC_BITS     | STM32_OCTOSPI_BITS,
+                          STM32_SAI2_BITS      | STM32_SAES_BITS     |
+                          STM32_RNG_BITS       | STM32_SDMMC_BITS    |
+                          STM32_DSI_BITS       | STM32_USART6_BITS   |
+                          STM32_LTDC_BITS      | STM32_OCTOSPI_BITS  |
+                          STM32_HSPI1_BITS     | STM32_I2C5_BITS     |
+                          STM32_I2C6_BITS      | STM32_USBPHYC_BITS,
   .rcc_ccipr3           = STM32_LPUART1_BITS   | STM32_SPI3_BITS     |
                           STM32_I2C3_BITS      | STM32_LPTIM34_BITS  |
                           STM32_LPTIM1_BITS    | STM32_ADCDAC_BITS   |

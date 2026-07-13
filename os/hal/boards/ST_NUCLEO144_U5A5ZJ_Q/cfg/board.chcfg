@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- STM32U5xx board configuration. -->
+<board
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/boards/stm32u5xx_board.xsd">
+  <configuration_settings>
+    <templates_path>resources/gencfg/processors/boards/stm32u5xx/templates</templates_path>
+    <output_path>..</output_path>
+  </configuration_settings>
+  <board_name>STMicroelectronics STM32 Nucleo144-U5A5ZJ-Q</board_name>
+  <board_id>ST_NUCLEO144_U5A5ZJ_Q</board_id>
+  <board_functions></board_functions>
+  <headers></headers>
+  <subtype>STM32U5A5xx</subtype>
+  <clocks
+    HSEFrequency="0"
+    HSEBypass="false"
+    LSEFrequency="32768"
+    LSEBypass="false"
+    VDD="300"
+    LSEDrive="3 High Drive (default)" />
+  <ports>
+    <GPIOA>
+      <pin0 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin1 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin2 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin3 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin4 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin5 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin6 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin7 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin8 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin9 ID="USART1_TX VCP_TX" Type="PushPull" Level="Low" Speed="Maximum" Resistor="Floating" Mode="Alternate" Alternate="7" PinLock="Disabled" />
+      <pin10 ID="USART1_RX VCP_RX" Type="PushPull" Level="Low" Speed="Maximum" Resistor="Floating" Mode="Alternate" Alternate="7" PinLock="Disabled" />
+      <pin11 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin12 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin13 ID="SWDIO" Type="PushPull" Level="Low" Speed="Maximum" Resistor="Floating" Mode="Alternate" Alternate="0" PinLock="Disabled" />
+      <pin14 ID="SWCLK" Type="PushPull" Level="Low" Speed="Maximum" Resistor="Floating" Mode="Alternate" Alternate="0" PinLock="Disabled" />
+      <pin15 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+    </GPIOA>
+    <GPIOB>
+      <pin0 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin1 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin2 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin3 ID="SWO" Type="PushPull" Level="Low" Speed="Maximum" Resistor="Floating" Mode="Alternate" Alternate="0" PinLock="Disabled" />
+      <pin4 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin5 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin6 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin7 ID="LED2 LED_BLUE" Type="PushPull" Level="Low" Speed="Maximum" Resistor="Floating" Mode="Output" Alternate="0" PinLock="Disabled" />
+      <pin8 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin9 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin10 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin11 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin12 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin13 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin14 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin15 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+    </GPIOB>
+    <GPIOC>
+      <pin0 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin1 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin2 ID="VBUS_SENSE" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Input" Alternate="0" PinLock="Disabled" />
+      <pin3 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin4 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin5 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin6 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin7 ID="LED1 LED_GREEN" Type="PushPull" Level="Low" Speed="Maximum" Resistor="Floating" Mode="Output" Alternate="0" PinLock="Disabled" />
+      <pin8 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin9 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin10 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin11 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin12 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin13 ID="BUTTON" Type="PushPull" Level="Low" Speed="Minimum" Resistor="PullDown" Mode="Input" Alternate="0" PinLock="Disabled" />
+      <pin14 ID="OSC32_IN" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin15 ID="OSC32_OUT" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+    </GPIOC>
+    <GPIOD>
+      <pin0 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin1 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin2 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin3 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin4 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin5 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin6 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin7 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin8 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin9 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin10 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin11 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin12 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin13 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin14 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin15 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+    </GPIOD>
+    <GPIOE>
+      <pin0 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin1 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin2 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin3 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin4 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin5 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin6 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin7 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin8 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin9 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin10 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin11 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin12 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin13 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin14 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin15 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+    </GPIOE>
+    <GPIOF>
+      <pin0 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin1 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin2 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin3 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin4 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin5 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin6 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin7 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin8 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin9 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin10 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin11 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin12 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin13 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin14 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin15 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+    </GPIOF>
+    <GPIOG>
+      <pin0 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin1 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin2 ID="LED3 LED_RED" Type="PushPull" Level="Low" Speed="Maximum" Resistor="Floating" Mode="Output" Alternate="0" PinLock="Disabled" />
+      <pin3 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin4 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin5 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin6 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin7 ID="LPUART1_TX" Type="PushPull" Level="Low" Speed="Maximum" Resistor="Floating" Mode="Alternate" Alternate="8" PinLock="Disabled" />
+      <pin8 ID="LPUART1_RX" Type="PushPull" Level="Low" Speed="Maximum" Resistor="Floating" Mode="Alternate" Alternate="8" PinLock="Disabled" />
+      <pin9 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin10 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin11 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin12 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin13 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin14 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin15 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+    </GPIOG>
+    <GPIOH>
+      <pin0 ID="OSC_IN" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin1 ID="OSC_OUT" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin2 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin3 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin4 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin5 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin6 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin7 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin8 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin9 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin10 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin11 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin12 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin13 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin14 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin15 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+    </GPIOH>
+    <GPIOI>
+      <pin0 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin1 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin2 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin3 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin4 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin5 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin6 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin7 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin8 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin9 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin10 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin11 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin12 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin13 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin14 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+      <pin15 ID="" Type="PushPull" Level="Low" Speed="Minimum" Resistor="Floating" Mode="Analog" Alternate="0" PinLock="Disabled" />
+    </GPIOI>
+  </ports>
+</board>

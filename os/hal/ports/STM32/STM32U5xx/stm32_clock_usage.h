@@ -72,6 +72,16 @@
 #endif
 
 #if (defined(HAL_USE_SERIAL) && (HAL_USE_SERIAL == TRUE) &&                 \
+     defined(STM32_SERIAL_USE_USART6) &&                                    \
+     (STM32_SERIAL_USE_USART6 == TRUE)) ||                                  \
+    (defined(HAL_USE_SIO) && (HAL_USE_SIO == TRUE) &&                       \
+     defined(STM32_SIO_USE_USART6) && (STM32_SIO_USE_USART6 == TRUE)) ||    \
+    (defined(HAL_USE_UART) && (HAL_USE_UART == TRUE) &&                     \
+     defined(STM32_UART_USE_USART6) && (STM32_UART_USE_USART6 == TRUE))
+#define STM32_USART6_CLOCK_REQUIRED
+#endif
+
+#if (defined(HAL_USE_SERIAL) && (HAL_USE_SERIAL == TRUE) &&                 \
      defined(STM32_SERIAL_USE_LPUART1) &&                                   \
      (STM32_SERIAL_USE_LPUART1 == TRUE)) ||                                 \
     (defined(HAL_USE_SIO) && (HAL_USE_SIO == TRUE) &&                       \
@@ -98,6 +108,16 @@
 #if defined(HAL_USE_I2C) && (HAL_USE_I2C == TRUE) &&                        \
     defined(STM32_I2C_USE_I2C4) && (STM32_I2C_USE_I2C4 == TRUE)
 #define STM32_I2C4_CLOCK_REQUIRED
+#endif
+
+#if defined(HAL_USE_I2C) && (HAL_USE_I2C == TRUE) &&                        \
+    defined(STM32_I2C_USE_I2C5) && (STM32_I2C_USE_I2C5 == TRUE)
+#define STM32_I2C5_CLOCK_REQUIRED
+#endif
+
+#if defined(HAL_USE_I2C) && (HAL_USE_I2C == TRUE) &&                        \
+    defined(STM32_I2C_USE_I2C6) && (STM32_I2C_USE_I2C6 == TRUE)
+#define STM32_I2C6_CLOCK_REQUIRED
 #endif
 
 /* SPI clock requirement atoms.*/
@@ -134,6 +154,11 @@
 #define STM32_USB_CLOCK_REQUIRED
 #endif
 
+#if defined(HAL_USE_USB) && (HAL_USE_USB == TRUE) &&                        \
+    defined(STM32_USB_USE_OTG2) && (STM32_USB_USE_OTG2 == TRUE)
+#define STM32_OTGHS_CLOCK_REQUIRED
+#endif
+
 /* SDMMC clock requirement atoms.*/
 #if defined(HAL_USE_SDC) && (HAL_USE_SDC == TRUE) &&                        \
     defined(STM32_SDC_USE_SDMMC1) && (STM32_SDC_USE_SDMMC1 == TRUE)
@@ -152,6 +177,11 @@
      (defined(STM32_WSPI_USE_OCTOSPI2) &&                                   \
       (STM32_WSPI_USE_OCTOSPI2 == TRUE)))
 #define STM32_OCTOSPI_CLOCK_REQUIRED
+#endif
+
+#if defined(HAL_USE_WSPI) && (HAL_USE_WSPI == TRUE) &&                      \
+    defined(STM32_WSPI_USE_HSPI1) && (STM32_WSPI_USE_HSPI1 == TRUE)
+#define STM32_HSPI1_CLOCK_REQUIRED
 #endif
 
 /* RNG clock requirement atoms.*/

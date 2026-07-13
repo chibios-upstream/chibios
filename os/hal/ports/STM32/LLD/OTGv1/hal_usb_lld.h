@@ -151,7 +151,7 @@
 #error "STM32_OTG_STEPPING not defined in registry"
 #endif
 
-#if (STM32_OTG_STEPPING < 1) || (STM32_OTG_STEPPING > 2)
+#if (STM32_OTG_STEPPING < 1) || (STM32_OTG_STEPPING > 3)
 #error "unsupported STM32_OTG_STEPPING"
 #endif
 

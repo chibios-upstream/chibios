@@ -66,6 +66,13 @@
 #define GCCFG_INIT_VALUE        (GCCFG_VBDEN | GCCFG_PWRDWN)
 #endif
 
+#elif STM32_OTG_STEPPING == 3
+#if defined(BOARD_OTG_NOVBUSSENS)
+#define GCCFG_INIT_VALUE        0U
+#else
+#define GCCFG_INIT_VALUE        GCCFG_VBDEN
+#endif
+
 #endif
 
 #define IRQ_RETRY_MASK (GINTSTS_NPTXFE | GINTSTS_PTXFE | GINTSTS_RXFLVL)

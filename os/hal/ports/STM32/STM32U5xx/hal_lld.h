@@ -413,6 +413,7 @@
 #define STM32_USART3CLK                     STM32_USART3_CLOCK
 #define STM32_UART4CLK                      STM32_UART4_CLOCK
 #define STM32_UART5CLK                      STM32_UART5_CLOCK
+#define STM32_USART6CLK                     STM32_USART6_CLOCK
 #define STM32_LPUART1CLK                    STM32_LPUART1_CLOCK
 
 #define STM32_TIM16CCLK                     STM32_TIM16IC_CLOCK
@@ -435,6 +436,8 @@
 #define STM32_I2C2CLK                       STM32_I2C2_CLOCK
 #define STM32_I2C3CLK                       STM32_I2C3_CLOCK
 #define STM32_I2C4CLK                       STM32_I2C4_CLOCK
+#define STM32_I2C5CLK                       STM32_I2C5_CLOCK
+#define STM32_I2C6CLK                       STM32_I2C6_CLOCK
 #define STM32_ADCDACCLK                     STM32_ADCDAC_CLOCK
 #define STM32_DAC1SHSELCLK                  STM32_DAC1SH_CLOCK
 #define STM32_RNGCLK                        STM32_RNG_CLOCK
@@ -443,6 +446,11 @@
 #define STM32_SAI2CLK                       STM32_SAI2_CLOCK
 #define STM32_MDF1CLK                       STM32_MDF1_CLOCK
 #define STM32_ADF1CLK                       STM32_ADF1_CLOCK
+#define STM32_HSPI1CLK                      STM32_HSPI1_CLOCK
+#define STM32_OTGHSCLK                      STM32_USBPHYC_CLOCK
+#define STM32_DSICLK                        STM32_DSI_CLOCK
+#define STM32_LTDCCLK                       STM32_LTDC_CLOCK
+#define STM32_SAESCLK                       STM32_SAES_CLOCK
 
 #define STM32_TIMP1CLK                      STM32_PCLK1TIM_CLOCK
 #define STM32_TIMP2CLK                      STM32_PCLK2TIM_CLOCK

@@ -86,6 +86,137 @@
 /** @} */
 
 /**
+ * @name    Clock tree variant selection
+ * @{
+ */
+#if defined(STM32U575xx)
+  #define STM32_CLOCKTREE_VARIANT_U575      TRUE
+#else
+  #define STM32_CLOCKTREE_VARIANT_U575      FALSE
+#endif
+
+#if defined(STM32U585xx)
+  #define STM32_CLOCKTREE_VARIANT_U585      TRUE
+#else
+  #define STM32_CLOCKTREE_VARIANT_U585      FALSE
+#endif
+
+#if defined(STM32U595xx)
+  #define STM32_CLOCKTREE_VARIANT_U595      TRUE
+#else
+  #define STM32_CLOCKTREE_VARIANT_U595      FALSE
+#endif
+
+#if defined(STM32U599xx)
+  #define STM32_CLOCKTREE_VARIANT_U599      TRUE
+#else
+  #define STM32_CLOCKTREE_VARIANT_U599      FALSE
+#endif
+
+#if defined(STM32U5A5xx)
+  #define STM32_CLOCKTREE_VARIANT_U5A5      TRUE
+#else
+  #define STM32_CLOCKTREE_VARIANT_U5A5      FALSE
+#endif
+
+#if defined(STM32U5A9xx)
+  #define STM32_CLOCKTREE_VARIANT_U5A9      TRUE
+#else
+  #define STM32_CLOCKTREE_VARIANT_U5A9      FALSE
+#endif
+
+#if !defined(TRUE) && !defined(__DOXYGEN__)
+  #error "TRUE not defined"
+#endif
+#if !defined(FALSE) && !defined(__DOXYGEN__)
+  #error "FALSE not defined"
+#endif
+#if !(!((STM32_CLOCKTREE_VARIANT_U575 == FALSE) &&                          \
+      (STM32_CLOCKTREE_VARIANT_U585 == FALSE) &&                            \
+      (STM32_CLOCKTREE_VARIANT_U595 == FALSE) &&                            \
+      (STM32_CLOCKTREE_VARIANT_U599 == FALSE) &&                            \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == FALSE) &&                            \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == FALSE))) && !defined(__DOXYGEN__)
+  #error "unable to select clock tree variant"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U575 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U585 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U575 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U595 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U575 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U599 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U575 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U575 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U585 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U595 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U585 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U599 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U585 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U585 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U595 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U599 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U595 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U595 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U599 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U599 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+/** @} */
+
+/**
  * @name    Generated support definitions
  * @{
  */
@@ -226,6 +357,16 @@
 #define RCC_CCIPR1_UART5SEL_HSI16           ((2U) << 8U)
 #define RCC_CCIPR1_UART5SEL_LSE             ((3U) << 8U)
 
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define RCC_CCIPR2_USART6SEL_PCLK1        ((0U) << 16U)
+  #define RCC_CCIPR2_USART6SEL_SYSCLK       ((1U) << 16U)
+  #define RCC_CCIPR2_USART6SEL_HSI16        ((2U) << 16U)
+  #define RCC_CCIPR2_USART6SEL_LSE          ((3U) << 16U)
+#endif
+
 #define RCC_CCIPR3_LPUART1SEL_PCLK3         ((0U) << 0U)
 #define RCC_CCIPR3_LPUART1SEL_SYSCLK        ((1U) << 0U)
 #define RCC_CCIPR3_LPUART1SEL_HSI16         ((2U) << 0U)
@@ -246,6 +387,26 @@
 #define RCC_CCIPR1_I2C4SEL_SYSCLK           ((1U) << 14U)
 #define RCC_CCIPR1_I2C4SEL_HSI16            ((2U) << 14U)
 #define RCC_CCIPR1_I2C4SEL_MSIK             ((3U) << 14U)
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define RCC_CCIPR2_I2C5SEL_PCLK1          ((0U) << 24U)
+  #define RCC_CCIPR2_I2C5SEL_SYSCLK         ((1U) << 24U)
+  #define RCC_CCIPR2_I2C5SEL_HSI16          ((2U) << 24U)
+  #define RCC_CCIPR2_I2C5SEL_MSIK           ((3U) << 24U)
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define RCC_CCIPR2_I2C6SEL_PCLK1          ((0U) << 26U)
+  #define RCC_CCIPR2_I2C6SEL_SYSCLK         ((1U) << 26U)
+  #define RCC_CCIPR2_I2C6SEL_HSI16          ((2U) << 26U)
+  #define RCC_CCIPR2_I2C6SEL_MSIK           ((3U) << 26U)
+#endif
 
 #define RCC_CCIPR3_I2C3SEL_PCLK3            ((0U) << 6U)
 #define RCC_CCIPR3_I2C3SEL_SYSCLK           ((1U) << 6U)
@@ -282,14 +443,53 @@
 #define RCC_CCIPR1_ICLKSEL_PLL1Q            ((2U) << 26U)
 #define RCC_CCIPR1_ICLKSEL_MSIK             ((3U) << 26U)
 
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define RCC_CCIPR2_USBPHYCSEL_HSE         ((0U) << 30U)
+  #define RCC_CCIPR2_USBPHYCSEL_PLL1P       ((1U) << 30U)
+  #define RCC_CCIPR2_USBPHYCSEL_HSEDIV2     ((2U) << 30U)
+  #define RCC_CCIPR2_USBPHYCSEL_PLL1PDIV2   ((3U) << 30U)
+#endif
+
 #define RCC_CCIPR2_SDMMCSEL_ICLK            ((0U) << 14U)
 #define RCC_CCIPR2_SDMMCSEL_PLL1P           ((1U) << 14U)
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define RCC_CCIPR2_DSIHOSTSEL_PLL3P       ((0U) << 15U)
+  #define RCC_CCIPR2_DSIHOSTSEL_DSIPHY      ((1U) << 15U)
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define RCC_CCIPR2_LTDCSEL_PLL3R          ((0U) << 18U)
+  #define RCC_CCIPR2_LTDCSEL_PLL2R          ((1U) << 18U)
+#endif
 
 #define RCC_CCIPR2_OCTOSPISEL_SYSCLK        ((0U) << 20U)
 #define RCC_CCIPR2_OCTOSPISEL_MSIK          ((1U) << 20U)
 #define RCC_CCIPR2_OCTOSPISEL_PLL1Q         ((2U) << 20U)
 #define RCC_CCIPR2_OCTOSPISEL_PLL2Q         ((3U) << 20U)
 #define RCC_CCIPR2_OCTOSPISEL_IGNORE        0xFFFFFFFFU
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define RCC_CCIPR2_HSPISEL_SYSCLK         ((0U) << 22U)
+  #define RCC_CCIPR2_HSPISEL_PLL1Q          ((1U) << 22U)
+  #define RCC_CCIPR2_HSPISEL_PLL2Q          ((2U) << 22U)
+  #define RCC_CCIPR2_HSPISEL_PLL3R          ((3U) << 22U)
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U585 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define RCC_CCIPR2_SAESSEL_SHSI           ((0U) << 11U)
+  #define RCC_CCIPR2_SAESSEL_SHSIDIV2       ((1U) << 11U)
+#endif
 
 #define RCC_CCIPR2_RNGSEL_HSI48             ((0U) << 12U)
 #define RCC_CCIPR2_RNGSEL_HSI48DIV2         ((1U) << 12U)
@@ -394,6 +594,15 @@
 #define RCC_CFGR3_PPRE3_DIV8                ((6U) << 4U)
 #define RCC_CFGR3_PPRE3_DIV16               ((7U) << 4U)
 
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define RCC_CFGR2_PPRE_DPHY_DIV1          ((0U) << 12U)
+  #define RCC_CFGR2_PPRE_DPHY_DIV2          ((4U) << 12U)
+  #define RCC_CFGR2_PPRE_DPHY_DIV4          ((5U) << 12U)
+  #define RCC_CFGR2_PPRE_DPHY_DIV8          ((6U) << 12U)
+  #define RCC_CFGR2_PPRE_DPHY_DIV16         ((7U) << 12U)
+#endif
+
 #define RCC_CFGR1_MCOPRE_DIV1               ((0U) << 28U)
 #define RCC_CFGR1_MCOPRE_DIV2               ((1U) << 28U)
 #define RCC_CFGR1_MCOPRE_DIV4               ((2U) << 28U)
@@ -435,6 +644,16 @@
  */
 #if !defined(STM32_CFG_AUDIOCLK) || defined(__DOXYGEN__)
   #define STM32_CFG_AUDIOCLK                0U
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Selects the DSI PHY PLL output frequency.
+ */
+  #if !defined(STM32_CFG_DSIPHYCLK) || defined(__DOXYGEN__)
+    #define STM32_CFG_DSIPHYCLK             0U
+  #endif
 #endif
 
 /**
@@ -577,6 +796,18 @@
   #define STM32_CFG_UART5_CLOCK_MODE        STM32_CLOCK_AUTO
 #endif
 
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Controls external demand for the USART6 clock.
+ */
+  #if !defined(STM32_CFG_USART6_CLOCK_MODE) || defined(__DOXYGEN__)
+    #define STM32_CFG_USART6_CLOCK_MODE     STM32_CLOCK_AUTO
+  #endif
+#endif
+
 /**
  * @brief   Controls external demand for the LPUART1 clock.
  */
@@ -610,6 +841,30 @@
  */
 #if !defined(STM32_CFG_I2C4_CLOCK_MODE) || defined(__DOXYGEN__)
   #define STM32_CFG_I2C4_CLOCK_MODE         STM32_CLOCK_AUTO
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Controls external demand for the I2C5 clock.
+ */
+  #if !defined(STM32_CFG_I2C5_CLOCK_MODE) || defined(__DOXYGEN__)
+    #define STM32_CFG_I2C5_CLOCK_MODE       STM32_CLOCK_AUTO
+  #endif
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Controls external demand for the I2C6 clock.
+ */
+  #if !defined(STM32_CFG_I2C6_CLOCK_MODE) || defined(__DOXYGEN__)
+    #define STM32_CFG_I2C6_CLOCK_MODE       STM32_CLOCK_AUTO
+  #endif
 #endif
 
 /**
@@ -654,6 +909,18 @@
   #define STM32_CFG_USB_CLOCK_MODE          STM32_CLOCK_AUTO
 #endif
 
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Controls external demand for the OTGHS clock.
+ */
+  #if !defined(STM32_CFG_OTGHS_CLOCK_MODE) || defined(__DOXYGEN__)
+    #define STM32_CFG_OTGHS_CLOCK_MODE      STM32_CLOCK_AUTO
+  #endif
+#endif
+
 /**
  * @brief   Controls external demand for the SDMMC1 clock.
  */
@@ -673,6 +940,49 @@
  */
 #if !defined(STM32_CFG_OCTOSPI_CLOCK_MODE) || defined(__DOXYGEN__)
   #define STM32_CFG_OCTOSPI_CLOCK_MODE      STM32_CLOCK_AUTO
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Controls external demand for the HSPI1 clock.
+ */
+  #if !defined(STM32_CFG_HSPI1_CLOCK_MODE) || defined(__DOXYGEN__)
+    #define STM32_CFG_HSPI1_CLOCK_MODE      STM32_CLOCK_AUTO
+  #endif
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Controls external demand for the DSI clock.
+ */
+  #if !defined(STM32_CFG_DSI_CLOCK_MODE) || defined(__DOXYGEN__)
+    #define STM32_CFG_DSI_CLOCK_MODE        STM32_CLOCK_AUTO
+  #endif
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Controls external demand for the LTDC clock.
+ */
+  #if !defined(STM32_CFG_LTDC_CLOCK_MODE) || defined(__DOXYGEN__)
+    #define STM32_CFG_LTDC_CLOCK_MODE       STM32_CLOCK_AUTO
+  #endif
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U585 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Controls external demand for the SAES clock.
+ */
+  #if !defined(STM32_CFG_SAES_CLOCK_MODE) || defined(__DOXYGEN__)
+    #define STM32_CFG_SAES_CLOCK_MODE       STM32_CLOCK_AUTO
+  #endif
 #endif
 
 /**
@@ -975,6 +1285,16 @@
   #define STM32_CFG_PCLK3_VALUE             1
 #endif
 
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Configures the DPHY clock divider value.
+ */
+  #if !defined(STM32_CFG_DPHY_VALUE) || defined(__DOXYGEN__)
+    #define STM32_CFG_DPHY_VALUE            8
+  #endif
+#endif
+
 /**
  * @brief   Selects the MCODIV clock source.
  * @note    Allowed sources:
@@ -1083,6 +1403,23 @@
   #define STM32_CFG_UART5_SEL               RCC_CCIPR1_UART5SEL_PCLK1
 #endif
 
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Selects the USART6 clock source.
+ * @note    Allowed sources:
+ *          - PCLK1.
+ *          - SYSCLK.
+ *          - HSI16.
+ *          - LSESYS.
+ */
+  #if !defined(STM32_CFG_USART6_SEL) || defined(__DOXYGEN__)
+    #define STM32_CFG_USART6_SEL            RCC_CCIPR2_USART6SEL_PCLK1
+  #endif
+#endif
+
 /**
  * @brief   Selects the LPUART1 clock source.
  * @note    Allowed sources:
@@ -1130,6 +1467,40 @@
  */
 #if !defined(STM32_CFG_I2C4_SEL) || defined(__DOXYGEN__)
   #define STM32_CFG_I2C4_SEL                RCC_CCIPR1_I2C4SEL_PCLK1
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Selects the I2C5 clock source.
+ * @note    Allowed sources:
+ *          - PCLK1.
+ *          - SYSCLK.
+ *          - HSI16.
+ *          - MSIK.
+ */
+  #if !defined(STM32_CFG_I2C5_SEL) || defined(__DOXYGEN__)
+    #define STM32_CFG_I2C5_SEL              RCC_CCIPR2_I2C5SEL_PCLK1
+  #endif
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Selects the I2C6 clock source.
+ * @note    Allowed sources:
+ *          - PCLK1.
+ *          - SYSCLK.
+ *          - HSI16.
+ *          - MSIK.
+ */
+  #if !defined(STM32_CFG_I2C6_SEL) || defined(__DOXYGEN__)
+    #define STM32_CFG_I2C6_SEL              RCC_CCIPR2_I2C6SEL_PCLK1
+  #endif
 #endif
 
 /**
@@ -1216,6 +1587,23 @@
   #define STM32_CFG_ICLK_SEL                RCC_CCIPR1_ICLKSEL_HSI48
 #endif
 
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Selects the USBPHYC clock source.
+ * @note    Allowed sources:
+ *          - HSE.
+ *          - PLL1P.
+ *          - HSEDIV2.
+ *          - PLL1PDIV2.
+ */
+  #if !defined(STM32_CFG_USBPHYC_SEL) || defined(__DOXYGEN__)
+    #define STM32_CFG_USBPHYC_SEL           RCC_CCIPR2_USBPHYCSEL_HSE
+  #endif
+#endif
+
 /**
  * @brief   Selects the SDMMC clock source.
  * @note    Allowed sources:
@@ -1224,6 +1612,32 @@
  */
 #if !defined(STM32_CFG_SDMMC_SEL) || defined(__DOXYGEN__)
   #define STM32_CFG_SDMMC_SEL               RCC_CCIPR2_SDMMCSEL_PLL1P
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Selects the DSI clock source.
+ * @note    Allowed sources:
+ *          - PLL3P.
+ *          - DSIPHY.
+ */
+  #if !defined(STM32_CFG_DSI_SEL) || defined(__DOXYGEN__)
+    #define STM32_CFG_DSI_SEL               RCC_CCIPR2_DSIHOSTSEL_PLL3P
+  #endif
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Selects the LTDC clock source.
+ * @note    Allowed sources:
+ *          - PLL3R.
+ *          - PLL2R.
+ */
+  #if !defined(STM32_CFG_LTDC_SEL) || defined(__DOXYGEN__)
+    #define STM32_CFG_LTDC_SEL              RCC_CCIPR2_LTDCSEL_PLL3R
+  #endif
 #endif
 
 /**
@@ -1237,6 +1651,37 @@
  */
 #if !defined(STM32_CFG_OCTOSPI_SEL) || defined(__DOXYGEN__)
   #define STM32_CFG_OCTOSPI_SEL             RCC_CCIPR2_OCTOSPISEL_SYSCLK
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Selects the HSPI1 clock source.
+ * @note    Allowed sources:
+ *          - SYSCLK.
+ *          - PLL1Q.
+ *          - PLL2Q.
+ *          - PLL3R.
+ */
+  #if !defined(STM32_CFG_HSPI1_SEL) || defined(__DOXYGEN__)
+    #define STM32_CFG_HSPI1_SEL             RCC_CCIPR2_HSPISEL_SYSCLK
+  #endif
+#endif
+
+#if ((STM32_CLOCKTREE_VARIANT_U585 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   Selects the SAES clock source.
+ * @note    Allowed sources:
+ *          - SHSI.
+ *          - SHSIDIV2.
+ */
+  #if !defined(STM32_CFG_SAES_SEL) || defined(__DOXYGEN__)
+    #define STM32_CFG_SAES_SEL              RCC_CCIPR2_SAESSEL_SHSI
+  #endif
 #endif
 
 /**
@@ -1381,12 +1826,6 @@
 /*
  * Extra configuration checks.
  */
-#if !defined(TRUE) && !defined(__DOXYGEN__)
-  #error "TRUE not defined"
-#endif
-#if !defined(FALSE) && !defined(__DOXYGEN__)
-  #error "FALSE not defined"
-#endif
 #if !((STM32_CFG_CLOCK_DYNAMIC == TRUE) || (STM32_CFG_CLOCK_DYNAMIC == FALSE)) && \
     !defined(__DOXYGEN__)
   #error "invalid STM32_CFG_CLOCK_DYNAMIC value specified"
@@ -1580,6 +2019,18 @@
   #error "invalid STM32_CFG_UART5_CLOCK_MODE value specified"
 #endif
 
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_USART6_CLOCK_MODE == STM32_CLOCK_DISABLED) ||            \
+       (STM32_CFG_USART6_CLOCK_MODE == STM32_CLOCK_AUTO) ||                 \
+       (STM32_CFG_USART6_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&             \
+      !defined(__DOXYGEN__)
+    #error "invalid STM32_CFG_USART6_CLOCK_MODE value specified"
+  #endif
+#endif
+
 #if !((STM32_CFG_LPUART1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||             \
      (STM32_CFG_LPUART1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                  \
      (STM32_CFG_LPUART1_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&              \
@@ -1609,6 +2060,30 @@
      (STM32_CFG_I2C4_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
      (STM32_CFG_I2C4_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
   #error "invalid STM32_CFG_I2C4_CLOCK_MODE value specified"
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_I2C5_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+       (STM32_CFG_I2C5_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+       (STM32_CFG_I2C5_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
+      !defined(__DOXYGEN__)
+    #error "invalid STM32_CFG_I2C5_CLOCK_MODE value specified"
+  #endif
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_I2C6_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+       (STM32_CFG_I2C6_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+       (STM32_CFG_I2C6_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
+      !defined(__DOXYGEN__)
+    #error "invalid STM32_CFG_I2C6_CLOCK_MODE value specified"
+  #endif
 #endif
 
 #if !((STM32_CFG_SPI1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
@@ -1649,6 +2124,18 @@
   #error "invalid STM32_CFG_USB_CLOCK_MODE value specified"
 #endif
 
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_OTGHS_CLOCK_MODE == STM32_CLOCK_DISABLED) ||             \
+       (STM32_CFG_OTGHS_CLOCK_MODE == STM32_CLOCK_AUTO) ||                  \
+       (STM32_CFG_OTGHS_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&              \
+      !defined(__DOXYGEN__)
+    #error "invalid STM32_CFG_OTGHS_CLOCK_MODE value specified"
+  #endif
+#endif
+
 #if !((STM32_CFG_SDMMC1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
      (STM32_CFG_SDMMC1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
      (STM32_CFG_SDMMC1_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
@@ -1668,6 +2155,49 @@
      (STM32_CFG_OCTOSPI_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&              \
     !defined(__DOXYGEN__)
   #error "invalid STM32_CFG_OCTOSPI_CLOCK_MODE value specified"
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_HSPI1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||             \
+       (STM32_CFG_HSPI1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                  \
+       (STM32_CFG_HSPI1_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&              \
+      !defined(__DOXYGEN__)
+    #error "invalid STM32_CFG_HSPI1_CLOCK_MODE value specified"
+  #endif
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_DSI_CLOCK_MODE == STM32_CLOCK_DISABLED) ||               \
+       (STM32_CFG_DSI_CLOCK_MODE == STM32_CLOCK_AUTO) ||                    \
+       (STM32_CFG_DSI_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&                \
+      !defined(__DOXYGEN__)
+    #error "invalid STM32_CFG_DSI_CLOCK_MODE value specified"
+  #endif
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_LTDC_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+       (STM32_CFG_LTDC_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+       (STM32_CFG_LTDC_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
+      !defined(__DOXYGEN__)
+    #error "invalid STM32_CFG_LTDC_CLOCK_MODE value specified"
+  #endif
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U585 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_SAES_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+       (STM32_CFG_SAES_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+       (STM32_CFG_SAES_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
+      !defined(__DOXYGEN__)
+    #error "invalid STM32_CFG_SAES_CLOCK_MODE value specified"
+  #endif
 #endif
 
 #if !((STM32_CFG_RNG_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                 \
@@ -1741,6 +2271,18 @@
   #error "invalid STM32_CFG_IWDG_CLOCK_MODE value specified"
 #endif
 
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !(((STM32_CFG_USBPHYC_SEL != RCC_CCIPR2_USBPHYCSEL_PLL1P) &&          \
+        (STM32_CFG_USBPHYC_SEL != RCC_CCIPR2_USBPHYCSEL_PLL1PDIV2)) ||      \
+       (STM32_CFG_PLL1IN_SEL == RCC_PLL1CFGR_PLL1SRC_HSE)) &&               \
+      !defined(__DOXYGEN__)
+    #error "PLL1 must use HSE when selected as OTG_HS PHY reference"
+  #endif
+#endif
+
 #if !((STM32_CFG_PLL1P_CLOCK_MODE != STM32_CLOCK_DISABLED) ||               \
      !defined(STM32_PLL1P_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
   #error "PLL1P clock disabled but PLL1P clock is required"
@@ -1811,6 +2353,16 @@
   #error "UART5 clock disabled but UART5 clock is required"
 #endif
 
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_USART6_CLOCK_MODE != STM32_CLOCK_DISABLED) ||            \
+       !defined(STM32_USART6_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+    #error "USART6 clock disabled but USART6 clock is required"
+  #endif
+#endif
+
 #if !((STM32_CFG_LPUART1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||             \
      !defined(STM32_LPUART1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
   #error "LPUART1 clock disabled but LPUART1 clock is required"
@@ -1834,6 +2386,26 @@
 #if !((STM32_CFG_I2C4_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
      !defined(STM32_I2C4_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
   #error "I2C4 clock disabled but I2C4 clock is required"
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_I2C5_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+       !defined(STM32_I2C5_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+    #error "I2C5 clock disabled but I2C5 clock is required"
+  #endif
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_I2C6_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+       !defined(STM32_I2C6_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+    #error "I2C6 clock disabled but I2C6 clock is required"
+  #endif
 #endif
 
 #if !((STM32_CFG_SPI1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
@@ -1866,6 +2438,16 @@
   #error "USB clock disabled but USB clock is required"
 #endif
 
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_OTGHS_CLOCK_MODE != STM32_CLOCK_DISABLED) ||             \
+       !defined(STM32_OTGHS_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+    #error "OTGHS clock disabled but OTGHS clock is required"
+  #endif
+#endif
+
 #if !((STM32_CFG_SDMMC1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
      !defined(STM32_SDMMC1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
   #error "SDMMC1 clock disabled but SDMMC1 clock is required"
@@ -1879,6 +2461,41 @@
 #if !((STM32_CFG_OCTOSPI_CLOCK_MODE != STM32_CLOCK_DISABLED) ||             \
      !defined(STM32_OCTOSPI_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
   #error "OCTOSPI clock disabled but OCTOSPI clock is required"
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_HSPI1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||             \
+       !defined(STM32_HSPI1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+    #error "HSPI1 clock disabled but HSPI1 clock is required"
+  #endif
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_DSI_CLOCK_MODE != STM32_CLOCK_DISABLED) ||               \
+       !defined(STM32_DSI_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+    #error "DSI clock disabled but DSI clock is required"
+  #endif
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_LTDC_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+       !defined(STM32_LTDC_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+    #error "LTDC clock disabled but LTDC clock is required"
+  #endif
+#endif
+
+#if (STM32_CLOCKTREE_VARIANT_U585 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)
+  #if !((STM32_CFG_SAES_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+       !defined(STM32_SAES_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+    #error "SAES clock disabled but SAES clock is required"
+  #endif
 #endif
 
 #if !((STM32_CFG_RNG_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                 \
@@ -1990,6 +2607,7 @@
 #define STM32_VOS1_USBCLK_MIN               47880000
 #define STM32_VOS1_USBCLK_MAX               48120000
 #define STM32_VOS1_SDMMCCLK_MAX             208000000
+#define STM32_VOS1_HSPICLK_MAX              200000000
 #if ((STM32_FLASH_ACR & FLASH_ACR_LPM) == 0) || \
     defined(__DOXYGEN__)
 #define STM32_VOS1_FLASH_0WS_MAX            32000000
@@ -2127,6 +2745,7 @@
 #define STM32_VOS2_USBCLK_MIN               47880000
 #define STM32_VOS2_USBCLK_MAX               48120000
 #define STM32_VOS2_SDMMCCLK_MAX             208000000
+#define STM32_VOS2_HSPICLK_MAX              200000000
 #if ((STM32_FLASH_ACR & FLASH_ACR_LPM) == 0) || \
     defined(__DOXYGEN__)
 #define STM32_VOS2_FLASH_0WS_MAX            30000000
@@ -2264,6 +2883,7 @@
 #define STM32_VOS3_USBCLK_MIN               47880000
 #define STM32_VOS3_USBCLK_MAX               48120000
 #define STM32_VOS3_SDMMCCLK_MAX             208000000
+#define STM32_VOS3_HSPICLK_MAX              200000000
 #if ((STM32_FLASH_ACR & FLASH_ACR_LPM) == 0) || \
     defined(__DOXYGEN__)
 #define STM32_VOS3_FLASH_0WS_MAX            24000000
@@ -2401,6 +3021,7 @@
 #define STM32_VOS4_USBCLK_MIN               47880000
 #define STM32_VOS4_USBCLK_MAX               48120000
 #define STM32_VOS4_SDMMCCLK_MAX             208000000
+#define STM32_VOS4_HSPICLK_MAX              200000000
 #if ((STM32_FLASH_ACR & FLASH_ACR_LPM) == 0) || \
     defined(__DOXYGEN__)
 #define STM32_VOS4_FLASH_0WS_MAX            12000000
@@ -2527,6 +3148,7 @@
 #define STM32_USBCLK_MIN                    STM32_VOS1_USBCLK_MIN
 #define STM32_USBCLK_MAX                    STM32_VOS1_USBCLK_MAX
 #define STM32_SDMMCCLK_MAX                  STM32_VOS1_SDMMCCLK_MAX
+#define STM32_HSPICLK_MAX                   STM32_VOS1_HSPICLK_MAX
 #define STM32_FLASH_0WS_MAX                 STM32_VOS1_FLASH_0WS_MAX
 #define STM32_FLASH_1WS_MAX                 STM32_VOS1_FLASH_1WS_MAX
 #define STM32_FLASH_2WS_MAX                 STM32_VOS1_FLASH_2WS_MAX
@@ -2567,6 +3189,7 @@
 #define STM32_USBCLK_MIN                    STM32_VOS2_USBCLK_MIN
 #define STM32_USBCLK_MAX                    STM32_VOS2_USBCLK_MAX
 #define STM32_SDMMCCLK_MAX                  STM32_VOS2_SDMMCCLK_MAX
+#define STM32_HSPICLK_MAX                   STM32_VOS2_HSPICLK_MAX
 #define STM32_FLASH_0WS_MAX                 STM32_VOS2_FLASH_0WS_MAX
 #define STM32_FLASH_1WS_MAX                 STM32_VOS2_FLASH_1WS_MAX
 #define STM32_FLASH_2WS_MAX                 STM32_VOS2_FLASH_2WS_MAX
@@ -2607,6 +3230,7 @@
 #define STM32_USBCLK_MIN                    STM32_VOS3_USBCLK_MIN
 #define STM32_USBCLK_MAX                    STM32_VOS3_USBCLK_MAX
 #define STM32_SDMMCCLK_MAX                  STM32_VOS3_SDMMCCLK_MAX
+#define STM32_HSPICLK_MAX                   STM32_VOS3_HSPICLK_MAX
 #define STM32_FLASH_0WS_MAX                 STM32_VOS3_FLASH_0WS_MAX
 #define STM32_FLASH_1WS_MAX                 STM32_VOS3_FLASH_1WS_MAX
 #define STM32_FLASH_2WS_MAX                 STM32_VOS3_FLASH_2WS_MAX
@@ -2647,6 +3271,7 @@
 #define STM32_USBCLK_MIN                    STM32_VOS4_USBCLK_MIN
 #define STM32_USBCLK_MAX                    STM32_VOS4_USBCLK_MAX
 #define STM32_SDMMCCLK_MAX                  STM32_VOS4_SDMMCCLK_MAX
+#define STM32_HSPICLK_MAX                   STM32_VOS4_HSPICLK_MAX
 #define STM32_FLASH_0WS_MAX                 STM32_VOS4_FLASH_0WS_MAX
 #define STM32_FLASH_1WS_MAX                 STM32_VOS4_FLASH_1WS_MAX
 #define STM32_FLASH_2WS_MAX                 STM32_VOS4_FLASH_2WS_MAX
@@ -2826,6 +3451,21 @@
 #endif
 
 /**
+ * @brief   USART6 sink demand state.
+ */
+#if (((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) &&                            \
+     ((STM32_CFG_USART6_CLOCK_MODE == STM32_CLOCK_ENABLED) ||               \
+      ((STM32_CFG_USART6_CLOCK_MODE == STM32_CLOCK_AUTO) &&                 \
+       defined(STM32_USART6_CLOCK_REQUIRED)))) || defined(__DOXYGEN__)
+  #define STM32_USART6_DEMANDED             TRUE
+#else
+  #define STM32_USART6_DEMANDED             FALSE
+#endif
+
+/**
  * @brief   LPUART1 sink demand state.
  */
 #if ((STM32_CFG_LPUART1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||               \
@@ -2878,6 +3518,36 @@
   #define STM32_I2C4_DEMANDED               TRUE
 #else
   #define STM32_I2C4_DEMANDED               FALSE
+#endif
+
+/**
+ * @brief   I2C5 sink demand state.
+ */
+#if (((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) &&                            \
+     ((STM32_CFG_I2C5_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                 \
+      ((STM32_CFG_I2C5_CLOCK_MODE == STM32_CLOCK_AUTO) &&                   \
+       defined(STM32_I2C5_CLOCK_REQUIRED)))) || defined(__DOXYGEN__)
+  #define STM32_I2C5_DEMANDED               TRUE
+#else
+  #define STM32_I2C5_DEMANDED               FALSE
+#endif
+
+/**
+ * @brief   I2C6 sink demand state.
+ */
+#if (((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) &&                            \
+     ((STM32_CFG_I2C6_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                 \
+      ((STM32_CFG_I2C6_CLOCK_MODE == STM32_CLOCK_AUTO) &&                   \
+       defined(STM32_I2C6_CLOCK_REQUIRED)))) || defined(__DOXYGEN__)
+  #define STM32_I2C6_DEMANDED               TRUE
+#else
+  #define STM32_I2C6_DEMANDED               FALSE
 #endif
 
 /**
@@ -2974,6 +3644,21 @@
 #endif
 
 /**
+ * @brief   OTGHS sink demand state.
+ */
+#if (((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) &&                            \
+     ((STM32_CFG_OTGHS_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
+      ((STM32_CFG_OTGHS_CLOCK_MODE == STM32_CLOCK_AUTO) &&                  \
+       defined(STM32_OTGHS_CLOCK_REQUIRED)))) || defined(__DOXYGEN__)
+  #define STM32_OTGHS_DEMANDED              TRUE
+#else
+  #define STM32_OTGHS_DEMANDED              FALSE
+#endif
+
+/**
  * @brief   SDMMC1 sink demand state.
  */
 #if ((STM32_CFG_SDMMC1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
@@ -3004,6 +3689,61 @@
   #define STM32_OCTOSPI_DEMANDED            TRUE
 #else
   #define STM32_OCTOSPI_DEMANDED            FALSE
+#endif
+
+/**
+ * @brief   HSPI1 sink demand state.
+ */
+#if (((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) &&                            \
+     ((STM32_CFG_HSPI1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
+      ((STM32_CFG_HSPI1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                  \
+       defined(STM32_HSPI1_CLOCK_REQUIRED)))) || defined(__DOXYGEN__)
+  #define STM32_HSPI1_DEMANDED              TRUE
+#else
+  #define STM32_HSPI1_DEMANDED              FALSE
+#endif
+
+/**
+ * @brief   DSI sink demand state.
+ */
+#if (((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) &&                            \
+     ((STM32_CFG_DSI_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+      ((STM32_CFG_DSI_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+       defined(STM32_DSI_CLOCK_REQUIRED)))) || defined(__DOXYGEN__)
+  #define STM32_DSI_DEMANDED                TRUE
+#else
+  #define STM32_DSI_DEMANDED                FALSE
+#endif
+
+/**
+ * @brief   LTDC sink demand state.
+ */
+#if (((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) &&                            \
+     ((STM32_CFG_LTDC_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                 \
+      ((STM32_CFG_LTDC_CLOCK_MODE == STM32_CLOCK_AUTO) &&                   \
+       defined(STM32_LTDC_CLOCK_REQUIRED)))) || defined(__DOXYGEN__)
+  #define STM32_LTDC_DEMANDED               TRUE
+#else
+  #define STM32_LTDC_DEMANDED               FALSE
+#endif
+
+/**
+ * @brief   SAES sink demand state.
+ */
+#if (((STM32_CLOCKTREE_VARIANT_U585 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) &&                            \
+     ((STM32_CFG_SAES_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                 \
+      ((STM32_CFG_SAES_CLOCK_MODE == STM32_CLOCK_AUTO) &&                   \
+       defined(STM32_SAES_CLOCK_REQUIRED)))) || defined(__DOXYGEN__)
+  #define STM32_SAES_DEMANDED               TRUE
+#else
+  #define STM32_SAES_DEMANDED               FALSE
 #endif
 
 /**
@@ -3139,6 +3879,17 @@
 #define STM32_AUDIOCLK_ENABLED              TRUE
 
 /**
+ * @brief   DSIPHY clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_DSIPHY_ENABLED              (((STM32_DSI_ENABLED == TRUE) && \
+                                              (STM32_CFG_DSI_SEL == RCC_CCIPR2_DSIHOSTSEL_DSIPHY)))
+#else
+  #define STM32_DSIPHY_ENABLED              FALSE
+#endif
+
+/**
  * @brief   HSI16 clock derived enable state.
  */
 #define STM32_HSI16_ENABLED                 STM32_CFG_HSI16_ENABLE
@@ -3249,6 +4000,10 @@
                                               (STM32_CFG_I2C2_SEL == RCC_CCIPR1_I2C2SEL_MSIK)) || \
                                              ((STM32_I2C4_ENABLED == TRUE) && \
                                               (STM32_CFG_I2C4_SEL == RCC_CCIPR1_I2C4SEL_MSIK)) || \
+                                             ((STM32_I2C5_ENABLED == TRUE) && \
+                                              (STM32_CFG_I2C5_SEL == RCC_CCIPR2_I2C5SEL_MSIK)) || \
+                                             ((STM32_I2C6_ENABLED == TRUE) && \
+                                              (STM32_CFG_I2C6_SEL == RCC_CCIPR2_I2C6SEL_MSIK)) || \
                                              ((STM32_I2C3_ENABLED == TRUE) && \
                                               (STM32_CFG_I2C3_SEL == RCC_CCIPR3_I2C3SEL_MSIK)) || \
                                              ((STM32_SPI1_ENABLED == TRUE) && \
@@ -3293,6 +4048,9 @@
  * @brief   PLL1P clock derived enable state.
  */
 #define STM32_PLL1P_ENABLED                 ((STM32_PLL1P_DEMANDED == TRUE) || \
+                                             (STM32_PLL1PDIV2_ENABLED == TRUE) || \
+                                             ((STM32_USBPHYC_ENABLED == TRUE) && \
+                                              (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_PLL1P)) || \
                                              ((STM32_SDMMC_ENABLED == TRUE) && \
                                               (STM32_CFG_SDMMC_SEL == RCC_CCIPR2_SDMMCSEL_PLL1P)) || \
                                              ((STM32_SAI1_ENABLED == TRUE) && \
@@ -3313,7 +4071,9 @@
                                              ((STM32_ICLK_ENABLED == TRUE) && \
                                               (STM32_CFG_ICLK_SEL == RCC_CCIPR1_ICLKSEL_PLL1Q)) || \
                                              ((STM32_OCTOSPI_ENABLED == TRUE) && \
-                                              (STM32_CFG_OCTOSPI_SEL == RCC_CCIPR2_OCTOSPISEL_PLL1Q)))
+                                              (STM32_CFG_OCTOSPI_SEL == RCC_CCIPR2_OCTOSPISEL_PLL1Q)) || \
+                                             ((STM32_HSPI1_ENABLED == TRUE) && \
+                                              (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL1Q)))
 
 /**
  * @brief   PLL1R clock derived enable state.
@@ -3359,12 +4119,16 @@
                                              ((STM32_ICLK_ENABLED == TRUE) && \
                                               (STM32_CFG_ICLK_SEL == RCC_CCIPR1_ICLKSEL_PLL2Q)) || \
                                              ((STM32_OCTOSPI_ENABLED == TRUE) && \
-                                              (STM32_CFG_OCTOSPI_SEL == RCC_CCIPR2_OCTOSPISEL_PLL2Q)))
+                                              (STM32_CFG_OCTOSPI_SEL == RCC_CCIPR2_OCTOSPISEL_PLL2Q)) || \
+                                             ((STM32_HSPI1_ENABLED == TRUE) && \
+                                              (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL2Q)))
 
 /**
  * @brief   PLL2R clock derived enable state.
  */
 #define STM32_PLL2R_ENABLED                 ((STM32_PLL2R_DEMANDED == TRUE) || \
+                                             ((STM32_LTDC_ENABLED == TRUE) && \
+                                              (STM32_CFG_LTDC_SEL == RCC_CCIPR2_LTDCSEL_PLL2R)) || \
                                              ((STM32_ADCDAC_ENABLED == TRUE) && \
                                               (STM32_CFG_ADCDAC_SEL == RCC_CCIPR3_ADCDACSEL_PLL2R)))
 
@@ -3389,6 +4153,8 @@
  * @brief   PLL3P clock derived enable state.
  */
 #define STM32_PLL3P_ENABLED                 ((STM32_PLL3P_DEMANDED == TRUE) || \
+                                             ((STM32_DSI_ENABLED == TRUE) && \
+                                              (STM32_CFG_DSI_SEL == RCC_CCIPR2_DSIHOSTSEL_PLL3P)) || \
                                              ((STM32_SAI1_ENABLED == TRUE) && \
                                               (STM32_CFG_SAI1_SEL == RCC_CCIPR2_SAI1SEL_PLL3P)) || \
                                              ((STM32_SAI2_ENABLED == TRUE) && \
@@ -3406,7 +4172,11 @@
 /**
  * @brief   PLL3R clock derived enable state.
  */
-#define STM32_PLL3R_ENABLED                 ((STM32_PLL3R_DEMANDED == TRUE))
+#define STM32_PLL3R_ENABLED                 ((STM32_PLL3R_DEMANDED == TRUE) || \
+                                             ((STM32_LTDC_ENABLED == TRUE) && \
+                                              (STM32_CFG_LTDC_SEL == RCC_CCIPR2_LTDCSEL_PLL3R)) || \
+                                             ((STM32_HSPI1_ENABLED == TRUE) && \
+                                              (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL3R)))
 
 /**
  * @brief   SYSCLK clock derived enable state.
@@ -3444,6 +4214,16 @@
 #define STM32_PCLK3_ENABLED                 TRUE
 
 /**
+ * @brief   DPHY clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_DPHY_ENABLED                TRUE
+#else
+  #define STM32_DPHY_ENABLED                FALSE
+#endif
+
+/**
  * @brief   HSEDIV clock derived enable state.
  */
 #define STM32_HSEDIV_ENABLED                (((STM32_RTC_ENABLED == TRUE) && \
@@ -3474,6 +4254,8 @@
                                               (STM32_CFG_UART4_SEL == RCC_CCIPR1_UART4SEL_LSE)) || \
                                              ((STM32_UART5_ENABLED == TRUE) && \
                                               (STM32_CFG_UART5_SEL == RCC_CCIPR1_UART5SEL_LSE)) || \
+                                             ((STM32_USART6_ENABLED == TRUE) && \
+                                              (STM32_CFG_USART6_SEL == RCC_CCIPR2_USART6SEL_LSE)) || \
                                              ((STM32_LPUART1_ENABLED == TRUE) && \
                                               (STM32_CFG_LPUART1_SEL == RCC_CCIPR3_LPUART1SEL_LSE)) || \
                                              ((STM32_SYSTICK_ENABLED == TRUE) && \
@@ -3523,6 +4305,18 @@
 #define STM32_UART5_ENABLED                 ((STM32_UART5_DEMANDED == TRUE))
 
 /**
+ * @brief   USART6 clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_USART6_ENABLED              ((STM32_USART6_DEMANDED == TRUE))
+#else
+  #define STM32_USART6_ENABLED              FALSE
+#endif
+
+/**
  * @brief   LPUART1 clock derived enable state.
  */
 #define STM32_LPUART1_ENABLED               ((STM32_LPUART1_DEMANDED == TRUE))
@@ -3541,6 +4335,30 @@
  * @brief   I2C4 clock derived enable state.
  */
 #define STM32_I2C4_ENABLED                  ((STM32_I2C4_DEMANDED == TRUE))
+
+/**
+ * @brief   I2C5 clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_I2C5_ENABLED                ((STM32_I2C5_DEMANDED == TRUE))
+#else
+  #define STM32_I2C5_ENABLED                FALSE
+#endif
+
+/**
+ * @brief   I2C6 clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_I2C6_ENABLED                ((STM32_I2C6_DEMANDED == TRUE))
+#else
+  #define STM32_I2C6_ENABLED                FALSE
+#endif
 
 /**
  * @brief   I2C3 clock derived enable state.
@@ -3606,6 +4424,44 @@
 #define STM32_USB_ENABLED                   ((STM32_USB_DEMANDED == TRUE))
 
 /**
+ * @brief   HSEDIV2 clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_HSEDIV2_ENABLED             (((STM32_USBPHYC_ENABLED == TRUE) && \
+                                              (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_HSEDIV2)))
+#else
+  #define STM32_HSEDIV2_ENABLED             FALSE
+#endif
+
+/**
+ * @brief   PLL1PDIV2 clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_PLL1PDIV2_ENABLED           (((STM32_USBPHYC_ENABLED == TRUE) && \
+                                              (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_PLL1PDIV2)))
+#else
+  #define STM32_PLL1PDIV2_ENABLED           FALSE
+#endif
+
+/**
+ * @brief   USBPHYC clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_USBPHYC_ENABLED             ((STM32_OTGHS_DEMANDED == TRUE))
+#else
+  #define STM32_USBPHYC_ENABLED             FALSE
+#endif
+
+/**
  * @brief   SDMMC clock derived enable state.
  */
 #define STM32_SDMMC_ENABLED                 ((STM32_SDMMC1_ENABLED == TRUE) || \
@@ -3622,15 +4478,70 @@
 #define STM32_SDMMC2_ENABLED                ((STM32_SDMMC2_DEMANDED == TRUE))
 
 /**
+ * @brief   DSI clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_DSI_ENABLED                 ((STM32_DSI_DEMANDED == TRUE))
+#else
+  #define STM32_DSI_ENABLED                 FALSE
+#endif
+
+/**
+ * @brief   LTDC clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_LTDC_ENABLED                ((STM32_LTDC_DEMANDED == TRUE))
+#else
+  #define STM32_LTDC_ENABLED                FALSE
+#endif
+
+/**
  * @brief   OCTOSPI clock derived enable state.
  */
 #define STM32_OCTOSPI_ENABLED               ((STM32_OCTOSPI_DEMANDED == TRUE))
+
+/**
+ * @brief   HSPI1 clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_HSPI1_ENABLED               ((STM32_HSPI1_DEMANDED == TRUE))
+#else
+  #define STM32_HSPI1_ENABLED               FALSE
+#endif
 
 /**
  * @brief   HSI48DIV2 clock derived enable state.
  */
 #define STM32_HSI48DIV2_ENABLED             (((STM32_RNG_ENABLED == TRUE) && \
                                               (STM32_CFG_RNG_SEL == RCC_CCIPR2_RNGSEL_HSI48DIV2)))
+
+/**
+ * @brief   SHSIDIV2 clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U585 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_SHSIDIV2_ENABLED            (((STM32_SAES_ENABLED == TRUE) && \
+                                              (STM32_CFG_SAES_SEL == RCC_CCIPR2_SAESSEL_SHSIDIV2)))
+#else
+  #define STM32_SHSIDIV2_ENABLED            FALSE
+#endif
+
+/**
+ * @brief   SAES clock derived enable state.
+ */
+#if ((STM32_CLOCKTREE_VARIANT_U585 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+  #define STM32_SAES_ENABLED                ((STM32_SAES_DEMANDED == TRUE))
+#else
+  #define STM32_SAES_ENABLED                FALSE
+#endif
 
 /**
  * @brief   RNG clock derived enable state.
@@ -3723,6 +4634,37 @@
 #define STM32_AUDIOCLK_FREQ                 STM32_AUDIOCLK_SOURCE_FREQ
 #define STM32_AUDIOCLK_CLOCK                STM32_AUDIOCLK_SOURCE_FREQ
 
+/* --- Macros and checks for the DSIPHY clock point. -----------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   DSIPHY nominal source frequency.
+ */
+  #define STM32_DSIPHY_SOURCE_FREQ          STM32_CFG_DSIPHYCLK
+
+/**
+ * @brief   DSIPHY clock register bits.
+ */
+#define STM32_DSIPHY_BITS                   0U
+
+/**
+ * @brief   DSI PHY PLL output clock point.
+ */
+  #if (STM32_DSIPHY_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_DSIPHY_FREQ               STM32_DSIPHY_SOURCE_FREQ
+    #define STM32_DSIPHY_CLOCK              STM32_DSIPHY_SOURCE_FREQ
+  #else
+    #define STM32_DSIPHY_FREQ               0U
+    #define STM32_DSIPHY_CLOCK              0U
+  #endif
+#else
+  #define STM32_DSIPHY_SOURCE_FREQ          0U
+  #define STM32_DSIPHY_BITS                 0U
+  #define STM32_DSIPHY_FREQ                 0U
+  #define STM32_DSIPHY_CLOCK                0U
+#endif
+
 /* --- Macros and checks for the HSI16 clock point. ------------------------*/
 
 #if !((STM32_CFG_HSI16_ENABLE == TRUE) || (STM32_CFG_HSI16_ENABLE == FALSE)) && \
@@ -3793,6 +4735,12 @@
   #error "HSI16 not enabled, required by UART5"
 #endif
 
+#if !((STM32_HSI16_ENABLED == TRUE) || !((STM32_USART6_ENABLED == TRUE) &&  \
+      (STM32_CFG_USART6_SEL == RCC_CCIPR2_USART6SEL_HSI16))) &&             \
+    !defined(__DOXYGEN__)
+  #error "HSI16 not enabled, required by USART6"
+#endif
+
 #if !((STM32_HSI16_ENABLED == TRUE) || !((STM32_LPUART1_ENABLED == TRUE) && \
       (STM32_CFG_LPUART1_SEL == RCC_CCIPR3_LPUART1SEL_HSI16))) &&           \
     !defined(__DOXYGEN__)
@@ -3812,6 +4760,16 @@
 #if !((STM32_HSI16_ENABLED == TRUE) || !((STM32_I2C4_ENABLED == TRUE) &&    \
       (STM32_CFG_I2C4_SEL == RCC_CCIPR1_I2C4SEL_HSI16))) && !defined(__DOXYGEN__)
   #error "HSI16 not enabled, required by I2C4"
+#endif
+
+#if !((STM32_HSI16_ENABLED == TRUE) || !((STM32_I2C5_ENABLED == TRUE) &&    \
+      (STM32_CFG_I2C5_SEL == RCC_CCIPR2_I2C5SEL_HSI16))) && !defined(__DOXYGEN__)
+  #error "HSI16 not enabled, required by I2C5"
+#endif
+
+#if !((STM32_HSI16_ENABLED == TRUE) || !((STM32_I2C6_ENABLED == TRUE) &&    \
+      (STM32_CFG_I2C6_SEL == RCC_CCIPR2_I2C6SEL_HSI16))) && !defined(__DOXYGEN__)
+  #error "HSI16 not enabled, required by I2C6"
 #endif
 
 #if !((STM32_HSI16_ENABLED == TRUE) || !((STM32_I2C3_ENABLED == TRUE) &&    \
@@ -3958,6 +4916,19 @@
   #error "invalid STM32_CFG_SHSI_ENABLE value specified"
 #endif
 
+#if !defined(STM32_SHSIDIV2_ENABLED) && !defined(__DOXYGEN__)
+  #error "STM32_SHSIDIV2_ENABLED not defined"
+#endif
+#if !((STM32_SHSI_ENABLED == TRUE) || !((STM32_SHSIDIV2_ENABLED == TRUE))) && \
+    !defined(__DOXYGEN__)
+  #error "SHSI not enabled, required by SHSIDIV2"
+#endif
+
+#if !((STM32_SHSI_ENABLED == TRUE) || !((STM32_SAES_ENABLED == TRUE) &&     \
+      (STM32_CFG_SAES_SEL == RCC_CCIPR2_SAESSEL_SHSI))) && !defined(__DOXYGEN__)
+  #error "SHSI not enabled, required by SAES"
+#endif
+
 /**
  * @brief   SHSI nominal source frequency.
  */
@@ -4028,6 +4999,20 @@
 #if !((STM32_HSE_ENABLED == TRUE) || !((STM32_FDCAN1_ENABLED == TRUE) &&    \
       (STM32_CFG_FDCAN1_SEL == RCC_CCIPR1_FDCANSEL_HSE))) && !defined(__DOXYGEN__)
   #error "HSE not enabled, required by FDCAN1"
+#endif
+
+#if !defined(STM32_HSEDIV2_ENABLED) && !defined(__DOXYGEN__)
+  #error "STM32_HSEDIV2_ENABLED not defined"
+#endif
+#if !((STM32_HSE_ENABLED == TRUE) || !((STM32_HSEDIV2_ENABLED == TRUE))) && \
+    !defined(__DOXYGEN__)
+  #error "HSE not enabled, required by HSEDIV2"
+#endif
+
+#if !((STM32_HSE_ENABLED == TRUE) || !((STM32_USBPHYC_ENABLED == TRUE) &&   \
+      (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_HSE))) &&             \
+    !defined(__DOXYGEN__)
+  #error "HSE not enabled, required by USBPHYC"
 #endif
 
 #if !((STM32_HSE_ENABLED == TRUE) || !((STM32_ADCDAC_ENABLED == TRUE) &&    \
@@ -5596,6 +6581,40 @@
   #error "STM32_PCLK3_FREQ above maximum frequency"
 #endif
 
+/* --- Macros and checks for the DPHY clock point. -------------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   DPHY clock register bits.
+ */
+#if (STM32_CFG_DPHY_VALUE == 1) || defined(__DOXYGEN__)
+  #define STM32_DPHY_BITS                   RCC_CFGR2_PPRE_DPHY_DIV1
+#elif (STM32_CFG_DPHY_VALUE == 2)
+  #define STM32_DPHY_BITS                   RCC_CFGR2_PPRE_DPHY_DIV2
+#elif (STM32_CFG_DPHY_VALUE == 4)
+  #define STM32_DPHY_BITS                   RCC_CFGR2_PPRE_DPHY_DIV4
+#elif (STM32_CFG_DPHY_VALUE == 8)
+  #define STM32_DPHY_BITS                   RCC_CFGR2_PPRE_DPHY_DIV8
+#elif (STM32_CFG_DPHY_VALUE == 16)
+  #define STM32_DPHY_BITS                   RCC_CFGR2_PPRE_DPHY_DIV16
+#else
+  #error "invalid STM32_CFG_DPHY_VALUE value specified"
+#endif
+
+/**
+ * @brief   DSI PHY bus clock point.
+ */
+  #define STM32_DPHY_FREQ                   (STM32_HCLK_FREQ /              \
+                                             STM32_CFG_DPHY_VALUE)
+  #define STM32_DPHY_CLOCK                  (STM32_HCLK_CLOCK /             \
+                                             STM32_CFG_DPHY_VALUE)
+#else
+  #define STM32_DPHY_BITS                   0U
+  #define STM32_DPHY_FREQ                   0U
+  #define STM32_DPHY_CLOCK                  0U
+#endif
+
 /* --- Macros and checks for the HSEDIV clock point. -----------------------*/
 
 /**
@@ -6108,6 +7127,73 @@
   #define STM32_UART5_CLOCK                 0U
 #endif
 
+/* --- Macros and checks for the USART6 clock point. -----------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   USART6 clock register bits.
+ */
+#if (STM32_CFG_USART6_SEL == RCC_CCIPR2_USART6SEL_PCLK1) || defined(__DOXYGEN__)
+  #if (STM32_USART6_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_USART6_BITS               RCC_CCIPR2_USART6SEL_PCLK1
+  #else
+    #define STM32_USART6_BITS               0U
+  #endif
+#elif (STM32_CFG_USART6_SEL == RCC_CCIPR2_USART6SEL_SYSCLK)
+  #if (STM32_USART6_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_USART6_BITS               RCC_CCIPR2_USART6SEL_SYSCLK
+  #else
+    #define STM32_USART6_BITS               0U
+  #endif
+#elif (STM32_CFG_USART6_SEL == RCC_CCIPR2_USART6SEL_HSI16)
+  #if (STM32_USART6_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_USART6_BITS               RCC_CCIPR2_USART6SEL_HSI16
+  #else
+    #define STM32_USART6_BITS               0U
+  #endif
+#elif (STM32_CFG_USART6_SEL == RCC_CCIPR2_USART6SEL_LSE)
+  #if (STM32_USART6_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_USART6_BITS               RCC_CCIPR2_USART6SEL_LSE
+  #else
+    #define STM32_USART6_BITS               0U
+  #endif
+#else
+  #error "invalid STM32_CFG_USART6_SEL value specified"
+#endif
+
+/**
+ * @brief   USART6 clock point.
+ */
+#if ((STM32_USART6_ENABLED == TRUE) && \
+     (STM32_CFG_USART6_SEL == RCC_CCIPR2_USART6SEL_PCLK1)) || \
+    defined(__DOXYGEN__)
+  #define STM32_USART6_FREQ                 STM32_PCLK1_FREQ
+  #define STM32_USART6_CLOCK                STM32_PCLK1_CLOCK
+#elif (STM32_USART6_ENABLED == TRUE) && \
+      (STM32_CFG_USART6_SEL == RCC_CCIPR2_USART6SEL_SYSCLK)
+  #define STM32_USART6_FREQ                 STM32_SYSCLK_FREQ
+  #define STM32_USART6_CLOCK                STM32_SYSCLK_CLOCK
+#elif (STM32_USART6_ENABLED == TRUE) && \
+      (STM32_CFG_USART6_SEL == RCC_CCIPR2_USART6SEL_HSI16)
+  #define STM32_USART6_FREQ                 STM32_HSI16_FREQ
+  #define STM32_USART6_CLOCK                STM32_HSI16_CLOCK
+#elif (STM32_USART6_ENABLED == TRUE) && \
+      (STM32_CFG_USART6_SEL == RCC_CCIPR2_USART6SEL_LSE)
+  #define STM32_USART6_FREQ                 STM32_LSESYS_FREQ
+  #define STM32_USART6_CLOCK                STM32_LSESYS_CLOCK
+#else
+  #define STM32_USART6_FREQ                 0U
+  #define STM32_USART6_CLOCK                0U
+#endif
+#else
+  #define STM32_USART6_BITS                 0U
+  #define STM32_USART6_FREQ                 0U
+  #define STM32_USART6_CLOCK                0U
+#endif
+
 /* --- Macros and checks for the LPUART1 clock point. ----------------------*/
 
 /**
@@ -6349,6 +7435,140 @@
 #else
   #define STM32_I2C4_FREQ                   0U
   #define STM32_I2C4_CLOCK                  0U
+#endif
+
+/* --- Macros and checks for the I2C5 clock point. -------------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   I2C5 clock register bits.
+ */
+#if (STM32_CFG_I2C5_SEL == RCC_CCIPR2_I2C5SEL_PCLK1) || defined(__DOXYGEN__)
+  #if (STM32_I2C5_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_I2C5_BITS                 RCC_CCIPR2_I2C5SEL_PCLK1
+  #else
+    #define STM32_I2C5_BITS                 0U
+  #endif
+#elif (STM32_CFG_I2C5_SEL == RCC_CCIPR2_I2C5SEL_SYSCLK)
+  #if (STM32_I2C5_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_I2C5_BITS                 RCC_CCIPR2_I2C5SEL_SYSCLK
+  #else
+    #define STM32_I2C5_BITS                 0U
+  #endif
+#elif (STM32_CFG_I2C5_SEL == RCC_CCIPR2_I2C5SEL_HSI16)
+  #if (STM32_I2C5_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_I2C5_BITS                 RCC_CCIPR2_I2C5SEL_HSI16
+  #else
+    #define STM32_I2C5_BITS                 0U
+  #endif
+#elif (STM32_CFG_I2C5_SEL == RCC_CCIPR2_I2C5SEL_MSIK)
+  #if (STM32_I2C5_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_I2C5_BITS                 RCC_CCIPR2_I2C5SEL_MSIK
+  #else
+    #define STM32_I2C5_BITS                 0U
+  #endif
+#else
+  #error "invalid STM32_CFG_I2C5_SEL value specified"
+#endif
+
+/**
+ * @brief   I2C5 clock point.
+ */
+#if ((STM32_I2C5_ENABLED == TRUE) && \
+     (STM32_CFG_I2C5_SEL == RCC_CCIPR2_I2C5SEL_PCLK1)) || \
+    defined(__DOXYGEN__)
+  #define STM32_I2C5_FREQ                   STM32_PCLK1_FREQ
+  #define STM32_I2C5_CLOCK                  STM32_PCLK1_CLOCK
+#elif (STM32_I2C5_ENABLED == TRUE) && \
+      (STM32_CFG_I2C5_SEL == RCC_CCIPR2_I2C5SEL_SYSCLK)
+  #define STM32_I2C5_FREQ                   STM32_SYSCLK_FREQ
+  #define STM32_I2C5_CLOCK                  STM32_SYSCLK_CLOCK
+#elif (STM32_I2C5_ENABLED == TRUE) && \
+      (STM32_CFG_I2C5_SEL == RCC_CCIPR2_I2C5SEL_HSI16)
+  #define STM32_I2C5_FREQ                   STM32_HSI16_FREQ
+  #define STM32_I2C5_CLOCK                  STM32_HSI16_CLOCK
+#elif (STM32_I2C5_ENABLED == TRUE) && \
+      (STM32_CFG_I2C5_SEL == RCC_CCIPR2_I2C5SEL_MSIK)
+  #define STM32_I2C5_FREQ                   STM32_MSIK_FREQ
+  #define STM32_I2C5_CLOCK                  STM32_MSIK_CLOCK
+#else
+  #define STM32_I2C5_FREQ                   0U
+  #define STM32_I2C5_CLOCK                  0U
+#endif
+#else
+  #define STM32_I2C5_BITS                   0U
+  #define STM32_I2C5_FREQ                   0U
+  #define STM32_I2C5_CLOCK                  0U
+#endif
+
+/* --- Macros and checks for the I2C6 clock point. -------------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   I2C6 clock register bits.
+ */
+#if (STM32_CFG_I2C6_SEL == RCC_CCIPR2_I2C6SEL_PCLK1) || defined(__DOXYGEN__)
+  #if (STM32_I2C6_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_I2C6_BITS                 RCC_CCIPR2_I2C6SEL_PCLK1
+  #else
+    #define STM32_I2C6_BITS                 0U
+  #endif
+#elif (STM32_CFG_I2C6_SEL == RCC_CCIPR2_I2C6SEL_SYSCLK)
+  #if (STM32_I2C6_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_I2C6_BITS                 RCC_CCIPR2_I2C6SEL_SYSCLK
+  #else
+    #define STM32_I2C6_BITS                 0U
+  #endif
+#elif (STM32_CFG_I2C6_SEL == RCC_CCIPR2_I2C6SEL_HSI16)
+  #if (STM32_I2C6_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_I2C6_BITS                 RCC_CCIPR2_I2C6SEL_HSI16
+  #else
+    #define STM32_I2C6_BITS                 0U
+  #endif
+#elif (STM32_CFG_I2C6_SEL == RCC_CCIPR2_I2C6SEL_MSIK)
+  #if (STM32_I2C6_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_I2C6_BITS                 RCC_CCIPR2_I2C6SEL_MSIK
+  #else
+    #define STM32_I2C6_BITS                 0U
+  #endif
+#else
+  #error "invalid STM32_CFG_I2C6_SEL value specified"
+#endif
+
+/**
+ * @brief   I2C6 clock point.
+ */
+#if ((STM32_I2C6_ENABLED == TRUE) && \
+     (STM32_CFG_I2C6_SEL == RCC_CCIPR2_I2C6SEL_PCLK1)) || \
+    defined(__DOXYGEN__)
+  #define STM32_I2C6_FREQ                   STM32_PCLK1_FREQ
+  #define STM32_I2C6_CLOCK                  STM32_PCLK1_CLOCK
+#elif (STM32_I2C6_ENABLED == TRUE) && \
+      (STM32_CFG_I2C6_SEL == RCC_CCIPR2_I2C6SEL_SYSCLK)
+  #define STM32_I2C6_FREQ                   STM32_SYSCLK_FREQ
+  #define STM32_I2C6_CLOCK                  STM32_SYSCLK_CLOCK
+#elif (STM32_I2C6_ENABLED == TRUE) && \
+      (STM32_CFG_I2C6_SEL == RCC_CCIPR2_I2C6SEL_HSI16)
+  #define STM32_I2C6_FREQ                   STM32_HSI16_FREQ
+  #define STM32_I2C6_CLOCK                  STM32_HSI16_CLOCK
+#elif (STM32_I2C6_ENABLED == TRUE) && \
+      (STM32_CFG_I2C6_SEL == RCC_CCIPR2_I2C6SEL_MSIK)
+  #define STM32_I2C6_FREQ                   STM32_MSIK_FREQ
+  #define STM32_I2C6_CLOCK                  STM32_MSIK_CLOCK
+#else
+  #define STM32_I2C6_FREQ                   0U
+  #define STM32_I2C6_CLOCK                  0U
+#endif
+#else
+  #define STM32_I2C6_BITS                   0U
+  #define STM32_I2C6_FREQ                   0U
+  #define STM32_I2C6_CLOCK                  0U
 #endif
 
 /* --- Macros and checks for the I2C3 clock point. -------------------------*/
@@ -6852,6 +8072,127 @@
   #define STM32_USB_CLOCK                   0U
 #endif
 
+/* --- Macros and checks for the HSEDIV2 clock point. ----------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   HSEDIV2 clock register bits.
+ */
+#define STM32_HSEDIV2_BITS                  0U
+
+/**
+ * @brief   HSE divided-by-two clock point.
+ */
+  #if (STM32_HSEDIV2_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_HSEDIV2_FREQ              (STM32_HSE_FREQ / 2U)
+    #define STM32_HSEDIV2_CLOCK             (STM32_HSE_CLOCK / 2U)
+  #else
+    #define STM32_HSEDIV2_FREQ              0U
+    #define STM32_HSEDIV2_CLOCK             0U
+  #endif
+#else
+  #define STM32_HSEDIV2_BITS                0U
+  #define STM32_HSEDIV2_FREQ                0U
+  #define STM32_HSEDIV2_CLOCK               0U
+#endif
+
+/* --- Macros and checks for the PLL1PDIV2 clock point. --------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   PLL1PDIV2 clock register bits.
+ */
+#define STM32_PLL1PDIV2_BITS                0U
+
+/**
+ * @brief   PLL1 P output divided-by-two clock point.
+ */
+  #if (STM32_PLL1PDIV2_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_PLL1PDIV2_FREQ            (STM32_PLL1P_FREQ / 2U)
+    #define STM32_PLL1PDIV2_CLOCK           (STM32_PLL1P_CLOCK / 2U)
+  #else
+    #define STM32_PLL1PDIV2_FREQ            0U
+    #define STM32_PLL1PDIV2_CLOCK           0U
+  #endif
+#else
+  #define STM32_PLL1PDIV2_BITS              0U
+  #define STM32_PLL1PDIV2_FREQ              0U
+  #define STM32_PLL1PDIV2_CLOCK             0U
+#endif
+
+/* --- Macros and checks for the USBPHYC clock point. ----------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   USBPHYC clock register bits.
+ */
+#if (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_HSE) || defined(__DOXYGEN__)
+  #if (STM32_USBPHYC_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_USBPHYC_BITS              RCC_CCIPR2_USBPHYCSEL_HSE
+  #else
+    #define STM32_USBPHYC_BITS              0U
+  #endif
+#elif (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_PLL1P)
+  #if (STM32_USBPHYC_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_USBPHYC_BITS              RCC_CCIPR2_USBPHYCSEL_PLL1P
+  #else
+    #define STM32_USBPHYC_BITS              0U
+  #endif
+#elif (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_HSEDIV2)
+  #if (STM32_USBPHYC_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_USBPHYC_BITS              RCC_CCIPR2_USBPHYCSEL_HSEDIV2
+  #else
+    #define STM32_USBPHYC_BITS              0U
+  #endif
+#elif (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_PLL1PDIV2)
+  #if (STM32_USBPHYC_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_USBPHYC_BITS              RCC_CCIPR2_USBPHYCSEL_PLL1PDIV2
+  #else
+    #define STM32_USBPHYC_BITS              0U
+  #endif
+#else
+  #error "invalid STM32_CFG_USBPHYC_SEL value specified"
+#endif
+
+/**
+ * @brief   OTG_HS PHY reference clock point.
+ */
+#if ((STM32_USBPHYC_ENABLED == TRUE) && \
+     (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_HSE)) || \
+    defined(__DOXYGEN__)
+  #define STM32_USBPHYC_FREQ                STM32_HSE_FREQ
+  #define STM32_USBPHYC_CLOCK               STM32_HSE_CLOCK
+#elif (STM32_USBPHYC_ENABLED == TRUE) && \
+      (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_PLL1P)
+  #define STM32_USBPHYC_FREQ                STM32_PLL1P_FREQ
+  #define STM32_USBPHYC_CLOCK               STM32_PLL1P_CLOCK
+#elif (STM32_USBPHYC_ENABLED == TRUE) && \
+      (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_HSEDIV2)
+  #define STM32_USBPHYC_FREQ                STM32_HSEDIV2_FREQ
+  #define STM32_USBPHYC_CLOCK               STM32_HSEDIV2_CLOCK
+#elif (STM32_USBPHYC_ENABLED == TRUE) && \
+      (STM32_CFG_USBPHYC_SEL == RCC_CCIPR2_USBPHYCSEL_PLL1PDIV2)
+  #define STM32_USBPHYC_FREQ                STM32_PLL1PDIV2_FREQ
+  #define STM32_USBPHYC_CLOCK               STM32_PLL1PDIV2_CLOCK
+#else
+  #define STM32_USBPHYC_FREQ                0U
+  #define STM32_USBPHYC_CLOCK               0U
+#endif
+#else
+  #define STM32_USBPHYC_BITS                0U
+  #define STM32_USBPHYC_FREQ                0U
+  #define STM32_USBPHYC_CLOCK               0U
+#endif
+
 /* --- Macros and checks for the SDMMC clock point. ------------------------*/
 
 /**
@@ -6938,6 +8279,96 @@
   #define STM32_SDMMC2_CLOCK                0U
 #endif
 
+/* --- Macros and checks for the DSI clock point. --------------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   DSI clock register bits.
+ */
+#if (STM32_CFG_DSI_SEL == RCC_CCIPR2_DSIHOSTSEL_PLL3P) || defined(__DOXYGEN__)
+  #if (STM32_DSI_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_DSI_BITS                  RCC_CCIPR2_DSIHOSTSEL_PLL3P
+  #else
+    #define STM32_DSI_BITS                  0U
+  #endif
+#elif (STM32_CFG_DSI_SEL == RCC_CCIPR2_DSIHOSTSEL_DSIPHY)
+  #if (STM32_DSI_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_DSI_BITS                  RCC_CCIPR2_DSIHOSTSEL_DSIPHY
+  #else
+    #define STM32_DSI_BITS                  0U
+  #endif
+#else
+  #error "invalid STM32_CFG_DSI_SEL value specified"
+#endif
+
+/**
+ * @brief   DSI kernel clock point.
+ */
+#if ((STM32_DSI_ENABLED == TRUE) && \
+     (STM32_CFG_DSI_SEL == RCC_CCIPR2_DSIHOSTSEL_PLL3P)) || \
+    defined(__DOXYGEN__)
+  #define STM32_DSI_FREQ                    STM32_PLL3P_FREQ
+  #define STM32_DSI_CLOCK                   STM32_PLL3P_CLOCK
+#elif (STM32_DSI_ENABLED == TRUE) && \
+      (STM32_CFG_DSI_SEL == RCC_CCIPR2_DSIHOSTSEL_DSIPHY)
+  #define STM32_DSI_FREQ                    STM32_DSIPHY_FREQ
+  #define STM32_DSI_CLOCK                   STM32_DSIPHY_CLOCK
+#else
+  #define STM32_DSI_FREQ                    0U
+  #define STM32_DSI_CLOCK                   0U
+#endif
+#else
+  #define STM32_DSI_BITS                    0U
+  #define STM32_DSI_FREQ                    0U
+  #define STM32_DSI_CLOCK                   0U
+#endif
+
+/* --- Macros and checks for the LTDC clock point. -------------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   LTDC clock register bits.
+ */
+#if (STM32_CFG_LTDC_SEL == RCC_CCIPR2_LTDCSEL_PLL3R) || defined(__DOXYGEN__)
+  #if (STM32_LTDC_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_LTDC_BITS                 RCC_CCIPR2_LTDCSEL_PLL3R
+  #else
+    #define STM32_LTDC_BITS                 0U
+  #endif
+#elif (STM32_CFG_LTDC_SEL == RCC_CCIPR2_LTDCSEL_PLL2R)
+  #if (STM32_LTDC_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_LTDC_BITS                 RCC_CCIPR2_LTDCSEL_PLL2R
+  #else
+    #define STM32_LTDC_BITS                 0U
+  #endif
+#else
+  #error "invalid STM32_CFG_LTDC_SEL value specified"
+#endif
+
+/**
+ * @brief   LTDC kernel clock point.
+ */
+#if ((STM32_LTDC_ENABLED == TRUE) && \
+     (STM32_CFG_LTDC_SEL == RCC_CCIPR2_LTDCSEL_PLL3R)) || \
+    defined(__DOXYGEN__)
+  #define STM32_LTDC_FREQ                   STM32_PLL3R_FREQ
+  #define STM32_LTDC_CLOCK                  STM32_PLL3R_CLOCK
+#elif (STM32_LTDC_ENABLED == TRUE) && \
+      (STM32_CFG_LTDC_SEL == RCC_CCIPR2_LTDCSEL_PLL2R)
+  #define STM32_LTDC_FREQ                   STM32_PLL2R_FREQ
+  #define STM32_LTDC_CLOCK                  STM32_PLL2R_CLOCK
+#else
+  #define STM32_LTDC_FREQ                   0U
+  #define STM32_LTDC_CLOCK                  0U
+#endif
+#else
+  #define STM32_LTDC_BITS                   0U
+  #define STM32_LTDC_FREQ                   0U
+  #define STM32_LTDC_CLOCK                  0U
+#endif
+
 /* --- Macros and checks for the OCTOSPI clock point. ----------------------*/
 
 /**
@@ -7000,6 +8431,97 @@
   #define STM32_OCTOSPI_CLOCK               0U
 #endif
 
+/* --- Macros and checks for the HSPI1 clock point. ------------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   HSPI1 clock register bits.
+ */
+#if (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_SYSCLK) || defined(__DOXYGEN__)
+  #if (STM32_HSPI1_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_HSPI1_BITS                RCC_CCIPR2_HSPISEL_SYSCLK
+  #else
+    #define STM32_HSPI1_BITS                0U
+  #endif
+#elif (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL1Q)
+  #if (STM32_HSPI1_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_HSPI1_BITS                RCC_CCIPR2_HSPISEL_PLL1Q
+  #else
+    #define STM32_HSPI1_BITS                0U
+  #endif
+#elif (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL2Q)
+  #if (STM32_HSPI1_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_HSPI1_BITS                RCC_CCIPR2_HSPISEL_PLL2Q
+  #else
+    #define STM32_HSPI1_BITS                0U
+  #endif
+#elif (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL3R)
+  #if (STM32_HSPI1_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_HSPI1_BITS                RCC_CCIPR2_HSPISEL_PLL3R
+  #else
+    #define STM32_HSPI1_BITS                0U
+  #endif
+#else
+  #error "invalid STM32_CFG_HSPI1_SEL value specified"
+#endif
+
+/**
+ * @brief   HSPI1 kernel clock point.
+ */
+#if ((STM32_HSPI1_ENABLED == TRUE) && \
+     (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_SYSCLK)) || \
+    defined(__DOXYGEN__)
+  #define STM32_HSPI1_FREQ                  STM32_SYSCLK_FREQ
+  #define STM32_HSPI1_CLOCK                 STM32_SYSCLK_CLOCK
+#elif (STM32_HSPI1_ENABLED == TRUE) && \
+      (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL1Q)
+  #define STM32_HSPI1_FREQ                  STM32_PLL1Q_FREQ
+  #define STM32_HSPI1_CLOCK                 STM32_PLL1Q_CLOCK
+#elif (STM32_HSPI1_ENABLED == TRUE) && \
+      (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL2Q)
+  #define STM32_HSPI1_FREQ                  STM32_PLL2Q_FREQ
+  #define STM32_HSPI1_CLOCK                 STM32_PLL2Q_CLOCK
+#elif (STM32_HSPI1_ENABLED == TRUE) && \
+      (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL3R)
+  #define STM32_HSPI1_FREQ                  STM32_PLL3R_FREQ
+  #define STM32_HSPI1_CLOCK                 STM32_PLL3R_CLOCK
+#else
+  #define STM32_HSPI1_FREQ                  0U
+  #define STM32_HSPI1_CLOCK                 0U
+#endif
+
+  #if !(!((STM32_HSPI1_ENABLED == TRUE) &&                                  \
+        (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_SYSCLK)) ||              \
+       (STM32_SYSCLK_FREQ <= STM32_HSPICLK_MAX)) && !defined(__DOXYGEN__)
+    #error "STM32_HSPI1_FREQ above maximum frequency"
+  #endif
+
+  #if !(!((STM32_HSPI1_ENABLED == TRUE) &&                                  \
+        (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL1Q)) ||               \
+       (STM32_PLL1Q_FREQ <= STM32_HSPICLK_MAX)) && !defined(__DOXYGEN__)
+    #error "STM32_HSPI1_FREQ above maximum frequency"
+  #endif
+
+  #if !(!((STM32_HSPI1_ENABLED == TRUE) &&                                  \
+        (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL2Q)) ||               \
+       (STM32_PLL2Q_FREQ <= STM32_HSPICLK_MAX)) && !defined(__DOXYGEN__)
+    #error "STM32_HSPI1_FREQ above maximum frequency"
+  #endif
+
+  #if !(!((STM32_HSPI1_ENABLED == TRUE) &&                                  \
+        (STM32_CFG_HSPI1_SEL == RCC_CCIPR2_HSPISEL_PLL3R)) ||               \
+       (STM32_PLL3R_FREQ <= STM32_HSPICLK_MAX)) && !defined(__DOXYGEN__)
+    #error "STM32_HSPI1_FREQ above maximum frequency"
+  #endif
+#else
+  #define STM32_HSPI1_BITS                  0U
+  #define STM32_HSPI1_FREQ                  0U
+  #define STM32_HSPI1_CLOCK                 0U
+#endif
+
 /* --- Macros and checks for the HSI48DIV2 clock point. --------------------*/
 
 /**
@@ -7016,6 +8538,78 @@
 #else
   #define STM32_HSI48DIV2_FREQ              0U
   #define STM32_HSI48DIV2_CLOCK             0U
+#endif
+
+/* --- Macros and checks for the SHSIDIV2 clock point. ---------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U585 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   SHSIDIV2 clock register bits.
+ */
+#define STM32_SHSIDIV2_BITS                 0U
+
+/**
+ * @brief   SHSI divided-by-two clock point.
+ */
+  #if (STM32_SHSIDIV2_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_SHSIDIV2_FREQ             (STM32_SHSI_FREQ / 2U)
+    #define STM32_SHSIDIV2_CLOCK            (STM32_SHSI_CLOCK / 2U)
+  #else
+    #define STM32_SHSIDIV2_FREQ             0U
+    #define STM32_SHSIDIV2_CLOCK            0U
+  #endif
+#else
+  #define STM32_SHSIDIV2_BITS               0U
+  #define STM32_SHSIDIV2_FREQ               0U
+  #define STM32_SHSIDIV2_CLOCK              0U
+#endif
+
+/* --- Macros and checks for the SAES clock point. -------------------------*/
+
+#if ((STM32_CLOCKTREE_VARIANT_U585 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @brief   SAES clock register bits.
+ */
+#if (STM32_CFG_SAES_SEL == RCC_CCIPR2_SAESSEL_SHSI) || defined(__DOXYGEN__)
+  #if (STM32_SAES_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_SAES_BITS                 RCC_CCIPR2_SAESSEL_SHSI
+  #else
+    #define STM32_SAES_BITS                 0U
+  #endif
+#elif (STM32_CFG_SAES_SEL == RCC_CCIPR2_SAESSEL_SHSIDIV2)
+  #if (STM32_SAES_ENABLED == TRUE) || defined(__DOXYGEN__)
+    #define STM32_SAES_BITS                 RCC_CCIPR2_SAESSEL_SHSIDIV2
+  #else
+    #define STM32_SAES_BITS                 0U
+  #endif
+#else
+  #error "invalid STM32_CFG_SAES_SEL value specified"
+#endif
+
+/**
+ * @brief   SAES kernel clock point.
+ */
+#if ((STM32_SAES_ENABLED == TRUE) && \
+     (STM32_CFG_SAES_SEL == RCC_CCIPR2_SAESSEL_SHSI)) || \
+    defined(__DOXYGEN__)
+  #define STM32_SAES_FREQ                   STM32_SHSI_FREQ
+  #define STM32_SAES_CLOCK                  STM32_SHSI_CLOCK
+#elif (STM32_SAES_ENABLED == TRUE) && \
+      (STM32_CFG_SAES_SEL == RCC_CCIPR2_SAESSEL_SHSIDIV2)
+  #define STM32_SAES_FREQ                   STM32_SHSIDIV2_FREQ
+  #define STM32_SAES_CLOCK                  STM32_SHSIDIV2_CLOCK
+#else
+  #define STM32_SAES_FREQ                   0U
+  #define STM32_SAES_CLOCK                  0U
+#endif
+#else
+  #define STM32_SAES_BITS                   0U
+  #define STM32_SAES_FREQ                   0U
+  #define STM32_SAES_CLOCK                  0U
 #endif
 
 /* --- Macros and checks for the RNG clock point. --------------------------*/

@@ -315,8 +315,12 @@
  * USB units.
  */
 #define STM32_USB1_HANDLER                  Vector164
+#define STM32_OTG1_HANDLER                  Vector164
+#define STM32_OTG2_HANDLER                  Vector164
 
 #define STM32_USB1_NUMBER                   73
+#define STM32_OTG1_NUMBER                   73
+#define STM32_OTG2_NUMBER                   73
 /** @} */
 
 /*===========================================================================*/
