@@ -1,6 +1,6 @@
 # List of the ChibiOS generic STM32C5xx startup and CMSIS files.
 STARTUPSRC = $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/crt1.c
-          
+
 STARTUPASM = $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/crt0_v8m-ml.S \
              $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/vectors.S
 
