@@ -101,9 +101,12 @@
 #include "stm32_usart3.inc"
 #include "stm32_uart4.inc"
 #include "stm32_uart5.inc"
+#include "stm32_usart6.inc"
 #include "stm32_lpuart1.inc"
 
+#if STM32_HAS_USB1
 #include "stm32_usb1.inc"
+#endif
 
 /*===========================================================================*/
 /* Driver exported functions.                                                */
@@ -166,9 +169,12 @@ void irqInit(void) {
   usart3_irq_init();
   uart4_irq_init();
   uart5_irq_init();
+  usart6_irq_init();
   lpuart1_irq_init();
 
+#if STM32_HAS_USB1
   usb1_irq_init();
+#endif
 }
 
 /**
@@ -228,9 +234,12 @@ void irqDeinit(void) {
   usart3_irq_deinit();
   uart4_irq_deinit();
   uart5_irq_deinit();
+  usart6_irq_deinit();
   lpuart1_irq_deinit();
 
+#if STM32_HAS_USB1
   usb1_irq_deinit();
+#endif
 }
 
 /** @} */

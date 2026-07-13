@@ -223,6 +223,23 @@
 #define GPIOI_PIN14                 14U
 #define GPIOI_PIN15                 15U
 
+#define GPIOJ_PIN0                  0U
+#define GPIOJ_PIN1                  1U
+#define GPIOJ_PIN2                  2U
+#define GPIOJ_PIN3                  3U
+#define GPIOJ_PIN4                  4U
+#define GPIOJ_PIN5                  5U
+#define GPIOJ_PIN6                  6U
+#define GPIOJ_PIN7                  7U
+#define GPIOJ_PIN8                  8U
+#define GPIOJ_PIN9                  9U
+#define GPIOJ_PIN10                 10U
+#define GPIOJ_PIN11                 11U
+#define GPIOJ_PIN12                 12U
+#define GPIOJ_PIN13                 13U
+#define GPIOJ_PIN14                 14U
+#define GPIOJ_PIN15                 15U
+
 /*
  * IO lines assignments.
  */
@@ -1484,6 +1501,139 @@
                                      PIN_LOCKR_DISABLED(GPIOI_PIN13) |      \
                                      PIN_LOCKR_DISABLED(GPIOI_PIN14) |      \
                                      PIN_LOCKR_DISABLED(GPIOI_PIN15))
+
+/*
+ * GPIOJ setup:
+ *
+ * PJ0  - PIN0                      (analog).
+ * PJ1  - PIN1                      (analog).
+ * PJ2  - PIN2                      (analog).
+ * PJ3  - PIN3                      (analog).
+ * PJ4  - PIN4                      (analog).
+ * PJ5  - PIN5                      (analog).
+ * PJ6  - PIN6                      (analog).
+ * PJ7  - PIN7                      (analog).
+ * PJ8  - PIN8                      (analog).
+ * PJ9  - PIN9                      (analog).
+ * PJ10 - PIN10                     (analog).
+ * PJ11 - PIN11                     (analog).
+ * PJ12 - PIN12                     (analog).
+ * PJ13 - PIN13                     (analog).
+ * PJ14 - PIN14                     (analog).
+ * PJ15 - PIN15                     (analog).
+ */
+#define VAL_GPIOJ_MODER             (PIN_MODE_ANALOG(GPIOJ_PIN0) |          \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN1) |          \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN2) |          \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN3) |          \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN4) |          \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN5) |          \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN6) |          \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN7) |          \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN8) |          \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN9) |          \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN10) |         \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN11) |         \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN12) |         \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN13) |         \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN14) |         \
+                                     PIN_MODE_ANALOG(GPIOJ_PIN15))
+#define VAL_GPIOJ_OTYPER            (PIN_OTYPE_PUSHPULL(GPIOJ_PIN0) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN1) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN2) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN3) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN4) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN5) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN6) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN7) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN8) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN9) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN10) |      \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN11) |      \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN12) |      \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN13) |      \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN14) |      \
+                                     PIN_OTYPE_PUSHPULL(GPIOJ_PIN15))
+#define VAL_GPIOJ_OSPEEDR           (PIN_OSPEED_VERYLOW(GPIOJ_PIN0) |       \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN1) |       \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN2) |       \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN3) |       \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN4) |       \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN5) |       \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN6) |       \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN7) |       \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN8) |       \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN9) |       \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN10) |      \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN11) |      \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN12) |      \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN13) |      \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN14) |      \
+                                     PIN_OSPEED_VERYLOW(GPIOJ_PIN15))
+#define VAL_GPIOJ_PUPDR             (PIN_PUPDR_FLOATING(GPIOJ_PIN0) |       \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN1) |       \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN2) |       \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN3) |       \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN4) |       \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN5) |       \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN6) |       \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN7) |       \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN8) |       \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN9) |       \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN10) |      \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN11) |      \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN12) |      \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN13) |      \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN14) |      \
+                                     PIN_PUPDR_FLOATING(GPIOJ_PIN15))
+#define VAL_GPIOJ_ODR               (PIN_ODR_LOW(GPIOJ_PIN0) |              \
+                                     PIN_ODR_LOW(GPIOJ_PIN1) |              \
+                                     PIN_ODR_LOW(GPIOJ_PIN2) |              \
+                                     PIN_ODR_LOW(GPIOJ_PIN3) |              \
+                                     PIN_ODR_LOW(GPIOJ_PIN4) |              \
+                                     PIN_ODR_LOW(GPIOJ_PIN5) |              \
+                                     PIN_ODR_LOW(GPIOJ_PIN6) |              \
+                                     PIN_ODR_LOW(GPIOJ_PIN7) |              \
+                                     PIN_ODR_LOW(GPIOJ_PIN8) |              \
+                                     PIN_ODR_LOW(GPIOJ_PIN9) |              \
+                                     PIN_ODR_LOW(GPIOJ_PIN10) |             \
+                                     PIN_ODR_LOW(GPIOJ_PIN11) |             \
+                                     PIN_ODR_LOW(GPIOJ_PIN12) |             \
+                                     PIN_ODR_LOW(GPIOJ_PIN13) |             \
+                                     PIN_ODR_LOW(GPIOJ_PIN14) |             \
+                                     PIN_ODR_LOW(GPIOJ_PIN15))
+#define VAL_GPIOJ_AFRL              (PIN_AFIO_AF(GPIOJ_PIN0, 0U) |          \
+                                     PIN_AFIO_AF(GPIOJ_PIN1, 0U) |          \
+                                     PIN_AFIO_AF(GPIOJ_PIN2, 0U) |          \
+                                     PIN_AFIO_AF(GPIOJ_PIN3, 0U) |          \
+                                     PIN_AFIO_AF(GPIOJ_PIN4, 0U) |          \
+                                     PIN_AFIO_AF(GPIOJ_PIN5, 0U) |          \
+                                     PIN_AFIO_AF(GPIOJ_PIN6, 0U) |          \
+                                     PIN_AFIO_AF(GPIOJ_PIN7, 0U))
+#define VAL_GPIOJ_AFRH              (PIN_AFIO_AF(GPIOJ_PIN8, 0U) |          \
+                                     PIN_AFIO_AF(GPIOJ_PIN9, 0U) |          \
+                                     PIN_AFIO_AF(GPIOJ_PIN10, 0U) |         \
+                                     PIN_AFIO_AF(GPIOJ_PIN11, 0U) |         \
+                                     PIN_AFIO_AF(GPIOJ_PIN12, 0U) |         \
+                                     PIN_AFIO_AF(GPIOJ_PIN13, 0U) |         \
+                                     PIN_AFIO_AF(GPIOJ_PIN14, 0U) |         \
+                                     PIN_AFIO_AF(GPIOJ_PIN15, 0U))
+#define VAL_GPIOJ_LOCKR             (PIN_LOCKR_DISABLED(GPIOJ_PIN0) |       \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN1) |       \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN2) |       \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN3) |       \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN4) |       \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN5) |       \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN6) |       \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN7) |       \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN8) |       \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN9) |       \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN10) |      \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN11) |      \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN12) |      \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN13) |      \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN14) |      \
+                                     PIN_LOCKR_DISABLED(GPIOJ_PIN15))
 
 /*===========================================================================*/
 /* External declarations.                                                    */

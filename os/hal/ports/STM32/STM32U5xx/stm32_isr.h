@@ -50,6 +50,7 @@
 #define STM32_USART3_SUPPRESS_ISR
 #define STM32_UART4_SUPPRESS_ISR
 #define STM32_UART5_SUPPRESS_ISR
+#define STM32_USART6_SUPPRESS_ISR
 #define STM32_LPUART1_SUPPRESS_ISR
 /** @} */
 
@@ -167,6 +168,10 @@
 #define STM32_I2C3_ER_HANDLER               Vector1A4
 #define STM32_I2C4_ER_HANDLER               Vector1D0
 #define STM32_I2C4_EV_HANDLER               Vector1D4
+#define STM32_I2C5_ER_HANDLER               Vector23C
+#define STM32_I2C5_EV_HANDLER               Vector240
+#define STM32_I2C6_ER_HANDLER               Vector244
+#define STM32_I2C6_EV_HANDLER               Vector248
 
 #define STM32_I2C1_EV_NUMBER                55
 #define STM32_I2C1_ER_NUMBER                56
@@ -176,6 +181,10 @@
 #define STM32_I2C3_ER_NUMBER                89
 #define STM32_I2C4_ER_NUMBER                100
 #define STM32_I2C4_EV_NUMBER                101
+#define STM32_I2C5_ER_NUMBER                127
+#define STM32_I2C5_EV_NUMBER                128
+#define STM32_I2C6_ER_NUMBER                129
+#define STM32_I2C6_EV_NUMBER                130
 
 /*
  * Low-power timer units.
@@ -302,6 +311,7 @@
 #define STM32_USART3_HANDLER                Vector13C
 #define STM32_UART4_HANDLER                 Vector140
 #define STM32_UART5_HANDLER                 Vector144
+#define STM32_USART6_HANDLER                Vector238
 #define STM32_LPUART1_HANDLER               Vector148
 
 #define STM32_USART1_NUMBER                 61
@@ -309,6 +319,7 @@
 #define STM32_USART3_NUMBER                 63
 #define STM32_UART4_NUMBER                  64
 #define STM32_UART5_NUMBER                  65
+#define STM32_USART6_NUMBER                 126
 #define STM32_LPUART1_NUMBER                66
 
 /*
