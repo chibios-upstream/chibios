@@ -410,18 +410,22 @@ struct hal_i2c_config {
 #if defined(STM32_DMA3_PRESENT)
   /**
    * @brief   DMA RX CTR1 register settings.
+   * @note    Leave to zero for standard operation.
    */
   uint32_t                          dtr1rx;
   /**
    * @brief   DMA TX CTR1 register settings.
+   * @note    Leave to zero for standard operation.
    */
   uint32_t                          dtr1tx;
   /**
    * @brief   DMA RX CTR2 register settings.
+   * @note    Leave to zero for standard operation.
    */
   uint32_t                          dtr2rx;
   /**
    * @brief   DMA TX CTR2 register settings.
+   * @note    Leave to zero for standard operation.
    */
   uint32_t                          dtr2tx;
 #endif
