@@ -406,7 +406,17 @@ OSAL_IRQ_HANDLER(STM32_TIM8_UP_HANDLER) {
 
 #if STM32_GPT_USE_TIM14 || defined(__DOXYGEN__)
 #if !defined(STM32_TIM14_SUPPRESS_ISR)
-#error "TIM14 ISR not defined by platform"
+#if !defined(STM32_TIM14_HANDLER)
+#error "STM32_TIM14_HANDLER not defined"
+#endif
+OSAL_IRQ_HANDLER(STM32_TIM14_HANDLER) {
+
+  OSAL_IRQ_PROLOGUE();
+
+  gpt_lld_serve_interrupt(&GPTD14);
+
+  OSAL_IRQ_EPILOGUE();
+}
 #endif /* !defined(STM32_TIM14_SUPPRESS_ISR) */
 #endif /* STM32_GPT_USE_TIM14 */
 
