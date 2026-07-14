@@ -910,7 +910,8 @@ void usb_lld_start(USBDriver *usbp) {
          ~(SYSCFG_OTGHSPHYTUNER2_COMPDISTUNE_Msk |
            SYSCFG_OTGHSPHYTUNER2_SQRXTUNE_Msk)) |
         SYSCFG_OTGHSPHYTUNER2_COMPDISTUNE_1;
-      SYSCFG->OTGHSPHYCR |= SYSCFG_OTGHSPHYCR_EN;
+      SYSCFG->OTGHSPHYCR |= SYSCFG_OTGHSPHYCR_EN |
+                            SYSCFG_OTGHSPHYCR_PDCTRL;
 
 #else /* !defined(STM32U5XX) */
       /* ULPI clock is managed depending on the presence of an external

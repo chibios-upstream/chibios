@@ -66,7 +66,7 @@
 #define STM32_PWR_CR1                       ${doc.STM32_PWR_CR1!"(0U)"}
 #define STM32_PWR_CR2                       ${doc.STM32_PWR_CR2!"(0U)"}
 #define STM32_PWR_CR3                       ${doc.STM32_PWR_CR3!"(0U)"}
-#define STM32_PWR_SVMCR                     ${doc.STM32_PWR_SVMCR!"(0U)"}
+#define STM32_PWR_SVMCR                     ${doc.STM32_PWR_SVMCR!"(PWR_SVMCR_USV | PWR_SVMCR_UVMEN)"}
 #define STM32_PWR_WUCR1                     ${doc.STM32_PWR_WUCR1!"(0U)"}
 #define STM32_PWR_WUCR2                     ${doc.STM32_PWR_WUCR2!"(0U)"}
 #define STM32_PWR_WUCR3                     ${doc.STM32_PWR_WUCR3!"(0U)"}

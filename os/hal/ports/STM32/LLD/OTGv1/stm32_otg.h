@@ -911,6 +911,9 @@ typedef struct {
  * @brief   OTG_HS registers block memory address.
  */
 #define OTG_HS_ADDR                 0x40040000
+#elif defined(STM32U5XX) || defined(__DOXYGEN__)
+#define OTG_HS_ADDR                 0x42040000
+#define OTG_FS_ADDR                 0x42040000
 #else
 #define OTG_FS_ADDR                 0x50000000
 #define OTG_HS_ADDR                 0x40040000

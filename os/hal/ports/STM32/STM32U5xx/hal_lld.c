@@ -617,6 +617,11 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   /* Start configured non-PLL oscillators while keeping MSIS available.*/
   cr = (ccp->rcc_cr & ~(RCC_CR_PLL1ON | RCC_CR_PLL2ON | RCC_CR_PLL3ON)) |
        RCC_CR_MSISON;
+  if ((cr & (RCC_CR_HSEON | RCC_CR_HSEBYP)) ==
+      (RCC_CR_HSEON | RCC_CR_HSEBYP)) {
+    /* HSEBYP must be latched while HSEON is still cleared.*/
+    halRegWrite32X(&RCC->CR, cr & ~RCC_CR_HSEON, true);
+  }
   halRegWrite32X(&RCC->CR, cr, true);
 
   wtmask = RCC_CR_MSISRDY;
