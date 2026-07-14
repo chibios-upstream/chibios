@@ -461,6 +461,31 @@
 #define STM32_ADC4_CLOCK                    STM32_ADCDAC_CLOCK
 #define STM32_DAC1_CLOCK                    STM32_ADCDAC_CLOCK
 
+#if ((HAL_USE_USB == TRUE) && STM32_HAS_OTG2) || defined(__DOXYGEN__)
+/* The integrated OTG_HS transceiver requires voltage range 1 or 2.*/
+#if (STM32_CFG_PWR_VOSR != PWR_VOSR_VOS_RANGE1) &&                         \
+    (STM32_CFG_PWR_VOSR != PWR_VOSR_VOS_RANGE2)
+#error "the STM32 OTG_HS PHY requires voltage range 1 or 2"
+#endif
+
+/* Integrated OTG_HS PHY reference frequency selection.*/
+#if STM32_OTGHSCLK == 16000000U
+#define STM32_OTGHS_PHY_CLKSEL              (3U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#elif STM32_OTGHSCLK == 19200000U
+#define STM32_OTGHS_PHY_CLKSEL              (8U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#elif STM32_OTGHSCLK == 20000000U
+#define STM32_OTGHS_PHY_CLKSEL              (9U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#elif STM32_OTGHSCLK == 24000000U
+#define STM32_OTGHS_PHY_CLKSEL              (10U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#elif STM32_OTGHSCLK == 26000000U
+#define STM32_OTGHS_PHY_CLKSEL              (14U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#elif STM32_OTGHSCLK == 32000000U
+#define STM32_OTGHS_PHY_CLKSEL              (11U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
+#else
+#error "invalid STM32 OTG_HS PHY reference clock"
+#endif
+#endif
+
 /**
  * @brief   Maximum allowed SDMMC kernel clock frequency.
  */
@@ -545,6 +570,10 @@ extern "C" {
 #endif
   void hal_lld_init(void);
   void stm32_clock_init(void);
+#if ((HAL_USE_USB == TRUE) && STM32_HAS_OTG2) || defined(__DOXYGEN__)
+  void stm32_otg2_phy_start(void);
+  void stm32_otg2_phy_stop(void);
+#endif
 #if defined(HAL_LLD_USE_CLOCK_MANAGEMENT) || defined(__DOXYGEN__)
   bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp);
   halfreq_t hal_lld_get_clock_point(halclkpt_t clkpt);

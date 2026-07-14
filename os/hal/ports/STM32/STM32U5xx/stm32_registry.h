@@ -461,6 +461,8 @@
 #define STM32_HAS_OTG1                      FALSE
 #define STM32_HAS_OTG2                      TRUE
 #define STM32_OTG2_ENDPOINTS                9
+#define STM32_OTG2_PHY_CAPABILITIES         STM32_OTG_PHY_INTEGRATED_HS
+#define STM32_OTG2_PHY_DEFAULT              STM32_OTG_PHY_INTEGRATED_HS
 #endif
 
 /* LTDC attributes.*/

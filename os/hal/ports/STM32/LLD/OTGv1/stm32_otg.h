@@ -428,6 +428,10 @@ typedef struct {
 /* Definitions for stepping 2.*/
 #define GCCFG_VBDEN             (1U << 21)  /**< VBUS sensing enable.       */
 #define GCCFG_PWRDWN            (1U << 16)  /**< Power down.                */
+
+/* Definitions for stepping 3.*/
+#define GCCFG_VBVALOVAL         (1U << 23)  /**< Override VBUS B-session.   */
+#define GCCFG_VBVALEXTOEN       (1U << 24)  /**< Enable B-session override. */
 /** @} */
 
 /**

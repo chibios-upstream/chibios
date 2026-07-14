@@ -34,6 +34,15 @@
 /*===========================================================================*/
 
 /**
+ * @name    OTG PHY types
+ * @{
+ */
+#define STM32_OTG_PHY_EMBEDDED_FS           (1U << 0)
+#define STM32_OTG_PHY_EXTERNAL_ULPI         (1U << 1)
+#define STM32_OTG_PHY_INTEGRATED_HS         (1U << 2)
+/** @} */
+
+/**
  * @brief   Status stage handling method.
  */
 #define USB_EP0_STATUS_STAGE                USB_EP0_STATUS_STAGE_SW
@@ -68,6 +77,19 @@
  */
 #if !defined(STM32_USB_USE_OTG2) || defined(__DOXYGEN__)
 #define STM32_USB_USE_OTG2                  FALSE
+#endif
+
+/**
+ * @brief   PHY selected for the OTG2 instance.
+ */
+#if !defined(STM32_USB_OTG2_PHY) || defined(__DOXYGEN__)
+#if defined(STM32_OTG2_PHY_DEFAULT)
+#define STM32_USB_OTG2_PHY                  STM32_OTG2_PHY_DEFAULT
+#elif defined(BOARD_OTG2_USES_ULPI)
+#define STM32_USB_OTG2_PHY                  STM32_OTG_PHY_EXTERNAL_ULPI
+#else
+#define STM32_USB_OTG2_PHY                  STM32_OTG_PHY_EMBEDDED_FS
+#endif
 #endif
 
 /**
@@ -157,6 +179,23 @@
 
 #if !defined(STM32_HAS_OTG1) || !defined(STM32_HAS_OTG2)
 #error "STM32_HAS_OTGx not defined in registry"
+#endif
+
+/* PHY capability default for legacy registries.*/
+#if !defined(STM32_OTG2_PHY_CAPABILITIES)
+#define STM32_OTG2_PHY_CAPABILITIES         (STM32_OTG_PHY_EMBEDDED_FS |     \
+                                             STM32_OTG_PHY_EXTERNAL_ULPI)
+#endif
+
+/* PHY selection check.*/
+#if ((STM32_USB_OTG2_PHY != STM32_OTG_PHY_EMBEDDED_FS) &&                   \
+     (STM32_USB_OTG2_PHY != STM32_OTG_PHY_EXTERNAL_ULPI) &&                 \
+     (STM32_USB_OTG2_PHY != STM32_OTG_PHY_INTEGRATED_HS))
+#error "invalid OTG2 PHY selection"
+#endif
+
+#if (STM32_USB_OTG2_PHY & STM32_OTG2_PHY_CAPABILITIES) == 0
+#error "selected OTG2 PHY is not supported"
 #endif
 
 #if STM32_HAS_OTG1 && !defined(STM32_OTG1_ENDPOINTS)
@@ -255,34 +294,9 @@
 #error "invalid STM32_USB_HOST_WAKEUP_DURATION setting, it must be between 2 and 15"
 #endif
 
-#if defined(STM32U5XX)
-
-/* The integrated OTG_HS transceiver requires voltage range 1 or 2.*/
-#if (STM32_CFG_PWR_VOSR != PWR_VOSR_VOS_RANGE1) &&                         \
-    (STM32_CFG_PWR_VOSR != PWR_VOSR_VOS_RANGE2)
-#error "the STM32 OTG_HS PHY requires voltage range 1 or 2"
-#endif
-
-/* Integrated OTG_HS PHY reference frequency selection.*/
-#if STM32_OTGHSCLK == 16000000U
-#define STM32_OTGHS_PHY_CLKSEL              (3U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
-#elif STM32_OTGHSCLK == 19200000U
-#define STM32_OTGHS_PHY_CLKSEL              (8U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
-#elif STM32_OTGHSCLK == 20000000U
-#define STM32_OTGHS_PHY_CLKSEL              (9U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
-#elif STM32_OTGHSCLK == 24000000U
-#define STM32_OTGHS_PHY_CLKSEL              (10U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
-#elif STM32_OTGHSCLK == 26000000U
-#define STM32_OTGHS_PHY_CLKSEL              (14U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
-#elif STM32_OTGHSCLK == 32000000U
-#define STM32_OTGHS_PHY_CLKSEL              (11U << SYSCFG_OTGHSPHYCR_CLKSEL_Pos)
-#else
-#error "invalid STM32 OTG_HS PHY reference clock"
-#endif
-
-#else /* !defined(STM32U5XX) */
-
 /* Allowing for a small tolerance.*/
+#if STM32_USB_USE_OTG1 ||                                                   \
+    (STM32_USB_OTG2_PHY != STM32_OTG_PHY_INTEGRATED_HS)
 #if (STM32_USB_48MHZ_DELTA < 0) || (STM32_USB_48MHZ_DELTA > 120000)
 #error "invalid STM32_USB_48MHZ_DELTA setting, it must not exceed 120000"
 #endif
@@ -291,8 +305,7 @@
     (STM32_USBCLK > (48000000 + STM32_USB_48MHZ_DELTA))
 #error "the USB USBv1 driver requires a 48MHz clock"
 #endif
-
-#endif /* !defined(STM32U5XX) */
+#endif
 
 /*===========================================================================*/
 /* Driver data structures and types.                                         */

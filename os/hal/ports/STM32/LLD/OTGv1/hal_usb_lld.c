@@ -42,10 +42,11 @@
 #define USB_OTG_DCFG_XCVRDLY    (1U << 14)
 
 /**
-  * @brief some ULPI chip need additional delay for initial handshake,
-  *        namely microchip 334x series.
-  */
-#if defined(BOARD_OTG2_ULPI_ACTIVATE_CHIRP_DELAY)
+ * @brief some ULPI chip need additional delay for initial handshake,
+ *        namely microchip 334x series.
+ */
+#if (STM32_USB_OTG2_PHY == STM32_OTG_PHY_EXTERNAL_ULPI) &&                  \
+    defined(BOARD_OTG2_ULPI_ACTIVATE_CHIRP_DELAY)
 #define BOARD_OTG2_ULPI_CHIRP_DELAY_MASK USB_OTG_DCFG_XCVRDLY
 #else
 #define BOARD_OTG2_ULPI_CHIRP_DELAY_MASK 0
@@ -68,7 +69,7 @@
 
 #elif STM32_OTG_STEPPING == 3
 #if defined(BOARD_OTG_NOVBUSSENS)
-#define GCCFG_INIT_VALUE        0U
+#define GCCFG_INIT_VALUE        (GCCFG_VBVALOVAL | GCCFG_VBVALEXTOEN)
 #else
 #define GCCFG_INIT_VALUE        GCCFG_VBDEN
 #endif
@@ -170,6 +171,95 @@ static void otg_core_reset(USBDriver *usbp) {
   /* Wait AHB idle condition again.*/
   while ((otgp->GRSTCTL & GRSTCTL_AHBIDL) == 0)
     ;
+}
+
+static bool otg_uses_integrated_hs_phy(USBDriver *usbp) {
+
+#if STM32_USB_USE_OTG2 &&                                             \
+    (STM32_USB_OTG2_PHY == STM32_OTG_PHY_INTEGRATED_HS)
+  return &USBD2 == usbp;
+#else
+  (void)usbp;
+
+  return false;
+#endif
+}
+
+static void otg_device_configure(USBDriver *usbp) {
+  stm32_otg_t *otgp = usbp->otg;
+
+#if STM32_USB_USE_OTG1
+  if (&USBD1 == usbp) {
+    /* - Forced device mode.
+       - USB turn-around time = TRDT_VALUE_FS.
+       - Full Speed 1.1 PHY.*/
+    otgp->GUSBCFG = GUSBCFG_FDMOD | GUSBCFG_TRDT(TRDT_VALUE_FS) |
+                    GUSBCFG_PHYSEL;
+
+    /* 48MHz 1.1 PHY.*/
+    otgp->DCFG = 0x02200000 | DCFG_DSPD_FS11;
+  }
+#endif
+
+#if STM32_USB_USE_OTG2
+  if (&USBD2 == usbp) {
+    /* - Forced device mode.
+       - USB turn-around time = TRDT_VALUE_HS or TRDT_VALUE_FS.*/
+#if STM32_USB_OTG2_PHY == STM32_OTG_PHY_INTEGRATED_HS
+    /* Integrated high-speed PHY.*/
+    otgp->GUSBCFG = GUSBCFG_FDMOD | GUSBCFG_TRDT(TRDT_VALUE_HS);
+#elif STM32_USB_OTG2_PHY == STM32_OTG_PHY_EXTERNAL_ULPI
+    /* High speed ULPI PHY.*/
+    otgp->GUSBCFG = GUSBCFG_FDMOD | GUSBCFG_TRDT(TRDT_VALUE_HS) |
+                    GUSBCFG_SRPCAP | GUSBCFG_HNPCAP;
+#else
+    /* Embedded full-speed PHY.*/
+    otgp->GUSBCFG = GUSBCFG_FDMOD | GUSBCFG_TRDT(TRDT_VALUE_FS) |
+                    GUSBCFG_PHYSEL;
+#endif
+
+#if STM32_USB_OTG2_PHY == STM32_OTG_PHY_INTEGRATED_HS
+#if STM32_USE_USB_OTG2_HS
+    /* Integrated PHY in high-speed mode.*/
+    otgp->DCFG = 0x02200000 | DCFG_DSPD_HS;
+#else
+    /* Integrated high-speed PHY operating at full speed.*/
+    otgp->DCFG = 0x02200000 | DCFG_DSPD_HS_FS;
+#endif
+#elif STM32_USB_OTG2_PHY == STM32_OTG_PHY_EXTERNAL_ULPI
+#if STM32_USE_USB_OTG2_HS
+    /* USB 2.0 High Speed PHY in HS mode.*/
+    otgp->DCFG = 0x02200000 | DCFG_DSPD_HS |
+                 BOARD_OTG2_ULPI_CHIRP_DELAY_MASK;
+#else
+    /* USB 2.0 High Speed PHY in FS mode.*/
+    otgp->DCFG = 0x02200000 | DCFG_DSPD_HS_FS;
+#endif
+#else
+    /* 48MHz 1.1 PHY.*/
+    otgp->DCFG = 0x02200000 | DCFG_DSPD_FS11;
+#endif
+  }
+#endif
+}
+
+static void otg_vbus_configure(USBDriver *usbp) {
+  stm32_otg_t *otgp = usbp->otg;
+
+  /* VBUS sensing and transceiver enabled.*/
+  otgp->GOTGCTL = GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;
+
+#if STM32_USB_USE_OTG2 &&                                             \
+    (STM32_USB_OTG2_PHY == STM32_OTG_PHY_EXTERNAL_ULPI)
+  if (&USBD2 == usbp) {
+    otgp->GCCFG = 0U;
+  }
+  else {
+    otgp->GCCFG = GCCFG_INIT_VALUE;
+  }
+#else
+  otgp->GCCFG = GCCFG_INIT_VALUE;
+#endif
 }
 
 static void otg_disable_ep(USBDriver *usbp) {
@@ -662,14 +752,18 @@ irq_retry:
 
   /* Enumeration done.*/
   if (sts & GINTSTS_ENUMDNE) {
-    /* Full or High speed timing selection.*/
-    if ((otgp->DSTS & DSTS_ENUMSPD_MASK) == DSTS_ENUMSPD_HS_480) {
-      otgp->GUSBCFG = (otgp->GUSBCFG & ~(GUSBCFG_TRDT_MASK)) |
-                      GUSBCFG_TRDT(TRDT_VALUE_HS);
-    }
-    else {
-      otgp->GUSBCFG = (otgp->GUSBCFG & ~(GUSBCFG_TRDT_MASK)) |
-                      GUSBCFG_TRDT(TRDT_VALUE_FS);
+    /* An integrated HS PHY retains its HS interface timing even when the
+       device enumerates at full speed.*/
+    if (!otg_uses_integrated_hs_phy(usbp)) {
+      /* Full or High speed timing selection.*/
+      if ((otgp->DSTS & DSTS_ENUMSPD_MASK) == DSTS_ENUMSPD_HS_480) {
+        otgp->GUSBCFG = (otgp->GUSBCFG & ~(GUSBCFG_TRDT_MASK)) |
+                        GUSBCFG_TRDT(TRDT_VALUE_HS);
+      }
+      else {
+        otgp->GUSBCFG = (otgp->GUSBCFG & ~(GUSBCFG_TRDT_MASK)) |
+                        GUSBCFG_TRDT(TRDT_VALUE_FS);
+      }
     }
   }
 
@@ -872,123 +966,50 @@ void usb_lld_start(USBDriver *usbp) {
 
       /* Enables IRQ vector.*/
       nvicEnableVector(STM32_OTG1_NUMBER, STM32_USB_OTG1_IRQ_PRIORITY);
-
-      /* - Forced device mode.
-         - USB turn-around time = TRDT_VALUE_FS.
-         - Full Speed 1.1 PHY.*/
-      otgp->GUSBCFG = GUSBCFG_FDMOD | GUSBCFG_TRDT(TRDT_VALUE_FS) |
-                      GUSBCFG_PHYSEL;
-
-      /* 48MHz 1.1 PHY.*/
-      otgp->DCFG = 0x02200000 | DCFG_DSPD_FS11;
     }
 #endif
 
 #if STM32_USB_USE_OTG2
     if (&USBD2 == usbp) {
-#if defined(STM32U5XX)
-      /* The USB power booster must be ready before clocking the PHY.*/
-      PWR->VOSR &= ~PWR_VOSR_VDD11USBDIS;
-      PWR->VOSR |= PWR_VOSR_USBPWREN | PWR_VOSR_USBBOOSTEN;
-      while ((PWR->VOSR & PWR_VOSR_USBBOOSTRDY) == 0U) {
-      }
-
-      /* Integrated high-speed PHY clocks.*/
-      rccEnableSYSCFG(true);
-      rccEnableUSBPHYC(true);
+#if STM32_USB_OTG2_PHY == STM32_OTG_PHY_INTEGRATED_HS
+      /* The integrated PHY must be ready before clocking the OTG core.*/
+      stm32_otg2_phy_start();
 #endif
 
       /* OTG HS clock enable and reset.*/
       rccEnableOTG_HS(true);
       rccResetOTG_HS();
 
-#if defined(STM32U5XX)
-      /* Reference clock and mandatory PHY tuning values from the RM.*/
-      SYSCFG->OTGHSPHYCR = STM32_OTGHS_PHY_CLKSEL;
-      SYSCFG->OTGHSPHYTUNER2 =
-        (SYSCFG->OTGHSPHYTUNER2 &
-         ~(SYSCFG_OTGHSPHYTUNER2_COMPDISTUNE_Msk |
-           SYSCFG_OTGHSPHYTUNER2_SQRXTUNE_Msk)) |
-        SYSCFG_OTGHSPHYTUNER2_COMPDISTUNE_1;
-      SYSCFG->OTGHSPHYCR |= SYSCFG_OTGHSPHYCR_EN |
-                            SYSCFG_OTGHSPHYCR_PDCTRL;
-
-#else /* !defined(STM32U5XX) */
       /* ULPI clock is managed depending on the presence of an external
          PHY.*/
-#if defined(BOARD_OTG2_USES_ULPI)
+#if STM32_USB_OTG2_PHY == STM32_OTG_PHY_EXTERNAL_ULPI
       rccEnableOTG_HSULPI(true);
-#else
+#elif STM32_USB_OTG2_PHY == STM32_OTG_PHY_EMBEDDED_FS
       /* Workaround for the problem described here:
          http://forum.chibios.org/phpbb/viewtopic.php?f=16&t=1798.*/
       rccDisableOTG_HSULPI();
 #endif
-#endif /* !defined(STM32U5XX) */
 
       /* Enables IRQ vector.*/
       nvicEnableVector(STM32_OTG2_NUMBER, STM32_USB_OTG2_IRQ_PRIORITY);
-
-      /* - Forced device mode.
-         - USB turn-around time = TRDT_VALUE_HS or TRDT_VALUE_FS.*/
-#if defined(STM32U5XX)
-      /* Integrated high-speed UTMI PHY.*/
-      otgp->GUSBCFG = GUSBCFG_FDMOD | GUSBCFG_TRDT(TRDT_VALUE_HS);
-#elif defined(BOARD_OTG2_USES_ULPI)
-      /* High speed ULPI PHY.*/
-      otgp->GUSBCFG = GUSBCFG_FDMOD | GUSBCFG_TRDT(TRDT_VALUE_HS) |
-                      GUSBCFG_SRPCAP | GUSBCFG_HNPCAP;
-#else
-      otgp->GUSBCFG = GUSBCFG_FDMOD | GUSBCFG_TRDT(TRDT_VALUE_FS) |
-                      GUSBCFG_PHYSEL;
-#endif
-
-#if defined(STM32U5XX)
-#if STM32_USE_USB_OTG2_HS
-      /* Integrated PHY in high-speed mode.*/
-      otgp->DCFG = 0x02200000 | DCFG_DSPD_HS;
-#else
-      /* Integrated high-speed PHY operating at full speed.*/
-      otgp->DCFG = 0x02200000 | DCFG_DSPD_HS_FS;
-#endif
-#elif defined(BOARD_OTG2_USES_ULPI)
-#if STM32_USE_USB_OTG2_HS
-      /* USB 2.0 High Speed PHY in HS mode.*/
-      otgp->DCFG = 0x02200000 | DCFG_DSPD_HS | BOARD_OTG2_ULPI_CHIRP_DELAY_MASK;
-#else
-      /* USB 2.0 High Speed PHY in FS mode.*/
-      otgp->DCFG = 0x02200000 | DCFG_DSPD_HS_FS;
-#endif
-#else
-      /* 48MHz 1.1 PHY.*/
-      otgp->DCFG = 0x02200000 | DCFG_DSPD_FS11;
-#endif
     }
 #endif
 
     /* PHY enabled.*/
     otgp->PCGCCTL = 0;
 
-    /* VBUS sensing and transceiver enabled.*/
-    otgp->GOTGCTL = GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;
-
-#if defined(BOARD_OTG2_USES_ULPI)
-#if STM32_USB_USE_OTG1
-    if (&USBD1 == usbp) {
-      otgp->GCCFG = GCCFG_INIT_VALUE;
+    if (otg_uses_integrated_hs_phy(usbp)) {
+      /* The integrated PHY clock is required by the soft core reset.*/
+      otg_core_reset(usbp);
+      otg_device_configure(usbp);
+      otg_vbus_configure(usbp);
     }
-#endif
-
-#if STM32_USB_USE_OTG2
-    if (&USBD2 == usbp) {
-      otgp->GCCFG = 0;
+    else {
+      /* Legacy PHY interface selection must precede the soft core reset.*/
+      otg_device_configure(usbp);
+      otg_vbus_configure(usbp);
+      otg_core_reset(usbp);
     }
-#endif
-#else
-    otgp->GCCFG = GCCFG_INIT_VALUE;
-#endif
-
-    /* Soft core reset.*/
-    otg_core_reset(usbp);
 
     /* Interrupts on TXFIFOs half empty.*/
     otgp->GAHBCFG = 0;
@@ -1050,15 +1071,11 @@ void usb_lld_stop(USBDriver *usbp) {
 #if STM32_USB_USE_OTG2
     if (&USBD2 == usbp) {
       nvicDisableVector(STM32_OTG2_NUMBER);
-#if defined(STM32U5XX)
-      SYSCFG->OTGHSPHYCR &= ~SYSCFG_OTGHSPHYCR_EN;
-#endif
       rccDisableOTG_HS();
-#if defined(STM32U5XX)
-      rccDisableUSBPHYC();
-      PWR->VOSR &= ~(PWR_VOSR_USBPWREN | PWR_VOSR_USBBOOSTEN);
+#if STM32_USB_OTG2_PHY == STM32_OTG_PHY_INTEGRATED_HS
+      stm32_otg2_phy_stop();
 #endif
-#if defined(BOARD_OTG2_USES_ULPI)
+#if STM32_USB_OTG2_PHY == STM32_OTG_PHY_EXTERNAL_ULPI
       rccDisableOTG_HSULPI();
 #endif
     }

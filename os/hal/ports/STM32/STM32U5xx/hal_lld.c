@@ -1184,6 +1184,53 @@ void hal_lld_init(void) {
   irqInit();
 }
 
+#if (HAL_USE_USB == TRUE) && STM32_HAS_OTG2
+/**
+ * @brief   Enables and starts the integrated OTG2 high-speed PHY.
+ *
+ * @notapi
+ */
+void stm32_otg2_phy_start(void) {
+
+  /* The USB power booster must be ready before clocking the PHY.*/
+  PWR->VOSR &= ~PWR_VOSR_VDD11USBDIS;
+  PWR->VOSR |= PWR_VOSR_USBPWREN | PWR_VOSR_USBBOOSTEN;
+  while ((PWR->VOSR & PWR_VOSR_USBBOOSTRDY) == 0U) {
+  }
+
+  /* Integrated high-speed PHY clocks.*/
+  rccEnableSYSCFG(true);
+  rccEnableUSBPHYC(true);
+
+  /* Reference clock and mandatory PHY tuning values from the RM.*/
+  SYSCFG->OTGHSPHYCR = STM32_OTGHS_PHY_CLKSEL;
+  SYSCFG->OTGHSPHYTUNER2 =
+    (SYSCFG->OTGHSPHYTUNER2 &
+     ~(SYSCFG_OTGHSPHYTUNER2_COMPDISTUNE_Msk |
+       SYSCFG_OTGHSPHYTUNER2_SQRXTUNE_Msk)) |
+    SYSCFG_OTGHSPHYTUNER2_COMPDISTUNE_1;
+
+  /* The digital and analog PHY blocks require separate startup delays.*/
+  SYSCFG->OTGHSPHYCR |= SYSCFG_OTGHSPHYCR_EN;
+  osalSysPolledDelayX(OSAL_MS2RTC(STM32_HCLK, 2U));
+  SYSCFG->OTGHSPHYCR |= SYSCFG_OTGHSPHYCR_PDCTRL;
+  osalSysPolledDelayX(OSAL_MS2RTC(STM32_HCLK, 2U));
+}
+
+/**
+ * @brief   Stops and disables the integrated OTG2 high-speed PHY.
+ *
+ * @notapi
+ */
+void stm32_otg2_phy_stop(void) {
+
+  SYSCFG->OTGHSPHYCR &= ~(SYSCFG_OTGHSPHYCR_EN |
+                          SYSCFG_OTGHSPHYCR_PDCTRL);
+  rccDisableUSBPHYC();
+  PWR->VOSR &= ~(PWR_VOSR_USBPWREN | PWR_VOSR_USBBOOSTEN);
+}
+#endif
+
 /**
  * @brief   STM32U5xx clocks and PLL initialization.
  * @note    This function is invoked early by the startup files, non-automatic
