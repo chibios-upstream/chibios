@@ -15,7 +15,7 @@
 */
 
 /**
- * @file    STM32G4xx/stm32_isr.c
+ * @file    STM32G4xx_OLD/stm32_isr.c
  * @brief   STM32G4xx ISR handler code.
  *
  * @addtogroup STM32G4xx_ISR
@@ -63,10 +63,20 @@
 #include "stm32_fdcan2.inc"
 #include "stm32_fdcan3.inc"
 
+#include "stm32_adc1_2.inc"
+#include "stm32_adc3.inc"
+#include "stm32_adc3_4.inc"
+#include "stm32_adc4.inc"
+#include "stm32_adc5.inc"
+
 #include "stm32_i2c1.inc"
 #include "stm32_i2c2.inc"
 #include "stm32_i2c3.inc"
 #include "stm32_i2c4.inc"
+
+#if HAL_USE_USB == TRUE
+#include "stm32_usb1_lp_hp.inc"
+#endif
 
 #include "stm32_usart1.inc"
 #include "stm32_usart2.inc"
@@ -75,13 +85,16 @@
 #include "stm32_uart5.inc"
 #include "stm32_lpuart1.inc"
 
+#include "stm32_quadspi1.inc"
+#include "stm32_rtc_g4.inc"
+
 #include "stm32_tim1_15_16_17.inc"
 #include "stm32_tim2.inc"
 #include "stm32_tim3.inc"
 #include "stm32_tim4.inc"
 #include "stm32_tim5.inc"
-#include "stm32_tim6.inc"
-#include "stm32_tim7.inc"
+#include "stm32_tim6_dac.inc"
+#include "stm32_tim7_dac.inc"
 #include "stm32_tim8.inc"
 #include "stm32_tim20.inc"
 
@@ -107,10 +120,22 @@ void irqInit(void) {
   fdcan2_irq_init();
   fdcan3_irq_init();
 
+  adc1_adc2_irq_init();
+  adc3_irq_init();
+  adc3_adc4_irq_init();
+  adc4_irq_init();
+  adc5_irq_init();
+
   i2c1_irq_init();
   i2c2_irq_init();
   i2c3_irq_init();
   i2c4_irq_init();
+#if HAL_USE_USB == TRUE
+  usb1_irq_init();
+#endif
+
+  quadspi1_irq_init();
+  rtc_irq_init();
 
   tim1_tim15_tim16_tim17_irq_init();
   tim2_irq_init();
@@ -148,10 +173,22 @@ void irqDeinit(void) {
   fdcan2_irq_deinit();
   fdcan3_irq_deinit();
 
+  adc1_adc2_irq_deinit();
+  adc3_irq_deinit();
+  adc3_adc4_irq_deinit();
+  adc4_irq_deinit();
+  adc5_irq_deinit();
+
   i2c1_irq_deinit();
   i2c2_irq_deinit();
   i2c3_irq_deinit();
   i2c4_irq_deinit();
+#if HAL_USE_USB == TRUE
+  usb1_irq_deinit();
+#endif
+
+  quadspi1_irq_deinit();
+  rtc_irq_deinit();
 
   tim1_tim15_tim16_tim17_irq_deinit();
   tim2_irq_deinit();

@@ -15,7 +15,7 @@
 */
 
 /**
- * @file    STM32G4xx_TEST/stm32_clock_usage.h
+ * @file    STM32G4xx/stm32_clock_usage.h
  * @brief   STM32G4xx early peripheral clock requirement atoms.
  *
  * @addtogroup HAL

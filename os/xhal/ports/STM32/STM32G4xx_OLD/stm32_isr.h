@@ -15,7 +15,7 @@
 */
 
 /**
- * @file    STM32G4xx/stm32_isr.h
+ * @file    STM32G4xx_OLD/stm32_isr.h
  * @brief   STM32G4xx ISR handler header.
  *
  * @addtogroup STM32G4xx_ISR
@@ -72,6 +72,17 @@
 #define STM32_ADC3_NUMBER                   47
 #define STM32_ADC4_NUMBER                   61
 #define STM32_ADC5_NUMBER                   62
+
+/*
+ * RTC unit.
+ */
+#define STM32_RTC_TAMP_STAMP_HANDLER        Vector48
+#define STM32_RTC_WKUP_HANDLER              Vector4C
+#define STM32_RTC_ALARM_HANDLER             VectorE4
+
+#define STM32_RTC_TAMP_STAMP_NUMBER         2
+#define STM32_RTC_WKUP_NUMBER               3
+#define STM32_RTC_ALARM_NUMBER              41
 
 /*
  * DMA unit.
