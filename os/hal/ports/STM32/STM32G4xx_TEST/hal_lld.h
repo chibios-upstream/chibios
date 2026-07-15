@@ -185,6 +185,7 @@
 #error "Using a wrong mcuconf.h file, STM32G491_MCUCONF not defined"
 #endif
 
+#include "stm32_clock_usage.h"
 #include "clocktree.h"
 
 #if STM32_CFG_PWR_BOOST && (STM32_CFG_PWR_VOS != PWR_CR1_VOS_RANGE1)

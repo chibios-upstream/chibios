@@ -51,6 +51,7 @@
       <limit name="PCLK1" min="no" max="yes" />
       <limit name="PCLK2" min="no" max="yes" />
       <limit name="ADCCLK" min="no" max="yes" />
+      <limit name="USBCLK" min="yes" max="yes" />
       <limit name="FLASH_0WS" min="no" max="yes" />
       <limit name="FLASH_1WS" min="no" max="yes" />
       <limit name="FLASH_2WS" min="no" max="yes" />
@@ -77,6 +78,7 @@
         <limit name="PCLK1" max="170000000" />
         <limit name="PCLK2" max="170000000" />
         <limit name="ADCCLK" max="60000000" />
+        <limit name="USBCLK" min="47880000" max="48120000" />
         <limit name="FLASH_0WS" max="34000000" />
         <limit name="FLASH_1WS" max="68000000" />
         <limit name="FLASH_2WS" max="102000000" />
@@ -102,6 +104,7 @@
         <limit name="PCLK1" max="150000000" />
         <limit name="PCLK2" max="150000000" />
         <limit name="ADCCLK" max="60000000" />
+        <limit name="USBCLK" min="47880000" max="48120000" />
         <limit name="FLASH_0WS" max="30000000" />
         <limit name="FLASH_1WS" max="60000000" />
         <limit name="FLASH_2WS" max="90000000" />
@@ -127,6 +130,7 @@
         <limit name="PCLK1" max="26000000" />
         <limit name="PCLK2" max="26000000" />
         <limit name="ADCCLK" max="26000000" />
+        <limit name="USBCLK" min="47880000" max="48120000" />
         <limit name="FLASH_0WS" max="12000000" />
         <limit name="FLASH_1WS" max="24000000" />
         <limit name="FLASH_2WS" max="26000000" />
@@ -401,7 +405,7 @@
         </input>
       </mux>
     </clock>
-    <clock point="USART1" enable="always" dynamic="no">
+    <clock point="USART1" enable="auto" dynamic="no">
       <description>USART1</description>
       <mux name="USART1SEL" field="RCC_CCIPR_USART1SEL" offset="0U">
         <input point="PCLK2" encoding="0U" />
@@ -410,7 +414,7 @@
         <input point="LSE" encoding="3U" />
       </mux>
     </clock>
-    <clock point="USART2" enable="always" dynamic="no">
+    <clock point="USART2" enable="auto" dynamic="no">
       <description>USART2</description>
       <mux name="USART2SEL" field="RCC_CCIPR_USART2SEL" offset="2U">
         <input point="PCLK1" encoding="0U" />
@@ -419,7 +423,7 @@
         <input point="LSE" encoding="3U" />
       </mux>
     </clock>
-    <clock point="USART3" enable="always" dynamic="no">
+    <clock point="USART3" enable="auto" dynamic="no">
       <description>USART3</description>
       <mux name="USART3SEL" field="RCC_CCIPR_USART3SEL" offset="4U">
         <input point="PCLK1" encoding="0U" />
@@ -428,7 +432,7 @@
         <input point="LSE" encoding="3U" />
       </mux>
     </clock>
-    <clock point="UART4" enable="always" dynamic="no">
+    <clock point="UART4" enable="auto" dynamic="no">
       <description>UART4</description>
       <mux name="UART4SEL" field="RCC_CCIPR_UART4SEL" offset="6U">
         <input point="PCLK1" encoding="0U" />
@@ -437,7 +441,7 @@
         <input point="LSE" encoding="3U" />
       </mux>
     </clock>
-    <clock point="UART5" enable="always" dynamic="no">
+    <clock point="UART5" enable="auto" dynamic="no">
       <description>UART5</description>
       <mux name="UART5SEL" field="RCC_CCIPR_UART5SEL" offset="8U">
         <input point="PCLK1" encoding="0U" />
@@ -446,7 +450,7 @@
         <input point="LSE" encoding="3U" />
       </mux>
     </clock>
-    <clock point="LPUART1" enable="always" dynamic="no">
+    <clock point="LPUART1" enable="auto" dynamic="no">
       <description>LPUART1</description>
       <mux name="LPUART1SEL" field="RCC_CCIPR_LPUART1SEL" offset="10U">
         <input point="PCLK1" encoding="0U" />
@@ -455,7 +459,7 @@
         <input point="LSE" encoding="3U" />
       </mux>
     </clock>
-    <clock point="I2C1" enable="always" dynamic="no">
+    <clock point="I2C1" enable="auto" dynamic="no">
       <description>I2C1</description>
       <mux name="I2C1SEL" field="RCC_CCIPR_I2C1SEL" offset="12U">
         <input point="PCLK1" encoding="0U" default="yes" />
@@ -463,7 +467,7 @@
         <input point="HSI16" encoding="2U" />
       </mux>
     </clock>
-    <clock point="I2C2" enable="always" dynamic="no">
+    <clock point="I2C2" enable="auto" dynamic="no">
       <description>I2C2</description>
       <mux name="I2C2SEL" field="RCC_CCIPR_I2C2SEL" offset="14U">
         <input point="PCLK1" encoding="0U" default="yes" />
@@ -471,7 +475,7 @@
         <input point="HSI16" encoding="2U" />
       </mux>
     </clock>
-    <clock point="I2C3" enable="always" dynamic="no">
+    <clock point="I2C3" enable="auto" dynamic="no">
       <description>I2C3</description>
       <mux name="I2C3SEL" field="RCC_CCIPR_I2C3SEL" offset="16U">
         <input point="PCLK1" encoding="0U" default="yes" />
@@ -479,7 +483,7 @@
         <input point="HSI16" encoding="2U" />
       </mux>
     </clock>
-    <clock point="I2C4" enable="always" dynamic="no">
+    <clock point="I2C4" enable="auto" dynamic="no">
       <description>I2C4</description>
       <mux name="I2C4SEL" field="RCC_CCIPR2_I2C4SEL" offset="0U">
         <input point="PCLK1" encoding="0U" default="yes" />
@@ -487,7 +491,7 @@
         <input point="HSI16" encoding="2U" />
       </mux>
     </clock>
-    <clock point="LPTIM1" enable="always" dynamic="no">
+    <clock point="LPTIM1" enable="auto" dynamic="no">
       <description>LPTIM1</description>
       <mux name="LPTIM1SEL" field="RCC_CCIPR_LPTIM1SEL" offset="18U">
         <input point="PCLK1" encoding="0U" default="yes" />
@@ -496,7 +500,7 @@
         <input point="LSE" encoding="3U" />
       </mux>
     </clock>
-    <clock point="SAI1" enable="always" dynamic="no">
+    <clock point="SAI1" enable="auto" dynamic="no">
       <description>SAI1</description>
       <mux name="SAI1SEL" field="RCC_CCIPR_SAI1SEL" offset="20U">
         <input point="SYSCLK" encoding="0U" default="yes" />
@@ -505,7 +509,7 @@
         <input point="HSI16" encoding="3U" />
       </mux>
     </clock>
-    <clock point="I2S23" enable="always" dynamic="no">
+    <clock point="I2S23" enable="auto" dynamic="no">
       <description>I2S23</description>
       <mux name="I2S23SEL" field="RCC_CCIPR_I2S23SEL" offset="22U">
         <input point="SYSCLK" encoding="0U" default="yes" />
@@ -514,7 +518,7 @@
         <input point="HSI16" encoding="3U" />
       </mux>
     </clock>
-    <clock point="FDCAN" enable="always" dynamic="no">
+    <clock point="FDCAN" enable="auto" dynamic="no">
       <description>FDCAN</description>
       <mux name="FDCANSEL" field="RCC_CCIPR_FDCANSEL" offset="24U">
         <input point="HSE" encoding="0U" default="yes" />
@@ -522,14 +526,14 @@
         <input point="PCLK1" encoding="2U" />
       </mux>
     </clock>
-    <clock point="CLK48" enable="always" dynamic="no">
+    <clock point="CLK48" enable="auto" dynamic="no">
       <description>48MHz clock</description>
       <mux name="CLK48SEL" field="RCC_CCIPR_CLK48SEL" offset="26U">
         <input point="HSI48" encoding="0U" default="yes" />
         <input point="PLLQ" label="PLLQCLK" encoding="2U" />
       </mux>
     </clock>
-    <clock point="ADC12" enable="always" dynamic="no">
+    <clock point="ADC12" enable="auto" dynamic="no">
       <description>ADC12</description>
       <limits ref="ADCCLK" />
       <mux name="ADC12SEL" field="RCC_CCIPR_ADC12SEL" offset="28U">
@@ -538,7 +542,7 @@
         <input point="SYSCLK" encoding="2U" />
       </mux>
     </clock>
-    <clock point="ADC345" enable="always" dynamic="no">
+    <clock point="ADC345" enable="auto" dynamic="no">
       <description>ADC345</description>
       <limits ref="ADCCLK" />
       <mux name="ADC345SEL" field="RCC_CCIPR_ADC345SEL" offset="30U">
@@ -547,7 +551,7 @@
         <input point="SYSCLK" encoding="2U" />
       </mux>
     </clock>
-    <clock point="QSPI" enable="always" dynamic="no">
+    <clock point="QSPI" enable="auto" dynamic="no">
       <description>QSPI</description>
       <mux name="QSPISEL" field="RCC_CCIPR2_QSPISEL" offset="20U">
         <input point="SYSCLK" encoding="0U" default="yes" />
@@ -555,18 +559,85 @@
         <input point="PLLQ" label="PLLQCLK" encoding="2U" />
       </mux>
     </clock>
-    <clock point="RNG" enable="always" dynamic="no">
+    <clock point="RNG" enable="auto" dynamic="no">
       <description>RNG</description>
       <derived input="CLK48" frequency="%I%" />
     </clock>
-    <clock point="USB" enable="always" dynamic="no">
+    <clock point="USB" enable="auto" dynamic="no">
       <description>USB</description>
       <derived input="CLK48" frequency="%I%" />
     </clock>
   </clocks>
   <sinks>
-    <sink name="RTC" input="RTC" condition="HAL_USE_RTC == TRUE">
-      <description>RTC peripheral clock sink</description>
+    <sink name="PLLP" input="PLLP">
+      <description>External software demands the PLL P output clock.</description>
+    </sink>
+    <sink name="PLLQ" input="PLLQ">
+      <description>External software demands the PLL Q output clock.</description>
+    </sink>
+    <sink name="PLLR" input="PLLR">
+      <description>External software demands the PLL R output clock.</description>
+    </sink>
+    <sink name="RTC" input="RTC">
+      <description>External software demands the RTC clock.</description>
+    </sink>
+    <sink name="USART1" input="USART1">
+      <description>External software demands the USART1 clock.</description>
+    </sink>
+    <sink name="USART2" input="USART2">
+      <description>External software demands the USART2 clock.</description>
+    </sink>
+    <sink name="USART3" input="USART3">
+      <description>External software demands the USART3 clock.</description>
+    </sink>
+    <sink name="UART4" input="UART4">
+      <description>External software demands the UART4 clock.</description>
+    </sink>
+    <sink name="UART5" input="UART5">
+      <description>External software demands the UART5 clock.</description>
+    </sink>
+    <sink name="LPUART1" input="LPUART1">
+      <description>External software demands the LPUART1 clock.</description>
+    </sink>
+    <sink name="I2C1" input="I2C1">
+      <description>External software demands the I2C1 clock.</description>
+    </sink>
+    <sink name="I2C2" input="I2C2">
+      <description>External software demands the I2C2 clock.</description>
+    </sink>
+    <sink name="I2C3" input="I2C3">
+      <description>External software demands the I2C3 clock.</description>
+    </sink>
+    <sink name="I2C4" input="I2C4">
+      <description>External software demands the I2C4 clock.</description>
+    </sink>
+    <sink name="LPTIM1" input="LPTIM1">
+      <description>External software demands the LPTIM1 clock.</description>
+    </sink>
+    <sink name="SAI1" input="SAI1">
+      <description>External software demands the SAI1 clock.</description>
+    </sink>
+    <sink name="I2S23" input="I2S23">
+      <description>External software demands the SPI2 and SPI3 I2S clock.</description>
+    </sink>
+    <sink name="FDCAN" input="FDCAN">
+      <description>External software demands the FDCAN clock.</description>
+    </sink>
+    <sink name="ADC12" input="ADC12">
+      <description>External software demands the ADC1 and ADC2 clock.</description>
+    </sink>
+    <sink name="ADC345" input="ADC345">
+      <description>External software demands the ADC3, ADC4 and ADC5 clock.</description>
+    </sink>
+    <sink name="QSPI" input="QSPI">
+      <description>External software demands the QUADSPI clock.</description>
+    </sink>
+    <sink name="RNG" input="RNG">
+      <description>External software demands the RNG clock.</description>
+    </sink>
+    <sink name="USB" input="USB">
+      <description>External software demands the USB clock.</description>
+      <limits ref="USBCLK" />
     </sink>
   </sinks>
 </clocktree>
