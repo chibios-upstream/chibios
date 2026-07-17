@@ -432,9 +432,10 @@ struct port_context {
  *          itself) is folded.
  *          @n@n
  *          The body is reached with @p "ldr/bx" rather than a plain @p b
- *          because, with @p -ffunction-sections, the linker may place the
- *          body outside the @p +/-2KB range of the only unconditional Thumb
- *          branch available on ARMv6-M.
+ *          because the linker may place the body outside the @p +/-2KB range
+ *          of the only unconditional Thumb branch available on ARMv6-M. The
+ *          address literal is emitted immediately after the trampoline so the
+ *          Thumb-1 literal load is independent of assembler pool placement.
  */
 #if defined(__GNUC__) || defined(__DOXYGEN__)
   #ifdef __cplusplus
@@ -447,8 +448,10 @@ struct port_context {
     PORT_IRQ_HANDLER_LINKAGE __attribute__((naked, used))                  \
     void id(void) {                                                        \
       __asm volatile ("mov   r0, lr            \n\t"                       \
-                      "ldr   r1, =" #id "_isr  \n\t"                       \
-                      "bx    r1                \n\t");                     \
+                      "ldr   r1, 1f            \n\t"                       \
+                      "bx    r1                \n\t"                       \
+                      ".balign 4               \n\t"                       \
+                      "1: .word " #id "_isr    \n\t");                     \
     }                                                                      \
     static __attribute__((used)) void id##_isr(uint32_t _saved_lr)
 #else /* IAR (__ICCARM__) / ARMCC5 (__CC_ARM): EXC_RETURN captured in the
