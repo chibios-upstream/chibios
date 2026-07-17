@@ -1,0 +1,3 @@
+# Explicit sink conditions are deferred as expressions, not evaluated early.
+#define TST_RTC_DRIVER_DEMANDED             (HAL_USE_RTC == TRUE)
+ABSENT:#if (HAL_USE_RTC == TRUE)

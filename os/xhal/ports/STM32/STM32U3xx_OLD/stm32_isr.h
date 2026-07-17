@@ -15,7 +15,7 @@
 */
 
 /**
- * @file    STM32U3xx/stm32_isr.h
+ * @file    STM32U3xx_OLD/stm32_isr.h
  * @brief   STM32U3xx ISR handler header.
  *
  * @addtogroup STM32U3xx_ISR

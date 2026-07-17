@@ -71,6 +71,10 @@
  * @name    Generated support definitions
  * @{
  */
+#define STM32_CLOCK_DISABLED                0U
+#define STM32_CLOCK_AUTO                    1U
+#define STM32_CLOCK_ENABLED                 2U
+
 #define RCC_MSIRC0_FREE                     0
 #define RCC_MSIRC0_PLL_LSE                  1
 #define RCC_MSIRC0_PLL_HSE                  2
@@ -414,66 +418,178 @@
 #endif
 
 /**
- * @brief   Enables demand for the DAC1 sample-and-hold clock.
+ * @brief   Controls external demand for the USART1 clock.
  */
-#if !defined(STM32_CFG_DAC1SH_REQUIRED) || defined(__DOXYGEN__)
-  #define STM32_CFG_DAC1SH_REQUIRED         FALSE
+#if !defined(STM32_CFG_USART1_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_USART1_CLOCK_MODE       STM32_CLOCK_AUTO
 #endif
 
 /**
- * @brief   Enables demand for the LPTIM1 clock.
+ * @brief   Controls external demand for the USART3 clock.
  */
-#if !defined(STM32_CFG_LPTIM1_REQUIRED) || defined(__DOXYGEN__)
-  #define STM32_CFG_LPTIM1_REQUIRED         FALSE
+#if !defined(STM32_CFG_USART3_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_USART3_CLOCK_MODE       STM32_CLOCK_AUTO
 #endif
 
 /**
- * @brief   Enables demand for the LPTIM2 clock.
+ * @brief   Controls external demand for the UART4 clock.
  */
-#if !defined(STM32_CFG_LPTIM2_REQUIRED) || defined(__DOXYGEN__)
-  #define STM32_CFG_LPTIM2_REQUIRED         FALSE
+#if !defined(STM32_CFG_UART4_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_UART4_CLOCK_MODE        STM32_CLOCK_AUTO
 #endif
 
 /**
- * @brief   Enables demand for the LPTIM3 and LPTIM4 clocks.
+ * @brief   Controls external demand for the UART5 clock.
  */
-#if !defined(STM32_CFG_LPTIM34_REQUIRED) || defined(__DOXYGEN__)
-  #define STM32_CFG_LPTIM34_REQUIRED        FALSE
+#if !defined(STM32_CFG_UART5_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_UART5_CLOCK_MODE        STM32_CLOCK_AUTO
 #endif
 
 /**
- * @brief   Enables demand for the OCTOSPI clock.
+ * @brief   Controls external demand for the LPUART1 clock.
  */
-#if !defined(STM32_CFG_OCTOSPI_REQUIRED) || defined(__DOXYGEN__)
-  #define STM32_CFG_OCTOSPI_REQUIRED        FALSE
+#if !defined(STM32_CFG_LPUART1_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_LPUART1_CLOCK_MODE      STM32_CLOCK_AUTO
 #endif
 
 /**
- * @brief   Enables demand for the I3C1 clock.
+ * @brief   Controls external demand for the LPTIM1 clock.
  */
-#if !defined(STM32_CFG_I3C1_REQUIRED) || defined(__DOXYGEN__)
-  #define STM32_CFG_I3C1_REQUIRED           FALSE
+#if !defined(STM32_CFG_LPTIM1_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_LPTIM1_CLOCK_MODE       STM32_CLOCK_AUTO
 #endif
 
 /**
- * @brief   Enables demand for the I3C2 clock.
+ * @brief   Controls external demand for the LPTIM2 clock.
  */
-#if !defined(STM32_CFG_I3C2_REQUIRED) || defined(__DOXYGEN__)
-  #define STM32_CFG_I3C2_REQUIRED           FALSE
+#if !defined(STM32_CFG_LPTIM2_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_LPTIM2_CLOCK_MODE       STM32_CLOCK_AUTO
 #endif
 
 /**
- * @brief   Enables demand for the SAI1 clock.
+ * @brief   Controls external demand for the LPTIM34 clock.
  */
-#if !defined(STM32_CFG_SAI1_REQUIRED) || defined(__DOXYGEN__)
-  #define STM32_CFG_SAI1_REQUIRED           FALSE
+#if !defined(STM32_CFG_LPTIM34_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_LPTIM34_CLOCK_MODE      STM32_CLOCK_AUTO
 #endif
 
 /**
- * @brief   Enables demand for the ADF1 clock.
+ * @brief   Controls external demand for the SPI1 clock.
  */
-#if !defined(STM32_CFG_ADF1_REQUIRED) || defined(__DOXYGEN__)
-  #define STM32_CFG_ADF1_REQUIRED           FALSE
+#if !defined(STM32_CFG_SPI1_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_SPI1_CLOCK_MODE         STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the SPI2 clock.
+ */
+#if !defined(STM32_CFG_SPI2_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_SPI2_CLOCK_MODE         STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the SPI3 clock.
+ */
+#if !defined(STM32_CFG_SPI3_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_SPI3_CLOCK_MODE         STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the OCTOSPI clock.
+ */
+#if !defined(STM32_CFG_OCTOSPI_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_OCTOSPI_CLOCK_MODE      STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the USB clock.
+ */
+#if !defined(STM32_CFG_USB_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_USB_CLOCK_MODE          STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the SDMMC1 clock.
+ */
+#if !defined(STM32_CFG_SDMMC1_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_SDMMC1_CLOCK_MODE       STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the I2C1 clock.
+ */
+#if !defined(STM32_CFG_I2C1_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_I2C1_CLOCK_MODE         STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the I2C2 clock.
+ */
+#if !defined(STM32_CFG_I2C2_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_I2C2_CLOCK_MODE         STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the I2C3 clock.
+ */
+#if !defined(STM32_CFG_I2C3_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_I2C3_CLOCK_MODE         STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the I3C1 clock.
+ */
+#if !defined(STM32_CFG_I3C1_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_I3C1_CLOCK_MODE         STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the I3C2 clock.
+ */
+#if !defined(STM32_CFG_I3C2_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_I3C2_CLOCK_MODE         STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the ADCDAC clock.
+ */
+#if !defined(STM32_CFG_ADCDAC_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_ADCDAC_CLOCK_MODE       STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the DAC1SH clock.
+ */
+#if !defined(STM32_CFG_DAC1SH_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_DAC1SH_CLOCK_MODE       STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the RNG clock.
+ */
+#if !defined(STM32_CFG_RNG_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_RNG_CLOCK_MODE          STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the FDCAN1 clock.
+ */
+#if !defined(STM32_CFG_FDCAN1_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_FDCAN1_CLOCK_MODE       STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the SAI1 clock.
+ */
+#if !defined(STM32_CFG_SAI1_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_SAI1_CLOCK_MODE         STM32_CLOCK_AUTO
+#endif
+
+/**
+ * @brief   Controls external demand for the ADF1 clock.
+ */
+#if !defined(STM32_CFG_ADF1_CLOCK_MODE) || defined(__DOXYGEN__)
+  #define STM32_CFG_ADF1_CLOCK_MODE         STM32_CLOCK_AUTO
 #endif
 
 /**
@@ -1011,49 +1127,292 @@
   #error "invalid STM32_CFG_TIMICSEL value specified"
 #endif
 
-#if !((STM32_CFG_DAC1SH_REQUIRED == TRUE) ||                                \
-     (STM32_CFG_DAC1SH_REQUIRED == FALSE)) && !defined(__DOXYGEN__)
-  #error "invalid STM32_CFG_DAC1SH_REQUIRED value specified"
-#endif
-
-#if !((STM32_CFG_LPTIM1_REQUIRED == TRUE) ||                                \
-     (STM32_CFG_LPTIM1_REQUIRED == FALSE)) && !defined(__DOXYGEN__)
-  #error "invalid STM32_CFG_LPTIM1_REQUIRED value specified"
-#endif
-
-#if !((STM32_CFG_LPTIM2_REQUIRED == TRUE) ||                                \
-     (STM32_CFG_LPTIM2_REQUIRED == FALSE)) && !defined(__DOXYGEN__)
-  #error "invalid STM32_CFG_LPTIM2_REQUIRED value specified"
-#endif
-
-#if !((STM32_CFG_LPTIM34_REQUIRED == TRUE) ||                               \
-     (STM32_CFG_LPTIM34_REQUIRED == FALSE)) && !defined(__DOXYGEN__)
-  #error "invalid STM32_CFG_LPTIM34_REQUIRED value specified"
-#endif
-
-#if !((STM32_CFG_OCTOSPI_REQUIRED == TRUE) ||                               \
-     (STM32_CFG_OCTOSPI_REQUIRED == FALSE)) && !defined(__DOXYGEN__)
-  #error "invalid STM32_CFG_OCTOSPI_REQUIRED value specified"
-#endif
-
-#if !((STM32_CFG_I3C1_REQUIRED == TRUE) || (STM32_CFG_I3C1_REQUIRED == FALSE)) && \
+#if !((STM32_CFG_USART1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+     (STM32_CFG_USART1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+     (STM32_CFG_USART1_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
     !defined(__DOXYGEN__)
-  #error "invalid STM32_CFG_I3C1_REQUIRED value specified"
+  #error "invalid STM32_CFG_USART1_CLOCK_MODE value specified"
 #endif
 
-#if !((STM32_CFG_I3C2_REQUIRED == TRUE) || (STM32_CFG_I3C2_REQUIRED == FALSE)) && \
+#if !((STM32_CFG_USART3_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+     (STM32_CFG_USART3_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+     (STM32_CFG_USART3_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
     !defined(__DOXYGEN__)
-  #error "invalid STM32_CFG_I3C2_REQUIRED value specified"
+  #error "invalid STM32_CFG_USART3_CLOCK_MODE value specified"
 #endif
 
-#if !((STM32_CFG_SAI1_REQUIRED == TRUE) || (STM32_CFG_SAI1_REQUIRED == FALSE)) && \
+#if !((STM32_CFG_UART4_CLOCK_MODE == STM32_CLOCK_DISABLED) ||               \
+     (STM32_CFG_UART4_CLOCK_MODE == STM32_CLOCK_AUTO) ||                    \
+     (STM32_CFG_UART4_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&                \
     !defined(__DOXYGEN__)
-  #error "invalid STM32_CFG_SAI1_REQUIRED value specified"
+  #error "invalid STM32_CFG_UART4_CLOCK_MODE value specified"
 #endif
 
-#if !((STM32_CFG_ADF1_REQUIRED == TRUE) || (STM32_CFG_ADF1_REQUIRED == FALSE)) && \
+#if !((STM32_CFG_UART5_CLOCK_MODE == STM32_CLOCK_DISABLED) ||               \
+     (STM32_CFG_UART5_CLOCK_MODE == STM32_CLOCK_AUTO) ||                    \
+     (STM32_CFG_UART5_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&                \
     !defined(__DOXYGEN__)
-  #error "invalid STM32_CFG_ADF1_REQUIRED value specified"
+  #error "invalid STM32_CFG_UART5_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_LPUART1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||             \
+     (STM32_CFG_LPUART1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                  \
+     (STM32_CFG_LPUART1_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&              \
+    !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_LPUART1_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_LPTIM1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+     (STM32_CFG_LPTIM1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+     (STM32_CFG_LPTIM1_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
+    !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_LPTIM1_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_LPTIM2_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+     (STM32_CFG_LPTIM2_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+     (STM32_CFG_LPTIM2_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
+    !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_LPTIM2_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_LPTIM34_CLOCK_MODE == STM32_CLOCK_DISABLED) ||             \
+     (STM32_CFG_LPTIM34_CLOCK_MODE == STM32_CLOCK_AUTO) ||                  \
+     (STM32_CFG_LPTIM34_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&              \
+    !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_LPTIM34_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_SPI1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
+     (STM32_CFG_SPI1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
+     (STM32_CFG_SPI1_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_SPI1_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_SPI2_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
+     (STM32_CFG_SPI2_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
+     (STM32_CFG_SPI2_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_SPI2_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_SPI3_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
+     (STM32_CFG_SPI3_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
+     (STM32_CFG_SPI3_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_SPI3_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_OCTOSPI_CLOCK_MODE == STM32_CLOCK_DISABLED) ||             \
+     (STM32_CFG_OCTOSPI_CLOCK_MODE == STM32_CLOCK_AUTO) ||                  \
+     (STM32_CFG_OCTOSPI_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&              \
+    !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_OCTOSPI_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_USB_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                 \
+     (STM32_CFG_USB_CLOCK_MODE == STM32_CLOCK_AUTO) ||                      \
+     (STM32_CFG_USB_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_USB_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_SDMMC1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+     (STM32_CFG_SDMMC1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+     (STM32_CFG_SDMMC1_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
+    !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_SDMMC1_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_I2C1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
+     (STM32_CFG_I2C1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
+     (STM32_CFG_I2C1_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_I2C1_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_I2C2_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
+     (STM32_CFG_I2C2_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
+     (STM32_CFG_I2C2_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_I2C2_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_I2C3_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
+     (STM32_CFG_I2C3_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
+     (STM32_CFG_I2C3_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_I2C3_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_I3C1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
+     (STM32_CFG_I3C1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
+     (STM32_CFG_I3C1_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_I3C1_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_I3C2_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
+     (STM32_CFG_I3C2_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
+     (STM32_CFG_I3C2_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_I3C2_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_ADCDAC_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+     (STM32_CFG_ADCDAC_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+     (STM32_CFG_ADCDAC_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
+    !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_ADCDAC_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_DAC1SH_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+     (STM32_CFG_DAC1SH_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+     (STM32_CFG_DAC1SH_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
+    !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_DAC1SH_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_RNG_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                 \
+     (STM32_CFG_RNG_CLOCK_MODE == STM32_CLOCK_AUTO) ||                      \
+     (STM32_CFG_RNG_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_RNG_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_FDCAN1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
+     (STM32_CFG_FDCAN1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                   \
+     (STM32_CFG_FDCAN1_CLOCK_MODE == STM32_CLOCK_ENABLED)) &&               \
+    !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_FDCAN1_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_SAI1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
+     (STM32_CFG_SAI1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
+     (STM32_CFG_SAI1_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_SAI1_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_ADF1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||                \
+     (STM32_CFG_ADF1_CLOCK_MODE == STM32_CLOCK_AUTO) ||                     \
+     (STM32_CFG_ADF1_CLOCK_MODE == STM32_CLOCK_ENABLED)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_ADF1_CLOCK_MODE value specified"
+#endif
+
+#if !((STM32_CFG_USART1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+     !defined(STM32_USART1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "USART1 clock disabled but USART1 clock is required"
+#endif
+
+#if !((STM32_CFG_USART3_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+     !defined(STM32_USART3_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "USART3 clock disabled but USART3 clock is required"
+#endif
+
+#if !((STM32_CFG_UART4_CLOCK_MODE != STM32_CLOCK_DISABLED) ||               \
+     !defined(STM32_UART4_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "UART4 clock disabled but UART4 clock is required"
+#endif
+
+#if !((STM32_CFG_UART5_CLOCK_MODE != STM32_CLOCK_DISABLED) ||               \
+     !defined(STM32_UART5_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "UART5 clock disabled but UART5 clock is required"
+#endif
+
+#if !((STM32_CFG_LPUART1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||             \
+     !defined(STM32_LPUART1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "LPUART1 clock disabled but LPUART1 clock is required"
+#endif
+
+#if !((STM32_CFG_LPTIM1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+     !defined(STM32_LPTIM1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "LPTIM1 clock disabled but LPTIM1 clock is required"
+#endif
+
+#if !((STM32_CFG_LPTIM2_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+     !defined(STM32_LPTIM2_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "LPTIM2 clock disabled but LPTIM2 clock is required"
+#endif
+
+#if !((STM32_CFG_LPTIM34_CLOCK_MODE != STM32_CLOCK_DISABLED) ||             \
+     !defined(STM32_LPTIM34_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "LPTIM34 clock disabled but LPTIM34 clock is required"
+#endif
+
+#if !((STM32_CFG_SPI1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
+     !defined(STM32_SPI1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "SPI1 clock disabled but SPI1 clock is required"
+#endif
+
+#if !((STM32_CFG_SPI2_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
+     !defined(STM32_SPI2_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "SPI2 clock disabled but SPI2 clock is required"
+#endif
+
+#if !((STM32_CFG_SPI3_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
+     !defined(STM32_SPI3_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "SPI3 clock disabled but SPI3 clock is required"
+#endif
+
+#if !((STM32_CFG_OCTOSPI_CLOCK_MODE != STM32_CLOCK_DISABLED) ||             \
+     !defined(STM32_OCTOSPI_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "OCTOSPI clock disabled but OCTOSPI clock is required"
+#endif
+
+#if !((STM32_CFG_USB_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                 \
+     !defined(STM32_USB_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "USB clock disabled but USB clock is required"
+#endif
+
+#if !((STM32_CFG_SDMMC1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+     !defined(STM32_SDMMC1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "SDMMC1 clock disabled but SDMMC1 clock is required"
+#endif
+
+#if !((STM32_CFG_I2C1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
+     !defined(STM32_I2C1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "I2C1 clock disabled but I2C1 clock is required"
+#endif
+
+#if !((STM32_CFG_I2C2_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
+     !defined(STM32_I2C2_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "I2C2 clock disabled but I2C2 clock is required"
+#endif
+
+#if !((STM32_CFG_I2C3_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
+     !defined(STM32_I2C3_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "I2C3 clock disabled but I2C3 clock is required"
+#endif
+
+#if !((STM32_CFG_I3C1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
+     !defined(STM32_I3C1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "I3C1 clock disabled but I3C1 clock is required"
+#endif
+
+#if !((STM32_CFG_I3C2_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
+     !defined(STM32_I3C2_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "I3C2 clock disabled but I3C2 clock is required"
+#endif
+
+#if !((STM32_CFG_ADCDAC_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+     !defined(STM32_ADCDAC_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "ADCDAC clock disabled but ADCDAC clock is required"
+#endif
+
+#if !((STM32_CFG_DAC1SH_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+     !defined(STM32_DAC1SH_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "DAC1SH clock disabled but DAC1SH clock is required"
+#endif
+
+#if !((STM32_CFG_RNG_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                 \
+     !defined(STM32_RNG_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "RNG clock disabled but RNG clock is required"
+#endif
+
+#if !((STM32_CFG_FDCAN1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
+     !defined(STM32_FDCAN1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "FDCAN1 clock disabled but FDCAN1 clock is required"
+#endif
+
+#if !((STM32_CFG_SAI1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
+     !defined(STM32_SAI1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "SAI1 clock disabled but SAI1 clock is required"
+#endif
+
+#if !((STM32_CFG_ADF1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||                \
+     !defined(STM32_ADF1_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
+  #error "ADF1 clock disabled but ADF1 clock is required"
 #endif
 
 /**
@@ -1200,331 +1559,293 @@
  * @{
  */
 /**
- * @brief   USART1_SERIAL_DRIVER sink demand state.
+ * @brief   USART1 sink demand state.
  */
-#if ((HAL_USE_SERIAL == TRUE) && (STM32_SERIAL_USE_USART1 == TRUE)) ||      \
-    defined(__DOXYGEN__)
-  #define STM32_USART1_SERIAL_DRIVER_DEMANDED TRUE
+#if ((STM32_CFG_USART1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
+     ((STM32_CFG_USART1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                  \
+      defined(STM32_USART1_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_USART1_DEMANDED             TRUE
 #else
-  #define STM32_USART1_SERIAL_DRIVER_DEMANDED FALSE
+  #define STM32_USART1_DEMANDED             FALSE
 #endif
 
 /**
- * @brief   USART1_SIO_DRIVER sink demand state.
+ * @brief   USART3 sink demand state.
  */
-#if ((HAL_USE_SIO == TRUE) && (STM32_SIO_USE_USART1 == TRUE)) ||            \
-    defined(__DOXYGEN__)
-  #define STM32_USART1_SIO_DRIVER_DEMANDED  TRUE
+#if ((STM32_CFG_USART3_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
+     ((STM32_CFG_USART3_CLOCK_MODE == STM32_CLOCK_AUTO) &&                  \
+      defined(STM32_USART3_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_USART3_DEMANDED             TRUE
 #else
-  #define STM32_USART1_SIO_DRIVER_DEMANDED  FALSE
+  #define STM32_USART3_DEMANDED             FALSE
 #endif
 
 /**
- * @brief   USART3_SERIAL_DRIVER sink demand state.
+ * @brief   UART4 sink demand state.
  */
-#if ((HAL_USE_SERIAL == TRUE) && (STM32_SERIAL_USE_USART3 == TRUE)) ||      \
-    defined(__DOXYGEN__)
-  #define STM32_USART3_SERIAL_DRIVER_DEMANDED TRUE
+#if ((STM32_CFG_UART4_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                 \
+     ((STM32_CFG_UART4_CLOCK_MODE == STM32_CLOCK_AUTO) &&                   \
+      defined(STM32_UART4_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_UART4_DEMANDED              TRUE
 #else
-  #define STM32_USART3_SERIAL_DRIVER_DEMANDED FALSE
+  #define STM32_UART4_DEMANDED              FALSE
 #endif
 
 /**
- * @brief   USART3_SIO_DRIVER sink demand state.
+ * @brief   UART5 sink demand state.
  */
-#if ((HAL_USE_SIO == TRUE) && (STM32_SIO_USE_USART3 == TRUE)) ||            \
-    defined(__DOXYGEN__)
-  #define STM32_USART3_SIO_DRIVER_DEMANDED  TRUE
+#if ((STM32_CFG_UART5_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                 \
+     ((STM32_CFG_UART5_CLOCK_MODE == STM32_CLOCK_AUTO) &&                   \
+      defined(STM32_UART5_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_UART5_DEMANDED              TRUE
 #else
-  #define STM32_USART3_SIO_DRIVER_DEMANDED  FALSE
+  #define STM32_UART5_DEMANDED              FALSE
 #endif
 
 /**
- * @brief   UART4_SERIAL_DRIVER sink demand state.
+ * @brief   LPUART1 sink demand state.
  */
-#if ((HAL_USE_SERIAL == TRUE) && (STM32_SERIAL_USE_UART4 == TRUE)) ||       \
-    defined(__DOXYGEN__)
-  #define STM32_UART4_SERIAL_DRIVER_DEMANDED TRUE
+#if ((STM32_CFG_LPUART1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||               \
+     ((STM32_CFG_LPUART1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                 \
+      defined(STM32_LPUART1_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_LPUART1_DEMANDED            TRUE
 #else
-  #define STM32_UART4_SERIAL_DRIVER_DEMANDED FALSE
+  #define STM32_LPUART1_DEMANDED            FALSE
 #endif
 
 /**
- * @brief   UART4_SIO_DRIVER sink demand state.
+ * @brief   LPTIM1 sink demand state.
  */
-#if ((HAL_USE_SIO == TRUE) && (STM32_SIO_USE_UART4 == TRUE)) ||             \
-    defined(__DOXYGEN__)
-  #define STM32_UART4_SIO_DRIVER_DEMANDED   TRUE
+#if ((STM32_CFG_LPTIM1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
+     ((STM32_CFG_LPTIM1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                  \
+      defined(STM32_LPTIM1_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_LPTIM1_DEMANDED             TRUE
 #else
-  #define STM32_UART4_SIO_DRIVER_DEMANDED   FALSE
+  #define STM32_LPTIM1_DEMANDED             FALSE
 #endif
 
 /**
- * @brief   UART5_SERIAL_DRIVER sink demand state.
+ * @brief   LPTIM2 sink demand state.
  */
-#if ((HAL_USE_SERIAL == TRUE) && (STM32_SERIAL_USE_UART5 == TRUE)) ||       \
-    defined(__DOXYGEN__)
-  #define STM32_UART5_SERIAL_DRIVER_DEMANDED TRUE
+#if ((STM32_CFG_LPTIM2_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
+     ((STM32_CFG_LPTIM2_CLOCK_MODE == STM32_CLOCK_AUTO) &&                  \
+      defined(STM32_LPTIM2_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_LPTIM2_DEMANDED             TRUE
 #else
-  #define STM32_UART5_SERIAL_DRIVER_DEMANDED FALSE
+  #define STM32_LPTIM2_DEMANDED             FALSE
 #endif
 
 /**
- * @brief   UART5_SIO_DRIVER sink demand state.
+ * @brief   LPTIM34 sink demand state.
  */
-#if ((HAL_USE_SIO == TRUE) && (STM32_SIO_USE_UART5 == TRUE)) ||             \
-    defined(__DOXYGEN__)
-  #define STM32_UART5_SIO_DRIVER_DEMANDED   TRUE
+#if ((STM32_CFG_LPTIM34_CLOCK_MODE == STM32_CLOCK_ENABLED) ||               \
+     ((STM32_CFG_LPTIM34_CLOCK_MODE == STM32_CLOCK_AUTO) &&                 \
+      defined(STM32_LPTIM34_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_LPTIM34_DEMANDED            TRUE
 #else
-  #define STM32_UART5_SIO_DRIVER_DEMANDED   FALSE
+  #define STM32_LPTIM34_DEMANDED            FALSE
 #endif
 
 /**
- * @brief   LPUART1_SERIAL_DRIVER sink demand state.
+ * @brief   SPI1 sink demand state.
  */
-#if ((HAL_USE_SERIAL == TRUE) && (STM32_SERIAL_USE_LPUART1 == TRUE)) ||     \
-    defined(__DOXYGEN__)
-  #define STM32_LPUART1_SERIAL_DRIVER_DEMANDED TRUE
+#if ((STM32_CFG_SPI1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+     ((STM32_CFG_SPI1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+      defined(STM32_SPI1_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_SPI1_DEMANDED               TRUE
 #else
-  #define STM32_LPUART1_SERIAL_DRIVER_DEMANDED FALSE
+  #define STM32_SPI1_DEMANDED               FALSE
 #endif
 
 /**
- * @brief   LPUART1_SIO_DRIVER sink demand state.
+ * @brief   SPI2 sink demand state.
  */
-#if ((HAL_USE_SIO == TRUE) && (STM32_SIO_USE_LPUART1 == TRUE)) ||           \
-    defined(__DOXYGEN__)
-  #define STM32_LPUART1_SIO_DRIVER_DEMANDED TRUE
+#if ((STM32_CFG_SPI2_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+     ((STM32_CFG_SPI2_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+      defined(STM32_SPI2_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_SPI2_DEMANDED               TRUE
 #else
-  #define STM32_LPUART1_SIO_DRIVER_DEMANDED FALSE
+  #define STM32_SPI2_DEMANDED               FALSE
 #endif
 
 /**
- * @brief   LPTIM1_REQUIRED sink demand state.
+ * @brief   SPI3 sink demand state.
  */
-#if (STM32_CFG_LPTIM1_REQUIRED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_LPTIM1_REQUIRED_DEMANDED    TRUE
+#if ((STM32_CFG_SPI3_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+     ((STM32_CFG_SPI3_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+      defined(STM32_SPI3_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_SPI3_DEMANDED               TRUE
 #else
-  #define STM32_LPTIM1_REQUIRED_DEMANDED    FALSE
+  #define STM32_SPI3_DEMANDED               FALSE
 #endif
 
 /**
- * @brief   LPTIM2_REQUIRED sink demand state.
+ * @brief   OCTOSPI sink demand state.
  */
-#if (STM32_CFG_LPTIM2_REQUIRED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_LPTIM2_REQUIRED_DEMANDED    TRUE
+#if ((STM32_CFG_OCTOSPI_CLOCK_MODE == STM32_CLOCK_ENABLED) ||               \
+     ((STM32_CFG_OCTOSPI_CLOCK_MODE == STM32_CLOCK_AUTO) &&                 \
+      defined(STM32_OCTOSPI_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_OCTOSPI_DEMANDED            TRUE
 #else
-  #define STM32_LPTIM2_REQUIRED_DEMANDED    FALSE
-#endif
-
-/**
- * @brief   LPTIM34_REQUIRED sink demand state.
- */
-#if (STM32_CFG_LPTIM34_REQUIRED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_LPTIM34_REQUIRED_DEMANDED   TRUE
-#else
-  #define STM32_LPTIM34_REQUIRED_DEMANDED   FALSE
-#endif
-
-/**
- * @brief   SPI1_DRIVER sink demand state.
- */
-#if ((HAL_USE_SPI == TRUE) && (STM32_SPI_USE_SPI1 == TRUE)) ||              \
-    defined(__DOXYGEN__)
-  #define STM32_SPI1_DRIVER_DEMANDED        TRUE
-#else
-  #define STM32_SPI1_DRIVER_DEMANDED        FALSE
-#endif
-
-/**
- * @brief   SPI2_DRIVER sink demand state.
- */
-#if ((HAL_USE_SPI == TRUE) && (STM32_SPI_USE_SPI2 == TRUE)) ||              \
-    defined(__DOXYGEN__)
-  #define STM32_SPI2_DRIVER_DEMANDED        TRUE
-#else
-  #define STM32_SPI2_DRIVER_DEMANDED        FALSE
-#endif
-
-/**
- * @brief   SPI3_DRIVER sink demand state.
- */
-#if ((HAL_USE_SPI == TRUE) && (STM32_SPI_USE_SPI3 == TRUE)) ||              \
-    defined(__DOXYGEN__)
-  #define STM32_SPI3_DRIVER_DEMANDED        TRUE
-#else
-  #define STM32_SPI3_DRIVER_DEMANDED        FALSE
-#endif
-
-/**
- * @brief   OCTOSPI_REQUIRED sink demand state.
- */
-#if (STM32_CFG_OCTOSPI_REQUIRED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_OCTOSPI_REQUIRED_DEMANDED   TRUE
-#else
-  #define STM32_OCTOSPI_REQUIRED_DEMANDED   FALSE
+  #define STM32_OCTOSPI_DEMANDED            FALSE
 #endif
 
 /**
  * @brief   TIMICSEL_HSI16_SOURCE sink demand state.
  */
-#if (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK) || defined(__DOXYGEN__)
-  #define STM32_TIMICSEL_HSI16_SOURCE_DEMANDED TRUE
-#else
-  #define STM32_TIMICSEL_HSI16_SOURCE_DEMANDED FALSE
-#endif
+#define STM32_TIMICSEL_HSI16_SOURCE_DEMANDED (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK)
 
 /**
  * @brief   TIMICSEL_MSIS_SOURCE sink demand state.
  */
-#if (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK) || defined(__DOXYGEN__)
-  #define STM32_TIMICSEL_MSIS_SOURCE_DEMANDED TRUE
-#else
-  #define STM32_TIMICSEL_MSIS_SOURCE_DEMANDED FALSE
-#endif
+#define STM32_TIMICSEL_MSIS_SOURCE_DEMANDED (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK)
 
 /**
  * @brief   TIMICSEL_MSIK_SOURCE sink demand state.
  */
-#if (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK) || defined(__DOXYGEN__)
-  #define STM32_TIMICSEL_MSIK_SOURCE_DEMANDED TRUE
+#define STM32_TIMICSEL_MSIK_SOURCE_DEMANDED (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK)
+
+/**
+ * @brief   USB sink demand state.
+ */
+#if ((STM32_CFG_USB_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                   \
+     ((STM32_CFG_USB_CLOCK_MODE == STM32_CLOCK_AUTO) &&                     \
+      defined(STM32_USB_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_USB_DEMANDED                TRUE
 #else
-  #define STM32_TIMICSEL_MSIK_SOURCE_DEMANDED FALSE
+  #define STM32_USB_DEMANDED                FALSE
 #endif
 
 /**
- * @brief   USB1_DRIVER sink demand state.
+ * @brief   SDMMC1 sink demand state.
  */
-#if ((HAL_USE_USB == TRUE) && (STM32_USB_USE_USB1 == TRUE)) ||              \
-    defined(__DOXYGEN__)
-  #define STM32_USB1_DRIVER_DEMANDED        TRUE
+#if ((STM32_CFG_SDMMC1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
+     ((STM32_CFG_SDMMC1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                  \
+      defined(STM32_SDMMC1_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_SDMMC1_DEMANDED             TRUE
 #else
-  #define STM32_USB1_DRIVER_DEMANDED        FALSE
+  #define STM32_SDMMC1_DEMANDED             FALSE
 #endif
 
 /**
- * @brief   SDMMC1_DRIVER sink demand state.
+ * @brief   I2C1 sink demand state.
  */
-#if ((HAL_USE_SDC == TRUE) && (STM32_SDC_USE_SDMMC1 == TRUE)) ||            \
-    defined(__DOXYGEN__)
-  #define STM32_SDMMC1_DRIVER_DEMANDED      TRUE
+#if ((STM32_CFG_I2C1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+     ((STM32_CFG_I2C1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+      defined(STM32_I2C1_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_I2C1_DEMANDED               TRUE
 #else
-  #define STM32_SDMMC1_DRIVER_DEMANDED      FALSE
+  #define STM32_I2C1_DEMANDED               FALSE
 #endif
 
 /**
- * @brief   I2C1_DRIVER sink demand state.
+ * @brief   I2C2 sink demand state.
  */
-#if ((HAL_USE_I2C == TRUE) && (STM32_I2C_USE_I2C1 == TRUE)) ||              \
-    defined(__DOXYGEN__)
-  #define STM32_I2C1_DRIVER_DEMANDED        TRUE
+#if ((STM32_CFG_I2C2_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+     ((STM32_CFG_I2C2_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+      defined(STM32_I2C2_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_I2C2_DEMANDED               TRUE
 #else
-  #define STM32_I2C1_DRIVER_DEMANDED        FALSE
+  #define STM32_I2C2_DEMANDED               FALSE
 #endif
 
 /**
- * @brief   I2C2_DRIVER sink demand state.
+ * @brief   I2C3 sink demand state.
  */
-#if ((HAL_USE_I2C == TRUE) && (STM32_I2C_USE_I2C2 == TRUE)) ||              \
-    defined(__DOXYGEN__)
-  #define STM32_I2C2_DRIVER_DEMANDED        TRUE
+#if ((STM32_CFG_I2C3_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+     ((STM32_CFG_I2C3_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+      defined(STM32_I2C3_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_I2C3_DEMANDED               TRUE
 #else
-  #define STM32_I2C2_DRIVER_DEMANDED        FALSE
+  #define STM32_I2C3_DEMANDED               FALSE
 #endif
 
 /**
- * @brief   I2C3_DRIVER sink demand state.
+ * @brief   I3C1 sink demand state.
  */
-#if ((HAL_USE_I2C == TRUE) && (STM32_I2C_USE_I2C3 == TRUE)) ||              \
-    defined(__DOXYGEN__)
-  #define STM32_I2C3_DRIVER_DEMANDED        TRUE
+#if ((STM32_CFG_I3C1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+     ((STM32_CFG_I3C1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+      defined(STM32_I3C1_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_I3C1_DEMANDED               TRUE
 #else
-  #define STM32_I2C3_DRIVER_DEMANDED        FALSE
+  #define STM32_I3C1_DEMANDED               FALSE
 #endif
 
 /**
- * @brief   I3C1_REQUIRED sink demand state.
+ * @brief   I3C2 sink demand state.
  */
-#if (STM32_CFG_I3C1_REQUIRED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_I3C1_REQUIRED_DEMANDED      TRUE
+#if ((STM32_CFG_I3C2_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+     ((STM32_CFG_I3C2_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+      defined(STM32_I3C2_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_I3C2_DEMANDED               TRUE
 #else
-  #define STM32_I3C1_REQUIRED_DEMANDED      FALSE
+  #define STM32_I3C2_DEMANDED               FALSE
 #endif
 
 /**
- * @brief   I3C2_REQUIRED sink demand state.
+ * @brief   ADCDAC sink demand state.
  */
-#if (STM32_CFG_I3C2_REQUIRED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_I3C2_REQUIRED_DEMANDED      TRUE
+#if ((STM32_CFG_ADCDAC_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
+     ((STM32_CFG_ADCDAC_CLOCK_MODE == STM32_CLOCK_AUTO) &&                  \
+      defined(STM32_ADCDAC_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_ADCDAC_DEMANDED             TRUE
 #else
-  #define STM32_I3C2_REQUIRED_DEMANDED      FALSE
+  #define STM32_ADCDAC_DEMANDED             FALSE
 #endif
 
 /**
- * @brief   ADCDAC_ADC_DRIVER sink demand state.
+ * @brief   DAC1SH sink demand state.
  */
-#if ((HAL_USE_ADC == TRUE) && ((STM32_ADC_USE_ADC1 == TRUE) ||              \
-      (STM32_ADC_USE_ADC2 == TRUE))) || defined(__DOXYGEN__)
-  #define STM32_ADCDAC_ADC_DRIVER_DEMANDED  TRUE
+#if ((STM32_CFG_DAC1SH_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
+     ((STM32_CFG_DAC1SH_CLOCK_MODE == STM32_CLOCK_AUTO) &&                  \
+      defined(STM32_DAC1SH_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_DAC1SH_DEMANDED             TRUE
 #else
-  #define STM32_ADCDAC_ADC_DRIVER_DEMANDED  FALSE
+  #define STM32_DAC1SH_DEMANDED             FALSE
 #endif
 
 /**
- * @brief   ADCDAC_DAC_DRIVER sink demand state.
+ * @brief   RNG sink demand state.
  */
-#if ((HAL_USE_DAC == TRUE) && ((STM32_DAC_USE_DAC1_CH1 == TRUE) ||          \
-      (STM32_DAC_USE_DAC1_CH2 == TRUE))) || defined(__DOXYGEN__)
-  #define STM32_ADCDAC_DAC_DRIVER_DEMANDED  TRUE
+#if ((STM32_CFG_RNG_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                   \
+     ((STM32_CFG_RNG_CLOCK_MODE == STM32_CLOCK_AUTO) &&                     \
+      defined(STM32_RNG_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_RNG_DEMANDED                TRUE
 #else
-  #define STM32_ADCDAC_DAC_DRIVER_DEMANDED  FALSE
+  #define STM32_RNG_DEMANDED                FALSE
 #endif
 
 /**
- * @brief   DAC1SH_REQUIRED sink demand state.
+ * @brief   FDCAN1 sink demand state.
  */
-#if (STM32_CFG_DAC1SH_REQUIRED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_DAC1SH_REQUIRED_DEMANDED    TRUE
+#if ((STM32_CFG_FDCAN1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
+     ((STM32_CFG_FDCAN1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                  \
+      defined(STM32_FDCAN1_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_FDCAN1_DEMANDED             TRUE
 #else
-  #define STM32_DAC1SH_REQUIRED_DEMANDED    FALSE
+  #define STM32_FDCAN1_DEMANDED             FALSE
 #endif
 
 /**
- * @brief   RNG_DRIVER sink demand state.
+ * @brief   SAI1 sink demand state.
  */
-#if ((HAL_USE_TRNG == TRUE) && (STM32_TRNG_USE_RNG1 == TRUE)) ||            \
-    defined(__DOXYGEN__)
-  #define STM32_RNG_DRIVER_DEMANDED         TRUE
+#if ((STM32_CFG_SAI1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+     ((STM32_CFG_SAI1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+      defined(STM32_SAI1_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_SAI1_DEMANDED               TRUE
 #else
-  #define STM32_RNG_DRIVER_DEMANDED         FALSE
+  #define STM32_SAI1_DEMANDED               FALSE
 #endif
 
 /**
- * @brief   FDCAN1_DRIVER sink demand state.
+ * @brief   ADF1 sink demand state.
  */
-#if ((HAL_USE_CAN == TRUE) && (STM32_CAN_USE_FDCAN1 == TRUE)) ||            \
-    defined(__DOXYGEN__)
-  #define STM32_FDCAN1_DRIVER_DEMANDED      TRUE
+#if ((STM32_CFG_ADF1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
+     ((STM32_CFG_ADF1_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
+      defined(STM32_ADF1_CLOCK_REQUIRED))) || defined(__DOXYGEN__)
+  #define STM32_ADF1_DEMANDED               TRUE
 #else
-  #define STM32_FDCAN1_DRIVER_DEMANDED      FALSE
-#endif
-
-/**
- * @brief   SAI1_REQUIRED sink demand state.
- */
-#if (STM32_CFG_SAI1_REQUIRED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_SAI1_REQUIRED_DEMANDED      TRUE
-#else
-  #define STM32_SAI1_REQUIRED_DEMANDED      FALSE
-#endif
-
-/**
- * @brief   ADF1_REQUIRED sink demand state.
- */
-#if (STM32_CFG_ADF1_REQUIRED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_ADF1_REQUIRED_DEMANDED      TRUE
-#else
-  #define STM32_ADF1_REQUIRED_DEMANDED      FALSE
+  #define STM32_ADF1_DEMANDED               FALSE
 #endif
 
 /**
@@ -1804,67 +2125,62 @@
 /**
  * @brief   USART1 clock derived enable state.
  */
-#define STM32_USART1_ENABLED                ((STM32_USART1_SERIAL_DRIVER_DEMANDED == TRUE) || \
-                                             (STM32_USART1_SIO_DRIVER_DEMANDED == TRUE))
+#define STM32_USART1_ENABLED                ((STM32_USART1_DEMANDED == TRUE))
 
 /**
  * @brief   USART3 clock derived enable state.
  */
-#define STM32_USART3_ENABLED                ((STM32_USART3_SERIAL_DRIVER_DEMANDED == TRUE) || \
-                                             (STM32_USART3_SIO_DRIVER_DEMANDED == TRUE))
+#define STM32_USART3_ENABLED                ((STM32_USART3_DEMANDED == TRUE))
 
 /**
  * @brief   UART4 clock derived enable state.
  */
-#define STM32_UART4_ENABLED                 ((STM32_UART4_SERIAL_DRIVER_DEMANDED == TRUE) || \
-                                             (STM32_UART4_SIO_DRIVER_DEMANDED == TRUE))
+#define STM32_UART4_ENABLED                 ((STM32_UART4_DEMANDED == TRUE))
 
 /**
  * @brief   UART5 clock derived enable state.
  */
-#define STM32_UART5_ENABLED                 ((STM32_UART5_SERIAL_DRIVER_DEMANDED == TRUE) || \
-                                             (STM32_UART5_SIO_DRIVER_DEMANDED == TRUE))
+#define STM32_UART5_ENABLED                 ((STM32_UART5_DEMANDED == TRUE))
 
 /**
  * @brief   LPUART1 clock derived enable state.
  */
-#define STM32_LPUART1_ENABLED               ((STM32_LPUART1_SERIAL_DRIVER_DEMANDED == TRUE) || \
-                                             (STM32_LPUART1_SIO_DRIVER_DEMANDED == TRUE))
+#define STM32_LPUART1_ENABLED               ((STM32_LPUART1_DEMANDED == TRUE))
 
 /**
  * @brief   LPTIM1 clock derived enable state.
  */
-#define STM32_LPTIM1_ENABLED                ((STM32_LPTIM1_REQUIRED_DEMANDED == TRUE))
+#define STM32_LPTIM1_ENABLED                ((STM32_LPTIM1_DEMANDED == TRUE))
 
 /**
  * @brief   LPTIM2 clock derived enable state.
  */
-#define STM32_LPTIM2_ENABLED                ((STM32_LPTIM2_REQUIRED_DEMANDED == TRUE))
+#define STM32_LPTIM2_ENABLED                ((STM32_LPTIM2_DEMANDED == TRUE))
 
 /**
  * @brief   LPTIM34 clock derived enable state.
  */
-#define STM32_LPTIM34_ENABLED               ((STM32_LPTIM34_REQUIRED_DEMANDED == TRUE))
+#define STM32_LPTIM34_ENABLED               ((STM32_LPTIM34_DEMANDED == TRUE))
 
 /**
  * @brief   SPI1 clock derived enable state.
  */
-#define STM32_SPI1_ENABLED                  ((STM32_SPI1_DRIVER_DEMANDED == TRUE))
+#define STM32_SPI1_ENABLED                  ((STM32_SPI1_DEMANDED == TRUE))
 
 /**
  * @brief   SPI2 clock derived enable state.
  */
-#define STM32_SPI2_ENABLED                  ((STM32_SPI2_DRIVER_DEMANDED == TRUE))
+#define STM32_SPI2_ENABLED                  ((STM32_SPI2_DEMANDED == TRUE))
 
 /**
  * @brief   SPI3 clock derived enable state.
  */
-#define STM32_SPI3_ENABLED                  ((STM32_SPI3_DRIVER_DEMANDED == TRUE))
+#define STM32_SPI3_ENABLED                  ((STM32_SPI3_DEMANDED == TRUE))
 
 /**
  * @brief   OCTOSPI clock derived enable state.
  */
-#define STM32_OCTOSPI_ENABLED               ((STM32_OCTOSPI_REQUIRED_DEMANDED == TRUE))
+#define STM32_OCTOSPI_ENABLED               ((STM32_OCTOSPI_DEMANDED == TRUE))
 
 /**
  * @brief   SYSTICK clock derived enable state.
@@ -1903,37 +2219,37 @@
 /**
  * @brief   USB clock derived enable state.
  */
-#define STM32_USB_ENABLED                   ((STM32_USB1_DRIVER_DEMANDED == TRUE))
+#define STM32_USB_ENABLED                   ((STM32_USB_DEMANDED == TRUE))
 
 /**
  * @brief   SDMMC1 clock derived enable state.
  */
-#define STM32_SDMMC1_ENABLED                ((STM32_SDMMC1_DRIVER_DEMANDED == TRUE))
+#define STM32_SDMMC1_ENABLED                ((STM32_SDMMC1_DEMANDED == TRUE))
 
 /**
  * @brief   I2C1 clock derived enable state.
  */
-#define STM32_I2C1_ENABLED                  ((STM32_I2C1_DRIVER_DEMANDED == TRUE))
+#define STM32_I2C1_ENABLED                  ((STM32_I2C1_DEMANDED == TRUE))
 
 /**
  * @brief   I2C2 clock derived enable state.
  */
-#define STM32_I2C2_ENABLED                  ((STM32_I2C2_DRIVER_DEMANDED == TRUE))
+#define STM32_I2C2_ENABLED                  ((STM32_I2C2_DEMANDED == TRUE))
 
 /**
  * @brief   I2C3 clock derived enable state.
  */
-#define STM32_I2C3_ENABLED                  ((STM32_I2C3_DRIVER_DEMANDED == TRUE))
+#define STM32_I2C3_ENABLED                  ((STM32_I2C3_DEMANDED == TRUE))
 
 /**
  * @brief   I3C1 clock derived enable state.
  */
-#define STM32_I3C1_ENABLED                  ((STM32_I3C1_REQUIRED_DEMANDED == TRUE))
+#define STM32_I3C1_ENABLED                  ((STM32_I3C1_DEMANDED == TRUE))
 
 /**
  * @brief   I3C2 clock derived enable state.
  */
-#define STM32_I3C2_ENABLED                  ((STM32_I3C2_REQUIRED_DEMANDED == TRUE))
+#define STM32_I3C2_ENABLED                  ((STM32_I3C2_DEMANDED == TRUE))
 
 /**
  * @brief   ADCDACICLK clock derived enable state.
@@ -1948,35 +2264,34 @@
 /**
  * @brief   ADCDAC clock derived enable state.
  */
-#define STM32_ADCDAC_ENABLED                ((STM32_ADCDAC_ADC_DRIVER_DEMANDED == TRUE) || \
-                                             (STM32_ADCDAC_DAC_DRIVER_DEMANDED == TRUE))
+#define STM32_ADCDAC_ENABLED                ((STM32_ADCDAC_DEMANDED == TRUE))
 
 /**
  * @brief   DAC1SH clock derived enable state.
  */
-#define STM32_DAC1SH_ENABLED                ((STM32_DAC1SH_REQUIRED_DEMANDED == TRUE))
+#define STM32_DAC1SH_ENABLED                ((STM32_DAC1SH_DEMANDED == TRUE))
 
 /**
  * @brief   RNG clock derived enable state.
  */
-#define STM32_RNG_ENABLED                   ((STM32_RNG_DRIVER_DEMANDED == TRUE))
+#define STM32_RNG_ENABLED                   ((STM32_RNG_DEMANDED == TRUE))
 
 /**
  * @brief   FDCAN1 clock derived enable state.
  */
-#define STM32_FDCAN1_ENABLED                ((STM32_FDCAN1_DRIVER_DEMANDED == TRUE))
+#define STM32_FDCAN1_ENABLED                ((STM32_FDCAN1_DEMANDED == TRUE))
 
 /**
  * @brief   SAI1 clock derived enable state.
  */
-#define STM32_SAI1_ENABLED                  ((STM32_SAI1_REQUIRED_DEMANDED == TRUE) || \
+#define STM32_SAI1_ENABLED                  ((STM32_SAI1_DEMANDED == TRUE) || \
                                              ((STM32_ADF1_ENABLED == TRUE) && \
                                               (STM32_CFG_ADF1_SEL == RCC_CCIPR2_ADF1SEL_SAI1)))
 
 /**
  * @brief   ADF1 clock derived enable state.
  */
-#define STM32_ADF1_ENABLED                  ((STM32_ADF1_REQUIRED_DEMANDED == TRUE))
+#define STM32_ADF1_ENABLED                  ((STM32_ADF1_DEMANDED == TRUE))
 
 /* --- Macros and checks for the NONE clock point. -------------------------*/
 
@@ -5679,14 +5994,14 @@
 /*
  * Sink-specific frequency checks.
  */
-#if !(!((HAL_USE_USB == TRUE) && (STM32_USB_USE_USB1 == TRUE)) ||           \
-     (STM32_USB_FREQ >= STM32_USBCLK_MIN)) && !defined(__DOXYGEN__)
-  #error "STM32_USB_FREQ below minimum frequency for USB1_DRIVER"
+#if !(!(STM32_USB_DEMANDED == TRUE) || (STM32_USB_FREQ >= STM32_USBCLK_MIN)) && \
+    !defined(__DOXYGEN__)
+  #error "STM32_USB_FREQ below minimum frequency for USB"
 #endif
 
-#if !(!((HAL_USE_USB == TRUE) && (STM32_USB_USE_USB1 == TRUE)) ||           \
-     (STM32_USB_FREQ <= STM32_USBCLK_MAX)) && !defined(__DOXYGEN__)
-  #error "STM32_USB_FREQ above maximum frequency for USB1_DRIVER"
+#if !(!(STM32_USB_DEMANDED == TRUE) || (STM32_USB_FREQ <= STM32_USBCLK_MAX)) && \
+    !defined(__DOXYGEN__)
+  #error "STM32_USB_FREQ above maximum frequency for USB"
 #endif
 /** @} */
 

@@ -15,7 +15,7 @@
 */
 
 /**
- * @file    STM32U3xx/stm32_isr.c
+ * @file    STM32U3xx_OLD/stm32_isr.c
  * @brief   STM32U3xx ISR handler code.
  *
  * @addtogroup STM32U3xx_ISR
@@ -80,8 +80,6 @@
 #include "stm32_spi2.inc"
 #include "stm32_spi3.inc"
 
-#include "stm32_sdmmc1.inc"
-
 #include "stm32_tim1.inc"
 #include "stm32_tim2.inc"
 #include "stm32_tim3.inc"
@@ -98,7 +96,9 @@
 #include "stm32_uart5.inc"
 #include "stm32_lpuart1.inc"
 
+#if STM32_HAS_USB1 && (HAL_USE_USB == TRUE)
 #include "stm32_usb1.inc"
+#endif
 
 /*===========================================================================*/
 /* Driver exported functions.                                                */
@@ -140,8 +140,6 @@ void irqInit(void) {
   spi2_irq_init();
   spi3_irq_init();
 
-  sdmmc1_irq_init();
-
   tim1_irq_init();
   tim2_irq_init();
   tim3_irq_init();
@@ -158,7 +156,9 @@ void irqInit(void) {
   uart5_irq_init();
   lpuart1_irq_init();
 
+#if STM32_HAS_USB1 && (HAL_USE_USB == TRUE)
   usb1_irq_init();
+#endif
 }
 
 /**
@@ -197,8 +197,6 @@ void irqDeinit(void) {
   spi2_irq_deinit();
   spi3_irq_deinit();
 
-  sdmmc1_irq_deinit();
-
   tim1_irq_deinit();
   tim2_irq_deinit();
   tim3_irq_deinit();
@@ -215,7 +213,9 @@ void irqDeinit(void) {
   uart5_irq_deinit();
   lpuart1_irq_deinit();
 
+#if STM32_HAS_USB1 && (HAL_USE_USB == TRUE)
   usb1_irq_deinit();
+#endif
 }
 
 /** @} */
