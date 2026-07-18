@@ -5,6 +5,7 @@ Consolidated, prioritized list of all SB improvements proposed in the
 [note_svc_mpu_optimizations.md](note_svc_mpu_optimizations.md),
 [note_sb_isolation_security.md](note_sb_isolation_security.md),
 [note_sb_async_vfs.md](note_sb_async_vfs.md),
+[note_sb_lifecycle.md](note_sb_lifecycle.md),
 [open_points.md](open_points.md).
 
 Priority logic: live security gaps first, then the features gated on
@@ -42,13 +43,20 @@ done items are marked inline.
    (validate -> private privileged copy -> never re-dereference guest
    memory). Cheap to do now, and it *gates* both the async-VFS metadata
    path and the shared-memory API. (margin 1)
+4b. **Explicit sandbox lifecycle/finalization** — add independent
+   `STOPPED`/`STARTING`/`RUNNING`/`STOPPING` state, gate VRQs on `RUNNING`,
+   leave terminated sandboxes in `STOPPING`, and require the host to quiesce
+   external producers before `sbFinalize()` permits restart. This closes the
+   late-worker/late-IRQ restart contract without making every producer
+   generation-aware. Audit `sbWait()` and dynamic-memory release ordering.
+   (note_sb_lifecycle.md; isolation note, margin 7)
 
 ## Tier 2 — Features (the functional payoff)
 
 5. **Async VFS** — submit/complete ABI, per-SB worker thread, VRQ-flags
    completion. Fixes the whole-SB stall on blocking POSIX calls, the
    main limitation of the guest sub-scheduler threading model. Depends
-   on item 4; submission wants item 6. (note_sb_async_vfs.md)
+   on items 4 and 4b; submission wants item 6. (note_sb_async_vfs.md)
 6. **IRQ-like fastcalls** — per-handler
    `CH_IRQ_PROLOGUE`/lock/I-class/unlock/`CH_IRQ_EPILOGUE`, dispatcher
    untouched. The *cheapest* item on the whole list (macros, docs,

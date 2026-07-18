@@ -124,14 +124,19 @@ cleanly:
 
 ### Teardown with operations in flight
 
-A new instance of the late-producer / teardown windows already tracked
-in open_points "Host": the worker must never touch SB memory after
-termination or restart. The worker holds private copies of all metadata
-(it never needs SB memory except the final data copy-out / status
-write), and performs a terminated/generation check, in a critical
-section, immediately before that final access — extending the existing
-`chThdTerminatedX` guard pattern. Operations must be either cancellable
-or safely detachable (worker completes into nowhere).
+The worker is one of the non-VIO producers covered by
+[note_sb_lifecycle.md](note_sb_lifecycle.md). Sandbox termination enters
+`STOPPING`, which rejects completion VRQs, and restart is prohibited until
+the host has cancelled pending operations, stopped and joined the worker,
+and acknowledged producer quiescence through `sbFinalize()`. This avoids
+requiring generation-aware completion callbacks.
+
+The worker holds private copies of all metadata, but it may still access SB
+memory for the final data copy-out or status write. That access must finish
+before dynamic sandbox memory is released. An operation may be detached only
+if it completes entirely into private discarded storage, retains no sandbox
+or guest-memory reference, and cannot post a completion. Otherwise it must
+be cancelled and joined before finalization.
 
 ### Worker topology: per-SB, not a shared pool
 
@@ -159,7 +164,9 @@ other SBs' workers and host threads).
   `open` involves path resolution and can also be slow).
 - Decide the one-in-flight-per-FD question (simplest: yes, reject
   overlapping ops on the same descriptor).
-- Specify restart semantics: in-flight slots at restart are cancelled or
-  detached before the new instance starts.
+- Specify worker cancellation/join semantics and their ordering with
+  `sbFinalize()` and dynamic sandbox-memory release. In-flight slots must be
+  cancelled, or detached without retaining any sandbox reference, before
+  finalization permits the new instance to start.
 - Guest runtime: green-thread wait/wake integration with the completion
   VRQ, and the idle policy (`vrq_wait`).

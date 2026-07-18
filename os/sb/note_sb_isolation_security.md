@@ -8,7 +8,9 @@ supervisor. Covers the ALT ports (`os/common/ports/ARMv7-M-ALT`,
 Related: [note_svc_mpu_optimizations.md](note_svc_mpu_optimizations.md) —
 the shared-memory region API interacts directly with point 1 below; the
 security effects of the design decisions recorded there are collected in
-the "Design-decision impacts" section at the end of this note.
+the "Design-decision impacts" section at the end of this note. Sandbox
+restart and asynchronous-producer lifetime are covered by
+[note_sb_lifecycle.md](note_sb_lifecycle.md).
 
 ## Defenses currently in place (sound)
 
@@ -162,6 +164,29 @@ redundant overhead. Because the safety depends entirely on
 guard in `host/sbvrq.c` now fails the build if a future port or priority
 reconfiguration breaks that ordering.
 
+### 7. Sandbox lifecycle vs. late asynchronous producers
+
+The current `chThdTerminatedX()` guards prevent VRQ injection into a dead
+thread, but the thread object embedded in `sb_class_t` is reused. A custom
+worker, timer, DMA completion path, or board IRQ that survives termination
+can therefore target the replacement execution after the thread becomes
+non-terminated again. A sandbox lifecycle cannot be inferred from reusable
+thread state.
+
+The preferred hardening is the explicit lifecycle protocol in
+[note_sb_lifecycle.md](note_sb_lifecycle.md): termination enters a durable
+`STOPPING` state, all VRQ mutations are rejected outside `RUNNING`, and only
+the host can transition to `STOPPED` through `sbFinalize()` after it has
+synchronously quiesced every external producer. Start is accepted only from
+`STOPPED`. This avoids imposing generation tokens on ordinary producers.
+
+The host-quiescence precondition is essential. An old and a new invocation of
+`sbVRQTriggerI(sbp, nvrq)` have identical arguments once the replacement is
+`RUNNING`, so state alone cannot detect a producer that the host incorrectly
+left active. Producers that cannot be synchronously stopped require a
+generation-aware endpoint or must detach without retaining any sandbox or
+guest-memory reference.
+
 ## Design-decision impacts (2026-06-11)
 
 Security effects of the designs decided in
@@ -202,6 +227,6 @@ guest code cannot run while a syscall is in flight, so TOCTOU is not live
 today for a self-contained SB. The concentrated risks are the two
 guest-facing surfaces: memory the sandbox does not exclusively own (DMA
 today, the shared-memory API tomorrow — hence the copy-in-once
-discipline) and the VIO native-handle model (point 2). Items 3-6 are
+discipline) and the VIO native-handle model (point 2). Items 3-7 are
 supervisor-integrity (crash-resistance) hardening rather than escape
 vectors, with #5 the one to verify concretely per-config.
