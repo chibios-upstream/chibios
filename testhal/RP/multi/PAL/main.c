@@ -56,6 +56,11 @@ static void check_ioport2_latch_preservation(void) {
   bool ok = true;
 
   saved_latch = palReadLatch(IOPORT2) & 0xFFFFU;
+
+  /* Seeding a non-GPIO latch bit so preservation is actually exercised,
+     the QSPI/USB output latches are inert while their pads are not on
+     the SIO function.*/
+  SIO->GPIO_HI_OUT_SET = 0x00010000U;
   hi_snapshot = SIO->GPIO_HI_OUT & 0xFFFF0000U;
 
   palWritePort(IOPORT2, 0xAAAAU);
@@ -70,8 +75,9 @@ static void check_ioport2_latch_preservation(void) {
   ok = ok && ((palReadLatch(IOPORT2) & 0xFFFFU) == 0x0000U);
   ok = ok && ((SIO->GPIO_HI_OUT & 0xFFFF0000U) == hi_snapshot);
 
-  /* Restoring the original latch value.*/
+  /* Restoring the original latch and clearing the seeded bit.*/
   palWritePort(IOPORT2, saved_latch);
+  SIO->GPIO_HI_OUT_CLR = 0x00010000U;
 
   while (!ok) {
     unsigned i;
