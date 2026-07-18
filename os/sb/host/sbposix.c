@@ -79,7 +79,7 @@ static uint32_t sb_io_stat(sb_class_t *sbp,
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  ret = vfsFSStat(sbp->io.vfs_driver, path, &vstat);
+  ret = vfsFSStat(sbp->io.vfs_root, path, &vstat);
   if (!CH_RET_IS_ERROR(ret)) {
     memset((void *)statbuf, 0, sizeof (struct stat));
     statbuf->st_mode  = (mode_t)vstat.mode;
@@ -100,7 +100,7 @@ static uint32_t sb_io_open(sb_class_t *sbp, const char *path, int flags) {
   }
 
   do {
-    ret = vfsFSOpen((vfs_fs_c *)sbp->io.vfs_driver, path, (unsigned)flags,
+    ret = vfsFSOpen((vfs_fs_c *)sbp->io.vfs_root, path, (unsigned)flags,
                     &np);
     CH_BREAK_ON_ERROR(ret);
 
@@ -366,7 +366,7 @@ static uint32_t sb_io_chdir(sb_class_t *sbp, const char *path) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsDrvChangeCurrentDirectory(sbp->io.vfs_driver, path);
+  return (uint32_t)vfsRootChangeCurrentDirectory(sbp->io.vfs_root, path);
 }
 
 static uint32_t sb_io_getcwd(sb_class_t *sbp, char *buf, size_t size) {
@@ -377,7 +377,7 @@ static uint32_t sb_io_getcwd(sb_class_t *sbp, char *buf, size_t size) {
 
   /* Note, it does not return a pointer to the buffer as required by Posix,
      this has to be handled on the user-side library.*/
-  return (uint32_t)vfsDrvGetCurrentDirectory(sbp->io.vfs_driver, buf, size);
+  return (uint32_t)vfsRootGetCurrentDirectory(sbp->io.vfs_root, buf, size);
 }
 
 static uint32_t sb_io_unlink(sb_class_t *sbp, const char *path) {
@@ -386,7 +386,7 @@ static uint32_t sb_io_unlink(sb_class_t *sbp, const char *path) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSUnlink(sbp->io.vfs_driver, path);
+  return (uint32_t)vfsFSUnlink(sbp->io.vfs_root, path);
 }
 
 static uint32_t sb_io_rename(sb_class_t *sbp,
@@ -401,7 +401,7 @@ static uint32_t sb_io_rename(sb_class_t *sbp,
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSRename(sbp->io.vfs_driver, oldpath, newpath);
+  return (uint32_t)vfsFSRename(sbp->io.vfs_root, oldpath, newpath);
 }
 
 static uint32_t sb_io_mkdir(sb_class_t *sbp, const char *path, mode_t mode) {
@@ -410,7 +410,7 @@ static uint32_t sb_io_mkdir(sb_class_t *sbp, const char *path, mode_t mode) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSMkdir(sbp->io.vfs_driver, path, (vfs_mode_t)mode);
+  return (uint32_t)vfsFSMkdir(sbp->io.vfs_root, path, (vfs_mode_t)mode);
 }
 
 static uint32_t sb_io_rmdir(sb_class_t *sbp, const char *path) {
@@ -419,7 +419,7 @@ static uint32_t sb_io_rmdir(sb_class_t *sbp, const char *path) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSRmdir(sbp->io.vfs_driver, path);
+  return (uint32_t)vfsFSRmdir(sbp->io.vfs_root, path);
 }
 
 /*===========================================================================*/
@@ -442,7 +442,7 @@ void sb_sysc_stdio(sb_class_t *sbp, struct port_extctx *ectxp) {
 
   /* VFS support could be enabled but this specific sandbox could not have
      one associated to it.*/
-  if (sbp->io.vfs_driver == NULL) {
+  if (sbp->io.vfs_root == NULL) {
     ectxp->r0 = (uint32_t)CH_RET_ENOSYS;
     return;
   }

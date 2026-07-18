@@ -2,7 +2,7 @@
 <module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
   name="vfsdrivers" descr="VFS Drivers" editcode="false">
-  <brief>VFS file system and process-aware driver classes.</brief>
+  <brief>VFS file system class.</brief>
   <imports>
     <import>oop_base_object.xml</import>
   </imports>
@@ -151,54 +151,6 @@ return CH_RET_ENOSYS;<![CDATA[]]></implementation>
 
 (void)self;
 (void)path;
-
-return CH_RET_ENOSYS;<![CDATA[]]></implementation>
-            </method>
-          </virtual>
-        </methods>
-      </class>
-      <class type="abstract" name="vfs_driver" namespace="vfsdrv"
-        ancestorname="vfs_fs" descr="VFS process-aware driver">
-        <brief>Ancestor class of process-aware VFS drivers.</brief>
-        <details><![CDATA[Compatibility class for file systems that also own
-          current-directory state and accept relative paths.]]></details>
-        <fields></fields>
-        <methods>
-          <objinit callsuper="true">
-            <implementation><![CDATA[ ]]></implementation>
-          </objinit>
-          <dispose>
-            <implementation><![CDATA[ ]]></implementation>
-          </dispose>
-          <virtual>
-            <method name="vfsDrvChangeCurrentDirectory"
-              shortname="setcwd" ctype="msg_t">
-              <brief>Changes the current VFS directory.</brief>
-              <param name="path" ctype="const char *" dir="in">Path of the new
-                current directory.</param>
-              <return>The operation result.</return>
-              <api />
-              <implementation>
-
-(void)self;
-(void)path;
-
-return CH_RET_ENOSYS;<![CDATA[]]></implementation>
-            </method>
-            <method name="vfsDrvGetCurrentDirectory" shortname="getcwd"
-              ctype="msg_t">
-              <brief>Returns the current VFS directory.</brief>
-              <param name="buf" ctype="char *" dir="out">Buffer for the path
-                string.</param>
-              <param name="size" ctype="size_t" dir="in">Size of the buffer
-              </param>
-              <return>The operation result.</return>
-              <api />
-              <implementation>
-
-(void)self;
-(void)buf;
-(void)size;
 
 return CH_RET_ENOSYS;<![CDATA[]]></implementation>
             </method>

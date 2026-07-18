@@ -82,11 +82,11 @@ static vfs_littlefs_driver_c lfs_driver;
 /* VFS streams driver object to be mounted as /dev.*/
 static vfs_streams_driver_c dev_driver;
 
-/* VFS overlay driver object representing the root directory.*/
-static vfs_overlay_driver_c root_overlay_driver;
+/* VFS root object.*/
+static vfs_root_c root_driver;
 
 /* Global pointer to the root VFS driver.*/
-vfs_driver_c *vfs_root = (vfs_driver_c *)&root_overlay_driver;
+vfs_root_c *vfs_root = &root_driver;
 
 /* A null stream object.*/
 static NullStream nullstream;
@@ -167,11 +167,11 @@ int main(void) {
       }
   }
 
-  /* Initializing an overlay VFS object overlaying the LittleFS driver.*/
-  ovldrvObjectInit(&root_overlay_driver, (vfs_fs_c *)&lfs_driver, NULL);
+  /* Initializing the VFS root on top of the LittleFS driver.*/
+  vfsrootObjectInit(&root_driver, (vfs_fs_c *)&lfs_driver, NULL);
 
-  /* Registering the streams VFS driver on the VFS overlay root as "/dev".*/
-  msg = ovldrvRegisterDriver(&root_overlay_driver, (vfs_fs_c *)&dev_driver,
+  /* Registering the streams VFS driver on the VFS root as "/dev".*/
+  msg = ovldrvRegisterDriver(&root_driver, (vfs_fs_c *)&dev_driver,
                              "dev");
   if (CH_RET_IS_ERROR(msg)) {
     chSysHalt("VFS");

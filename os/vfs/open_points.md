@@ -19,10 +19,6 @@ remaining technical points across the VFS subsystems.
 
 ## Overlay Driver
 
-- `open_absolute_dir()` overloads `msg_t` return with a path offset on
-  success. Both callers (`setcwd`, `opendir`) handle this explicitly, but
-  the convention is fragile for future callers. Consider using an output
-  parameter or a struct return instead.
 - The `drv_overlaid_path_call()` pattern extracts a function pointer from
   `overlaid_drv->vmt` and passes it as a callback. The null guard works but
   the indirection is awkward (the original TODO comments call it a "dirty
@@ -34,7 +30,7 @@ remaining technical points across the VFS subsystems.
   the overlay's merged view. May be intentional to preserve underlying root
   metadata, but should be explicitly documented or made consistent.
 - Several `strcpy` calls operate on buffers that are guaranteed to fit under
-  current invariants (`setcwd` line 551, `__ovldir_next_impl` line 409) but
+  current invariants (for example `__ovldir_next_impl`) but
   have no explicit bounds checks. Not current bugs but could become issues if
   buffer sizing assumptions change independently.
 - The `do { ... } while (false)` + `CH_BREAK_ON_ERROR` pattern is used
@@ -44,10 +40,6 @@ remaining technical points across the VFS subsystems.
 
 ## LittleFS Driver
 
-- `build_absolute_path()` normalizes paths in-place with
-  `vfs_path_normalize(buf, buf, ...)`. This works with the current
-  implementation but assumes the normalize function supports overlapping
-  source and destination buffers.
 - Every file/directory operation individually checks `drvp->mounted` at
   entry. This is consistent but produces a lot of repetitive boilerplate.
   A centralized check pattern might be cleaner.

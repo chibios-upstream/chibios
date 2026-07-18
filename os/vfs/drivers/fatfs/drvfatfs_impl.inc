@@ -252,7 +252,7 @@ static msg_t __ffdir_next_impl(void *ip, vfs_direntry_info_t *dip);
  * @return                      A new reference to the object.
  */
 static void *__ffdir_objinit_impl(void *ip, const void *vmt,
-                                  vfs_driver_c *driver, vfs_mode_t mode) {
+                                  vfs_fs_c *driver, vfs_mode_t mode) {
   vfs_fatfs_dir_node_c *self = (vfs_fatfs_dir_node_c *)ip;
 
   /* Initialization code.*/
@@ -407,7 +407,7 @@ static const struct vfs_fatfs_dir_node_vmt __vfs_fatfs_dir_node_vmt = {
  * @objinit
  */
 static vfs_fatfs_dir_node_c *ffdirObjectInit(vfs_fatfs_dir_node_c *self,
-                                             vfs_driver_c *driver,
+                                             vfs_fs_c *driver,
                                              vfs_mode_t mode) {
 
   return __ffdir_objinit_impl(self, &__vfs_fatfs_dir_node_vmt, driver, mode);
@@ -437,7 +437,7 @@ static vfs_fatfs_dir_node_c *ffdirObjectInit(vfs_fatfs_dir_node_c *self,
  * @return                      A new reference to the object.
  */
 static void *__fffile_objinit_impl(void *ip, const void *vmt,
-                                   vfs_driver_c *driver, vfs_mode_t mode) {
+                                   vfs_fs_c *driver, vfs_mode_t mode) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
 
   /* Initialization code.*/
@@ -629,7 +629,7 @@ static const struct vfs_fatfs_file_node_vmt __vfs_fatfs_file_node_vmt = {
  * @objinit
  */
 static vfs_fatfs_file_node_c *fffileObjectInit(vfs_fatfs_file_node_c *self,
-                                               vfs_driver_c *driver,
+                                               vfs_fs_c *driver,
                                                vfs_mode_t mode) {
 
   return __fffile_objinit_impl(self, &__vfs_fatfs_file_node_vmt, driver, mode);
@@ -660,7 +660,7 @@ void *__ffdrv_objinit_impl(void *ip, const void *vmt) {
   vfs_fatfs_driver_c *self = (vfs_fatfs_driver_c *)ip;
 
   /* Initialization of the ancestors-defined parts.*/
-  __vfsdrv_objinit_impl(self, vmt);
+  __vfsfs_objinit_impl(self, vmt);
 
   /* No initialization code.*/
 
@@ -684,67 +684,7 @@ void __ffdrv_dispose_impl(void *ip) {
   (void)self;
 
   /* Finalization of the ancestors-defined parts.*/
-  __vfsdrv_dispose_impl(self);
-}
-
-/**
- * @memberof    vfs_fatfs_driver_c
- * @protected
- *
- * @brief       Override of method @p vfsDrvChangeCurrentDirectory().
- *
- * @param[in,out] ip            Pointer to a @p vfs_fatfs_driver_c instance.
- * @param[in]     path          Path of the new current directory.
- * @return                      The operation result.
- */
-msg_t __ffdrv_setcwd_impl(void *ip, const char *path) {
-#if FF_FS_RPATH >= 1
-
-  (void)ip;
-
-  return translate_error(f_chdir((const TCHAR *)path));
-#else
-
-  (void)ip;
-
-  if (strcmp(path, "/") != 0) {
-    return CH_RET_ENOENT;
-  }
-
-  return CH_RET_SUCCESS;
-#endif
-}
-
-/**
- * @memberof    vfs_fatfs_driver_c
- * @protected
- *
- * @brief       Override of method @p vfsDrvGetCurrentDirectory().
- *
- * @param[in,out] ip            Pointer to a @p vfs_fatfs_driver_c instance.
- * @param[out]    buf           Buffer for the path string.
- * @param[in]     size          Size of the buffer.
- * @return                      The operation result.
- */
-msg_t __ffdrv_getcwd_impl(void *ip, char *buf, size_t size) {
-#if FF_FS_RPATH >= 2
-
-  (void)ip;
-
-  return translate_error(f_getcwd((TCHAR *)buf, (UINT)size));
-#else
-
-  (void)ip;
-
-  if (size < 2) {
-    return CH_RET_ERANGE;
-  }
-
-  buf[0] = '/';
-  buf[1] = '\0';
-
-  return CH_RET_SUCCESS;
-#endif
+  __vfsfs_dispose_impl(self);
 }
 
 /**
@@ -823,7 +763,7 @@ msg_t __ffdrv_opendir_impl(void *ip, const char *path,
 
         /* Node object initialization.*/
         (void) ffdirObjectInit(ffdnp,
-                               (vfs_driver_c *)self,
+                               (vfs_fs_c *)self,
                                translate_mode(ffdnp->dir.obj.attr));
 
         *vdnpp = (vfs_directory_node_c *)ffdnp;
@@ -882,7 +822,7 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
 
         /* Node object initialization.*/
         (void) fffileObjectInit(fffnp,
-                                (vfs_driver_c *)self,
+                                (vfs_fs_c *)self,
                                 translate_mode(fffnp->file.obj.attr));
 
         *vfnpp = (vfs_file_node_c *)fffnp;
@@ -983,8 +923,6 @@ msg_t __ffdrv_rmdir_impl(void *ip, const char *path) {
  */
 const struct vfs_fatfs_driver_vmt __vfs_fatfs_driver_vmt = {
   .dispose                  = __ffdrv_dispose_impl,
-  .setcwd                   = __ffdrv_setcwd_impl,
-  .getcwd                   = __ffdrv_getcwd_impl,
   .stat                     = __ffdrv_stat_impl,
   .opendir                  = __ffdrv_opendir_impl,
   .openfile                 = __ffdrv_openfile_impl,

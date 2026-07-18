@@ -89,19 +89,19 @@ static vio_conf_t vio_config2 = {
 /*===========================================================================*/
 
 #if VFS_CFG_ENABLE_DRV_FATFS == TRUE
-/* VFS FatFS driver object representing the root directory.*/
-static vfs_fatfs_driver_c root_driver;
+/* VFS FatFS driver object.*/
+static vfs_fatfs_driver_c fatfs_driver;
 #endif
 
-/* VFS overlay driver object representing the root directory.*/
-static vfs_overlay_driver_c root_overlay_driver;
+/* VFS root object.*/
+static vfs_root_c root_driver;
 
 /* VFS streams driver object representing the /dev directory.*/
 static vfs_streams_driver_c dev_driver;
 
 /* VFS API will use this object as implicit root, defining this
    symbol is expected.*/
-vfs_driver_c *vfs_root = (vfs_driver_c *)&root_overlay_driver;
+vfs_root_c *vfs_root = &root_driver;
 
 static null_stream_c nullstream;
 
@@ -221,11 +221,11 @@ int main(void) {
   nullstmObjectInit(&nullstream);
 
   /*
-   * Initializing an overlay VFS object as a root, no overlaid driver,
-   * registering a streams VFS driver on the VFS overlay root as "/dev".
+   * Initializing the VFS root without a base file system, then registering a
+   * streams VFS driver as "/dev".
    */
-  ovldrvObjectInit(&root_overlay_driver, NULL, NULL);
-  ret = ovldrvRegisterDriver(&root_overlay_driver,
+  vfsrootObjectInit(&root_driver, NULL, NULL);
+  ret = ovldrvRegisterDriver(&root_driver,
                              (vfs_fs_c *)stmdrvObjectInit(&dev_driver,
                                                          &streams[0]),
                              "dev");
@@ -245,7 +245,7 @@ int main(void) {
   sbSetRegion(&sbx2, 0, STARTUP_FLASH2_BASE, STARTUP_FLASH2_SIZE, SB_REG_IS_CODE);
   sbSetRegion(&sbx2, 1, STARTUP_RAM2_BASE,   STARTUP_RAM2_SIZE, SB_REG_IS_DATA);
   sbSetVirtualIO(&sbx2, &vio_config2);
-  sbSetFileSystem(&sbx2, (vfs_driver_c *)&root_overlay_driver);
+  sbSetFileSystem(&sbx2, &root_driver);
 
   /* Starting sandboxed threads.*/
   start_sb1();

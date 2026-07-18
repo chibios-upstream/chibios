@@ -43,54 +43,18 @@ static msg_t match_driver(vfs_overlay_driver_c *odp,
   return CH_RET_ENOENT;
 }
 
-static const char *get_current_directory(vfs_overlay_driver_c *drvp) {
-  const char *cwd = drvp->path_cwd;
+static msg_t copy_absolute_path(char *buf, const char *path) {
 
-  /* In case it has not yet been defined using root.*/
-  if (cwd == NULL) {
-    return "/";
+  if (!vfs_path_is_separator(*path)) {
+    return CH_RET_EINVAL;
   }
 
-  return cwd;
-}
+  *buf = '\0';
+  if (vfs_path_append(buf, path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+    return CH_RET_ENAMETOOLONG;
+  }
 
-static msg_t build_absolute_path(vfs_overlay_driver_c *drvp,
-                                 char *buf,
-                                 const char *path) {
-  msg_t ret;
-
-  do {
-
-    /* Initial buffer state, empty string.*/
-    *buf = '\0';
-
-    /* Relative paths handling.*/
-    if (!vfs_path_is_separator(*path)) {
-      if (vfs_path_append(buf,
-                      get_current_directory(drvp),
-                      VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
-        ret = CH_RET_ENAMETOOLONG;
-        break;
-      }
-    }
-
-    /* Adding the specified path.*/
-    if (vfs_path_append(buf, path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
-      ret = CH_RET_ENAMETOOLONG;
-      break;
-    }
-
-    /* Normalization of the absolute path.*/
-    if (vfs_path_normalize(buf, buf, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
-      ret = CH_RET_ENAMETOOLONG;
-      break;
-    }
-
-    ret = CH_RET_SUCCESS;
-
-  } while (false);
-
-  return ret;
+  return CH_RET_SUCCESS;
 }
 
 static msg_t open_absolute_dir(vfs_overlay_driver_c *drvp,
@@ -150,32 +114,24 @@ static msg_t open_absolute_dir(vfs_overlay_driver_c *drvp,
                                  vdnpp);
       }
       else {
-        size_t path_offset;
-
         /* Is there an overlaid driver? if so we need to pass request
            processing there.*/
         if (drvp->overlaid_drv != NULL) {
 
           /* Processing the prefix, if defined.*/
           if (drvp->path_prefix != NULL) {
-            if ((path_offset = vfs_path_prepend(path,
-                                                drvp->path_prefix,
-                                                VFS_CFG_PATHLEN_MAX + 1)) == (size_t)0) {
+            if (vfs_path_prepend(path,
+                                 drvp->path_prefix,
+                                 VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
               ret = CH_RET_ENAMETOOLONG;
               break;
             }
-          }
-          else {
-            path_offset = 0U;
           }
 
           /* Passing the combined path to the overlaid driver.*/
           ret = vfsFSOpenDirectory((void *)drvp->overlaid_drv,
                                    path,
                                    vdnpp);
-          CH_BREAK_ON_ERROR(ret);
-
-          ret = (msg_t)path_offset;
         }
       }
     }
@@ -473,12 +429,11 @@ void *__ovldrv_objinit_impl(void *ip, const void *vmt,
   vfs_overlay_driver_c *self = (vfs_overlay_driver_c *)ip;
 
   /* Initialization of the ancestors-defined parts.*/
-  __vfsdrv_objinit_impl(self, vmt);
+  __vfsfs_objinit_impl(self, vmt);
 
   /* Initialization code.*/
   self->overlaid_drv = overlaid_drv;
   self->path_prefix  = path_prefix;
-  self->path_cwd     = NULL;
   self->next_driver  = 0U;
 
   return self;
@@ -508,79 +463,7 @@ void __ovldrv_dispose_impl(void *ip) {
   }
 
   /* Finalization of the ancestors-defined parts.*/
-  __vfsdrv_dispose_impl(self);
-}
-
-/**
- * @memberof    vfs_overlay_driver_c
- * @protected
- *
- * @brief       Override of method @p vfsDrvChangeCurrentDirectory().
- *
- * @param[in,out] ip            Pointer to a @p vfs_overlay_driver_c instance.
- * @param[in]     path          Path of the new current directory.
- * @return                      The operation result.
- */
-msg_t __ovldrv_setcwd_impl(void *ip, const char *path) {
-  vfs_overlay_driver_c *self = (vfs_overlay_driver_c *)ip;
-  msg_t ret;
-
-  do {
-    vfs_directory_node_c *vdnp;
-    size_t path_offset;
-
-    ret = build_absolute_path(self, self->buf, path);
-    CH_BREAK_ON_ERROR(ret);
-
-    /* Trying to access the directory in order to validate the
-       combined path. Note, it can modify the path in the buffer.*/
-    ret = open_absolute_dir(self, self->buf, &vdnp);
-    CH_BREAK_ON_ERROR(ret);
-    roRelease((void *)vdnp);
-    path_offset = (size_t)ret;
-
-    /* One-time allocation of the CWD buffer, this memory is allocated, once,
-       only if the application uses a CWD, it is never released.*/
-    if (self->path_cwd == NULL) {
-      self->path_cwd = chCoreAlloc(VFS_CFG_PATHLEN_MAX + 1);
-      if (self->path_cwd == NULL) {
-        ret = CH_RET_ENOMEM;
-        break;
-      }
-    }
-
-    /* Copying the validated path into the CWD buffer.*/
-    strcpy(self->path_cwd, self->buf + path_offset);
-
-  } while (false);
-
-  return ret;
-}
-
-/**
- * @memberof    vfs_overlay_driver_c
- * @protected
- *
- * @brief       Override of method @p vfsDrvGetCurrentDirectory().
- *
- * @param[in,out] ip            Pointer to a @p vfs_overlay_driver_c instance.
- * @param[out]    buf           Buffer for the path string.
- * @param[in]     size          Size of the buffer.
- * @return                      The operation result.
- */
-msg_t __ovldrv_getcwd_impl(void *ip, char *buf, size_t size) {
-  vfs_overlay_driver_c *self = (vfs_overlay_driver_c *)ip;
-
-  if (size == 0U) {
-    return CH_RET_ERANGE;
-  }
-
-  *buf = '\0';
-  if (vfs_path_append(buf, get_current_directory(self), size) == (size_t)0) {
-    return CH_RET_ERANGE;
-  }
-
-  return CH_RET_SUCCESS;
+  __vfsfs_dispose_impl(self);
 }
 
 /**
@@ -601,8 +484,8 @@ msg_t __ovldrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
   do {
     const char *scanpath;
 
-    /* Building the absolute path based on current directory.*/
-    ret = build_absolute_path(self, self->buf, path);
+    /* Copying the normalized absolute path into the routing buffer.*/
+    ret = copy_absolute_path(self->buf, path);
     CH_BREAK_ON_ERROR(ret);
 
     /* Skipping the root separator.*/
@@ -616,7 +499,7 @@ msg_t __ovldrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
       ret = match_driver(self, &scanpath, &fsp);
       if (!CH_RET_IS_ERROR(ret)) {
         /* Delegating information request to a registered driver.*/
-        ret = vfsFSStat((void *)fsp, scanpath, sp);
+        ret = vfsFSStat((void *)fsp, *scanpath == '\0' ? "/" : scanpath, sp);
         break;
       }
     }
@@ -667,15 +550,11 @@ msg_t __ovldrv_opendir_impl(void *ip, const char *path,
   msg_t ret;
 
   do {
-    /* Building the absolute path based on current directory.*/
-    ret = build_absolute_path(self, self->buf, path);
+    /* Copying the normalized absolute path into the routing buffer.*/
+    ret = copy_absolute_path(self->buf, path);
     CH_BREAK_ON_ERROR(ret);
 
     ret = open_absolute_dir(self, self->buf, vdnpp);
-    CH_BREAK_ON_ERROR(ret);
-
-    /* Required because the offset returned by open_absolute_dir().*/
-    ret = CH_RET_SUCCESS;
   } while (false);
 
   return ret;
@@ -700,8 +579,8 @@ msg_t __ovldrv_openfile_impl(void *ip, const char *path, int flags,
   msg_t ret;
 
   do {
-    /* Building the absolute path based on current directory.*/
-    ret = build_absolute_path(self, self->buf, path);
+    /* Copying the normalized absolute path into the routing buffer.*/
+    ret = copy_absolute_path(self->buf, path);
     CH_BREAK_ON_ERROR(ret);
 
     ret = open_absolute_file(self, self->buf, flags, vfnpp);
@@ -727,8 +606,8 @@ msg_t __ovldrv_unlink_impl(void *ip, const char *path) {
   do {
     const char *scanpath;
 
-    /* Building the absolute path based on current directory.*/
-    ret = build_absolute_path(self, self->buf, path);
+    /* Copying the normalized absolute path into the routing buffer.*/
+    ret = copy_absolute_path(self->buf, path);
     CH_BREAK_ON_ERROR(ret);
 
     /* Skipping the root separator.*/
@@ -745,7 +624,8 @@ msg_t __ovldrv_unlink_impl(void *ip, const char *path) {
       ret = match_driver(self, &scanpath, &fsp);
       if (!CH_RET_IS_ERROR(ret)) {
         /* Delegating file deletion to a registered driver.*/
-        ret = vfsFSUnlink((void *)fsp, scanpath);
+        ret = vfsFSUnlink((void *)fsp,
+                          *scanpath == '\0' ? "/" : scanpath);
       }
       else {
         /* Passing the request to the overlaid driver, if any.*/
@@ -790,10 +670,10 @@ msg_t __ovldrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
     vfs_fs_c *oldfs, *newfs;
     const char *op, *np;
 
-    /* Building the absolute paths based on current directory.*/
-    ret = build_absolute_path(self, self->buf, oldpath);
+    /* Copying the normalized absolute paths into routing buffers.*/
+    ret = copy_absolute_path(self->buf, oldpath);
     CH_BREAK_ON_ERROR(ret);
-    ret = build_absolute_path(self, shbuf->buf, newpath);
+    ret = copy_absolute_path(shbuf->buf, newpath);
     CH_BREAK_ON_ERROR(ret);
 
     /* Skipping root separators.*/
@@ -810,7 +690,9 @@ msg_t __ovldrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
           the same driver, we cannot do a rename across drivers.*/
       if (oldfs == newfs) {
         /* Delegating node renaming to the registered driver.*/
-        ret = vfsFSRename((void *)oldfs, op, np);
+        ret = vfsFSRename((void *)oldfs,
+                          *op == '\0' ? "/" : op,
+                          *np == '\0' ? "/" : np);
       }
       else {
         /* Mixed, not allowing it.*/
@@ -877,8 +759,8 @@ msg_t __ovldrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
   do {
     const char *scanpath;
 
-    /* Building the absolute path based on current directory.*/
-    ret = build_absolute_path(self, self->buf, path);
+    /* Copying the normalized absolute path into the routing buffer.*/
+    ret = copy_absolute_path(self->buf, path);
     CH_BREAK_ON_ERROR(ret);
 
     /* Skipping the root separator.*/
@@ -895,7 +777,9 @@ msg_t __ovldrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
       ret = match_driver(self, &scanpath, &fsp);
       if (!CH_RET_IS_ERROR(ret)) {
         /* Delegating directory creation to a registered driver.*/
-        ret = vfsFSMkdir((void *)fsp, scanpath, mode);
+        ret = vfsFSMkdir((void *)fsp,
+                         *scanpath == '\0' ? "/" : scanpath,
+                         mode);
       }
       else {
         /* Is there an overlaid driver? if so we need to pass request
@@ -942,8 +826,8 @@ msg_t __ovldrv_rmdir_impl(void *ip, const char *path) {
   do {
     const char *scanpath;
 
-    /* Building the absolute path based on current directory.*/
-    ret = build_absolute_path(self, self->buf, path);
+    /* Copying the normalized absolute path into the routing buffer.*/
+    ret = copy_absolute_path(self->buf, path);
     CH_BREAK_ON_ERROR(ret);
 
     /* Skipping the root separator.*/
@@ -960,7 +844,8 @@ msg_t __ovldrv_rmdir_impl(void *ip, const char *path) {
       ret = match_driver(self, &scanpath, &fsp);
       if (!CH_RET_IS_ERROR(ret)) {
         /* Delegating directory deletion to a registered driver.*/
-        ret = vfsFSRmdir((void *)fsp, scanpath);
+        ret = vfsFSRmdir((void *)fsp,
+                         *scanpath == '\0' ? "/" : scanpath);
       }
       else {
         /* Passing the request to the overlaid driver, if any.*/
@@ -985,8 +870,6 @@ msg_t __ovldrv_rmdir_impl(void *ip, const char *path) {
  */
 const struct vfs_overlay_driver_vmt __vfs_overlay_driver_vmt = {
   .dispose                  = __ovldrv_dispose_impl,
-  .setcwd                   = __ovldrv_setcwd_impl,
-  .getcwd                   = __ovldrv_getcwd_impl,
   .stat                     = __ovldrv_stat_impl,
   .opendir                  = __ovldrv_opendir_impl,
   .openfile                 = __ovldrv_openfile_impl,

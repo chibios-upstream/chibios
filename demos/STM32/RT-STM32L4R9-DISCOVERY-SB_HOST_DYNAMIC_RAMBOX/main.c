@@ -33,18 +33,18 @@
 static vfs_fatfs_driver_c fatfs_driver;
 #endif
 
-/* VFS overlay driver object representing the absolute root directory.*/
-static vfs_overlay_driver_c root_overlay_driver;
+/* VFS root object.*/
+static vfs_root_c root_driver;
 
-/* Segregated roots for the two sandboxes.*/
-static vfs_overlay_driver_c sb1_root_overlay_driver;
+/* Private root for sandbox 1.*/
+static vfs_root_c sb1_root_driver;
 
-/* VFS streams driver objects representing the /dev private directories.*/
+/* VFS streams driver representing the private /dev directory.*/
 static vfs_streams_driver_c sb1_dev_driver;
 
 /* VFS API will use this object as implicit root, defining this
    symbol is expected.*/
-vfs_driver_c *vfs_root = (vfs_driver_c *)&root_overlay_driver;
+vfs_root_c *vfs_root = &root_driver;
 
 /* Used for /dev/null.*/
 static NullStream nullstream;
@@ -148,16 +148,16 @@ int main(void) {
                                NORMALPRIO + 10, thd1_func, NULL, NULL);
   chThdSpawnRunning(&thd1, &thd1_desc);
 
-  /* Initializing an overlay VFS object as a root on top of a FatFS driver.
-     This is accessible from kernel space and covers the whole file system.*/
+  /* Initializing the VFS root on top of a FatFS driver. This is accessible
+     from kernel space and covers the whole file system.*/
   ffdrvObjectInit(&fatfs_driver);
-  ovldrvObjectInit(&root_overlay_driver, (vfs_fs_c *)&fatfs_driver, NULL);
+  vfsrootObjectInit(&root_driver, (vfs_fs_c *)&fatfs_driver, NULL);
 
-  /* Initializing overlay drivers for the two sandbox roots. Those also use
-     the FatFS driver but are restricted to "/sb1" and "/sb2" directories.*/
-  ovldrvObjectInit(&sb1_root_overlay_driver, (vfs_fs_c *)&fatfs_driver,
+  /* Initializing the sandbox root. It also uses the FatFS driver but is
+     restricted to the "/sb1" directory.*/
+  vfsrootObjectInit(&sb1_root_driver, (vfs_fs_c *)&fatfs_driver,
                    "/sb1");
-  ret = ovldrvRegisterDriver(&sb1_root_overlay_driver,
+  ret = ovldrvRegisterDriver(&sb1_root_driver,
                              (vfs_fs_c *)stmdrvObjectInit(&sb1_dev_driver,
                                                          &sb1_streams[0]),
                              "dev");
@@ -167,7 +167,7 @@ int main(void) {
 
   /* Sandbox object initialization.*/
   sbObjectInit(&sbx1);
-  sbSetFileSystem(&sbx1, (vfs_driver_c *)&sb1_root_overlay_driver);
+  sbSetFileSystem(&sbx1, &sb1_root_driver);
 
   /* Listening to sandbox events.*/
   chEvtRegister(&sb.termination_es, &elsb, (eventid_t)2);
@@ -182,7 +182,7 @@ int main(void) {
       chThdSleepMilliseconds(500);
 
       /* Associating standard input, output and error to sandbox 1.*/
-      ret = vfsFSOpen((vfs_fs_c *)&sb1_root_overlay_driver,
+      ret = vfsFSOpen((vfs_fs_c *)&sb1_root_driver,
                       "/dev/VSD1", VO_RDWR, &np);
       if (CH_RET_IS_ERROR(ret)) {
         chprintf((BaseSequentialStream *)&SD2, "Opening /dev/VSD1 failed (%08lx)\r\n", ret);

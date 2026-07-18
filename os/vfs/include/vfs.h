@@ -92,6 +92,7 @@
 /* File System drivers.*/
 #if VFS_CFG_ENABLE_DRV_OVERLAY == TRUE
 #include "drvoverlay.h"
+#include "drvroot.h"
 #endif
 
 #if VFS_CFG_ENABLE_DRV_STREAMS == TRUE
@@ -124,7 +125,7 @@
 
 /* Application code is supposed to export this symbol, it is expected to
    exists.*/
-extern vfs_driver_c *vfs_root;
+extern vfs_root_c *vfs_root;
 
 #ifdef __cplusplus
 extern "C" {

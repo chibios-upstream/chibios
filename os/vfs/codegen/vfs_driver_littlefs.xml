@@ -31,7 +31,7 @@
     </configs>
     <types>
       <class type="regular" name="vfs_littlefs_driver" namespace="lfsdrv"
-        ancestorname="vfs_driver" descr="VFS LittleFS driver">
+        ancestorname="vfs_fs" descr="VFS LittleFS driver">
         <fields>
           <field name="mounted" ctype="bool">
             <brief>LittleFS driver mounted flag.</brief>
@@ -42,23 +42,14 @@
           <field name="cfgp" ctype="const struct lfs_config$I*">
             <brief>Associated LittleFS configuration.</brief>
           </field>
-          <field name="cwd" ctype="struct vfs_littlefs_dir_node$I*">
-            <brief>Current working directory node.</brief>
-          </field>
-          <field name="path_cwd" ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]">
-            <brief>Current working directory path.</brief>
-          </field>
-          <field name="scratch1" ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]">
-            <brief>Path scratch pad.</brief>
-          </field>
         </fields>
         <methods>
           <objinit callsuper="true">
             <param name="cfgp" ctype="const struct lfs_config *" dir="in"><![CDATA[Pointer to @p lfs_config configuration.]]></param>
             <implementation><![CDATA[
-self->cfgp = cfgp;
-self->cwd  = NULL;
-self->path_cwd[0] = '\0';]]></implementation>
+self->mounted = false;
+self->cfgp    = cfgp;
+]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[]]></implementation>
@@ -87,12 +78,6 @@ self->path_cwd[0] = '\0';]]></implementation>
             </method>
           </regular>
           <override>
-            <method shortname="setcwd">
-              <implementation><![CDATA[]]></implementation>
-            </method>
-            <method shortname="getcwd">
-              <implementation><![CDATA[]]></implementation>
-            </method>
             <method shortname="stat">
               <implementation><![CDATA[]]></implementation>
             </method>
@@ -168,7 +153,7 @@ self->path_cwd[0] = '\0';]]></implementation>
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in">Pointer to
+            <param name="driver" ctype="vfs_fs_c *" dir="in">Pointer to
  the controlling driver.</param>
             <param name="mode" ctype="vfs_mode_t" dir="in">Node mode flags.</param>
             <implementation><![CDATA[
@@ -199,7 +184,7 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementat
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in">Pointer to
+            <param name="driver" ctype="vfs_fs_c *" dir="in">Pointer to
  the controlling driver.</param>
             <param name="mode" ctype="vfs_mode_t" dir="in">Node mode flags.
             </param>

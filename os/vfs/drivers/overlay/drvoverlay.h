@@ -16,7 +16,7 @@
 
 /**
  * @file        drvoverlay.h
- * @brief       Generated VFS Template Driver header.
+ * @brief       Generated VFS Overlay Driver header.
  * @note        This is a generated file, do not edit directly.
  *
  * @addtogroup  DRVOVERLAY
@@ -143,7 +143,7 @@ struct vfs_overlay_dir_node {
 
 /**
  * @class       vfs_overlay_driver_c
- * @extends     vfs_driver_c
+ * @extends     vfs_fs_c
  *
  *
  * @name        Class @p vfs_overlay_driver_c structures
@@ -169,9 +169,6 @@ struct vfs_overlay_driver_vmt {
   msg_t (*rename)(void *ip, const char *oldpath, const char *newpath);
   msg_t (*mkdir)(void *ip, const char *path, vfs_mode_t mode);
   msg_t (*rmdir)(void *ip, const char *path);
-  /* From vfs_driver_c.*/
-  msg_t (*setcwd)(void *ip, const char *path);
-  msg_t (*getcwd)(void *ip, char *buf, size_t size);
   /* From vfs_overlay_driver_c.*/
 };
 
@@ -185,7 +182,6 @@ struct vfs_overlay_driver {
   const struct vfs_overlay_driver_vmt *vmt;
   vfs_fs_c                  *overlaid_drv;
   const char                *path_prefix;
-  char                      *path_cwd;
   unsigned                  next_driver;
   const char                *names[DRV_CFG_OVERLAY_DRV_MAX];
   vfs_fs_c                  *drivers[DRV_CFG_OVERLAY_DRV_MAX];
@@ -226,8 +222,6 @@ extern "C" {
   void *__ovldrv_objinit_impl(void *ip, const void *vmt,
                               vfs_fs_c *overlaid_drv, const char *path_prefix);
   void __ovldrv_dispose_impl(void *ip);
-  msg_t __ovldrv_setcwd_impl(void *ip, const char *path);
-  msg_t __ovldrv_getcwd_impl(void *ip, char *buf, size_t size);
   msg_t __ovldrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp);
   msg_t __ovldrv_opendir_impl(void *ip, const char *path,
                               vfs_directory_node_c **vdnpp);

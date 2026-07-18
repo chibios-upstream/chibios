@@ -72,7 +72,7 @@ void __drv_tmpl_init(void) {
  * @return                      A new reference to the object.
  */
 static void *__tmpldir_objinit_impl(void *ip, const void *vmt,
-                                    vfs_driver_c *driver, vfs_mode_t mode) {
+                                    vfs_fs_c *driver, vfs_mode_t mode) {
   vfs_tmpl_dir_node_c *self = (vfs_tmpl_dir_node_c *)ip;
 
   /* Initialization code.*/
@@ -190,7 +190,7 @@ static const struct vfs_tmpl_dir_node_vmt __vfs_tmpl_dir_node_vmt = {
  * @objinit
  */
 static vfs_tmpl_dir_node_c *tmpldirObjectInit(vfs_tmpl_dir_node_c *self,
-                                              vfs_driver_c *driver,
+                                              vfs_fs_c *driver,
                                               vfs_mode_t mode) {
 
   return __tmpldir_objinit_impl(self, &__vfs_tmpl_dir_node_vmt, driver, mode);
@@ -220,7 +220,7 @@ static vfs_tmpl_dir_node_c *tmpldirObjectInit(vfs_tmpl_dir_node_c *self,
  * @return                      A new reference to the object.
  */
 static void *__tmplfile_objinit_impl(void *ip, const void *vmt,
-                                     vfs_driver_c *driver, vfs_mode_t mode) {
+                                     vfs_fs_c *driver, vfs_mode_t mode) {
   vfs_tmpl_file_node_c *self = (vfs_tmpl_file_node_c *)ip;
 
   /* Initialization code.*/
@@ -385,7 +385,7 @@ static const struct vfs_tmpl_file_node_vmt __vfs_tmpl_file_node_vmt = {
  * @objinit
  */
 static vfs_tmpl_file_node_c *tmplfileObjectInit(vfs_tmpl_file_node_c *self,
-                                                vfs_driver_c *driver,
+                                                vfs_fs_c *driver,
                                                 vfs_mode_t mode) {
 
   return __tmplfile_objinit_impl(self, &__vfs_tmpl_file_node_vmt, driver, mode);
@@ -416,7 +416,7 @@ void *__tmpldrv_objinit_impl(void *ip, const void *vmt) {
   vfs_tmpl_driver_c *self = (vfs_tmpl_driver_c *)ip;
 
   /* Initialization of the ancestors-defined parts.*/
-  __vfsdrv_objinit_impl(self, vmt);
+  __vfsfs_objinit_impl(self, vmt);
 
   /* No initialization code.*/
 
@@ -440,47 +440,7 @@ void __tmpldrv_dispose_impl(void *ip) {
   (void)self;
 
   /* Finalization of the ancestors-defined parts.*/
-  __vfsdrv_dispose_impl(self);
-}
-
-/**
- * @memberof    vfs_tmpl_driver_c
- * @protected
- *
- * @brief       Override of method @p vfsDrvChangeCurrentDirectory().
- *
- * @param[in,out] ip            Pointer to a @p vfs_tmpl_driver_c instance.
- * @param[in]     path          Path of the new current directory.
- * @return                      The operation result.
- */
-msg_t __tmpldrv_setcwd_impl(void *ip, const char *path) {
-  vfs_tmpl_driver_c *self = (vfs_tmpl_driver_c *)ip;
-
-  (void)self;
-  (void)path;
-
-  return 0;
-}
-
-/**
- * @memberof    vfs_tmpl_driver_c
- * @protected
- *
- * @brief       Override of method @p vfsDrvGetCurrentDirectory().
- *
- * @param[in,out] ip            Pointer to a @p vfs_tmpl_driver_c instance.
- * @param[out]    buf           Buffer for the path string.
- * @param[in]     size          Size of the buffer.
- * @return                      The operation result.
- */
-msg_t __tmpldrv_getcwd_impl(void *ip, char *buf, size_t size) {
-  vfs_tmpl_driver_c *self = (vfs_tmpl_driver_c *)ip;
-
-  (void)self;
-  (void)buf;
-  (void)size;
-
-  return 0;
+  __vfsfs_dispose_impl(self);
 }
 
 /**
@@ -639,8 +599,6 @@ msg_t __tmpldrv_rmdir_impl(void *ip, const char *path) {
  */
 const struct vfs_tmpl_driver_vmt __vfs_tmpl_driver_vmt = {
   .dispose                  = __tmpldrv_dispose_impl,
-  .setcwd                   = __tmpldrv_setcwd_impl,
-  .getcwd                   = __tmpldrv_getcwd_impl,
   .stat                     = __tmpldrv_stat_impl,
   .opendir                  = __tmpldrv_opendir_impl,
   .openfile                 = __tmpldrv_openfile_impl,

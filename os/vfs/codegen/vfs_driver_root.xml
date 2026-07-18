@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- C module definition -->
+<module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
+  name="drvroot" descr="VFS Root Driver"
+  check="VFS_CFG_ENABLE_DRV_OVERLAY == TRUE" sourcepath="drivers/root"
+  headerpath="drivers/root" editcode="true">
+  <imports>
+    <import>vfs_driver_overlay.xml</import>
+  </imports>
+  <public>
+    <types>
+      <class type="regular" name="vfs_root" namespace="vfsroot"
+        ancestorname="vfs_overlay_driver" descr="VFS root object">
+        <brief>VFS root object with process path context.</brief>
+        <details><![CDATA[An overlay file system that accepts relative paths
+          and owns the current-directory state for one process context.]]></details>
+        <fields>
+          <field name="path_cwd" ctype="char$I*">
+            <brief>Current working directory path or @p NULL for root.</brief>
+          </field>
+          <field name="path_buf1"
+            ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]">
+            <brief>Primary path resolution buffer.</brief>
+          </field>
+          <field name="path_buf2"
+            ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]">
+            <brief>Secondary path resolution buffer.</brief>
+          </field>
+        </fields>
+        <methods>
+          <objinit callsuper="false">
+            <param name="overlaid_fs" ctype="vfs_fs_c *" dir="in"><![CDATA[Pointer
+              to a file system to be overlaid or @p NULL.]]></param>
+            <param name="path_prefix" ctype="const char *" dir="in"><![CDATA[Prefix
+              to be added to paths delegated to @p overlaid_fs or @p NULL.]]></param>
+            <implementation><![CDATA[
+self = __ovldrv_objinit_impl(ip, vmt, overlaid_fs, path_prefix);
+self->path_cwd = NULL;]]></implementation>
+          </objinit>
+          <dispose>
+            <implementation><![CDATA[]]></implementation>
+          </dispose>
+          <regular>
+            <method name="vfsRootChangeCurrentDirectory" ctype="msg_t">
+              <brief>Changes the current VFS directory.</brief>
+              <param name="path" ctype="const char *" dir="in">Path of the new
+                current directory.</param>
+              <return>The operation result.</return>
+              <api />
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method name="vfsRootGetCurrentDirectory" ctype="msg_t">
+              <brief>Returns the current VFS directory.</brief>
+              <param name="buf" ctype="char *" dir="out">Buffer for the path
+                string.</param>
+              <param name="size" ctype="size_t" dir="in">Size of the buffer.
+              </param>
+              <return>The operation result.</return>
+              <api />
+              <implementation><![CDATA[]]></implementation>
+            </method>
+          </regular>
+          <override>
+            <method shortname="stat">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="opendir">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="openfile">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="unlink">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="rename">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="mkdir">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+            <method shortname="rmdir">
+              <implementation><![CDATA[]]></implementation>
+            </method>
+          </override>
+        </methods>
+      </class>
+    </types>
+  </public>
+  <private>
+    <includes_always>
+      <include style="regular">vfs.h</include>
+    </includes_always>
+  </private>
+</module>

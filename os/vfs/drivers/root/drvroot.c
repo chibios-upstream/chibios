@@ -15,11 +15,11 @@
 */
 
 /**
- * @file        drvoverlay.c
- * @brief       Generated VFS Overlay Driver source.
+ * @file        drvroot.c
+ * @brief       Generated VFS Root Driver source.
  * @note        This is a generated file, do not edit directly.
  *
- * @addtogroup  DRVOVERLAY
+ * @addtogroup  DRVROOT
  * @{
  */
 
@@ -47,14 +47,9 @@
 /* Module local variables.                                                   */
 /*===========================================================================*/
 
-/**
- * @brief       Global state of @p vfs_overlay_driver_c.
- */
-static struct vfs_overlay_driver_static_struct vfs_overlay_driver_static;
-
 /* Module code has been generated into an hand-editable file and included
    here.*/
-#include "drvoverlay_impl.inc"
+#include "drvroot_impl.inc"
 
 #endif /* VFS_CFG_ENABLE_DRV_OVERLAY == TRUE */
 

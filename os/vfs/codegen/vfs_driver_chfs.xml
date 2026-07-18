@@ -45,19 +45,13 @@
       </fields>
       </struct>
       <class type="regular" name="vfs_chfs_driver" namespace="chfsdrv"
-        ancestorname="vfs_driver" descr="VFS ChibiFS driver">
+        ancestorname="vfs_fs" descr="VFS ChibiFS driver">
         <fields>
           <field name="mounted" ctype="bool">
             <brief>ChibiFS driver mounted flag.</brief>
           </field>
           <field name="cfgp" ctype="const struct chfs_config$I*">
             <brief>Associated ChibiFS configuration.</brief>
-          </field>
-          <field name="cwd" ctype="struct vfs_chfs_dir_node$I*">
-            <brief>Current working directory node.</brief>
-          </field>
-          <field name="path_cwd" ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]">
-            <brief>Current working directory path.</brief>
           </field>
         </fields>
         <methods>
@@ -66,8 +60,7 @@
               to @p chfs_config_t configuration.]]></param>
             <implementation><![CDATA[
 self->cfgp = cfgp;
-self->cwd  = NULL;
-self->path_cwd[0] = '\0';]]></implementation>
+]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[]]></implementation>
@@ -96,12 +89,6 @@ self->path_cwd[0] = '\0';]]></implementation>
             </method>
           </regular>
           <override>
-            <method shortname="setcwd">
-              <implementation><![CDATA[]]></implementation>
-            </method>
-            <method shortname="getcwd">
-              <implementation><![CDATA[]]></implementation>
-            </method>
             <method shortname="stat">
               <implementation><![CDATA[]]></implementation>
             </method>
@@ -188,7 +175,7 @@ chCacheObjectInit(&vfs_chfs_driver_static.cache,
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in">Pointer to
+            <param name="driver" ctype="vfs_fs_c *" dir="in">Pointer to
  the controlling driver.</param>
             <param name="mode" ctype="vfs_mode_t" dir="in">Node mode flags.</param>
             <implementation><![CDATA[
@@ -216,7 +203,7 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementat
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in">Pointer to
+            <param name="driver" ctype="vfs_fs_c *" dir="in">Pointer to
  the controlling driver.</param>
             <param name="mode" ctype="vfs_mode_t" dir="in">Node mode flags.
             </param>

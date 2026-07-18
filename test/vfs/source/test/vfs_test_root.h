@@ -26,6 +26,7 @@
 
 #include "vfs_test_sequence_001.h"
 #include "vfs_test_sequence_002.h"
+#include "vfs_test_sequence_003.h"
 
 #if !defined(__DOXYGEN__)
 
@@ -65,8 +66,8 @@ typedef struct {
   const struct vfs_fs_vmt *vmt;
   unsigned                operation;
   unsigned                calls;
-  const char              *path;
-  const char              *newpath;
+  char                    path[VFS_CFG_PATHLEN_MAX + 1];
+  char                    newpath[VFS_CFG_PATHLEN_MAX + 1];
   int                     flags;
   vfs_mode_t              mode;
   msg_t                   opendir_result;
@@ -74,6 +75,7 @@ typedef struct {
 } vfs_test_fs_c;
 
 extern vfs_test_fs_c vfs_test_fs;
+extern vfs_root_c vfs_test_root;
 
 bool vfs_test_path_equal(const char *actual, size_t actual_size,
                          const char *expected);
@@ -83,6 +85,7 @@ bool vfs_test_path_normalizes_in_place(const char *input,
 bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
                                     const char *expected);
 void vfs_test_fs_reset(void);
+void vfs_test_root_reset(void);
 
 #endif /* !defined(__DOXYGEN__) */
 

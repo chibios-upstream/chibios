@@ -14,34 +14,14 @@
     limitations under the License.
 */
 
-#include <stdlib.h>
-
-#include "ch.h"
-#include "hal.h"
-#include "vfs.h"
-#include "vfs_test_root.h"
-#include "console.h"
-
-vfs_root_c *vfs_root;
-
-/*
- * Simulator main.
+/**
+ * @file    vfs_test_sequence_003.h
+ * @brief   Test Sequence 003 header.
  */
-int main(int argc, char *argv[]) {
 
-  (void)argc;
-  (void)argv;
+#ifndef VFS_TEST_SEQUENCE_003_H
+#define VFS_TEST_SEQUENCE_003_H
 
-  halInit();
-  conInit();
-  chSysInit();
-  vfsInit();
+extern const testsequence_t vfs_test_sequence_003;
 
-  test_execute((BaseSequentialStream *)&CD1, &vfs_test_suite);
-  if (chtest.global_fail) {
-    exit(1);
-  }
-  else {
-    exit(0);
-  }
-}
+#endif /* VFS_TEST_SEQUENCE_003_H */

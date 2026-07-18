@@ -116,19 +116,19 @@ static vio_conf_t vio_config2 = {
 /*===========================================================================*/
 
 #if VFS_CFG_ENABLE_DRV_ROMFS == TRUE
-/* VFS ROMFS driver object representing the root directory.*/
-static vfs_rom_driver_c root_driver;
+/* VFS ROMFS driver object.*/
+static vfs_rom_driver_c rom_driver;
 #endif
 
-/* VFS overlay driver object representing the root directory.*/
-static vfs_overlay_driver_c root_overlay_driver;
+/* VFS root object.*/
+static vfs_root_c root_driver;
 
 /* VFS streams driver object representing the /dev directory.*/
 static vfs_streams_driver_c dev_driver;
 
 /* VFS API will use this object as implicit root, defining this
    symbol is expected.*/
-vfs_driver_c *vfs_root = (vfs_driver_c *)&root_overlay_driver;
+vfs_root_c *vfs_root = &root_driver;
 
 static null_stream_c nullstream;
 
@@ -232,12 +232,12 @@ int main(void) {
   nullstmObjectInit(&nullstream);
 
   /*
-   * Initializing a ROMFS root, then overlaying "/dev" on top of it.
+   * Initializing a ROMFS-backed root, then mounting "/dev" on it.
    */
-  ovldrvObjectInit(&root_overlay_driver,
-                   (vfs_fs_c *)romdrvObjectInit(&root_driver, &http_romfs),
+  vfsrootObjectInit(&root_driver,
+                   (vfs_fs_c *)romdrvObjectInit(&rom_driver, &http_romfs),
                    NULL);
-  ret = ovldrvRegisterDriver(&root_overlay_driver,
+  ret = ovldrvRegisterDriver(&root_driver,
                              (vfs_fs_c *)stmdrvObjectInit(&dev_driver,
                                                          &streams[0]),
                              "dev");
@@ -257,7 +257,7 @@ int main(void) {
   sbSetRegion(&sbx2, 0, STARTUP_FLASH2_BASE, STARTUP_FLASH2_SIZE, SB_REG_IS_CODE);
   sbSetRegion(&sbx2, 1, STARTUP_RAM2_BASE,   STARTUP_RAM2_SIZE, SB_REG_IS_DATA);
   sbSetVirtualIO(&sbx2, &vio_config2);
-  sbSetFileSystem(&sbx2, (vfs_driver_c *)&root_overlay_driver);
+  sbSetFileSystem(&sbx2, &root_driver);
 
   /* Starting sandboxed threads.*/
   start_sb1();

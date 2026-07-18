@@ -253,7 +253,7 @@ void sb_sysc_loadelf(sb_class_t *sbp, struct port_extctx *ectxp) {
   uint8_t *buf = (uint8_t *)ectxp->r1;
   size_t size = (size_t)ectxp->r2;
 
-  if (sbp->io.vfs_driver == NULL) {
+  if (sbp->io.vfs_root == NULL) {
     ectxp->r0 = CH_RET_ENOSYS;
     return;
   }
@@ -266,7 +266,7 @@ void sb_sysc_loadelf(sb_class_t *sbp, struct port_extctx *ectxp) {
   }
   else {
     memory_area_t ma = {buf, size};
-    ectxp->r0 = (uint32_t)sbElfLoadFile(sbp->io.vfs_driver, fname, &ma);
+    ectxp->r0 = (uint32_t)sbElfLoadFile(sbp->io.vfs_root, fname, &ma);
   }
 #else
   (void)sbp;

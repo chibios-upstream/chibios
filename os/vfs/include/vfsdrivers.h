@@ -20,7 +20,7 @@
  * @note        This is a generated file, do not edit directly.
  *
  * @addtogroup  VFSDRIVERS
- * @brief       VFS file system and process-aware driver classes.
+ * @brief       VFS file system class.
  * @{
  */
 
@@ -108,53 +108,6 @@ struct vfs_fs {
 };
 /** @} */
 
-/**
- * @class       vfs_driver_c
- * @extends     vfs_fs_c
- *
- * @brief       Ancestor class of process-aware VFS drivers.
- * @details     Compatibility class for file systems that also own
- *              current-directory state and accept relative paths.
- *
- * @name        Class @p vfs_driver_c structures
- * @{
- */
-
-/**
- * @brief       Type of a VFS process-aware driver class.
- */
-typedef struct vfs_driver vfs_driver_c;
-
-/**
- * @brief       Class @p vfs_driver_c virtual methods table.
- */
-struct vfs_driver_vmt {
-  /* From base_object_c.*/
-  void (*dispose)(void *ip);
-  /* From vfs_fs_c.*/
-  msg_t (*stat)(void *ip, const char *path, vfs_stat_t *sp);
-  msg_t (*opendir)(void *ip, const char *path, vfs_directory_node_c **vdnpp);
-  msg_t (*openfile)(void *ip, const char *path, int flags, vfs_file_node_c **vfnpp);
-  msg_t (*unlink)(void *ip, const char *path);
-  msg_t (*rename)(void *ip, const char *oldpath, const char *newpath);
-  msg_t (*mkdir)(void *ip, const char *path, vfs_mode_t mode);
-  msg_t (*rmdir)(void *ip, const char *path);
-  /* From vfs_driver_c.*/
-  msg_t (*setcwd)(void *ip, const char *path);
-  msg_t (*getcwd)(void *ip, char *buf, size_t size);
-};
-
-/**
- * @brief       Structure representing a VFS process-aware driver class.
- */
-struct vfs_driver {
-  /**
-   * @brief       Virtual Methods Table.
-   */
-  const struct vfs_driver_vmt *vmt;
-};
-/** @} */
-
 /*===========================================================================*/
 /* External declarations.                                                    */
 /*===========================================================================*/
@@ -174,11 +127,6 @@ extern "C" {
   msg_t __vfsfs_rename_impl(void *ip, const char *oldpath, const char *newpath);
   msg_t __vfsfs_mkdir_impl(void *ip, const char *path, vfs_mode_t mode);
   msg_t __vfsfs_rmdir_impl(void *ip, const char *path);
-  /* Methods of vfs_driver_c.*/
-  void *__vfsdrv_objinit_impl(void *ip, const void *vmt);
-  void __vfsdrv_dispose_impl(void *ip);
-  msg_t __vfsdrv_setcwd_impl(void *ip, const char *path);
-  msg_t __vfsdrv_getcwd_impl(void *ip, char *buf, size_t size);
   /* Regular functions.*/
   msg_t vfsFSOpen(vfs_fs_c *fsp, const char *path, int flags,
                   vfs_node_c **vnpp);
@@ -315,44 +263,6 @@ static inline msg_t vfsFSRmdir(void *ip, const char *path) {
   vfs_fs_c *self = (vfs_fs_c *)ip;
 
   return self->vmt->rmdir(ip, path);
-}
-/** @} */
-
-/**
- * @name        Virtual methods of vfs_driver_c
- * @{
- */
-/**
- * @brief       Changes the current VFS directory.
- *
- * @param[in,out] ip            Pointer to a @p vfs_driver_c instance.
- * @param[in]     path          Path of the new current directory.
- * @return                      The operation result.
- *
- * @api
- */
-CC_FORCE_INLINE
-static inline msg_t vfsDrvChangeCurrentDirectory(void *ip, const char *path) {
-  vfs_driver_c *self = (vfs_driver_c *)ip;
-
-  return self->vmt->setcwd(ip, path);
-}
-
-/**
- * @brief       Returns the current VFS directory.
- *
- * @param[in,out] ip            Pointer to a @p vfs_driver_c instance.
- * @param[out]    buf           Buffer for the path string.
- * @param[in]     size          Size of the buffer.
- * @return                      The operation result.
- *
- * @api
- */
-CC_FORCE_INLINE
-static inline msg_t vfsDrvGetCurrentDirectory(void *ip, char *buf, size_t size) {
-  vfs_driver_c *self = (vfs_driver_c *)ip;
-
-  return self->vmt->getcwd(ip, buf, size);
 }
 /** @} */
 

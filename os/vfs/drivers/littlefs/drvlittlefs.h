@@ -87,7 +87,7 @@
 
 /**
  * @class       vfs_littlefs_driver_c
- * @extends     vfs_driver_c
+ * @extends     vfs_fs_c
  *
  *
  * @name        Class @p vfs_littlefs_driver_c structures
@@ -113,9 +113,6 @@ struct vfs_littlefs_driver_vmt {
   msg_t (*rename)(void *ip, const char *oldpath, const char *newpath);
   msg_t (*mkdir)(void *ip, const char *path, vfs_mode_t mode);
   msg_t (*rmdir)(void *ip, const char *path);
-  /* From vfs_driver_c.*/
-  msg_t (*setcwd)(void *ip, const char *path);
-  msg_t (*getcwd)(void *ip, char *buf, size_t size);
   /* From vfs_littlefs_driver_c.*/
 };
 
@@ -139,18 +136,6 @@ struct vfs_littlefs_driver {
    * @brief       Associated LittleFS configuration.
    */
   const struct lfs_config   *cfgp;
-  /**
-   * @brief       Current working directory node.
-   */
-  struct vfs_littlefs_dir_node *cwd;
-  /**
-   * @brief       Current working directory path.
-   */
-  char                      path_cwd[VFS_CFG_PATHLEN_MAX + 1];
-  /**
-   * @brief       Path scratch pad.
-   */
-  char                      scratch1[VFS_CFG_PATHLEN_MAX + 1];
 };
 /** @} */
 
@@ -167,8 +152,6 @@ extern "C" {
   void *__lfsdrv_objinit_impl(void *ip, const void *vmt,
                               const struct lfs_config *cfgp);
   void __lfsdrv_dispose_impl(void *ip);
-  msg_t __lfsdrv_setcwd_impl(void *ip, const char *path);
-  msg_t __lfsdrv_getcwd_impl(void *ip, char *buf, size_t size);
   msg_t __lfsdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp);
   msg_t __lfsdrv_opendir_impl(void *ip, const char *path,
                               vfs_directory_node_c **vdnpp);

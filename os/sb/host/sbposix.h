@@ -58,13 +58,13 @@
  */
 typedef struct {
   /**
-   * @brief   VFS driver associated to the sandbox as root.
+   * @brief   VFS root associated to the sandbox.
    * @note    The object is owned by the host side. SB uses the pointed
-   *          driver instance directly so mutable state inside the driver,
+   *          root instance directly so mutable state inside the root,
    *          such as the current working directory, is private to the
-   *          sandbox only if a distinct driver instance is associated to it.
+   *          sandbox only if a distinct root instance is associated to it.
    */
-  vfs_driver_c                  *vfs_driver;
+  vfs_root_c                    *vfs_root;
   /**
    * @brief   VFS nodes associated to file descriptors.
    */

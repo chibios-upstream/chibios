@@ -112,7 +112,7 @@ struct chfs_config {
 
 /**
  * @class       vfs_chfs_driver_c
- * @extends     vfs_driver_c
+ * @extends     vfs_fs_c
  *
  *
  * @name        Class @p vfs_chfs_driver_c structures
@@ -138,9 +138,6 @@ struct vfs_chfs_driver_vmt {
   msg_t (*rename)(void *ip, const char *oldpath, const char *newpath);
   msg_t (*mkdir)(void *ip, const char *path, vfs_mode_t mode);
   msg_t (*rmdir)(void *ip, const char *path);
-  /* From vfs_driver_c.*/
-  msg_t (*setcwd)(void *ip, const char *path);
-  msg_t (*getcwd)(void *ip, char *buf, size_t size);
   /* From vfs_chfs_driver_c.*/
 };
 
@@ -160,14 +157,6 @@ struct vfs_chfs_driver {
    * @brief       Associated ChibiFS configuration.
    */
   const struct chfs_config  *cfgp;
-  /**
-   * @brief       Current working directory node.
-   */
-  struct vfs_chfs_dir_node  *cwd;
-  /**
-   * @brief       Current working directory path.
-   */
-  char                      path_cwd[VFS_CFG_PATHLEN_MAX + 1];
 };
 /** @} */
 
@@ -184,8 +173,6 @@ extern "C" {
   void *__chfsdrv_objinit_impl(void *ip, const void *vmt,
                                const chfs_config_t *cfgp);
   void __chfsdrv_dispose_impl(void *ip);
-  msg_t __chfsdrv_setcwd_impl(void *ip, const char *path);
-  msg_t __chfsdrv_getcwd_impl(void *ip, char *buf, size_t size);
   msg_t __chfsdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp);
   msg_t __chfsdrv_opendir_impl(void *ip, const char *path,
                                vfs_directory_node_c **vdnpp);

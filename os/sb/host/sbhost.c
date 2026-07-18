@@ -679,7 +679,7 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
   ma.size -= totsize;
 
   /* Loading sandbox code into the specified memory area.*/
-  ret = sbElfLoadFile(sbp->io.vfs_driver, path, &ma);
+  ret = sbElfLoadFile(sbp->io.vfs_root, path, &ma);
   CH_RETURN_ON_ERROR(ret);
 
   /* Header location.*/
@@ -732,7 +732,7 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   size_t size, basealign;
   msg_t ret;
 
-  ret = vfsFSOpenFile(sbp->io.vfs_driver, path, VO_RDONLY, &fnp);
+  ret = vfsFSOpenFile(sbp->io.vfs_root, path, VO_RDONLY, &fnp);
   CH_RETURN_ON_ERROR(ret);
 
   /* Calculating bare-minimum space required by the elf file.*/

@@ -102,7 +102,7 @@ void __drv_chfs_init(void) {
  * @return                      A new reference to the object.
  */
 static void *__chfsdir_objinit_impl(void *ip, const void *vmt,
-                                    vfs_driver_c *driver, vfs_mode_t mode) {
+                                    vfs_fs_c *driver, vfs_mode_t mode) {
   vfs_chfs_dir_node_c *self = (vfs_chfs_dir_node_c *)ip;
 
   /* Initialization code.*/
@@ -220,7 +220,7 @@ static const struct vfs_chfs_dir_node_vmt __vfs_chfs_dir_node_vmt = {
  * @objinit
  */
 vfs_chfs_dir_node_c *chfsdirObjectInit(vfs_chfs_dir_node_c *self,
-                                       vfs_driver_c *driver,
+                                       vfs_fs_c *driver,
                                        vfs_mode_t mode) {
 
   return __chfsdir_objinit_impl(self, &__vfs_chfs_dir_node_vmt, driver, mode);
@@ -250,7 +250,7 @@ vfs_chfs_dir_node_c *chfsdirObjectInit(vfs_chfs_dir_node_c *self,
  * @return                      A new reference to the object.
  */
 static void *__chfsfile_objinit_impl(void *ip, const void *vmt,
-                                     vfs_driver_c *driver, vfs_mode_t mode) {
+                                     vfs_fs_c *driver, vfs_mode_t mode) {
   vfs_chfs_file_node_c *self = (vfs_chfs_file_node_c *)ip;
 
   /* Initialization code.*/
@@ -416,7 +416,7 @@ static const struct vfs_chfs_file_node_vmt __vfs_chfs_file_node_vmt = {
  */
 static __attribute__((unused))
 vfs_chfs_file_node_c *chfsfileObjectInit(vfs_chfs_file_node_c *self,
-                                         vfs_driver_c *driver,
+                                         vfs_fs_c *driver,
                                          vfs_mode_t mode) {
 
   return __chfsfile_objinit_impl(self, &__vfs_chfs_file_node_vmt, driver, mode);
@@ -449,12 +449,10 @@ void *__chfsdrv_objinit_impl(void *ip, const void *vmt,
   vfs_chfs_driver_c *self = (vfs_chfs_driver_c *)ip;
 
   /* Initialization of the ancestors-defined parts.*/
-  __vfsdrv_objinit_impl(self, vmt);
+  __vfsfs_objinit_impl(self, vmt);
 
   /* Initialization code.*/
   self->cfgp = cfgp;
-  self->cwd  = NULL;
-  self->path_cwd[0] = '\0';
 
   return self;
 }
@@ -476,47 +474,7 @@ void __chfsdrv_dispose_impl(void *ip) {
   (void)self;
 
   /* Finalization of the ancestors-defined parts.*/
-  __vfsdrv_dispose_impl(self);
-}
-
-/**
- * @memberof    vfs_chfs_driver_c
- * @protected
- *
- * @brief       Override of method @p vfsDrvChangeCurrentDirectory().
- *
- * @param[in,out] ip            Pointer to a @p vfs_chfs_driver_c instance.
- * @param[in]     path          Path of the new current directory.
- * @return                      The operation result.
- */
-msg_t __chfsdrv_setcwd_impl(void *ip, const char *path) {
-  vfs_chfs_driver_c *self = (vfs_chfs_driver_c *)ip;
-
-  (void)self;
-  (void)path;
-
-  return CH_RET_SUCCESS;
-}
-
-/**
- * @memberof    vfs_chfs_driver_c
- * @protected
- *
- * @brief       Override of method @p vfsDrvGetCurrentDirectory().
- *
- * @param[in,out] ip            Pointer to a @p vfs_chfs_driver_c instance.
- * @param[out]    buf           Buffer for the path string.
- * @param[in]     size          Size of the buffer.
- * @return                      The operation result.
- */
-msg_t __chfsdrv_getcwd_impl(void *ip, char *buf, size_t size) {
-  vfs_chfs_driver_c *self = (vfs_chfs_driver_c *)ip;
-
-  (void)self;
-  (void)buf;
-  (void)size;
-
-  return CH_RET_SUCCESS;
+  __vfsfs_dispose_impl(self);
 }
 
 /**
@@ -675,8 +633,6 @@ msg_t __chfsdrv_rmdir_impl(void *ip, const char *path) {
  */
 const struct vfs_chfs_driver_vmt __vfs_chfs_driver_vmt = {
   .dispose                  = __chfsdrv_dispose_impl,
-  .setcwd                   = __chfsdrv_setcwd_impl,
-  .getcwd                   = __chfsdrv_getcwd_impl,
   .stat                     = __chfsdrv_stat_impl,
   .opendir                  = __chfsdrv_opendir_impl,
   .openfile                 = __chfsdrv_openfile_impl,

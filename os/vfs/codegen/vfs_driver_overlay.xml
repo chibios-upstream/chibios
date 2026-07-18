@@ -2,7 +2,7 @@
 <!-- C module definition -->
 <module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
-  name="drvoverlay" descr="VFS Template Driver"
+  name="drvoverlay" descr="VFS Overlay Driver"
   check="VFS_CFG_ENABLE_DRV_OVERLAY == TRUE" sourcepath="drivers/overlay"
   headerpath="drivers/overlay" editcode="true">
   <imports>
@@ -64,11 +64,10 @@ self->overlaid_root = NULL;]]></implementation>
         </methods>
       </class>
       <class type="regular" name="vfs_overlay_driver" namespace="ovldrv"
-        ancestorname="vfs_driver" descr="VFS overlay driver">
+        ancestorname="vfs_fs" descr="VFS overlay driver">
         <fields>
           <field name="overlaid_drv" ctype="vfs_fs_c$I*"></field>
           <field name="path_prefix" ctype="const char$I*"></field>
-          <field name="path_cwd" ctype="char$I*"></field>
           <field name="next_driver" ctype="unsigned"></field>
           <field name="names"
             ctype="const char$I*$N[DRV_CFG_OVERLAY_DRV_MAX]"></field>
@@ -85,7 +84,6 @@ self->overlaid_root = NULL;]]></implementation>
             <implementation><![CDATA[
 self->overlaid_drv = overlaid_drv;
 self->path_prefix  = path_prefix;
-self->path_cwd     = NULL;
 self->next_driver  = 0U;]]></implementation>
           </objinit>
           <dispose>
@@ -173,12 +171,6 @@ return CH_RET_ENOENT;]]></implementation>
             </method>
           </regular>
           <override>
-            <method shortname="setcwd">
-              <implementation><![CDATA[]]></implementation>
-            </method>
-            <method shortname="getcwd">
-              <implementation><![CDATA[]]></implementation>
-            </method>
             <method shortname="stat">
               <implementation><![CDATA[]]></implementation>
             </method>

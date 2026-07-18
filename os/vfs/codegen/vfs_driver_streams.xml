@@ -54,7 +54,7 @@
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in"> Pointer to
+            <param name="driver" ctype="vfs_fs_c *" dir="in"> Pointer to
               the controlling driver.
             </param>
             <param name="mode" ctype="vfs_mode_t" dir="in"> Node mode flags.
@@ -92,7 +92,7 @@ self->index = 0U;]]></implementation>
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in"> Pointer to
+            <param name="driver" ctype="vfs_fs_c *" dir="in"> Pointer to
               the controlling driver.
             </param>
             <param name="mode" ctype="vfs_mode_t" dir="in"> Node mode flags.
@@ -136,7 +136,7 @@ self->rstream = rstream;]]></implementation>
         </methods>
       </class>
       <class type="regular" name="vfs_streams_driver" namespace="stmdrv"
-        ancestorname="vfs_driver" descr="VFS streams driver">
+        ancestorname="vfs_fs" descr="VFS streams driver">
         <fields>
           <field name="streams" ctype="const drv_streams_element_t$I*">
             <brief>Pointer to the stream elements to be exposed.</brief>
@@ -154,12 +154,6 @@ self->streams = streams;]]></implementation>
             <implementation><![CDATA[]]></implementation>
           </dispose>
           <override>
-            <method shortname="setcwd">
-              <implementation><![CDATA[]]></implementation>
-            </method>
-            <method shortname="getcwd">
-              <implementation><![CDATA[]]></implementation>
-            </method>
             <method shortname="stat">
               <implementation><![CDATA[]]></implementation>
             </method>

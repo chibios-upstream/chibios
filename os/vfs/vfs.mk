@@ -17,6 +17,7 @@ VFSSRC := $(CHIBIOS)/os/vfs/src/vfspaths.c \
           $(CHIBIOS)/os/vfs/drivers/littlefs/drvlittlefs.c \
           $(CHIBIOS)/os/vfs/drivers/romfs/drvromfs.c \
           $(CHIBIOS)/os/vfs/drivers/overlay/drvoverlay.c \
+          $(CHIBIOS)/os/vfs/drivers/root/drvroot.c \
           $(CHIBIOS)/os/vfs/drivers/streams/drvstreams.c
 
 # Required include directories
@@ -29,6 +30,7 @@ VFSINC := $(CHIBIOS)/os/common/include \
           $(CHIBIOS)/os/vfs/drivers/littlefs \
           $(CHIBIOS)/os/vfs/drivers/romfs \
           $(CHIBIOS)/os/vfs/drivers/overlay \
+          $(CHIBIOS)/os/vfs/drivers/root \
           $(CHIBIOS)/os/vfs/drivers/streams
 
 # Shared variables

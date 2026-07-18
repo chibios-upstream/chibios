@@ -95,7 +95,7 @@ void vfsInit(void) {
  */
 msg_t vfsChangeCurrentDirectory(const char *path) {
 
-  return vfsDrvChangeCurrentDirectory(vfs_root, path);
+  return vfsRootChangeCurrentDirectory(vfs_root, path);
 }
 
 /**
@@ -109,7 +109,7 @@ msg_t vfsChangeCurrentDirectory(const char *path) {
  */
 msg_t vfsGetCurrentDirectory(char *buf, size_t size) {
 
-  return vfsDrvGetCurrentDirectory(vfs_root, buf, size);
+  return vfsRootGetCurrentDirectory(vfs_root, buf, size);
 }
 
 /**

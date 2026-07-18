@@ -154,18 +154,18 @@ static inline void sbSetRegion(sb_class_t *sbp, unsigned region,
  *          nor duplicated by the SB subsystem.
  * @note    In order to have a sandbox-private current working directory and
  *          any other mutable filesystem state, the host code must associate
- *          a distinct mutable VFS driver instance to each sandbox.
- * @note    If the same VFS object is shared among sandboxes then the current
- *          working directory and any other driver-local state are shared too.
+ *          a distinct VFS root instance to each sandbox.
+ * @note    If the same VFS root is shared among sandboxes then the current
+ *          working directory and any other root-local state are shared too.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
- * @param[in] drvp      pointer to a @p vfs_driver_c structure or @p NULL
+ * @param[in] rootp     pointer to a @p vfs_root_c structure or @p NULL
  *
  * @api
  */
-static inline void sbSetFileSystem(sb_class_t *sbp, vfs_driver_c *drvp) {
+static inline void sbSetFileSystem(sb_class_t *sbp, vfs_root_c *rootp) {
 
-  sbp->io.vfs_driver = drvp;
+  sbp->io.vfs_root = rootp;
 }
 
 /**

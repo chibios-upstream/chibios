@@ -51,8 +51,8 @@ typedef struct {
   const struct vfs_fs_vmt *vmt;
   unsigned                operation;
   unsigned                calls;
-  const char              *path;
-  const char              *newpath;
+  char                    path[VFS_CFG_PATHLEN_MAX + 1];
+  char                    newpath[VFS_CFG_PATHLEN_MAX + 1];
   int                     flags;
   vfs_mode_t              mode;
   msg_t                   opendir_result;
@@ -60,6 +60,7 @@ typedef struct {
 } vfs_test_fs_c;
 
 extern vfs_test_fs_c vfs_test_fs;
+extern vfs_root_c vfs_test_root;
 
 bool vfs_test_path_equal(const char *actual, size_t actual_size,
                          const char *expected);
@@ -68,7 +69,8 @@ bool vfs_test_path_normalizes_in_place(const char *input,
                                        const char *expected);
 bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
                                     const char *expected);
-void vfs_test_fs_reset(void);]]></value>
+void vfs_test_fs_reset(void);
+void vfs_test_root_reset(void);]]></value>
     </global_definitions>
     <global_code>
       <value><![CDATA[bool vfs_test_path_equal(const char *actual, size_t actual_size,
@@ -117,7 +119,7 @@ static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
 
   self->operation = operation;
   self->calls++;
-  self->path = path;
+  strcpy(self->path, path);
 }
 
 static msg_t vfs_test_fs_stat(void *ip, const char *path, vfs_stat_t *sp) {
@@ -159,7 +161,7 @@ static msg_t vfs_test_fs_rename(void *ip, const char *oldpath,
   vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
 
   vfs_test_fs_record(self, VFS_TEST_FS_OP_RENAME, oldpath);
-  self->newpath = newpath;
+  strcpy(self->newpath, newpath);
   return CH_RET_SUCCESS;
 }
 
@@ -190,18 +192,27 @@ static const struct vfs_fs_vmt vfs_test_fs_vmt = {
 };
 
 vfs_test_fs_c vfs_test_fs;
+vfs_root_c vfs_test_root;
+static char vfs_test_cwd[] = "/home/user";
 
 void vfs_test_fs_reset(void) {
 
   (void)__vfsfs_objinit_impl(&vfs_test_fs, &vfs_test_fs_vmt);
   vfs_test_fs.operation       = VFS_TEST_FS_OP_NONE;
   vfs_test_fs.calls           = 0U;
-  vfs_test_fs.path            = NULL;
-  vfs_test_fs.newpath         = NULL;
+  vfs_test_fs.path[0]         = '\0';
+  vfs_test_fs.newpath[0]      = '\0';
   vfs_test_fs.flags           = 0;
   vfs_test_fs.mode            = (vfs_mode_t)0;
   vfs_test_fs.opendir_result  = CH_RET_SUCCESS;
   vfs_test_fs.openfile_result = CH_RET_SUCCESS;
+}
+
+void vfs_test_root_reset(void) {
+
+  vfs_test_fs_reset();
+  (void)vfsrootObjectInit(&vfs_test_root, (vfs_fs_c *)&vfs_test_fs, NULL);
+  vfs_test_root.path_cwd = vfs_test_cwd;
 }]]></value>
     </global_code>
   </global_data_and_code>
@@ -798,6 +809,251 @@ test_assert(ret == CH_RET_EISDIR, "writable directory open accepted");
 test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_OPENFILE,
             "writable generic open dispatch failed");
 test_assert(vfs_test_fs.calls == 1U, "writable generic open fell back");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>Root Path Context.</value>
+      </brief>
+      <description>
+        <value>The overlay-derived root resolves relative paths and owns the
+          current directory, while a plain overlay remains an absolute-path
+          file system suitable for non-root use.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>
+
+#include "vfs.h"]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Root path resolution and current directory.</value>
+          </brief>
+          <description>
+            <value>Relative and absolute paths are normalized by the root,
+              rename resolves both paths against one current directory, and
+              failed directory changes preserve the path context.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[vfs_stat_t stat;
+vfs_root_c empty_root;
+vfs_root_c other_root;
+char cwd[VFS_CFG_PATHLEN_MAX + 1];
+char other_cwd[] = "/tmp";
+char small[2];
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A relative path is resolved against the root current
+                  directory before reaching the backing file system.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_root_reset();
+ret = vfsFSStat(&vfs_test_root, "../data", &stat);
+test_assert(ret == CH_RET_SUCCESS, "relative stat failed");
+test_assert(strcmp(vfs_test_fs.path, "/home/data") == 0,
+            "relative stat path not resolved");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An absolute path ignores the current directory and is
+                  normalized by the root.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_root_reset();
+ret = vfsFSStat(&vfs_test_root, "/var/./log", &stat);
+test_assert(ret == CH_RET_SUCCESS, "absolute stat failed");
+test_assert(strcmp(vfs_test_fs.path, "/var/log") == 0,
+            "absolute stat path not normalized");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Both rename paths are resolved against the same
+                  current-directory snapshot.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_root_reset();
+ret = vfsFSRename(&vfs_test_root, "old", "../new");
+test_assert(ret == CH_RET_SUCCESS, "relative rename failed");
+test_assert(strcmp(vfs_test_fs.path, "/home/user/old") == 0,
+            "rename old path not resolved");
+test_assert(strcmp(vfs_test_fs.newpath, "/home/new") == 0,
+            "rename new path not resolved");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Two roots sharing one file system keep independent
+                  current-directory contexts.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_root_reset();
+(void)vfsrootObjectInit(&other_root, (vfs_fs_c *)&vfs_test_fs, NULL);
+other_root.path_cwd = other_cwd;
+ret = vfsFSStat(&vfs_test_root, "file", &stat);
+test_assert(ret == CH_RET_SUCCESS, "first shared-root stat failed");
+test_assert(strcmp(vfs_test_fs.path, "/home/user/file") == 0,
+            "first root context changed");
+ret = vfsFSStat(&other_root, "file", &stat);
+test_assert(ret == CH_RET_SUCCESS, "second shared-root stat failed");
+test_assert(strcmp(vfs_test_fs.path, "/tmp/file") == 0,
+            "second root context changed");
+ret = vfsRootGetCurrentDirectory(&vfs_test_root, cwd, sizeof cwd);
+test_assert(ret == CH_RET_SUCCESS, "first shared-root getcwd failed");
+test_assert(strcmp(cwd, "/home/user") == 0,
+            "shared file system leaked root context");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The current directory can be queried and an
+                  undersized destination is rejected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_root_reset();
+ret = vfsRootGetCurrentDirectory(&vfs_test_root, cwd, sizeof cwd);
+test_assert(ret == CH_RET_SUCCESS, "getcwd failed");
+test_assert(strcmp(cwd, "/home/user") == 0, "getcwd path changed");
+ret = vfsRootGetCurrentDirectory(&vfs_test_root, small, sizeof small);
+test_assert(ret == CH_RET_ERANGE, "small getcwd buffer accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A failed directory validation does not change the
+                  current directory.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_root_reset();
+vfs_test_fs.opendir_result = CH_RET_ENOENT;
+ret = vfsRootChangeCurrentDirectory(&vfs_test_root, "/missing");
+test_assert(ret == CH_RET_ENOENT, "missing directory accepted");
+ret = vfsRootGetCurrentDirectory(&vfs_test_root, cwd, sizeof cwd);
+test_assert(ret == CH_RET_SUCCESS, "getcwd after failed chdir failed");
+test_assert(strcmp(cwd, "/home/user") == 0,
+            "failed chdir changed current directory");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A root with no backing file system validates and
+                  selects its synthetic root directory.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[(void)vfsrootObjectInit(&empty_root, NULL, NULL);
+ret = vfsRootChangeCurrentDirectory(&empty_root, "/");
+test_assert(ret == CH_RET_SUCCESS, "synthetic root chdir failed");
+ret = vfsRootGetCurrentDirectory(&empty_root, cwd, sizeof cwd);
+test_assert(ret == CH_RET_SUCCESS, "synthetic root getcwd failed");
+test_assert(strcmp(cwd, "/") == 0, "synthetic root cwd changed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Non-root overlay dispatch.</value>
+          </brief>
+          <description>
+            <value>A plain overlay accepts absolute paths, applies its
+              backing prefix, and rejects relative paths without owning a
+              current directory.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[vfs_overlay_driver_c overlay;
+vfs_stat_t stat;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>An absolute path is routed to the prefixed backing
+                  file system.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+(void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
+ret = vfsFSStat(&overlay, "/nested", &stat);
+test_assert(ret == CH_RET_SUCCESS, "non-root overlay stat failed");
+test_assert(strcmp(vfs_test_fs.path, "/base/nested") == 0,
+            "non-root overlay prefix not applied");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A relative path is rejected by a plain overlay.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+(void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, NULL);
+ret = vfsFSStat(&overlay, "relative", &stat);
+test_assert(ret == CH_RET_EINVAL, "relative overlay path accepted");
+test_assert(vfs_test_fs.calls == 0U,
+            "relative overlay path reached backing file system");]]></value>
               </code>
             </step>
           </steps>

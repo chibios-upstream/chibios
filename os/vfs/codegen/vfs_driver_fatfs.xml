@@ -29,7 +29,7 @@
     </configs>
     <types>
       <class type="regular" name="vfs_fatfs_driver" namespace="ffdrv"
-        ancestorname="vfs_driver" descr="VFS fatfs driver">
+        ancestorname="vfs_fs" descr="VFS fatfs driver">
         <fields></fields>
         <methods>
           <objinit callsuper="true">
@@ -39,12 +39,6 @@
             <implementation><![CDATA[]]></implementation>
           </dispose>
           <override>
-            <method shortname="setcwd">
-              <implementation><![CDATA[]]></implementation>
-            </method>
-            <method shortname="getcwd">
-              <implementation><![CDATA[]]></implementation>
-            </method>
             <method shortname="stat">
               <implementation><![CDATA[]]></implementation>
             </method>
@@ -180,7 +174,7 @@ return translate_error(res);]]></implementation>
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in"> Pointer to
+            <param name="driver" ctype="vfs_fs_c *" dir="in"> Pointer to
               the controlling driver.
             </param>
             <param name="mode" ctype="vfs_mode_t" dir="in"> Node mode flags.
@@ -213,7 +207,7 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementat
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in"> Pointer to
+            <param name="driver" ctype="vfs_fs_c *" dir="in"> Pointer to
               the controlling driver.
             </param>
             <param name="mode" ctype="vfs_mode_t" dir="in"> Node mode flags.

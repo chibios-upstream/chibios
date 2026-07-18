@@ -613,13 +613,13 @@ msg_t sbElfLoad(vfs_file_node_c *fnp, const memory_area_t *map) {
   return ret;
 }
 
-msg_t sbElfLoadFile(vfs_driver_c *drvp,
+msg_t sbElfLoadFile(vfs_root_c *rootp,
                     const char *path,
                     const memory_area_t *map) {
   vfs_file_node_c *fnp;
   msg_t ret;
 
-  ret = vfsFSOpenFile(drvp, path, VO_RDONLY, &fnp);
+  ret = vfsFSOpenFile(rootp, path, VO_RDONLY, &fnp);
   CH_RETURN_ON_ERROR(ret);
 
   do {
