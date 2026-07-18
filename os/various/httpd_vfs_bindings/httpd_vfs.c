@@ -33,75 +33,38 @@
 #include "lwip/apps/httpd.h"
 
 #include "httpd_vfs.h"
-#include "vfs.h"
 
 static const char httpd_vfs_prefix[] = HTTPD_VFS_PREFIX;
+static vfs_fs_c *httpd_vfs_fs;
 
 static msg_t build_httpd_path(char *path, size_t size, const char *name) {
-  size_t prefix_len, name_len, needed;
-  bool prefix_slash, name_slash;
-
   osalDbgCheck(path != NULL);
   osalDbgCheck(name != NULL);
 
-  prefix_len = strlen(httpd_vfs_prefix);
-  name_len = strlen(name);
-  if ((prefix_len == 0U) || (httpd_vfs_prefix[0] != '/')) {
+  if (httpd_vfs_prefix[0] != '/') {
     return CH_RET_EINVAL;
   }
 
-  prefix_slash = httpd_vfs_prefix[prefix_len - 1U] == '/';
-  name_slash = (name_len > 0U) && (name[0] == '/');
-
-  if (prefix_len == 1U) {
-    if (name_slash) {
-      if (name_len + 1U > size) {
-        return CH_RET_ENAMETOOLONG;
-      }
-      memcpy(path, name, name_len + 1U);
-    }
-    else {
-      if (name_len + 2U > size) {
-        return CH_RET_ENAMETOOLONG;
-      }
-      path[0] = '/';
-      memcpy(&path[1], name, name_len + 1U);
-    }
-
-    return CH_RET_SUCCESS;
-  }
-
-  needed = prefix_len + name_len + 1U;
-  if (prefix_slash && name_slash) {
-    needed--;
-  }
-  else if (!prefix_slash && !name_slash) {
-    needed++;
-  }
-
-  if (needed > size) {
+  path[0] = '\0';
+  if (vfs_path_append(path, httpd_vfs_prefix, size) == 0U) {
     return CH_RET_ENAMETOOLONG;
   }
-
-  memcpy(path, httpd_vfs_prefix, prefix_len);
-  if (prefix_slash && name_slash) {
-    memcpy(&path[prefix_len], &name[1], name_len);
-    path[prefix_len + name_len - 1U] = '\0';
+  if (vfs_path_append(path, name, size) == 0U) {
+    return CH_RET_ENAMETOOLONG;
   }
-  else if (!prefix_slash && !name_slash) {
-    path[prefix_len] = '/';
-    memcpy(&path[prefix_len + 1U], name, name_len + 1U);
-  }
-  else {
-    memcpy(&path[prefix_len], name, name_len + 1U);
+  if (vfs_path_normalize(path, path, size) == 0U) {
+    return CH_RET_EINVAL;
   }
 
   return CH_RET_SUCCESS;
 }
 
-void httpd_vfs_init(void) {
+void httpd_vfs_init(vfs_fs_c *fsp) {
 
+  osalDbgCheck(fsp != NULL);
   osalDbgCheck(httpd_vfs_prefix[0] == '/');
+
+  httpd_vfs_fs = fsp;
 }
 
 int fs_open_custom(struct fs_file *file, const char *name) {
@@ -110,6 +73,10 @@ int fs_open_custom(struct fs_file *file, const char *name) {
   char path[VFS_CFG_PATHLEN_MAX + 1U];
   msg_t ret;
 
+  if (httpd_vfs_fs == NULL) {
+    return 0;
+  }
+
   ret = build_httpd_path(path, sizeof(path), name);
   if (CH_RET_IS_ERROR(ret)) {
     return 0;
@@ -117,7 +84,7 @@ int fs_open_custom(struct fs_file *file, const char *name) {
 
   memset(file, '\0', sizeof(*file));
 
-  ret = vfsOpenFile(path, O_RDONLY, &vfnp);
+  ret = vfsFSOpenFile(httpd_vfs_fs, path, O_RDONLY, &vfnp);
   if (CH_RET_IS_ERROR(ret)) {
     return 0;
   }

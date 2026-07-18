@@ -24,6 +24,8 @@
 #ifndef HTTPD_VFS_H
 #define HTTPD_VFS_H
 
+#include "vfs.h"
+
 #if !defined(LWIP_HTTPD_CUSTOM_FILES)
 #error "LWIP_HTTPD_CUSTOM_FILES not defined"
 #endif
@@ -58,7 +60,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-  void httpd_vfs_init(void);
+  /**
+   * @brief   Initializes the HTTPD custom-file bindings.
+   * @pre     The file system must remain valid while HTTPD is running.
+   *
+   * @param[in] fsp       file system used for HTTP content
+   *
+   * @init
+   */
+  void httpd_vfs_init(vfs_fs_c *fsp);
 #ifdef __cplusplus
 }
 #endif

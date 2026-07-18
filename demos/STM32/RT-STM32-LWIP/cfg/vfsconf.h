@@ -69,14 +69,14 @@
  * @brief   Enables the VFS Overlay Driver.
  */
 #if !defined(VFS_CFG_ENABLE_DRV_OVERLAY) || defined(__DOXYGEN__)
-#define VFS_CFG_ENABLE_DRV_OVERLAY          TRUE
+#define VFS_CFG_ENABLE_DRV_OVERLAY          FALSE
 #endif
 
 /**
  * @brief   Enables the process-aware VFS Root Driver.
  */
 #if !defined(VFS_CFG_ENABLE_DRV_ROOT) || defined(__DOXYGEN__)
-#define VFS_CFG_ENABLE_DRV_ROOT             TRUE
+#define VFS_CFG_ENABLE_DRV_ROOT             FALSE
 #endif
 
 /**
