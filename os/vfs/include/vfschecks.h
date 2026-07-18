@@ -76,7 +76,12 @@
 #error "VFS_CFG_ENABLE_DRV_OVERLAY not defined in vfsconf.h"
 #endif
 
-#if VFS_CFG_ENABLE_DRV_OVERLAY != TRUE
+#if !defined(VFS_CFG_ENABLE_DRV_ROOT)
+#error "VFS_CFG_ENABLE_DRV_ROOT not defined in vfsconf.h"
+#endif
+
+#if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) &&                                  \
+    (VFS_CFG_ENABLE_DRV_OVERLAY != TRUE)
 #error "VFS root requires VFS_CFG_ENABLE_DRV_OVERLAY"
 #endif
 

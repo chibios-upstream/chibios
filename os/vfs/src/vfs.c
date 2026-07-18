@@ -85,6 +85,8 @@ void vfsInit(void) {
 #endif
 }
 
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+
 /**
  * @brief   Changes the current VFS directory.
  *
@@ -226,6 +228,8 @@ msg_t vfsRmdir(const char *path) {
 
   return vfsFSRmdir(vfs_root, path);
 }
+
+#endif /* VFS_CFG_ENABLE_DRV_ROOT == TRUE */
 
 /**
  * @brief   Returns node information.

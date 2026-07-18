@@ -21,7 +21,7 @@
  * @file    vfs_test_sequence_003.c
  * @brief   Test Sequence 003 code.
  *
- * @page vfs_test_sequence_003 [3] Root Path Context
+ * @page vfs_test_sequence_003 [3] Root and Overlay Path Handling
  *
  * File: @ref vfs_test_sequence_003.c
  *
@@ -30,11 +30,19 @@
  * current directory, while a plain overlay remains an absolute-path
  * file system suitable for non-root use.
  *
+ * <h2>Conditions</h2>
+ * This sequence is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - VFS_CFG_ENABLE_DRV_OVERLAY == TRUE
+ * .
+ *
  * <h2>Test Cases</h2>
  * - @subpage vfs_test_003_001
  * - @subpage vfs_test_003_002
  * .
  */
+
+#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
 
 /****************************************************************************
  * Shared code.
@@ -48,6 +56,7 @@
  * Test cases.
  ****************************************************************************/
 
+#if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
 /**
  * @page vfs_test_003_001 [3.1] Root path resolution and current directory
  *
@@ -55,6 +64,12 @@
  * Relative and absolute paths are normalized by the root, rename
  * resolves both paths against one current directory, and failed
  * directory changes preserve the path context.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - VFS_CFG_ENABLE_DRV_ROOT == TRUE
+ * .
  *
  * <h2>Test Steps</h2>
  * - [3.1.1] A relative path is resolved against the root current
@@ -191,6 +206,7 @@ static const testcase_t vfs_test_003_001 = {
   NULL,
   vfs_test_003_001_execute
 };
+#endif /* VFS_CFG_ENABLE_DRV_ROOT == TRUE */
 
 /**
  * @page vfs_test_003_002 [3.2] Non-root overlay dispatch
@@ -252,15 +268,19 @@ static const testcase_t vfs_test_003_002 = {
  * @brief   Array of test cases.
  */
 const testcase_t * const vfs_test_sequence_003_array[] = {
+#if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
   &vfs_test_003_001,
+#endif
   &vfs_test_003_002,
   NULL
 };
 
 /**
- * @brief   Root Path Context.
+ * @brief   Root and Overlay Path Handling.
  */
 const testsequence_t vfs_test_sequence_003 = {
-  "Root Path Context",
+  "Root and Overlay Path Handling",
   vfs_test_sequence_003_array
 };
+
+#endif /* VFS_CFG_ENABLE_DRV_OVERLAY == TRUE */

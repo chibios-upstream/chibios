@@ -26,7 +26,7 @@
 #ifndef DRVROOT_H
 #define DRVROOT_H
 
-#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
+#if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Module constants.                                                         */
@@ -171,7 +171,7 @@ static inline vfs_root_c *vfsrootObjectInit(vfs_root_c *self,
 }
 /** @} */
 
-#endif /* VFS_CFG_ENABLE_DRV_OVERLAY == TRUE */
+#endif /* VFS_CFG_ENABLE_DRV_ROOT == TRUE */
 
 #endif /* DRVROOT_H */
 

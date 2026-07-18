@@ -60,7 +60,9 @@ typedef struct {
 } vfs_test_fs_c;
 
 extern vfs_test_fs_c vfs_test_fs;
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 extern vfs_root_c vfs_test_root;
+#endif
 
 bool vfs_test_path_equal(const char *actual, size_t actual_size,
                          const char *expected);
@@ -70,7 +72,9 @@ bool vfs_test_path_normalizes_in_place(const char *input,
 bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
                                     const char *expected);
 void vfs_test_fs_reset(void);
-void vfs_test_root_reset(void);]]></value>
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+void vfs_test_root_reset(void);
+#endif]]></value>
     </global_definitions>
     <global_code>
       <value><![CDATA[bool vfs_test_path_equal(const char *actual, size_t actual_size,
@@ -192,8 +196,10 @@ static const struct vfs_fs_vmt vfs_test_fs_vmt = {
 };
 
 vfs_test_fs_c vfs_test_fs;
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 vfs_root_c vfs_test_root;
 static char vfs_test_cwd[] = "/home/user";
+#endif
 
 void vfs_test_fs_reset(void) {
 
@@ -208,12 +214,14 @@ void vfs_test_fs_reset(void) {
   vfs_test_fs.openfile_result = CH_RET_SUCCESS;
 }
 
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void) {
 
   vfs_test_fs_reset();
   (void)vfsrootObjectInit(&vfs_test_root, (vfs_fs_c *)&vfs_test_fs, NULL);
   vfs_test_root.path_cwd = vfs_test_cwd;
-}]]></value>
+}
+#endif]]></value>
     </global_code>
   </global_data_and_code>
   <sequences>
@@ -820,7 +828,7 @@ test_assert(vfs_test_fs.calls == 1U, "writable generic open fell back");]]></val
         <value>Internal Tests</value>
       </type>
       <brief>
-        <value>Root Path Context.</value>
+        <value>Root and Overlay Path Handling.</value>
       </brief>
       <description>
         <value>The overlay-derived root resolves relative paths and owns the
@@ -828,7 +836,7 @@ test_assert(vfs_test_fs.calls == 1U, "writable generic open fell back");]]></val
           file system suitable for non-root use.</value>
       </description>
       <condition>
-        <value />
+        <value><![CDATA[VFS_CFG_ENABLE_DRV_OVERLAY == TRUE]]></value>
       </condition>
       <shared_code>
         <value><![CDATA[#include <string.h>
@@ -846,7 +854,7 @@ test_assert(vfs_test_fs.calls == 1U, "writable generic open fell back");]]></val
               failed directory changes preserve the path context.</value>
           </description>
           <condition>
-            <value />
+            <value><![CDATA[VFS_CFG_ENABLE_DRV_ROOT == TRUE]]></value>
           </condition>
           <various_code>
             <setup_code>

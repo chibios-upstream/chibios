@@ -25,7 +25,7 @@
 
 #include "vfs.h"
 
-#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
+#if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
@@ -51,6 +51,6 @@
    here.*/
 #include "drvroot_impl.inc"
 
-#endif /* VFS_CFG_ENABLE_DRV_OVERLAY == TRUE */
+#endif /* VFS_CFG_ENABLE_DRV_ROOT == TRUE */
 
 /** @} */

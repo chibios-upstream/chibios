@@ -47,7 +47,9 @@
 const testsequence_t * const vfs_test_suite_array[] = {
   &vfs_test_sequence_001,
   &vfs_test_sequence_002,
+#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
   &vfs_test_sequence_003,
+#endif
   NULL
 };
 
@@ -182,8 +184,10 @@ static const struct vfs_fs_vmt vfs_test_fs_vmt = {
 };
 
 vfs_test_fs_c vfs_test_fs;
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 vfs_root_c vfs_test_root;
 static char vfs_test_cwd[] = "/home/user";
+#endif
 
 void vfs_test_fs_reset(void) {
 
@@ -198,11 +202,13 @@ void vfs_test_fs_reset(void) {
   vfs_test_fs.openfile_result = CH_RET_SUCCESS;
 }
 
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void) {
 
   vfs_test_fs_reset();
   (void)vfsrootObjectInit(&vfs_test_root, (vfs_fs_c *)&vfs_test_fs, NULL);
   vfs_test_root.path_cwd = vfs_test_cwd;
 }
+#endif
 
 #endif /* !defined(__DOXYGEN__) */

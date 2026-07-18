@@ -63,6 +63,11 @@
  * @p vfs_fs_c. A @p vfs_root_c is an overlay specialized as the entry point
  * of an application or sandbox.
  *
+ * The process-aware root and global path API are enabled by
+ * @p VFS_CFG_ENABLE_DRV_ROOT. Root support requires the overlay driver, but
+ * the core VFS API, concrete file systems and non-root overlays can be used
+ * with root support disabled.
+ *
  * @section vfs_arch_fs_paths File-system path contract
  *
  * Every path passed to a @p vfs_fs_c virtual method shall be:

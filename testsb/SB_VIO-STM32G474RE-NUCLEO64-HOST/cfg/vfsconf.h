@@ -73,6 +73,13 @@
 #endif
 
 /**
+ * @brief   Enables the process-aware VFS Root Driver.
+ */
+#if !defined(VFS_CFG_ENABLE_DRV_ROOT) || defined(__DOXYGEN__)
+#define VFS_CFG_ENABLE_DRV_ROOT             FALSE
+#endif
+
+/**
  * @brief   Enables the VFS Streams Driver.
  */
 #if !defined(VFS_CFG_ENABLE_DRV_STREAMS) || defined(__DOXYGEN__)

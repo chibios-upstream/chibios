@@ -92,6 +92,9 @@
 /* File System drivers.*/
 #if VFS_CFG_ENABLE_DRV_OVERLAY == TRUE
 #include "drvoverlay.h"
+#endif
+
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 #include "drvroot.h"
 #endif
 
@@ -123,14 +126,17 @@
 #include "drvtmplfs.h"
 #endif
 
-/* Application code is supposed to export this symbol, it is expected to
-   exists.*/
+/* Application code is supposed to export this symbol when the process-aware
+   root API is enabled.*/
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 extern vfs_root_c *vfs_root;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
   void vfsInit(void);
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
   msg_t vfsChangeCurrentDirectory(const char *path);
   msg_t vfsGetCurrentDirectory(char *buf, size_t size);
   msg_t vfsStat(const char *path, vfs_stat_t *sp);
@@ -141,6 +147,7 @@ extern "C" {
   msg_t vfsRename(const char *oldpath, const char *newpath);
   msg_t vfsMkdir(const char *path, vfs_mode_t mode);
   msg_t vfsRmdir(const char *path);
+#endif
   msg_t vfsGetNodeStat(vfs_node_c *np, vfs_stat_t *sp);
   void vfsClose(vfs_node_c *vnp);
   msg_t vfsReadDirectoryFirst(vfs_directory_node_c *vdnp,

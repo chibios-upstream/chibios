@@ -22,7 +22,9 @@
 #include "vfs_test_root.h"
 #include "console.h"
 
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 vfs_root_c *vfs_root;
+#endif
 
 /*
  * Simulator main.

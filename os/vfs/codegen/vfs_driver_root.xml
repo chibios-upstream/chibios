@@ -3,7 +3,7 @@
 <module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
   name="drvroot" descr="VFS Root Driver"
-  check="VFS_CFG_ENABLE_DRV_OVERLAY == TRUE" sourcepath="drivers/root"
+  check="VFS_CFG_ENABLE_DRV_ROOT == TRUE" sourcepath="drivers/root"
   headerpath="drivers/root" editcode="true">
   <imports>
     <import>vfs_driver_overlay.xml</import>

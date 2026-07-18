@@ -75,7 +75,9 @@ typedef struct {
 } vfs_test_fs_c;
 
 extern vfs_test_fs_c vfs_test_fs;
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 extern vfs_root_c vfs_test_root;
+#endif
 
 bool vfs_test_path_equal(const char *actual, size_t actual_size,
                          const char *expected);
@@ -85,7 +87,9 @@ bool vfs_test_path_normalizes_in_place(const char *input,
 bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
                                     const char *expected);
 void vfs_test_fs_reset(void);
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);
+#endif
 
 #endif /* !defined(__DOXYGEN__) */
 
