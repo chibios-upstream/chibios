@@ -149,21 +149,34 @@ static inline void sbSetRegion(sb_class_t *sbp, unsigned region,
 
 #if (SB_CFG_ENABLE_VFS == TRUE) || defined(__DOXYGEN__)
 /**
- * @brief   Associates a VFS file system to a sandbox as root.
- * @note    The passed driver instance is used directly and is not wrapped
- *          nor duplicated by the SB subsystem.
- * @note    In order to have a sandbox-private current working directory and
- *          any other mutable filesystem state, the host code must associate
- *          a distinct VFS root instance to each sandbox.
- * @note    If the same VFS root is shared among sandboxes then the current
- *          working directory and any other root-local state are shared too.
+ * @brief   Returns the VFS root associated with a sandbox.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @return              Pointer to the sandbox root or @p NULL.
+ *
+ * @xclass
+ */
+static inline vfs_root_c *sbGetRoot(sb_class_t *sbp) {
+
+  return sbp->io.vfs_root;
+}
+
+/**
+ * @brief   Associates a VFS root with a sandbox.
+ * @pre     The sandbox must not be running.
+ * @note    The root is referenced directly and must remain valid while
+ *          associated with the sandbox.
+ * @note    A @p NULL root leaves the sandbox without a path namespace;
+ *          operations on registered file descriptors are still available.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] rootp     pointer to a @p vfs_root_c structure or @p NULL
  *
  * @api
  */
-static inline void sbSetFileSystem(sb_class_t *sbp, vfs_root_c *rootp) {
+static inline void sbSetRoot(sb_class_t *sbp, vfs_root_c *rootp) {
+
+  chDbgAssert(!sbIsThreadRunningX(sbp), "sandbox running");
 
   sbp->io.vfs_root = rootp;
 }

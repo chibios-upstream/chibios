@@ -71,6 +71,10 @@ static uint32_t sb_io_stat(sb_class_t *sbp,
   msg_t ret;
   vfs_stat_t vstat;
 
+  if (sbGetRoot(sbp) == NULL) {
+    return (uint32_t)CH_RET_ENOSYS;
+  }
+
   if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
@@ -79,7 +83,7 @@ static uint32_t sb_io_stat(sb_class_t *sbp,
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  ret = vfsFSStat(sbp->io.vfs_root, path, &vstat);
+  ret = vfsFSStat(sbGetRoot(sbp), path, &vstat);
   if (!CH_RET_IS_ERROR(ret)) {
     memset((void *)statbuf, 0, sizeof (struct stat));
     statbuf->st_mode  = (mode_t)vstat.mode;
@@ -95,12 +99,16 @@ static uint32_t sb_io_open(sb_class_t *sbp, const char *path, int flags) {
   vfs_node_c *np = NULL;
   msg_t ret;
 
+  if (sbGetRoot(sbp) == NULL) {
+    return (uint32_t)CH_RET_ENOSYS;
+  }
+
   if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
   do {
-    ret = vfsFSOpen((vfs_fs_c *)sbp->io.vfs_root, path, (unsigned)flags,
+    ret = vfsFSOpen((vfs_fs_c *)sbGetRoot(sbp), path, (unsigned)flags,
                     &np);
     CH_BREAK_ON_ERROR(ret);
 
@@ -362,14 +370,22 @@ static uint32_t sb_io_getdents(sb_class_t *sbp, int fd, void *buf, size_t count)
 
 static uint32_t sb_io_chdir(sb_class_t *sbp, const char *path) {
 
+  if (sbGetRoot(sbp) == NULL) {
+    return (uint32_t)CH_RET_ENOSYS;
+  }
+
   if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsRootChangeCurrentDirectory(sbp->io.vfs_root, path);
+  return (uint32_t)vfsRootChangeCurrentDirectory(sbGetRoot(sbp), path);
 }
 
 static uint32_t sb_io_getcwd(sb_class_t *sbp, char *buf, size_t size) {
+
+  if (sbGetRoot(sbp) == NULL) {
+    return (uint32_t)CH_RET_ENOSYS;
+  }
 
   if (!sb_is_valid_write_range(sbp, buf, size)) {
     return (uint32_t)CH_RET_EFAULT;
@@ -377,21 +393,29 @@ static uint32_t sb_io_getcwd(sb_class_t *sbp, char *buf, size_t size) {
 
   /* Note, it does not return a pointer to the buffer as required by Posix,
      this has to be handled on the user-side library.*/
-  return (uint32_t)vfsRootGetCurrentDirectory(sbp->io.vfs_root, buf, size);
+  return (uint32_t)vfsRootGetCurrentDirectory(sbGetRoot(sbp), buf, size);
 }
 
 static uint32_t sb_io_unlink(sb_class_t *sbp, const char *path) {
+
+  if (sbGetRoot(sbp) == NULL) {
+    return (uint32_t)CH_RET_ENOSYS;
+  }
 
   if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSUnlink(sbp->io.vfs_root, path);
+  return (uint32_t)vfsFSUnlink(sbGetRoot(sbp), path);
 }
 
 static uint32_t sb_io_rename(sb_class_t *sbp,
                              const char *oldpath,
                              const char *newpath) {
+
+  if (sbGetRoot(sbp) == NULL) {
+    return (uint32_t)CH_RET_ENOSYS;
+  }
 
   if (sb_check_string(sbp, (void *)oldpath, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
@@ -401,25 +425,33 @@ static uint32_t sb_io_rename(sb_class_t *sbp,
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSRename(sbp->io.vfs_root, oldpath, newpath);
+  return (uint32_t)vfsFSRename(sbGetRoot(sbp), oldpath, newpath);
 }
 
 static uint32_t sb_io_mkdir(sb_class_t *sbp, const char *path, mode_t mode) {
 
+  if (sbGetRoot(sbp) == NULL) {
+    return (uint32_t)CH_RET_ENOSYS;
+  }
+
   if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSMkdir(sbp->io.vfs_root, path, (vfs_mode_t)mode);
+  return (uint32_t)vfsFSMkdir(sbGetRoot(sbp), path, (vfs_mode_t)mode);
 }
 
 static uint32_t sb_io_rmdir(sb_class_t *sbp, const char *path) {
 
+  if (sbGetRoot(sbp) == NULL) {
+    return (uint32_t)CH_RET_ENOSYS;
+  }
+
   if (sb_check_string(sbp, (void *)path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSRmdir(sbp->io.vfs_root, path);
+  return (uint32_t)vfsFSRmdir(sbGetRoot(sbp), path);
 }
 
 /*===========================================================================*/
@@ -439,13 +471,6 @@ void __sb_io_cleanup(sb_class_t *sbp) {
 }
 
 void sb_sysc_stdio(sb_class_t *sbp, struct port_extctx *ectxp) {
-
-  /* VFS support could be enabled but this specific sandbox could not have
-     one associated to it.*/
-  if (sbp->io.vfs_root == NULL) {
-    ectxp->r0 = (uint32_t)CH_RET_ENOSYS;
-    return;
-  }
 
   switch (ectxp->r0) {
   case SB_POSIX_OPEN:

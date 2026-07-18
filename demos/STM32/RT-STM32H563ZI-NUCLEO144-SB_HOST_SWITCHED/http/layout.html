@@ -16,10 +16,12 @@
       <code>/dev</code>.
     </p>
     <p>
-      Sandbox 2 receives that VFS root through <code>sbSetFileSystem()</code>.
-      Inside the sandbox, the POSIX syscalls map <code>open</code>,
-      <code>read</code>, <code>fstat</code> and directory operations onto the
-      host VFS.
+      The host assigns sandbox 2 a separate VFS root referencing the same
+      ROMFS and streams drivers. Its current directory and path-resolution
+      state are therefore private, while the immutable filesystem content
+      remains shared. Inside the sandbox, the POSIX syscalls map <code>open</code>,
+      <code>read</code>, <code>fstat</code> and directory operations onto that
+      root.
     </p>
     <p>
       The HTTP server itself remains unaware of the host-side VFS details. It

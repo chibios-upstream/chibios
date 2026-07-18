@@ -115,6 +115,12 @@
 #error "SB_CFG_ENABLE_VFS not defined in sbconf.h"
 #endif
 
+#if SB_CFG_ENABLE_VFS == TRUE
+#if VFS_CFG_ENABLE_DRV_ROOT != TRUE
+#error "SandBox VFS requires VFS_CFG_ENABLE_DRV_ROOT == TRUE"
+#endif
+#endif
+
 #if !defined(SB_CFG_FD_NUM) || defined(__DOXYGEN__)
 #error "SB_CFG_FD_NUM not defined in sbconf.h"
 #endif

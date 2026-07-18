@@ -28,8 +28,9 @@
       <article class="card">
         <h2>Where files come from</h2>
         <p>
-          The privileged host instantiates a ROMFS image as the sandbox root
-          filesystem, then overlays <code>/dev</code> for standard descriptors.
+          The privileged host instantiates a ROMFS image and assigns sandbox 2
+          a private VFS root over it, with <code>/dev</code> mounted for standard
+          descriptors.
         </p>
       </article>
 

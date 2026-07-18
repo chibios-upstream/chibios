@@ -156,10 +156,10 @@ int main(void) {
   ffdrvObjectInit(&fatfs_driver);
   vfsrootObjectInit(&root_driver, (vfs_fs_c *)&fatfs_driver, NULL);
 
-  /* Initializing the sandbox root. It also uses the FatFS driver but is
+  /* Initializing the private sandbox root. It uses the FatFS driver but is
      restricted to the "/sb1" directory.*/
   vfsrootObjectInit(&sb1_root_driver, (vfs_fs_c *)&fatfs_driver,
-                   "/sb1");
+                    "/sb1");
   ret = ovldrvRegisterDriver(&sb1_root_driver,
                              (vfs_fs_c *)stmdrvObjectInit(&sb1_dev_driver,
                                                          &sb1_streams[0]),
@@ -168,10 +168,11 @@ int main(void) {
     chSysHalt("VFS");
   }
 
-  /* Sandbox object initialization.*/
+  /* Initializing the sandbox object and associating its private root.*/
   sbObjectInit(&sbx1);
-  sbSetRegion(&sbx1, 0, STARTUP_RAM1_BASE, STARTUP_RAM1_SIZE, SB_REG_IS_CODE_AND_DATA);
-  sbSetFileSystem(&sbx1, &sb1_root_driver);
+  sbSetRegion(&sbx1, 0, STARTUP_RAM1_BASE, STARTUP_RAM1_SIZE,
+              SB_REG_IS_CODE_AND_DATA);
+  sbSetRoot(&sbx1, &sb1_root_driver);
 
   /* Listening to sandbox events.*/
   chEvtRegister(&sb.termination_es, &elsb, (eventid_t)2);
@@ -186,7 +187,7 @@ int main(void) {
       chThdSleepMilliseconds(500);
 
       /* Associating standard input, output and error to sandbox 1.*/
-      ret = vfsFSOpen((vfs_fs_c *)&sb1_root_driver,
+      ret = vfsFSOpen((vfs_fs_c *)sbGetRoot(&sbx1),
                       "/dev/VSD1", VO_RDWR, &np);
       if (CH_RET_IS_ERROR(ret)) {
         chprintf((BaseSequentialStream *)&SD2, "Opening /dev/VSD1 failed (%08lx)\r\n", ret);

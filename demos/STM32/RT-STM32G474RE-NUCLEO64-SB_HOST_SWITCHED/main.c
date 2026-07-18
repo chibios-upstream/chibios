@@ -96,6 +96,9 @@ static vfs_fatfs_driver_c fatfs_driver;
 /* VFS root object.*/
 static vfs_root_c root_driver;
 
+/* Private root for sandbox 2.*/
+static vfs_root_c sb2_root_driver;
+
 /* VFS streams driver object representing the /dev directory.*/
 static vfs_streams_driver_c dev_driver;
 
@@ -233,6 +236,16 @@ int main(void) {
     chSysHalt("VFS");
   }
 
+  /* Initializing sandbox 2's private mount-only root, then mounting the
+     shared streams file system as "/dev".*/
+  vfsrootObjectInit(&sb2_root_driver, NULL, NULL);
+  ret = ovldrvRegisterDriver(&sb2_root_driver,
+                             (vfs_fs_c *)&dev_driver,
+                             "dev");
+  if (CH_RET_IS_ERROR(ret)) {
+    chSysHalt("VFS");
+  }
+
   /*
    * Sandbox objects initialization, regions are assigned explicitly.
    */
@@ -245,7 +258,7 @@ int main(void) {
   sbSetRegion(&sbx2, 0, STARTUP_FLASH2_BASE, STARTUP_FLASH2_SIZE, SB_REG_IS_CODE);
   sbSetRegion(&sbx2, 1, STARTUP_RAM2_BASE,   STARTUP_RAM2_SIZE, SB_REG_IS_DATA);
   sbSetVirtualIO(&sbx2, &vio_config2);
-  sbSetFileSystem(&sbx2, &root_driver);
+  sbSetRoot(&sbx2, &sb2_root_driver);
 
   /* Starting sandboxed threads.*/
   start_sb1();

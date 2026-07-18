@@ -58,11 +58,13 @@
  */
 typedef struct {
   /**
-   * @brief   VFS root associated to the sandbox.
-   * @note    The object is owned by the host side. SB uses the pointed
-   *          root instance directly so mutable state inside the root,
-   *          such as the current working directory, is private to the
-   *          sandbox only if a distinct root instance is associated to it.
+   * @brief   VFS root associated with the sandbox.
+   * @note    The pointed object is owned by the host and must remain valid
+   *          while associated with the sandbox.
+   * @note    A distinct root is required in order to have private current
+   *          directory and mount table state.
+   * @note    A @p NULL pointer means that the sandbox has no path namespace;
+   *          operations on registered file descriptors are still available.
    */
   vfs_root_c                    *vfs_root;
   /**

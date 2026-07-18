@@ -656,6 +656,7 @@ thread_t *sbStart(sb_class_t *sbp, tprio_t prio, stkline_t *stkbase,
  * @param[in] argv      arguments to be passed to the sandbox
  * @param[in] envp      environment variables to be passed to the sandbox
  * @return              The operation result.
+ * @retval CH_RET_ENOSYS if no VFS root is associated with the sandbox
  *
  * @api
  */
@@ -666,6 +667,10 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
   const sb_header_t *sbhp;
   size_t totsize;
   msg_t ret;
+
+  if (sbGetRoot(sbp) == NULL) {
+    return CH_RET_ENOSYS;
+  }
 
   /* Pushing arguments, environment variables and other startup information
      at the top of the data memory area.*/
@@ -679,7 +684,7 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
   ma.size -= totsize;
 
   /* Loading sandbox code into the specified memory area.*/
-  ret = sbElfLoadFile(sbp->io.vfs_root, path, &ma);
+  ret = sbElfLoadFile(sbGetRoot(sbp), path, &ma);
   CH_RETURN_ON_ERROR(ret);
 
   /* Header location.*/
@@ -719,6 +724,7 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
  * @param[in] argv      arguments to be passed to the sandbox
  * @param[in] envp      environment variables to be passed to the sandbox
  * @return              The operation result.
+ * @retval CH_RET_ENOSYS if no VFS root is associated with the sandbox
  *
  * @api
  */
@@ -732,7 +738,11 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   size_t size, basealign;
   msg_t ret;
 
-  ret = vfsFSOpenFile(sbp->io.vfs_root, path, VO_RDONLY, &fnp);
+  if (sbGetRoot(sbp) == NULL) {
+    return CH_RET_ENOSYS;
+  }
+
+  ret = vfsFSOpenFile(sbGetRoot(sbp), path, VO_RDONLY, &fnp);
   CH_RETURN_ON_ERROR(ret);
 
   /* Calculating bare-minimum space required by the elf file.*/
