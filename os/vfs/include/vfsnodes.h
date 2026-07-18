@@ -91,7 +91,7 @@
 /* Module data structures and types.                                         */
 /*===========================================================================*/
 
-typedef struct vfs_driver vfs_driver_c;
+typedef struct vfs_fs vfs_fs_c;
 
 /**
  * @brief       Type of a file offset.
@@ -192,9 +192,9 @@ struct vfs_node {
    */
   object_references_t       references;
   /**
-   * @brief       Driver handling this node.
+   * @brief       File system handling this node.
    */
-  vfs_driver_c              *driver;
+  vfs_fs_c                  *fs;
   /**
    * @brief       Node mode information.
    */
@@ -246,9 +246,9 @@ struct vfs_directory_node {
    */
   object_references_t       references;
   /**
-   * @brief       Driver handling this node.
+   * @brief       File system handling this node.
    */
-  vfs_driver_c              *driver;
+  vfs_fs_c                  *fs;
   /**
    * @brief       Node mode information.
    */
@@ -304,9 +304,9 @@ struct vfs_file_node {
    */
   object_references_t       references;
   /**
-   * @brief       Driver handling this node.
+   * @brief       File system handling this node.
    */
-  vfs_driver_c              *driver;
+  vfs_fs_c                  *fs;
   /**
    * @brief       Node mode information.
    */
@@ -326,18 +326,18 @@ struct vfs_file_node {
 extern "C" {
 #endif
   /* Methods of vfs_node_c.*/
-  void *__vfsnode_objinit_impl(void *ip, const void *vmt, vfs_driver_c *driver,
+  void *__vfsnode_objinit_impl(void *ip, const void *vmt, vfs_fs_c *fs,
                                vfs_mode_t mode);
   void __vfsnode_dispose_impl(void *ip);
   msg_t __vfsnode_stat_impl(void *ip, vfs_stat_t *sp);
   /* Methods of vfs_directory_node_c.*/
-  void *__vfsdir_objinit_impl(void *ip, const void *vmt, vfs_driver_c *driver,
+  void *__vfsdir_objinit_impl(void *ip, const void *vmt, vfs_fs_c *fs,
                               vfs_mode_t mode);
   void __vfsdir_dispose_impl(void *ip);
   msg_t __vfsdir_first_impl(void *ip, vfs_direntry_info_t *dip);
   msg_t __vfsdir_next_impl(void *ip, vfs_direntry_info_t *dip);
   /* Methods of vfs_file_node_c.*/
-  void *__vfsfile_objinit_impl(void *ip, const void *vmt, vfs_driver_c *driver,
+  void *__vfsfile_objinit_impl(void *ip, const void *vmt, vfs_fs_c *fs,
                                vfs_mode_t mode);
   void __vfsfile_dispose_impl(void *ip);
   ssize_t __vfsfile_read_impl(void *ip, uint8_t *buf, size_t n);

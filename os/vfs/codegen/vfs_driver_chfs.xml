@@ -192,7 +192,7 @@ chCacheObjectInit(&vfs_chfs_driver_static.cache,
  the controlling driver.</param>
             <param name="mode" ctype="vfs_mode_t" dir="in">Node mode flags.</param>
             <implementation><![CDATA[
-self = __vfsdir_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);]]></implementation>
+self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[]]></implementation>
@@ -221,7 +221,7 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);]]></impleme
             <param name="mode" ctype="vfs_mode_t" dir="in">Node mode flags.
             </param>
             <implementation><![CDATA[
-self = __vfsfile_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);]]></implementation>
+self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[]]></implementation>

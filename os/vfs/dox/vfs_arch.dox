@@ -17,84 +17,74 @@
 */
 
 /**
+ * @page vfs_architecture VFS Architecture
+ *
+ * @section vfs_arch_object_model Object model
+ *
+ * The VFS object model separates file-system state from the path state of an
+ * execution context. The target class hierarchy is:
+ *
  * @startuml {vfs_arch.png} "VFS Core"
- * package "Abstract Classes" {
- *   class vfs_driver_t {
- *     - rootname: const char *
- *     + open_dir()
- *     + open_file()
- *   }
- *   class vfs_node_t {
- *     - refs: unsigned
- *     - driver: vfs_driver_t *
- *     + release()
- *   }
- *   class vfs_directory_node_t {
- *     + dir_first()
- *     + dir_next()
- *   }
- *   class vfs_file_node_t {
- *     + get_stream()
- *     + file_read()
- *     + file_write()
- *     + file_setpos()
- *     + file_getpos()
- *     + file_getsize()
- *   }
- * 
- *   vfs_node_t "1" o-- vfs_driver_t : owner\ndriver
- *   vfs_node_t <|-- vfs_directory_node_t : extends
- *   vfs_node_t <|-- vfs_file_node_t: extends
+ * abstract class vfs_fs_c {
+ *   + stat(absolute_path)
+ *   + open_directory(absolute_path)
+ *   + open_file(absolute_path)
+ *   + unlink(absolute_path)
+ *   + rename(absolute_oldpath, absolute_newpath)
+ *   + mkdir(absolute_path)
+ *   + rmdir(absolute_path)
  * }
- * 
- * package "Root Driver" {
- *   class vfs_root_driver_t {
- *     - dir_nodes_pool: memory_pool_t
- *     - next_driver
- *     - drivers[]: vfs_driver_t *
- *   }
- *   class vfs_root_dir_node_t {
- *     - index: unsigned
- *   }
- * 
- *   vfs_driver_t <|-- vfs_root_driver_t : extends
- *   vfs_directory_node_t <|-- vfs_root_dir_node_t : extends
+ * class vfs_overlay_driver_c {
+ *   - overlaid_fs: vfs_fs_c *
+ *   - mounted_fs[]: vfs_fs_c *
+ *   - path_prefix: const char *
  * }
- * 
- * package "Streams Driver" {
- *   class vfs_streams_driver_t {
- *     - file_nodes_pool: memory_pool_t
- *     - dir_nodes_pool: memory_pool_t
- *     - streams[]: drv_stream_element_t *
- *   }
- *   class vfs_stream_dir_node_t {
- *     - index: unsigned
- *   }
- *   class vfs_stream_file_node_t {
- *     - stream: sequential_stream_i *
- *   }
- * 
- *   vfs_driver_t <|-- vfs_streams_driver_t : extends
- *   vfs_directory_node_t <|-- vfs_stream_dir_node_t : extends
- *   vfs_file_node_t <|-- vfs_stream_file_node_t : extends
+ * class vfs_root_c {
+ *   - current_directory
+ *   + change_current_directory(path)
+ *   + get_current_directory()
+ *   + open(path)
  * }
- * 
- * package "FatFS Driver" {
- *   class vfs_fatfs_driver_t {
- *     - file_nodes_pool: memory_pool_t
- *     - dir_nodes_pool: memory_pool_t
- *   }
- *   class vfs_fatfs_dir_node_t {
- *     - dir: DIR
- *   }
- *   class vfs_fatfs_file_node_t {
- *     - file: FIL
- *   }
- * 
- *   vfs_driver_t <|-- vfs_fatfs_driver_t : extends
- *   vfs_directory_node_t <|-- vfs_fatfs_dir_node_t : extends
- *   vfs_file_node_t <|-- vfs_fatfs_file_node_t : extends
+ * abstract class vfs_node_c {
+ *   - fs: vfs_fs_c *
  * }
- * 
+ * abstract class vfs_directory_node_c
+ * abstract class vfs_file_node_c
+ *
+ * vfs_fs_c <|-- vfs_overlay_driver_c
+ * vfs_overlay_driver_c <|-- vfs_root_c
+ * vfs_node_c <|-- vfs_directory_node_c
+ * vfs_node_c <|-- vfs_file_node_c
+ * vfs_node_c "*" --> "1" vfs_fs_c : owner
+ * vfs_overlay_driver_c "1" o-- "*" vfs_fs_c : mounts
  * @enduml
+ *
+ * File-system implementations, including non-root overlays, derive from
+ * @p vfs_fs_c. A @p vfs_root_c is an overlay specialized as the entry point
+ * of an application or sandbox.
+ *
+ * @section vfs_arch_fs_paths File-system path contract
+ *
+ * Every path passed to a @p vfs_fs_c virtual method shall be:
+ *
+ * - absolute, beginning with a slash;
+ * - normalized, with no repeated separators;
+ * - free of @c "." and @c ".." elements;
+ * - free of a trailing separator, except for the root path @c "/".
+ *
+ * File-system methods do not consult or modify a current directory. Mounted
+ * file systems and nodes refer to @p vfs_fs_c objects, so the same file
+ * system can be shared by multiple roots.
+ *
+ * @section vfs_arch_root_paths Root path contract
+ *
+ * Root methods accept both absolute and relative paths. A root resolves and
+ * normalizes each input path against its own current directory before calling
+ * the inherited file-system interface. A rename resolves both paths from the
+ * same current-directory snapshot. Changing the current directory validates
+ * the candidate directory before committing the new path.
+ *
+ * Root path state is private to the root instance. Two roots may therefore
+ * share mounted file systems without sharing their current directories.
+ * Directory nodes remain per-open handles and are not file-system objects.
  */

@@ -76,7 +76,7 @@ static void *__tmpldir_objinit_impl(void *ip, const void *vmt,
   vfs_tmpl_dir_node_c *self = (vfs_tmpl_dir_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsdir_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);
+  self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
 
   return self;
 }
@@ -224,7 +224,7 @@ static void *__tmplfile_objinit_impl(void *ip, const void *vmt,
   vfs_tmpl_file_node_c *self = (vfs_tmpl_file_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsfile_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);
+  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
 
   return self;
 }
@@ -487,7 +487,7 @@ msg_t __tmpldrv_getcwd_impl(void *ip, char *buf, size_t size) {
  * @memberof    vfs_tmpl_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvStat().
+ * @brief       Override of method @p vfsFSStat().
  *
  * @param[in,out] ip            Pointer to a @p vfs_tmpl_driver_c instance.
  * @param[in]     path          Absolute path of the node to be examined.
@@ -508,7 +508,7 @@ msg_t __tmpldrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
  * @memberof    vfs_tmpl_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvOpenDirectory().
+ * @brief       Override of method @p vfsFSOpenDirectory().
  *
  * @param[in,out] ip            Pointer to a @p vfs_tmpl_driver_c instance.
  * @param[in]     path          Absolute path of the directory to be opened.
@@ -531,7 +531,7 @@ msg_t __tmpldrv_opendir_impl(void *ip, const char *path,
  * @memberof    vfs_tmpl_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvOpenFile().
+ * @brief       Override of method @p vfsFSOpenFile().
  *
  * @param[in,out] ip            Pointer to a @p vfs_tmpl_driver_c instance.
  * @param[in]     path          Absolute path of the directory to be opened.
@@ -556,7 +556,7 @@ msg_t __tmpldrv_openfile_impl(void *ip, const char *path, int flags,
  * @memberof    vfs_tmpl_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvUnlink().
+ * @brief       Override of method @p vfsFSUnlink().
  *
  * @param[in,out] ip            Pointer to a @p vfs_tmpl_driver_c instance.
  * @param[in]     path          Path of the file to be unlinked.
@@ -575,7 +575,7 @@ msg_t __tmpldrv_unlink_impl(void *ip, const char *path) {
  * @memberof    vfs_tmpl_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvRename().
+ * @brief       Override of method @p vfsFSRename().
  *
  * @param[in,out] ip            Pointer to a @p vfs_tmpl_driver_c instance.
  * @param[in]     oldpath       Path of the node to be renamed.
@@ -596,7 +596,7 @@ msg_t __tmpldrv_rename_impl(void *ip, const char *oldpath, const char *newpath) 
  * @memberof    vfs_tmpl_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvMkdir().
+ * @brief       Override of method @p vfsFSMkdir().
  *
  * @param[in,out] ip            Pointer to a @p vfs_tmpl_driver_c instance.
  * @param[in]     path          Path of the directory to be created.
@@ -617,7 +617,7 @@ msg_t __tmpldrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
  * @memberof    vfs_tmpl_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvRmdir().
+ * @brief       Override of method @p vfsFSRmdir().
  *
  * @param[in,out] ip            Pointer to a @p vfs_tmpl_driver_c instance.
  * @param[in]     path          Path of the directory to be removed.
@@ -694,4 +694,3 @@ msg_t tmpldrvUnmount(void *ip) {
   return 0;
 }
 /** @} */
-

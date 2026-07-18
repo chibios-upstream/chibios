@@ -150,9 +150,9 @@ struct vfs_streams_dir_node {
    */
   object_references_t       references;
   /**
-   * @brief       Driver handling this node.
+   * @brief       File system handling this node.
    */
-  vfs_driver_c              *driver;
+  vfs_fs_c                  *fs;
   /**
    * @brief       Node mode information.
    */
@@ -211,9 +211,9 @@ struct vfs_streams_file_node {
    */
   object_references_t       references;
   /**
-   * @brief       Driver handling this node.
+   * @brief       File system handling this node.
    */
-  vfs_driver_c              *driver;
+  vfs_fs_c                  *fs;
   /**
    * @brief       Node mode information.
    */
@@ -253,9 +253,7 @@ typedef struct vfs_streams_driver vfs_streams_driver_c;
 struct vfs_streams_driver_vmt {
   /* From base_object_c.*/
   void (*dispose)(void *ip);
-  /* From vfs_driver_c.*/
-  msg_t (*setcwd)(void *ip, const char *path);
-  msg_t (*getcwd)(void *ip, char *buf, size_t size);
+  /* From vfs_fs_c.*/
   msg_t (*stat)(void *ip, const char *path, vfs_stat_t *sp);
   msg_t (*opendir)(void *ip, const char *path, vfs_directory_node_c **vdnpp);
   msg_t (*openfile)(void *ip, const char *path, int flags, vfs_file_node_c **vfnpp);
@@ -263,6 +261,9 @@ struct vfs_streams_driver_vmt {
   msg_t (*rename)(void *ip, const char *oldpath, const char *newpath);
   msg_t (*mkdir)(void *ip, const char *path, vfs_mode_t mode);
   msg_t (*rmdir)(void *ip, const char *path);
+  /* From vfs_driver_c.*/
+  msg_t (*setcwd)(void *ip, const char *path);
+  msg_t (*getcwd)(void *ip, char *buf, size_t size);
   /* From vfs_streams_driver_c.*/
 };
 

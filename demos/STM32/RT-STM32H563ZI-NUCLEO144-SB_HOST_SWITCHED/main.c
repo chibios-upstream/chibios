@@ -235,12 +235,11 @@ int main(void) {
    * Initializing a ROMFS root, then overlaying "/dev" on top of it.
    */
   ovldrvObjectInit(&root_overlay_driver,
-                   (vfs_driver_c *)romdrvObjectInit(&root_driver,
-                                                    &http_romfs),
+                   (vfs_fs_c *)romdrvObjectInit(&root_driver, &http_romfs),
                    NULL);
   ret = ovldrvRegisterDriver(&root_overlay_driver,
-                             (vfs_driver_c *)stmdrvObjectInit(&dev_driver,
-                                                              &streams[0]),
+                             (vfs_fs_c *)stmdrvObjectInit(&dev_driver,
+                                                         &streams[0]),
                              "dev");
   if (CH_RET_IS_ERROR(ret)) {
     chSysHalt("VFS");

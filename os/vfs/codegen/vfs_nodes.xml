@@ -50,8 +50,8 @@
       </group>
     </definitions_early>
     <types>
-      <typedef name="vfs_driver_c">
-        <basetype ctype="struct vfs_driver" />
+      <typedef name="vfs_fs_c">
+        <basetype ctype="struct vfs_fs" />
       </typedef>
       <typedef name="vfs_offset_t">
         <brief>Type of a file offset.</brief>
@@ -103,8 +103,8 @@
         ancestorname="referenced_object" descr="VFS node">
         <brief>Common ancestor class of all VFS nodes.</brief>
         <fields>
-          <field name="driver" ctype="vfs_driver_c$I*">
-            <brief>Driver handling this node.</brief>
+          <field name="fs" ctype="vfs_fs_c$I*">
+            <brief>File system handling this node.</brief>
           </field>
           <field name="mode" ctype="vfs_mode_t">
             <brief>Node mode information.</brief>
@@ -112,15 +112,15 @@
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in"> Pointer to
-              the controlling driver.
+            <param name="fs" ctype="vfs_fs_c *" dir="in"> Pointer to the
+              controlling file system.
             </param>
             <param name="mode" ctype="vfs_mode_t" dir="in"> Node mode flags.
             </param>
             <implementation><![CDATA[
 self = __ro_objinit_impl(self, vmt);
 
-self->driver = driver;
+self->fs     = fs;
 self->mode   = mode;]]></implementation>
           </objinit>
           <dispose>
@@ -151,13 +151,13 @@ return CH_RET_SUCCESS;]]></implementation>
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in"> Pointer to
-              the controlling driver.
+            <param name="fs" ctype="vfs_fs_c *" dir="in"> Pointer to the
+              controlling file system.
             </param>
             <param name="mode" ctype="vfs_mode_t" dir="in"> Node mode flags.
             </param>
             <implementation><![CDATA[
-self = __vfsnode_objinit_impl(ip, vmt, driver, mode);]]></implementation>
+self = __vfsnode_objinit_impl(ip, vmt, fs, mode);]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[ ]]></implementation>
@@ -285,13 +285,13 @@ return (uint32_t)vfsFileGetPosition((void *)self);]]></implementation>
         </fields>
         <methods>
           <objinit callsuper="false">
-            <param name="driver" ctype="vfs_driver_c *" dir="in"> Pointer to
-              the controlling driver.
+            <param name="fs" ctype="vfs_fs_c *" dir="in"> Pointer to the
+              controlling file system.
             </param>
             <param name="mode" ctype="vfs_mode_t" dir="in"> Node mode flags.
             </param>
             <implementation><![CDATA[
-self = __vfsnode_objinit_impl(ip, vmt, driver, mode);]]></implementation>
+self = __vfsnode_objinit_impl(ip, vmt, fs, mode);]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[ ]]></implementation>

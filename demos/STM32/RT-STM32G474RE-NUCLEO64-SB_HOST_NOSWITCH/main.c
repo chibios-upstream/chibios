@@ -227,8 +227,8 @@ int main(void) {
    */
   ovldrvObjectInit(&root_overlay_driver, NULL, NULL);
   ret = ovldrvRegisterDriver(&root_overlay_driver,
-                             (vfs_driver_c *)stmdrvObjectInit(&dev_driver,
-                                                              &streams[0]),
+                             (vfs_fs_c *)stmdrvObjectInit(&dev_driver,
+                                                         &streams[0]),
                              "dev");
   if (CH_RET_IS_ERROR(ret)) {
     chSysHalt("VFS");

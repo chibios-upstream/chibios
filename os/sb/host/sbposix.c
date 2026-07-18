@@ -79,7 +79,7 @@ static uint32_t sb_io_stat(sb_class_t *sbp,
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  ret = vfsDrvStat(sbp->io.vfs_driver, path, &vstat);
+  ret = vfsFSStat(sbp->io.vfs_driver, path, &vstat);
   if (!CH_RET_IS_ERROR(ret)) {
     memset((void *)statbuf, 0, sizeof (struct stat));
     statbuf->st_mode  = (mode_t)vstat.mode;
@@ -100,7 +100,8 @@ static uint32_t sb_io_open(sb_class_t *sbp, const char *path, int flags) {
   }
 
   do {
-    ret = vfsDrvOpen(sbp->io.vfs_driver, path, (unsigned)flags, &np);
+    ret = vfsFSOpen((vfs_fs_c *)sbp->io.vfs_driver, path, (unsigned)flags,
+                    &np);
     CH_BREAK_ON_ERROR(ret);
 
     ret = create_descriptor(&sbp->io, np);
@@ -385,7 +386,7 @@ static uint32_t sb_io_unlink(sb_class_t *sbp, const char *path) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsDrvUnlink(sbp->io.vfs_driver, path);
+  return (uint32_t)vfsFSUnlink(sbp->io.vfs_driver, path);
 }
 
 static uint32_t sb_io_rename(sb_class_t *sbp,
@@ -400,7 +401,7 @@ static uint32_t sb_io_rename(sb_class_t *sbp,
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsDrvRename(sbp->io.vfs_driver, oldpath, newpath);
+  return (uint32_t)vfsFSRename(sbp->io.vfs_driver, oldpath, newpath);
 }
 
 static uint32_t sb_io_mkdir(sb_class_t *sbp, const char *path, mode_t mode) {
@@ -409,7 +410,7 @@ static uint32_t sb_io_mkdir(sb_class_t *sbp, const char *path, mode_t mode) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsDrvMkdir(sbp->io.vfs_driver, path, (vfs_mode_t)mode);
+  return (uint32_t)vfsFSMkdir(sbp->io.vfs_driver, path, (vfs_mode_t)mode);
 }
 
 static uint32_t sb_io_rmdir(sb_class_t *sbp, const char *path) {
@@ -418,7 +419,7 @@ static uint32_t sb_io_rmdir(sb_class_t *sbp, const char *path) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsDrvRmdir(sbp->io.vfs_driver, path);
+  return (uint32_t)vfsFSRmdir(sbp->io.vfs_driver, path);
 }
 
 /*===========================================================================*/

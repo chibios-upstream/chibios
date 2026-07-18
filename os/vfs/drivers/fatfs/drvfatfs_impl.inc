@@ -256,7 +256,7 @@ static void *__ffdir_objinit_impl(void *ip, const void *vmt,
   vfs_fatfs_dir_node_c *self = (vfs_fatfs_dir_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsdir_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);
+  self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
 
   return self;
 }
@@ -441,7 +441,7 @@ static void *__fffile_objinit_impl(void *ip, const void *vmt,
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsfile_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);
+  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
 
   return self;
 }
@@ -751,7 +751,7 @@ msg_t __ffdrv_getcwd_impl(void *ip, char *buf, size_t size) {
  * @memberof    vfs_fatfs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvStat().
+ * @brief       Override of method @p vfsFSStat().
  *
  * @param[in,out] ip            Pointer to a @p vfs_fatfs_driver_c instance.
  * @param[in]     path          Absolute path of the node to be examined.
@@ -798,7 +798,7 @@ msg_t __ffdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
  * @memberof    vfs_fatfs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvOpenDirectory().
+ * @brief       Override of method @p vfsFSOpenDirectory().
  *
  * @param[in,out] ip            Pointer to a @p vfs_fatfs_driver_c instance.
  * @param[in]     path          Absolute path of the directory to be opened.
@@ -849,7 +849,7 @@ msg_t __ffdrv_opendir_impl(void *ip, const char *path,
  * @memberof    vfs_fatfs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvOpenFile().
+ * @brief       Override of method @p vfsFSOpenFile().
  *
  * @param[in,out] ip            Pointer to a @p vfs_fatfs_driver_c instance.
  * @param[in]     path          Absolute path of the directory to be opened.
@@ -908,7 +908,7 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
  * @memberof    vfs_fatfs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvUnlink().
+ * @brief       Override of method @p vfsFSUnlink().
  *
  * @param[in,out] ip            Pointer to a @p vfs_fatfs_driver_c instance.
  * @param[in]     path          Path of the file to be unlinked.
@@ -925,7 +925,7 @@ msg_t __ffdrv_unlink_impl(void *ip, const char *path) {
  * @memberof    vfs_fatfs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvRename().
+ * @brief       Override of method @p vfsFSRename().
  *
  * @param[in,out] ip            Pointer to a @p vfs_fatfs_driver_c instance.
  * @param[in]     oldpath       Path of the node to be renamed.
@@ -944,7 +944,7 @@ msg_t __ffdrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
  * @memberof    vfs_fatfs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvMkdir().
+ * @brief       Override of method @p vfsFSMkdir().
  *
  * @param[in,out] ip            Pointer to a @p vfs_fatfs_driver_c instance.
  * @param[in]     path          Path of the directory to be created.
@@ -963,7 +963,7 @@ msg_t __ffdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
  * @memberof    vfs_fatfs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvRmdir().
+ * @brief       Override of method @p vfsFSRmdir().
  *
  * @param[in,out] ip            Pointer to a @p vfs_fatfs_driver_c instance.
  * @param[in]     path          Path of the directory to be removed.
@@ -993,4 +993,3 @@ const struct vfs_fatfs_driver_vmt __vfs_fatfs_driver_vmt = {
   .mkdir                    = __ffdrv_mkdir_impl,
   .rmdir                    = __ffdrv_rmdir_impl
 };
-

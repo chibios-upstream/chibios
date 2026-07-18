@@ -1,0 +1,808 @@
+<instance locked="false"
+  id="org.chibios.spc5.components.portable.chibios_unitary_tests_engine">
+  <description>
+    <brief>
+      <value>ChibiOS/VFS Test Suite.</value>
+    </brief>
+    <copyright>
+      <value><![CDATA[/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/]]></value>
+    </copyright>
+    <introduction>
+      <value>Test suite for ChibiOS/VFS. The purpose of this suite is to
+        verify the VFS infrastructure and drivers, starting with the path
+        handling primitives used by the root driver.</value>
+    </introduction>
+  </description>
+  <global_data_and_code>
+    <code_prefix>
+      <value>vfs_</value>
+    </code_prefix>
+    <global_definitions>
+      <value><![CDATA[#include <string.h>
+
+#include "vfs.h"
+
+#define TEST_SUITE_NAME                     "ChibiOS/VFS Test Suite"
+
+#define VFS_TEST_FS_OP_NONE                 0U
+#define VFS_TEST_FS_OP_STAT                 1U
+#define VFS_TEST_FS_OP_OPENDIR              2U
+#define VFS_TEST_FS_OP_OPENFILE             3U
+#define VFS_TEST_FS_OP_UNLINK               4U
+#define VFS_TEST_FS_OP_RENAME               5U
+#define VFS_TEST_FS_OP_MKDIR                6U
+#define VFS_TEST_FS_OP_RMDIR                7U
+
+typedef struct {
+  const struct vfs_fs_vmt *vmt;
+  unsigned                operation;
+  unsigned                calls;
+  const char              *path;
+  const char              *newpath;
+  int                     flags;
+  vfs_mode_t              mode;
+  msg_t                   opendir_result;
+  msg_t                   openfile_result;
+} vfs_test_fs_c;
+
+extern vfs_test_fs_c vfs_test_fs;
+
+bool vfs_test_path_equal(const char *actual, size_t actual_size,
+                         const char *expected);
+bool vfs_test_path_normalizes(const char *input, const char *expected);
+bool vfs_test_path_normalizes_in_place(const char *input,
+                                       const char *expected);
+bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
+                                    const char *expected);
+void vfs_test_fs_reset(void);]]></value>
+    </global_definitions>
+    <global_code>
+      <value><![CDATA[bool vfs_test_path_equal(const char *actual, size_t actual_size,
+                         const char *expected) {
+  size_t expected_size;
+
+  expected_size = strlen(expected);
+  return (actual_size == expected_size) &&
+         (memcmp(actual, expected, expected_size + 1U) == 0);
+}
+
+bool vfs_test_path_normalizes(const char *input, const char *expected) {
+  char buf[128];
+  size_t n;
+
+  n = vfs_path_normalize(buf, input, sizeof buf);
+  return vfs_test_path_equal(buf, n, expected);
+}
+
+bool vfs_test_path_normalizes_in_place(const char *input,
+                                       const char *expected) {
+  char buf[128];
+  size_t n;
+
+  strcpy(buf, input);
+  n = vfs_path_normalize(buf, buf, sizeof buf);
+  return vfs_test_path_equal(buf, n, expected);
+}
+
+bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
+                                    const char *expected) {
+  char buf[128];
+  size_t n;
+
+  n = vfs_path_make_absolute(buf, input, sizeof buf, cwd);
+  return vfs_test_path_equal(buf, n, expected);
+}
+
+static void vfs_test_fs_dispose(void *ip) {
+
+  (void)ip;
+}
+
+static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
+                               const char *path) {
+
+  self->operation = operation;
+  self->calls++;
+  self->path = path;
+}
+
+static msg_t vfs_test_fs_stat(void *ip, const char *path, vfs_stat_t *sp) {
+  vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
+
+  (void)sp;
+  vfs_test_fs_record(self, VFS_TEST_FS_OP_STAT, path);
+  return CH_RET_SUCCESS;
+}
+
+static msg_t vfs_test_fs_opendir(void *ip, const char *path,
+                                 vfs_directory_node_c **vdnpp) {
+  vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
+
+  (void)vdnpp;
+  vfs_test_fs_record(self, VFS_TEST_FS_OP_OPENDIR, path);
+  return self->opendir_result;
+}
+
+static msg_t vfs_test_fs_openfile(void *ip, const char *path, int flags,
+                                  vfs_file_node_c **vfnpp) {
+  vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
+
+  (void)vfnpp;
+  vfs_test_fs_record(self, VFS_TEST_FS_OP_OPENFILE, path);
+  self->flags = flags;
+  return self->openfile_result;
+}
+
+static msg_t vfs_test_fs_unlink(void *ip, const char *path) {
+  vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
+
+  vfs_test_fs_record(self, VFS_TEST_FS_OP_UNLINK, path);
+  return CH_RET_SUCCESS;
+}
+
+static msg_t vfs_test_fs_rename(void *ip, const char *oldpath,
+                                const char *newpath) {
+  vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
+
+  vfs_test_fs_record(self, VFS_TEST_FS_OP_RENAME, oldpath);
+  self->newpath = newpath;
+  return CH_RET_SUCCESS;
+}
+
+static msg_t vfs_test_fs_mkdir(void *ip, const char *path, vfs_mode_t mode) {
+  vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
+
+  vfs_test_fs_record(self, VFS_TEST_FS_OP_MKDIR, path);
+  self->mode = mode;
+  return CH_RET_SUCCESS;
+}
+
+static msg_t vfs_test_fs_rmdir(void *ip, const char *path) {
+  vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
+
+  vfs_test_fs_record(self, VFS_TEST_FS_OP_RMDIR, path);
+  return CH_RET_SUCCESS;
+}
+
+static const struct vfs_fs_vmt vfs_test_fs_vmt = {
+  .dispose  = vfs_test_fs_dispose,
+  .stat     = vfs_test_fs_stat,
+  .opendir  = vfs_test_fs_opendir,
+  .openfile = vfs_test_fs_openfile,
+  .unlink   = vfs_test_fs_unlink,
+  .rename   = vfs_test_fs_rename,
+  .mkdir    = vfs_test_fs_mkdir,
+  .rmdir    = vfs_test_fs_rmdir
+};
+
+vfs_test_fs_c vfs_test_fs;
+
+void vfs_test_fs_reset(void) {
+
+  (void)__vfsfs_objinit_impl(&vfs_test_fs, &vfs_test_fs_vmt);
+  vfs_test_fs.operation       = VFS_TEST_FS_OP_NONE;
+  vfs_test_fs.calls           = 0U;
+  vfs_test_fs.path            = NULL;
+  vfs_test_fs.newpath         = NULL;
+  vfs_test_fs.flags           = 0;
+  vfs_test_fs.mode            = (vfs_mode_t)0;
+  vfs_test_fs.opendir_result  = CH_RET_SUCCESS;
+  vfs_test_fs.openfile_result = CH_RET_SUCCESS;
+}]]></value>
+    </global_code>
+  </global_data_and_code>
+  <sequences>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>Path Utilities.</value>
+      </brief>
+      <description>
+        <value>The path normalization and absolute-path construction
+          primitives are tested independently of a file system driver.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include "vfs.h"]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Path normalization.</value>
+          </brief>
+          <description>
+            <value>Absolute paths are normalized by removing redundant
+              separators and resolving dot components.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value />
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The root path remains unchanged.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_normalizes("/", "/"),
+            "root path normalization failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Repeated separators collapse to the root path.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_normalizes("////", "/"),
+            "separator normalization failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Redundant separators and dot components are
+                  resolved.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_normalizes("/a//b/./c/../d/", "/a/b/d"),
+            "component normalization failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Parent components cannot move above the root.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_normalizes("/../../a", "/a"),
+            "root boundary normalization failed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Dot component recognition.</value>
+          </brief>
+          <description>
+            <value>Only exact dot and dot-dot components are special;
+              names beginning with dots are retained.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value />
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Dot-prefixed names are preserved.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_normalizes(
+              "/.hidden/..name/.../normal", "/.hidden/..name/.../normal"),
+            "dot-prefixed name normalization failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A trailing dot component is removed.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_normalizes("/.", "/"),
+            "dot component normalization failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A parent component at the root is removed.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_normalizes("/..", "/"),
+            "root parent normalization failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Repeated parent traversal stops at the root.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_normalizes("/a/../..", "/"),
+            "repeated parent normalization failed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>In-place path normalization.</value>
+          </brief>
+          <description>
+            <value>The source and destination may refer to the same
+              buffer.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value />
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A path is normalized in its source buffer.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_normalizes_in_place(
+              "/a//b/../.hidden", "/a/.hidden"),
+            "in-place normalization failed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Absolute-path construction.</value>
+          </brief>
+          <description>
+            <value>Relative paths are combined with a current directory,
+              while absolute paths are normalized directly.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value />
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A relative parent path is resolved against the
+                  current directory.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_becomes_absolute(
+              "/home/user", "../data", "/home/data"),
+            "relative parent path resolution failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Parent traversal stops at the root.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_becomes_absolute(
+              "/home/user", "../../../etc", "/etc"),
+            "absolute root boundary failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An absolute input ignores the current directory and
+                  is normalized.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(vfs_test_path_becomes_absolute(
+              "/home/user", "/var/./log", "/var/log"),
+            "absolute input normalization failed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Path validation and buffer boundaries.</value>
+          </brief>
+          <description>
+            <value>Invalid relative inputs and insufficient output buffers
+              are rejected, while an exactly sized buffer succeeds.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[char buf[16];
+char exact[5];
+char small[4];
+char small_absolute[8];
+size_t n;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Path normalization rejects a relative input.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[n = vfs_path_normalize(buf, "relative/path", sizeof buf);
+test_assert(n == (size_t)0, "relative path accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Absolute-path construction rejects a relative
+                  current directory.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[n = vfs_path_make_absolute(buf, "path", sizeof buf, "relative");
+test_assert(n == (size_t)0, "relative current directory accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An exactly sized output buffer succeeds.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[n = vfs_path_normalize(exact, "/abc", sizeof exact);
+test_assert(vfs_test_path_equal(exact, n, "/abc"),
+            "exact-size buffer rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A buffer without room for the terminator is
+                  rejected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[n = vfs_path_normalize(small, "/abc", sizeof small);
+test_assert(n == (size_t)0, "undersized buffer accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A long normalized path exceeding the output buffer is
+                  rejected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[n = vfs_path_normalize(buf, "/123456789012345", sizeof buf);
+test_assert(n == (size_t)0, "long path overflow accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A combined current directory and relative path that
+                  exceeds the output buffer is rejected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[n = vfs_path_make_absolute(small_absolute, "def",
+                           sizeof small_absolute, "/abc");
+test_assert(n == (size_t)0, "absolute path overflow accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>File System Interface.</value>
+      </brief>
+      <description>
+        <value>The absolute-path file system interface is tested using a
+          minimal object derived directly from vfs_fs_c.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>
+
+#include "vfs.h"]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Pure file system method dispatch.</value>
+          </brief>
+          <description>
+            <value>All file system operations dispatch through a vfs_fs_c
+              object that has no process-aware driver interface.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[vfs_stat_t stat;
+vfs_node_c *np;
+vfs_directory_node_c *dnp;
+vfs_file_node_c *fnp;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Stat dispatches through the file system VMT.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+ret = vfsFSStat(&vfs_test_fs, "/stat", &stat);
+test_assert(ret == CH_RET_SUCCESS, "stat failed");
+test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_STAT,
+            "stat dispatch failed");
+test_assert(strcmp(vfs_test_fs.path, "/stat") == 0,
+            "stat path changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Directory open dispatches through the file system
+                  VMT.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+ret = vfsFSOpenDirectory(&vfs_test_fs, "/directory", &dnp);
+test_assert(ret == CH_RET_SUCCESS, "directory open failed");
+test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_OPENDIR,
+            "directory open dispatch failed");
+test_assert(strcmp(vfs_test_fs.path, "/directory") == 0,
+            "directory path changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>File open dispatches its path and flags through the
+                  file system VMT.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+ret = vfsFSOpenFile(&vfs_test_fs, "/file", VO_CREAT | VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "file open failed");
+test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_OPENFILE,
+            "file open dispatch failed");
+test_assert(strcmp(vfs_test_fs.path, "/file") == 0,
+            "file path changed");
+test_assert(vfs_test_fs.flags == (VO_CREAT | VO_RDWR),
+            "file flags changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Unlink dispatches through the file system VMT.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+ret = vfsFSUnlink(&vfs_test_fs, "/unlink");
+test_assert(ret == CH_RET_SUCCESS, "unlink failed");
+test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_UNLINK,
+            "unlink dispatch failed");
+test_assert(strcmp(vfs_test_fs.path, "/unlink") == 0,
+            "unlink path changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Rename dispatches both paths through the file system
+                  VMT.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+ret = vfsFSRename(&vfs_test_fs, "/old", "/new");
+test_assert(ret == CH_RET_SUCCESS, "rename failed");
+test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_RENAME,
+            "rename dispatch failed");
+test_assert(strcmp(vfs_test_fs.path, "/old") == 0,
+            "rename old path changed");
+test_assert(strcmp(vfs_test_fs.newpath, "/new") == 0,
+            "rename new path changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Directory creation dispatches its path and mode
+                  through the file system VMT.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+ret = vfsFSMkdir(&vfs_test_fs, "/mkdir", VFS_MODE_S_IRUSR);
+test_assert(ret == CH_RET_SUCCESS, "mkdir failed");
+test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_MKDIR,
+            "mkdir dispatch failed");
+test_assert(strcmp(vfs_test_fs.path, "/mkdir") == 0,
+            "mkdir path changed");
+test_assert(vfs_test_fs.mode == VFS_MODE_S_IRUSR,
+            "mkdir mode changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Directory removal dispatches through the file system
+                  VMT.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+ret = vfsFSRmdir(&vfs_test_fs, "/rmdir");
+test_assert(ret == CH_RET_SUCCESS, "rmdir failed");
+test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_RMDIR,
+            "rmdir dispatch failed");
+test_assert(strcmp(vfs_test_fs.path, "/rmdir") == 0,
+            "rmdir path changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The generic read-only open falls back from a file to a
+                  directory.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+vfs_test_fs.openfile_result = CH_RET_EISDIR;
+ret = vfsFSOpen((vfs_fs_c *)&vfs_test_fs, "/node", VO_RDONLY, &np);
+test_assert(ret == CH_RET_SUCCESS, "generic directory open failed");
+test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_OPENDIR,
+            "generic directory open dispatch failed");
+test_assert(vfs_test_fs.calls == 2U, "generic open call count mismatch");
+test_assert(strcmp(vfs_test_fs.path, "/node") == 0,
+            "generic open path changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The generic writable open does not open a directory
+                  after the file system reports one.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+vfs_test_fs.openfile_result = CH_RET_EISDIR;
+ret = vfsFSOpen((vfs_fs_c *)&vfs_test_fs, "/node", VO_WRONLY, &np);
+test_assert(ret == CH_RET_EISDIR, "writable directory open accepted");
+test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_OPENFILE,
+            "writable generic open dispatch failed");
+test_assert(vfs_test_fs.calls == 1U, "writable generic open fell back");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+  </sequences>
+</instance>

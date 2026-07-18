@@ -42,7 +42,7 @@
             <param name="mode" ctype="vfs_mode_t" dir="in"> Node mode flags.
             </param>
             <implementation><![CDATA[
-self = __vfsdir_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);
+self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
 
 self->index         = 0U;
 self->overlaid_root = NULL;]]></implementation>
@@ -66,20 +66,20 @@ self->overlaid_root = NULL;]]></implementation>
       <class type="regular" name="vfs_overlay_driver" namespace="ovldrv"
         ancestorname="vfs_driver" descr="VFS overlay driver">
         <fields>
-          <field name="overlaid_drv" ctype="vfs_driver_c$I*"></field>
+          <field name="overlaid_drv" ctype="vfs_fs_c$I*"></field>
           <field name="path_prefix" ctype="const char$I*"></field>
           <field name="path_cwd" ctype="char$I*"></field>
           <field name="next_driver" ctype="unsigned"></field>
           <field name="names"
             ctype="const char$I*$N[DRV_CFG_OVERLAY_DRV_MAX]"></field>
           <field name="drivers"
-            ctype="vfs_driver_c$I*$N[DRV_CFG_OVERLAY_DRV_MAX]"></field>
+            ctype="vfs_fs_c$I*$N[DRV_CFG_OVERLAY_DRV_MAX]"></field>
           <field name="buf" ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]"></field>
         </fields>
         <methods>
           <objinit callsuper="true">
-            <param name="overlaid_drv" ctype="vfs_driver_c *" dir="in"><![CDATA[Pointer to
-              a driver to be overlaid or @p NULL.]]></param>
+            <param name="overlaid_drv" ctype="vfs_fs_c *" dir="in"><![CDATA[Pointer to
+              a file system to be overlaid or @p NULL.]]></param>
             <param name="path_prefix" ctype="const char *" dir="in"><![CDATA[Prefix to be
               added to the paths or @p NULL, it must be a normalized absolute path.]]></param>
             <implementation><![CDATA[
@@ -101,11 +101,11 @@ while (i < self->next_driver) {
           </dispose>
           <regular>
             <method name="ovldrvRegisterDriver" ctype="msg_t">
-              <brief>Registers a VFS driver as an overlay.</brief>
-              <note><![CDATA[The overlay becomes the owner of the registered driver,
-                the reference is released when dre driver is unregistered or when
-                the whole overlay object is disposed.]]></note>
-              <param name="vdp" ctype="vfs_driver_c *" dir="in"><![CDATA[Driver object reference to be registered.]]></param>
+              <brief>Registers a VFS file system as an overlay.</brief>
+              <note><![CDATA[The overlay becomes the owner of the registered file
+                system, the reference is released when the file system is
+                unregistered or when the whole overlay object is disposed.]]></note>
+              <param name="fsp" ctype="vfs_fs_c *" dir="in"><![CDATA[File system object reference to be registered.]]></param>
               <param name="name" ctype="const char *" dir="in"><![CDATA[Name for the
                 new overlay directory, must be alphanumeric.]]></param>
               <return>The operation result.</return>
@@ -120,7 +120,7 @@ if (self->next_driver >= DRV_CFG_OVERLAY_DRV_MAX) {
 }
 else {
   self->names[self->next_driver]   = name;
-  self->drivers[self->next_driver] = vdp;
+  self->drivers[self->next_driver] = fsp;
   self->next_driver++;
   ret = CH_RET_SUCCESS;
 }
@@ -130,8 +130,8 @@ chSysUnlock();
 return ret;]]></implementation>
             </method>
             <method name="ovldrvUnregisterDriver" ctype="msg_t">
-              <brief>Unregisters a VFS driver.</brief>
-              <note>The reference to the registered driver is released.</note>
+              <brief>Unregisters a VFS file system.</brief>
+              <note>The reference to the registered file system is released.</note>
               <param name="name" ctype="const char *" dir="in"><![CDATA[Name of the
                 overlay directory to be unregistered.]]></param>
               <return>The operation result.</return>
@@ -146,7 +146,7 @@ while (i < self->next_driver) {
 
   /* Is name matching?*/
   if (strcmp(self->names[i], name) == 0) {
-    vfs_driver_c *vdp = self->drivers[i];
+    vfs_fs_c *fsp = self->drivers[i];
 
     /* Found match, move following entries down, if any.*/
     while (i < self->next_driver - 1) {
@@ -159,7 +159,7 @@ while (i < self->next_driver) {
     chSysUnlock();
 
     /* Releasing the unregistered object.*/
-    roRelease(vdp);
+    roRelease(fsp);
 
     return CH_RET_SUCCESS;
   }

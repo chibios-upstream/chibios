@@ -619,7 +619,7 @@ msg_t sbElfLoadFile(vfs_driver_c *drvp,
   vfs_file_node_c *fnp;
   msg_t ret;
 
-  ret = vfsDrvOpenFile(drvp, path, VO_RDONLY, &fnp);
+  ret = vfsFSOpenFile(drvp, path, VO_RDONLY, &fnp);
   CH_RETURN_ON_ERROR(ret);
 
   do {

@@ -732,7 +732,7 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   size_t size, basealign;
   msg_t ret;
 
-  ret = vfsDrvOpenFile(sbp->io.vfs_driver, path, VO_RDONLY, &fnp);
+  ret = vfsFSOpenFile(sbp->io.vfs_driver, path, VO_RDONLY, &fnp);
   CH_RETURN_ON_ERROR(ret);
 
   /* Calculating bare-minimum space required by the elf file.*/

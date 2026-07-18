@@ -239,7 +239,7 @@ static void *__lfsdir_objinit_impl(void *ip, const void *vmt,
   vfs_littlefs_dir_node_c *self = (vfs_littlefs_dir_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsdir_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);
+  self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
 
   return self;
 }
@@ -256,7 +256,7 @@ static void *__lfsdir_objinit_impl(void *ip, const void *vmt,
  */
 static void __lfsdir_dispose_impl(void *ip) {
   vfs_littlefs_dir_node_c *self = (vfs_littlefs_dir_node_c *)ip;
-  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->driver;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
 
   /* Closing directory.*/
   (void) lfs_dir_close(&drvp->lfs, &self->dir);
@@ -297,7 +297,7 @@ static msg_t __lfsdir_stat_impl(void *ip, vfs_stat_t *sp) {
  */
 static msg_t __lfsdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
   vfs_littlefs_dir_node_c *self = (vfs_littlefs_dir_node_c *)ip;
-  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->driver;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
   msg_t ret;
 
   /* FS mount check.*/
@@ -364,7 +364,7 @@ static msg_t __lfsdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
  */
 static msg_t __lfsdir_first_impl(void *ip, vfs_direntry_info_t *dip) {
   vfs_littlefs_dir_node_c *self = (vfs_littlefs_dir_node_c *)ip;
-  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->driver;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
   msg_t ret;
   int res;
 
@@ -454,7 +454,7 @@ static void *__lfsfile_objinit_impl(void *ip, const void *vmt,
   vfs_littlefs_file_node_c *self = (vfs_littlefs_file_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsfile_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);
+  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
 
   return self;
 }
@@ -471,7 +471,7 @@ static void *__lfsfile_objinit_impl(void *ip, const void *vmt,
  */
 static void __lfsfile_dispose_impl(void *ip) {
   vfs_littlefs_file_node_c *self = (vfs_littlefs_file_node_c *)ip;
-  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->driver;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
 
   /* Closing file.*/
   (void) lfs_file_close(&drvp->lfs, &self->file);
@@ -513,7 +513,7 @@ static msg_t __lfsfile_stat_impl(void *ip, vfs_stat_t *sp) {
  */
 static ssize_t __lfsfile_read_impl(void *ip, uint8_t *buf, size_t n) {
   vfs_littlefs_file_node_c *self = (vfs_littlefs_file_node_c *)ip;
-  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->driver;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
   lfs_ssize_t br;
 
   /* FS mount check.*/
@@ -544,7 +544,7 @@ static ssize_t __lfsfile_read_impl(void *ip, uint8_t *buf, size_t n) {
  */
 static ssize_t __lfsfile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   vfs_littlefs_file_node_c *self = (vfs_littlefs_file_node_c *)ip;
-  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->driver;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
   lfs_ssize_t bw;
 
   /* FS mount check.*/
@@ -576,7 +576,7 @@ static ssize_t __lfsfile_write_impl(void *ip, const uint8_t *buf, size_t n) {
 static msg_t __lfsfile_setpos_impl(void *ip, vfs_offset_t offset,
                                    vfs_seekmode_t whence) {
   vfs_littlefs_file_node_c *self = (vfs_littlefs_file_node_c *)ip;
-  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->driver;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
   lfs_soff_t finaloff;
 
   if ((whence != VFS_SEEK_SET) &&
@@ -611,7 +611,7 @@ static msg_t __lfsfile_setpos_impl(void *ip, vfs_offset_t offset,
  */
 static vfs_offset_t __lfsfile_getpos_impl(void *ip) {
   vfs_littlefs_file_node_c *self = (vfs_littlefs_file_node_c *)ip;
-  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->driver;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
   lfs_soff_t offset;
 
   /* FS mount check.*/
@@ -808,7 +808,7 @@ msg_t __lfsdrv_getcwd_impl(void *ip, char *buf, size_t size) {
  * @memberof    vfs_littlefs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvStat().
+ * @brief       Override of method @p vfsFSStat().
  *
  * @param[in,out] ip            Pointer to a @p vfs_littlefs_driver_c instance.
  * @param[in]     path          Absolute path of the node to be examined.
@@ -880,7 +880,7 @@ msg_t __lfsdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
  * @memberof    vfs_littlefs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvOpenDirectory().
+ * @brief       Override of method @p vfsFSOpenDirectory().
  *
  * @param[in,out] ip            Pointer to a @p vfs_littlefs_driver_c instance.
  * @param[in]     path          Absolute path of the directory to be opened.
@@ -935,7 +935,7 @@ msg_t __lfsdrv_opendir_impl(void *ip, const char *path,
  * @memberof    vfs_littlefs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvOpenFile().
+ * @brief       Override of method @p vfsFSOpenFile().
  *
  * @param[in,out] ip            Pointer to a @p vfs_littlefs_driver_c instance.
  * @param[in]     path          Absolute path of the directory to be opened.
@@ -997,7 +997,7 @@ msg_t __lfsdrv_openfile_impl(void *ip, const char *path, int flags,
  * @memberof    vfs_littlefs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvUnlink().
+ * @brief       Override of method @p vfsFSUnlink().
  *
  * @param[in,out] ip            Pointer to a @p vfs_littlefs_driver_c instance.
  * @param[in]     path          Path of the file to be unlinked.
@@ -1035,7 +1035,7 @@ msg_t __lfsdrv_unlink_impl(void *ip, const char *path) {
  * @memberof    vfs_littlefs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvRename().
+ * @brief       Override of method @p vfsFSRename().
  *
  * @param[in,out] ip            Pointer to a @p vfs_littlefs_driver_c instance.
  * @param[in]     oldpath       Path of the node to be renamed.
@@ -1083,7 +1083,7 @@ msg_t __lfsdrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
  * @memberof    vfs_littlefs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvMkdir().
+ * @brief       Override of method @p vfsFSMkdir().
  *
  * @param[in,out] ip            Pointer to a @p vfs_littlefs_driver_c instance.
  * @param[in]     path          Path of the directory to be created.
@@ -1121,7 +1121,7 @@ msg_t __lfsdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
  * @memberof    vfs_littlefs_driver_c
  * @protected
  *
- * @brief       Override of method @p vfsDrvRmdir().
+ * @brief       Override of method @p vfsFSRmdir().
  *
  * @param[in,out] ip            Pointer to a @p vfs_littlefs_driver_c instance.
  * @param[in]     path          Path of the directory to be removed.

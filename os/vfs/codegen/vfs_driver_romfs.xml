@@ -290,7 +290,7 @@ extern const vfs_romfs_compressed_ops_t vfs_romfs_chunked_packbits_ops;]]></verb
               the controlling driver.</param>
             <param name="mode" ctype="vfs_mode_t" dir="in">Node mode flags.</param>
             <implementation><![CDATA[
-self = __vfsdir_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);]]></implementation>
+self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[]]></implementation>
@@ -332,7 +332,7 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);]]></impleme
             <param name="mode" ctype="vfs_mode_t" dir="in">Node mode flags.
             </param>
             <implementation><![CDATA[
-self = __vfsfile_objinit_impl(ip, vmt, (vfs_driver_c *)driver, mode);]]></implementation>
+self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[]]></implementation>

@@ -293,10 +293,11 @@ int main(void) {
   stmdrvObjectInit(&dev_driver, &streams[0]);
 
   /* Initializing an overlay VFS object overlaying the LittleFS driver.*/
-  ovldrvObjectInit(&root_overlay_driver, (vfs_driver_c *)&ffs_driver, NULL);
+  ovldrvObjectInit(&root_overlay_driver, (vfs_fs_c *)&ffs_driver, NULL);
 
   /* Registering the streams VFS driver on the VFS overlay root as "/dev".*/
-  msg = ovldrvRegisterDriver(&root_overlay_driver, (vfs_driver_c *)&dev_driver, "dev");
+  msg = ovldrvRegisterDriver(&root_overlay_driver, (vfs_fs_c *)&dev_driver,
+                             "dev");
   if (CH_RET_IS_ERROR(msg)) {
     chSysHalt("VFS");
   }

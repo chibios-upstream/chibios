@@ -154,14 +154,15 @@ int main(void) {
   /* Initializing an overlay VFS object as a root on top of a FatFS driver.
      This is accessible from kernel space and covers the whole file system.*/
   ffdrvObjectInit(&fatfs_driver);
-  ovldrvObjectInit(&root_overlay_driver, (vfs_driver_c *)&fatfs_driver, NULL);
+  ovldrvObjectInit(&root_overlay_driver, (vfs_fs_c *)&fatfs_driver, NULL);
 
   /* Initializing overlay drivers for the two sandbox roots. Those also use
      the FatFS driver but are restricted to "/sb1" and "/sb2" directories.*/
-  ovldrvObjectInit(&sb1_root_overlay_driver, (vfs_driver_c *)&fatfs_driver, "/sb1");
+  ovldrvObjectInit(&sb1_root_overlay_driver, (vfs_fs_c *)&fatfs_driver,
+                   "/sb1");
   ret = ovldrvRegisterDriver(&sb1_root_overlay_driver,
-                             (vfs_driver_c *)stmdrvObjectInit(&sb1_dev_driver,
-                                                              &sb1_streams[0]),
+                             (vfs_fs_c *)stmdrvObjectInit(&sb1_dev_driver,
+                                                         &sb1_streams[0]),
                              "dev");
   if (CH_RET_IS_ERROR(ret)) {
     chSysHalt("VFS");
@@ -185,8 +186,8 @@ int main(void) {
       chThdSleepMilliseconds(500);
 
       /* Associating standard input, output and error to sandbox 1.*/
-      ret = vfsDrvOpen((vfs_driver_c *)&sb1_root_overlay_driver,
-                       "/dev/VSD1", VO_RDWR, &np);
+      ret = vfsFSOpen((vfs_fs_c *)&sb1_root_overlay_driver,
+                      "/dev/VSD1", VO_RDWR, &np);
       if (CH_RET_IS_ERROR(ret)) {
         chprintf((BaseSequentialStream *)&SD2, "Opening /dev/VSD1 failed (%08lx)\r\n", ret);
         continue;

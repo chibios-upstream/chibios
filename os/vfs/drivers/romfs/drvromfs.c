@@ -92,9 +92,9 @@ struct vfs_rom_dir_node {
    */
   object_references_t       references;
   /**
-   * @brief       Driver handling this node.
+   * @brief       File system handling this node.
    */
-  vfs_driver_c              *driver;
+  vfs_fs_c                  *fs;
   /**
    * @brief       Node mode information.
    */
@@ -161,9 +161,9 @@ struct vfs_rom_file_node {
    */
   object_references_t       references;
   /**
-   * @brief       Driver handling this node.
+   * @brief       File system handling this node.
    */
-  vfs_driver_c              *driver;
+  vfs_fs_c                  *fs;
   /**
    * @brief       Node mode information.
    */

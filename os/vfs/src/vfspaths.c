@@ -313,7 +313,7 @@ size_t vfs_path_match_element(const char *path, const char *match, size_t size) 
  *
  * @param[out] dst              The destination buffer.
  * @param[in] src               The source path, must be absolute.
- * @param[in[ size              Destination buffer size.
+ * @param[in] size              Destination buffer size.
  * @return                      The size of the normalized path.
  * @retval 0                    Path error.
  */
@@ -334,15 +334,8 @@ size_t vfs_path_normalize(char *dst, const char *src, size_t size) {
       src++;
     }
 
-    /* Getting next element from the input path and copying it to
-       the output path.*/
-    ret = vfs_path_copy_element(&src, dst, size - n);
-    if (ret >= size - n) {
-      return (size_t)0;
-    }
-
     /* No next element condition.*/
-    if ((size_t)ret == 0U) {
+    if (*src == '\0') {
       /* If the path contains something after the root separator.*/
       if (n > 1U) {
         /* No next path element, replacing the last separator with a zero.*/
@@ -356,8 +349,15 @@ size_t vfs_path_normalize(char *dst, const char *src, size_t size) {
       return n;
     }
 
+    /* Getting next element from the input path and copying it to
+       the output path.*/
+    ret = vfs_path_copy_element(&src, dst, size - n);
+    if (ret >= size - n) {
+      return (size_t)0;
+    }
+
     /* Handling special cases of "." and "..".*/
-    if (strncmp(dst, "..", 2U) == 0) {
+    if ((ret == 2U) && (dst[0] == '.') && (dst[1] == '.')) {
       /* Double dot elements require to remove the last element from
          the output path.*/
       if (n > 1U) {
@@ -373,7 +373,7 @@ size_t vfs_path_normalize(char *dst, const char *src, size_t size) {
       }
       continue;
     }
-    else if (strncmp(dst, ".", 1U) == 0) {
+    else if ((ret == 1U) && (dst[0] == '.')) {
       /* Single dot elements are discarded.*/
       /* Consecutive input separators are consumed.*/
       continue;
@@ -392,9 +392,9 @@ size_t vfs_path_normalize(char *dst, const char *src, size_t size) {
  * @brief   Builds an absolute normalized path.
  *
  * @param[out] dst              The destination buffer.
- * @param[in] src               The source path, must be absolute.
- * @param[in[ size              Destination buffer size.
- * @param[in[ cwd               Current directory, must be an absolute path.
+ * @param[in] src               The source path, absolute or relative.
+ * @param[in] size              Destination buffer size.
+ * @param[in] cwd               Current directory, must be an absolute path.
  * @return                      The size of the absolute path.
  * @retval 0                    Path error or buffer overflow.
  */

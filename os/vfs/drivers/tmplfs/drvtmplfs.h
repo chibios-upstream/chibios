@@ -99,9 +99,7 @@ typedef struct vfs_tmpl_driver vfs_tmpl_driver_c;
 struct vfs_tmpl_driver_vmt {
   /* From base_object_c.*/
   void (*dispose)(void *ip);
-  /* From vfs_driver_c.*/
-  msg_t (*setcwd)(void *ip, const char *path);
-  msg_t (*getcwd)(void *ip, char *buf, size_t size);
+  /* From vfs_fs_c.*/
   msg_t (*stat)(void *ip, const char *path, vfs_stat_t *sp);
   msg_t (*opendir)(void *ip, const char *path, vfs_directory_node_c **vdnpp);
   msg_t (*openfile)(void *ip, const char *path, int flags, vfs_file_node_c **vfnpp);
@@ -109,6 +107,9 @@ struct vfs_tmpl_driver_vmt {
   msg_t (*rename)(void *ip, const char *oldpath, const char *newpath);
   msg_t (*mkdir)(void *ip, const char *path, vfs_mode_t mode);
   msg_t (*rmdir)(void *ip, const char *path);
+  /* From vfs_driver_c.*/
+  msg_t (*setcwd)(void *ip, const char *path);
+  msg_t (*getcwd)(void *ip, char *buf, size_t size);
   /* From vfs_tmpl_driver_c.*/
 };
 
