@@ -150,7 +150,14 @@ void _pal_lld_init(void) {
     _pal_init_event(i);
   }
 
-  nvicEnableVector(RP_IO_IRQ_BANK0_NUMBER, RP_IO_IRQ_BANK0_PRIORITY);
+  /* The ISR reads the interrupt statuses of the per-core PROC block
+     selected by RP_PAL_EVENT_CORE_AFFINITY and the NVIC is a per-core
+     resource, so the vector can only be enabled here when halInit() is
+     running on the affinity core. Otherwise the application must call
+     palRPEnableEventsIrqX() from the affinity core.*/
+  if (SIO->CPUID == (uint32_t)RP_PAL_EVENT_CORE_AFFINITY) {
+    nvicEnableVector(RP_IO_IRQ_BANK0_NUMBER, RP_IO_IRQ_BANK0_PRIORITY);
+  }
   #endif
 }
 

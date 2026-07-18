@@ -104,7 +104,15 @@
 /** @} */
 
 #if !defined(RP_PAL_EVENT_CORE_AFFINITY)
-  /** @brief Core that handles all the PAL event interrupts. */
+  /**
+   * @brief   Core that handles all the PAL event interrupts.
+   * @note    The NVIC is a per-core resource, halInit() enables the events
+   *          interrupt vector only when it is executed on this core. When
+   *          the affinity core is not the core running halInit(), the
+   *          application must call @p palRPEnableEventsIrqX() from the
+   *          affinity core (e.g. from @p c1_main() after
+   *          @p chInstanceObjectInit()) before PAL events can be served.
+   */
   #define RP_PAL_EVENT_CORE_AFFINITY        0
 #endif
 
@@ -440,6 +448,25 @@ typedef uint32_t iopadid_t;
   /** @brief IRQ priority of the external pad events. */
   #define RP_IO_IRQ_BANK0_PRIORITY          2
 #endif
+
+/**
+ * @brief   Enables the PAL events interrupt vector on the calling core.
+ * @details The NVIC is a per-core resource and the PAL events interrupts are
+ *          routed to the core selected by @p RP_PAL_EVENT_CORE_AFFINITY.
+ *          halInit() enables the vector only when running on the affinity
+ *          core, otherwise this function must be called from the affinity
+ *          core after it has been started.
+ * @note    Must be called from the @p RP_PAL_EVENT_CORE_AFFINITY core.
+ *
+ * @special
+ */
+__STATIC_INLINE void palRPEnableEventsIrqX(void) {
+
+  osalDbgAssert(SIO->CPUID == (uint32_t)RP_PAL_EVENT_CORE_AFFINITY,
+                "wrong core");
+
+  nvicEnableVector(RP_IO_IRQ_BANK0_NUMBER, RP_IO_IRQ_BANK0_PRIORITY);
+}
 
 #if !defined(__DOXYGEN__)
 extern palevent_t _pal_events[RP_GPIO_NUM_LINES];
