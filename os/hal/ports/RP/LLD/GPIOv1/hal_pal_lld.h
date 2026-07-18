@@ -347,13 +347,15 @@ typedef uint32_t iopadid_t;
  * @notapi
  */
 /* @note    On RP2350, IOPORT2 maps to SIO GPIO_HI_OUT which is shared with
- *          QSPI/USB outputs in bits 31:16. This is a raw full-register write;
- *          use palSetPort()/palClearPort()/palTogglePort() when non-PAL high
- *          bits must be preserved.
+ *          QSPI/USB outputs in bits 31:16. Only the bits belonging to PAL
+ *          lines are updated, using a single write to the GPIO_OUT_XOR
+ *          alias, so the shared non-PAL latch bits are preserved.
  */
 #define pal_lld_writeport(port, bits)                                       \
   do {                                                                      \
-    RP_PAL_SIO_REG(GPIO_OUT, (port)) = (uint32_t)(bits);                    \
+    RP_PAL_SIO_REG(GPIO_OUT_XOR, (port)) =                                  \
+      (RP_PAL_SIO_REG(GPIO_OUT, (port)) ^ (uint32_t)(bits)) &               \
+      (uint32_t)RP_PAL_VALID_MASK(port);                                    \
   } while (false)
 
 /**
