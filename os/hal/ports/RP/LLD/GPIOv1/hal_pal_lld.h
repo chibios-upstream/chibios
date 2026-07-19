@@ -358,12 +358,13 @@ typedef uint32_t iopadid_t;
  *          QSPI/USB outputs in bits 31:16. Only the bits belonging to PAL
  *          lines are updated, using a single write to the GPIO_OUT_XOR
  *          alias, so the shared non-PAL latch bits are preserved.
- * @note    The latch read and XOR write are not one atomic step:
- *          concurrent full-port writes to the SAME port from both cores
- *          are unsupported (they can combine into a value neither core
- *          requested) and must be serialized by the application; the
- *          set/clear based line and group APIs remain safe for
- *          concurrent use. Different ports are independent.
+ * @note    The latch read and XOR write are not one atomic step: a
+ *          full-port write must be serialized by the application against
+ *          ALL concurrent output updates to the SAME port - including
+ *          line/group set, clear and toggle - because an update landing
+ *          between the read and the XOR write is folded into a value
+ *          neither writer requested. The set/clear based APIs are only
+ *          atomic among themselves. Different ports are independent.
  */
 #define pal_lld_writeport(port, bits)                                       \
   do {                                                                      \
