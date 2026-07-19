@@ -81,6 +81,12 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- NEW: SB sandbox VFS root is now optional and explicitly externally owned.
+       sbSetFileSystem() is renamed sbSetRoot() and a matching sbGetRoot()
+       accessor is added. A NULL root is allowed, leaving the sandbox without
+       a path namespace while operations on registered file descriptors remain
+       available. Enabling the SB VFS support now requires
+       VFS_CFG_ENABLE_DRV_ROOT == TRUE (github PR #91).
 - NEW: RP2350 runtime clock switching (RP_CLOCK_DYNAMIC, default FALSE):
        real halClockSwitchMode() support with runtime-validated PLL_SYS
        configurations, flash-timing-safe reclocking with both cores kept
