@@ -189,7 +189,12 @@
 #define STM32_DMA3_REQ_RESERVED120          120U
 #define STM32_DMA3_REQ_RESERVED121          121U
 #define STM32_DMA3_REQ_RESERVED122          122U
+#if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
+    defined(STM32U5A9xx) || defined(__DOXYGEN__)
+#define STM32_DMA3_REQ_ADC2                 123U
+#else
 #define STM32_DMA3_REQ_RESERVED123          123U
+#endif
 #define STM32_DMA3_REQ_RESERVED124          124U
 #define STM32_DMA3_REQ_RESERVED125          125U
 

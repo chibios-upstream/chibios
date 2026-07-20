@@ -1,0 +1,95 @@
+STM32 ADCv8 driver.
+
+Intended scope:
+
+- Supports the STM32U5 14-bit ADC1/ADC2 cell through the HAL ADC API.
+- ADC4 is a separate 12-bit cell and is intentionally not supported here.
+- ADC1 is available on every STM32U5 device currently supported by the port.
+- ADC2 support is conditional on STM32_HAS_ADC2.
+
+Capability matrix for the STM32U5xx port:
+
+Device group                         ADC1  ADC2  IRQ vector  Common block
+STM32U575/585                        yes   no    ADC1        CCR only
+STM32U595/599/U5A5/U5A9              yes   yes   ADC1_2      full ADC12
+
+The CMSIS headers show the same hardware split in device groups not currently
+selected by stm32_registry.h:
+
+Device group                         ADC1  ADC2  IRQ vector  Common block
+STM32U535/545                        yes   no    ADC1        CCR only
+STM32U5F7/F9/U5G7/G9                 yes   yes   ADC1_2      full ADC12
+
+ADC1/ADC2 hardware contract:
+
+- ADC1 and ADC2 are 14-bit converters with 14, 12, 10 and 8-bit resolution
+  encodings. This differs from the U3 ADCv7 12, 10, 8 and 6-bit encodings.
+- The selectable sampling times are 5, 6, 12, 20, 36, 68, 391 and 814 ADC
+  clock cycles. The U3 ADCv7 sampling-time constants do not apply.
+- There are 20 channel numbers, zero through 19. Internal channels are VREFINT
+  on channel 0, VBAT/4 on channel 18 and the temperature sensor on channel 19.
+- Analog watchdog thresholds use the split LTR1/HTR1 through LTR3/HTR3
+  registers. Threshold values are 25 bits. HTR1 additionally contains the
+  AWDFILT field in bits 31 through 29.
+- ADC1 and ADC2 share their kernel clock, RCC enable/reset controls and common
+  ADC12 register block.
+- The common PRESC field divides the RCC ADCDAC kernel clock. ADCv8 checks the
+  resulting ADC12 clock against the active device limit; the RCC mux output is
+  not itself constrained to the ADC conversion-clock limit.
+- ADC1-only devices expose only the common CCR register. DUAL, DELAY, DAMDF,
+  CDR and CDR2 do not exist on those devices.
+- ADC2-capable devices expose the full common block and use one shared ADC1_2
+  interrupt vector. ADC1-only devices use an ADC1 interrupt at the same vector
+  number, 37.
+- ADC1 is always the master when a dual ADC mode is selected.
+- The temperature sensor enable bit is named ADC_CCR_VSENSEEN on STM32U5.
+- STM32U5 supports offset-only calibration and optional hardware linearity
+  calibration through ADCALLIN. ADCv8 performs combined linearity and offset
+  calibration after each transition out of deep-power-down mode.
+- ADCv8 polls LDORDY before calibration and uses the barriers recommended by
+  the RM around accesses to the calibration registers.
+- Differential channel selections are part of ADCConfig because DIFSEL can
+  only be changed while the ADC is disabled.
+- VREFINT, VSENSE and VBAT common controls temporarily disable all started
+  ADC12 instances because the common CCR fields are not writable while either
+  converter is enabled.
+
+DMA contract:
+
+- ADC1 uses the programmable GPDMA request adc1_dma, request number 0.
+- ADC2 uses the programmable GPDMA request adc2_dma, request number 123.
+- In independent operation each converter can transfer from its own ADC_DR
+  using its own DMA request and channel.
+- In dual operation ADCv8 uses one ADC1 DMA request and reads packed data from
+  ADC12_CDR. DAMDF selects half-word packing for 10 through 16-bit results and
+  byte packing for 8-bit results.
+- Dual modes producing values wider than 16 bits require ADC12_CDR2 and are out
+  of scope for the initial driver.
+- Dual configurations are limited to modes containing regular dual
+  conversions. Injected-only dual modes are incompatible with the driver's
+  single CDR DMA stream.
+
+HAL representation constraints:
+
+- Normal samples are uint16_t and compact samples are uint8_t, matching the
+  existing HAL ADC model.
+- Configurations producing post-oversampling results wider than 16 bits cannot
+  be represented by the initial driver and must be rejected or documented as
+  unsupported.
+- The conversion-group structure describes ADC1/ADC2 registers only. It must
+  not include ADC4 CHSELR or packed AWDxTR fields.
+
+Required registry contract:
+
+STM32_HAS_ADC1                  - ADC1 presence flag.
+STM32_HAS_ADC2                  - ADC2 presence flag.
+STM32_ADC12_HANDLER             - Shared ADC1/ADC2 IRQ vector name.
+STM32_ADC12_NUMBER              - Shared ADC1/ADC2 IRQ vector number.
+STM32_DMA3_REQ_ADC1             - ADC1 GPDMA request, value 0.
+STM32_DMA3_REQ_ADC2             - ADC2 GPDMA request, value 123 when present.
+
+Primary references:
+
+- RM0456 Rev 7, ADC12 chapter, including single and dual DMA operation.
+- RM0456 Rev 7, GPDMA request table 137.
+- STM32U5 CMSIS device headers, ADC_TypeDef and ADC_Common_TypeDef.

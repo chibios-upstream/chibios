@@ -1369,7 +1369,6 @@
     </clock>
     <clock point="ADCDAC" enable="auto" dynamic="no">
       <description>ADC and DAC clock</description>
-      <limits ref="ADCCLK" />
       <mux name="ADCDAC" field="RCC_CCIPR3_ADCDACSEL" offset="12U">
         <input point="HCLK" encoding="0U" default="yes" />
         <input point="SYSCLK" encoding="1U" />

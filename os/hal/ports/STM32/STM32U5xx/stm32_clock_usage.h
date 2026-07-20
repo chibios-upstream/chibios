@@ -204,6 +204,7 @@
 /* ADC/DAC clock requirement atoms.*/
 #if (defined(HAL_USE_ADC) && (HAL_USE_ADC == TRUE) &&                       \
     ((defined(STM32_ADC_USE_ADC1) && (STM32_ADC_USE_ADC1 == TRUE)) ||       \
+     (defined(STM32_ADC_USE_ADC2) && (STM32_ADC_USE_ADC2 == TRUE)) ||       \
      (defined(STM32_ADC_USE_ADC4) && (STM32_ADC_USE_ADC4 == TRUE)))) ||     \
     (defined(HAL_USE_DAC) && (HAL_USE_DAC == TRUE) &&                       \
     ((defined(STM32_DAC_USE_DAC1_CH1) &&                                    \

@@ -3608,29 +3608,17 @@
 /**
  * @brief   TIMICSEL_HSI16_SOURCE sink demand state.
  */
-#if (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK) || defined(__DOXYGEN__)
-  #define STM32_TIMICSEL_HSI16_SOURCE_DEMANDED TRUE
-#else
-  #define STM32_TIMICSEL_HSI16_SOURCE_DEMANDED FALSE
-#endif
+#define STM32_TIMICSEL_HSI16_SOURCE_DEMANDED (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK)
 
 /**
  * @brief   TIMICSEL_MSIS_SOURCE sink demand state.
  */
-#if (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK) || defined(__DOXYGEN__)
-  #define STM32_TIMICSEL_MSIS_SOURCE_DEMANDED TRUE
-#else
-  #define STM32_TIMICSEL_MSIS_SOURCE_DEMANDED FALSE
-#endif
+#define STM32_TIMICSEL_MSIS_SOURCE_DEMANDED (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK)
 
 /**
  * @brief   TIMICSEL_MSIK_SOURCE sink demand state.
  */
-#if (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK) || defined(__DOXYGEN__)
-  #define STM32_TIMICSEL_MSIK_SOURCE_DEMANDED TRUE
-#else
-  #define STM32_TIMICSEL_MSIK_SOURCE_DEMANDED FALSE
-#endif
+#define STM32_TIMICSEL_MSIK_SOURCE_DEMANDED (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK)
 
 /**
  * @brief   USB sink demand state.
@@ -9026,42 +9014,6 @@
 #else
   #define STM32_ADCDAC_FREQ                 0U
   #define STM32_ADCDAC_CLOCK                0U
-#endif
-
-#if !(!((STM32_ADCDAC_ENABLED == TRUE) &&                                   \
-      (STM32_CFG_ADCDAC_SEL == RCC_CCIPR3_ADCDACSEL_HCLK)) ||               \
-     (STM32_HCLK_FREQ <= STM32_ADCCLK_MAX)) && !defined(__DOXYGEN__)
-  #error "STM32_ADCDAC_FREQ above maximum frequency"
-#endif
-
-#if !(!((STM32_ADCDAC_ENABLED == TRUE) &&                                   \
-      (STM32_CFG_ADCDAC_SEL == RCC_CCIPR3_ADCDACSEL_SYSCLK)) ||             \
-     (STM32_SYSCLK_FREQ <= STM32_ADCCLK_MAX)) && !defined(__DOXYGEN__)
-  #error "STM32_ADCDAC_FREQ above maximum frequency"
-#endif
-
-#if !(!((STM32_ADCDAC_ENABLED == TRUE) &&                                   \
-      (STM32_CFG_ADCDAC_SEL == RCC_CCIPR3_ADCDACSEL_PLL2R)) ||              \
-     (STM32_PLL2R_FREQ <= STM32_ADCCLK_MAX)) && !defined(__DOXYGEN__)
-  #error "STM32_ADCDAC_FREQ above maximum frequency"
-#endif
-
-#if !(!((STM32_ADCDAC_ENABLED == TRUE) &&                                   \
-      (STM32_CFG_ADCDAC_SEL == RCC_CCIPR3_ADCDACSEL_HSE)) ||                \
-     (STM32_HSE_FREQ <= STM32_ADCCLK_MAX)) && !defined(__DOXYGEN__)
-  #error "STM32_ADCDAC_FREQ above maximum frequency"
-#endif
-
-#if !(!((STM32_ADCDAC_ENABLED == TRUE) &&                                   \
-      (STM32_CFG_ADCDAC_SEL == RCC_CCIPR3_ADCDACSEL_HSI16)) ||              \
-     (STM32_HSI16_FREQ <= STM32_ADCCLK_MAX)) && !defined(__DOXYGEN__)
-  #error "STM32_ADCDAC_FREQ above maximum frequency"
-#endif
-
-#if !(!((STM32_ADCDAC_ENABLED == TRUE) &&                                   \
-      (STM32_CFG_ADCDAC_SEL == RCC_CCIPR3_ADCDACSEL_MSIK)) ||               \
-     (STM32_MSIK_FREQ <= STM32_ADCCLK_MAX)) && !defined(__DOXYGEN__)
-  #error "STM32_ADCDAC_FREQ above maximum frequency"
 #endif
 
 /* --- Macros and checks for the DAC1SH clock point. -----------------------*/
