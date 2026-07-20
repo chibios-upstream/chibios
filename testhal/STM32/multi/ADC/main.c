@@ -42,7 +42,7 @@ adcsample_t samples2[CACHE_SIZE_ALIGN(adcsample_t, ADC_GRP2_NUM_CHANNELS * ADC_G
 /*
  * ADC streaming callback.
  */
-size_t n= 0, nx = 0, ny = 0;
+size_t n = 0, nx = 0, ny = 0;
 void adccallback(ADCDriver *adcp) {
 
   /* Updating counters.*/
@@ -80,7 +80,7 @@ void adcerrorcallback(ADCDriver *adcp, adcerror_t err) {
  * This is a periodic thread that does absolutely nothing except flashing
  * a LED attached to TP1.
  */
-static THD_WORKING_AREA(waThread1, 128);
+static THD_WORKING_AREA(waThread1, 256);
 static THD_FUNCTION(Thread1, arg) {
 
   (void)arg;

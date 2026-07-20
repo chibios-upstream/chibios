@@ -1,0 +1,1580 @@
+<clocktree
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/clocks/clocktree.xsd">
+  <settings>
+    <prefixes clock_points="CLK_" macros="STM32_" cfgs="STM32_CFG_" />
+    <suffixes frequency="_FREQ" clock="_CLOCK" values="_VALUE" bits="_BITS"
+              selector="_SEL" enable="_ENABLE" enabled="_ENABLED" />
+    <enums>
+      <enum name="RCC_ICSCR1_MSISRANGE" field="RCC_ICSCR1_MSISRANGE_Pos">
+        <item name="RANGE0_48M" value="0U" />
+        <item name="RANGE1_24M" value="1U" />
+        <item name="RANGE2_16M" value="2U" />
+        <item name="RANGE3_12M" value="3U" />
+        <item name="RANGE4_4M" value="4U" />
+        <item name="RANGE5_2M" value="5U" />
+        <item name="RANGE6_1333K" value="6U" />
+        <item name="RANGE7_1M" value="7U" />
+        <item name="RANGE8_3072K" value="8U" />
+        <item name="RANGE9_1536K" value="9U" />
+        <item name="RANGE10_1024K" value="10U" />
+        <item name="RANGE11_768K" value="11U" />
+        <item name="RANGE12_400K" value="12U" />
+        <item name="RANGE13_200K" value="13U" />
+        <item name="RANGE14_133K" value="14U" />
+        <item name="RANGE15_100K" value="15U" />
+      </enum>
+      <enum name="RCC_ICSCR1_MSIKRANGE" field="RCC_ICSCR1_MSIKRANGE_Pos">
+        <item name="RANGE0_48M" value="0U" />
+        <item name="RANGE1_24M" value="1U" />
+        <item name="RANGE2_16M" value="2U" />
+        <item name="RANGE3_12M" value="3U" />
+        <item name="RANGE4_4M" value="4U" />
+        <item name="RANGE5_2M" value="5U" />
+        <item name="RANGE6_1333K" value="6U" />
+        <item name="RANGE7_1M" value="7U" />
+        <item name="RANGE8_3072K" value="8U" />
+        <item name="RANGE9_1536K" value="9U" />
+        <item name="RANGE10_1024K" value="10U" />
+        <item name="RANGE11_768K" value="11U" />
+        <item name="RANGE12_400K" value="12U" />
+        <item name="RANGE13_200K" value="13U" />
+        <item name="RANGE14_133K" value="14U" />
+        <item name="RANGE15_100K" value="15U" />
+      </enum>
+      <enum name="RCC_ICSCR1_MSIBIAS" field="RCC_ICSCR1_MSIBIAS_Pos">
+        <item name="CONTINUOUS" value="0U" />
+        <item name="SAMPLING" value="1U" />
+      </enum>
+      <enum name="RCC_ICSCR1_MSIRGSEL" field="RCC_ICSCR1_MSIRGSEL_Pos">
+        <item name="CSR" value="0U" />
+        <item name="ICSCR1" value="1U" />
+      </enum>
+      <enum name="RCC_CFGR1_STOPWUCK" field="RCC_CFGR1_STOPWUCK_Pos">
+        <item name="MSIS" value="0U" />
+        <item name="HSI16" value="1U" />
+      </enum>
+      <enum name="RCC_CFGR1_STOPKERWUCK" field="RCC_CFGR1_STOPKERWUCK_Pos">
+        <item name="MSIK" value="0U" />
+        <item name="HSI16" value="1U" />
+      </enum>
+      <enum name="RCC_CCIPR1_TIMICSEL" field="RCC_CCIPR1_TIMICSEL_Pos">
+        <item name="NOCLOCK" value="0U" />
+        <item name="HSI256_MSIS1024_MSIS4" value="4U" />
+        <item name="HSI256_MSIS1024_MSIK4" value="5U" />
+        <item name="HSI256_MSIK1024_MSIS4" value="6U" />
+        <item name="HSI256_MSIK1024_MSIK4" value="7U" />
+      </enum>
+    </enums>
+    <definitions>
+      <define name="RCC_BDCR_LSIPREDIV_DIV1" value="0U" />
+      <define name="RCC_BDCR_LSIPREDIV_DIV128" value="RCC_BDCR_LSIPREDIV" />
+      <define name="RCC_BDCR_LSCOSEL_NOCLOCK" value="0U" />
+      <define name="RCC_BDCR_LSCOSEL_LSI" value="RCC_BDCR_LSCOEN" />
+      <define name="RCC_BDCR_LSCOSEL_LSE"
+              value="(RCC_BDCR_LSCOEN | RCC_BDCR_LSCOSEL)" />
+      <define name="RCC_PLL1CFGR_PLL1RGE_4TO8"
+              value="(2U &lt;&lt; RCC_PLL1CFGR_PLL1RGE_Pos)" />
+      <define name="RCC_PLL1CFGR_PLL1RGE_8TO16"
+              value="(3U &lt;&lt; RCC_PLL1CFGR_PLL1RGE_Pos)" />
+      <define name="RCC_PLL2CFGR_PLL2RGE_4TO8"
+              value="(2U &lt;&lt; RCC_PLL2CFGR_PLL2RGE_Pos)" />
+      <define name="RCC_PLL2CFGR_PLL2RGE_8TO16"
+              value="(3U &lt;&lt; RCC_PLL2CFGR_PLL2RGE_Pos)" />
+      <define name="RCC_PLL3CFGR_PLL3RGE_4TO8"
+              value="(2U &lt;&lt; RCC_PLL3CFGR_PLL3RGE_Pos)" />
+      <define name="RCC_PLL3CFGR_PLL3RGE_8TO16"
+              value="(3U &lt;&lt; RCC_PLL3CFGR_PLL3RGE_Pos)" />
+    </definitions>
+    <configs>
+      <config name="CLOCK_DYNAMIC" type="bool" default="FALSE"
+              role="dynamic_mode">
+        <description>Enables dynamic clock handling.</description>
+      </config>
+      <config name="PWR_VOSR" type="set" default="PWR_VOSR_VOS_RANGE1"
+              values="PWR_VOSR_VOS_RANGE1 PWR_VOSR_VOS_RANGE2 PWR_VOSR_VOS_RANGE3 PWR_VOSR_VOS_RANGE4">
+        <description>Selects the core voltage scaling range.</description>
+      </config>
+      <config name="LSI_PREDIV" type="set"
+              default="RCC_BDCR_LSIPREDIV_DIV1"
+              values="RCC_BDCR_LSIPREDIV_DIV1 RCC_BDCR_LSIPREDIV_DIV128">
+        <description>Selects the LSI oscillator output divider.</description>
+      </config>
+      <config name="AUDIOCLK" type="value" default="0U">
+        <description>Selects the external audio clock frequency.</description>
+      </config>
+      <config name="DSIPHYCLK" type="value" default="0U"
+              variants="U599,U5A9">
+        <description>Selects the DSI PHY PLL output frequency.</description>
+      </config>
+      <config name="MSIS_RANGE" type="set"
+              default="RCC_ICSCR1_MSISRANGE_RANGE0_48M"
+              values="RCC_ICSCR1_MSISRANGE_RANGE0_48M RCC_ICSCR1_MSISRANGE_RANGE1_24M RCC_ICSCR1_MSISRANGE_RANGE2_16M RCC_ICSCR1_MSISRANGE_RANGE3_12M RCC_ICSCR1_MSISRANGE_RANGE4_4M RCC_ICSCR1_MSISRANGE_RANGE5_2M RCC_ICSCR1_MSISRANGE_RANGE6_1333K RCC_ICSCR1_MSISRANGE_RANGE7_1M RCC_ICSCR1_MSISRANGE_RANGE8_3072K RCC_ICSCR1_MSISRANGE_RANGE9_1536K RCC_ICSCR1_MSISRANGE_RANGE10_1024K RCC_ICSCR1_MSISRANGE_RANGE11_768K RCC_ICSCR1_MSISRANGE_RANGE12_400K RCC_ICSCR1_MSISRANGE_RANGE13_200K RCC_ICSCR1_MSISRANGE_RANGE14_133K RCC_ICSCR1_MSISRANGE_RANGE15_100K">
+        <description>Selects the MSIS frequency range.</description>
+      </config>
+      <config name="MSIK_RANGE" type="set"
+              default="RCC_ICSCR1_MSIKRANGE_RANGE0_48M"
+              values="RCC_ICSCR1_MSIKRANGE_RANGE0_48M RCC_ICSCR1_MSIKRANGE_RANGE1_24M RCC_ICSCR1_MSIKRANGE_RANGE2_16M RCC_ICSCR1_MSIKRANGE_RANGE3_12M RCC_ICSCR1_MSIKRANGE_RANGE4_4M RCC_ICSCR1_MSIKRANGE_RANGE5_2M RCC_ICSCR1_MSIKRANGE_RANGE6_1333K RCC_ICSCR1_MSIKRANGE_RANGE7_1M RCC_ICSCR1_MSIKRANGE_RANGE8_3072K RCC_ICSCR1_MSIKRANGE_RANGE9_1536K RCC_ICSCR1_MSIKRANGE_RANGE10_1024K RCC_ICSCR1_MSIKRANGE_RANGE11_768K RCC_ICSCR1_MSIKRANGE_RANGE12_400K RCC_ICSCR1_MSIKRANGE_RANGE13_200K RCC_ICSCR1_MSIKRANGE_RANGE14_133K RCC_ICSCR1_MSIKRANGE_RANGE15_100K">
+        <description>Selects the MSIK frequency range.</description>
+      </config>
+      <config name="MSIBIAS" type="set"
+              default="RCC_ICSCR1_MSIBIAS_CONTINUOUS"
+              values="RCC_ICSCR1_MSIBIAS_CONTINUOUS RCC_ICSCR1_MSIBIAS_SAMPLING">
+        <description>Selects the MSI bias mode.</description>
+      </config>
+      <config name="TIMICSEL" type="set"
+              default="RCC_CCIPR1_TIMICSEL_NOCLOCK"
+              values="RCC_CCIPR1_TIMICSEL_NOCLOCK RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIS4 RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIK4 RCC_CCIPR1_TIMICSEL_HSI256_MSIK1024_MSIS4 RCC_CCIPR1_TIMICSEL_HSI256_MSIK1024_MSIK4">
+        <description>Selects the timer internal capture clock sources.</description>
+      </config>
+      <config name="STOPWUCK" type="set"
+              default="RCC_CFGR1_STOPWUCK_MSIS"
+              values="RCC_CFGR1_STOPWUCK_MSIS RCC_CFGR1_STOPWUCK_HSI16">
+        <description>Selects the system clock source after Stop mode.</description>
+      </config>
+      <config name="STOPKERWUCK" type="set"
+              default="RCC_CFGR1_STOPKERWUCK_MSIK"
+              values="RCC_CFGR1_STOPKERWUCK_MSIK RCC_CFGR1_STOPKERWUCK_HSI16">
+        <description>Selects the kernel clock source after Stop mode.</description>
+      </config>
+    </configs>
+    <derived-configs>
+      <derived-config name="MSISRC_SEL" type="expression"
+                      value="(STM32_CFG_MSIS_RANGE &amp; (12U &lt;&lt; RCC_ICSCR1_MSISRANGE_Pos))" />
+      <derived-config name="MSISDIV_VALUE" type="expression"
+                      value="((((STM32_CFG_MSIS_RANGE &gt;&gt; RCC_ICSCR1_MSISRANGE_Pos) &amp; 3U) + 1U))" />
+      <derived-config name="MSIKRC_SEL" type="expression"
+                      value="(STM32_CFG_MSIK_RANGE &amp; (12U &lt;&lt; RCC_ICSCR1_MSIKRANGE_Pos))" />
+      <derived-config name="MSIKDIV_VALUE" type="expression"
+                      value="((((STM32_CFG_MSIK_RANGE &gt;&gt; RCC_ICSCR1_MSIKRANGE_Pos) &amp; 3U) + 1U))" />
+    </derived-configs>
+    <asserts>
+      <assert name="USBPHYC_PLL1_SOURCE"
+              condition="((STM32_CFG_USBPHYC_SEL != RCC_CCIPR2_USBPHYCSEL_PLL1P) &amp;&amp;
+                          (STM32_CFG_USBPHYC_SEL != RCC_CCIPR2_USBPHYCSEL_PLL1PDIV2)) ||
+                         (STM32_CFG_PLL1IN_SEL == RCC_PLL1CFGR_PLL1SRC_HSE)"
+              message="PLL1 must use HSE when selected as OTG_HS PHY reference"
+              variants="U595,U599,U5A5,U5A9" />
+    </asserts>
+    <states>
+      <state name="vos1"
+             when="STM32_CFG_PWR_VOSR == PWR_VOSR_VOS_RANGE1" />
+      <state name="vos2"
+             when="STM32_CFG_PWR_VOSR == PWR_VOSR_VOS_RANGE2" />
+      <state name="vos3"
+             when="STM32_CFG_PWR_VOSR == PWR_VOSR_VOS_RANGE3" />
+      <state name="vos4"
+             when="STM32_CFG_PWR_VOSR == PWR_VOSR_VOS_RANGE4" />
+    </states>
+    <limit-set>
+      <limit name="HSECLK" min="yes" max="yes" />
+      <limit name="LSECLK" min="yes" max="yes" />
+      <limit name="PLLIN" min="yes" max="yes" />
+      <limit name="PLLVCO" min="yes" max="yes" />
+      <limit name="PLLP" min="yes" max="yes" />
+      <limit name="PLLQ" min="yes" max="yes" />
+      <limit name="PLLR" min="yes" max="yes" />
+      <limit name="SYSCLK" min="no" max="yes" />
+      <limit name="HCLK" min="no" max="yes" />
+      <limit name="PCLK1" min="no" max="yes" />
+      <limit name="PCLK2" min="no" max="yes" />
+      <limit name="PCLK3" min="no" max="yes" />
+      <limit name="ADCCLK" min="no" max="yes" />
+      <limit name="USBCLK" min="yes" max="yes" />
+      <limit name="SDMMCCLK" min="no" max="yes" />
+      <limit name="HSPICLK" min="no" max="yes" />
+      <limit name="FLASH_0WS" min="no" max="yes" />
+      <limit name="FLASH_1WS" min="no" max="yes" />
+      <limit name="FLASH_2WS" min="no" max="yes" />
+      <limit name="FLASH_3WS" min="no" max="yes" />
+      <limit name="FLASH_4WS" min="no" max="yes" />
+      <limit name="FLASH_5WS" min="no" max="yes" />
+      <limit name="FLASH_6WS" min="no" max="yes" />
+      <limit name="FLASH_7WS" min="no" max="yes" />
+      <limit name="FLASH_8WS" min="no" max="yes" />
+      <limit name="FLASH_9WS" min="no" max="yes" />
+      <limit name="FLASH_10WS" min="no" max="yes" />
+      <limit name="FLASH_11WS" min="no" max="yes" />
+      <limit name="FLASH_12WS" min="no" max="yes" />
+      <limit name="FLASH_13WS" min="no" max="yes" />
+      <limit name="FLASH_14WS" min="no" max="yes" />
+      <limit name="FLASH_15WS" min="no" max="yes" />
+    </limit-set>
+    <limit-values>
+      <state-values state="vos1">
+        <limit name="HSECLK">
+          <case when="defined(STM32_HSE_BYPASS)" min="4000000" max="50000000" />
+          <default min="4000000" max="50000000" />
+        </limit>
+        <limit name="LSECLK">
+          <case when="defined(STM32_LSE_BYPASS)" min="5000" max="40000" />
+          <default min="32768" max="32768" />
+        </limit>
+        <limit name="PLLIN" min="4000000" max="16000000" />
+        <limit name="PLLVCO" min="128000000" max="544000000" />
+        <limit name="PLLP" min="1000000" max="208000000" />
+        <limit name="PLLQ" min="1000000" max="208000000" />
+        <limit name="PLLR" min="1000000" max="208000000" />
+        <limit name="SYSCLK" max="160000000" />
+        <limit name="HCLK" max="160000000" />
+        <limit name="PCLK1" max="160000000" />
+        <limit name="PCLK2" max="160000000" />
+        <limit name="PCLK3" max="160000000" />
+        <limit name="ADCCLK" max="55000000" />
+        <limit name="USBCLK" min="47880000" max="48120000" />
+        <limit name="SDMMCCLK" max="208000000" />
+        <limit name="HSPICLK" max="200000000" />
+        <limit name="FLASH_0WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="32000000" />
+          <default max="10000000" />
+        </limit>
+        <limit name="FLASH_1WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="64000000" />
+          <default max="20000000" />
+        </limit>
+        <limit name="FLASH_2WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="96000000" />
+          <default max="30000000" />
+        </limit>
+        <limit name="FLASH_3WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="128000000" />
+          <default max="40000000" />
+        </limit>
+        <limit name="FLASH_4WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="160000000" />
+          <default max="50000000" />
+        </limit>
+        <limit name="FLASH_5WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="60000000" />
+        </limit>
+        <limit name="FLASH_6WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="70000000" />
+        </limit>
+        <limit name="FLASH_7WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="80000000" />
+        </limit>
+        <limit name="FLASH_8WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="90000000" />
+        </limit>
+        <limit name="FLASH_9WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="100000000" />
+        </limit>
+        <limit name="FLASH_10WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="110000000" />
+        </limit>
+        <limit name="FLASH_11WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="120000000" />
+        </limit>
+        <limit name="FLASH_12WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="130000000" />
+        </limit>
+        <limit name="FLASH_13WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="140000000" />
+        </limit>
+        <limit name="FLASH_14WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="150000000" />
+        </limit>
+        <limit name="FLASH_15WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="160000000" />
+        </limit>
+      </state-values>
+      <state-values state="vos2">
+        <limit name="HSECLK">
+          <case when="defined(STM32_HSE_BYPASS)" min="4000000" max="50000000" />
+          <default min="4000000" max="50000000" />
+        </limit>
+        <limit name="LSECLK">
+          <case when="defined(STM32_LSE_BYPASS)" min="5000" max="40000" />
+          <default min="32768" max="32768" />
+        </limit>
+        <limit name="PLLIN" min="4000000" max="16000000" />
+        <limit name="PLLVCO" min="128000000" max="544000000" />
+        <limit name="PLLP" min="1000000" max="110000000" />
+        <limit name="PLLQ" min="1000000" max="110000000" />
+        <limit name="PLLR" min="1000000" max="110000000" />
+        <limit name="SYSCLK" max="110000000" />
+        <limit name="HCLK" max="110000000" />
+        <limit name="PCLK1" max="110000000" />
+        <limit name="PCLK2" max="110000000" />
+        <limit name="PCLK3" max="110000000" />
+        <limit name="ADCCLK" max="55000000" />
+        <limit name="USBCLK" min="47880000" max="48120000" />
+        <limit name="SDMMCCLK" max="208000000" />
+        <limit name="HSPICLK" max="200000000" />
+        <limit name="FLASH_0WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="30000000" />
+          <default max="10000000" />
+        </limit>
+        <limit name="FLASH_1WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="60000000" />
+          <default max="20000000" />
+        </limit>
+        <limit name="FLASH_2WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="90000000" />
+          <default max="30000000" />
+        </limit>
+        <limit name="FLASH_3WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="110000000" />
+          <default max="40000000" />
+        </limit>
+        <limit name="FLASH_4WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="50000000" />
+        </limit>
+        <limit name="FLASH_5WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="60000000" />
+        </limit>
+        <limit name="FLASH_6WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="70000000" />
+        </limit>
+        <limit name="FLASH_7WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="80000000" />
+        </limit>
+        <limit name="FLASH_8WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="90000000" />
+        </limit>
+        <limit name="FLASH_9WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="100000000" />
+        </limit>
+        <limit name="FLASH_10WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="110000000" />
+        </limit>
+        <limit name="FLASH_11WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="110000000" />
+        </limit>
+        <limit name="FLASH_12WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="110000000" />
+        </limit>
+        <limit name="FLASH_13WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="110000000" />
+        </limit>
+        <limit name="FLASH_14WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="110000000" />
+        </limit>
+        <limit name="FLASH_15WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="110000000" />
+        </limit>
+      </state-values>
+      <state-values state="vos3">
+        <limit name="HSECLK">
+          <case when="defined(STM32_HSE_BYPASS)" min="4000000" max="50000000" />
+          <default min="4000000" max="50000000" />
+        </limit>
+        <limit name="LSECLK">
+          <case when="defined(STM32_LSE_BYPASS)" min="5000" max="40000" />
+          <default min="32768" max="32768" />
+        </limit>
+        <limit name="PLLIN" min="4000000" max="16000000" />
+        <limit name="PLLVCO" min="128000000" max="330000000" />
+        <limit name="PLLP" min="1000000" max="55000000" />
+        <limit name="PLLQ" min="1000000" max="55000000" />
+        <limit name="PLLR" min="1000000" max="55000000" />
+        <limit name="SYSCLK" max="55000000" />
+        <limit name="HCLK" max="55000000" />
+        <limit name="PCLK1" max="55000000" />
+        <limit name="PCLK2" max="55000000" />
+        <limit name="PCLK3" max="55000000" />
+        <limit name="ADCCLK" max="55000000" />
+        <limit name="USBCLK" min="47880000" max="48120000" />
+        <limit name="SDMMCCLK" max="208000000" />
+        <limit name="HSPICLK" max="200000000" />
+        <limit name="FLASH_0WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="24000000" />
+          <default max="10000000" />
+        </limit>
+        <limit name="FLASH_1WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="48000000" />
+          <default max="20000000" />
+        </limit>
+        <limit name="FLASH_2WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="55000000" />
+          <default max="30000000" />
+        </limit>
+        <limit name="FLASH_3WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="40000000" />
+        </limit>
+        <limit name="FLASH_4WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="50000000" />
+        </limit>
+        <limit name="FLASH_5WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+        <limit name="FLASH_6WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+        <limit name="FLASH_7WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+        <limit name="FLASH_8WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+        <limit name="FLASH_9WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+        <limit name="FLASH_10WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+        <limit name="FLASH_11WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+        <limit name="FLASH_12WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+        <limit name="FLASH_13WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+        <limit name="FLASH_14WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+        <limit name="FLASH_15WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="55000000" />
+        </limit>
+      </state-values>
+      <state-values state="vos4">
+        <limit name="HSECLK">
+          <case when="defined(STM32_HSE_BYPASS)" min="4000000" max="25000000" />
+          <default min="4000000" max="25000000" />
+        </limit>
+        <limit name="LSECLK">
+          <case when="defined(STM32_LSE_BYPASS)" min="5000" max="40000" />
+          <default min="32768" max="32768" />
+        </limit>
+        <limit name="PLLIN" min="0" max="0" />
+        <limit name="PLLVCO" min="0" max="0" />
+        <limit name="PLLP" min="0" max="0" />
+        <limit name="PLLQ" min="0" max="0" />
+        <limit name="PLLR" min="0" max="0" />
+        <limit name="SYSCLK" max="25000000" />
+        <limit name="HCLK" max="25000000" />
+        <limit name="PCLK1" max="25000000" />
+        <limit name="PCLK2" max="25000000" />
+        <limit name="PCLK3" max="25000000" />
+        <limit name="ADCCLK" max="25000000" />
+        <limit name="USBCLK" min="47880000" max="48120000" />
+        <limit name="SDMMCCLK" max="208000000" />
+        <limit name="HSPICLK" max="200000000" />
+        <limit name="FLASH_0WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="12000000" />
+          <default max="8000000" />
+        </limit>
+        <limit name="FLASH_1WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="25000000" />
+          <default max="16000000" />
+        </limit>
+        <limit name="FLASH_2WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="25000000" />
+        </limit>
+        <limit name="FLASH_3WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_4WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_5WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_6WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_7WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_8WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_9WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_10WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_11WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_12WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_13WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_14WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+        <limit name="FLASH_15WS">
+          <case when="((STM32_FLASH_ACR &amp; FLASH_ACR_LPM) == 0)" max="0" />
+          <default max="0" />
+        </limit>
+      </state-values>
+    </limit-values>
+  </settings>
+  <variants>
+    <variant name="U575" condition="defined(STM32U575xx)" />
+    <variant name="U585" condition="defined(STM32U585xx)" />
+    <variant name="U595" condition="defined(STM32U595xx)" />
+    <variant name="U599" condition="defined(STM32U599xx)" />
+    <variant name="U5A5" condition="defined(STM32U5A5xx)" />
+    <variant name="U5A9" condition="defined(STM32U5A9xx)" />
+  </variants>
+  <sources>
+    <source point="NONE" enable="never" dynamic="no" frequency="0U">
+      <description>pseudo-clock for disabled sources</description>
+    </source>
+    <source point="AUDIOCLK" enable="always" dynamic="no"
+            frequency="STM32_CFG_AUDIOCLK">
+      <description>external audio clock</description>
+    </source>
+    <source point="DSIPHY" enable="auto" dynamic="no"
+            frequency="STM32_CFG_DSIPHYCLK" variants="U599,U5A9">
+      <description>DSI PHY PLL output clock</description>
+    </source>
+    <source point="HSI16" enable="manual" dynamic="yes" frequency="16000000U">
+      <description>16 MHz high speed internal oscillator</description>
+      <bits target="CR" enabled="(RCC_CR_HSION | RCC_CR_HSIKERON)" disabled="0U" />
+    </source>
+    <source point="HSI48" enable="manual" default="TRUE" dynamic="yes"
+            frequency="48000000U">
+      <description>48 MHz high speed internal oscillator</description>
+      <bits target="CR" enabled="RCC_CR_HSI48ON" disabled="0U" />
+    </source>
+    <source point="SHSI" enable="manual" dynamic="yes" frequency="48000000U">
+      <description>48 MHz secure high speed internal oscillator</description>
+      <bits target="CR" enabled="RCC_CR_SHSION" disabled="0U" />
+    </source>
+    <source point="HSE" enable="manual" dynamic="yes" frequency="STM32_HSECLK">
+      <description>high speed external oscillator</description>
+      <bits target="CR" enabled="(RCC_CR_HSEON | STM32_HSE_MODE_BITS)" disabled="0U" />
+      <limits ref="HSECLK" />
+    </source>
+    <source point="LSE" enable="manual" dynamic="no" frequency="STM32_LSECLK">
+      <description>low speed external oscillator</description>
+      <bits target="BDCR" enabled="(RCC_BDCR_LSEON | STM32_LSE_MODE_BITS)" disabled="0U" />
+      <limits ref="LSECLK" />
+    </source>
+    <source point="LSI" enable="manual" dynamic="no">
+      <description>low speed internal oscillator</description>
+      <bits target="BDCR" enabled="(RCC_BDCR_LSION | STM32_CFG_LSI_PREDIV)" disabled="0U" />
+      <frequencies>
+        <select>
+          <when condition="STM32_CFG_LSI_PREDIV == RCC_BDCR_LSIPREDIV_DIV128"
+                value="250U" />
+          <otherwise value="32000U" />
+        </select>
+      </frequencies>
+    </source>
+    <source point="MSIRC0" enable="auto" dynamic="no" frequency="48000000U">
+      <description>48 MHz internal MSI RC oscillator</description>
+    </source>
+    <source point="MSIRC1" enable="auto" dynamic="no" frequency="4000000U">
+      <description>4 MHz internal MSI RC oscillator</description>
+    </source>
+    <source point="MSIRC2" enable="auto" dynamic="no" frequency="3072000U">
+      <description>3.072 MHz internal MSI RC oscillator</description>
+    </source>
+    <source point="MSIRC3" enable="auto" dynamic="no" frequency="400000U">
+      <description>400 kHz internal MSI RC oscillator</description>
+    </source>
+  </sources>
+  <clocks>
+    <clock point="MSISRC" enable="auto" dynamic="no">
+      <description>MSIS internal RC selection</description>
+      <mux name="MSISRC" field="RCC_ICSCR1_MSISRANGE" offset="28U"
+           setting="STM32_DCFG_MSISRC_SEL">
+        <input point="MSIRC0" encoding="0U" />
+        <input point="MSIRC1" encoding="4U" default="yes" />
+        <input point="MSIRC2" encoding="8U" />
+        <input point="MSIRC3" encoding="12U" />
+      </mux>
+    </clock>
+    <clock point="MSISDIV" enable="auto" dynamic="no">
+      <description>MSIS range divider</description>
+      <divider name="MSISDIV" input="MSISRC" field="RCC_ICSCR1_MSISRANGE"
+               offset="28U" setting="STM32_DCFG_MSISDIV_VALUE">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="1U" />
+          <choice item="DIV3" value="3" encoding="2U" />
+          <choice item="DIV4" value="4" encoding="3U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="MSIS" enable="auto" dynamic="yes">
+      <description>MSI system oscillator</description>
+      <bits target="CR" enabled="RCC_CR_MSISON" disabled="0U" />
+      <bits target="ICSCR1" enabled="(RCC_ICSCR1_MSIRGSEL_ICSCR1 | STM32_CFG_MSIBIAS)" disabled="0U" />
+      <derived input="MSISDIV" frequency="%I%" />
+    </clock>
+    <clock point="MSIKRC" enable="auto" dynamic="no">
+      <description>MSIK internal RC selection</description>
+      <mux name="MSIKRC" field="RCC_ICSCR1_MSIKRANGE" offset="24U"
+           setting="STM32_DCFG_MSIKRC_SEL">
+        <input point="MSIRC0" encoding="0U" />
+        <input point="MSIRC1" encoding="4U" default="yes" />
+        <input point="MSIRC2" encoding="8U" />
+        <input point="MSIRC3" encoding="12U" />
+      </mux>
+    </clock>
+    <clock point="MSIKDIV" enable="auto" dynamic="no">
+      <description>MSIK range divider</description>
+      <divider name="MSIKDIV" input="MSIKRC" field="RCC_ICSCR1_MSIKRANGE"
+               offset="24U" setting="STM32_DCFG_MSIKDIV_VALUE">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="1U" />
+          <choice item="DIV3" value="3" encoding="2U" />
+          <choice item="DIV4" value="4" encoding="3U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="MSIK" enable="auto" dynamic="yes">
+      <description>MSI kernel oscillator</description>
+      <bits target="CR" enabled="RCC_CR_MSIKON" disabled="0U" />
+      <bits target="ICSCR1" enabled="(RCC_ICSCR1_MSIRGSEL_ICSCR1 | STM32_CFG_MSIBIAS)" disabled="0U" />
+      <derived input="MSIKDIV" frequency="%I%" />
+    </clock>
+    <clock point="PLL1IN" enable="auto" dynamic="yes" private="true">
+      <description>PLL1 input clock</description>
+      <mux name="PLL1SRC" field="RCC_PLL1CFGR_PLL1SRC" offset="0U">
+        <input point="NONE" label="NOCLOCK" encoding="0U" />
+        <input point="MSIS" encoding="1U" default="yes" />
+        <input point="HSI16" encoding="2U" />
+        <input point="HSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="PLL1REF" enable="auto" dynamic="yes" private="true">
+      <description>PLL1 reference clock</description>
+      <limits ref="PLLIN" />
+      <divider name="PLL1M" input="PLL1IN">
+        <value min="1" max="16" default="3">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL1CFGR_PLL1M_Pos) | (((STM32_PLL1REF_FREQ) &gt; 8000000U) ? RCC_PLL1CFGR_PLL1RGE_8TO16 : RCC_PLL1CFGR_PLL1RGE_4TO8)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="PLL1VCO" enable="auto" dynamic="yes" private="true">
+      <description>PLL1 VCO clock</description>
+      <limits ref="PLLVCO" />
+      <multiplier name="PLL1N" input="PLL1REF">
+        <value min="4" max="136" default="10">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL1DIVR_PLL1N_Pos)" />
+        </value>
+      </multiplier>
+    </clock>
+    <clock point="PLL1P" enable="auto" dynamic="yes">
+      <description>PLL1 P output clock</description>
+      <limits ref="PLLP" />
+      <divider name="PLL1P" input="PLL1VCO">
+        <value min="1" max="128" default="1">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL1DIVR_PLL1P_Pos)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="PLL1Q" enable="auto" dynamic="yes">
+      <description>PLL1 Q output clock</description>
+      <limits ref="PLLQ" />
+      <divider name="PLL1Q" input="PLL1VCO">
+        <value min="1" max="128" default="1">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL1DIVR_PLL1Q_Pos)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="PLL1R" enable="auto" dynamic="yes">
+      <description>PLL1 R output clock</description>
+      <limits ref="PLLR" />
+      <divider name="PLL1R" input="PLL1VCO">
+        <set values="1 2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32 34 36 38 40 42 44 46 48 50 52 54 56 58 60 62 64 66 68 70 72 74 76 78 80 82 84 86 88 90 92 94 96 98 100 102 104 106 108 110 112 114 116 118 120 122 124 126 128" default="1">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL1DIVR_PLL1R_Pos)" />
+        </set>
+      </divider>
+    </clock>
+    <clock point="PLL2IN" enable="auto" dynamic="yes" private="true">
+      <description>PLL2 input clock</description>
+      <mux name="PLL2SRC" field="RCC_PLL2CFGR_PLL2SRC" offset="0U">
+        <input point="NONE" label="NOCLOCK" encoding="0U" />
+        <input point="MSIS" encoding="1U" default="yes" />
+        <input point="HSI16" encoding="2U" />
+        <input point="HSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="PLL2REF" enable="auto" dynamic="yes" private="true">
+      <description>PLL2 reference clock</description>
+      <limits ref="PLLIN" />
+      <divider name="PLL2M" input="PLL2IN">
+        <value min="1" max="16" default="1">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL2CFGR_PLL2M_Pos) | (((STM32_PLL2REF_FREQ) &gt; 8000000U) ? RCC_PLL2CFGR_PLL2RGE_8TO16 : RCC_PLL2CFGR_PLL2RGE_4TO8)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="PLL2VCO" enable="auto" dynamic="yes" private="true">
+      <description>PLL2 VCO clock</description>
+      <limits ref="PLLVCO" />
+      <multiplier name="PLL2N" input="PLL2REF">
+        <value min="4" max="136" default="32">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL2DIVR_PLL2N_Pos)" />
+        </value>
+      </multiplier>
+    </clock>
+    <clock point="PLL2P" enable="auto" dynamic="yes">
+      <description>PLL2 P output clock</description>
+      <limits ref="PLLP" />
+      <divider name="PLL2P" input="PLL2VCO">
+        <value min="1" max="128" default="4">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL2DIVR_PLL2P_Pos)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="PLL2Q" enable="auto" dynamic="yes">
+      <description>PLL2 Q output clock</description>
+      <limits ref="PLLQ" />
+      <divider name="PLL2Q" input="PLL2VCO">
+        <value min="1" max="128" default="4">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL2DIVR_PLL2Q_Pos)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="PLL2R" enable="auto" dynamic="yes">
+      <description>PLL2 R output clock</description>
+      <limits ref="PLLR" />
+      <divider name="PLL2R" input="PLL2VCO">
+        <value min="1" max="128" default="4">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL2DIVR_PLL2R_Pos)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="PLL3IN" enable="auto" dynamic="yes" private="true">
+      <description>PLL3 input clock</description>
+      <mux name="PLL3SRC" field="RCC_PLL3CFGR_PLL3SRC" offset="0U">
+        <input point="NONE" label="NOCLOCK" encoding="0U" />
+        <input point="MSIS" encoding="1U" default="yes" />
+        <input point="HSI16" encoding="2U" />
+        <input point="HSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="PLL3REF" enable="auto" dynamic="yes" private="true">
+      <description>PLL3 reference clock</description>
+      <limits ref="PLLIN" />
+      <divider name="PLL3M" input="PLL3IN">
+        <value min="1" max="16" default="1">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL3CFGR_PLL3M_Pos) | (((STM32_PLL3REF_FREQ) &gt; 8000000U) ? RCC_PLL3CFGR_PLL3RGE_8TO16 : RCC_PLL3CFGR_PLL3RGE_4TO8)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="PLL3VCO" enable="auto" dynamic="yes" private="true">
+      <description>PLL3 VCO clock</description>
+      <limits ref="PLLVCO" />
+      <multiplier name="PLL3N" input="PLL3REF">
+        <value min="4" max="136" default="32">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL3DIVR_PLL3N_Pos)" />
+        </value>
+      </multiplier>
+    </clock>
+    <clock point="PLL3P" enable="auto" dynamic="yes">
+      <description>PLL3 P output clock</description>
+      <limits ref="PLLP" />
+      <divider name="PLL3P" input="PLL3VCO">
+        <value min="1" max="128" default="4">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL3DIVR_PLL3P_Pos)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="PLL3Q" enable="auto" dynamic="yes">
+      <description>PLL3 Q output clock</description>
+      <limits ref="PLLQ" />
+      <divider name="PLL3Q" input="PLL3VCO">
+        <value min="1" max="128" default="4">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL3DIVR_PLL3Q_Pos)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="PLL3R" enable="auto" dynamic="yes">
+      <description>PLL3 R output clock</description>
+      <limits ref="PLLR" />
+      <divider name="PLL3R" input="PLL3VCO">
+        <value min="1" max="128" default="4">
+          <bits value="((%N% - 1U) &lt;&lt; RCC_PLL3DIVR_PLL3R_Pos)" />
+        </value>
+      </divider>
+    </clock>
+    <clock point="SYSCLK" enable="always" dynamic="yes">
+      <description>system clock</description>
+      <limits ref="SYSCLK" />
+      <mux name="SW" field="RCC_CFGR1_SW" offset="0U">
+        <input point="MSIS" encoding="0U" />
+        <input point="HSI16" encoding="1U" />
+        <input point="HSE" encoding="2U" />
+        <input point="PLL1R" encoding="3U" default="yes" />
+      </mux>
+    </clock>
+    <clock point="HCLK" enable="always" dynamic="yes">
+      <description>AHB clock</description>
+      <limits ref="HCLK" />
+      <divider name="HPRE" input="SYSCLK" field="RCC_CFGR2_HPRE"
+               offset="0U">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="8U" />
+          <choice item="DIV4" value="4" encoding="9U" />
+          <choice item="DIV8" value="8" encoding="10U" />
+          <choice item="DIV16" value="16" encoding="11U" />
+          <choice item="DIV64" value="64" encoding="12U" />
+          <choice item="DIV128" value="128" encoding="13U" />
+          <choice item="DIV256" value="256" encoding="14U" />
+          <choice item="DIV512" value="512" encoding="15U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="PCLK1" enable="always" dynamic="yes">
+      <description>APB1 clock</description>
+      <limits ref="PCLK1" />
+      <divider name="PPRE1" input="HCLK" field="RCC_CFGR2_PPRE1"
+               offset="4U">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="4U" />
+          <choice item="DIV4" value="4" encoding="5U" />
+          <choice item="DIV8" value="8" encoding="6U" />
+          <choice item="DIV16" value="16" encoding="7U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="PCLK1TIM" enable="always" dynamic="yes">
+      <description>APB1 timer clock</description>
+      <derived input="PCLK1"
+               frequency="((STM32_CFG_PCLK1_VALUE == 1) ? %I% : (%I% * 2U))" />
+    </clock>
+    <clock point="PCLK2" enable="always" dynamic="yes">
+      <description>APB2 clock</description>
+      <limits ref="PCLK2" />
+      <divider name="PPRE2" input="HCLK" field="RCC_CFGR2_PPRE2"
+               offset="8U">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="4U" />
+          <choice item="DIV4" value="4" encoding="5U" />
+          <choice item="DIV8" value="8" encoding="6U" />
+          <choice item="DIV16" value="16" encoding="7U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="PCLK2TIM" enable="always" dynamic="yes">
+      <description>APB2 timer clock</description>
+      <derived input="PCLK2"
+               frequency="((STM32_CFG_PCLK2_VALUE == 1) ? %I% : (%I% * 2U))" />
+    </clock>
+    <clock point="PCLK3" enable="always" dynamic="yes">
+      <description>APB3 clock</description>
+      <limits ref="PCLK3" />
+      <divider name="PPRE3" input="HCLK" field="RCC_CFGR3_PPRE3"
+               offset="4U">
+        <choices default="1">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="4U" />
+          <choice item="DIV4" value="4" encoding="5U" />
+          <choice item="DIV8" value="8" encoding="6U" />
+          <choice item="DIV16" value="16" encoding="7U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="DPHY" enable="always" dynamic="no" private="true"
+           variants="U599,U5A9">
+      <description>DSI PHY bus clock</description>
+      <divider name="DPRE" input="HCLK" field="RCC_CFGR2_PPRE_DPHY"
+               offset="12U">
+        <choices default="8">
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="4U" />
+          <choice item="DIV4" value="4" encoding="5U" />
+          <choice item="DIV8" value="8" encoding="6U" />
+          <choice item="DIV16" value="16" encoding="7U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="HSEDIV" enable="auto" dynamic="no">
+      <description>HSE divided-by-32 RTC clock</description>
+      <derived input="HSE" frequency="(%I% / 32U)" />
+    </clock>
+    <clock point="MCODIV" enable="always" dynamic="no">
+      <description>MCO selected source before prescaler</description>
+      <mux name="MCO" field="RCC_CFGR1_MCOSEL" offset="24U">
+        <input point="NONE" label="NOCLOCK" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="MSIS" encoding="2U" />
+        <input point="HSI16" encoding="3U" />
+        <input point="HSE" encoding="4U" />
+        <input point="PLL1R" encoding="5U" />
+        <input point="LSI" encoding="6U" />
+        <input point="LSE" encoding="7U" />
+        <input point="HSI48" encoding="8U" />
+        <input point="MSIK" encoding="9U" />
+      </mux>
+    </clock>
+    <clock point="MCO" enable="always" dynamic="yes">
+      <description>MCO output pin</description>
+      <divider name="MCOPRE" input="MCODIV" field="RCC_CFGR1_MCOPRE"
+               offset="28U">
+        <choices>
+          <choice item="DIV1" value="1" encoding="0U" />
+          <choice item="DIV2" value="2" encoding="1U" />
+          <choice item="DIV4" value="4" encoding="2U" />
+          <choice item="DIV8" value="8" encoding="3U" />
+          <choice item="DIV16" value="16" encoding="4U" />
+        </choices>
+      </divider>
+    </clock>
+    <clock point="LSESYS" enable="auto" dynamic="no">
+      <description>LSE system clock</description>
+      <bits target="BDCR" enabled="RCC_BDCR_LSESYSEN" disabled="0U" />
+      <derived input="LSE" frequency="%I%" />
+    </clock>
+    <clock point="RTC" enable="always" dynamic="no">
+      <description>RTC and TAMP clock</description>
+      <mux name="RTC" field="RCC_BDCR_RTCSEL" offset="8U">
+        <input point="NONE" label="NOCLOCK" encoding="0U" default="yes" />
+        <input point="LSE" encoding="1U" />
+        <input point="LSI" encoding="2U" />
+        <input point="HSEDIV" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="LSCO" enable="always" dynamic="no">
+      <description>LSCO output pin</description>
+      <mux name="LSCOSEL">
+        <input point="NONE" label="NOCLOCK" default="yes">
+          <bits value="RCC_BDCR_LSCOSEL_NOCLOCK" />
+        </input>
+        <input point="LSI">
+          <bits value="RCC_BDCR_LSCOSEL_LSI" />
+        </input>
+        <input point="LSESYS" label="LSE">
+          <bits value="RCC_BDCR_LSCOSEL_LSE" />
+        </input>
+      </mux>
+    </clock>
+    <clock point="USART1" enable="auto" dynamic="no">
+      <description>USART1 clock</description>
+      <mux name="USART1" field="RCC_CCIPR1_USART1SEL" offset="0U">
+        <input point="PCLK2" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="LSESYS" label="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="USART2" enable="auto" dynamic="no">
+      <description>USART2 clock</description>
+      <mux name="USART2" field="RCC_CCIPR1_USART2SEL" offset="2U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="LSESYS" label="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="USART3" enable="auto" dynamic="no">
+      <description>USART3 clock</description>
+      <mux name="USART3" field="RCC_CCIPR1_USART3SEL" offset="4U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="LSESYS" label="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="UART4" enable="auto" dynamic="no">
+      <description>UART4 clock</description>
+      <mux name="UART4" field="RCC_CCIPR1_UART4SEL" offset="6U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="LSESYS" label="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="UART5" enable="auto" dynamic="no">
+      <description>UART5 clock</description>
+      <mux name="UART5" field="RCC_CCIPR1_UART5SEL" offset="8U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="LSESYS" label="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="USART6" enable="auto" dynamic="no"
+           variants="U595,U599,U5A5,U5A9">
+      <description>USART6 clock</description>
+      <mux name="USART6" field="RCC_CCIPR2_USART6SEL" offset="16U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="LSESYS" label="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="LPUART1" enable="auto" dynamic="no">
+      <description>LPUART1 clock</description>
+      <mux name="LPUART1" field="RCC_CCIPR3_LPUART1SEL" offset="0U">
+        <input point="PCLK3" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="LSESYS" label="LSE" encoding="3U" />
+        <input point="MSIK" encoding="4U" />
+      </mux>
+    </clock>
+    <clock point="I2C1" enable="auto" dynamic="no">
+      <description>I2C1 clock</description>
+      <mux name="I2C1" field="RCC_CCIPR1_I2C1SEL" offset="10U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="MSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="I2C2" enable="auto" dynamic="no">
+      <description>I2C2 clock</description>
+      <mux name="I2C2" field="RCC_CCIPR1_I2C2SEL" offset="12U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="MSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="I2C4" enable="auto" dynamic="no">
+      <description>I2C4 clock</description>
+      <mux name="I2C4" field="RCC_CCIPR1_I2C4SEL" offset="14U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="MSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="I2C5" enable="auto" dynamic="no"
+           variants="U595,U599,U5A5,U5A9">
+      <description>I2C5 clock</description>
+      <mux name="I2C5" field="RCC_CCIPR2_I2C5SEL" offset="24U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="MSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="I2C6" enable="auto" dynamic="no"
+           variants="U595,U599,U5A5,U5A9">
+      <description>I2C6 clock</description>
+      <mux name="I2C6" field="RCC_CCIPR2_I2C6SEL" offset="26U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="MSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="I2C3" enable="auto" dynamic="no">
+      <description>I2C3 clock</description>
+      <mux name="I2C3" field="RCC_CCIPR3_I2C3SEL" offset="6U">
+        <input point="PCLK3" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="MSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="SPI1" enable="auto" dynamic="no">
+      <description>SPI1 clock</description>
+      <mux name="SPI1" field="RCC_CCIPR1_SPI1SEL" offset="20U">
+        <input point="PCLK2" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="MSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="SPI2" enable="auto" dynamic="no">
+      <description>SPI2 clock</description>
+      <mux name="SPI2" field="RCC_CCIPR1_SPI2SEL" offset="16U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="MSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="SPI3" enable="auto" dynamic="no">
+      <description>SPI3 clock</description>
+      <mux name="SPI3" field="RCC_CCIPR3_SPI3SEL" offset="3U">
+        <input point="PCLK3" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="MSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="FDCAN1" enable="auto" dynamic="no">
+      <description>FDCAN1 clock</description>
+      <mux name="FDCAN1" field="RCC_CCIPR1_FDCANSEL" offset="24U">
+        <input point="HSE" encoding="0U" default="yes" />
+        <input point="PLL1Q" encoding="1U" />
+        <input point="PLL2P" encoding="2U" />
+        <inactive label="IGNORE" value="0xFFFFFFFFU" bits="0U"
+                  when="STM32_FDCAN1_ENABLED == FALSE" />
+      </mux>
+    </clock>
+    <clock point="HCLKDIV8" enable="auto" dynamic="no">
+      <description>HCLK divided by 8 clock</description>
+      <derived input="HCLK" frequency="(%I% / 8U)" />
+    </clock>
+    <clock point="SYSTICK" enable="auto" dynamic="no">
+      <description>SysTick clock</description>
+      <mux name="SYSTICK" field="RCC_CCIPR1_SYSTICKSEL" offset="22U">
+        <input point="HCLKDIV8" encoding="0U" default="yes" />
+        <input point="LSI" encoding="1U" />
+        <input point="LSESYS" label="LSE" encoding="2U" />
+        <inactive label="IGNORE" value="0xFFFFFFFFU" bits="0U"
+                  when="STM32_SYSTICK_ENABLED == FALSE" />
+      </mux>
+    </clock>
+    <clock point="TIM16IC" enable="always" dynamic="no">
+      <description>TIM16 internal capture clock</description>
+      <derived>
+        <frequencies>
+          <select>
+            <when condition="STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_NOCLOCK"
+                  value="0U" />
+            <otherwise value="(STM32_HSI16_FREQ / 256U)" />
+          </select>
+        </frequencies>
+      </derived>
+    </clock>
+    <clock point="TIM17IC" enable="always" dynamic="no">
+      <description>TIM17 internal capture clock</description>
+      <derived>
+        <frequencies>
+          <select>
+            <when condition="STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_NOCLOCK"
+                  value="0U" />
+            <when condition="(STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIS4) || (STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIK4)"
+                  value="(STM32_MSIS_FREQ / 1024U)" />
+            <otherwise value="(STM32_MSIK_FREQ / 1024U)" />
+          </select>
+        </frequencies>
+      </derived>
+    </clock>
+    <clock point="LPTIM2IC" enable="always" dynamic="no">
+      <description>LPTIM2 internal capture clock</description>
+      <derived>
+        <frequencies>
+          <select>
+            <when condition="STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_NOCLOCK"
+                  value="0U" />
+            <when condition="(STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIS1024_MSIS4) || (STM32_CFG_TIMICSEL == RCC_CCIPR1_TIMICSEL_HSI256_MSIK1024_MSIS4)"
+                  value="(STM32_MSIS_FREQ / 4U)" />
+            <otherwise value="(STM32_MSIK_FREQ / 4U)" />
+          </select>
+        </frequencies>
+      </derived>
+    </clock>
+    <clock point="ICLK" enable="auto" dynamic="no">
+      <description>ICLK 48 MHz clock</description>
+      <mux name="ICLK" field="RCC_CCIPR1_ICLKSEL" offset="26U">
+        <input point="HSI48" encoding="0U" default="yes" />
+        <input point="PLL2Q" encoding="1U" />
+        <input point="PLL1Q" encoding="2U" />
+        <input point="MSIK" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="USB" enable="auto" dynamic="no">
+      <description>USB clock</description>
+      <derived input="ICLK" frequency="%I%" />
+    </clock>
+    <clock point="HSEDIV2" enable="auto" dynamic="no"
+           variants="U595,U599,U5A5,U5A9">
+      <description>HSE divided-by-two clock</description>
+      <derived input="HSE" frequency="(%I% / 2U)" />
+    </clock>
+    <clock point="PLL1PDIV2" enable="auto" dynamic="no"
+           variants="U595,U599,U5A5,U5A9">
+      <description>PLL1 P output divided-by-two clock</description>
+      <derived input="PLL1P" frequency="(%I% / 2U)" />
+    </clock>
+    <clock point="USBPHYC" enable="auto" dynamic="no"
+           variants="U595,U599,U5A5,U5A9">
+      <description>OTG_HS PHY reference clock</description>
+      <mux name="USBPHYC" field="RCC_CCIPR2_USBPHYCSEL" offset="30U">
+        <input point="HSE" encoding="0U" default="yes" />
+        <input point="PLL1P" encoding="1U" />
+        <input point="HSEDIV2" encoding="2U" />
+        <input point="PLL1PDIV2" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="SDMMC" enable="auto" dynamic="no">
+      <description>SDMMC clock</description>
+      <limits ref="SDMMCCLK" />
+      <mux name="SDMMC" field="RCC_CCIPR2_SDMMCSEL" offset="14U">
+        <input point="ICLK" encoding="0U" />
+        <input point="PLL1P" encoding="1U" default="yes" />
+      </mux>
+    </clock>
+    <clock point="SDMMC1" enable="auto" dynamic="no">
+      <description>SDMMC1 clock</description>
+      <derived input="SDMMC" frequency="%I%" />
+    </clock>
+    <clock point="SDMMC2" enable="auto" dynamic="no">
+      <description>SDMMC2 clock</description>
+      <derived input="SDMMC" frequency="%I%" />
+    </clock>
+    <clock point="DSI" enable="auto" dynamic="no" variants="U599,U5A9">
+      <description>DSI kernel clock</description>
+      <mux name="DSI" field="RCC_CCIPR2_DSIHOSTSEL" offset="15U">
+        <input point="PLL3P" encoding="0U" default="yes" />
+        <input point="DSIPHY" encoding="1U" />
+      </mux>
+    </clock>
+    <clock point="LTDC" enable="auto" dynamic="no" variants="U599,U5A9">
+      <description>LTDC kernel clock</description>
+      <mux name="LTDC" field="RCC_CCIPR2_LTDCSEL" offset="18U">
+        <input point="PLL3R" encoding="0U" default="yes" />
+        <input point="PLL2R" encoding="1U" />
+      </mux>
+    </clock>
+    <clock point="OCTOSPI" enable="auto" dynamic="no">
+      <description>OCTOSPI clock</description>
+      <mux name="OCTOSPI" field="RCC_CCIPR2_OCTOSPISEL" offset="20U">
+        <input point="SYSCLK" encoding="0U" default="yes" />
+        <input point="MSIK" encoding="1U" />
+        <input point="PLL1Q" encoding="2U" />
+        <input point="PLL2Q" encoding="3U" />
+        <inactive label="IGNORE" value="0xFFFFFFFFU" bits="0U"
+                  when="STM32_OCTOSPI_ENABLED == FALSE" />
+      </mux>
+    </clock>
+    <clock point="HSPI1" enable="auto" dynamic="no"
+           variants="U595,U599,U5A5,U5A9">
+      <description>HSPI1 kernel clock</description>
+      <limits ref="HSPICLK" />
+      <mux name="HSPI1" field="RCC_CCIPR2_HSPISEL" offset="22U">
+        <input point="SYSCLK" encoding="0U" default="yes" />
+        <input point="PLL1Q" encoding="1U" />
+        <input point="PLL2Q" encoding="2U" />
+        <input point="PLL3R" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="HSI48DIV2" enable="auto" dynamic="no">
+      <description>HSI48 divided by 2 clock</description>
+      <derived input="HSI48" frequency="(%I% / 2U)" />
+    </clock>
+    <clock point="SHSIDIV2" enable="auto" dynamic="no"
+           variants="U585,U5A5,U5A9">
+      <description>SHSI divided-by-two clock</description>
+      <derived input="SHSI" frequency="(%I% / 2U)" />
+    </clock>
+    <clock point="SAES" enable="auto" dynamic="no"
+           variants="U585,U5A5,U5A9">
+      <description>SAES kernel clock</description>
+      <mux name="SAES" field="RCC_CCIPR2_SAESSEL" offset="11U">
+        <input point="SHSI" encoding="0U" default="yes" />
+        <input point="SHSIDIV2" encoding="1U" />
+      </mux>
+    </clock>
+    <clock point="RNG" enable="auto" dynamic="no">
+      <description>RNG clock</description>
+      <mux name="RNG" field="RCC_CCIPR2_RNGSEL" offset="12U">
+        <input point="HSI48" encoding="0U" default="yes" />
+        <input point="HSI48DIV2" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <inactive label="IGNORE" value="0xFFFFFFFFU" bits="0U"
+                  when="STM32_RNG_ENABLED == FALSE" />
+      </mux>
+    </clock>
+    <clock point="SAI1" enable="auto" dynamic="no">
+      <description>SAI1 clock</description>
+      <mux name="SAI1" field="RCC_CCIPR2_SAI1SEL" offset="5U">
+        <input point="PLL2P" encoding="0U" default="yes" />
+        <input point="PLL3P" encoding="1U" />
+        <input point="PLL1P" encoding="2U" />
+        <input point="AUDIOCLK" encoding="3U" />
+        <input point="HSI16" encoding="4U" />
+        <inactive label="IGNORE" value="0xFFFFFFFFU" bits="0U"
+                  when="STM32_SAI1_ENABLED == FALSE" />
+      </mux>
+    </clock>
+    <clock point="SAI2" enable="auto" dynamic="no">
+      <description>SAI2 clock</description>
+      <mux name="SAI2" field="RCC_CCIPR2_SAI2SEL" offset="8U">
+        <input point="PLL2P" encoding="0U" default="yes" />
+        <input point="PLL3P" encoding="1U" />
+        <input point="PLL1P" encoding="2U" />
+        <input point="AUDIOCLK" encoding="3U" />
+        <input point="HSI16" encoding="4U" />
+        <inactive label="IGNORE" value="0xFFFFFFFFU" bits="0U"
+                  when="STM32_SAI2_ENABLED == FALSE" />
+      </mux>
+    </clock>
+    <clock point="MDF1" enable="auto" dynamic="no">
+      <description>MDF1 clock</description>
+      <mux name="MDF1" field="RCC_CCIPR2_MDF1SEL" offset="0U">
+        <input point="HCLK" encoding="0U" default="yes" />
+        <input point="PLL1P" encoding="1U" />
+        <input point="PLL3Q" encoding="2U" />
+        <input point="AUDIOCLK" encoding="3U" />
+        <input point="MSIK" encoding="4U" />
+        <inactive label="IGNORE" value="0xFFFFFFFFU" bits="0U"
+                  when="STM32_MDF1_ENABLED == FALSE" />
+      </mux>
+    </clock>
+    <clock point="ADF1" enable="auto" dynamic="no">
+      <description>ADF1 clock</description>
+      <mux name="ADF1" field="RCC_CCIPR3_ADF1SEL" offset="16U">
+        <input point="HCLK" encoding="0U" default="yes" />
+        <input point="PLL1P" encoding="1U" />
+        <input point="PLL3Q" encoding="2U" />
+        <input point="AUDIOCLK" encoding="3U" />
+        <input point="MSIK" encoding="4U" />
+        <inactive label="IGNORE" value="0xFFFFFFFFU" bits="0U"
+                  when="STM32_ADF1_ENABLED == FALSE" />
+      </mux>
+    </clock>
+    <clock point="ADCDAC" enable="auto" dynamic="no">
+      <description>ADC and DAC clock</description>
+      <mux name="ADCDAC" field="RCC_CCIPR3_ADCDACSEL" offset="12U">
+        <input point="HCLK" encoding="0U" default="yes" />
+        <input point="SYSCLK" encoding="1U" />
+        <input point="PLL2R" encoding="2U" />
+        <input point="HSE" encoding="3U" />
+        <input point="HSI16" encoding="4U" />
+        <input point="MSIK" encoding="5U" />
+        <inactive label="IGNORE" value="0xFFFFFFFFU" bits="0U"
+                  when="STM32_ADCDAC_ENABLED == FALSE" />
+      </mux>
+    </clock>
+    <clock point="DAC1SH" enable="auto" dynamic="no">
+      <description>DAC1 sample and hold clock</description>
+      <mux name="DAC1SH" field="RCC_CCIPR3_DAC1SEL" offset="15U">
+        <input point="LSESYS" label="LSE" encoding="0U" default="yes" />
+        <input point="LSI" encoding="1U" />
+        <inactive label="IGNORE" value="0xFFFFFFFFU" bits="0U"
+                  when="STM32_DAC1SH_ENABLED == FALSE" />
+      </mux>
+    </clock>
+    <clock point="LPTIM1" enable="auto" dynamic="no">
+      <description>LPTIM1 clock</description>
+      <mux name="LPTIM1" field="RCC_CCIPR3_LPTIM1SEL" offset="10U">
+        <input point="MSIK" encoding="0U" default="yes" />
+        <input point="LSI" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="LSESYS" label="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="LPTIM2" enable="auto" dynamic="no">
+      <description>LPTIM2 clock</description>
+      <mux name="LPTIM2" field="RCC_CCIPR1_LPTIM2SEL" offset="18U">
+        <input point="PCLK1" encoding="0U" default="yes" />
+        <input point="LSI" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="LSESYS" label="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="LPTIM34" enable="auto" dynamic="no">
+      <description>LPTIM3 and LPTIM4 clock</description>
+      <mux name="LPTIM34" field="RCC_CCIPR3_LPTIM34SEL" offset="8U">
+        <input point="MSIK" encoding="0U" default="yes" />
+        <input point="LSI" encoding="1U" />
+        <input point="HSI16" encoding="2U" />
+        <input point="LSESYS" label="LSE" encoding="3U" />
+      </mux>
+    </clock>
+    <clock point="IWDG" enable="auto" dynamic="no">
+      <description>IWDG clock</description>
+      <derived input="LSI" frequency="%I%" />
+    </clock>
+  </clocks>
+  <sinks>
+    <sink name="PLL1P" input="PLL1P">
+      <description>External software demands the PLL1 P output clock.</description>
+    </sink>
+    <sink name="PLL1Q" input="PLL1Q">
+      <description>External software demands the PLL1 Q output clock.</description>
+    </sink>
+    <sink name="PLL1R" input="PLL1R">
+      <description>External software demands the PLL1 R output clock.</description>
+    </sink>
+    <sink name="PLL2P" input="PLL2P">
+      <description>External software demands the PLL2 P output clock.</description>
+    </sink>
+    <sink name="PLL2Q" input="PLL2Q">
+      <description>External software demands the PLL2 Q output clock.</description>
+    </sink>
+    <sink name="PLL2R" input="PLL2R">
+      <description>External software demands the PLL2 R output clock.</description>
+    </sink>
+    <sink name="PLL3P" input="PLL3P">
+      <description>External software demands the PLL3 P output clock.</description>
+    </sink>
+    <sink name="PLL3Q" input="PLL3Q">
+      <description>External software demands the PLL3 Q output clock.</description>
+    </sink>
+    <sink name="PLL3R" input="PLL3R">
+      <description>External software demands the PLL3 R output clock.</description>
+    </sink>
+    <sink name="USART1" input="USART1">
+      <description>External software demands the USART1 clock.</description>
+    </sink>
+    <sink name="USART2" input="USART2">
+      <description>External software demands the USART2 clock.</description>
+    </sink>
+    <sink name="USART3" input="USART3">
+      <description>External software demands the USART3 clock.</description>
+    </sink>
+    <sink name="UART4" input="UART4">
+      <description>External software demands the UART4 clock.</description>
+    </sink>
+    <sink name="UART5" input="UART5">
+      <description>External software demands the UART5 clock.</description>
+    </sink>
+    <sink name="USART6" input="USART6" variants="U595,U599,U5A5,U5A9">
+      <description>External software demands the USART6 clock.</description>
+    </sink>
+    <sink name="LPUART1" input="LPUART1">
+      <description>External software demands the LPUART1 clock.</description>
+    </sink>
+    <sink name="I2C1" input="I2C1">
+      <description>External software demands the I2C1 clock.</description>
+    </sink>
+    <sink name="I2C2" input="I2C2">
+      <description>External software demands the I2C2 clock.</description>
+    </sink>
+    <sink name="I2C3" input="I2C3">
+      <description>External software demands the I2C3 clock.</description>
+    </sink>
+    <sink name="I2C4" input="I2C4">
+      <description>External software demands the I2C4 clock.</description>
+    </sink>
+    <sink name="I2C5" input="I2C5" variants="U595,U599,U5A5,U5A9">
+      <description>External software demands the I2C5 clock.</description>
+    </sink>
+    <sink name="I2C6" input="I2C6" variants="U595,U599,U5A5,U5A9">
+      <description>External software demands the I2C6 clock.</description>
+    </sink>
+    <sink name="SPI1" input="SPI1">
+      <description>External software demands the SPI1 clock.</description>
+    </sink>
+    <sink name="SPI2" input="SPI2">
+      <description>External software demands the SPI2 clock.</description>
+    </sink>
+    <sink name="SPI3" input="SPI3">
+      <description>External software demands the SPI3 clock.</description>
+    </sink>
+    <sink name="FDCAN1" input="FDCAN1">
+      <description>External software demands the FDCAN1 clock.</description>
+    </sink>
+    <sink name="SYSTICK" input="SYSTICK">
+      <description>External software demands the SysTick clock.</description>
+    </sink>
+    <sink name="TIMICSEL_HSI16_SOURCE" input="HSI16"
+              condition="STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK">
+      <description>TIMICSEL conservatively demands HSI16 when internal capture clocks are enabled.</description>
+    </sink>
+    <sink name="TIMICSEL_MSIS_SOURCE" input="MSIS"
+              condition="STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK">
+      <description>TIMICSEL conservatively demands MSIS when internal capture clocks are enabled.</description>
+    </sink>
+    <sink name="TIMICSEL_MSIK_SOURCE" input="MSIK"
+              condition="STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK">
+      <description>TIMICSEL conservatively demands MSIK when internal capture clocks are enabled.</description>
+    </sink>
+    <sink name="USB" input="USB">
+      <description>External software demands the USB clock.</description>
+      <limits ref="USBCLK" />
+    </sink>
+    <sink name="OTGHS" input="USBPHYC" variants="U595,U599,U5A5,U5A9">
+      <description>External software demands the OTG_HS PHY reference clock.</description>
+    </sink>
+    <sink name="SDMMC1" input="SDMMC1">
+      <description>External software demands the SDMMC1 clock.</description>
+    </sink>
+    <sink name="SDMMC2" input="SDMMC2">
+      <description>External software demands the SDMMC2 clock.</description>
+    </sink>
+    <sink name="OCTOSPI" input="OCTOSPI">
+      <description>External software demands the OCTOSPI clock.</description>
+    </sink>
+    <sink name="HSPI1" input="HSPI1" variants="U595,U599,U5A5,U5A9">
+      <description>External software demands the HSPI1 clock.</description>
+    </sink>
+    <sink name="DSI" input="DSI" variants="U599,U5A9">
+      <description>External software demands the DSI kernel clock.</description>
+    </sink>
+    <sink name="LTDC" input="LTDC" variants="U599,U5A9">
+      <description>External software demands the LTDC kernel clock.</description>
+    </sink>
+    <sink name="SAES" input="SAES" variants="U585,U5A5,U5A9">
+      <description>External software demands the SAES kernel clock.</description>
+    </sink>
+    <sink name="RNG" input="RNG">
+      <description>External software demands the RNG clock.</description>
+    </sink>
+    <sink name="SAI1" input="SAI1">
+      <description>External software demands the SAI1 clock.</description>
+    </sink>
+    <sink name="SAI2" input="SAI2">
+      <description>External software demands the SAI2 clock.</description>
+    </sink>
+    <sink name="MDF1" input="MDF1">
+      <description>External software demands the MDF1 clock.</description>
+    </sink>
+    <sink name="ADF1" input="ADF1">
+      <description>External software demands the ADF1 clock.</description>
+    </sink>
+    <sink name="ADCDAC" input="ADCDAC">
+      <description>External software demands the ADC/DAC clock.</description>
+    </sink>
+    <sink name="DAC1SH" input="DAC1SH">
+      <description>External software demands the DAC1 sample-and-hold clock.</description>
+    </sink>
+    <sink name="LPTIM1" input="LPTIM1">
+      <description>External software demands the LPTIM1 clock.</description>
+    </sink>
+    <sink name="LPTIM2" input="LPTIM2">
+      <description>External software demands the LPTIM2 clock.</description>
+    </sink>
+    <sink name="LPTIM34" input="LPTIM34">
+      <description>External software demands the LPTIM3 and LPTIM4 clocks.</description>
+    </sink>
+    <sink name="IWDG" input="IWDG">
+      <description>External software demands the IWDG clock.</description>
+    </sink>
+  </sinks>
+</clocktree>

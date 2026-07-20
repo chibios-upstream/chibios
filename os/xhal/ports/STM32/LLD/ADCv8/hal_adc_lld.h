@@ -31,8 +31,6 @@
 /* Driver constants.                                                         */
 /*===========================================================================*/
 
-#define ADC_LLD_ENHANCED_API
-
 /**
  * @name    Possible ADC errors mask bits.
  * @{
@@ -252,24 +250,10 @@
 #endif
 
 /**
- * @brief   ADC1 DMA interrupt priority level setting.
- */
-#if !defined(STM32_ADC_ADC1_DMA_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     5
-#endif
-
-/**
- * @brief   ADC2 DMA interrupt priority level setting.
- */
-#if !defined(STM32_ADC_ADC2_DMA_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_ADC_ADC2_DMA_IRQ_PRIORITY     5
-#endif
-
-/**
  * @brief   ADC1/ADC2 interrupt priority level setting.
  */
-#if !defined(STM32_ADC_ADC12_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_ADC_ADC12_IRQ_PRIORITY        5
+#if !defined(STM32_IRQ_ADC1_2_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_IRQ_ADC1_2_PRIORITY           5
 #endif
 
 /**
@@ -324,18 +308,6 @@
 #error "ADC2 cannot be enabled independently in dual mode"
 #endif
 
-/* IRQ handlers checks.*/
-#if (STM32_ADC_USE_ADC1 || STM32_ADC_USE_ADC2) &&                           \
-    !defined(STM32_ADC12_HANDLER)
-#error "STM32_ADC12_HANDLER not defined in registry"
-#endif
-
-/* IRQ vector numbers checks.*/
-#if (STM32_ADC_USE_ADC1 || STM32_ADC_USE_ADC2) &&                           \
-    !defined(STM32_ADC12_NUMBER)
-#error "STM32_ADC12_NUMBER not defined in registry"
-#endif
-
 /* At least one ADC must be assigned.*/
 #if !STM32_ADC_USE_ADC1 && !STM32_ADC_USE_ADC2
 #error "ADC driver activated but no ADC peripheral assigned"
@@ -370,20 +342,12 @@
 #error "Invalid DMA priority assigned to ADC2"
 #endif
 
-/* DMA IRQ priority checks.*/
-#if STM32_ADC_USE_ADC1 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_ADC_ADC1_DMA_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to ADC1 DMA"
-#endif
+/* ADC and DMA IRQ priority mapping and checks.*/
+#define STM32_ADCV8_ADC1_IRQ_PRIORITY       STM32_IRQ_ADC1_2_PRIORITY
+#define STM32_ADCV8_ADC2_IRQ_PRIORITY       STM32_IRQ_ADC1_2_PRIORITY
 
-#if STM32_ADC_USE_ADC2 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_ADC_ADC2_DMA_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to ADC2 DMA"
-#endif
-
-/* ADC IRQ priority check.*/
 #if (STM32_ADC_USE_ADC1 || STM32_ADC_USE_ADC2) &&                           \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_ADC_ADC12_IRQ_PRIORITY)
+    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC1_2_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC1/ADC2"
 #endif
 
@@ -677,27 +641,34 @@ typedef struct adc_dmabuf {
 /*===========================================================================*/
 
 #if STM32_ADC_USE_ADC1 && !defined(__DOXYGEN__)
-extern ADCDriver ADCD1;
+extern hal_adc_driver_c ADCD1;
 #endif
 
 #if STM32_ADC_USE_ADC2 && !defined(__DOXYGEN__)
-extern ADCDriver ADCD2;
+extern hal_adc_driver_c ADCD2;
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
   void adc_lld_init(void);
-  msg_t adc_lld_start(ADCDriver *adcp);
-  void adc_lld_stop(ADCDriver *adcp);
-  void adc_lld_start_conversion(ADCDriver *adcp);
-  void adc_lld_stop_conversion(ADCDriver *adcp);
-  void adcSTM32EnableVREF(ADCDriver *adcp);
-  void adcSTM32DisableVREF(ADCDriver *adcp);
-  void adcSTM32EnableTS(ADCDriver *adcp);
-  void adcSTM32DisableTS(ADCDriver *adcp);
-  void adcSTM32EnableVBAT(ADCDriver *adcp);
-  void adcSTM32DisableVBAT(ADCDriver *adcp);
+  void adc_lld_serve_interrupt(hal_adc_driver_c *adcp);
+  msg_t adc_lld_start(hal_adc_driver_c *adcp);
+  void adc_lld_stop(hal_adc_driver_c *adcp);
+  const hal_adc_config_t *adc_lld_setcfg(hal_adc_driver_c *adcp,
+                                         const hal_adc_config_t *config);
+  const hal_adc_config_t *adc_lld_selcfg(hal_adc_driver_c *adcp,
+                                         unsigned cfgnum);
+  void adc_lld_set_callback(hal_adc_driver_c *adcp, drv_cb_t cb);
+  msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
+                                 adcsample_t *samples, size_t depth);
+  void adc_lld_stop_conversion(hal_adc_driver_c *adcp);
+  void adcSTM32EnableVREF(hal_adc_driver_c *adcp);
+  void adcSTM32DisableVREF(hal_adc_driver_c *adcp);
+  void adcSTM32EnableTS(hal_adc_driver_c *adcp);
+  void adcSTM32DisableTS(hal_adc_driver_c *adcp);
+  void adcSTM32EnableVBAT(hal_adc_driver_c *adcp);
+  void adcSTM32DisableVBAT(hal_adc_driver_c *adcp);
 #ifdef __cplusplus
 }
 #endif

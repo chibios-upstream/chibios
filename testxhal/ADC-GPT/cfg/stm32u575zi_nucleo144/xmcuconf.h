@@ -14,15 +14,15 @@
     limitations under the License.
 */
 
-#ifndef MCUCONF_H
-#define MCUCONF_H
+#ifndef XMCUCONF_H
+#define XMCUCONF_H
 
 /*
  * STM32U5xx drivers configuration.
  * The following settings override the default settings present in
  * the various device driver implementation headers.
  * Note that the settings for each driver only have effect if the whole
- * driver is enabled in halconf.h.
+ * driver is enabled in xhalconf.h.
  *
  * IRQ priorities:
  * 15...0       Lowest...Highest.
@@ -31,9 +31,9 @@
  * 0...3        Lowest...Highest.
  */
 
-#define STM32U5xx_MCUCONF
-#define STM32U575_MCUCONF
-#define STM32U585_MCUCONF
+#define STM32U5xx_XMCUCONF
+#define STM32U575_XMCUCONF
+#define STM32U585_XMCUCONF
 
 /*
  * HAL driver general settings.
@@ -244,6 +244,8 @@
 #define STM32_IRQ_I2C3_PRIORITY             5
 #define STM32_IRQ_I2C4_PRIORITY             5
 
+#define STM32_IRQ_ADC1_2_PRIORITY           5
+
 #define STM32_IRQ_SPI1_PRIORITY             10
 #define STM32_IRQ_SPI2_PRIORITY             10
 #define STM32_IRQ_SPI3_PRIORITY             10
@@ -280,7 +282,7 @@
 /*
  * ADC driver system settings.
  */
-#define STM32_ADC_USE_ADC1                  FALSE
+#define STM32_ADC_USE_ADC1                  TRUE
 #define STM32_ADC_USE_ADC2                  FALSE
 #define STM32_ADC_DUAL_MODE                 FALSE
 #define STM32_ADC_COMPACT_SAMPLES           FALSE
@@ -288,9 +290,6 @@
 #define STM32_ADC_ADC2_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
 #define STM32_ADC_ADC2_DMA_PRIORITY         2
-#define STM32_ADC_ADC12_IRQ_PRIORITY        5
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     5
-#define STM32_ADC_ADC2_DMA_IRQ_PRIORITY     5
 #define STM32_ADC_ADC12_PRESC               ADC_CCR_PRESC_DIV4
 
 /*
@@ -316,7 +315,7 @@
 #define STM32_GPT_USE_TIM1                  FALSE
 #define STM32_GPT_USE_TIM2                  FALSE
 #define STM32_GPT_USE_TIM3                  FALSE
-#define STM32_GPT_USE_TIM4                  FALSE
+#define STM32_GPT_USE_TIM4                  TRUE
 #define STM32_GPT_USE_TIM5                  FALSE
 #define STM32_GPT_USE_TIM6                  FALSE
 #define STM32_GPT_USE_TIM7                  FALSE
@@ -502,4 +501,4 @@
 #define STM32_WSPI_USE_OCTOSPI1             FALSE
 #define STM32_WSPI_USE_OCTOSPI2             FALSE
 
-#endif /* MCUCONF_H */
+#endif /* XMCUCONF_H */

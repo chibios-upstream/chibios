@@ -1,8 +1,8 @@
-STM32 ADCv8 driver.
+STM32 XHAL ADCv8 driver.
 
 Intended scope:
 
-- Supports the STM32U5 14-bit ADC1/ADC2 cell through the HAL ADC API.
+- Supports the STM32U5 14-bit ADC1/ADC2 cell through the XHAL ADC API.
 - ADC4 is a separate 12-bit cell and is intentionally not supported here.
 - ADC1 is available on every STM32U5 device currently supported by the port.
 - ADC2 support is conditional on STM32_HAS_ADC2.
@@ -50,7 +50,7 @@ ADC1/ADC2 hardware contract:
   the RM around accesses to the calibration registers.
 - STM32_PWR_SVMCR must include PWR_SVMCR_ASV because validating VDDA is
   mandatory before enabling ADC12.
-- Differential channel selections are part of ADCConfig because DIFSEL can
+- Differential channel selections are part of hal_adc_config_t because DIFSEL can
   only be changed while the ADC is disabled.
 - VREFINT, VSENSE and VBAT common controls temporarily disable all started
   ADC12 instances because the common CCR fields are not writable while either
@@ -71,10 +71,10 @@ DMA contract:
   conversions. Injected-only dual modes are incompatible with the driver's
   single CDR DMA stream.
 
-HAL representation constraints:
+XHAL representation constraints:
 
 - Normal samples are uint16_t and compact samples are uint8_t, matching the
-  existing HAL ADC model.
+  existing XHAL ADC model.
 - Configurations producing post-oversampling results wider than 16 bits cannot
   be represented by the initial driver and must be rejected or documented as
   unsupported.
@@ -85,8 +85,10 @@ Required registry contract:
 
 STM32_HAS_ADC1                  - ADC1 presence flag.
 STM32_HAS_ADC2                  - ADC2 presence flag.
-STM32_ADC12_HANDLER             - Shared ADC1/ADC2 IRQ vector name.
-STM32_ADC12_NUMBER              - Shared ADC1/ADC2 IRQ vector number.
+STM32_ADC1_HANDLER              - Shared ADC1/ADC2 IRQ vector name.
+STM32_ADC1_NUMBER               - Shared ADC1/ADC2 IRQ vector number.
+STM32_ADC2_HANDLER              - Shared ADC1/ADC2 IRQ vector name.
+STM32_ADC2_NUMBER               - Shared ADC1/ADC2 IRQ vector number.
 STM32_DMA3_REQ_ADC1             - ADC1 GPDMA request, value 0.
 STM32_DMA3_REQ_ADC2             - ADC2 GPDMA request, value 123 when present.
 
