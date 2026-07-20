@@ -74,6 +74,13 @@
 *****************************************************************************
 
 *** 21.11.6 ***
+- FIX: STM32 USBv1 packet memory could be double-allocated across a
+       configuration rebuild. usb_lld_disable_endpoints() reset the PMA
+       allocator to the descriptor-table boundary while endpoint zero
+       remained active, so a subsequent SET_CONFIGURATION allocated
+       endpoint 1 over the still-live EP0 buffers. The allocator now
+       re-reserves the EP0 IN/OUT buffers immediately after the reset; the
+       bus-reset path is unchanged (backport of github PR #85).
 - FIX: MFS write verification could pass spuriously when the source data
        aliased the shared non-cacheable buffer; the read-back now uses a
        disjoint buffer half. MFS_CFG_STRONG_CHECKING is now honored during
