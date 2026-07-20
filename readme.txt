@@ -87,6 +87,13 @@ See .devcontainer/README.md for included tools and usage.
        a path namespace while operations on registered file descriptors remain
        available. Enabling the SB VFS support now requires
        VFS_CFG_ENABLE_DRV_ROOT == TRUE (github PR #91).
+- FIX: STM32 USBv1 and USBv2 packet memory could be double-allocated across a
+       configuration rebuild. usb_lld_disable_endpoints() reset the PMA
+       allocator to the descriptor-table boundary while endpoint zero remained
+       active, so a subsequent SET_CONFIGURATION allocated endpoint 1 over the
+       still-live EP0 buffers. The allocator now re-reserves the EP0 IN/OUT
+       buffers immediately after the reset; the bus-reset path is unchanged
+       (github PR #85)(backported to 21.11.6).
 - NEW: RP2350 runtime clock switching (RP_CLOCK_DYNAMIC, default FALSE):
        real halClockSwitchMode() support with runtime-validated PLL_SYS
        configurations, flash-timing-safe reclocking with both cores kept
