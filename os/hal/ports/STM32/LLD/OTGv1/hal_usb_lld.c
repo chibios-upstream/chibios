@@ -197,7 +197,7 @@ static void otg_device_configure(USBDriver *usbp) {
                     GUSBCFG_PHYSEL;
 
     /* 48MHz 1.1 PHY.*/
-    otgp->DCFG = 0x02200000 | DCFG_DSPD_FS11;
+    otgp->DCFG = DCFG_RESET_VALUE | DCFG_DSPD_FS11;
   }
 #endif
 
@@ -221,23 +221,23 @@ static void otg_device_configure(USBDriver *usbp) {
 #if STM32_USB_OTG2_PHY == STM32_OTG_PHY_INTEGRATED_HS
 #if STM32_USE_USB_OTG2_HS
     /* Integrated PHY in high-speed mode.*/
-    otgp->DCFG = 0x02200000 | DCFG_DSPD_HS;
+    otgp->DCFG = DCFG_RESET_VALUE | DCFG_DSPD_HS;
 #else
     /* Integrated high-speed PHY operating at full speed.*/
-    otgp->DCFG = 0x02200000 | DCFG_DSPD_HS_FS;
+    otgp->DCFG = DCFG_RESET_VALUE | DCFG_DSPD_HS_FS;
 #endif
 #elif STM32_USB_OTG2_PHY == STM32_OTG_PHY_EXTERNAL_ULPI
 #if STM32_USE_USB_OTG2_HS
     /* USB 2.0 High Speed PHY in HS mode.*/
-    otgp->DCFG = 0x02200000 | DCFG_DSPD_HS |
+    otgp->DCFG = DCFG_RESET_VALUE | DCFG_DSPD_HS |
                  BOARD_OTG2_ULPI_CHIRP_DELAY_MASK;
 #else
     /* USB 2.0 High Speed PHY in FS mode.*/
-    otgp->DCFG = 0x02200000 | DCFG_DSPD_HS_FS;
+    otgp->DCFG = DCFG_RESET_VALUE | DCFG_DSPD_HS_FS;
 #endif
 #else
     /* 48MHz 1.1 PHY.*/
-    otgp->DCFG = 0x02200000 | DCFG_DSPD_FS11;
+    otgp->DCFG = DCFG_RESET_VALUE | DCFG_DSPD_FS11;
 #endif
   }
 #endif

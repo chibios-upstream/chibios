@@ -636,6 +636,7 @@ typedef struct {
  * @name DCFG register bit definitions
  * @{
  */
+#define DCFG_RESET_VALUE        0x02200000U /**< Register reset value.       */
 #define DCFG_PFIVL_MASK         (3U << 11)  /**< Periodic frame interval
                                                  mask.                      */
 #define DCFG_PFIVL(n)           ((n) << 11) /**< Periodic frame interval
