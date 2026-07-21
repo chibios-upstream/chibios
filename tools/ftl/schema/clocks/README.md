@@ -281,6 +281,20 @@ Use `NONE` inputs only for real selectable no-clock mux values, such as output
 pin clocks or backup-domain selectors that explicitly support a no-clock
 selection. Do not use `NONE` to model a disabled peripheral selector encoding.
 
+An encoded mux input can also emit additional register bits. The `encoding`
+generates the selector macro used by the configuration and dependency checks;
+the nested `bits` value is ORed with that selector only in the generated clock
+point bits macro:
+
+```xml
+<mux name="RTC" field="RCC_BDCR_RTCSEL" offset="8U">
+  <input point="NONE" label="NOCLOCK" encoding="0U" default="yes" />
+  <input point="LSE" encoding="1U">
+    <bits value="RCC_BDCR_RTCEN" />
+  </input>
+</mux>
+```
+
 If a disabled peripheral clock requires register selector bits, put those bits
 in clock-level disabled bits:
 

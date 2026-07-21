@@ -2081,19 +2081,22 @@
   #endif
 #elif (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_LSE)
   #if (STM32_RTC_ENABLED == TRUE) || defined(__DOXYGEN__)
-    #define STM32_RTC_BITS                  RCC_BDCR_RTCSEL_LSE
+    #define STM32_RTC_BITS                  (RCC_BDCR_RTCSEL_LSE |          \
+                                             RCC_BDCR_RTCEN)
   #else
     #define STM32_RTC_BITS                  0U
   #endif
 #elif (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_LSI)
   #if (STM32_RTC_ENABLED == TRUE) || defined(__DOXYGEN__)
-    #define STM32_RTC_BITS                  RCC_BDCR_RTCSEL_LSI
+    #define STM32_RTC_BITS                  (RCC_BDCR_RTCSEL_LSI |          \
+                                             RCC_BDCR_RTCEN)
   #else
     #define STM32_RTC_BITS                  0U
   #endif
 #elif (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_HSEDIV)
   #if (STM32_RTC_ENABLED == TRUE) || defined(__DOXYGEN__)
-    #define STM32_RTC_BITS                  RCC_BDCR_RTCSEL_HSEDIV
+    #define STM32_RTC_BITS                  (RCC_BDCR_RTCSEL_HSEDIV |       \
+                                             RCC_BDCR_RTCEN)
   #else
     #define STM32_RTC_BITS                  0U
   #endif

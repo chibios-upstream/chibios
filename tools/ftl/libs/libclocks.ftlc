@@ -870,27 +870,32 @@ function ParseClockPoint(clock, sourceonly, variants)
       local inputlabel = (input.@label[0]!inputpoint)?string
       local inputencoding = (input.@encoding[0]!"")?string
       local inputdefault = (input.@default[0]!"no")?string
-      if input.bits[0]??
-        if inputencoding != ""
-          stop ">>>> Input '" + inputpoint + "' mixes explicit bits and selector encoding in clock mux '" + clockname + "'"
-        endif
-        local inputbits = GetBitsValue(input)
-      else
-        if muxfield == "" || muxoffset == "" || inputencoding == ""
+      if inputencoding != ""
+        if muxfield == "" || muxoffset == ""
           stop ">>>> Missing selector encoding for input '" + inputpoint + "' in clock mux '" + clockname + "'"
         endif
-        local inputbits = GetGeneratedSelectorMacro(muxfield, inputlabel)
-        local muxselectors = muxselectors + [{"kind":"encoded", "field":muxfield, "macro":inputbits, "encoding":inputencoding, "offset":muxoffset}]
+        local inputvalue = GetGeneratedSelectorMacro(muxfield, inputlabel)
+        local muxselectors = muxselectors + [{"kind":"encoded", "field":muxfield, "macro":inputvalue, "encoding":inputencoding, "offset":muxoffset}]
+        if input.bits[0]??
+          local inputbits = "(" + inputvalue + " | " + GetBitsValue(input) + ")"
+        else
+          local inputbits = inputvalue
+        endif
+      elseif input.bits[0]??
+        local inputvalue = GetBitsValue(input)
+        local inputbits = inputvalue
+      else
+        stop ">>>> Missing selector encoding for input '" + inputpoint + "' in clock mux '" + clockname + "'"
       endif
-      if muxvalues?seq_contains(inputbits)
-        stop ">>>> Duplicate selector value '" + inputbits + "' in clock mux '" + clockname + "'"
+      if muxvalues?seq_contains(inputvalue)
+        stop ">>>> Duplicate selector value '" + inputvalue + "' in clock mux '" + clockname + "'"
       endif
-      local muxvalues = muxvalues + [inputbits]
+      local muxvalues = muxvalues + [inputvalue]
       if inputdefault == "yes"
-        local muxdefault = inputbits
+        local muxdefault = inputvalue
       endif
-      local muxinputs = muxinputs + [{"point":inputpoint, "bits":inputbits, "default":inputdefault}]
-      local muxbranches = muxbranches + [{"type":"input", "point":inputpoint, "value":inputbits, "bits":inputbits, "default":inputdefault, "condition":""}]
+      local muxinputs = muxinputs + [{"point":inputpoint, "value":inputvalue, "bits":inputbits, "default":inputdefault}]
+      local muxbranches = muxbranches + [{"type":"input", "point":inputpoint, "value":inputvalue, "bits":inputbits, "default":inputdefault, "condition":""}]
     endlist
     if muxinputs?size == 0
       stop ">>>> Missing input for clock mux '" + clockname + "'"
@@ -1531,7 +1536,7 @@ function GetDemandConditions(point)
       local selmacro = GetMuxSettingMacro(downstream)
       list downstream["inputs"] as input
         if input["point"] == point["name"]
-          local conditions = conditions + [{"demander":downstream["name"], "terms":[enmacro + " == TRUE", selmacro + " == " + input["bits"]], "requires":AddExternalMacroRequirements(["TRUE"], [input["bits"]])}]
+          local conditions = conditions + [{"demander":downstream["name"], "terms":[enmacro + " == TRUE", selmacro + " == " + input["value"]], "requires":AddExternalMacroRequirements(["TRUE"], [input["value"]])}]
         endif
       endlist
     elseif downstream["type"] == "divider" || downstream["type"] == "multiplier"
@@ -2592,8 +2597,8 @@ macro EmitClockFrequencyChecks(point)
               emit "\e"
             endif
             local inputfreq = GetDefaultFrequencyExpression(input["point"])
-            local active = BuildAndExpression([enmacro + " == TRUE", selmacro + " == " + input["bits"]])
-            local requires = AddExternalMacroRequirements(["TRUE"], [input["bits"]])
+            local active = BuildAndExpression([enmacro + " == TRUE", selmacro + " == " + input["value"]])
+            local requires = AddExternalMacroRequirements(["TRUE"], [input["value"]])
             ppcode.EmitPPAssert(
               expression="!(" + active + ") || (" + inputfreq + " >= " + minval + ")",
               message="\"" + freqmacro + " below minimum frequency\"",
@@ -2615,8 +2620,8 @@ macro EmitClockFrequencyChecks(point)
               emit "\e"
             endif
             local inputfreq = GetDefaultFrequencyExpression(input["point"])
-            local active = BuildAndExpression([enmacro + " == TRUE", selmacro + " == " + input["bits"]])
-            local requires = AddExternalMacroRequirements(["TRUE"], [input["bits"]])
+            local active = BuildAndExpression([enmacro + " == TRUE", selmacro + " == " + input["value"]])
+            local requires = AddExternalMacroRequirements(["TRUE"], [input["value"]])
             ppcode.EmitPPAssert(
               expression="!(" + active + ") || (" + inputfreq + " <= " + maxval + ")",
               message="\"" + freqmacro + " above maximum frequency\"",
@@ -2922,7 +2927,7 @@ macro EmitClockFrequency(point)
     local clockmacro = GetClockCurrentMacro(point["name"])
     local enmacro = GetEnableMacro(point)
     list point["inputs"] as input
-      local condition = "(" + enmacro + " == TRUE) && (" + selmacro + " == " + input["bits"] + ")"
+      local condition = "(" + enmacro + " == TRUE) && (" + selmacro + " == " + input["value"] + ")"
       if input?is_first
         EmitStateCondition(keyword="#if", expression=condition, doxygen=true)
       else

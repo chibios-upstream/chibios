@@ -976,9 +976,15 @@
       <description>RTC and TAMP clock</description>
       <mux name="RTC" field="RCC_BDCR_RTCSEL" offset="8U">
         <input point="NONE" label="NOCLOCK" encoding="0U" default="yes" />
-        <input point="LSE" encoding="1U" />
-        <input point="LSI" encoding="2U" />
-        <input point="HSEDIV" encoding="3U" />
+        <input point="LSE" encoding="1U">
+          <bits value="RCC_BDCR_RTCEN" />
+        </input>
+        <input point="LSI" encoding="2U">
+          <bits value="RCC_BDCR_RTCEN" />
+        </input>
+        <input point="HSEDIV" encoding="3U">
+          <bits value="RCC_BDCR_RTCEN" />
+        </input>
       </mux>
     </clock>
     <clock point="LSCO" enable="always" dynamic="no">

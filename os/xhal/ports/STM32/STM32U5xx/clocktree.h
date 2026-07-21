@@ -3608,17 +3608,29 @@
 /**
  * @brief   TIMICSEL_HSI16_SOURCE sink demand state.
  */
-#define STM32_TIMICSEL_HSI16_SOURCE_DEMANDED (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK)
+#if (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK) || defined(__DOXYGEN__)
+  #define STM32_TIMICSEL_HSI16_SOURCE_DEMANDED TRUE
+#else
+  #define STM32_TIMICSEL_HSI16_SOURCE_DEMANDED FALSE
+#endif
 
 /**
  * @brief   TIMICSEL_MSIS_SOURCE sink demand state.
  */
-#define STM32_TIMICSEL_MSIS_SOURCE_DEMANDED (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK)
+#if (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK) || defined(__DOXYGEN__)
+  #define STM32_TIMICSEL_MSIS_SOURCE_DEMANDED TRUE
+#else
+  #define STM32_TIMICSEL_MSIS_SOURCE_DEMANDED FALSE
+#endif
 
 /**
  * @brief   TIMICSEL_MSIK_SOURCE sink demand state.
  */
-#define STM32_TIMICSEL_MSIK_SOURCE_DEMANDED (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK)
+#if (STM32_CFG_TIMICSEL != RCC_CCIPR1_TIMICSEL_NOCLOCK) || defined(__DOXYGEN__)
+  #define STM32_TIMICSEL_MSIK_SOURCE_DEMANDED TRUE
+#else
+  #define STM32_TIMICSEL_MSIK_SOURCE_DEMANDED FALSE
+#endif
 
 /**
  * @brief   USB sink demand state.
@@ -6755,11 +6767,14 @@
 #if (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_NOCLOCK) || defined(__DOXYGEN__)
   #define STM32_RTC_BITS                    RCC_BDCR_RTCSEL_NOCLOCK
 #elif (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_LSE)
-  #define STM32_RTC_BITS                    RCC_BDCR_RTCSEL_LSE
+  #define STM32_RTC_BITS                    (RCC_BDCR_RTCSEL_LSE |          \
+                                             RCC_BDCR_RTCEN)
 #elif (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_LSI)
-  #define STM32_RTC_BITS                    RCC_BDCR_RTCSEL_LSI
+  #define STM32_RTC_BITS                    (RCC_BDCR_RTCSEL_LSI |          \
+                                             RCC_BDCR_RTCEN)
 #elif (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_HSEDIV)
-  #define STM32_RTC_BITS                    RCC_BDCR_RTCSEL_HSEDIV
+  #define STM32_RTC_BITS                    (RCC_BDCR_RTCSEL_HSEDIV |       \
+                                             RCC_BDCR_RTCEN)
 #else
   #error "invalid STM32_CFG_RTC_SEL value specified"
 #endif

@@ -1,0 +1,7 @@
+# Encoded input values remain selector-only while emitted bits include extras.
+#define RCC_BDCR_RTCSEL_NOCLOCK            ((0U) << 8U)
+#define RCC_BDCR_RTCSEL_LSE                ((1U) << 8U)
+TST_CFG_RTC_SEL                   RCC_BDCR_RTCSEL_NOCLOCK
+#define TST_RTC_BITS                      RCC_BDCR_RTCSEL_NOCLOCK
+RCC_BDCR_RTCEN)
+ABSENT:TST_CFG_RTC_SEL                   (RCC_BDCR_RTCSEL_LSE | RCC_BDCR_RTCEN)

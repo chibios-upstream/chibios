@@ -4253,11 +4253,14 @@
 #if (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_NOCLOCK) || defined(__DOXYGEN__)
   #define STM32_RTC_BITS                    RCC_BDCR_RTCSEL_NOCLOCK
 #elif (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_LSE)
-  #define STM32_RTC_BITS                    RCC_BDCR_RTCSEL_LSE
+  #define STM32_RTC_BITS                    (RCC_BDCR_RTCSEL_LSE |          \
+                                             RCC_BDCR_RTCEN)
 #elif (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_LSI)
-  #define STM32_RTC_BITS                    RCC_BDCR_RTCSEL_LSI
+  #define STM32_RTC_BITS                    (RCC_BDCR_RTCSEL_LSI |          \
+                                             RCC_BDCR_RTCEN)
 #elif (STM32_CFG_RTC_SEL == RCC_BDCR_RTCSEL_HSEDIV)
-  #define STM32_RTC_BITS                    RCC_BDCR_RTCSEL_HSEDIV
+  #define STM32_RTC_BITS                    (RCC_BDCR_RTCSEL_HSEDIV |       \
+                                             RCC_BDCR_RTCEN)
 #else
   #error "invalid STM32_CFG_RTC_SEL value specified"
 #endif
