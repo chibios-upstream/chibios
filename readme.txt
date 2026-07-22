@@ -74,6 +74,11 @@
 *****************************************************************************
 
 *** 21.11.6 ***
+- FIX: STM32H7xx HAL initialization reset the SYSCFG block, clearing the
+       overdrive enable (SYSCFG_PWRCR ODEN) set during clock initialization
+       and dropping the core out of overdrive while the PLL kept running above
+       the no-boost maximum. SYSCFG is no longer reset during hal_lld_init()
+       (backport of github PR #132).
 - FIX: STM32 USBv1 packet memory could be double-allocated across a
        configuration rebuild. usb_lld_disable_endpoints() reset the PMA
        allocator to the descriptor-table boundary while endpoint zero
