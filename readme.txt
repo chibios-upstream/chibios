@@ -81,6 +81,11 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: STM32H7xx HAL initialization reset the SYSCFG block, clearing the
+       overdrive enable (SYSCFG_PWRCR ODEN) set during clock initialization
+       and dropping the core out of overdrive while the PLL kept running above
+       the no-boost maximum. SYSCFG is no longer reset during hal_lld_init()
+       (github PR #132)(backported to 21.11.6).
 - NEW: SB sandbox VFS root is now optional and explicitly externally owned.
        sbSetFileSystem() is renamed sbSetRoot() and a matching sbGetRoot()
        accessor is added. A NULL root is allowed, leaving the sandbox without
