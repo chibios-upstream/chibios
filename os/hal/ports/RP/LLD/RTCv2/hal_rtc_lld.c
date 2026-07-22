@@ -72,7 +72,7 @@
 /* The days_from_civil()/civil_from_days() helpers below are expressed in
    days since 1970-01-01. The driver's own time base is ms since
    RTC_BASE_YEAR (1980-01-01, see hal_rtc.h).*/
-#define RTC_BASE_YEAR_EPOCH_DAYS     3652 /* days_from_civil(1980, 1, 1) */
+#define RTC_BASE_YEAR_EPOCH_DAYS     3652 /* Epoch days for 1980-01-01. */
 
 /* Aliased set/clear register offsets (RP2350 atomic bit-set/clear
    register aliasing convention).*/
