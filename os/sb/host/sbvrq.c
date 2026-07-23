@@ -210,6 +210,7 @@ static void delay_cb(virtual_timer_t *vtp, void *arg) {
  * @details Flags are sent in the VRQ context and cleared, it is a fast way
  *          to transmit a (virtual) peripheral status information when a
  *          VRQ is triggered.
+ * @note    Calls made while the sandbox is not running are ignored.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] nvrq      number of VRQ to be activated
@@ -222,7 +223,14 @@ void sbVRQSetFlagsI(sb_class_t *sbp, sb_vrqnum_t nvrq, uint32_t flags) {
   const sb_vrqnum_t vrq_num =
     (sb_vrqnum_t)(sizeof sbp->vrq.flags / sizeof sbp->vrq.flags[0]);
 
+  chDbgCheckClassI();
+
   chDbgCheck(nvrq < vrq_num);
+
+  /* Ignoring stale producers outside the active sandbox execution.*/
+  if (sbp->state != SB_STATE_RUNNING) {
+    return;
+  }
 
   sbp->vrq.flags[nvrq] |= flags;
 }
@@ -231,6 +239,7 @@ void sbVRQSetFlagsI(sb_class_t *sbp, sb_vrqnum_t nvrq, uint32_t flags) {
  * @brief   Triggers VRQs on the specified sandbox.
  * @note    This function can only be used to send VRQs on sandboxes running
  *          on the same core.
+ * @note    Calls made while the sandbox is not running are ignored.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] nvrq      number of VRQ to be activated
@@ -244,13 +253,13 @@ void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   chDbgCheckClassS();
 
   chDbgCheck(nvrq < vrq_num);
-  chDbgAssert(sbp->thread.owner == currcore, "different core");
 
-  /* Late producers can still target a sandbox object during teardown or
-     restart windows, those VRQs must be ignored once the thread is dead.*/
-  if (chThdTerminatedX(&sbp->thread)) {
+  /* Ignoring stale producers outside the active sandbox execution.*/
+  if (sbp->state != SB_STATE_RUNNING) {
     return;
   }
+
+  chDbgAssert(sbp->thread.owner == currcore, "different core");
 
   /* Adding VRQ mask to the pending mask.*/
   sbp->vrq.wtmask |= (sb_vrqmask_t)(1U << nvrq);
@@ -296,6 +305,7 @@ void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq) {
  *          on the same core.
  * @note    This function must be called from IRQ context because
  *          it manipulates exception stack frames.
+ * @note    Calls made while the sandbox is not running are ignored.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] nvrq      number of VRQ to be activated
@@ -309,13 +319,13 @@ void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   chDbgCheckClassI();
 
   chDbgCheck(nvrq < vrq_num);
-  chDbgAssert(sbp->thread.owner == currcore, "different core");
 
-  /* Late producers can still target a sandbox object during teardown or
-     restart windows, those VRQs must be ignored once the thread is dead.*/
-  if (chThdTerminatedX(&sbp->thread)) {
+  /* Ignoring stale producers outside the active sandbox execution.*/
+  if (sbp->state != SB_STATE_RUNNING) {
     return;
   }
+
+  chDbgAssert(sbp->thread.owner == currcore, "different core");
 
   /* Adding VRQ mask to the pending mask.*/
   sbp->vrq.wtmask |= (sb_vrqmask_t)(1U << nvrq);

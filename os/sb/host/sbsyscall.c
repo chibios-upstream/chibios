@@ -905,7 +905,8 @@ static void sb_undef_handler(sb_class_t *sbp, struct port_extctx *ectxp) {
 void __sb_abort(msg_t msg) {
   sb_class_t *sbp = (sb_class_t *)chThdGetSelfX()->object;
 
-  (void)sbp; /* Could be unused.*/
+  chDbgAssert(sbp->state == SB_STATE_RUNNING, "invalid lifecycle state");
+  sbp->state = SB_STATE_STOPPING;
 
 #if SB_CFG_ENABLE_VRQ == TRUE
   chVTResetI(&sbp->vrq.alarm_vt);

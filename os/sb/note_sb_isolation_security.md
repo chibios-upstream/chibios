@@ -166,19 +166,21 @@ reconfiguration breaks that ordering.
 
 ### 7. Sandbox lifecycle vs. late asynchronous producers
 
-The current `chThdTerminatedX()` guards prevent VRQ injection into a dead
+The previous `chThdTerminatedX()` guards prevented VRQ injection into a dead
 thread, but the thread object embedded in `sb_class_t` is reused. A custom
-worker, timer, DMA completion path, or board IRQ that survives termination
-can therefore target the replacement execution after the thread becomes
+worker, timer, DMA completion path, or board IRQ that survived termination
+could therefore target the replacement execution after the thread became
 non-terminated again. A sandbox lifecycle cannot be inferred from reusable
 thread state.
 
-The preferred hardening is the explicit lifecycle protocol in
+The implemented hardening is the explicit lifecycle protocol in
 [note_sb_lifecycle.md](note_sb_lifecycle.md): termination enters a durable
 `STOPPING` state, all VRQ mutations are rejected outside `RUNNING`, and only
-the host can transition to `STOPPED` through `sbFinalize()` after it has
-synchronously quiesced every external producer. Start is accepted only from
-`STOPPED`. This avoids imposing generation tokens on ordinary producers.
+the host can transition to `STOPPED` after `sbSync()` has observed thread
+termination, every external producer has been synchronously quiesced, and
+`sbFinalize()` has released the controller-owned thread reference. Start is
+accepted only from `STOPPED`. This avoids imposing generation tokens on
+ordinary producers.
 
 The host-quiescence precondition is essential. An old and a new invocation of
 `sbVRQTriggerI(sbp, nvrq)` have identical arguments once the replacement is

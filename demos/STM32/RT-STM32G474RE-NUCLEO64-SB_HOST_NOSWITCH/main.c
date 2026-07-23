@@ -184,17 +184,35 @@ static void start_sb2(void) {
  * Messenger thread, times are in milliseconds.
  */
 static THD_WORKING_AREA(waThread1, 256);
+static thread_t *messengertp;
+
 static THD_FUNCTION(Thread1, arg) {
   unsigned i = 1U;
 
   (void)arg;
 
   chRegSetThreadName("messenger");
-  while (true) {
+  while (!chThdShouldTerminateX()) {
     chThdSleepMilliseconds(500);
-    sbSendMessage(&sbx2, (msg_t)i);
-    i++;
+    if (!chThdShouldTerminateX()) {
+      (void)sbSendMessageTimeout(&sbx2, (msg_t)i, TIME_MS2I(100));
+      i++;
+    }
   }
+}
+
+static void start_messenger(void) {
+
+  chDbgAssert(messengertp == NULL, "messenger already started");
+  messengertp = chThdCreateStatic(waThread1, sizeof waThread1,
+                                  NORMALPRIO+10, Thread1, NULL);
+}
+
+static void stop_messenger(void) {
+
+  chThdTerminate(messengertp);
+  (void)chThdWait(messengertp);
+  messengertp = NULL;
 }
 
 /*
@@ -286,7 +304,7 @@ int main(void) {
   /*
    * Creating a messenger thread.
    */
-  chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO+10, Thread1, NULL);
+  start_messenger();
 
   /*
    * Listening to sandbox events.
@@ -302,17 +320,27 @@ int main(void) {
     if (chEvtWaitAnyTimeout(ALL_EVENTS, TIME_MS2I(500)) != (eventmask_t)0) {
 
       if (!sbIsThreadRunningX(&sbx1)) {
-        msg_t msg = sbWait(&sbx1);
+        msg_t msg = sbSync(&sbx1);
+
+        if (!sbFinalize(&sbx1)) {
+          chSysHalt("SB1 finalize");
+        }
         chprintf(oopGetIf(&SIOD1, chn), "SB1 terminated: 0x%08x\r\n", msg);
         chThdSleepMilliseconds(100);
         start_sb1();
       }
 
       if (!sbIsThreadRunningX(&sbx2)) {
-        msg_t msg = sbWait(&sbx2);
+        msg_t msg = sbSync(&sbx2);
+
+        stop_messenger();
+        if (!sbFinalize(&sbx2)) {
+          chSysHalt("SB2 finalize");
+        }
         chprintf(oopGetIf(&SIOD1, chn), "SB2 terminated: 0x%08x\r\n", msg);
         chThdSleepMilliseconds(100);
         start_sb2();
+        start_messenger();
       }
     }
   }

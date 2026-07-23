@@ -201,6 +201,16 @@
 /*===========================================================================*/
 
 /**
+ * @brief   Sandbox lifecycle states.
+ */
+typedef enum {
+  SB_STATE_STOPPED = 0,                 /**< Sandbox ready to be started.   */
+  SB_STATE_STARTING,                    /**< Sandbox start in progress.     */
+  SB_STATE_RUNNING,                     /**< Sandbox execution active.      */
+  SB_STATE_STOPPING                     /**< Sandbox awaiting finalization. */
+} sb_state_t;
+
+/**
  * @brief   Type of a sandbox object.
  */
 typedef struct sb_class sb_class_t;
@@ -236,6 +246,10 @@ typedef struct {
  * @brief   Structure representing a sandbox object.
  */
 struct sb_class {
+  /**
+   * @brief   Sandbox lifecycle state.
+   */
+  volatile sb_state_t           state;
   /**
    * @brief   Indicates that the sandbox is dynamically allocated from heap.
    */

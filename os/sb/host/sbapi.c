@@ -94,7 +94,13 @@ void sb_fastc_get_frequency(sb_class_t *sbp, struct port_extctx *ectxp) {
 
 void sb_sysc_exit(sb_class_t *sbp, struct port_extctx *ectxp) {
 
-  (void)sbp;
+  chSysLock();
+  chDbgAssert(sbp->state == SB_STATE_RUNNING, "invalid lifecycle state");
+  sbp->state = SB_STATE_STOPPING;
+#if SB_CFG_ENABLE_VRQ == TRUE
+  chVTResetI(&sbp->vrq.alarm_vt);
+#endif
+  chSysUnlock();
 
 #if SB_CFG_ENABLE_VFS == TRUE
   __sb_io_cleanup(sbp);
@@ -104,9 +110,6 @@ void sb_sysc_exit(sb_class_t *sbp, struct port_extctx *ectxp) {
 #endif
 
   chSysLock();
-#if SB_CFG_ENABLE_VRQ == TRUE
-  chVTResetI(&sbp->vrq.alarm_vt);
-#endif
 #if CH_CFG_USE_EVENTS == TRUE
   chEvtBroadcastI(&sb.termination_es);
 #endif

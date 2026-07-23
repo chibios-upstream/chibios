@@ -43,20 +43,24 @@ done items are marked inline.
    (validate -> private privileged copy -> never re-dereference guest
    memory). Cheap to do now, and it *gates* both the async-VFS metadata
    path and the shared-memory API. (margin 1)
-4b. **Explicit sandbox lifecycle/finalization** — add independent
+4b. **Explicit sandbox lifecycle/finalization (implemented 2026-07-23)** —
+   independent
    `STOPPED`/`STARTING`/`RUNNING`/`STOPPING` state, gate VRQs on `RUNNING`,
    leave terminated sandboxes in `STOPPING`, and require the host to quiesce
    external producers before `sbFinalize()` permits restart. This closes the
    late-worker/late-IRQ restart contract without making every producer
-   generation-aware. Audit `sbWait()` and dynamic-memory release ordering.
+   generation-aware. The ordering is now direct: `sbSync()` retains the
+   controller-owned thread reference, the host quiesces producers, and
+   `sbFinalize()` releases the reference and dynamic sandbox memory.
    (note_sb_lifecycle.md; isolation note, margin 7)
 
 ## Tier 2 — Features (the functional payoff)
 
 5. **Async VFS** — submit/complete ABI, per-SB worker thread, VRQ-flags
    completion. Fixes the whole-SB stall on blocking POSIX calls, the
-   main limitation of the guest sub-scheduler threading model. Depends
-   on items 4 and 4b; submission wants item 6. (note_sb_async_vfs.md)
+   main limitation of the guest sub-scheduler threading model. Item 4b is
+   implemented; this still depends on item 4, and submission wants item 6.
+   (note_sb_async_vfs.md)
 6. **IRQ-like fastcalls** — per-handler
    `CH_IRQ_PROLOGUE`/lock/I-class/unlock/`CH_IRQ_EPILOGUE`, dispatcher
    untouched. The *cheapest* item on the whole list (macros, docs,

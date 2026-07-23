@@ -127,9 +127,10 @@ cleanly:
 The worker is one of the non-VIO producers covered by
 [note_sb_lifecycle.md](note_sb_lifecycle.md). Sandbox termination enters
 `STOPPING`, which rejects completion VRQs, and restart is prohibited until
-the host has cancelled pending operations, stopped and joined the worker,
-and acknowledged producer quiescence through `sbFinalize()`. This avoids
-requiring generation-aware completion callbacks.
+the host has observed thread termination through `sbSync()`, cancelled
+pending operations, stopped and joined the worker, and acknowledged producer
+quiescence through `sbFinalize()`. This avoids requiring generation-aware
+completion callbacks.
 
 The worker holds private copies of all metadata, but it may still access SB
 memory for the final data copy-out or status write. That access must finish
@@ -164,9 +165,10 @@ other SBs' workers and host threads).
   `open` involves path resolution and can also be slow).
 - Decide the one-in-flight-per-FD question (simplest: yes, reject
   overlapping ops on the same descriptor).
-- Specify worker cancellation/join semantics and their ordering with
-  `sbFinalize()` and dynamic sandbox-memory release. In-flight slots must be
+- Define the operation-specific cancellation and drain mechanics. The generic
+  lifecycle ordering is fixed: after `sbSync()`, in-flight slots must be
   cancelled, or detached without retaining any sandbox reference, before
-  finalization permits the new instance to start.
+  `sbFinalize()` releases dynamic sandbox memory and permits the new instance
+  to start.
 - Guest runtime: green-thread wait/wake integration with the completion
   VRQ, and the idle policy (`vrq_wait`).

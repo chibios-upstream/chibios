@@ -1,9 +1,9 @@
 # Note: SB Lifecycle and Restart Protocol
 
-Design proposal, 2026-07-15. This note addresses sandbox termination,
-restart, and late asynchronous VRQ producers that are not necessarily owned
-by VIO, such as host worker threads, custom timers, DMA completion paths, or
-board-specific IRQ sources.
+Design proposed 2026-07-15 and implemented 2026-07-23. This note addresses
+sandbox termination, restart, and late asynchronous VRQ producers that are
+not necessarily owned by VIO, such as host worker threads, custom timers, DMA
+completion paths, or board-specific IRQ sources.
 
 ## Problem
 
@@ -51,31 +51,49 @@ performed under the system lock. Thread state remains relevant when choosing
 how to inject a VRQ into a running thread, but it no longer decides whether
 the sandbox execution owns the event.
 
-## Explicit finalization API
+## Explicit synchronization and finalization APIs
 
 Termination leaves the sandbox in `STOPPING`. The host must then:
 
-1. Disable custom IRQ and DMA completion sources.
-2. Cancel timers and pending asynchronous operations.
-3. Stop and join worker threads that can reference the sandbox or its memory.
-4. Call an explicit API, provisionally named `sbFinalize()`.
+1. Call `sbSync()` to wait until the sandbox thread reaches its final state.
+2. Disable custom IRQ and DMA completion sources, cancel pending operations,
+   and stop or join workers that can reference the sandbox or its memory.
+3. Call `sbFinalize()`.
+
+`sbSync()` replaces `sbWait()` and wraps `chThdSync()`. The original thread
+reference remains owned by `sb_class_t`, so synchronization does not invoke
+the thread dispose callback and dynamic sandbox memory remains valid while
+the host quiesces external producers.
 
 `sbFinalize()` is preferable to a public state setter. It represents the
-host's assertion that every external producer is quiescent, verifies that
+host's assertion that every external producer is quiescent. It verifies that
 the sandbox thread has terminated and that the lifecycle is `STOPPING`,
-clears the VRQ state under the system lock, and finally changes the state to
-`STOPPED`. A subsequent start is rejected until finalization succeeds.
-
-The implementation must define the ordering between `sbWait()`, thread
-release, dynamic sandbox-memory release, and `sbFinalize()`. Memory referenced
-by an asynchronous producer must not be released before that producer has
-been stopped or joined. This may require finalization to become the resource
-release boundary, or require memory-touching subsystems to participate in
-the termination cleanup before `sbWait()` releases the thread.
+releases the thread reference owned by `sb_class_t`, and changes the lifecycle
+to `STOPPED`. Releasing that reference is the dynamic sandbox-memory release
+boundary. A subsequent start is rejected until finalization succeeds.
 
 For a sandbox using only built-in VIO and the alarm timer, the existing
 termination cleanup already quiesces its producers, so the host can finalize
-immediately after observing termination.
+immediately after `sbSync()` returns.
+
+## Incremental implementation plan
+
+Each step must build and carry its own focused validation.
+
+1. Add `sbSync()` using `chThdSync()` while retaining the existing `sbWait()`.
+   Validate that `sbSync()` followed by `sbWait()` succeeds, proving that
+   synchronization did not consume the reference. **Implemented 2026-07-23.**
+2. Add the lifecycle state and `sbFinalize()` together with all start,
+   failed-start, normal-exit, and abort transitions. Temporarily implement
+   `sbWait()` as `sbSync()` followed by `sbFinalize()` so existing callers
+   remain functional. Validate finalization preconditions and restart.
+   **Implemented 2026-07-23.**
+3. Reject VRQ flag updates and triggers outside `RUNNING`. Validate acceptance
+   in `RUNNING` and rejection in the other lifecycle states.
+   **Implemented 2026-07-23.**
+4. Migrate callers to the explicit `sbSync()` -> producer quiescence ->
+   `sbFinalize()` protocol, validate a custom worker during that interval,
+   then remove `sbWait()`. **Implemented 2026-07-23.**
 
 ## VRQ producer contract
 
@@ -96,9 +114,12 @@ cannot distinguish its old event after a new execution reaches `RUNNING`.
 
 - Normal guest exit and fault/abort both enter `STOPPING` before cleanup.
 - VRQs and flags raised in `STOPPING`, `STOPPED`, and `STARTING` are ignored.
+- `sbSync()` does not release the controller-owned thread reference or dynamic
+  sandbox memory.
 - Start is rejected before explicit finalization.
 - Finalization is rejected while the thread is live or from the wrong state.
-- A custom worker is stopped and joined before finalization, then cannot
-  deliver a completion into the replacement execution.
+- A custom worker retaining sandbox memory is stopped and joined before
+  finalization; its late completion is rejected in `STOPPING`, and the joined
+  worker cannot deliver into the replacement execution.
 - Dynamic sandbox memory remains valid until every memory-touching producer
   has been quiesced.

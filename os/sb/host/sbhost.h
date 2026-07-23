@@ -67,6 +67,7 @@ extern "C" {
   void sb_strv_copy(const char *sp[], void *dp, int n);
   void sbObjectInit(sb_class_t *sbp);
   bool sbIsThreadRunningX(sb_class_t *sbp);
+  bool sbFinalize(sb_class_t *sbp);
   thread_t *sbStart(sb_class_t *sbp, tprio_t prio, stkline_t *stkbase,
                     const char *argv[], const char *envp[]);
 #if SB_CFG_ENABLE_VFS == TRUE
@@ -104,21 +105,34 @@ static inline void sbHostInit(void) {
 }
 
 /**
+ * @brief   Returns the sandbox lifecycle state.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @return              The sandbox lifecycle state.
+ *
+ * @xclass
+ */
+static inline sb_state_t sbGetStateX(const sb_class_t *sbp) {
+
+  return sbp->state;
+}
+
+/**
  * @brief   Blocks the execution of the invoking thread until the specified
  *          sandbox thread terminates then the exit code is returned.
+ * @details The sandbox thread reference is not released.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @return              The exit code from the terminated sandbox thread.
- * @retval MSG_RESET    Sandbox thread not started.
  *
  * @api
  */
-static inline msg_t sbWait(sb_class_t *sbp) {
+static inline msg_t sbSync(sb_class_t *sbp) {
   msg_t msg;
 
-  msg = chThdWait(&sbp->thread);
+  msg = chThdSync(&sbp->thread);
 
   return msg;
 }

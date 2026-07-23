@@ -98,11 +98,15 @@ static THD_FUNCTION(thd1_func, arg) {
  * SB termination event.
  */
 static void SBHandler(eventid_t id) {
+  msg_t msg;
 
   (void)id;
 
   if (!sbIsThreadRunningX(&sbx1)) {
-    msg_t msg = sbWait(&sbx1);
+    msg = sbSync(&sbx1);
+    if (!sbFinalize(&sbx1)) {
+      chSysHalt("SBX1 finalize");
+    }
 
     chprintf((BaseSequentialStream *)&SD2, "SBX1 terminated (%08lx)\r\n", msg);
   }

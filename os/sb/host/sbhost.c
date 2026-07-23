@@ -424,6 +424,27 @@ static void sb_release_memory(thread_t *tp) {
 #endif
 }
 
+static bool sb_start_begin(sb_class_t *sbp) {
+  bool started;
+
+  chSysLock();
+  started = sbp->state == SB_STATE_STOPPED;
+  if (started) {
+    sbp->state = SB_STATE_STARTING;
+  }
+  chSysUnlock();
+
+  return started;
+}
+
+static void sb_start_failed(sb_class_t *sbp) {
+
+  chSysLock();
+  chDbgAssert(sbp->state == SB_STATE_STARTING, "invalid lifecycle state");
+  sbp->state = SB_STATE_STOPPED;
+  chSysUnlock();
+}
+
 static thread_t *sb_start_unprivileged(sb_class_t *sbp,
                                        const char *name,
                                        tprio_t prio,
@@ -513,7 +534,13 @@ static thread_t *sb_start_unprivileged(sb_class_t *sbp,
 #endif
 
   /* Starting the thread.*/
-  return chThdStart(utp);
+  chSysLock();
+  chDbgAssert(sbp->state == SB_STATE_STARTING, "invalid lifecycle state");
+  sbp->state = SB_STATE_RUNNING;
+  chThdStartI(utp);
+  chSysUnlock();
+
+  return utp;
 }
 
 /*===========================================================================*/
@@ -568,6 +595,7 @@ void sb_strv_copy(const char *sp[], void *dp, int n) {
 void sbObjectInit(sb_class_t *sbp) {
 
   memset((void *)sbp, 0, sizeof (sb_class_t));
+  sbp->state = SB_STATE_STOPPED;
 
   /* Marking the thread as terminated in order to make sbIsThreadRunningX()
      behave correctly.*/
@@ -585,6 +613,46 @@ void sbObjectInit(sb_class_t *sbp) {
 bool sbIsThreadRunningX(sb_class_t *sbp) {
 
   return !chThdTerminatedX(&sbp->thread);
+}
+
+/**
+ * @brief   Finalizes a terminated sandbox.
+ * @details The thread reference owned by the sandbox is released and the
+ *          lifecycle state is changed from @p SB_STATE_STOPPING to
+ *          @p SB_STATE_STOPPED.
+ * @pre     This function must not be called concurrently with another
+ *          sandbox lifecycle operation on the same object.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @return              The operation status.
+ * @retval true         the sandbox has been finalized.
+ * @retval false        the sandbox is not stopping or its thread has not
+ *                      terminated, or there are outstanding thread
+ *                      references.
+ *
+ * @api
+ */
+bool sbFinalize(sb_class_t *sbp) {
+
+  chSysLock();
+  if ((sbp->state != SB_STATE_STOPPING) ||
+      !chThdTerminatedX(&sbp->thread) ||
+      (sbp->thread.refs != (trefs_t)1)) {
+    chSysUnlock();
+    return false;
+  }
+  chSysUnlock();
+
+  /* The lifecycle remains STOPPING while the dispose callback releases any
+     dynamic sandbox memory, so a new start cannot race with disposal.*/
+  chThdRelease(&sbp->thread);
+
+  chSysLock();
+  chDbgAssert(sbp->state == SB_STATE_STOPPING, "invalid lifecycle state");
+  sbp->state = SB_STATE_STOPPED;
+  chSysUnlock();
+
+  return true;
 }
 
 /**
@@ -607,7 +675,12 @@ thread_t *sbStart(sb_class_t *sbp, tprio_t prio, stkline_t *stkbase,
                   const char *argv[], const char *envp[]) {
   const sb_memory_region_t *codereg, *datareg;
   const sb_header_t *sbhp;
+  thread_t *utp;
   msg_t ret;
+
+  if (!sb_start_begin(sbp)) {
+    return NULL;
+  }
 
   /* Region zero is assumed to be executable and contain the start header.*/
   codereg = &sbp->regions[0];
@@ -615,7 +688,7 @@ thread_t *sbStart(sb_class_t *sbp, tprio_t prio, stkline_t *stkbase,
 
   ret = sb_check_header(sbhp, &codereg->area);
   if (CH_RET_IS_ERROR(ret)) {
-    return NULL;
+    goto failed;
   }
 #if SB_CFG_ENABLE_VRQ == TRUE
   sbp->vrq_entry = sbhp->hdr_vrq;
@@ -624,20 +697,29 @@ thread_t *sbStart(sb_class_t *sbp, tprio_t prio, stkline_t *stkbase,
   /* Locating region for data, it could be also region zero.*/
   datareg = sb_locate_data_region(sbp);
   if (datareg == NULL) {
-    return NULL;
+    goto failed;
   }
 
   /* Pushing arguments, environment variables and other startup information
      at the top of the data memory area.*/
   if (sb_init_environment(sbp, &datareg->area, argv, envp) == (size_t)0) {
-    return NULL;
+    goto failed;
   }
 
   /* No memory release.*/
   sbp->is_dynamic = false;
 
   /* Everything OK, starting the unprivileged thread inside the sandbox.*/
-  return sb_start_unprivileged(sbp, argv[0], prio, stkbase, sbhp->hdr_entry);
+  utp = sb_start_unprivileged(sbp, argv[0], prio, stkbase, sbhp->hdr_entry);
+  if (utp == NULL) {
+    goto failed;
+  }
+
+  return utp;
+
+failed:
+  sb_start_failed(sbp);
+  return NULL;
 }
 
 #if (SB_CFG_ENABLE_VFS == TRUE) || defined(__DOXYGEN__)
@@ -656,6 +738,7 @@ thread_t *sbStart(sb_class_t *sbp, tprio_t prio, stkline_t *stkbase,
  * @param[in] argv      arguments to be passed to the sandbox
  * @param[in] envp      environment variables to be passed to the sandbox
  * @return              The operation result.
+ * @retval CH_RET_EBUSY if the sandbox is not stopped
  * @retval CH_RET_ENOSYS if no VFS root is associated with the sandbox
  *
  * @api
@@ -663,20 +746,28 @@ thread_t *sbStart(sb_class_t *sbp, tprio_t prio, stkline_t *stkbase,
 msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
                    stkline_t *stkbase, const char *path,
                    const char *argv[], const char *envp[]) {
-  memory_area_t ma = sbp->regions[0].area;
+  memory_area_t ma;
   const sb_header_t *sbhp;
   size_t totsize;
   msg_t ret;
 
+  if (!sb_start_begin(sbp)) {
+    return CH_RET_EBUSY;
+  }
+
+  ma = sbp->regions[0].area;
+
   if (sbGetRoot(sbp) == NULL) {
-    return CH_RET_ENOSYS;
+    ret = CH_RET_ENOSYS;
+    goto failed;
   }
 
   /* Pushing arguments, environment variables and other startup information
      at the top of the data memory area.*/
   totsize = sb_init_environment(sbp, &sbp->regions[0].area, argv, envp);
   if (totsize == (size_t)0) {
-    return CH_RET_ENOMEM;
+    ret = CH_RET_ENOMEM;
+    goto failed;
   }
 
   /* Adjusting the size of the memory area object, we don't want the loaded
@@ -685,14 +776,16 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
 
   /* Loading sandbox code into the specified memory area.*/
   ret = sbElfLoadFile(sbGetRoot(sbp), path, &ma);
-  CH_RETURN_ON_ERROR(ret);
+  if (CH_RET_IS_ERROR(ret)) {
+    goto failed;
+  }
 
   /* Header location.*/
   sbhp = (const sb_header_t *)(void *)ma.base;
 
   ret = sb_check_header(sbhp, &ma);
   if (CH_RET_IS_ERROR(ret)) {
-    return ret;
+    goto failed;
   }
 #if SB_CFG_ENABLE_VRQ == TRUE
   sbp->vrq_entry = sbhp->hdr_vrq;
@@ -707,10 +800,15 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
 
   /* Everything OK, starting the unprivileged thread inside the sandbox.*/
   if (sb_start_unprivileged(sbp, argv[0], prio, stkbase, sbhp->hdr_entry) == NULL) {
-    return CH_RET_ENOMEM;
+    ret = CH_RET_ENOMEM;
+    goto failed;
   }
 
   return CH_RET_SUCCESS;
+
+failed:
+  sb_start_failed(sbp);
+  return ret;
 }
 
 #if (PORT_SWITCHED_REGIONS_NUMBER > 0) && (CH_CFG_USE_HEAP == TRUE) || defined(__DOXYGEN__)
@@ -724,13 +822,14 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
  * @param[in] argv      arguments to be passed to the sandbox
  * @param[in] envp      environment variables to be passed to the sandbox
  * @return              The operation result.
+ * @retval CH_RET_EBUSY if the sandbox is not stopped
  * @retval CH_RET_ENOSYS if no VFS root is associated with the sandbox
  *
  * @api
  */
 msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
                     const char *path, const char *argv[], const char *envp[]) {
-  memory_area_t *umap = &sbp->regions[0].area;
+  memory_area_t *umap;
   memory_area_t elfma;
   const sb_header_t *sbhp;
   vfs_file_node_c *fnp;
@@ -738,12 +837,21 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   size_t size, basealign;
   msg_t ret;
 
+  if (!sb_start_begin(sbp)) {
+    return CH_RET_EBUSY;
+  }
+
+  umap = &sbp->regions[0].area;
+
   if (sbGetRoot(sbp) == NULL) {
-    return CH_RET_ENOSYS;
+    ret = CH_RET_ENOSYS;
+    goto failed;
   }
 
   ret = vfsFSOpenFile(sbGetRoot(sbp), path, VO_RDONLY, &fnp);
-  CH_RETURN_ON_ERROR(ret);
+  if (CH_RET_IS_ERROR(ret)) {
+    goto failed;
+  }
 
   /* Calculating bare-minimum space required by the elf file.*/
   ret = sbElfGetAllocation(fnp, &umap->size);
@@ -783,6 +891,7 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
      at the top of the data memory area.*/
   size = sb_init_environment(sbp, umap, argv, envp);
   if (size == (size_t)0) {
+    ret = CH_RET_ENOMEM;
     goto skip3;
   }
 
@@ -833,6 +942,8 @@ skip2:
   chHeapFree(umap->base);
 skip1:
   vfsClose((vfs_node_c *)fnp);
+failed:
+  sb_start_failed(sbp);
   return ret;
 }
 #endif /* CH_CFG_USE_HEAP == TRUE */

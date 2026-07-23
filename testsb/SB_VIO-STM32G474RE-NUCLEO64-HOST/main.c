@@ -207,6 +207,10 @@ static vio_conf_t vio_config1 = {
 
 /* Privileged stacks for sandboxes.*/
 static SB_STACK(sbx1stk);
+static SB_STACK(sbx2stk);
+
+/* Invalid header used for failed-start lifecycle testing.*/
+static sb_header_t invalid_header;
 
 /* Arguments and environments for SB1.*/
 static const char *sbx1_argv[] = {
@@ -218,9 +222,106 @@ static const char *sbx1_envp[] = {
   NULL
 };
 
+/* External worker retaining a pointer into sandbox memory.*/
+typedef struct {
+  sb_class_t                    *sbp;
+  const volatile uint8_t        *memory;
+  volatile bool                 memory_accessed;
+} sb_worker_context_t;
+
+static THD_WORKING_AREA(sb_worker_wa, 256);
+static thread_t *sb_worker_tp;
+static sb_worker_context_t sb_worker_context;
+
 /*===========================================================================*/
 /* Main and generic code.                                                    */
 /*===========================================================================*/
+
+static void test_vrq_ignored(sb_class_t *sbp) {
+  const sb_vrqnum_t nvrq = 31U;
+  uint32_t flags;
+  sb_vrqmask_t wtmask;
+
+  chSysLock();
+  flags = sbp->vrq.flags[nvrq];
+  wtmask = sbp->vrq.wtmask;
+  sbVRQSetFlagsI(sbp, nvrq, 0xA5A5A5A5U);
+  sbVRQTriggerS(sbp, nvrq);
+  chDbgAssert(sbp->vrq.flags[nvrq] == flags, "VRQ flags changed");
+  chDbgAssert(sbp->vrq.wtmask == wtmask, "VRQ triggered");
+  chSysUnlock();
+}
+
+static void test_vrq_running(sb_class_t *sbp) {
+  const sb_vrqnum_t nvrq = 31U;
+  const sb_vrqmask_t vrqmask = (sb_vrqmask_t)(1U << nvrq);
+
+  chSysLock();
+  sbp->vrq.flags[nvrq] = 0U;
+  sbp->vrq.wtmask &= ~vrqmask;
+  sbVRQSetFlagsI(sbp, nvrq, 0xA5A5A5A5U);
+  sbVRQTriggerS(sbp, nvrq);
+  chDbgAssert(sbp->vrq.flags[nvrq] == 0xA5A5A5A5U,
+              "VRQ flags rejected");
+  chDbgAssert((sbp->vrq.wtmask & vrqmask) != 0U, "VRQ rejected");
+  sbp->vrq.flags[nvrq] = 0U;
+  sbp->vrq.wtmask &= ~vrqmask;
+  chSysUnlock();
+}
+
+static THD_FUNCTION(sb_worker, arg) {
+  sb_worker_context_t *wcp = (sb_worker_context_t *)arg;
+  uint8_t sample;
+
+  chRegSetThreadName("sb-worker");
+
+  while (!chThdShouldTerminateX()) {
+    chThdSleepMilliseconds(1);
+  }
+
+  /* This access must happen after sbSync() but before sbFinalize().*/
+  sample = *wcp->memory;
+  (void)sample;
+  wcp->memory_accessed = true;
+
+  /* A completion from the stopping execution must be ignored.*/
+  chSysLock();
+  sbVRQSetFlagsI(wcp->sbp, 31U, 0x5A5A5A5AU);
+  sbVRQTriggerS(wcp->sbp, 31U);
+  chSysUnlock();
+}
+
+static void start_sb_worker(void) {
+
+  sb_worker_context.sbp = &sbx1;
+  sb_worker_context.memory = sbx1.regions[1].area.base;
+  sb_worker_context.memory_accessed = false;
+  sb_worker_tp = chThdCreateStatic(sb_worker_wa, sizeof sb_worker_wa,
+                                   NORMALPRIO-5, sb_worker,
+                                   &sb_worker_context);
+  chDbgAssert(sb_worker_tp != NULL, "worker not started");
+}
+
+static void stop_sb_worker(void) {
+  uint32_t flags;
+  sb_vrqmask_t wtmask;
+
+  chSysLock();
+  flags = sbx1.vrq.flags[31U];
+  wtmask = sbx1.vrq.wtmask;
+  chSysUnlock();
+
+  chThdTerminate(sb_worker_tp);
+  (void)chThdWait(sb_worker_tp);
+  sb_worker_tp = NULL;
+
+  chDbgAssert(sb_worker_context.memory_accessed,
+              "sandbox memory not accessible");
+  chSysLock();
+  chDbgAssert(sbx1.vrq.flags[31U] == flags, "stale worker flags accepted");
+  chDbgAssert(sbx1.vrq.wtmask == wtmask, "stale worker VRQ accepted");
+  chSysUnlock();
+}
 
 static void start_sb1(void) {
   thread_t *utp;
@@ -230,6 +331,8 @@ static void start_sb1(void) {
   if (utp == NULL) {
     chSysHalt("sbx1 failed");
   }
+  chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_RUNNING,
+              "sandbox not running");
 }
 
 /*
@@ -276,8 +379,28 @@ int main(void) {
   sbSetRegion(&sbx1, 1, STARTUP_RAM1_BASE,   STARTUP_RAM1_SIZE, SB_REG_IS_DATA);
   sbSetVirtualIO(&sbx1, &vio_config1);
 
+  /* Lifecycle initialization and failed-start checks.*/
+  chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_STOPPED,
+              "sandbox not stopped");
+  test_vrq_ignored(&sbx1);
+  chDbgAssert(!sbFinalize(&sbx1), "stopped sandbox finalized");
+  sbObjectInit(&sbx2);
+  sbSetRegion(&sbx2, 0, (uint8_t *)&invalid_header,
+              sizeof invalid_header, SB_REG_IS_CODE);
+  chDbgAssert(sbStart(&sbx2, NORMALPRIO-10, sbx2stk,
+                      sbx1_argv, sbx1_envp) == NULL,
+              "invalid sandbox started");
+  chDbgAssert(sbGetStateX(&sbx2) == SB_STATE_STOPPED,
+              "failed start not stopped");
+
   /* Starting sandboxed threads.*/
   start_sb1();
+  start_sb_worker();
+  test_vrq_running(&sbx1);
+  chDbgAssert(!sbFinalize(&sbx1), "running sandbox finalized");
+  chDbgAssert(sbStart(&sbx1, NORMALPRIO-10, sbx1stk,
+                      sbx1_argv, sbx1_envp) == NULL,
+              "running sandbox restarted");
 
   /*
    * Listening to sandbox events.
@@ -293,7 +416,24 @@ int main(void) {
     if (chEvtWaitAnyTimeout(ALL_EVENTS, TIME_MS2I(500)) != (eventmask_t)0) {
 
       if (!sbIsThreadRunningX(&sbx1)) {
-        msg_t msg = sbWait(&sbx1);
+        bool finalized;
+        msg_t msg;
+
+        chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_STOPPING,
+                    "sandbox not stopping");
+        test_vrq_ignored(&sbx1);
+        msg = sbSync(&sbx1);
+        chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_STOPPING,
+                    "sync changed lifecycle");
+        stop_sb_worker();
+        chDbgAssert(sbStart(&sbx1, NORMALPRIO-10, sbx1stk,
+                            sbx1_argv, sbx1_envp) == NULL,
+                    "stopping sandbox restarted");
+        finalized = sbFinalize(&sbx1);
+        chDbgAssert(finalized, "sandbox not finalized");
+        (void)finalized;
+        chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_STOPPED,
+                    "sandbox not finalized");
 
         /* Re-starting the driver because the sandbox stops it on exit.*/
         if (drvStart(&LPSIOD1, NULL) != MSG_OK) {
@@ -304,6 +444,7 @@ int main(void) {
         drvStop(&LPSIOD1);
 
         start_sb1();
+        start_sb_worker();
       }
     }
   }
