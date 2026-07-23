@@ -740,7 +740,66 @@ void chThdExitS(msg_t msg) {
 /**
  * @brief   Blocks the execution of the invoking thread until the specified
  *          thread terminates then the exit code is returned.
- * @details This function waits for the specified thread to terminate then
+ * @details The thread reference counter is not affected by this function,
+ *          the caller is responsible for eventually releasing its reference.
+ * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
+ *          order to use this function.
+ * @post    Enabling @p chThdSyncS() requires 2-4 (depending on the
+ *          architecture) extra bytes in the @p thread_t structure.
+ *
+ * @param[in] tp        pointer to the thread
+ * @return              The exit code from the terminated thread.
+ *
+ * @sclass
+ */
+msg_t chThdSyncS(thread_t *tp) {
+  thread_t *currtp = chThdGetSelfX();
+
+  chDbgCheckClassS();
+  chDbgCheck(tp != NULL);
+
+  chDbgAssert(tp != currtp, "waiting self");
+#if CH_CFG_USE_REGISTRY == TRUE
+  chDbgAssert(tp->refs > (trefs_t)0, "no references");
+#endif
+
+  if (likely(tp->state != CH_STATE_FINAL)) {
+    ch_list_link(&tp->waiting, &currtp->hdr.list);
+    chSchGoSleepS(CH_STATE_WTEXIT);
+  }
+
+  return tp->u.exitcode;
+}
+
+/**
+ * @brief   Blocks the execution of the invoking thread until the specified
+ *          thread terminates then the exit code is returned.
+ * @details The thread reference counter is not affected by this function,
+ *          the caller is responsible for eventually releasing its reference.
+ * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
+ *          order to use this function.
+ * @post    Enabling @p chThdSync() requires 2-4 (depending on the
+ *          architecture) extra bytes in the @p thread_t structure.
+ *
+ * @param[in] tp        pointer to the thread
+ * @return              The exit code from the terminated thread.
+ *
+ * @api
+ */
+msg_t chThdSync(thread_t *tp) {
+  msg_t msg;
+
+  chSysLock();
+  msg = chThdSyncS(tp);
+  chSysUnlock();
+
+  return msg;
+}
+
+/**
+ * @brief   Blocks the execution of the invoking thread until the specified
+ *          thread terminates then the exit code is returned.
+ * @details This function synchronizes with the specified thread then
  *          decrements its reference counter, if the counter reaches zero then
  *          the thread working area is returned to the proper allocator and
  *          the thread is removed from the registry.
@@ -757,23 +816,9 @@ void chThdExitS(msg_t msg) {
  * @api
  */
 msg_t chThdWait(thread_t *tp) {
-  thread_t *currtp = chThdGetSelfX();
   msg_t msg;
 
-  chDbgCheck(tp != NULL);
-
-  chSysLock();
-  chDbgAssert(tp != currtp, "waiting self");
-#if CH_CFG_USE_REGISTRY == TRUE
-  chDbgAssert(tp->refs > (trefs_t)0, "no references");
-#endif
-
-  if (likely(tp->state != CH_STATE_FINAL)) {
-    ch_list_link(&tp->waiting, &currtp->hdr.list);
-    chSchGoSleepS(CH_STATE_WTEXIT);
-  }
-  msg = tp->u.exitcode;
-  chSysUnlock();
+  msg = chThdSync(tp);
 
 #if CH_CFG_USE_REGISTRY == TRUE
   /* Releasing a reference to the thread.*/

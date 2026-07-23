@@ -457,6 +457,8 @@ extern "C" {
   void chThdExit(msg_t msg);
   void chThdExitS(msg_t msg);
 #if CH_CFG_USE_WAITEXIT == TRUE
+  msg_t chThdSyncS(thread_t *tp);
+  msg_t chThdSync(thread_t *tp);
   msg_t chThdWait(thread_t *tp);
 #endif
   tprio_t chThdSetPriority(tprio_t newprio);
