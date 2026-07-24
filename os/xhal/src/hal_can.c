@@ -163,9 +163,11 @@ void __can_stop_impl(void *ip) {
   can_lld_stop(self);
   can_lld_reset(self);
 #if CAN_USE_SYNCHRONIZATION == TRUE
+  osalSysLock();
   osalThreadDequeueAllI(&self->rxqueue, MSG_RESET);
   osalThreadDequeueAllI(&self->txqueue, MSG_RESET);
   osalOsRescheduleS();
+  osalSysUnlock();
 #endif
 }
 

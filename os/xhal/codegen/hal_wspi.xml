@@ -459,7 +459,10 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 wspi_lld_stop(self);
 #if WSPI_USE_SYNCHRONIZATION == TRUE
+osalSysLock();
 osalThreadResumeI(&self->sync_transfer, MSG_RESET);
+osalOsRescheduleS();
+osalSysUnlock();
 #endif]]></implementation>
             </method>
             <method shortname="setcfg">

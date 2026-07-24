@@ -1580,6 +1580,9 @@ self->status        = 0U;
 self->address       = 0U;
 self->configuration = 0U;
 self->saved_state   = HAL_DRV_STATE_STOP;
+#if USB_USE_SYNCHRONIZATION == TRUE
+osalSysLock();
+#endif
 for (i = 0U; i <= (unsigned)USB_MAX_ENDPOINTS; i++) {
 #if USB_USE_SYNCHRONIZATION == TRUE
   if (self->epc[i] != NULL) {
@@ -1592,7 +1595,11 @@ for (i = 0U; i <= (unsigned)USB_MAX_ENDPOINTS; i++) {
   }
 #endif
   self->epc[i] = NULL;
-}]]></implementation>
+}
+#if USB_USE_SYNCHRONIZATION == TRUE
+osalOsRescheduleS();
+osalSysUnlock();
+#endif]]></implementation>
             </method>
             <method shortname="setcfg">
               <implementation><![CDATA[

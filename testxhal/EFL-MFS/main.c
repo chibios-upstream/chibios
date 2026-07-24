@@ -67,6 +67,13 @@ int main(void) {
   drvStart(&EFLD1, NULL);
   drvStart(&bsio1, NULL);
 
+  /* Exercising the synchronized SIO stop and restart paths.*/
+  drvStop(&bsio1);
+  chDbgAssert(drvGetStateX(&bsio1) == HAL_DRV_STATE_STOP,
+              "SIO not stopped");
+  chDbgAssert(drvStart(&bsio1, NULL) == HAL_RET_SUCCESS,
+              "SIO restart failed");
+
   chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1, NULL);
 
   button_pressed = false;

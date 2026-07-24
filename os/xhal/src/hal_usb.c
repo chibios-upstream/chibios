@@ -1542,6 +1542,9 @@ void __usb_stop_impl(void *ip) {
   self->address       = 0U;
   self->configuration = 0U;
   self->saved_state   = HAL_DRV_STATE_STOP;
+#if USB_USE_SYNCHRONIZATION == TRUE
+  osalSysLock();
+#endif
   for (i = 0U; i <= (unsigned)USB_MAX_ENDPOINTS; i++) {
 #if USB_USE_SYNCHRONIZATION == TRUE
     if (self->epc[i] != NULL) {
@@ -1555,6 +1558,10 @@ void __usb_stop_impl(void *ip) {
 #endif
     self->epc[i] = NULL;
   }
+#if USB_USE_SYNCHRONIZATION == TRUE
+  osalOsRescheduleS();
+  osalSysUnlock();
+#endif
 }
 
 /**

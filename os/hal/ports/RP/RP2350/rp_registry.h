@@ -73,8 +73,9 @@
 #define RP_HAS_TIMER1                       TRUE
 #define RP_ST_NUM_ALARMS                    4
 
-/* RP2350 does NOT have an RTC */
-#define RP_HAS_RTC                          FALSE
+/* RP2350 has no dedicated RTC peripheral; time-keeping is emulated on
+   the POWMAN Always-On timer (see LLD/RTCv2). */
+#define RP_HAS_RTC                          TRUE
 
 /* SPI attributes.*/
 #define RP_HAS_SPI0                         TRUE
