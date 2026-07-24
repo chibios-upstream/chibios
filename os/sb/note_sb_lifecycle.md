@@ -27,11 +27,13 @@ producer-quiescence contract.
 ## Proposed state machine
 
 ```text
-STOPPED -> STARTING -> RUNNING -> STOPPING
-   ^                                  |
-   +-------- explicit finalize -------+
+UNINIT -- object init --> STOPPED -> STARTING -> RUNNING -> STOPPING
+                            ^                                  |
+                            +-------- explicit finalize -------+
 ```
 
+- `UNINIT`: the sandbox object has not been initialized; zero-initialized
+  static storage has this state and no sandbox operation is permitted.
 - `STOPPED`: no producer may target the sandbox; a start operation is
   permitted.
 - `STARTING`: the thread and VRQ state are being prepared; VRQs are rejected.
@@ -39,6 +41,10 @@ STOPPED -> STARTING -> RUNNING -> STOPPING
 - `STOPPING`: the guest has exited or aborted and producer teardown is in
   progress; VRQs are rejected. This is a durable state, not an automatic
   transition to `STOPPED`.
+
+`sbObjectInit()` is the only transition from `UNINIT` to `STOPPED`. There is
+no transition back to `UNINIT`; object disposal is outside this execution
+lifecycle.
 
 Sandbox exit and abort must set `STOPPING` before disabling VIO callbacks,
 resetting timers, or notifying the host. Start APIs must accept only
@@ -55,7 +61,8 @@ the sandbox execution owns the event.
 
 Termination leaves the sandbox in `STOPPING`. The host must then:
 
-1. Call `sbSync()` to wait until the sandbox thread reaches its final state.
+1. Call `sbSync()` while the sandbox is `RUNNING` or `STOPPING` to wait until
+   its thread reaches the final state.
 2. Disable custom IRQ and DMA completion sources, cancel pending operations,
    and stop or join workers that can reference the sandbox or its memory.
 3. Call `sbFinalize()`.
@@ -63,7 +70,10 @@ Termination leaves the sandbox in `STOPPING`. The host must then:
 `sbSync()` replaces `sbWait()` and wraps `chThdSync()`. The original thread
 reference remains owned by `sb_class_t`, so synchronization does not invoke
 the thread dispose callback and dynamic sandbox memory remains valid while
-the host quiesces external producers.
+the host quiesces external producers. Calling it while the sandbox is
+`RUNNING` blocks until termination changes the lifecycle to `STOPPING`;
+calling it after that transition waits only if the thread has not reached its
+final state yet. It returns with the lifecycle still in `STOPPING`.
 
 `sbFinalize()` is preferable to a public state setter. It represents the
 host's assertion that every external producer is quiescent. It verifies that
@@ -113,7 +123,12 @@ cannot distinguish its old event after a new execution reaches `RUNNING`.
 ## Required validation
 
 - Normal guest exit and fault/abort both enter `STOPPING` before cleanup.
-- VRQs and flags raised in `STOPPING`, `STOPPED`, and `STARTING` are ignored.
+- Zero-initialized static storage reports `UNINIT`; start, finalization, VRQs,
+  and configuration are rejected until `sbObjectInit()` enters `STOPPED`.
+- VRQs and flags raised in `UNINIT`, `STOPPING`, `STOPPED`, and `STARTING` are
+  ignored.
+- `sbSync()` can be entered from `RUNNING` or `STOPPING` and returns in
+  `STOPPING`.
 - `sbSync()` does not release the controller-owned thread reference or dynamic
   sandbox memory.
 - Start is rejected before explicit finalization.

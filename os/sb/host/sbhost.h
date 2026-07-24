@@ -121,8 +121,13 @@ static inline sb_state_t sbGetStateX(const sb_class_t *sbp) {
  * @brief   Blocks the execution of the invoking thread until the specified
  *          sandbox thread terminates then the exit code is returned.
  * @details The sandbox thread reference is not released.
+ * @pre     The sandbox must be in @p SB_STATE_RUNNING or
+ *          @p SB_STATE_STOPPING state.
+ * @pre     This function must not be called concurrently with another
+ *          sandbox lifecycle operation on the same object.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
+ * @post    The sandbox is in @p SB_STATE_STOPPING state.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @return              The exit code from the terminated sandbox thread.
@@ -132,13 +137,20 @@ static inline sb_state_t sbGetStateX(const sb_class_t *sbp) {
 static inline msg_t sbSync(sb_class_t *sbp) {
   msg_t msg;
 
+  chDbgAssert((sbp->state == SB_STATE_RUNNING) ||
+              (sbp->state == SB_STATE_STOPPING),
+              "invalid lifecycle state");
+
   msg = chThdSync(&sbp->thread);
+
+  chDbgAssert(sbp->state == SB_STATE_STOPPING, "invalid lifecycle state");
 
   return msg;
 }
 
 /**
  * @brief   Associates a memory area to a sandbox region.
+ * @pre     The sandbox must be in @p SB_STATE_STOPPED state.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] region    region number in range 0..SB_CFG_NUM_REGIONS-1
@@ -154,6 +166,7 @@ static inline void sbSetRegion(sb_class_t *sbp, unsigned region,
   sb_memory_region_t *mrp;
 
   chDbgCheck((region <= SB_CFG_NUM_REGIONS-1));
+  chDbgAssert(sbp->state == SB_STATE_STOPPED, "invalid lifecycle state");
 
   mrp = &sbp->regions[region];
   mrp->area.base = base;
@@ -177,7 +190,7 @@ static inline vfs_root_c *sbGetRoot(sb_class_t *sbp) {
 
 /**
  * @brief   Associates a VFS root with a sandbox.
- * @pre     The sandbox must not be running.
+ * @pre     The sandbox must be in @p SB_STATE_STOPPED state.
  * @note    The root is referenced directly and must remain valid while
  *          associated with the sandbox.
  * @note    A @p NULL root leaves the sandbox without a path namespace;
@@ -190,13 +203,14 @@ static inline vfs_root_c *sbGetRoot(sb_class_t *sbp) {
  */
 static inline void sbSetRoot(sb_class_t *sbp, vfs_root_c *rootp) {
 
-  chDbgAssert(!sbIsThreadRunningX(sbp), "sandbox running");
+  chDbgAssert(sbp->state == SB_STATE_STOPPED, "invalid lifecycle state");
 
   sbp->io.vfs_root = rootp;
 }
 
 /**
  * @brief   Registers a file descriptor on a sandbox.
+ * @pre     The sandbox must be in @p SB_STATE_STOPPED state.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] fd        file descriptor to be assigned
@@ -206,6 +220,7 @@ static inline void sbSetRoot(sb_class_t *sbp, vfs_root_c *rootp) {
  */
 static inline void sbRegisterDescriptor(sb_class_t *sbp, int fd, vfs_node_c *np) {
 
+  chDbgAssert(sbp->state == SB_STATE_STOPPED, "invalid lifecycle state");
   chDbgAssert(sb_is_available_descriptor(&sbp->io, fd), "invalid file descriptor");
 
   sbp->io.vfs_nodes[fd]  = np;
@@ -215,6 +230,7 @@ static inline void sbRegisterDescriptor(sb_class_t *sbp, int fd, vfs_node_c *np)
 #if (SB_CFG_ENABLE_VIO == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Associates a VIO configuration to a sandbox.
+ * @pre     The sandbox must be in @p SB_STATE_STOPPED state.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] vioconf   pointer to a VIO configuration or @p NULL
@@ -222,6 +238,8 @@ static inline void sbRegisterDescriptor(sb_class_t *sbp, int fd, vfs_node_c *np)
  * @api
  */
 static inline void sbSetVirtualIO(sb_class_t *sbp, const vio_conf_t *vioconf) {
+
+  chDbgAssert(sbp->state == SB_STATE_STOPPED, "invalid lifecycle state");
 
   sbp->vioconf = vioconf;
 }

@@ -233,6 +233,18 @@ static THD_WORKING_AREA(sb_worker_wa, 256);
 static thread_t *sb_worker_tp;
 static sb_worker_context_t sb_worker_context;
 
+/* Host thread synchronizing with the sandbox from RUNNING state. */
+typedef struct {
+  sb_class_t                    *sbp;
+  volatile bool                 entered;
+  volatile bool                 completed;
+  msg_t                         msg;
+} sb_sync_context_t;
+
+static THD_WORKING_AREA(sb_sync_wa, 256);
+static thread_t *sb_sync_tp;
+static sb_sync_context_t sb_sync_context;
+
 /*===========================================================================*/
 /* Main and generic code.                                                    */
 /*===========================================================================*/
@@ -323,6 +335,43 @@ static void stop_sb_worker(void) {
   chSysUnlock();
 }
 
+static THD_FUNCTION(sb_syncer, arg) {
+  sb_sync_context_t *scp = (sb_sync_context_t *)arg;
+
+  chRegSetThreadName("sb-sync");
+  scp->entered = true;
+  scp->msg = sbSync(scp->sbp);
+  scp->completed = true;
+}
+
+static void start_sb_syncer(void) {
+
+  chDbgAssert(sb_sync_tp == NULL, "syncer already started");
+  sb_sync_context.sbp = &sbx1;
+  sb_sync_context.entered = false;
+  sb_sync_context.completed = false;
+  sb_sync_tp = chThdCreateStatic(sb_sync_wa, sizeof sb_sync_wa,
+                                 NORMALPRIO-5, sb_syncer,
+                                 &sb_sync_context);
+  chDbgAssert(sb_sync_tp != NULL, "syncer not started");
+  while (!sb_sync_context.entered) {
+    chThdSleepMilliseconds(1);
+  }
+  chThdSleepMilliseconds(1);
+  chDbgAssert(!sb_sync_context.completed, "running sync did not block");
+}
+
+static msg_t wait_sb_syncer(void) {
+  msg_t msg;
+
+  (void)chThdWait(sb_sync_tp);
+  sb_sync_tp = NULL;
+  chDbgAssert(sb_sync_context.completed, "syncer not completed");
+  msg = sb_sync_context.msg;
+
+  return msg;
+}
+
 static void start_sb1(void) {
   thread_t *utp;
 
@@ -374,6 +423,15 @@ int main(void) {
   /*
    * Sandbox objects initialization, regions are assigned explicitly.
    */
+  chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_UNINIT,
+              "zeroed sandbox initialized");
+  chDbgAssert(!sbIsThreadRunningX(&sbx1), "uninitialized sandbox running");
+  test_vrq_ignored(&sbx1);
+  chDbgAssert(!sbFinalize(&sbx1), "uninitialized sandbox finalized");
+  chDbgAssert(sbStart(&sbx1, NORMALPRIO-10, sbx1stk,
+                      sbx1_argv, sbx1_envp) == NULL,
+              "uninitialized sandbox started");
+
   sbObjectInit(&sbx1);
   sbSetRegion(&sbx1, 0, STARTUP_FLASH1_BASE, STARTUP_FLASH1_SIZE, SB_REG_IS_CODE);
   sbSetRegion(&sbx1, 1, STARTUP_RAM1_BASE,   STARTUP_RAM1_SIZE, SB_REG_IS_DATA);
@@ -395,6 +453,7 @@ int main(void) {
 
   /* Starting sandboxed threads.*/
   start_sb1();
+  start_sb_syncer();
   start_sb_worker();
   test_vrq_running(&sbx1);
   chDbgAssert(!sbFinalize(&sbx1), "running sandbox finalized");
@@ -417,12 +476,14 @@ int main(void) {
 
       if (!sbIsThreadRunningX(&sbx1)) {
         bool finalized;
-        msg_t msg;
+        msg_t msg, stopped_msg;
 
         chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_STOPPING,
                     "sandbox not stopping");
         test_vrq_ignored(&sbx1);
-        msg = sbSync(&sbx1);
+        msg = wait_sb_syncer();
+        stopped_msg = sbSync(&sbx1);
+        chDbgAssert(stopped_msg == msg, "sync result changed");
         chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_STOPPING,
                     "sync changed lifecycle");
         stop_sb_worker();
@@ -444,6 +505,7 @@ int main(void) {
         drvStop(&LPSIOD1);
 
         start_sb1();
+        start_sb_syncer();
         start_sb_worker();
       }
     }

@@ -204,7 +204,8 @@
  * @brief   Sandbox lifecycle states.
  */
 typedef enum {
-  SB_STATE_STOPPED = 0,                 /**< Sandbox ready to be started.   */
+  SB_STATE_UNINIT = 0,                  /**< Sandbox object not initialized. */
+  SB_STATE_STOPPED,                     /**< Sandbox ready to be started.   */
   SB_STATE_STARTING,                    /**< Sandbox start in progress.     */
   SB_STATE_RUNNING,                     /**< Sandbox execution active.      */
   SB_STATE_STOPPING                     /**< Sandbox awaiting finalization. */

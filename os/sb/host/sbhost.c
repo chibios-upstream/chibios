@@ -612,7 +612,8 @@ void sbObjectInit(sb_class_t *sbp) {
  */
 bool sbIsThreadRunningX(sb_class_t *sbp) {
 
-  return !chThdTerminatedX(&sbp->thread);
+  return (sbp->state != SB_STATE_UNINIT) &&
+         !chThdTerminatedX(&sbp->thread);
 }
 
 /**

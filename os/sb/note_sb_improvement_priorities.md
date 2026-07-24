@@ -45,12 +45,12 @@ done items are marked inline.
    path and the shared-memory API. (margin 1)
 4b. **Explicit sandbox lifecycle/finalization (implemented 2026-07-23)** —
    independent
-   `STOPPED`/`STARTING`/`RUNNING`/`STOPPING` state, gate VRQs on `RUNNING`,
-   leave terminated sandboxes in `STOPPING`, and require the host to quiesce
-   external producers before `sbFinalize()` permits restart. This closes the
-   late-worker/late-IRQ restart contract without making every producer
-   generation-aware. The ordering is now direct: `sbSync()` retains the
-   controller-owned thread reference, the host quiesces producers, and
+   `UNINIT`/`STOPPED`/`STARTING`/`RUNNING`/`STOPPING` state, gate VRQs on
+   `RUNNING`, leave terminated sandboxes in `STOPPING`, and require the host
+   to quiesce external producers before `sbFinalize()` permits restart. This
+   closes the late-worker/late-IRQ restart contract without making every
+   producer generation-aware. The ordering is now direct: `sbSync()` retains
+   the controller-owned thread reference, the host quiesces producers, and
    `sbFinalize()` releases the reference and dynamic sandbox memory.
    (note_sb_lifecycle.md; isolation note, margin 7)
 
