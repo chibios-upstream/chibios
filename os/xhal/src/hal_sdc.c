@@ -899,7 +899,10 @@ void __sdc_stop_impl(void *ip) {
   self->rca = 0U;
   self->capacity = 0U;
 #if SDC_USE_SYNCHRONIZATION == TRUE
+  osalSysLock();
   osalThreadResumeI(&self->sync_transfer, MSG_RESET);
+  osalOsRescheduleS();
+  osalSysUnlock();
 #endif
 }
 

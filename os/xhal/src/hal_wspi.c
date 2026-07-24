@@ -152,7 +152,10 @@ void __wspi_stop_impl(void *ip) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
   wspi_lld_stop(self);
 #if WSPI_USE_SYNCHRONIZATION == TRUE
+  osalSysLock();
   osalThreadResumeI(&self->sync_transfer, MSG_RESET);
+  osalOsRescheduleS();
+  osalSysUnlock();
 #endif
 }
 

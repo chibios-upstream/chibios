@@ -153,7 +153,10 @@ void __i2c_stop_impl(void *ip) {
   i2c_lld_stop(self);
   self->errors = I2C_NO_ERROR;
 #if I2C_USE_SYNCHRONIZATION == TRUE
+  osalSysLock();
   osalThreadResumeI(&self->sync_transfer, MSG_RESET);
+  osalOsRescheduleS();
+  osalSysUnlock();
 #endif
 }
 

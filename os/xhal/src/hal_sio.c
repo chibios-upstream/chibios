@@ -548,11 +548,13 @@ void __sio_stop_impl(void *ip) {
 
 #if SIO_USE_SYNCHRONIZATION == TRUE
   /* Informing waiting threads, if any.*/
+  osalSysLock();
   osalThreadResumeI(&self->sync_rx, MSG_RESET);
   osalThreadResumeI(&self->sync_rxidle, MSG_RESET);
   osalThreadResumeI(&self->sync_tx, MSG_RESET);
   osalThreadResumeI(&self->sync_txend, MSG_RESET);
   osalOsRescheduleS();
+  osalSysUnlock();
 #endif
 }
 
