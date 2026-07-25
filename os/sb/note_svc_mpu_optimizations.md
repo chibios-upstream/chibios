@@ -1,5 +1,9 @@
 # Note: SVC / MPU Context Switch Optimizations (ALT ports)
 
+Implementation status and remaining work are tracked only in
+[open_points.md](open_points.md). This note retains the detailed design and
+rationale.
+
 Analysis of the shared SVC path used by both RT context switching and the
 SB syscall mechanism in the ALT ports (`os/common/ports/ARMv7-M-ALT`,
 applies conceptually to `ARMv8-M-ML-ALT` too). Findings ordered by
@@ -161,7 +165,7 @@ construction property is lost and it becomes a guest-indexed `blx`.
 
 ## 3. MPU regions as a shared table pointer (preferred design)
 
-> ✅ **IMPLEMENTED on `chibios-sandboxes-dev`, 2026-06-12** — commits
+> ✅ **IMPLEMENTED 2026-06-12 and now upstream** — commits
 > `d9e47421` ("ALT ports: MPU switched regions become a shared table
 > pointer") and `6d2fa405` ("default MPU table honors the static
 > initialization settings"). See `chcore.c` (`port_mpu_default_regions[]`,
