@@ -80,9 +80,9 @@ extern "C" {
                                          unsigned cfgnum);
   etc_receive_handle_t eth_lld_get_receive_handle(hal_eth_driver_c *ethp);
   etc_transmit_handle_t eth_lld_get_transmit_handle(hal_eth_driver_c *ethp);
-  void eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
+  bool eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
                                       etc_receive_handle_t rxh);
-  void eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
+  bool eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
                                        etc_transmit_handle_t txh);
   size_t eth_lld_read_receive_handle(hal_eth_driver_c *ethp,
                                      etc_receive_handle_t rxh,

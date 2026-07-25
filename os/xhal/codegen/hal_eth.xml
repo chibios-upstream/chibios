@@ -255,7 +255,11 @@ return txh;]]></implementation>
               <xclass />
               <implementation><![CDATA[
 
-return eth_lld_get_receive_handle(self);]]></implementation>
+if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+  return eth_lld_get_receive_handle(self);
+}
+
+return (eth_receive_handle_t)0U;]]></implementation>
             </method>
             <method name="ethGetTransmitHandleX"
               ctype="eth_transmit_handle_t">
@@ -267,47 +271,77 @@ return eth_lld_get_receive_handle(self);]]></implementation>
               <xclass />
               <implementation><![CDATA[
 
-return eth_lld_get_transmit_handle(self);]]></implementation>
+if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+  return eth_lld_get_transmit_handle(self);
+}
+
+return (eth_transmit_handle_t)0U;]]></implementation>
             </method>
             <method name="ethIsRXHandleValidX"
               ctype="bool">
               <brief><![CDATA[Checks a receive handle validity.]]></brief>
+              <details><![CDATA[A receive handle is valid only while the
+                driver is ready and the handle is acquired by the caller and
+                has not been released.]]></details>
               <param name="rxh" ctype="eth_receive_handle_t"
                 dir="in"><![CDATA[Receive handle.]]></param>
               <return><![CDATA[The receive handle validity.]]></return>
+              <retval value="false">If the handle is invalid.</retval>
+              <retval value="true">If the handle is valid.</retval>
               <xclass />
               <implementation><![CDATA[
 
-return eth_lld_is_receive_handle_valid(self, rxh);]]></implementation>
+return (drvGetStateX(self) == HAL_DRV_STATE_READY) &&
+       eth_lld_is_receive_handle_valid(self, rxh);]]></implementation>
             </method>
             <method name="ethIsTXHandleValidX"
               ctype="bool">
               <brief><![CDATA[Checks a transmit handle validity.]]></brief>
+              <details><![CDATA[A transmit handle is valid only while the
+                driver is ready and the handle is acquired by the caller and
+                has not been released.]]></details>
               <param name="txh" ctype="eth_transmit_handle_t"
                 dir="in"><![CDATA[Transmit handle.]]></param>
               <return><![CDATA[The transmit handle validity.]]></return>
+              <retval value="false">If the handle is invalid.</retval>
+              <retval value="true">If the handle is valid.</retval>
               <xclass />
               <implementation><![CDATA[
 
-return eth_lld_is_transmit_handle_valid(self, txh);]]></implementation>
+return (drvGetStateX(self) == HAL_DRV_STATE_READY) &&
+       eth_lld_is_transmit_handle_valid(self, txh);]]></implementation>
             </method>
-            <method name="ethReleaseReceiveHandleX" ctype="void">
+            <method name="ethReleaseReceiveHandleX" ctype="bool">
               <brief><![CDATA[Releases a received frame.]]></brief>
               <param name="rxh" ctype="eth_receive_handle_t"
                 dir="in"><![CDATA[Receive handle.]]></param>
+              <return><![CDATA[The operation status.]]></return>
+              <retval value="false">If the frame has been released.</retval>
+              <retval value="true">If the operation failed.</retval>
               <xclass />
               <implementation><![CDATA[
 
-eth_lld_release_receive_handle(self, rxh);]]></implementation>
+if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+  return eth_lld_release_receive_handle(self, rxh);
+}
+
+return true;]]></implementation>
             </method>
-            <method name="ethReleaseTransmitHandleX" ctype="void">
+            <method name="ethReleaseTransmitHandleX" ctype="bool">
               <brief><![CDATA[Releases and transmits a frame.]]></brief>
               <param name="txh" ctype="eth_transmit_handle_t"
                 dir="in"><![CDATA[Transmit handle.]]></param>
+              <return><![CDATA[The operation status.]]></return>
+              <retval value="false">If the frame has been released.</retval>
+              <retval value="true">If the operation failed.</retval>
               <xclass />
               <implementation><![CDATA[
 
-eth_lld_release_transmit_handle(self, txh);]]></implementation>
+if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+  return eth_lld_release_transmit_handle(self, txh);
+}
+
+return true;]]></implementation>
             </method>
             <method name="ethReadReceiveHandleX" ctype="size_t">
               <brief><![CDATA[Reads data sequentially from a received frame.]]></brief>
@@ -318,10 +352,16 @@ eth_lld_release_transmit_handle(self, txh);]]></implementation>
               <return><![CDATA[The number of bytes read from the handle buffer,
                                this value can be less than the amount specified in the
                                parameter @p size if there are no more bytes to read.]]></return>
+              <retval value="0">If the handle is invalid or there are no more
+                bytes to read.</retval>
               <xclass />
               <implementation><![CDATA[
 
-return eth_lld_read_receive_handle(self, rxh, bp, n);]]></implementation>
+if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+  return eth_lld_read_receive_handle(self, rxh, bp, n);
+}
+
+return 0U;]]></implementation>
             </method>
             <method name="ethWriteTransmitHandleX" ctype="size_t">
               <brief><![CDATA[Writes data sequentially into a transmit frame.]]></brief>
@@ -333,10 +373,16 @@ return eth_lld_read_receive_handle(self, rxh, bp, n);]]></implementation>
               <return><![CDATA[The number of bytes written into the handle buffer
                                this value can be less than the amount specified in the
                                parameter @p size if the maximum frame size is reached.]]></return>
+              <retval value="0">If the handle is invalid or no more bytes can
+                be written.</retval>
               <xclass />
               <implementation><![CDATA[
 
-return eth_lld_write_transmit_handle(self, txh, bp, n);]]></implementation>
+if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+  return eth_lld_write_transmit_handle(self, txh, bp, n);
+}
+
+return 0U;]]></implementation>
             </method>
             <condition check="ETH_SUPPORTS_ZERO_COPY == TRUE">
               <method name="ethGetReceiveBufferX"
@@ -347,11 +393,20 @@ return eth_lld_write_transmit_handle(self, txh, bp, n);]]></implementation>
                 <param name="sizep" ctype="size_t *" dir="out"><![CDATA[Size of the
                 received frame.]]></param>
                 <return><![CDATA[Pointer to the received frame buffer or @p NULL if the
-                                 driver does not support memory-mapped direct access.]]></return>
+                                 handle is invalid or the driver does not support
+                                 memory-mapped direct access.]]></return>
                 <xclass />
                 <implementation><![CDATA[
 
-return eth_lld_get_receive_buffer(self, rxh, sizep);]]></implementation>
+if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+  return eth_lld_get_receive_buffer(self, rxh, sizep);
+}
+
+if (sizep != NULL) {
+  *sizep = 0U;
+}
+
+return NULL;]]></implementation>
               </method>
               <method name="ethGetTransmitBufferX"
                 ctype="uint8_t *">
@@ -360,12 +415,21 @@ return eth_lld_get_receive_buffer(self, rxh, sizep);]]></implementation>
                   dir="in"><![CDATA[Transmit handle.]]></param>
                 <param name="sizep" ctype="size_t *" dir="out"><![CDATA[Maximum size of the
                   transmit buffer.]]></param>
-                <return><![CDATA[Pointer to the transmit frame buffer or @p NULL if the driver does
-                                 not support memory-mapped direct access.]]></return>
+                <return><![CDATA[Pointer to the transmit frame buffer or @p NULL if the
+                                 handle is invalid or the driver does not support
+                                 memory-mapped direct access.]]></return>
                 <xclass />
                 <implementation><![CDATA[
 
-return eth_lld_get_transmit_buffer(self, txh, sizep);]]></implementation>
+if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+  return eth_lld_get_transmit_buffer(self, txh, sizep);
+}
+
+if (sizep != NULL) {
+  *sizep = 0U;
+}
+
+return NULL;]]></implementation>
               </method>
             </condition>
           </inline>

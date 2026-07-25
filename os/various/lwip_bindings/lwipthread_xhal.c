@@ -78,7 +78,7 @@ size_t lwip_write_transmit_handle(lwip_transmit_handle_t *txhp,
 
 void lwip_release_transmit_handle(lwip_transmit_handle_t *txhp) {
 
-  ethReleaseTransmitHandleX(&ETHD1, *txhp);
+  (void)ethReleaseTransmitHandleX(&ETHD1, *txhp);
 }
 
 msg_t lwip_wait_receive_handle(lwip_receive_handle_t *rxhp) {
@@ -110,7 +110,7 @@ size_t lwip_receive_size(lwip_receive_handle_t *rxhp) {
 
 void lwip_release_receive_handle(lwip_receive_handle_t *rxhp) {
 
-  ethReleaseReceiveHandleX(&ETHD1, *rxhp);
+  (void)ethReleaseReceiveHandleX(&ETHD1, *rxhp);
 }
 
 event_source_t *lwip_get_event_source(void) {

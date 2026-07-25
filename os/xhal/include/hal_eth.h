@@ -368,7 +368,11 @@ CC_FORCE_INLINE
 static inline eth_receive_handle_t ethGetReceiveHandleX(void *ip) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
-  return eth_lld_get_receive_handle(self);
+  if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+    return eth_lld_get_receive_handle(self);
+  }
+
+  return (eth_receive_handle_t)0U;
 }
 
 /**
@@ -384,15 +388,23 @@ CC_FORCE_INLINE
 static inline eth_transmit_handle_t ethGetTransmitHandleX(void *ip) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
-  return eth_lld_get_transmit_handle(self);
+  if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+    return eth_lld_get_transmit_handle(self);
+  }
+
+  return (eth_transmit_handle_t)0U;
 }
 
 /**
  * @brief       Checks a receive handle validity.
+ * @details     A receive handle is valid only while the driver is ready and
+ *              the handle is acquired by the caller and has not been released.
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
  * @param[in]     rxh           Receive handle.
  * @return                      The receive handle validity.
+ * @retval false                If the handle is invalid.
+ * @retval true                 If the handle is valid.
  *
  * @xclass
  */
@@ -400,15 +412,20 @@ CC_FORCE_INLINE
 static inline bool ethIsRXHandleValidX(void *ip, eth_receive_handle_t rxh) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
-  return eth_lld_is_receive_handle_valid(self, rxh);
+  return (drvGetStateX(self) == HAL_DRV_STATE_READY) &&
+         eth_lld_is_receive_handle_valid(self, rxh);
 }
 
 /**
  * @brief       Checks a transmit handle validity.
+ * @details     A transmit handle is valid only while the driver is ready and
+ *              the handle is acquired by the caller and has not been released.
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
  * @param[in]     txh           Transmit handle.
  * @return                      The transmit handle validity.
+ * @retval false                If the handle is invalid.
+ * @retval true                 If the handle is valid.
  *
  * @xclass
  */
@@ -416,7 +433,8 @@ CC_FORCE_INLINE
 static inline bool ethIsTXHandleValidX(void *ip, eth_transmit_handle_t txh) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
-  return eth_lld_is_transmit_handle_valid(self, txh);
+  return (drvGetStateX(self) == HAL_DRV_STATE_READY) &&
+         eth_lld_is_transmit_handle_valid(self, txh);
 }
 
 /**
@@ -424,14 +442,21 @@ static inline bool ethIsTXHandleValidX(void *ip, eth_transmit_handle_t txh) {
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
  * @param[in]     rxh           Receive handle.
+ * @return                      The operation status.
+ * @retval false                If the frame has been released.
+ * @retval true                 If the operation failed.
  *
  * @xclass
  */
 CC_FORCE_INLINE
-static inline void ethReleaseReceiveHandleX(void *ip, eth_receive_handle_t rxh) {
+static inline bool ethReleaseReceiveHandleX(void *ip, eth_receive_handle_t rxh) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
-  eth_lld_release_receive_handle(self, rxh);
+  if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+    return eth_lld_release_receive_handle(self, rxh);
+  }
+
+  return true;
 }
 
 /**
@@ -439,15 +464,22 @@ static inline void ethReleaseReceiveHandleX(void *ip, eth_receive_handle_t rxh) 
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
  * @param[in]     txh           Transmit handle.
+ * @return                      The operation status.
+ * @retval false                If the frame has been released.
+ * @retval true                 If the operation failed.
  *
  * @xclass
  */
 CC_FORCE_INLINE
-static inline void ethReleaseTransmitHandleX(void *ip,
+static inline bool ethReleaseTransmitHandleX(void *ip,
                                              eth_transmit_handle_t txh) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
-  eth_lld_release_transmit_handle(self, txh);
+  if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+    return eth_lld_release_transmit_handle(self, txh);
+  }
+
+  return true;
 }
 
 /**
@@ -461,6 +493,8 @@ static inline void ethReleaseTransmitHandleX(void *ip,
  *                              buffer, this value can be less than the amount
  *                              specified in the parameter @p size if there are
  *                              no more bytes to read.
+ * @retval 0                    If the handle is invalid or there are no more
+ *                              bytes to read.
  *
  * @xclass
  */
@@ -469,7 +503,11 @@ static inline size_t ethReadReceiveHandleX(void *ip, eth_receive_handle_t rxh,
                                            uint8_t *bp, size_t n) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
-  return eth_lld_read_receive_handle(self, rxh, bp, n);
+  if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+    return eth_lld_read_receive_handle(self, rxh, bp, n);
+  }
+
+  return 0U;
 }
 
 /**
@@ -483,6 +521,8 @@ static inline size_t ethReadReceiveHandleX(void *ip, eth_receive_handle_t rxh,
  *                              buffer this value can be less than the amount
  *                              specified in the parameter @p size if the
  *                              maximum frame size is reached.
+ * @retval 0                    If the handle is invalid or no more bytes can
+ *                              be written.
  *
  * @xclass
  */
@@ -492,7 +532,11 @@ static inline size_t ethWriteTransmitHandleX(void *ip,
                                              const uint8_t *bp, size_t n) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
-  return eth_lld_write_transmit_handle(self, txh, bp, n);
+  if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+    return eth_lld_write_transmit_handle(self, txh, bp, n);
+  }
+
+  return 0U;
 }
 
 #if (ETH_SUPPORTS_ZERO_COPY == TRUE) || defined (__DOXYGEN__)
@@ -503,8 +547,8 @@ static inline size_t ethWriteTransmitHandleX(void *ip,
  * @param[in]     rxh           Receive handle.
  * @param[out]    sizep         Size of the received frame.
  * @return                      Pointer to the received frame buffer or @p NULL
- *                              if the driver does not support memory-mapped
- *                              direct access.
+ *                              if the handle is invalid or the driver does not
+ *                              support memory-mapped direct access.
  *
  * @xclass
  */
@@ -514,7 +558,15 @@ static inline const uint8_t *ethGetReceiveBufferX(void *ip,
                                                   size_t *sizep) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
-  return eth_lld_get_receive_buffer(self, rxh, sizep);
+  if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+    return eth_lld_get_receive_buffer(self, rxh, sizep);
+  }
+
+  if (sizep != NULL) {
+    *sizep = 0U;
+  }
+
+  return NULL;
 }
 
 /**
@@ -524,8 +576,8 @@ static inline const uint8_t *ethGetReceiveBufferX(void *ip,
  * @param[in]     txh           Transmit handle.
  * @param[out]    sizep         Maximum size of the transmit buffer.
  * @return                      Pointer to the transmit frame buffer or @p NULL
- *                              if the driver does not support memory-mapped
- *                              direct access.
+ *                              if the handle is invalid or the driver does not
+ *                              support memory-mapped direct access.
  *
  * @xclass
  */
@@ -535,7 +587,15 @@ static inline uint8_t *ethGetTransmitBufferX(void *ip,
                                              size_t *sizep) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
 
-  return eth_lld_get_transmit_buffer(self, txh, sizep);
+  if (drvGetStateX(self) == HAL_DRV_STATE_READY) {
+    return eth_lld_get_transmit_buffer(self, txh, sizep);
+  }
+
+  if (sizep != NULL) {
+    *sizep = 0U;
+  }
+
+  return NULL;
 }
 #endif /* ETH_SUPPORTS_ZERO_COPY == TRUE */
 /** @} */
