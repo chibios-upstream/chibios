@@ -45,6 +45,13 @@ Full assessment in [note_sb_isolation_security.md](note_sb_isolation_security.md
   host-mapped packet buffers, no descriptor sharing.
 - Improve host-side VETH validation in `vio/sbvio_eth.c`.
   Current validation is intentionally structural, not ownership-aware.
+- Align the VIO ETH handle-validity queries with the generic API contract.
+  The VIO client currently treats any nonzero opaque RX/TX handle as locally
+  valid. Handle operations remain safe because the host validates each use
+  through the native driver and returns an error, but
+  `ethIsRXHandleValidX()` and `ethIsTXHandleValidX()` cannot reliably
+  identify forged or stale handles. Decide whether to add host validity-query
+  operations or to narrow and document the VIO-local query semantics.
 - Review restart behavior and stale-handle behavior once sandbox restart and VETH reuse are exercised more aggressively.
 
 ### SPI
