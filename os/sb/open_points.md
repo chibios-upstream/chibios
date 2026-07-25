@@ -28,6 +28,8 @@ The following work is complete and must not be reintroduced as an open item:
 - The explicit `UNINIT`/`STOPPED`/`STARTING`/`RUNNING`/`STOPPING` lifecycle,
   `sbSync()`, producer quiescence, and `sbFinalize()` protocol is implemented
   (PR #144). VRQs are accepted only in `RUNNING`.
+- Invalid guest ranges detected by host services return `CH_RET_EFAULT`;
+  actual processor protection faults terminate the sandbox.
 
 ## Priority 1: security and isolation
 
@@ -38,10 +40,6 @@ This is the highest-priority live security surface.
 - Make native-handle validation ownership-aware, especially for VETH.
   Structural validation alone cannot reject a forged handle that names a
   valid object owned by another sandbox or a previous execution.
-- Decide the common policy for invalid guest ranges in host services:
-  return `CH_RET_EFAULT` or terminate/fault the sandbox.
-- Apply that policy to every `TODO enforce fault instead.` path in
-  `vio/sbvio_spi.c` and `vio/sbvio_uart.c`.
 - Add malformed-request tests covering invalid ranges, stop-result buffers,
   callback behavior, and completion VRQs.
 - Exercise stale VETH handles across sandbox finalization and restart.
