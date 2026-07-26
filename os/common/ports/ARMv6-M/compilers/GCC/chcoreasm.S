@@ -152,6 +152,179 @@ __port_exit_from_isr:
 #endif
 1:              b       1b
 
+/*--------------------------------------------------------------------------*
+ * Common IRQ entry/exit point with software dispatching.
+ *
+ * All regular interrupt vectors point here (see vectors_v6m.S). The
+ * EXC_RETURN value is captured on entry, before any compiler-generated
+ * code can run, then the handler is invoked through the __port_vectors
+ * dispatch table indexed by the IPSR exception number (biased by 15,
+ * SysTick is the first entry). On exit, for the outermost ISR only, an
+ * artificial return context is injected in order to perform the eventual
+ * reschedule atomically after returning from the exception.
+ *
+ * Capturing EXC_RETURN here, in code the compiler never processes, makes
+ * the outermost-ISR test structurally immune to compiler transformations
+ * of the handlers (identical-code folding, LTO) and independent of the
+ * toolchain in use.
+ *--------------------------------------------------------------------------*/
+                .thumb_func
+                .globl  __port_irq_common
+__port_irq_common:
+                push    {r4, lr}        /* EXC_RETURN plus a padding word
+                                           keeping the stack 64-bits
+                                           aligned.*/
+                mrs     r0, IPSR
+                sub     r0, #15
+                lsl     r0, #2
+                ldr     r1, =__port_vectors
+                ldr     r1, [r1, r0]
+                blx     r1
+                ldr     r1, [sp, #4]    /* Saved EXC_RETURN value.*/
+                add     r1, #15         /* Zero if nested (0xFFFFFFF1).*/
+                beq     1f
+                cpsid   i
+#if CH_CFG_SMP_MODE == TRUE
+                bl      __port_spinlock_take
+#endif
+                bl      chSchIsPreemptionRequired
+                mrs     r1, PSP
+                sub     r1, #32         /* Artificial return context.*/
+                msr     PSP, r1
+                ldr     r2, =0x01000000
+                str     r2, [r1, #28]   /* Artificial xPSR, T bit set.*/
+                ldr     r2, =__port_switch_from_isr
+                cmp     r0, #0
+                bne     2f
+                ldr     r2, =__port_exit_from_isr
+2:              str     r2, [r1, #24]   /* Artificial PC.*/
+1:              pop     {r1, pc}        /* Exception return.*/
+
+/*--------------------------------------------------------------------------*
+ * IRQ dispatch table and hardware vector table bindings.
+ *
+ * The hardware vector table (vectors_alt.S) references __-prefixed
+ * symbols, the port binds all regular interrupt slots to the common
+ * dispatcher above, which reaches the actual handlers, defined with the
+ * conventional VectorXX names, through the __port_vectors table. Slots
+ * with no handler defined fall back to __port_unhandled_irq.
+ *--------------------------------------------------------------------------*/
+#if CORTEX_NUM_VECTORS > 32
+#error "unsupported number of vectors, ARMv6-M allows 32 interrupts at most"
+#endif
+
+                .thumb_func
+__port_unhandled_irq:
+1:              b       1b
+
+                /* Default (weak) targets of the dispatch table.*/
+                .macro  swvec name
+                .weak   \name
+                .thumb_set \name, __port_unhandled_irq
+                .endm
+
+                /* Bindings (strong) of the hardware vector table slots.*/
+                .macro  hwvec name
+                .thumb_set __\name, __port_irq_common
+                .globl  __\name
+                .endm
+
+                swvec   SysTick_Handler
+                hwvec   SysTick_Handler
+                swvec   Vector40
+                hwvec   Vector40
+                swvec   Vector44
+                hwvec   Vector44
+                swvec   Vector48
+                hwvec   Vector48
+                swvec   Vector4C
+                hwvec   Vector4C
+                swvec   Vector50
+                hwvec   Vector50
+                swvec   Vector54
+                hwvec   Vector54
+                swvec   Vector58
+                hwvec   Vector58
+                swvec   Vector5C
+                hwvec   Vector5C
+#if CORTEX_NUM_VECTORS > 8
+                swvec   Vector60
+                hwvec   Vector60
+                swvec   Vector64
+                hwvec   Vector64
+                swvec   Vector68
+                hwvec   Vector68
+                swvec   Vector6C
+                hwvec   Vector6C
+                swvec   Vector70
+                hwvec   Vector70
+                swvec   Vector74
+                hwvec   Vector74
+                swvec   Vector78
+                hwvec   Vector78
+                swvec   Vector7C
+                hwvec   Vector7C
+#endif
+#if CORTEX_NUM_VECTORS > 16
+                swvec   Vector80
+                hwvec   Vector80
+                swvec   Vector84
+                hwvec   Vector84
+                swvec   Vector88
+                hwvec   Vector88
+                swvec   Vector8C
+                hwvec   Vector8C
+                swvec   Vector90
+                hwvec   Vector90
+                swvec   Vector94
+                hwvec   Vector94
+                swvec   Vector98
+                hwvec   Vector98
+                swvec   Vector9C
+                hwvec   Vector9C
+#endif
+#if CORTEX_NUM_VECTORS > 24
+                swvec   VectorA0
+                hwvec   VectorA0
+                swvec   VectorA4
+                hwvec   VectorA4
+                swvec   VectorA8
+                hwvec   VectorA8
+                swvec   VectorAC
+                hwvec   VectorAC
+                swvec   VectorB0
+                hwvec   VectorB0
+                swvec   VectorB4
+                hwvec   VectorB4
+                swvec   VectorB8
+                hwvec   VectorB8
+                swvec   VectorBC
+                hwvec   VectorBC
+#endif
+
+                /* Software dispatch table, indexed by the IPSR exception
+                   number biased by 15, SysTick first then the external
+                   interrupts.*/
+                .section .rodata
+                .align  2
+                .globl  __port_vectors
+__port_vectors:
+                .long   SysTick_Handler
+                .long   Vector40,  Vector44,  Vector48,  Vector4C
+                .long   Vector50,  Vector54,  Vector58,  Vector5C
+#if CORTEX_NUM_VECTORS > 8
+                .long   Vector60,  Vector64,  Vector68,  Vector6C
+                .long   Vector70,  Vector74,  Vector78,  Vector7C
+#endif
+#if CORTEX_NUM_VECTORS > 16
+                .long   Vector80,  Vector84,  Vector88,  Vector8C
+                .long   Vector90,  Vector94,  Vector98,  Vector9C
+#endif
+#if CORTEX_NUM_VECTORS > 24
+                .long   VectorA0,  VectorA4,  VectorA8,  VectorAC
+                .long   VectorB0,  VectorB4,  VectorB8,  VectorBC
+#endif
+
 #endif /* !defined(__DOXYGEN__) */
 
 /** @} */
