@@ -9,7 +9,9 @@ The maintained command set currently includes:
 - `cat`, `chedit`, `cmp`, `cp`, `head`, `hexdump`, `ls`, `stat`, and `wc`
   for files.
 - `sleep` and `systime` for sandbox timing.
-- `msh` as the command loader and interactive shell.
+- `msh` as the minimal command loader and interactive shell.
+- `sbsh` as the enhanced shell with scripts, quoting, redirection, and
+  serialized pipelines.
 
 ## Command execution model
 
@@ -21,10 +23,37 @@ startup code passes `argc`, `argv`, and `envp` to:
 int main(int argc, char *argv[], char *envp[]);
 ```
 
-`msh` loads external commands into its unused heap and calls them through the
-support code in `elfexec/`. The loaded command remains in the same sandbox: it
-shares the sandbox VFS root, descriptors, current directory, and environment.
-It is not a separately isolated process.
+`msh` and `sbsh` load external commands into unused memory and call them
+through the support code in `elfexec/`. The loaded command remains in the same
+sandbox: it shares the sandbox VFS root, descriptors, current directory, and
+environment. It is not a separately isolated process.
+
+`sbsh` keeps parsing and glob expansion in fixed-size storage. Glob matches
+are copied into a bounded scratch arena directly below the loaded command,
+without advancing the shell heap break. This avoids accumulating heap
+fragmentation or permanently reducing the space available to later commands.
+
+## `sbsh` syntax
+
+`sbsh` can run interactively, execute one command list, or read a script:
+
+```sh
+sbsh
+sbsh -c 'echo hello >message'
+sbsh startup.sbsh
+```
+
+Scripts execute one bounded line at a time and accept LF or CRLF endings.
+Commands on a line can be separated with `;`. Single quotes, double quotes,
+backslash escapes, comments beginning at a token boundary, `<`, `>`, `>>`,
+and `|` are supported.
+
+Until separately spawned sandbox processes and real pipes are available,
+`sbsh` implements `|` by running each stage sequentially through temporary
+files. A pipeline is therefore non-streaming and should be kept small.
+Temporary files are created with exclusive access under `$TMPDIR` (or `/tmp`)
+and removed as each stage completes. Stateful builtins such as `cd` and
+`exit` are rejected in pipelines.
 
 Commands use the newlib adapters from `os/sb/user` for the supported POSIX
 operations. Host-side POSIX calls are currently synchronous, so a blocking
@@ -54,6 +83,8 @@ make clean      # Clean applications and remove the aggregate build directory.
 ```
 
 The `msh` application is sandbox-only and is not part of the POSIX target.
+`sbsh` has a native profile for parser and executor tests; native external
+commands are spawned only by that test build.
 Each application keeps its object and dependency trees locally under its own
 `build/` and `.dep/` directories. The aggregate `build/sb` and `build/posix`
 directories contain only the final executables for easy deployment.

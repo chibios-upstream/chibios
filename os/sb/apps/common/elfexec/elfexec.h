@@ -20,6 +20,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+  /* The base address must point into unused, writable sandbox heap memory.*/
+  int sbRunElfAt(int argc, char *argv[], char *envp[], void *base);
   int sbRunElf(int argc, char *argv[], char *envp[]);
 #ifdef __cplusplus
 }
