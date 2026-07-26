@@ -24,11 +24,6 @@ remaining technical points across the VFS subsystems.
   the indirection is awkward (the original TODO comments call it a "dirty
   trick"). Consider inlining the null check + prefix prepend + call at each
   site, or having the helper take an operation enum.
-- `stat("/")` with an overlaid driver delegates to the underlying driver's
-  stat, while `opendir("/")` creates a synthetic overlay root node. This
-  is inconsistent — stat reports underlying FS metadata while opendir shows
-  the overlay's merged view. May be intentional to preserve underlying root
-  metadata, but should be explicitly documented or made consistent.
 - Several `strcpy` calls operate on buffers that are guaranteed to fit under
   current invariants (for example `__ovldir_next_impl`) but
   have no explicit bounds checks. Not current bugs but could become issues if

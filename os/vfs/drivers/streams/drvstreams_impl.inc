@@ -21,6 +21,17 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+static vfs_mode_t streams_directory_mode(void) {
+
+  return VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR;
+}
+
+static vfs_mode_t streams_file_mode(const drv_streams_element_t *dsep) {
+
+  return (dsep->mode & VFS_MODE_S_IFMT) |
+         VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR;
+}
+
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
@@ -153,8 +164,7 @@ msg_t __stmdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
 
   if (vsdp->streams[self->index].name != NULL) {
 
-    dip->mode = (vsdp->streams[self->index].mode & VFS_MODE_S_IFMT) |
-                VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR;
+    dip->mode = streams_file_mode(&vsdp->streams[self->index]);
     dip->size = (vfs_offset_t)0;
     strcpy(dip->name, vsdp->streams[self->index].name);
 
@@ -425,25 +435,30 @@ msg_t __stmdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
     sp->size = (vfs_offset_t)0;
     sp->mode = (vfs_mode_t)0;
 
-    /* If end this is a directory.*/
-    ret = vfs_parse_match_end(&path);
-    if (CH_RET_IS_SUCCESS(ret)) {
-      sp->mode = VFS_MODE_S_IFDIR;
-      break;
-    }
-
-    /* Check for and skip over separator.*/
+    /* An absolute path is required.*/
     ret = vfs_parse_match_separator(&path);
     CH_BREAK_ON_ERROR(ret);
 
+    /* The root is the synthetic streams directory.*/
+    if (*path == '\0') {
+      sp->mode = streams_directory_mode();
+      ret = CH_RET_SUCCESS;
+      break;
+    }
+
     /* Get the stream identity (name).*/
     ret = (msg_t)vfs_path_get_element(&path, fname, VFS_CFG_NAMELEN_MAX + 1);
+    CH_BREAK_ON_ERROR(ret);
+
+    /* Only direct children of the streams root are valid.*/
+    ret = vfs_parse_match_end(&path);
+    CH_BREAK_ON_ERROR(ret);
+
     dsep = &self->streams[0];
     while (dsep->name != NULL) {
       if (strncmp(fname, dsep->name, VFS_CFG_NAMELEN_MAX) == 0) {
 
-        /* Mask for file type only.*/
-        sp->mode = dsep->mode & VFS_MODE_S_IFMT;
+        sp->mode = streams_file_mode(dsep);
         return CH_RET_SUCCESS;
       }
 
@@ -489,7 +504,7 @@ msg_t __stmdrv_opendir_impl(void *ip, const char *path,
       /* Node object initialization.*/
       (void) stmdirObjectInit(sdnp,
                               (vfs_fs_c *)self,
-                              VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR);
+                              streams_directory_mode());
 
       *vdnpp = (vfs_directory_node_c *)sdnp;
       return CH_RET_SUCCESS;
@@ -553,10 +568,7 @@ msg_t __stmdrv_openfile_impl(void *ip, const char *path, int flags,
           /* Node object initialization.*/
           (void) stmfileObjectInit(sfnp,
                                    (vfs_fs_c *)self,
-                                   (dsep->mode & VFS_MODE_S_IFMT) |
-                                       VFS_MODE_S_IFIFO |
-                                       VFS_MODE_S_IRUSR |
-                                       VFS_MODE_S_IWUSR,
+                                   streams_file_mode(dsep),
                                    dsep->stm,
                                    dsep->rstm);
 

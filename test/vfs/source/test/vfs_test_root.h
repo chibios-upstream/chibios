@@ -70,11 +70,13 @@ typedef struct {
   char                    newpath[VFS_CFG_PATHLEN_MAX + 1];
   int                     flags;
   vfs_mode_t              mode;
+  vfs_stat_t              stat;
   msg_t                   opendir_result;
   msg_t                   openfile_result;
 } vfs_test_fs_c;
 
 extern vfs_test_fs_c vfs_test_fs;
+extern const vfs_stat_t vfs_test_full_stat;
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 extern vfs_root_c vfs_test_root;
 #endif

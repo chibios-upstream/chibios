@@ -47,7 +47,7 @@
 const testsequence_t * const vfs_test_suite_array[] = {
   &vfs_test_sequence_001,
   &vfs_test_sequence_002,
-#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
+#if ((VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || (VFS_CFG_ENABLE_DRV_STREAMS == TRUE)) || defined(__DOXYGEN__)
   &vfs_test_sequence_003,
 #endif
   NULL
@@ -140,8 +140,18 @@ static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
 static msg_t vfs_test_fs_stat(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
 
-  sp->mode = VFS_MODE_S_IFREG;
-  sp->size = (vfs_offset_t)1234;
+  sp->mode  = self->stat.mode;
+  sp->size  = self->stat.size;
+  sp->valid = self->stat.valid;
+  if ((sp->valid & VFS_STAT_VALID_BLKSIZE) != 0U) {
+    sp->blksize = self->stat.blksize;
+  }
+  if ((sp->valid & VFS_STAT_VALID_BLOCKS) != 0U) {
+    sp->blocks = self->stat.blocks;
+  }
+  if ((sp->valid & VFS_STAT_VALID_MTIME) != 0U) {
+    sp->mtime = self->stat.mtime;
+  }
   vfs_test_fs_record(self, VFS_TEST_FS_OP_STAT, path);
   return CH_RET_SUCCESS;
 }
@@ -207,6 +217,18 @@ static const struct vfs_fs_vmt vfs_test_fs_vmt = {
   .rmdir    = vfs_test_fs_rmdir
 };
 
+const vfs_stat_t vfs_test_full_stat = {
+  .mode          = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
+  .size          = (vfs_offset_t)1234,
+  .valid         = VFS_STAT_VALID_BLKSIZE |
+                   VFS_STAT_VALID_BLOCKS |
+                   VFS_STAT_VALID_MTIME,
+  .blksize       = (vfs_blksize_t)4096,
+  .blocks        = (vfs_blkcnt_t)17,
+  .mtime.tv_sec  = (int64_t)1700000000,
+  .mtime.tv_nsec = (uint32_t)123456789
+};
+
 vfs_test_fs_c vfs_test_fs;
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 vfs_root_c vfs_test_root;
@@ -222,6 +244,10 @@ void vfs_test_fs_reset(void) {
   vfs_test_fs.newpath[0]      = '\0';
   vfs_test_fs.flags           = 0;
   vfs_test_fs.mode            = (vfs_mode_t)0;
+  vfs_test_fs.stat            = (vfs_stat_t){
+    .mode = VFS_MODE_S_IFREG,
+    .size = (vfs_offset_t)1234
+  };
   vfs_test_fs.opendir_result  = CH_RET_SUCCESS;
   vfs_test_fs.openfile_result = CH_RET_SUCCESS;
 }

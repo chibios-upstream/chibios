@@ -55,11 +55,13 @@ typedef struct {
   char                    newpath[VFS_CFG_PATHLEN_MAX + 1];
   int                     flags;
   vfs_mode_t              mode;
+  vfs_stat_t              stat;
   msg_t                   opendir_result;
   msg_t                   openfile_result;
 } vfs_test_fs_c;
 
 extern vfs_test_fs_c vfs_test_fs;
+extern const vfs_stat_t vfs_test_full_stat;
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 extern vfs_root_c vfs_test_root;
 #endif
@@ -155,8 +157,18 @@ static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
 static msg_t vfs_test_fs_stat(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
 
-  sp->mode = VFS_MODE_S_IFREG;
-  sp->size = (vfs_offset_t)1234;
+  sp->mode  = self->stat.mode;
+  sp->size  = self->stat.size;
+  sp->valid = self->stat.valid;
+  if ((sp->valid & VFS_STAT_VALID_BLKSIZE) != 0U) {
+    sp->blksize = self->stat.blksize;
+  }
+  if ((sp->valid & VFS_STAT_VALID_BLOCKS) != 0U) {
+    sp->blocks = self->stat.blocks;
+  }
+  if ((sp->valid & VFS_STAT_VALID_MTIME) != 0U) {
+    sp->mtime = self->stat.mtime;
+  }
   vfs_test_fs_record(self, VFS_TEST_FS_OP_STAT, path);
   return CH_RET_SUCCESS;
 }
@@ -222,6 +234,18 @@ static const struct vfs_fs_vmt vfs_test_fs_vmt = {
   .rmdir    = vfs_test_fs_rmdir
 };
 
+const vfs_stat_t vfs_test_full_stat = {
+  .mode          = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
+  .size          = (vfs_offset_t)1234,
+  .valid         = VFS_STAT_VALID_BLKSIZE |
+                   VFS_STAT_VALID_BLOCKS |
+                   VFS_STAT_VALID_MTIME,
+  .blksize       = (vfs_blksize_t)4096,
+  .blocks        = (vfs_blkcnt_t)17,
+  .mtime.tv_sec  = (int64_t)1700000000,
+  .mtime.tv_nsec = (uint32_t)123456789
+};
+
 vfs_test_fs_c vfs_test_fs;
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 vfs_root_c vfs_test_root;
@@ -237,6 +261,10 @@ void vfs_test_fs_reset(void) {
   vfs_test_fs.newpath[0]      = '\0';
   vfs_test_fs.flags           = 0;
   vfs_test_fs.mode            = (vfs_mode_t)0;
+  vfs_test_fs.stat            = (vfs_stat_t){
+    .mode = VFS_MODE_S_IFREG,
+    .size = (vfs_offset_t)1234
+  };
   vfs_test_fs.opendir_result  = CH_RET_SUCCESS;
   vfs_test_fs.openfile_result = CH_RET_SUCCESS;
 }
@@ -915,20 +943,27 @@ test_assert(vfs_test_stat_optional_is_clear(&stat),
         <value>Internal Tests</value>
       </type>
       <brief>
-        <value>Root and Overlay Path Handling.</value>
+        <value>Routing and Synthetic File Systems.</value>
       </brief>
       <description>
         <value>The overlay-derived root resolves relative paths and owns the
-          current directory, while a plain overlay remains an absolute-path
-          file system suitable for non-root use.</value>
+          current directory, plain overlays route absolute paths, and
+          synthetic file systems report only metadata they own.</value>
       </description>
       <condition>
-        <value><![CDATA[VFS_CFG_ENABLE_DRV_OVERLAY == TRUE]]></value>
+        <value><![CDATA[(VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || (VFS_CFG_ENABLE_DRV_STREAMS == TRUE)]]></value>
       </condition>
       <shared_code>
         <value><![CDATA[#include <string.h>
 
-#include "vfs.h"]]></value>
+#include "vfs.h"
+
+#if VFS_CFG_ENABLE_DRV_STREAMS == TRUE
+static const drv_streams_element_t vfs_test_streams[] = {
+  {"console", NULL, NULL, VFS_MODE_S_IFCHR},
+  {NULL, NULL, NULL, (vfs_mode_t)0}
+};
+#endif]]></value>
       </shared_code>
       <cases>
         <case>
@@ -941,7 +976,7 @@ test_assert(vfs_test_stat_optional_is_clear(&stat),
               failed directory changes preserve the path context.</value>
           </description>
           <condition>
-            <value><![CDATA[VFS_CFG_ENABLE_DRV_ROOT == TRUE]]></value>
+            <value><![CDATA[(VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)]]></value>
           </condition>
           <various_code>
             <setup_code>
@@ -971,10 +1006,13 @@ msg_t ret;]]></value>
               </tags>
               <code>
                 <value><![CDATA[vfs_test_root_reset();
+vfs_test_fs.stat = vfs_test_full_stat;
 ret = vfsFSStat(&vfs_test_root, "../data", &stat);
 test_assert(ret == CH_RET_SUCCESS, "relative stat failed");
 test_assert(strcmp(vfs_test_fs.path, "/home/data") == 0,
-            "relative stat path not resolved");]]></value>
+            "relative stat path not resolved");
+test_assert(vfs_test_stat_equal(&stat, &vfs_test_full_stat),
+            "root did not preserve backing metadata");]]></value>
               </code>
             </step>
             <step>
@@ -1098,11 +1136,11 @@ test_assert(strcmp(cwd, "/") == 0, "synthetic root cwd changed");]]></value>
           </brief>
           <description>
             <value>A plain overlay accepts absolute paths, applies its
-              backing prefix, and rejects relative paths without owning a
-              current directory.</value>
+              backing prefix, exposes a synthetic root, and rejects relative
+              paths without owning a current directory.</value>
           </description>
           <condition>
-            <value />
+            <value><![CDATA[VFS_CFG_ENABLE_DRV_OVERLAY == TRUE]]></value>
           </condition>
           <various_code>
             <setup_code>
@@ -1113,7 +1151,9 @@ test_assert(strcmp(cwd, "/") == 0, "synthetic root cwd changed");]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[vfs_overlay_driver_c overlay;
+vfs_directory_node_c *dnp;
 vfs_stat_t stat;
+vfs_stat_t expected;
 msg_t ret;]]></value>
             </local_variables>
           </various_code>
@@ -1128,11 +1168,51 @@ msg_t ret;]]></value>
               </tags>
               <code>
                 <value><![CDATA[vfs_test_fs_reset();
+vfs_test_fs.stat = vfs_test_full_stat;
 (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
 ret = vfsFSStat(&overlay, "/nested", &stat);
 test_assert(ret == CH_RET_SUCCESS, "non-root overlay stat failed");
 test_assert(strcmp(vfs_test_fs.path, "/base/nested") == 0,
-            "non-root overlay prefix not applied");]]></value>
+            "non-root overlay prefix not applied");
+test_assert(vfs_test_stat_equal(&stat, &vfs_test_full_stat),
+            "overlay did not preserve backing metadata");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The overlay root has the same synthetic metadata when
+                  queried by path or through an opened node.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+vfs_test_fs.stat = vfs_test_full_stat;
+(void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&overlay, "/", &stat);
+test_assert(ret == CH_RET_SUCCESS, "synthetic overlay root stat failed");
+test_assert(vfs_test_fs.calls == 0U,
+            "synthetic overlay root reached backing file system");
+expected = (vfs_stat_t){
+  .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
+  .size = (vfs_offset_t)0
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "synthetic overlay root metadata changed");
+
+(void)ovldrvObjectInit(&overlay, NULL, NULL);
+ret = vfsFSStat(&overlay, "/missing", &stat);
+test_assert(ret == CH_RET_ENOENT, "missing overlay path reported as root");
+ret = vfsFSOpenDirectory(&overlay, "/", &dnp);
+test_assert(ret == CH_RET_SUCCESS, "synthetic overlay root open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(dnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "synthetic overlay node stat failed");
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "synthetic overlay node metadata changed");
+(void)roRelease(dnp);]]></value>
               </code>
             </step>
             <step>
@@ -1149,6 +1229,115 @@ ret = vfsFSStat(&overlay, "relative", &stat);
 test_assert(ret == CH_RET_EINVAL, "relative overlay path accepted");
 test_assert(vfs_test_fs.calls == 0U,
             "relative overlay path reached backing file system");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Streams metadata.</value>
+          </brief>
+          <description>
+            <value>The streams driver exposes consistent synthetic modes and
+              sizes while leaving storage and time metadata unavailable.</value>
+          </description>
+          <condition>
+            <value><![CDATA[VFS_CFG_ENABLE_DRV_STREAMS == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[vfs_streams_driver_c streams;
+vfs_directory_node_c *dnp;
+vfs_file_node_c *fnp;
+vfs_direntry_info_t direntry;
+vfs_stat_t stat;
+vfs_stat_t expected;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Path queries expose the synthetic directory and stream
+                  modes without optional metadata.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[(void)stmdrvObjectInit(&streams, &vfs_test_streams[0]);
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&streams, "/", &stat);
+test_assert(ret == CH_RET_SUCCESS, "streams root stat failed");
+expected = (vfs_stat_t){
+  .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
+  .size = (vfs_offset_t)0
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "streams root metadata changed");
+
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&streams, "/console", &stat);
+test_assert(ret == CH_RET_SUCCESS, "stream stat failed");
+expected = (vfs_stat_t){
+  .mode = VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+  .size = (vfs_offset_t)0
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "stream metadata changed");
+ret = vfsFSStat(&streams, "/console/child", &stat);
+test_assert(ret == CH_RET_ENOENT, "nested stream path accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Opened nodes and directory entries report the same
+                  synthetic metadata as path queries.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[(void)stmdrvObjectInit(&streams, &vfs_test_streams[0]);
+ret = vfsFSOpenDirectory(&streams, "/", &dnp);
+test_assert(ret == CH_RET_SUCCESS, "streams root open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(dnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "streams directory node stat failed");
+expected = (vfs_stat_t){
+  .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
+  .size = (vfs_offset_t)0
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "streams directory node metadata changed");
+expected = (vfs_stat_t){
+  .mode = VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+  .size = (vfs_offset_t)0
+};
+ret = vfsDirReadFirst(dnp, &direntry);
+test_assert(ret == (msg_t)1, "stream directory entry missing");
+test_assert(strcmp(direntry.name, "console") == 0,
+            "stream directory entry name changed");
+test_assert(direntry.mode == expected.mode,
+            "stream directory entry mode changed");
+test_assert(direntry.size == expected.size,
+            "stream directory entry size changed");
+(void)roRelease(dnp);
+
+ret = vfsFSOpenFile(&streams, "/console", VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "stream open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(fnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "stream node stat failed");
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "stream node metadata changed");
+(void)roRelease(fnp);]]></value>
               </code>
             </step>
           </steps>
