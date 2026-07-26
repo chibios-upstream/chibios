@@ -28,6 +28,7 @@
 #include "vfs_test_sequence_002.h"
 #include "vfs_test_sequence_003.h"
 #include "vfs_test_sequence_004.h"
+#include "vfs_test_sequence_005.h"
 
 #if !defined(__DOXYGEN__)
 

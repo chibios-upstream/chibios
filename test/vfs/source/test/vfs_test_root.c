@@ -25,6 +25,7 @@
  * - @subpage vfs_test_sequence_002
  * - @subpage vfs_test_sequence_003
  * - @subpage vfs_test_sequence_004
+ * - @subpage vfs_test_sequence_005
  * .
  */
 
@@ -53,6 +54,9 @@ const testsequence_t * const vfs_test_suite_array[] = {
 #endif
 #if (VFS_CFG_ENABLE_DRV_LITTLEFS == TRUE) || defined(__DOXYGEN__)
   &vfs_test_sequence_004,
+#endif
+#if ((VFS_CFG_ENABLE_DRV_ROMFS == TRUE) && (DRV_CFG_ROM_ENABLE_COMPRESSION == TRUE)) || defined(__DOXYGEN__)
+  &vfs_test_sequence_005,
 #endif
   NULL
 };
