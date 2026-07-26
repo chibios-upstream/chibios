@@ -71,6 +71,9 @@ bool vfs_test_path_normalizes_in_place(const char *input,
                                        const char *expected);
 bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
                                     const char *expected);
+bool vfs_test_stat_equal(const vfs_stat_t *actual,
+                         const vfs_stat_t *expected);
+bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
 void vfs_test_fs_reset(void);
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);
@@ -113,6 +116,29 @@ bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
   return vfs_test_path_equal(buf, n, expected);
 }
 
+bool vfs_test_stat_equal(const vfs_stat_t *actual,
+                         const vfs_stat_t *expected) {
+
+  return (actual->mode == expected->mode) &&
+         (actual->size == expected->size) &&
+         (actual->valid == expected->valid) &&
+         (actual->blksize == expected->blksize) &&
+         (actual->blocks == expected->blocks) &&
+         (actual->mtime.tv_sec == expected->mtime.tv_sec) &&
+         (actual->mtime.tv_nsec == expected->mtime.tv_nsec);
+}
+
+bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp) {
+  static const vfs_stat_t empty = {0};
+  vfs_stat_t optional;
+
+  optional = *sp;
+  optional.mode = (vfs_mode_t)0;
+  optional.size = (vfs_offset_t)0;
+
+  return vfs_test_stat_equal(&optional, &empty);
+}
+
 static void vfs_test_fs_dispose(void *ip) {
 
   (void)ip;
@@ -129,7 +155,8 @@ static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
 static msg_t vfs_test_fs_stat(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
 
-  (void)sp;
+  sp->mode = VFS_MODE_S_IFREG;
+  sp->size = (vfs_offset_t)1234;
   vfs_test_fs_record(self, VFS_TEST_FS_OP_STAT, path);
   return CH_RET_SUCCESS;
 }
@@ -621,7 +648,14 @@ test_assert(n == (size_t)0, "absolute path overflow accepted");]]></value>
       <shared_code>
         <value><![CDATA[#include <string.h>
 
-#include "vfs.h"]]></value>
+#include "vfs.h"
+
+static const struct vfs_node_vmt vfs_test_node_vmt = {
+  .dispose = __vfsnode_dispose_impl,
+  .addref  = __ro_addref_impl,
+  .release = __ro_release_impl,
+  .stat    = __vfsnode_stat_impl
+};]]></value>
       </shared_code>
       <cases>
         <case>
@@ -653,19 +687,25 @@ msg_t ret;]]></value>
           <steps>
             <step>
               <description>
-                <value>Stat dispatches through the file system VMT.</value>
+                <value>Stat initializes the output and dispatches through the
+                  file system VMT.</value>
               </description>
               <tags>
                 <value />
               </tags>
               <code>
                 <value><![CDATA[vfs_test_fs_reset();
+memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&vfs_test_fs, "/stat", &stat);
 test_assert(ret == CH_RET_SUCCESS, "stat failed");
 test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_STAT,
             "stat dispatch failed");
 test_assert(strcmp(vfs_test_fs.path, "/stat") == 0,
-            "stat path changed");]]></value>
+            "stat path changed");
+test_assert(stat.mode == VFS_MODE_S_IFREG, "stat mode changed");
+test_assert(stat.size == (vfs_offset_t)1234, "stat size changed");
+test_assert(vfs_test_stat_optional_is_clear(&stat),
+            "optional stat metadata not initialized");]]></value>
               </code>
             </step>
             <step>
@@ -817,6 +857,53 @@ test_assert(ret == CH_RET_EISDIR, "writable directory open accepted");
 test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_OPENFILE,
             "writable generic open dispatch failed");
 test_assert(vfs_test_fs.calls == 1U, "writable generic open fell back");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Node information initialization.</value>
+          </brief>
+          <description>
+            <value>Node information is initialized before dispatching through
+              the node VMT.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[vfs_node_c node;
+vfs_stat_t stat;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Optional node information is cleared before the
+                  provider runs.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[(void)__vfsnode_objinit_impl(
+    &node, &vfs_test_node_vmt, NULL, VFS_MODE_S_IFDIR);
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(&node, &stat);
+test_assert(ret == CH_RET_SUCCESS, "node stat failed");
+test_assert(stat.mode == VFS_MODE_S_IFDIR, "node mode changed");
+test_assert(stat.size == (vfs_offset_t)0, "node size changed");
+test_assert(vfs_test_stat_optional_is_clear(&stat),
+            "optional node metadata not initialized");]]></value>
               </code>
             </step>
           </steps>

@@ -86,6 +86,9 @@ bool vfs_test_path_normalizes_in_place(const char *input,
                                        const char *expected);
 bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
                                     const char *expected);
+bool vfs_test_stat_equal(const vfs_stat_t *actual,
+                         const vfs_stat_t *expected);
+bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
 void vfs_test_fs_reset(void);
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);

@@ -101,6 +101,29 @@ bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
   return vfs_test_path_equal(buf, n, expected);
 }
 
+bool vfs_test_stat_equal(const vfs_stat_t *actual,
+                         const vfs_stat_t *expected) {
+
+  return (actual->mode == expected->mode) &&
+         (actual->size == expected->size) &&
+         (actual->valid == expected->valid) &&
+         (actual->blksize == expected->blksize) &&
+         (actual->blocks == expected->blocks) &&
+         (actual->mtime.tv_sec == expected->mtime.tv_sec) &&
+         (actual->mtime.tv_nsec == expected->mtime.tv_nsec);
+}
+
+bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp) {
+  static const vfs_stat_t empty = {0};
+  vfs_stat_t optional;
+
+  optional = *sp;
+  optional.mode = (vfs_mode_t)0;
+  optional.size = (vfs_offset_t)0;
+
+  return vfs_test_stat_equal(&optional, &empty);
+}
+
 static void vfs_test_fs_dispose(void *ip) {
 
   (void)ip;
@@ -117,7 +140,8 @@ static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
 static msg_t vfs_test_fs_stat(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
 
-  (void)sp;
+  sp->mode = VFS_MODE_S_IFREG;
+  sp->size = (vfs_offset_t)1234;
   vfs_test_fs_record(self, VFS_TEST_FS_OP_STAT, path);
   return CH_RET_SUCCESS;
 }
