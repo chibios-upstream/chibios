@@ -143,7 +143,7 @@ static void vfs_test_004_001_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&vfs_test_lfs_driver, "/", &stat);
     test_assert(ret == CH_RET_SUCCESS, "LittleFS root stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode    = VFS_MODE_S_IFDIR,
       .size    = (vfs_offset_t)0,
       .valid   = VFS_STAT_VALID_BLKSIZE,
@@ -178,7 +178,7 @@ static void vfs_test_004_001_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsNodeStat(fnp, &stat);
     test_assert(ret == CH_RET_SUCCESS, "LittleFS file node stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode    = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
       .size    = (vfs_offset_t)(sizeof contents - 1U),
       .valid   = VFS_STAT_VALID_BLKSIZE,

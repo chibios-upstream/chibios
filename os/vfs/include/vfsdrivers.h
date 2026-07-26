@@ -287,7 +287,7 @@ CC_FORCE_INLINE
 static inline msg_t vfsFSStat(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_fs_c *self = (vfs_fs_c *)ip;
 
-  *sp = (vfs_stat_t){0};
+  *sp = (vfs_stat_t) {0};
 
   return __vfsfs_stat(self, path, sp);
 }

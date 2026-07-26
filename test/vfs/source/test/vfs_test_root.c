@@ -256,7 +256,7 @@ void vfs_test_fs_reset(void) {
   vfs_test_fs.newpath[0]      = '\0';
   vfs_test_fs.flags           = 0;
   vfs_test_fs.mode            = (vfs_mode_t)0;
-  vfs_test_fs.stat            = (vfs_stat_t){
+  vfs_test_fs.stat            = (vfs_stat_t) {
     .mode = VFS_MODE_S_IFREG,
     .size = (vfs_offset_t)1234
   };

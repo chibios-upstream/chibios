@@ -173,7 +173,7 @@ static void vfs_test_005_001_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&vfs_test_rom_driver, "/", &stat);
     test_assert(ret == CH_RET_SUCCESS, "ROMFS root stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR | VFS_MODE_S_IXUSR,
       .size = (vfs_offset_t)0
     };
@@ -198,7 +198,7 @@ static void vfs_test_005_001_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&vfs_test_rom_driver, "/raw.bin", &stat);
     test_assert(ret == CH_RET_SUCCESS, "ROMFS raw path stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode   = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
       .size   = (vfs_offset_t)sizeof vfs_test_rom_data,
       .valid  = VFS_STAT_VALID_BLOCKS,
@@ -225,7 +225,7 @@ static void vfs_test_005_001_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&vfs_test_rom_driver, "/compressed.bin", &stat);
     test_assert(ret == CH_RET_SUCCESS, "ROMFS compressed path stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode    = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
       .size    = (vfs_offset_t)600,
       .valid   = VFS_STAT_VALID_BLKSIZE | VFS_STAT_VALID_BLOCKS,
@@ -253,7 +253,7 @@ static void vfs_test_005_001_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&vfs_test_rom_driver, "/dynamic", &stat);
     test_assert(ret == CH_RET_SUCCESS, "ROMFS dynamic path stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
       .size = (vfs_offset_t)37
     };

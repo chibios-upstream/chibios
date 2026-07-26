@@ -218,7 +218,7 @@ static void vfs_test_006_001_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&vfs_test_fat_driver, "/file.bin", &stat);
     test_assert(ret == CH_RET_SUCCESS, "FatFS path stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode          = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
       .size          = (vfs_offset_t)sizeof contents,
       .valid         = VFS_STAT_VALID_BLKSIZE |
@@ -249,7 +249,7 @@ static void vfs_test_006_001_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsNodeStat(fnp, &stat);
     test_assert(ret == CH_RET_SUCCESS, "FatFS file node stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode    = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
       .size    = (vfs_offset_t)(sizeof contents + sizeof extension),
       .valid   = VFS_STAT_VALID_BLKSIZE | VFS_STAT_VALID_BLOCKS,
@@ -273,7 +273,7 @@ static void vfs_test_006_001_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&vfs_test_fat_driver, "/dir", &stat);
     test_assert(ret == CH_RET_SUCCESS, "FatFS directory path stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode          = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
       .size          = (vfs_offset_t)0,
       .valid         = VFS_STAT_VALID_BLKSIZE | VFS_STAT_VALID_MTIME,
@@ -290,7 +290,7 @@ static void vfs_test_006_001_execute(void) {
     ret = vfsNodeStat(dnp, &stat);
     test_assert(ret == CH_RET_SUCCESS, "FatFS directory node stat failed");
     expected.valid = VFS_STAT_VALID_BLKSIZE;
-    expected.mtime = (vfs_timestamp_t){0};
+    expected.mtime = (vfs_timestamp_t) {0};
     test_assert(vfs_test_stat_equal(&stat, &expected),
                 "FatFS directory node metadata changed");
     (void)roRelease(dnp);

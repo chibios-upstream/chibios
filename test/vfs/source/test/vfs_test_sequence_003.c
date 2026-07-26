@@ -278,7 +278,7 @@ static void vfs_test_003_002_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "synthetic overlay root stat failed");
     test_assert(vfs_test_fs.calls == 0U,
                 "synthetic overlay root reached backing file system");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
       .size = (vfs_offset_t)0
     };
@@ -359,7 +359,7 @@ static void vfs_test_003_003_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&streams, "/", &stat);
     test_assert(ret == CH_RET_SUCCESS, "streams root stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
       .size = (vfs_offset_t)0
     };
@@ -369,7 +369,7 @@ static void vfs_test_003_003_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&streams, "/console", &stat);
     test_assert(ret == CH_RET_SUCCESS, "stream stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode = VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
       .size = (vfs_offset_t)0
     };
@@ -390,13 +390,13 @@ static void vfs_test_003_003_execute(void) {
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsNodeStat(dnp, &stat);
     test_assert(ret == CH_RET_SUCCESS, "streams directory node stat failed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
       .size = (vfs_offset_t)0
     };
     test_assert(vfs_test_stat_equal(&stat, &expected),
                 "streams directory node metadata changed");
-    expected = (vfs_stat_t){
+    expected = (vfs_stat_t) {
       .mode = VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
       .size = (vfs_offset_t)0
     };

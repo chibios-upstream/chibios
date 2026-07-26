@@ -169,7 +169,7 @@ return CH_RET_ENOSYS;<![CDATA[]]></implementation>
               <api />
               <implementation><![CDATA[
 
-*sp = (vfs_stat_t){0};
+*sp = (vfs_stat_t) {0};
 
 return __vfsfs_stat(self, path, sp);]]></implementation>
             </method>

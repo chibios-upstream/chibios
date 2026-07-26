@@ -261,7 +261,7 @@ void vfs_test_fs_reset(void) {
   vfs_test_fs.newpath[0]      = '\0';
   vfs_test_fs.flags           = 0;
   vfs_test_fs.mode            = (vfs_mode_t)0;
-  vfs_test_fs.stat            = (vfs_stat_t){
+  vfs_test_fs.stat            = (vfs_stat_t) {
     .mode = VFS_MODE_S_IFREG,
     .size = (vfs_offset_t)1234
   };
@@ -1195,7 +1195,7 @@ ret = vfsFSStat(&overlay, "/", &stat);
 test_assert(ret == CH_RET_SUCCESS, "synthetic overlay root stat failed");
 test_assert(vfs_test_fs.calls == 0U,
             "synthetic overlay root reached backing file system");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
   .size = (vfs_offset_t)0
 };
@@ -1275,7 +1275,7 @@ msg_t ret;]]></value>
 memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&streams, "/", &stat);
 test_assert(ret == CH_RET_SUCCESS, "streams root stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
   .size = (vfs_offset_t)0
 };
@@ -1285,7 +1285,7 @@ test_assert(vfs_test_stat_equal(&stat, &expected),
 memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&streams, "/console", &stat);
 test_assert(ret == CH_RET_SUCCESS, "stream stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode = VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
   .size = (vfs_offset_t)0
 };
@@ -1310,13 +1310,13 @@ test_assert(ret == CH_RET_SUCCESS, "streams root open failed");
 memset(&stat, 0xA5, sizeof stat);
 ret = vfsNodeStat(dnp, &stat);
 test_assert(ret == CH_RET_SUCCESS, "streams directory node stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
   .size = (vfs_offset_t)0
 };
 test_assert(vfs_test_stat_equal(&stat, &expected),
             "streams directory node metadata changed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode = VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
   .size = (vfs_offset_t)0
 };
@@ -1455,7 +1455,7 @@ msg_t ret;]]></value>
                 <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&vfs_test_lfs_driver, "/", &stat);
 test_assert(ret == CH_RET_SUCCESS, "LittleFS root stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode    = VFS_MODE_S_IFDIR,
   .size    = (vfs_offset_t)0,
   .valid   = VFS_STAT_VALID_BLKSIZE,
@@ -1494,7 +1494,7 @@ test_assert(n == (ssize_t)(sizeof contents - 1U),
 memset(&stat, 0xA5, sizeof stat);
 ret = vfsNodeStat(fnp, &stat);
 test_assert(ret == CH_RET_SUCCESS, "LittleFS file node stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode    = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
   .size    = (vfs_offset_t)(sizeof contents - 1U),
   .valid   = VFS_STAT_VALID_BLKSIZE,
@@ -1657,7 +1657,7 @@ msg_t ret;]]></value>
                 <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&vfs_test_rom_driver, "/", &stat);
 test_assert(ret == CH_RET_SUCCESS, "ROMFS root stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR | VFS_MODE_S_IXUSR,
   .size = (vfs_offset_t)0
 };
@@ -1686,7 +1686,7 @@ test_assert(vfs_test_stat_equal(&stat, &expected),
                 <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&vfs_test_rom_driver, "/raw.bin", &stat);
 test_assert(ret == CH_RET_SUCCESS, "ROMFS raw path stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode   = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
   .size   = (vfs_offset_t)sizeof vfs_test_rom_data,
   .valid  = VFS_STAT_VALID_BLOCKS,
@@ -1717,7 +1717,7 @@ test_assert(vfs_test_stat_equal(&stat, &expected),
                 <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&vfs_test_rom_driver, "/compressed.bin", &stat);
 test_assert(ret == CH_RET_SUCCESS, "ROMFS compressed path stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode    = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
   .size    = (vfs_offset_t)600,
   .valid   = VFS_STAT_VALID_BLKSIZE | VFS_STAT_VALID_BLOCKS,
@@ -1749,7 +1749,7 @@ test_assert(vfs_test_stat_equal(&stat, &expected),
                 <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&vfs_test_rom_driver, "/dynamic", &stat);
 test_assert(ret == CH_RET_SUCCESS, "ROMFS dynamic path stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
   .size = (vfs_offset_t)37
 };
@@ -1944,7 +1944,7 @@ test_assert(n == (ssize_t)sizeof contents, "FatFS file write failed");
 memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&vfs_test_fat_driver, "/file.bin", &stat);
 test_assert(ret == CH_RET_SUCCESS, "FatFS path stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode          = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
   .size          = (vfs_offset_t)sizeof contents,
   .valid         = VFS_STAT_VALID_BLKSIZE |
@@ -1979,7 +1979,7 @@ test_assert(n == (ssize_t)sizeof extension, "FatFS extension write failed");
 memset(&stat, 0xA5, sizeof stat);
 ret = vfsNodeStat(fnp, &stat);
 test_assert(ret == CH_RET_SUCCESS, "FatFS file node stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode    = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
   .size    = (vfs_offset_t)(sizeof contents + sizeof extension),
   .valid   = VFS_STAT_VALID_BLKSIZE | VFS_STAT_VALID_BLOCKS,
@@ -2007,7 +2007,7 @@ test_assert(ret == CH_RET_SUCCESS, "FatFS directory create failed");
 memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&vfs_test_fat_driver, "/dir", &stat);
 test_assert(ret == CH_RET_SUCCESS, "FatFS directory path stat failed");
-expected = (vfs_stat_t){
+expected = (vfs_stat_t) {
   .mode          = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
   .size          = (vfs_offset_t)0,
   .valid         = VFS_STAT_VALID_BLKSIZE | VFS_STAT_VALID_MTIME,
@@ -2024,7 +2024,7 @@ memset(&stat, 0xA5, sizeof stat);
 ret = vfsNodeStat(dnp, &stat);
 test_assert(ret == CH_RET_SUCCESS, "FatFS directory node stat failed");
 expected.valid = VFS_STAT_VALID_BLKSIZE;
-expected.mtime = (vfs_timestamp_t){0};
+expected.mtime = (vfs_timestamp_t) {0};
 test_assert(vfs_test_stat_equal(&stat, &expected),
             "FatFS directory node metadata changed");
 (void)roRelease(dnp);]]></value>

@@ -477,7 +477,7 @@ CC_FORCE_INLINE
 static inline msg_t vfsNodeStat(void *ip, vfs_stat_t *sp) {
   vfs_node_c *self = (vfs_node_c *)ip;
 
-  *sp = (vfs_stat_t){0};
+  *sp = (vfs_stat_t) {0};
 
   return __vfsnode_stat(self, sp);
 }
