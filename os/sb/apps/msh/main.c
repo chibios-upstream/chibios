@@ -24,6 +24,7 @@
 
 #include "dirent.h"
 #include "sglob.h"
+#include "elfexec.h"
 
 #define SHELL_HISTORY_DEPTH         8
 #define SHELL_MAX_LINE_LENGTH       128
@@ -474,7 +475,6 @@ static void cmd_help(int argc, char *argv[]) {
 }
 
 static bool shell_execute(int argc, char *argv[]) {
-  extern int runelf(int argc, char *argv[], char *envp[]);
   char *fname = argv[0];
   int i, ret;
 
@@ -489,7 +489,7 @@ static bool shell_execute(int argc, char *argv[]) {
 
   if (index(fname, '/') != NULL) {
     /* It is a path, executing as-is without scanning the PATH variable.*/
-     ret = runelf(argc, argv, environ);
+     ret = sbRunElf(argc, argv, environ);
     if (ret != -1) {
       return false;
     }
@@ -540,7 +540,7 @@ static bool shell_execute(int argc, char *argv[]) {
 
         /* Trying to execute from, this path.*/
         argv[0] = state.pathbuf;
-        ret = runelf(argc, argv, environ);
+        ret = sbRunElf(argc, argv, environ);
         argv[0] = fname;
         if (ret != -1) {
           return false;

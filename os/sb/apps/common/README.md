@@ -1,0 +1,84 @@
+# Sandbox command applications
+
+The applications under `os/sb/apps` are small user-space commands for the
+ChibiOS sandbox environment. They are distinct from the complete sandbox
+firmware examples under `demos/various/SB-CLIENT-*`.
+
+The maintained command set currently includes:
+
+- `cat`, `cmp`, `cp`, `head`, `hexdump`, `ls`, `stat`, and `wc` for files.
+- `sleep` and `systime` for sandbox timing.
+- `msh` as the command loader and interactive shell.
+
+## Command execution model
+
+A relocatable command is linked at address zero using `ram_sandbox.ld`. The
+sandbox ELF loader relocates it into the memory supplied by its caller. The
+startup code passes `argc`, `argv`, and `envp` to:
+
+```c
+int main(int argc, char *argv[], char *envp[]);
+```
+
+`msh` loads external commands into its unused heap and calls them through the
+support code in `elfexec/`. The loaded command remains in the same sandbox: it
+shares the sandbox VFS root, descriptors, current directory, and environment.
+It is not a separately isolated process.
+
+Commands use the newlib adapters from `os/sb/user` for the supported POSIX
+operations. Host-side POSIX calls are currently synchronous, so a blocking
+VFS operation blocks the whole sandbox.
+
+## Shared make fragments
+
+- `make/app-arm.mk`: common ARMv7-M sandbox application build.
+- `make/app-posix-x86.mk`: native 32-bit POSIX build used for command testing.
+- `make/cmdutil.mk`: common error, numeric parsing, and reliable-write helpers.
+- `make/elfexec.mk`: adds the relocatable ELF call/return support.
+- `make/multi.mk`: front-end for application directories with multiple build
+  profiles under `make/`.
+- `manifest.mk`: deployable command images and their sandbox paths.
+- `stage.mk`: builds and copies the manifest into a sandbox VFS root.
+
+Each target makefile defines its identity and profile before including a
+shared fragment. The ARM fragment accepts these application variables:
+
+- `PROJECT`, `CHIBIOS`, `CONFDIR`, `BUILDDIR`, and `DEPDIR`.
+- `SBAPP_OPT`, `SBAPP_LDOPT`, and `SBAPP_LDSCRIPT`.
+- `SBAPP_PROCESS_STACKSIZE` and `SBAPP_EXCEPTIONS_STACKSIZE`.
+- `SBAPP_CSRC`, `SBAPP_CPPSRC`, `SBAPP_ASMSRC`, and `SBAPP_ASMXSRC`.
+- `SBAPP_UDEFS`, `SBAPP_UADEFS`, `SBAPP_UINCDIR`, `SBAPP_ULIBDIR`, and
+  `SBAPP_ULIBS`.
+
+Normal make command-line overrides such as `USE_OPT=...` and
+`BUILDDIR=...` remain supported.
+
+## Adding a command
+
+1. Add a directory containing `main.c`.
+2. Add `make/<command>-rambox-deploy.make` based on an existing command.
+3. Include `../common/make/app-arm.mk` from the target makefile.
+4. Include `../common/make/multi.mk` from the application `Makefile`.
+5. Add the deployable image and destination to `manifest.mk`.
+6. Add a native POSIX profile when the command does not require sandbox-only
+   APIs.
+
+Native profiles can set `SBAPP_TESTS` to a list of shell tests. Each test
+receives the built executable path:
+
+```sh
+make -f make/ls-posix-x86-debug.make check
+```
+
+Relocatable commands installed for `msh` use the `.elf` suffix. The default
+shell path is `/bin`.
+
+From `os/sb/apps`, build and stage the maintained command set with:
+
+```sh
+make -f common/stage.mk STAGE_ROOT=/path/to/sandbox-root stage
+```
+
+`STAGE_ROOT` is mandatory; the staging makefile never defaults to the host
+root directory. `STAGE_BUILD_ROOT` and `STAGE_DEP_ROOT` can redirect the
+derived build files when required.
