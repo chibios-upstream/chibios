@@ -2,12 +2,16 @@
 # Paths are relative to os/sb/apps. Install paths are relative to the
 # sandbox VFS root.
 
-SBAPP_DEPLOY_APPS := cat cmp cp head hexdump ls msh sleep stat systime wc
-SBAPP_POSIX_APPS  := cat cmp cp head hexdump ls sleep stat systime wc
+SBAPP_DEPLOY_APPS := cat chedit cmp cp head hexdump ls msh sleep stat systime wc
+SBAPP_POSIX_APPS  := cat chedit cmp cp head hexdump ls sleep stat systime wc
 
 SBAPP_DEPLOY_cat_MAKEFILE := make/cat-rambox-deploy.make
 SBAPP_DEPLOY_cat_ARTIFACT := cat.elf
 SBAPP_DEPLOY_cat_PATH     := bin/cat.elf
+
+SBAPP_DEPLOY_chedit_MAKEFILE := make/chedit-rambox-deploy.make
+SBAPP_DEPLOY_chedit_ARTIFACT := chedit.elf
+SBAPP_DEPLOY_chedit_PATH     := bin/chedit.elf
 
 SBAPP_DEPLOY_cmp_MAKEFILE := make/cmp-rambox-deploy.make
 SBAPP_DEPLOY_cmp_ARTIFACT := cmp.elf

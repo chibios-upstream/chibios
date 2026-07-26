@@ -2,8 +2,8 @@ PROJECT := msh
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/msh-rambox-debug
-BUILDDIR := ../build/sb/msh-rambox-debug
-DEPDIR   := ../build/sb/.dep/msh-rambox-debug
+BUILDDIR := ./build/msh-rambox-debug
+DEPDIR   := ./.dep/msh-rambox-debug
 
 UTILSSELECT := paths sglob
 

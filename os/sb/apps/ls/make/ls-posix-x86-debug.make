@@ -2,8 +2,8 @@ PROJECT := ls
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/ls-posix-x86-debug
-BUILDDIR := ../build/posix/ls-posix-x86-debug
-DEPDIR   := ../build/posix/.dep/ls-posix-x86-debug
+BUILDDIR := ./build/ls-posix-x86-debug
+DEPDIR   := ./.dep/ls-posix-x86-debug
 
 SBAPP_TESTS := ./test/ls.sh
 

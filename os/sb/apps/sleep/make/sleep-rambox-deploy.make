@@ -2,8 +2,8 @@ PROJECT := sleep
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/sleep-rambox-deploy
-BUILDDIR := ../build/sb/sleep-rambox-deploy
-DEPDIR   := ../build/sb/.dep/sleep-rambox-deploy
+BUILDDIR := ./build/sleep-rambox-deploy
+DEPDIR   := ./.dep/sleep-rambox-deploy
 
 SBAPP_CSRC := main.c
 SBAPP_EXCEPTIONS_STACKSIZE := 0x400

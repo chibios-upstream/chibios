@@ -2,8 +2,8 @@ PROJECT := hexdump
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/hexdump-posix-x86-debug
-BUILDDIR := ../build/posix/hexdump-posix-x86-debug
-DEPDIR   := ../build/posix/.dep/hexdump-posix-x86-debug
+BUILDDIR := ./build/hexdump-posix-x86-debug
+DEPDIR   := ./.dep/hexdump-posix-x86-debug
 
 SBAPP_CSRC := main.c
 SBAPP_TESTS := ./test/hexdump.sh

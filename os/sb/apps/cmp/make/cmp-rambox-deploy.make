@@ -2,8 +2,8 @@ PROJECT := cmp
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/cmp-rambox-deploy
-BUILDDIR := ../build/sb/cmp-rambox-deploy
-DEPDIR   := ../build/sb/.dep/cmp-rambox-deploy
+BUILDDIR := ./build/cmp-rambox-deploy
+DEPDIR   := ./.dep/cmp-rambox-deploy
 
 SBAPP_CSRC := main.c
 SBAPP_EXCEPTIONS_STACKSIZE := 0x400

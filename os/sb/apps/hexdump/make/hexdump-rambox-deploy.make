@@ -2,8 +2,8 @@ PROJECT := hexdump
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/hexdump-rambox-deploy
-BUILDDIR := ../build/sb/hexdump-rambox-deploy
-DEPDIR   := ../build/sb/.dep/hexdump-rambox-deploy
+BUILDDIR := ./build/hexdump-rambox-deploy
+DEPDIR   := ./.dep/hexdump-rambox-deploy
 
 SBAPP_CSRC := main.c
 SBAPP_EXCEPTIONS_STACKSIZE := 0x400

@@ -6,7 +6,8 @@ firmware examples under `demos/various/SB-CLIENT-*`.
 
 The maintained command set currently includes:
 
-- `cat`, `cmp`, `cp`, `head`, `hexdump`, `ls`, `stat`, and `wc` for files.
+- `cat`, `chedit`, `cmp`, `cp`, `head`, `hexdump`, `ls`, `stat`, and `wc`
+  for files.
 - `sleep` and `systime` for sandbox timing.
 - `msh` as the command loader and interactive shell.
 
@@ -46,16 +47,16 @@ Run the top-level makefile from `os/sb/apps`:
 
 ```sh
 make            # Build both target families.
-make sb         # Relocatable sandbox images in build/sb.
-make posix      # Native test programs in build/posix.
+make sb         # Copy relocatable sandbox images to build/sb.
+make posix      # Copy native test programs to build/posix.
 make check      # Build and run the native behavioral tests.
-make clean      # Remove the entire build directory.
+make clean      # Clean applications and remove the aggregate build directory.
 ```
 
 The `msh` application is sandbox-only and is not part of the POSIX target.
-Object and dependency files remain inside the corresponding `build/sb` or
-`build/posix` tree. For example, `cat` produces `build/sb/cat/cat.elf` and
-`build/posix/cat/cat`.
+Each application keeps its object and dependency trees locally under its own
+`build/` and `.dep/` directories. The aggregate `build/sb` and `build/posix`
+directories contain only the final executables for easy deployment.
 
 Each target makefile defines its identity and profile before including a
 shared fragment. The ARM fragment accepts these application variables:

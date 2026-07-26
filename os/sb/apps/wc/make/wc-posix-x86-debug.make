@@ -2,8 +2,8 @@ PROJECT := wc
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/wc-posix-x86-debug
-BUILDDIR := ../build/posix/wc-posix-x86-debug
-DEPDIR   := ../build/posix/.dep/wc-posix-x86-debug
+BUILDDIR := ./build/wc-posix-x86-debug
+DEPDIR   := ./.dep/wc-posix-x86-debug
 
 SBAPP_CSRC := main.c
 SBAPP_TESTS := ./test/wc.sh

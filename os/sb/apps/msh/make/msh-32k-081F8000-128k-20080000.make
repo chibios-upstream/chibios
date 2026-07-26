@@ -2,8 +2,8 @@ PROJECT := msh
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/msh-32k-081F8000-128k-20080000
-BUILDDIR := ../build/sb/msh-32k-081F8000-128k-20080000
-DEPDIR   := ../build/sb/.dep/msh-32k-081F8000-128k-20080000
+BUILDDIR := ./build/msh-32k-081F8000-128k-20080000
+DEPDIR   := ./.dep/msh-32k-081F8000-128k-20080000
 
 UTILSSELECT := paths sglob
 

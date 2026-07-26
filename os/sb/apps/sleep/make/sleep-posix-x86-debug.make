@@ -2,8 +2,8 @@ PROJECT := sleep
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/sleep-posix-x86-debug
-BUILDDIR := ../build/posix/sleep-posix-x86-debug
-DEPDIR   := ../build/posix/.dep/sleep-posix-x86-debug
+BUILDDIR := ./build/sleep-posix-x86-debug
+DEPDIR   := ./.dep/sleep-posix-x86-debug
 
 SBAPP_CSRC := main.c
 SBAPP_UDEFS := -DSBAPP_NATIVE

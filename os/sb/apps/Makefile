@@ -22,11 +22,13 @@ check: $(addprefix check-,$(SBAPP_POSIX_APPS))
 
 stage:
 	+$(MAKE) -f $(APPS_ROOT)/common/stage.mk \
-	         STAGE_ROOT="$(STAGE_ROOT)" \
-	         STAGE_BUILD_ROOT="$(SB_BUILD_ROOT)" \
-	         STAGE_DEP_ROOT="$(SB_BUILD_ROOT)/.dep" stage
+	         STAGE_ROOT="$(STAGE_ROOT)" stage
 
 clean:
+	@for app in $(sort $(SBAPP_DEPLOY_APPS) $(SBAPP_POSIX_APPS)); do \
+		$(MAKE) --no-print-directory -C "$(APPS_ROOT)/$$app" clean || \
+		  exit $$?; \
+	done
 	@if [ "$(BUILD_ROOT)" != "$(APPS_ROOT)/build" ]; then \
 		echo "Refusing to remove unexpected BUILD_ROOT: $(BUILD_ROOT)"; \
 		exit 2; \
@@ -38,9 +40,10 @@ define SBAPP_SB_RULE
 
 sb-$(1):
 	+$$(MAKE) -C $$(APPS_ROOT)/$(1) \
-	          -f $$(SBAPP_DEPLOY_$(1)_MAKEFILE) \
-	          BUILDDIR="$$(SB_BUILD_ROOT)/$(1)" \
-	          DEPDIR="$$(SB_BUILD_ROOT)/.dep/$(1)" all
+	          -f $$(SBAPP_DEPLOY_$(1)_MAKEFILE) all
+	@mkdir -p "$$(SB_BUILD_ROOT)"
+	@cp "$$(APPS_ROOT)/$(1)/$$(patsubst make/%.make,build/%,$$(SBAPP_DEPLOY_$(1)_MAKEFILE))/$$(SBAPP_DEPLOY_$(1)_ARTIFACT)" \
+	    "$$(SB_BUILD_ROOT)/$$(SBAPP_DEPLOY_$(1)_ARTIFACT)"
 endef
 
 define SBAPP_POSIX_RULE
@@ -48,15 +51,14 @@ define SBAPP_POSIX_RULE
 
 posix-$(1):
 	+$$(MAKE) -C $$(APPS_ROOT)/$(1) \
-	          -f make/$(1)-posix-x86-debug.make \
-	          BUILDDIR="$$(POSIX_BUILD_ROOT)/$(1)" \
-	          DEPDIR="$$(POSIX_BUILD_ROOT)/.dep/$(1)" all
+	          -f make/$(1)-posix-x86-debug.make all
+	@mkdir -p "$$(POSIX_BUILD_ROOT)"
+	@cp "$$(APPS_ROOT)/$(1)/build/$(1)-posix-x86-debug/$(1)" \
+	    "$$(POSIX_BUILD_ROOT)/$(1)"
 
-check-$(1):
+check-$(1): posix-$(1)
 	+$$(MAKE) -C $$(APPS_ROOT)/$(1) \
-	          -f make/$(1)-posix-x86-debug.make \
-	          BUILDDIR="$$(POSIX_BUILD_ROOT)/$(1)" \
-	          DEPDIR="$$(POSIX_BUILD_ROOT)/.dep/$(1)" check
+	          -f make/$(1)-posix-x86-debug.make check
 endef
 
 $(foreach app,$(SBAPP_DEPLOY_APPS),$(eval $(call SBAPP_SB_RULE,$(app))))

@@ -2,8 +2,8 @@ PROJECT := wc
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/wc-rambox-deploy
-BUILDDIR := ../build/sb/wc-rambox-deploy
-DEPDIR   := ../build/sb/.dep/wc-rambox-deploy
+BUILDDIR := ./build/wc-rambox-deploy
+DEPDIR   := ./.dep/wc-rambox-deploy
 
 SBAPP_CSRC := main.c
 SBAPP_EXCEPTIONS_STACKSIZE := 0x400
