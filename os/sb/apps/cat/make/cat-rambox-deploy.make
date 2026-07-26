@@ -2,8 +2,8 @@ PROJECT := cat
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/cat-rambox-deploy
-BUILDDIR := ./build/cat-rambox-deploy
-DEPDIR   := ./.dep/cat-rambox-deploy
+BUILDDIR := ../build/sb/cat-rambox-deploy
+DEPDIR   := ../build/sb/.dep/cat-rambox-deploy
 
 SBAPP_CSRC := main.c
 SBAPP_EXCEPTIONS_STACKSIZE := 0x400

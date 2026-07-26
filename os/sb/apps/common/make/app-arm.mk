@@ -11,8 +11,8 @@ ifeq ($(CHIBIOS),)
 endif
 
 CONFDIR  ?= .
-BUILDDIR ?= ./build/$(PROJECT)
-DEPDIR   ?= ./.dep/$(PROJECT)
+BUILDDIR ?= ../build/sb/$(PROJECT)
+DEPDIR   ?= ../build/sb/.dep/$(PROJECT)
 
 SBAPP_OPT                  ?= -Os -fomit-frame-pointer --specs=nano.specs
 SBAPP_LDOPT                ?= -q -Wl,-zmax-page-size=512,--no-warn-rwx-segment

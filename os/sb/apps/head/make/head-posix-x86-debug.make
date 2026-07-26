@@ -2,8 +2,8 @@ PROJECT := head
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/head-posix-x86-debug
-BUILDDIR := ./build/head-posix-x86-debug
-DEPDIR   := ./.dep/head-posix-x86-debug
+BUILDDIR := ../build/posix/head-posix-x86-debug
+DEPDIR   := ../build/posix/.dep/head-posix-x86-debug
 
 SBAPP_CSRC := main.c
 SBAPP_TESTS := ./test/head.sh

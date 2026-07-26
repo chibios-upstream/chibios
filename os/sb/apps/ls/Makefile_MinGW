@@ -2,7 +2,7 @@ PROJECT := ls.exe
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/mingw
-BUILDDIR := ./build/mingw
-DEPDIR   := ./.dep/mingw
+BUILDDIR := ../build/posix/ls-mingw
+DEPDIR   := ../build/posix/.dep/ls-mingw
 
 include ../common/make/app-posix-x86.mk

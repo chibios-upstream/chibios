@@ -7,8 +7,8 @@ APPS_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
 include $(APPS_ROOT)/common/manifest.mk
 
-STAGE_BUILD_ROOT ?= $(APPS_ROOT)/build/stage
-STAGE_DEP_ROOT   ?= $(APPS_ROOT)/.dep/stage
+STAGE_BUILD_ROOT ?= $(APPS_ROOT)/build/sb
+STAGE_DEP_ROOT   ?= $(APPS_ROOT)/build/sb/.dep
 
 .PHONY: stage check-stage-root
 

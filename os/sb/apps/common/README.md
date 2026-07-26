@@ -40,6 +40,23 @@ VFS operation blocks the whole sandbox.
 - `manifest.mk`: deployable command images and their sandbox paths.
 - `stage.mk`: builds and copies the manifest into a sandbox VFS root.
 
+## Aggregate builds
+
+Run the top-level makefile from `os/sb/apps`:
+
+```sh
+make            # Build both target families.
+make sb         # Relocatable sandbox images in build/sb.
+make posix      # Native test programs in build/posix.
+make check      # Build and run the native behavioral tests.
+make clean      # Remove the entire build directory.
+```
+
+The `msh` application is sandbox-only and is not part of the POSIX target.
+Object and dependency files remain inside the corresponding `build/sb` or
+`build/posix` tree. For example, `cat` produces `build/sb/cat/cat.elf` and
+`build/posix/cat/cat`.
+
 Each target makefile defines its identity and profile before including a
 shared fragment. The ARM fragment accepts these application variables:
 
@@ -76,9 +93,8 @@ shell path is `/bin`.
 From `os/sb/apps`, build and stage the maintained command set with:
 
 ```sh
-make -f common/stage.mk STAGE_ROOT=/path/to/sandbox-root stage
+make stage STAGE_ROOT=/path/to/sandbox-root
 ```
 
 `STAGE_ROOT` is mandatory; the staging makefile never defaults to the host
-root directory. `STAGE_BUILD_ROOT` and `STAGE_DEP_ROOT` can redirect the
-derived build files when required.
+root directory. Direct use of `common/stage.mk` remains supported.

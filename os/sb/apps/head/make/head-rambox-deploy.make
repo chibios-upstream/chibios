@@ -2,8 +2,8 @@ PROJECT := head
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/head-rambox-deploy
-BUILDDIR := ./build/head-rambox-deploy
-DEPDIR   := ./.dep/head-rambox-deploy
+BUILDDIR := ../build/sb/head-rambox-deploy
+DEPDIR   := ../build/sb/.dep/head-rambox-deploy
 
 SBAPP_CSRC := main.c
 SBAPP_EXCEPTIONS_STACKSIZE := 0x400

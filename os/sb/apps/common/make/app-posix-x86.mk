@@ -11,8 +11,8 @@ ifeq ($(CHIBIOS),)
 endif
 
 CONFDIR  ?= .
-BUILDDIR ?= ./build/$(PROJECT)-posix-x86
-DEPDIR   ?= ./.dep/$(PROJECT)-posix-x86
+BUILDDIR ?= ../build/posix/$(PROJECT)
+DEPDIR   ?= ../build/posix/.dep/$(PROJECT)
 
 SBAPP_OPT      ?= -Og -ggdb -m32
 SBAPP_CSRC     ?= main.c

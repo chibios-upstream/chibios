@@ -3,6 +3,7 @@
 # sandbox VFS root.
 
 SBAPP_DEPLOY_APPS := cat cmp cp head hexdump ls msh sleep stat systime wc
+SBAPP_POSIX_APPS  := cat cmp cp head hexdump ls sleep stat systime wc
 
 SBAPP_DEPLOY_cat_MAKEFILE := make/cat-rambox-deploy.make
 SBAPP_DEPLOY_cat_ARTIFACT := cat.elf

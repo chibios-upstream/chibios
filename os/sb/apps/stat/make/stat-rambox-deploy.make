@@ -2,8 +2,8 @@ PROJECT := stat
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/stat-rambox-deploy
-BUILDDIR := ./build/stat-rambox-deploy
-DEPDIR   := ./.dep/stat-rambox-deploy
+BUILDDIR := ../build/sb/stat-rambox-deploy
+DEPDIR   := ../build/sb/.dep/stat-rambox-deploy
 
 SBAPP_CSRC := main.c
 SBAPP_EXCEPTIONS_STACKSIZE := 0x400

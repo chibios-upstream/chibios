@@ -2,8 +2,8 @@ PROJECT := systime
 CHIBIOS := ../../../..
 
 CONFDIR  := ./cfg/systime-posix-x86-debug
-BUILDDIR := ./build/systime-posix-x86-debug
-DEPDIR   := ./.dep/systime-posix-x86-debug
+BUILDDIR := ../build/posix/systime-posix-x86-debug
+DEPDIR   := ../build/posix/.dep/systime-posix-x86-debug
 
 SBAPP_CSRC := main.c
 SBAPP_UDEFS := -DSBAPP_NATIVE
