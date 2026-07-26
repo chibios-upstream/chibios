@@ -24,6 +24,7 @@
  * - @subpage vfs_test_sequence_001
  * - @subpage vfs_test_sequence_002
  * - @subpage vfs_test_sequence_003
+ * - @subpage vfs_test_sequence_004
  * .
  */
 
@@ -49,6 +50,9 @@ const testsequence_t * const vfs_test_suite_array[] = {
   &vfs_test_sequence_002,
 #if ((VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || (VFS_CFG_ENABLE_DRV_STREAMS == TRUE)) || defined(__DOXYGEN__)
   &vfs_test_sequence_003,
+#endif
+#if (VFS_CFG_ENABLE_DRV_LITTLEFS == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_sequence_004,
 #endif
   NULL
 };

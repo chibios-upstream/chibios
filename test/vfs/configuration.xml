@@ -1344,5 +1344,177 @@ test_assert(vfs_test_stat_equal(&stat, &expected),
         </case>
       </cases>
     </sequence>
+    <sequence>
+      <type>
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>LittleFS Metadata.</value>
+      </brief>
+      <description>
+        <value>The LittleFS driver reports its configured block size and
+          obtains live sizes from opened file objects.</value>
+      </description>
+      <condition>
+        <value><![CDATA[VFS_CFG_ENABLE_DRV_LITTLEFS == TRUE]]></value>
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>
+
+#include "vfs.h"
+#include "lfs.h"
+#include "lfs_hal.h"
+
+#define VFS_TEST_LFS_BLOCK_SIZE             4096U
+
+static uint8_t vfs_test_lfs_read_buffer[16];
+static uint8_t vfs_test_lfs_prog_buffer[16];
+static uint8_t vfs_test_lfs_lookahead_buffer[16];
+static vfs_littlefs_driver_c vfs_test_lfs_driver;
+
+static const hal_lfs_binding_t vfs_test_lfs_binding = {
+  .base = 0,
+  .flp  = (BaseFlash *)&EFLD1
+};
+
+static const struct lfs_config vfs_test_lfs_config = {
+  .context          = (void *)&vfs_test_lfs_binding,
+  .read             = __lfs_read,
+  .prog             = __lfs_prog,
+  .erase            = __lfs_erase,
+  .sync             = __lfs_sync,
+  .lock             = __lfs_lock,
+  .unlock           = __lfs_unlock,
+  .read_size        = 16,
+  .prog_size        = 16,
+  .block_size       = VFS_TEST_LFS_BLOCK_SIZE,
+  .block_count      = SIM_EFL_TOTAL_SIZE / VFS_TEST_LFS_BLOCK_SIZE,
+  .block_cycles     = 500,
+  .cache_size       = 16,
+  .lookahead_size   = 16,
+  .read_buffer      = vfs_test_lfs_read_buffer,
+  .prog_buffer      = vfs_test_lfs_prog_buffer,
+  .lookahead_buffer = vfs_test_lfs_lookahead_buffer,
+  .name_max         = 0,
+  .file_max         = 0,
+  .attr_max         = 0,
+  .metadata_max     = 0
+};]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Path and opened-node metadata.</value>
+          </brief>
+          <description>
+            <value>Path queries and opened nodes expose the configured block
+              size, opened files report their live size, and unsupported
+              metadata remains invalid.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[msg_t ret;
+
+eflStart(&EFLD1, NULL);
+(void)lfsdrvObjectInit(&vfs_test_lfs_driver, &vfs_test_lfs_config);
+ret = lfsdrvFormat(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS format failed");
+ret = lfsdrvMount(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS mount failed");]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[msg_t ret;
+
+ret = lfsdrvUnmount(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS unmount failed");
+eflStop(&EFLD1);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[static const uint8_t contents[] = "LittleFS metadata test";
+vfs_directory_node_c *dnp;
+vfs_file_node_c *fnp;
+vfs_stat_t stat;
+vfs_stat_t expected;
+ssize_t n;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Directory path and opened-node queries report the
+                  configured block size and no unsupported metadata.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&vfs_test_lfs_driver, "/", &stat);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS root stat failed");
+expected = (vfs_stat_t){
+  .mode    = VFS_MODE_S_IFDIR,
+  .size    = (vfs_offset_t)0,
+  .valid   = VFS_STAT_VALID_BLKSIZE,
+  .blksize = (vfs_blksize_t)VFS_TEST_LFS_BLOCK_SIZE
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "LittleFS root metadata changed");
+
+ret = vfsFSOpenDirectory(&vfs_test_lfs_driver, "/", &dnp);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS root open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(dnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS directory node stat failed");
+expected.mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRWXU;
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "LittleFS directory node metadata changed");
+(void)roRelease(dnp);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An opened file reports its size before close, then its
+                  path reports the same size after close.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[ret = vfsFSOpenFile(&vfs_test_lfs_driver, "/metadata",
+                    VO_CREAT | VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS file open failed");
+n = vfsFileWrite(fnp, contents, sizeof contents - 1U);
+test_assert(n == (ssize_t)(sizeof contents - 1U),
+            "LittleFS file write failed");
+
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(fnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS file node stat failed");
+expected = (vfs_stat_t){
+  .mode    = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+  .size    = (vfs_offset_t)(sizeof contents - 1U),
+  .valid   = VFS_STAT_VALID_BLKSIZE,
+  .blksize = (vfs_blksize_t)VFS_TEST_LFS_BLOCK_SIZE
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "LittleFS file node metadata changed");
+(void)roRelease(fnp);
+
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&vfs_test_lfs_driver, "/metadata", &stat);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS file path stat failed");
+expected.mode = VFS_MODE_S_IFREG;
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "LittleFS file path metadata changed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
   </sequences>
 </instance>

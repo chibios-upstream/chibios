@@ -37,6 +37,9 @@ include $(CHIBIOS)/os/common/ports/$(SIM_PORT)/compilers/GCC/port.mk
 include $(CHIBIOS)/os/vfs/vfs.mk
 include $(CHIBIOS)/os/test/test.mk
 include $(CHIBIOS)/test/vfs/vfs_test.mk
+ifeq ($(VFS_TEST_LITTLEFS),yes)
+include $(CHIBIOS)/os/various/littlefs_bindings/littlefs.mk
+endif
 
 CSRC = $(ALLCSRC) $(TESTSRC) main.c
 CPPSRC = $(ALLCPPSRC)
@@ -46,6 +49,10 @@ INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
 
 UDEFS = -DSIMULATOR -DTEST_CFG_DELAY_BETWEEN_TESTS=0 \
         -DTEST_CFG_SIZE_REPORT=FALSE
+ifeq ($(VFS_TEST_LITTLEFS),yes)
+UDEFS += -DHAL_USE_EFL=TRUE -DVFS_CFG_ENABLE_DRV_LITTLEFS=TRUE \
+         -DVFS_CFG_PATHLEN_MAX=255 -DDRV_CFG_LITTLEFS_DIR_NODES_NUM=2
+endif
 UADEFS =
 UINCDIR =
 ULIBDIR =
@@ -70,9 +77,17 @@ CPPWARN = -Wall -Wextra -Wundef
 RULESPATH = $(CHIBIOS)/os/common/startup/$(SIM_PORT)/compilers/GCC
 include $(RULESPATH)/rules.mk
 
-.PHONY: test
+.PHONY: test test-littlefs clean-littlefs
 
 test: all
 	./$(BUILDDIR)/$(PROJECT)
+
+test-littlefs:
+	$(MAKE) VFS_TEST_LITTLEFS=yes USE_SMART_BUILD=no BUILDDIR=./build/littlefs \
+	        DEPDIR=./.dep-littlefs test
+
+clean-littlefs:
+	$(MAKE) VFS_TEST_LITTLEFS=yes USE_SMART_BUILD=no BUILDDIR=./build/littlefs \
+	        DEPDIR=./.dep-littlefs clean
 
 ##############################################################################
