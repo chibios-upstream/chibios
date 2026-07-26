@@ -39,6 +39,14 @@ remaining technical points across the VFS subsystems.
   entry. This is consistent but produces a lot of repetitive boilerplate.
   A centralized check pattern might be cleaner.
 
+## ChibiFS Driver
+
+- The CHFS driver is still a skeleton: mount, lookup, node creation, I/O, and
+  directory iteration do not yet operate on an on-media format. Its
+  `vfs_stat_t` storage and time metadata must be defined together with that
+  format; reporting the backing block-device geometry alone would not describe
+  per-node allocation.
+
 ## Streams Driver
 
 - Registering a random stream requires setting both `.stm` and `.rstm`
