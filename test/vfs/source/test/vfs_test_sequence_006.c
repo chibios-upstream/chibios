@@ -37,6 +37,7 @@
  *
  * <h2>Test Cases</h2>
  * - @subpage vfs_test_006_001
+ * - @subpage vfs_test_006_002
  * .
  */
 
@@ -304,6 +305,125 @@ static const testcase_t vfs_test_006_001 = {
   vfs_test_006_001_execute
 };
 
+/**
+ * @page vfs_test_006_002 [6.2] Open flag semantics
+ *
+ * <h2>Description</h2>
+ * Creation preserves existing contents unless truncation is requested,
+ * truncation without creation requires an existing file.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.2.1] Creation without truncation preserves an existing file.
+ * - [6.2.2] Truncation clears an existing file but does not create a
+ *   missing file unless creation is also requested.
+ * .
+ */
+
+static void vfs_test_006_002_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_002_teardown(void) {
+  msg_t ret;
+
+  ret = ffdrvUnmount("0:");
+  test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
+}
+
+static void vfs_test_006_002_execute(void) {
+  static const uint8_t contents[37];
+  vfs_file_node_c *fnp;
+  vfs_stat_t stat;
+  ssize_t n;
+  msg_t ret;
+
+  /* [6.2.1] Creation without truncation preserves an existing file.*/
+  test_set_step(1);
+  {
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
+                        VO_CREAT | VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS file create failed");
+    n = vfsFileWrite(fnp, contents, sizeof contents);
+    test_assert(n == (ssize_t)sizeof contents, "FatFS file write failed");
+    (void)roRelease(fnp);
+
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
+                        VO_CREAT | VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS existing create-open failed");
+    (void)roRelease(fnp);
+
+    ret = vfsFSStat(&vfs_test_fat_driver, "/flags.bin", &stat);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS file stat failed");
+    test_assert(stat.size == (vfs_offset_t)sizeof contents,
+                "FatFS create-open truncated existing file");
+  }
+  test_end_step(1);
+
+  /* [6.2.2] Truncation clears an existing file but does not create a
+     missing file unless creation is also requested.*/
+  test_set_step(2);
+  {
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
+                        VO_TRUNC | VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS existing truncate failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS truncated node stat failed");
+    test_assert(stat.size == (vfs_offset_t)0, "FatFS file not truncated");
+    (void)roRelease(fnp);
+
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/missing.bin",
+                        VO_TRUNC | VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_ENOENT, "FatFS truncate created missing file");
+
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
+                        VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS write-only reopen failed");
+    n = vfsFileWrite(fnp, contents, sizeof contents);
+    test_assert(n == (ssize_t)sizeof contents, "FatFS seed write failed");
+    (void)roRelease(fnp);
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
+                        VO_CREAT | VO_TRUNC | VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS existing create-truncate failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS retruncated node stat failed");
+    test_assert(stat.size == (vfs_offset_t)0, "FatFS file not retruncated");
+    (void)roRelease(fnp);
+
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/created.bin",
+                        VO_CREAT | VO_TRUNC | VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS create-truncate failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS created node stat failed");
+    test_assert(stat.size == (vfs_offset_t)0, "FatFS created file not empty");
+    (void)roRelease(fnp);
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_006_002 = {
+  "Open flag semantics",
+  vfs_test_006_002_setup,
+  vfs_test_006_002_teardown,
+  vfs_test_006_002_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -313,6 +433,7 @@ static const testcase_t vfs_test_006_001 = {
  */
 const testcase_t * const vfs_test_sequence_006_array[] = {
   &vfs_test_006_001,
+  &vfs_test_006_002,
   NULL
 };
 

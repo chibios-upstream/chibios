@@ -22,29 +22,56 @@
 /*===========================================================================*/
 
 static BYTE translate_oflag(int oflag) {
+  int flags = oflag & VO_SUPPORTED_FLAGS_MASK;
+  BYTE mode;
 
-  switch (oflag & VO_SUPPORTED_FLAGS_MASK) {
-  case VO_RDONLY:                                   /* r */
-    return FA_READ;
-  case VO_RDWR:                                     /* r+ */
-    return FA_READ | FA_WRITE;
-  case VO_CREAT | VO_APPEND | VO_WRONLY:            /* a */
-    return FA_OPEN_APPEND | FA_WRITE;
-  case VO_CREAT | VO_APPEND | VO_RDWR:              /* a+ */
-    return FA_OPEN_APPEND | FA_WRITE | FA_READ;
-  case VO_CREAT | VO_WRONLY:                        /* w */
-    return FA_CREATE_ALWAYS | FA_WRITE;
-  case VO_CREAT | VO_RDWR:                          /* w+ */
-    return FA_CREATE_ALWAYS | FA_WRITE | FA_READ;
-  case VO_CREAT | VO_EXCL | VO_WRONLY:              /* wx */
-    return  FA_CREATE_NEW | FA_WRITE;
-  case VO_CREAT | VO_EXCL | VO_RDWR:                /* w+x */
-    return  FA_CREATE_NEW | FA_WRITE | FA_READ;
-  default:
+  switch (flags & VO_ACCMODE) {
+  case VO_RDONLY:
+    mode = FA_READ;
     break;
+  case VO_WRONLY:
+    mode = FA_WRITE;
+    break;
+  case VO_RDWR:
+    mode = FA_READ | FA_WRITE;
+    break;
+  default:
+    return (BYTE)0;
   }
 
-  return (BYTE)0;
+  /* Mutation flags require a writable file object.*/
+  if (((flags & (VO_APPEND | VO_CREAT | VO_TRUNC | VO_EXCL)) != 0) &&
+      ((mode & FA_WRITE) == 0)) {
+    return (BYTE)0;
+  }
+
+  /* Exclusive mode is meaningful only together with creation.*/
+  if (((flags & VO_EXCL) != 0) && ((flags & VO_CREAT) == 0)) {
+    return (BYTE)0;
+  }
+
+  /* FA_OPEN_APPEND includes create-if-missing, therefore it cannot
+     represent append without VO_CREAT.*/
+  if (((flags & VO_APPEND) != 0) && ((flags & VO_CREAT) == 0)) {
+    return (BYTE)0;
+  }
+
+  if ((flags & VO_CREAT) != 0) {
+    if ((flags & VO_EXCL) != 0) {
+      mode |= FA_CREATE_NEW;
+    }
+    else if ((flags & VO_TRUNC) != 0) {
+      mode |= FA_CREATE_ALWAYS;
+    }
+    else if ((flags & VO_APPEND) != 0) {
+      mode |= FA_OPEN_APPEND;
+    }
+    else {
+      mode |= FA_OPEN_ALWAYS;
+    }
+  }
+
+  return mode;
 }
 
 static vfs_mode_t translate_mode(BYTE fattrib) {
@@ -937,14 +964,23 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
       res = f_open(&fffnp->file, (const TCHAR *)path, mode);
       if (res == FR_OK) {
 
-        /* Node object initialization.*/
-        (void) fffileObjectInit(fffnp,
-                                (vfs_fs_c *)self,
-                                translate_mode(fffnp->file.obj.attr));
+        /* Truncation without creation must not create a missing file.*/
+        if (((flags & VO_TRUNC) != 0) && ((flags & VO_CREAT) == 0)) {
+          res = f_truncate(&fffnp->file);
+        }
 
-        *vfnpp = (vfs_file_node_c *)fffnp;
-        ret = CH_RET_SUCCESS;
-        break;
+        if (res == FR_OK) {
+          /* Node object initialization.*/
+          (void) fffileObjectInit(fffnp,
+                                  (vfs_fs_c *)self,
+                                  translate_mode(fffnp->file.obj.attr));
+
+          *vfnpp = (vfs_file_node_c *)fffnp;
+          ret = CH_RET_SUCCESS;
+          break;
+        }
+
+        (void) f_close(&fffnp->file);
       }
 
       chPoolFree(&vfs_fatfs_driver_static.file_nodes_pool, (void *)fffnp);
