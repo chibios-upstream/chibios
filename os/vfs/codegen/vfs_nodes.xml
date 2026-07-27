@@ -48,6 +48,22 @@
         <define name="VFS_SEEK_CUR" value="SEEK_CUR" />
         <define name="VFS_SEEK_END" value="SEEK_END" />
       </group>
+      <group description="Node information constants">
+        <define name="VFS_STAT_BLOCKS_UNIT" value="512U">
+          <brief>Unit in bytes used by the allocated blocks count.</brief>
+        </define>
+      </group>
+      <group description="Node information validity flags">
+        <define name="VFS_STAT_VALID_BLKSIZE" value="(1U &lt;&lt; 0)">
+          <brief>The preferred I/O block size is valid.</brief>
+        </define>
+        <define name="VFS_STAT_VALID_BLOCKS" value="(1U &lt;&lt; 1)">
+          <brief>The allocated blocks count is valid.</brief>
+        </define>
+        <define name="VFS_STAT_VALID_MTIME" value="(1U &lt;&lt; 2)">
+          <brief>The last modification timestamp is valid.</brief>
+        </define>
+      </group>
     </definitions_early>
     <types>
       <typedef name="vfs_fs_c">
@@ -65,15 +81,44 @@
         <brief>Type of a seek mode.</brief>
         <basetype ctype="int" />
       </typedef>
+      <typedef name="vfs_stat_flags_t">
+        <brief>Type of node information validity flags.</brief>
+        <basetype ctype="uint32_t" />
+      </typedef>
+      <typedef name="vfs_blksize_t">
+        <brief>Type of a preferred I/O block size.</brief>
+        <basetype ctype="uint32_t" />
+      </typedef>
+      <typedef name="vfs_blkcnt_t">
+        <brief>Type of an allocated blocks count.</brief>
+        <basetype ctype="uint64_t" />
+      </typedef>
+      <typedef name="vfs_timestamp_t">
+        <brief>Type of an absolute UTC timestamp.</brief>
+        <basetype ctype="struct vfs_timestamp" />
+      </typedef>
       <typedef name="vfs_direntry_info_t">
         <brief>Type of a directory entry structure.</brief>
         <basetype ctype="struct vfs_direntry_info" />
       </typedef>
       <typedef name="vfs_stat_t">
         <brief>Type of a node information structure.</brief>
-        <note>Add time, permissions etc.</note>
         <basetype ctype="struct vfs_stat" />
       </typedef>
+      <struct name="vfs_timestamp">
+        <brief>Structure representing an absolute UTC timestamp.</brief>
+        <details>Time is represented as an offset from
+          1970-01-01 00:00:00 UTC without leap seconds.</details>
+        <fields>
+          <field name="tv_sec" ctype="int64_t">
+            <brief>Whole seconds from the UTC epoch.</brief>
+          </field>
+          <field name="tv_nsec" ctype="uint32_t">
+            <brief>Nanoseconds within the second, in the range 0 through
+              999999999.</brief>
+          </field>
+        </fields>
+      </struct>
       <struct name="vfs_direntry_info">
         <brief>Structure representing a directory entry.</brief>
         <fields>
@@ -96,6 +141,19 @@
           </field>
           <field name="size" ctype="vfs_offset_t">
             <brief>Size of the node.</brief>
+          </field>
+          <field name="valid" ctype="vfs_stat_flags_t">
+            <brief>Validity mask for the optional fields.</brief>
+          </field>
+          <field name="blksize" ctype="vfs_blksize_t">
+            <brief>Preferred size in bytes for efficient I/O.</brief>
+          </field>
+          <field name="blocks" ctype="vfs_blkcnt_t">
+            <brief>Allocated storage in @p VFS_STAT_BLOCKS_UNIT byte
+              units.</brief>
+          </field>
+          <field name="mtime" ctype="vfs_timestamp_t">
+            <brief>Time of the last data modification.</brief>
           </field>
         </fields>
       </struct>
@@ -127,13 +185,13 @@ self->mode   = mode;]]></implementation>
             <implementation><![CDATA[ ]]></implementation>
           </dispose>
           <virtual>
-            <method name="vfsNodeStat" shortname="stat" ctype="msg_t">
+            <method name="__vfsnode_stat" shortname="stat" ctype="msg_t">
               <brief>Returns information about the node.</brief>
               <param name="sp" ctype="vfs_stat_t *" dir="out"> Pointer to a @p
                 vfs_stat_t structure.
               </param>
               <return>The operation result.</return>
-              <api />
+              <notapi />
               <implementation><![CDATA[
 
 sp->mode = self->mode;
@@ -142,6 +200,23 @@ sp->size = (vfs_offset_t)0;
 return CH_RET_SUCCESS;]]></implementation>
             </method>
           </virtual>
+          <inline>
+            <method name="vfsNodeStat" ctype="msg_t">
+              <brief>Returns information about the node.</brief>
+              <details>The output structure is initialized before invoking
+                the node implementation. Optional fields are reported only
+                when the corresponding validity flags are set.</details>
+              <param name="sp" ctype="vfs_stat_t *" dir="out">Pointer to a @p
+                vfs_stat_t structure.</param>
+              <return>The operation result.</return>
+              <api />
+              <implementation><![CDATA[
+
+*sp = (vfs_stat_t) {0};
+
+return __vfsnode_stat(self, sp);]]></implementation>
+            </method>
+          </inline>
         </methods>
       </class>
       <class type="abstract" name="vfs_directory_node" namespace="vfsdir"

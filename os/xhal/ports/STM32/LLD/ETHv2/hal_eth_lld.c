@@ -104,6 +104,7 @@ static const hal_eth_config_t default_config = {
 static stm32_eth_rx_descriptor_t __eth_private_rd[STM32_ETH_RECEIVE_BUFFERS];
 static stm32_eth_tx_descriptor_t __eth_private_td[STM32_ETH_TRANSMIT_BUFFERS];
 
+/* In the following state objects, a zero size means "not acquired".*/
 typedef struct {
   uint32_t                  offset;
   uint32_t                  size;
@@ -576,6 +577,11 @@ eth_receive_handle_t eth_lld_get_receive_handle(hal_eth_driver_c *ethp) {
     stm32_eth_rx_descriptor_t *rdp = ethp->rdp;
     stm32_eth_rx_state_t *rsp = &__eth_private_rs[rxdesc_index(rdp)];
 
+    /* An outstanding descriptor blocks further consumption of the ring.*/
+    if (rsp->size != 0U) {
+      return (eth_receive_handle_t)0U;
+    }
+
     /* Is it a valid frame?*/
     if (true &&
 #if STM32_ETH_IP_CHECKSUM_OFFLOAD
@@ -584,7 +590,8 @@ eth_receive_handle_t eth_lld_get_receive_handle(hal_eth_driver_c *ethp) {
         ((rdp->rdes2 & STM32_RDES2_DAF) == 0U) &&
         ((rdp->rdes3 & STM32_RDES3_ES) == 0U) &&
         ((rdp->rdes3 & STM32_RDES3_FD) != 0U) &&
-        ((rdp->rdes3 & STM32_RDES3_LD) != 0U)) {
+        ((rdp->rdes3 & STM32_RDES3_LD) != 0U) &&
+        ((rdp->rdes3 & STM32_RDES3_PL_MASK) > 2U)) {
 
       /* Found a valid one.*/
       rsp->offset = 0U;
@@ -630,9 +637,11 @@ eth_transmit_handle_t eth_lld_get_transmit_handle(hal_eth_driver_c *ethp) {
   }
 
   for (i = 0U; i < STM32_ETH_TRANSMIT_BUFFERS; i++) {
-    if (((tdp->tdes3 & STM32_TDES3_OWN) == 0U) &&
+    stm32_eth_tx_state_t *tsp = &__eth_private_ts[txdesc_index(tdp)];
+
+    if ((tsp->size == 0U) &&
+        ((tdp->tdes3 & STM32_TDES3_OWN) == 0U) &&
         (tdp->tdes1 == 0U)) {
-      stm32_eth_tx_state_t *tsp = &__eth_private_ts[txdesc_index(tdp)];
 
       /* Marks the current descriptor as locked.*/
       tdp->tdes1 = STM32_TDES1_LOCKED;
@@ -670,10 +679,21 @@ eth_transmit_handle_t eth_lld_get_transmit_handle(hal_eth_driver_c *ethp) {
  */
 bool eth_lld_is_receive_handle_valid(hal_eth_driver_c *ethp,
                                      eth_receive_handle_t rxh) {
+  stm32_eth_rx_descriptor_t *rdp;
+  stm32_eth_rx_state_t *rsp;
 
   (void)ethp;
 
-  return rxdesc_is_valid(rxh);
+  if (!rxdesc_is_valid(rxh)) {
+    return false;
+  }
+
+  rdp = (stm32_eth_rx_descriptor_t *)(uintptr_t)rxh;
+  rsp = &__eth_private_rs[rxdesc_index(rdp)];
+
+  return (rsp->size != 0U) &&
+         ((rdp->rdes3 & STM32_RDES3_OWN) == 0U) &&
+         (rsp->offset <= rsp->size);
 }
 
 /**
@@ -687,10 +707,22 @@ bool eth_lld_is_receive_handle_valid(hal_eth_driver_c *ethp,
  */
 bool eth_lld_is_transmit_handle_valid(hal_eth_driver_c *ethp,
                                       eth_transmit_handle_t txh) {
+  stm32_eth_tx_descriptor_t *tdp;
+  stm32_eth_tx_state_t *tsp;
 
   (void)ethp;
 
-  return txdesc_is_valid(txh);
+  if (!txdesc_is_valid(txh)) {
+    return false;
+  }
+
+  tdp = (stm32_eth_tx_descriptor_t *)(uintptr_t)txh;
+  tsp = &__eth_private_ts[txdesc_index(tdp)];
+
+  return (tsp->size != 0U) &&
+         ((tdp->tdes3 & STM32_TDES3_OWN) == 0U) &&
+         (tdp->tdes1 == STM32_TDES1_LOCKED) &&
+         (tsp->offset <= tsp->size);
 }
 
 /**
@@ -698,26 +730,33 @@ bool eth_lld_is_transmit_handle_valid(hal_eth_driver_c *ethp,
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
  * @param[in]     rxh           Receive handle.
+ * @return                      The operation status.
+ * @retval false                If the frame has been released.
+ * @retval true                 If the operation failed.
  *
  * @notapi
  */
-void eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
+bool eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
                                     eth_receive_handle_t rxh) {
-  stm32_eth_rx_descriptor_t *rdp = (stm32_eth_rx_descriptor_t *)(uintptr_t)rxh;
-  stm32_eth_rx_state_t *rsp = &__eth_private_rs[rxdesc_index(rdp)];
+  stm32_eth_rx_descriptor_t *rdp;
+  stm32_eth_rx_state_t *rsp;
 
-  (void)ethp;
+  if (!eth_lld_is_receive_handle_valid(ethp, rxh)) {
+    return true;
+  }
 
-  osalDbgAssert((rdp->rdes3 & STM32_RDES3_OWN) == 0U,
-                "attempt to release descriptor already owned by DMA");
+  rdp = (stm32_eth_rx_descriptor_t *)(uintptr_t)rxh;
+  rsp = &__eth_private_rs[rxdesc_index(rdp)];
 
   /* Give buffer back to the Ethernet DMA.*/
   rsp->offset = 0U;
-  rsp->size   = 0U;
   rdp->rdes3 = STM32_RDES3_OWN | STM32_RDES3_IOC | STM32_RDES3_BUF1V;
+  rsp->size   = 0U;
 
   /* Re-triggers the DMA in case the ring went into suspend state.*/
   ETH->DMACRDTPR = ETH->DMACRDTPR;
+
+  return false;
 }
 
 /**
@@ -725,19 +764,24 @@ void eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
  * @param[in]     txh           Transmit handle.
+ * @return                      The operation status.
+ * @retval false                If the frame has been released.
+ * @retval true                 If the operation failed.
  *
  * @notapi
  */
-void eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
+bool eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
                                      eth_transmit_handle_t txh) {
-  stm32_eth_tx_descriptor_t *tdp = (stm32_eth_tx_descriptor_t *)(uintptr_t)txh;
-  stm32_eth_tx_state_t *tsp = &__eth_private_ts[txdesc_index(tdp)];
+  stm32_eth_tx_descriptor_t *tdp;
+  stm32_eth_tx_state_t *tsp;
   stm32_eth_tx_descriptor_t *next_tdp;
 
-  (void)ethp;
+  if (!eth_lld_is_transmit_handle_valid(ethp, txh)) {
+    return true;
+  }
 
-  osalDbgAssert((tdp->tdes3 & STM32_TDES3_OWN) == 0U,
-              "attempt to release descriptor already owned by DMA");
+  tdp = (stm32_eth_tx_descriptor_t *)(uintptr_t)txh;
+  tsp = &__eth_private_ts[txdesc_index(tdp)];
 
   /* Unlocks the descriptor and returns it to the DMA engine.*/
   tdp->tdes2 = STM32_TDES2_IOC | tsp->offset;
@@ -749,6 +793,8 @@ void eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
 #else
   tdp->tdes3 = STM32_TDES3_LD | STM32_TDES3_FD | STM32_TDES3_OWN;
 #endif
+  tsp->offset = 0U;
+  tsp->size   = 0U;
 
   next_tdp = tdp + 1;
   if (next_tdp >= &__eth_private_td[STM32_ETH_TRANSMIT_BUFFERS]) {
@@ -757,6 +803,8 @@ void eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
 
   __DSB();
   ETH->DMACTDTPR = txdesc_offset(next_tdp);
+
+  return false;
 }
 
 /**
@@ -770,19 +818,23 @@ void eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
  *                              buffer, this value can be less than the amount
  *                              specified in the parameter @p size if there are
  *                              no more bytes to read.
+ * @retval 0                    If the handle is invalid or there are no more
+ *                              bytes to read.
  *
  * @notapi
  */
 size_t eth_lld_read_receive_handle(hal_eth_driver_c *ethp,
                                    eth_receive_handle_t rxh,
                                    uint8_t *bp, size_t n) {
-  stm32_eth_rx_descriptor_t *rdp = (stm32_eth_rx_descriptor_t *)(uintptr_t)rxh;
-  stm32_eth_rx_state_t *rsp = &__eth_private_rs[rxdesc_index(rdp)];
+  stm32_eth_rx_descriptor_t *rdp;
+  stm32_eth_rx_state_t *rsp;
 
-  (void)ethp;
+  if (!eth_lld_is_receive_handle_valid(ethp, rxh)) {
+    return 0U;
+  }
 
-  osalDbgAssert((rdp->rdes3 & STM32_RDES3_OWN) == 0U,
-                "attempt to read descriptor already owned by DMA");
+  rdp = (stm32_eth_rx_descriptor_t *)(uintptr_t)rxh;
+  rsp = &__eth_private_rs[rxdesc_index(rdp)];
 
   if (n > ((size_t)rsp->size - (size_t)rsp->offset)) {
     n = (size_t)rsp->size - (size_t)rsp->offset;
@@ -807,19 +859,23 @@ size_t eth_lld_read_receive_handle(hal_eth_driver_c *ethp,
  *                              buffer this value can be less than the amount
  *                              specified in the parameter @p size if the
  *                              maximum frame size is reached.
+ * @retval 0                    If the handle is invalid or no more bytes can
+ *                              be written.
  *
  * @notapi
  */
 size_t eth_lld_write_transmit_handle(hal_eth_driver_c *ethp,
                                      eth_transmit_handle_t txh,
                                      const uint8_t *bp, size_t n) {
-  stm32_eth_tx_descriptor_t *tdp = (stm32_eth_tx_descriptor_t *)(uintptr_t)txh;
-  stm32_eth_tx_state_t *tsp = &__eth_private_ts[txdesc_index(tdp)];
+  stm32_eth_tx_descriptor_t *tdp;
+  stm32_eth_tx_state_t *tsp;
 
-  (void)ethp;
+  if (!eth_lld_is_transmit_handle_valid(ethp, txh)) {
+    return 0U;
+  }
 
-  osalDbgAssert((tdp->tdes3 & STM32_TDES3_OWN) == 0U,
-                "attempt to write descriptor already owned by DMA");
+  tdp = (stm32_eth_tx_descriptor_t *)(uintptr_t)txh;
+  tsp = &__eth_private_ts[txdesc_index(tdp)];
 
   if (n > ((size_t)tsp->size - (size_t)tsp->offset)) {
     n = (size_t)tsp->size - (size_t)tsp->offset;
@@ -840,21 +896,27 @@ size_t eth_lld_write_transmit_handle(hal_eth_driver_c *ethp,
  * @param[in]     rxh           Receive handle.
  * @param[out]    sizep         Size of the received frame.
  * @return                      Pointer to the received frame buffer or @p NULL
- *                              if the driver does not support memory-mapped
- *                              direct access.
+ *                              if the handle is invalid or the driver does not
+ *                              support memory-mapped direct access.
  *
  * @notapi
  */
 const uint8_t *eth_lld_get_receive_buffer(hal_eth_driver_c *ethp,
                                           eth_receive_handle_t rxh,
                                           size_t *sizep) {
-  stm32_eth_rx_descriptor_t *rdp = (stm32_eth_rx_descriptor_t *)(uintptr_t)rxh;
-  stm32_eth_rx_state_t *rsp = &__eth_private_rs[rxdesc_index(rdp)];
+  stm32_eth_rx_descriptor_t *rdp;
+  stm32_eth_rx_state_t *rsp;
 
-  (void)ethp;
+  if (!eth_lld_is_receive_handle_valid(ethp, rxh)) {
+    if (sizep != NULL) {
+      *sizep = 0U;
+    }
 
-  osalDbgAssert((rdp->rdes3 & STM32_RDES3_OWN) == 0U,
-                "attempt to map descriptor already owned by DMA");
+    return NULL;
+  }
+
+  rdp = (stm32_eth_rx_descriptor_t *)(uintptr_t)rxh;
+  rsp = &__eth_private_rs[rxdesc_index(rdp)];
 
   if (sizep != NULL) {
     *sizep = (size_t)rsp->size - (size_t)rsp->offset;
@@ -870,21 +932,27 @@ const uint8_t *eth_lld_get_receive_buffer(hal_eth_driver_c *ethp,
  * @param[in]     txh           Transmit handle.
  * @param[out]    sizep         Maximum size of the transmit buffer.
  * @return                      Pointer to the transmit frame buffer or @p NULL
- *                              if the driver does not support memory-mapped
- *                              direct access.
+ *                              if the handle is invalid or the driver does not
+ *                              support memory-mapped direct access.
  *
  * @notapi
  */
 uint8_t *eth_lld_get_transmit_buffer(hal_eth_driver_c *ethp,
                                      eth_transmit_handle_t txh,
                                      size_t *sizep) {
-  stm32_eth_tx_descriptor_t *tdp = (stm32_eth_tx_descriptor_t *)(uintptr_t)txh;
-  stm32_eth_tx_state_t *tsp = &__eth_private_ts[txdesc_index(tdp)];
+  stm32_eth_tx_descriptor_t *tdp;
+  stm32_eth_tx_state_t *tsp;
 
-  (void)ethp;
+  if (!eth_lld_is_transmit_handle_valid(ethp, txh)) {
+    if (sizep != NULL) {
+      *sizep = 0U;
+    }
 
-  osalDbgAssert((tdp->tdes3 & STM32_TDES3_OWN) == 0U,
-                "attempt to map descriptor already owned by DMA");
+    return NULL;
+  }
+
+  tdp = (stm32_eth_tx_descriptor_t *)(uintptr_t)txh;
+  tsp = &__eth_private_ts[txdesc_index(tdp)];
 
   if (sizep != NULL) {
     *sizep = (size_t)tsp->size - (size_t)tsp->offset;

@@ -277,8 +277,9 @@ void sb_fastc_vio_eth(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        ethReleaseReceiveHandleX(unitp->ethp, rxh);
-        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
+        ectxp->r0 = ethReleaseReceiveHandleX(unitp->ethp, rxh) ?
+                    (uint32_t)CH_RET_EINVAL :
+                    (uint32_t)HAL_RET_SUCCESS;
         break;
       }
     case SB_VETH_TXREL:
@@ -295,8 +296,9 @@ void sb_fastc_vio_eth(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        ethReleaseTransmitHandleX(unitp->ethp, txh);
-        ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
+        ectxp->r0 = ethReleaseTransmitHandleX(unitp->ethp, txh) ?
+                    (uint32_t)CH_RET_EINVAL :
+                    (uint32_t)HAL_RET_SUCCESS;
         break;
       }
     case SB_VETH_RXGET:

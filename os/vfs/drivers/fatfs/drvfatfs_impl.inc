@@ -22,29 +22,56 @@
 /*===========================================================================*/
 
 static BYTE translate_oflag(int oflag) {
+  int flags = oflag & VO_SUPPORTED_FLAGS_MASK;
+  BYTE mode;
 
-  switch (oflag & VO_SUPPORTED_FLAGS_MASK) {
-  case VO_RDONLY:                                   /* r */
-    return FA_READ;
-  case VO_RDWR:                                     /* r+ */
-    return FA_READ | FA_WRITE;
-  case VO_CREAT | VO_APPEND | VO_WRONLY:            /* a */
-    return FA_OPEN_APPEND | FA_WRITE;
-  case VO_CREAT | VO_APPEND | VO_RDWR:              /* a+ */
-    return FA_OPEN_APPEND | FA_WRITE | FA_READ;
-  case VO_CREAT | VO_WRONLY:                        /* w */
-    return FA_CREATE_ALWAYS | FA_WRITE;
-  case VO_CREAT | VO_RDWR:                          /* w+ */
-    return FA_CREATE_ALWAYS | FA_WRITE | FA_READ;
-  case VO_CREAT | VO_EXCL | VO_WRONLY:              /* wx */
-    return  FA_CREATE_NEW | FA_WRITE;
-  case VO_CREAT | VO_EXCL | VO_RDWR:                /* w+x */
-    return  FA_CREATE_NEW | FA_WRITE | FA_READ;
-  default:
+  switch (flags & VO_ACCMODE) {
+  case VO_RDONLY:
+    mode = FA_READ;
     break;
+  case VO_WRONLY:
+    mode = FA_WRITE;
+    break;
+  case VO_RDWR:
+    mode = FA_READ | FA_WRITE;
+    break;
+  default:
+    return (BYTE)0;
   }
 
-  return (BYTE)0;
+  /* Mutation flags require a writable file object.*/
+  if (((flags & (VO_APPEND | VO_CREAT | VO_TRUNC | VO_EXCL)) != 0) &&
+      ((mode & FA_WRITE) == 0)) {
+    return (BYTE)0;
+  }
+
+  /* Exclusive mode is meaningful only together with creation.*/
+  if (((flags & VO_EXCL) != 0) && ((flags & VO_CREAT) == 0)) {
+    return (BYTE)0;
+  }
+
+  /* FA_OPEN_APPEND includes create-if-missing, therefore it cannot
+     represent append without VO_CREAT.*/
+  if (((flags & VO_APPEND) != 0) && ((flags & VO_CREAT) == 0)) {
+    return (BYTE)0;
+  }
+
+  if ((flags & VO_CREAT) != 0) {
+    if ((flags & VO_EXCL) != 0) {
+      mode |= FA_CREATE_NEW;
+    }
+    else if ((flags & VO_TRUNC) != 0) {
+      mode |= FA_CREATE_ALWAYS;
+    }
+    else if ((flags & VO_APPEND) != 0) {
+      mode |= FA_OPEN_APPEND;
+    }
+    else {
+      mode |= FA_OPEN_ALWAYS;
+    }
+  }
+
+  return mode;
 }
 
 static vfs_mode_t translate_mode(BYTE fattrib) {
@@ -124,6 +151,114 @@ static msg_t translate_error(FRESULT res) {
   }
 
   return msg;
+}
+
+static bool is_leap_year(unsigned year) {
+
+  return ((((year % 4U) == 0U) && ((year % 100U) != 0U)) ||
+          ((year % 400U) == 0U));
+}
+
+static unsigned get_month_length(unsigned year, unsigned month) {
+  static const uint8_t lengths[12] = {
+    31U, 28U, 31U, 30U, 31U, 30U, 31U, 31U, 30U, 31U, 30U, 31U
+  };
+  unsigned length;
+
+  length = lengths[month - 1U];
+  if ((month == 2U) && is_leap_year(year)) {
+    length++;
+  }
+
+  return length;
+}
+
+static int64_t days_from_civil(int64_t year, unsigned month, unsigned day) {
+  int64_t era, yoe, doy, doe;
+
+  year -= month <= 2U ? 1 : 0;
+  era = (year >= 0) ? (year / 400) : ((year - 399) / 400);
+  yoe = year - era * 400;
+  doy = ((153 * ((int64_t)month + (month > 2U ? -3 : 9)) + 2) / 5) +
+        (int64_t)day - 1;
+  doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+
+  return era * 146097 + doe - 719468;
+}
+
+static void set_timestamp_stat(WORD fdate, WORD ftime, vfs_stat_t *sp) {
+  unsigned year, month, day, hour, minute, second;
+  int64_t days;
+
+  year = 1980U + ((unsigned)fdate >> 9);
+  month = ((unsigned)fdate >> 5) & 15U;
+  day = (unsigned)fdate & 31U;
+  hour = (unsigned)ftime >> 11;
+  minute = ((unsigned)ftime >> 5) & 63U;
+  second = ((unsigned)ftime & 31U) * 2U;
+
+  if ((month < 1U) || (month > 12U) ||
+      (day < 1U) || (day > get_month_length(year, month)) ||
+      (hour > 23U) || (minute > 59U) || (second > 59U)) {
+    return;
+  }
+
+  /* FAT stores a timezone-less wall clock. In the absence of a timezone
+     facility in FatFS, it is interpreted as UTC for the VFS contract.*/
+  days = days_from_civil((int64_t)year, month, day);
+  sp->mtime.tv_sec = days * 86400 +
+                     (int64_t)hour * 3600 +
+                     (int64_t)minute * 60 +
+                     (int64_t)second;
+  sp->mtime.tv_nsec = 0U;
+  sp->valid |= VFS_STAT_VALID_MTIME;
+}
+
+static bool get_cluster_size(const FATFS *fsp, uint64_t *sizep) {
+  uint64_t sector_size;
+  uint64_t cluster_size;
+
+  if ((fsp == NULL) || (fsp->fs_type == 0U) || (fsp->csize == 0U)) {
+    return false;
+  }
+
+#if FF_MAX_SS == FF_MIN_SS
+  sector_size = (uint64_t)FF_MAX_SS;
+#else
+  sector_size = (uint64_t)fsp->ssize;
+#endif
+  cluster_size = (uint64_t)fsp->csize * sector_size;
+  if ((cluster_size == 0U) || (cluster_size > (uint64_t)UINT32_MAX)) {
+    return false;
+  }
+
+  *sizep = cluster_size;
+  return true;
+}
+
+static void set_storage_stat(const FATFS *fsp, FSIZE_t size,
+                             vfs_stat_t *sp) {
+  uint64_t cluster_size;
+
+  if (!get_cluster_size(fsp, &cluster_size)) {
+    return;
+  }
+
+  sp->blksize = (vfs_blksize_t)cluster_size;
+  sp->valid |= VFS_STAT_VALID_BLKSIZE;
+
+  if (VFS_MODE_S_ISREG(sp->mode)) {
+    uint64_t clusters;
+    uint64_t blocks_per_cluster;
+
+    clusters = (uint64_t)size / cluster_size;
+    if (((uint64_t)size % cluster_size) != 0U) {
+      clusters++;
+    }
+    blocks_per_cluster = cluster_size / (uint64_t)VFS_STAT_BLOCKS_UNIT;
+    sp->blocks = (vfs_blkcnt_t)(clusters * blocks_per_cluster);
+    sp->valid |= VFS_STAT_VALID_BLOCKS;
+  }
 }
 
 /*===========================================================================*/
@@ -295,8 +430,12 @@ static void __ffdir_dispose_impl(void *ip) {
  * @return                      The operation result.
  */
 static msg_t __ffdir_stat_impl(void *ip, vfs_stat_t *sp) {
+  vfs_fatfs_dir_node_c *self = (vfs_fatfs_dir_node_c *)ip;
 
-  return __vfsnode_stat_impl(ip, sp);
+  (void)__vfsnode_stat_impl(ip, sp);
+  set_storage_stat(self->dir.obj.fs, (FSIZE_t)0, sp);
+
+  return CH_RET_SUCCESS;
 }
 
 /**
@@ -484,6 +623,7 @@ static msg_t __fffile_stat_impl(void *ip, vfs_stat_t *sp) {
 
   sp->mode = self->mode;
   sp->size = (vfs_offset_t)self->file.obj.objsize;
+  set_storage_stat(self->file.obj.fs, self->file.obj.objsize, sp);
 
   return CH_RET_SUCCESS;
 }
@@ -712,9 +852,13 @@ msg_t __ffdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
 
       res = f_stat((const TCHAR *)path, fip);
       if (res == FR_OK) {
+        FATFS *fsp;
 
         sp->mode = translate_mode(fip->fattrib);
         sp->size = (vfs_offset_t)fip->fsize;
+        fsp = f_getfs((const TCHAR *)path);
+        set_storage_stat(fsp, fip->fsize, sp);
+        set_timestamp_stat(fip->fdate, fip->ftime, sp);
 
         ret = CH_RET_SUCCESS;
       }
@@ -820,14 +964,23 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
       res = f_open(&fffnp->file, (const TCHAR *)path, mode);
       if (res == FR_OK) {
 
-        /* Node object initialization.*/
-        (void) fffileObjectInit(fffnp,
-                                (vfs_fs_c *)self,
-                                translate_mode(fffnp->file.obj.attr));
+        /* Truncation without creation must not create a missing file.*/
+        if (((flags & VO_TRUNC) != 0) && ((flags & VO_CREAT) == 0)) {
+          res = f_truncate(&fffnp->file);
+        }
 
-        *vfnpp = (vfs_file_node_c *)fffnp;
-        ret = CH_RET_SUCCESS;
-        break;
+        if (res == FR_OK) {
+          /* Node object initialization.*/
+          (void) fffileObjectInit(fffnp,
+                                  (vfs_fs_c *)self,
+                                  translate_mode(fffnp->file.obj.attr));
+
+          *vfnpp = (vfs_file_node_c *)fffnp;
+          ret = CH_RET_SUCCESS;
+          break;
+        }
+
+        (void) f_close(&fffnp->file);
       }
 
       chPoolFree(&vfs_fatfs_driver_static.file_nodes_pool, (void *)fffnp);

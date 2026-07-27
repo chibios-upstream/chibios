@@ -169,14 +169,19 @@ etc_transmit_handle_t eth_lld_get_transmit_handle(hal_eth_driver_c *ethp) {
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
  * @param[in]     rxh           Receive handle.
+ * @return                      The operation status.
+ * @retval false                If the frame has been released.
+ * @retval true                 If the operation failed.
  *
  * @notapi
  */
-void eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
+bool eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
                                     etc_receive_handle_t rxh) {
 
   (void)ethp;
   (void)rxh;
+
+  return true;
 }
 
 /**
@@ -184,14 +189,19 @@ void eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
  * @param[in]     txh           Transmi] handle.
+ * @return                      The operation status.
+ * @retval false                If the frame has been released.
+ * @retval true                 If the operation failed.
  *
  * @notapi
  */
-void eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
+bool eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
                                      etc_transmit_handle_t txh) {
 
   (void)ethp;
   (void)txh;
+
+  return true;
 }
 
 /**
@@ -205,6 +215,8 @@ void eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
  *                              buffer, this value can be less than the amount
  *                              specified in the parameter @p size if there are
  *                              no more bytes to read.
+ * @retval 0                    If the handle is invalid or there are no more
+ *                              bytes to read.
  *
  * @notapi
  */
@@ -231,6 +243,8 @@ size_t eth_lld_read_receive_handle(hal_eth_driver_c *ethp,
  *                              buffer this value can be less than the amount
  *                              specified in the parameter @p size if the
  *                              maximum frame size is reached.
+ * @retval 0                    If the handle is invalid or no more bytes can
+ *                              be written.
  *
  * @notapi
  */
@@ -253,8 +267,8 @@ size_t eth_lld_write_transmit_handle(hal_eth_driver_c *ethp,
  * @param[in]     rxh           Receive handle.
  * @param[out]    sizep         Size of the received frame.
  * @return                      Pointer to the received frame buffer or @p NULL
- *                              if the driver does not support memory-mapped
- *                              direct access.
+ *                              if the handle is invalid or the driver does not
+ *                              support memory-mapped direct access.
  *
  * @notapi
  */
@@ -276,8 +290,8 @@ const uint8_t *eth_lld_get_receive_buffer(hal_eth_driver_c *ethp,
  * @param[in]     txh           Transmit handle.
  * @param[out]    sizep         Maximum size of the transmit buffer.
  * @return                      Pointer to the transmit frame buffer or @p NULL
- *                              if the driver does not support memory-mapped
- *                              direct access.
+ *                              if the handle is invalid or the driver does not
+ *                              support memory-mapped direct access.
  *
  * @notapi
  */

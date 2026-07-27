@@ -254,18 +254,18 @@ bool eth_lld_is_transmit_handle_valid(hal_eth_driver_c *ethp,
   return txh != (eth_transmit_handle_t)0U;
 }
 
-void eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
+bool eth_lld_release_receive_handle(hal_eth_driver_c *ethp,
                                     eth_receive_handle_t rxh) {
 
   __syscall2r(99, VIO_CALL(SB_VETH_RXREL, ethp->nveth), rxh);
-  osalDbgAssert(r0 == HAL_RET_SUCCESS, "unexpected failure");
+  return (msg_t)r0 != HAL_RET_SUCCESS;
 }
 
-void eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
+bool eth_lld_release_transmit_handle(hal_eth_driver_c *ethp,
                                      eth_transmit_handle_t txh) {
 
   __syscall2r(99, VIO_CALL(SB_VETH_TXREL, ethp->nveth), txh);
-  osalDbgAssert(r0 == HAL_RET_SUCCESS, "unexpected failure");
+  return (msg_t)r0 != HAL_RET_SUCCESS;
 }
 
 size_t eth_lld_read_receive_handle(hal_eth_driver_c *ethp,
@@ -273,7 +273,10 @@ size_t eth_lld_read_receive_handle(hal_eth_driver_c *ethp,
                                    uint8_t *bp, size_t n) {
 
   __syscall4r(99, VIO_CALL(SB_VETH_RXREAD, ethp->nveth), rxh, bp, n);
-  osalDbgAssert(((int32_t)r0) >= 0, "host RXREAD failed");
+  if (((int32_t)r0) < 0) {
+    return 0U;
+  }
+
   return (size_t)r0;
 }
 
@@ -282,7 +285,10 @@ size_t eth_lld_write_transmit_handle(hal_eth_driver_c *ethp,
                                      const uint8_t *bp, size_t n) {
 
   __syscall4r(99, VIO_CALL(SB_VETH_TXWRITE, ethp->nveth), txh, bp, n);
-  osalDbgAssert(((int32_t)r0) >= 0, "host TXWRITE failed");
+  if (((int32_t)r0) < 0) {
+    return 0U;
+  }
+
   return (size_t)r0;
 }
 

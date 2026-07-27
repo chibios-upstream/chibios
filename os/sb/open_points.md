@@ -101,6 +101,13 @@ semantics.
 - Add an explicit receive-size query or equivalent contract so copy-mode
   clients do not infer packet length from an MTU-sized buffer.
 - Improve ownership and range validation in `vio/sbvio_eth.c`.
+- Align the VIO ETH handle-validity queries with the generic API contract.
+  The VIO client currently treats any nonzero opaque RX/TX handle as locally
+  valid. Handle operations remain safe because the host validates each use
+  through the native driver and returns an error, but
+  `ethIsRXHandleValidX()` and `ethIsTXHandleValidX()` cannot reliably
+  identify forged or stale handles. Decide whether to add host validity-query
+  operations or narrow and document the VIO-local query semantics.
 - Add optional zero-copy only as an explicit capability using host-mapped
   packet buffers; do not share native descriptor rings.
 - Add a concise VETH protocol document covering handle lifetime, restart,

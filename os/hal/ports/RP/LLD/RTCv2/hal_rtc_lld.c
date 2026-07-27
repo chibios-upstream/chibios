@@ -31,41 +31,11 @@
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
 
-/* POWMAN register block (RP2350 datasheet section 12.11/12.10).*/
-#define POWMAN_BASE                  0x40100000UL
-
-#define POWMAN_LPOSC_FREQ_KHZ_INT    (*(volatile uint32_t *)(POWMAN_BASE + 0x50UL))
-#define POWMAN_LPOSC_FREQ_KHZ_FRAC   (*(volatile uint32_t *)(POWMAN_BASE + 0x54UL))
-#define POWMAN_SET_TIME_63TO48       (*(volatile uint32_t *)(POWMAN_BASE + 0x60UL))
-#define POWMAN_SET_TIME_47TO32       (*(volatile uint32_t *)(POWMAN_BASE + 0x64UL))
-#define POWMAN_SET_TIME_31TO16       (*(volatile uint32_t *)(POWMAN_BASE + 0x68UL))
-#define POWMAN_SET_TIME_15TO0        (*(volatile uint32_t *)(POWMAN_BASE + 0x6CUL))
-#define POWMAN_READ_TIME_UPPER       (*(volatile uint32_t *)(POWMAN_BASE + 0x70UL))
-#define POWMAN_READ_TIME_LOWER       (*(volatile uint32_t *)(POWMAN_BASE + 0x74UL))
-#define POWMAN_ALARM_TIME_63TO48     (*(volatile uint32_t *)(POWMAN_BASE + 0x78UL))
-#define POWMAN_ALARM_TIME_47TO32     (*(volatile uint32_t *)(POWMAN_BASE + 0x7CUL))
-#define POWMAN_ALARM_TIME_31TO16     (*(volatile uint32_t *)(POWMAN_BASE + 0x80UL))
-#define POWMAN_ALARM_TIME_15TO0      (*(volatile uint32_t *)(POWMAN_BASE + 0x84UL))
-#define POWMAN_TIMER                 (*(volatile uint32_t *)(POWMAN_BASE + 0x88UL))
-#define POWMAN_INTE                  (*(volatile uint32_t *)(POWMAN_BASE + 0xE4UL))
-
-/* Writes to most POWMAN registers are ignored unless the top 16 bits
-   carry this password, to prevent accidental writes (RP2350 datasheet
-   12.11).*/
-#define POWMAN_PASSWORD_BITS         0x5AFE0000UL
-
-#define POWMAN_TIMER_ALARM_BITS      (1UL << 6)
-#define POWMAN_TIMER_ALARM_ENAB_BITS (1UL << 4)
-#define POWMAN_TIMER_RUN_BITS        (1UL << 1)
-#define POWMAN_TIMER_USE_LPOSC_BITS  (1UL << 8)
-
-#define POWMAN_INTE_TIMER_BITS       (1UL << 1)
-
 /* Nominal LPOSC frequency, matching the RP2350 power-on-reset default
    for these registers (32.768kHz target for the internal low power
    oscillator).*/
-#define POWMAN_LPOSC_NOMINAL_FREQ_KHZ_INT   32UL
-#define POWMAN_LPOSC_NOMINAL_FREQ_KHZ_FRAC  0xC49CUL
+#define RP_LPOSC_NOMINAL_FREQ_KHZ_INT   32UL
+#define RP_LPOSC_NOMINAL_FREQ_KHZ_FRAC  0xC49CUL
 
 #define MS_PER_DAY                   86400000ULL
 
@@ -73,11 +43,6 @@
    days since 1970-01-01. The driver's own time base is ms since
    RTC_BASE_YEAR (1980-01-01, see hal_rtc.h).*/
 #define RTC_BASE_YEAR_EPOCH_DAYS     3652 /* Value of days_from_civil(1980, 1, 1).*/
-
-/* Aliased set/clear register offsets (RP2350 atomic bit-set/clear
-   register aliasing convention).*/
-#define POWMAN_ALIAS_SET_OFFSET      0x2000UL
-#define POWMAN_ALIAS_CLR_OFFSET      0x3000UL
 
 /*===========================================================================*/
 /* Driver exported variables.                                               */
@@ -97,42 +62,6 @@ RTCDriver RTCD1;
 /*===========================================================================*/
 
 /**
- * @brief   Writes a password-protected POWMAN register.
- *
- * @notapi
- */
-static void powman_write(volatile uint32_t *reg, uint32_t value) {
-
-  *reg = POWMAN_PASSWORD_BITS | value;
-}
-
-/**
- * @brief   Atomically sets bits in a password-protected POWMAN register.
- *
- * @notapi
- */
-static void powman_set_bits(volatile uint32_t *reg, uint32_t bits) {
-  volatile uint32_t *set_alias;
-
-  set_alias = (volatile uint32_t *)((volatile uint8_t *)reg +
-                                     POWMAN_ALIAS_SET_OFFSET);
-  *set_alias = POWMAN_PASSWORD_BITS | bits;
-}
-
-/**
- * @brief   Atomically clears bits in a password-protected POWMAN register.
- *
- * @notapi
- */
-static void powman_clear_bits(volatile uint32_t *reg, uint32_t bits) {
-  volatile uint32_t *clear_alias;
-
-  clear_alias = (volatile uint32_t *)((volatile uint8_t *)reg +
-                                       POWMAN_ALIAS_CLR_OFFSET);
-  *clear_alias = POWMAN_PASSWORD_BITS | bits;
-}
-
-/**
  * @brief   Returns the current AON timer value.
  * @details Value is expressed in milliseconds since RTC_BASE_YEAR.
  *
@@ -144,10 +73,10 @@ static uint64_t powman_now_ms(void) {
   /* The 64-bit counter is exposed as two 32-bit halves; re-reading the
      upper word after the lower one detects a rollover race between the
      two reads.*/
-  upper_word = POWMAN_READ_TIME_UPPER;
+  upper_word = POWMAN->READ_TIME_UPPER;
   for (;;) {
-    lower_word = POWMAN_READ_TIME_LOWER;
-    upper_word_recheck = POWMAN_READ_TIME_UPPER;
+    lower_word = POWMAN->READ_TIME_LOWER;
+    upper_word_recheck = POWMAN->READ_TIME_UPPER;
     if (upper_word_recheck == upper_word) {
       break;
     }
@@ -419,8 +348,8 @@ static uint64_t next_match_ms(const RTCDateTime *wanted_time,
 static void rtc_disable_alarm(RTCDriver *rtcp) {
 
   (void)rtcp;
-  powman_clear_bits(&POWMAN_INTE, POWMAN_INTE_TIMER_BITS);
-  powman_clear_bits(&POWMAN_TIMER, POWMAN_TIMER_ALARM_ENAB_BITS);
+  POWMAN->CLR.INTE  = POWMAN_PASSWORD | POWMAN_INTE_TIMER;
+  POWMAN->CLR.TIMER = POWMAN_PASSWORD | POWMAN_TIMER_ALARM_ENAB;
 }
 
 /**
@@ -432,18 +361,19 @@ static void rtc_disable_alarm(RTCDriver *rtcp) {
  */
 static void rtc_arm_alarm(uint64_t alarm_ms) {
 
-  powman_clear_bits(&POWMAN_TIMER, POWMAN_TIMER_ALARM_ENAB_BITS);
-  powman_write(&POWMAN_ALARM_TIME_15TO0, (uint32_t)(alarm_ms & 0xFFFFUL));
-  powman_write(&POWMAN_ALARM_TIME_31TO16,
-              (uint32_t)((alarm_ms >> 16) & 0xFFFFUL));
-  powman_write(&POWMAN_ALARM_TIME_47TO32,
-              (uint32_t)((alarm_ms >> 32) & 0xFFFFUL));
-  powman_write(&POWMAN_ALARM_TIME_63TO48,
-              (uint32_t)((alarm_ms >> 48) & 0xFFFFUL));
+  POWMAN->CLR.TIMER = POWMAN_PASSWORD | POWMAN_TIMER_ALARM_ENAB;
+  POWMAN->ALARM_TIME_15TO0 = POWMAN_PASSWORD |
+                             (uint32_t)(alarm_ms & 0xFFFFUL);
+  POWMAN->ALARM_TIME_31TO16 = POWMAN_PASSWORD |
+                              (uint32_t)((alarm_ms >> 16) & 0xFFFFUL);
+  POWMAN->ALARM_TIME_47TO32 = POWMAN_PASSWORD |
+                              (uint32_t)((alarm_ms >> 32) & 0xFFFFUL);
+  POWMAN->ALARM_TIME_63TO48 = POWMAN_PASSWORD |
+                              (uint32_t)((alarm_ms >> 48) & 0xFFFFUL);
 
-  powman_clear_bits(&POWMAN_TIMER, POWMAN_TIMER_ALARM_BITS);
-  powman_set_bits(&POWMAN_INTE, POWMAN_INTE_TIMER_BITS);
-  powman_set_bits(&POWMAN_TIMER, POWMAN_TIMER_ALARM_ENAB_BITS);
+  POWMAN->CLR.TIMER = POWMAN_PASSWORD | POWMAN_TIMER_ALARM;
+  POWMAN->SET.INTE  = POWMAN_PASSWORD | POWMAN_INTE_TIMER;
+  POWMAN->SET.TIMER = POWMAN_PASSWORD | POWMAN_TIMER_ALARM_ENAB;
 }
 #endif /* RTC_ALARMS > 0 */
 
@@ -464,7 +394,7 @@ OSAL_IRQ_HANDLER(RP_POWMAN_IRQ_TIMER_HANDLER) {
   /* The alarm comparator is level-sensitive (alarm_time >= current_time),
      so it must be disabled before the latched flag is cleared.*/
   rtc_disable_alarm(&RTCD1);
-  powman_clear_bits(&POWMAN_TIMER, POWMAN_TIMER_ALARM_BITS);
+  POWMAN->CLR.TIMER = POWMAN_PASSWORD | POWMAN_TIMER_ALARM;
 
   if ((RTCD1.mask & RTC_ALARM_NON_REPEATING) != RTC_ALARM_NON_REPEATING) {
     uint64_t next_alarm_ms = next_match_ms(&RTCD1.alarm, RTCD1.mask,
@@ -507,18 +437,20 @@ void rtc_lld_init(void) {
 
   /* POWMAN is in the Always-On power domain: it is not part of the
      RESETS block and survives ordinary chip resets by design.*/
-  powman_write(&POWMAN_LPOSC_FREQ_KHZ_INT, POWMAN_LPOSC_NOMINAL_FREQ_KHZ_INT);
-  powman_write(&POWMAN_LPOSC_FREQ_KHZ_FRAC, POWMAN_LPOSC_NOMINAL_FREQ_KHZ_FRAC);
-  powman_set_bits(&POWMAN_TIMER, POWMAN_TIMER_USE_LPOSC_BITS);
+  POWMAN->LPOSC_FREQ_KHZ_INT = POWMAN_PASSWORD |
+                               RP_LPOSC_NOMINAL_FREQ_KHZ_INT;
+  POWMAN->LPOSC_FREQ_KHZ_FRAC = POWMAN_PASSWORD |
+                                RP_LPOSC_NOMINAL_FREQ_KHZ_FRAC;
+  POWMAN->SET.TIMER = POWMAN_PASSWORD | POWMAN_TIMER_USE_LPOSC;
 
-  if ((POWMAN_TIMER & POWMAN_TIMER_RUN_BITS) == 0) {
+  if ((POWMAN->TIMER & POWMAN_TIMER_RUN) == 0) {
     /* Timer not running: either first power-up of the AON domain, or a
        previous explicit stop.*/
-    powman_set_bits(&POWMAN_TIMER, POWMAN_TIMER_RUN_BITS);
+    POWMAN->SET.TIMER = POWMAN_PASSWORD | POWMAN_TIMER_RUN;
   }
 
   rtc_disable_alarm(&RTCD1);
-  powman_clear_bits(&POWMAN_TIMER, POWMAN_TIMER_ALARM_BITS);
+  POWMAN->CLR.TIMER = POWMAN_PASSWORD | POWMAN_TIMER_ALARM;
 
   nvicEnableVector(RP_POWMAN_IRQ_TIMER_NUMBER, RP_IRQ_RTC_PRIORITY);
 }
@@ -544,15 +476,16 @@ void rtc_lld_set_time(RTCDriver *rtcp, const RTCDateTime *timespec) {
   syssts_t sts = osalSysGetStatusAndLockX();
 
   /* SET_TIME_* may only be written while the timer is stopped.*/
-  powman_clear_bits(&POWMAN_TIMER, POWMAN_TIMER_RUN_BITS);
-  powman_write(&POWMAN_SET_TIME_15TO0, (uint32_t)(milliseconds & 0xFFFFUL));
-  powman_write(&POWMAN_SET_TIME_31TO16,
-              (uint32_t)((milliseconds >> 16) & 0xFFFFUL));
-  powman_write(&POWMAN_SET_TIME_47TO32,
-              (uint32_t)((milliseconds >> 32) & 0xFFFFUL));
-  powman_write(&POWMAN_SET_TIME_63TO48,
-              (uint32_t)((milliseconds >> 48) & 0xFFFFUL));
-  powman_set_bits(&POWMAN_TIMER, POWMAN_TIMER_RUN_BITS);
+  POWMAN->CLR.TIMER = POWMAN_PASSWORD | POWMAN_TIMER_RUN;
+  POWMAN->SET_TIME_15TO0 = POWMAN_PASSWORD |
+                           (uint32_t)(milliseconds & 0xFFFFUL);
+  POWMAN->SET_TIME_31TO16 = POWMAN_PASSWORD |
+                            (uint32_t)((milliseconds >> 16) & 0xFFFFUL);
+  POWMAN->SET_TIME_47TO32 = POWMAN_PASSWORD |
+                            (uint32_t)((milliseconds >> 32) & 0xFFFFUL);
+  POWMAN->SET_TIME_63TO48 = POWMAN_PASSWORD |
+                            (uint32_t)((milliseconds >> 48) & 0xFFFFUL);
+  POWMAN->SET.TIMER = POWMAN_PASSWORD | POWMAN_TIMER_RUN;
 
   /* Leaving a reentrant critical zone.*/
   osalSysRestoreStatusX(sts);

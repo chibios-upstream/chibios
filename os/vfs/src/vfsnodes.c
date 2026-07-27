@@ -103,7 +103,7 @@ void __vfsnode_dispose_impl(void *ip) {
 }
 
 /**
- * @brief       Implementation of method @p vfsNodeStat().
+ * @brief       Implementation of method @p __vfsnode_stat().
  * @note        This function is meant to be used by derived classes.
  *
  * @param[in,out] ip            Pointer to a @p vfs_node_c instance.

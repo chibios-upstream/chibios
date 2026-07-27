@@ -314,7 +314,7 @@ static inline msg_t sbDup(int fd) {
  */
 static inline msg_t sbDup2(int oldfd, int newfd) {
 
-  __syscall3r(128, SB_POSIX_DUP, oldfd, newfd);
+  __syscall3r(128, SB_POSIX_DUP2, oldfd, newfd);
   return (msg_t)r0;
 }
 

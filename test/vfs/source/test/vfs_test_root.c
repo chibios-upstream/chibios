@@ -24,6 +24,9 @@
  * - @subpage vfs_test_sequence_001
  * - @subpage vfs_test_sequence_002
  * - @subpage vfs_test_sequence_003
+ * - @subpage vfs_test_sequence_004
+ * - @subpage vfs_test_sequence_005
+ * - @subpage vfs_test_sequence_006
  * .
  */
 
@@ -47,8 +50,17 @@
 const testsequence_t * const vfs_test_suite_array[] = {
   &vfs_test_sequence_001,
   &vfs_test_sequence_002,
-#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
+#if ((VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || (VFS_CFG_ENABLE_DRV_STREAMS == TRUE)) || defined(__DOXYGEN__)
   &vfs_test_sequence_003,
+#endif
+#if (VFS_CFG_ENABLE_DRV_LITTLEFS == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_sequence_004,
+#endif
+#if ((VFS_CFG_ENABLE_DRV_ROMFS == TRUE) && (DRV_CFG_ROM_ENABLE_COMPRESSION == TRUE)) || defined(__DOXYGEN__)
+  &vfs_test_sequence_005,
+#endif
+#if (VFS_CFG_ENABLE_DRV_FATFS == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_sequence_006,
 #endif
   NULL
 };
@@ -101,6 +113,29 @@ bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
   return vfs_test_path_equal(buf, n, expected);
 }
 
+bool vfs_test_stat_equal(const vfs_stat_t *actual,
+                         const vfs_stat_t *expected) {
+
+  return (actual->mode == expected->mode) &&
+         (actual->size == expected->size) &&
+         (actual->valid == expected->valid) &&
+         (actual->blksize == expected->blksize) &&
+         (actual->blocks == expected->blocks) &&
+         (actual->mtime.tv_sec == expected->mtime.tv_sec) &&
+         (actual->mtime.tv_nsec == expected->mtime.tv_nsec);
+}
+
+bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp) {
+  static const vfs_stat_t empty = {0};
+  vfs_stat_t optional;
+
+  optional = *sp;
+  optional.mode = (vfs_mode_t)0;
+  optional.size = (vfs_offset_t)0;
+
+  return vfs_test_stat_equal(&optional, &empty);
+}
+
 static void vfs_test_fs_dispose(void *ip) {
 
   (void)ip;
@@ -117,7 +152,18 @@ static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
 static msg_t vfs_test_fs_stat(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
 
-  (void)sp;
+  sp->mode  = self->stat.mode;
+  sp->size  = self->stat.size;
+  sp->valid = self->stat.valid;
+  if ((sp->valid & VFS_STAT_VALID_BLKSIZE) != 0U) {
+    sp->blksize = self->stat.blksize;
+  }
+  if ((sp->valid & VFS_STAT_VALID_BLOCKS) != 0U) {
+    sp->blocks = self->stat.blocks;
+  }
+  if ((sp->valid & VFS_STAT_VALID_MTIME) != 0U) {
+    sp->mtime = self->stat.mtime;
+  }
   vfs_test_fs_record(self, VFS_TEST_FS_OP_STAT, path);
   return CH_RET_SUCCESS;
 }
@@ -183,6 +229,18 @@ static const struct vfs_fs_vmt vfs_test_fs_vmt = {
   .rmdir    = vfs_test_fs_rmdir
 };
 
+const vfs_stat_t vfs_test_full_stat = {
+  .mode          = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
+  .size          = (vfs_offset_t)1234,
+  .valid         = VFS_STAT_VALID_BLKSIZE |
+                   VFS_STAT_VALID_BLOCKS |
+                   VFS_STAT_VALID_MTIME,
+  .blksize       = (vfs_blksize_t)4096,
+  .blocks        = (vfs_blkcnt_t)17,
+  .mtime.tv_sec  = (int64_t)1700000000,
+  .mtime.tv_nsec = (uint32_t)123456789
+};
+
 vfs_test_fs_c vfs_test_fs;
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 vfs_root_c vfs_test_root;
@@ -198,6 +256,10 @@ void vfs_test_fs_reset(void) {
   vfs_test_fs.newpath[0]      = '\0';
   vfs_test_fs.flags           = 0;
   vfs_test_fs.mode            = (vfs_mode_t)0;
+  vfs_test_fs.stat            = (vfs_stat_t) {
+    .mode = VFS_MODE_S_IFREG,
+    .size = (vfs_offset_t)1234
+  };
   vfs_test_fs.opendir_result  = CH_RET_SUCCESS;
   vfs_test_fs.openfile_result = CH_RET_SUCCESS;
 }

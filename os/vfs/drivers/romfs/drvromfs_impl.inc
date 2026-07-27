@@ -54,6 +54,10 @@ static bool is_compressed_file(const vfs_romfs_file_desc_t *filep) {
 
 static msg_t validate_file_descriptor(const vfs_romfs_file_desc_t *filep) {
 
+  if (filep->size < (vfs_offset_t)0) {
+    return CH_RET_EINVAL;
+  }
+
   switch (get_file_type(filep)) {
   case VFS_ROMFS_FILE_TYPE_RAW:
     if ((filep->size != (vfs_offset_t)0) && (filep->content.data == NULL)) {
@@ -363,6 +367,59 @@ static msg_t romfs_chunked_packbits_stat(const void *arg, vfs_offset_t *sizep) {
 }
 #endif /* DRV_CFG_ROM_ENABLE_COMPRESSION == TRUE */
 
+static vfs_blkcnt_t bytes_to_blocks(uint64_t size) {
+  vfs_blkcnt_t blocks;
+
+  blocks = (vfs_blkcnt_t)(size / (uint64_t)VFS_STAT_BLOCKS_UNIT);
+  if ((size % (uint64_t)VFS_STAT_BLOCKS_UNIT) != 0U) {
+    blocks++;
+  }
+
+  return blocks;
+}
+
+static void set_file_storage_stat(const vfs_romfs_file_desc_t *filep,
+                                  vfs_stat_t *sp) {
+
+  /* Raw files have a known embedded payload size but no preferred transfer
+     size because they are directly byte-addressable.*/
+  if (is_raw_file(filep)) {
+    sp->valid |= VFS_STAT_VALID_BLOCKS;
+    sp->blocks = bytes_to_blocks((uint64_t)sp->size);
+  }
+#if DRV_CFG_ROM_ENABLE_COMPRESSION == TRUE
+  /* The built-in chunked backends also expose their transfer granularity
+     and exact payload representation size, including the offset table.*/
+  else if (is_compressed_file(filep) &&
+           ((filep->content.compressed.ops ==
+             &vfs_romfs_chunked_stored_ops) ||
+            (filep->content.compressed.ops ==
+             &vfs_romfs_chunked_packbits_ops))) {
+    const vfs_romfs_chunked_desc_t *descp;
+    uint64_t storage_size;
+
+    descp = (const vfs_romfs_chunked_desc_t *)
+      filep->content.compressed.arg;
+    if ((descp->chunk_size > 0U) &&
+        (descp->chunk_size <= (size_t)UINT32_MAX)) {
+      sp->valid   |= VFS_STAT_VALID_BLKSIZE;
+      sp->blksize  = (vfs_blksize_t)descp->chunk_size;
+    }
+
+    if (descp->offsets != NULL) {
+      storage_size = (uint64_t)descp->offsets[descp->chunks_num] +
+                     ((uint64_t)descp->chunks_num + 1U) *
+                     (uint64_t)sizeof (uint32_t);
+    }
+    else {
+      storage_size = 0U;
+    }
+    sp->valid |= VFS_STAT_VALID_BLOCKS;
+    sp->blocks = bytes_to_blocks(storage_size);
+  }
+#endif
+}
+
 static const char *get_dir_path(const vfs_rom_dir_node_c *dp) {
 
   if (dp->dir == NULL) {
@@ -503,6 +560,8 @@ static msg_t get_file_stat(const vfs_romfs_file_desc_t *filep,
     }
   }
 #endif
+
+  set_file_storage_stat(filep, sp);
 
   return CH_RET_SUCCESS;
 }
@@ -865,6 +924,7 @@ static msg_t __romfile_stat_impl(void *ip, vfs_stat_t *sp) {
 
   sp->mode = self->mode;
   sp->size = self->size;
+  set_file_storage_stat(self->file, sp);
 
   return CH_RET_SUCCESS;
 }

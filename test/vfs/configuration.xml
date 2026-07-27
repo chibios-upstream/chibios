@@ -55,11 +55,13 @@ typedef struct {
   char                    newpath[VFS_CFG_PATHLEN_MAX + 1];
   int                     flags;
   vfs_mode_t              mode;
+  vfs_stat_t              stat;
   msg_t                   opendir_result;
   msg_t                   openfile_result;
 } vfs_test_fs_c;
 
 extern vfs_test_fs_c vfs_test_fs;
+extern const vfs_stat_t vfs_test_full_stat;
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 extern vfs_root_c vfs_test_root;
 #endif
@@ -71,6 +73,9 @@ bool vfs_test_path_normalizes_in_place(const char *input,
                                        const char *expected);
 bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
                                     const char *expected);
+bool vfs_test_stat_equal(const vfs_stat_t *actual,
+                         const vfs_stat_t *expected);
+bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
 void vfs_test_fs_reset(void);
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);
@@ -113,6 +118,29 @@ bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
   return vfs_test_path_equal(buf, n, expected);
 }
 
+bool vfs_test_stat_equal(const vfs_stat_t *actual,
+                         const vfs_stat_t *expected) {
+
+  return (actual->mode == expected->mode) &&
+         (actual->size == expected->size) &&
+         (actual->valid == expected->valid) &&
+         (actual->blksize == expected->blksize) &&
+         (actual->blocks == expected->blocks) &&
+         (actual->mtime.tv_sec == expected->mtime.tv_sec) &&
+         (actual->mtime.tv_nsec == expected->mtime.tv_nsec);
+}
+
+bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp) {
+  static const vfs_stat_t empty = {0};
+  vfs_stat_t optional;
+
+  optional = *sp;
+  optional.mode = (vfs_mode_t)0;
+  optional.size = (vfs_offset_t)0;
+
+  return vfs_test_stat_equal(&optional, &empty);
+}
+
 static void vfs_test_fs_dispose(void *ip) {
 
   (void)ip;
@@ -129,7 +157,18 @@ static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
 static msg_t vfs_test_fs_stat(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
 
-  (void)sp;
+  sp->mode  = self->stat.mode;
+  sp->size  = self->stat.size;
+  sp->valid = self->stat.valid;
+  if ((sp->valid & VFS_STAT_VALID_BLKSIZE) != 0U) {
+    sp->blksize = self->stat.blksize;
+  }
+  if ((sp->valid & VFS_STAT_VALID_BLOCKS) != 0U) {
+    sp->blocks = self->stat.blocks;
+  }
+  if ((sp->valid & VFS_STAT_VALID_MTIME) != 0U) {
+    sp->mtime = self->stat.mtime;
+  }
   vfs_test_fs_record(self, VFS_TEST_FS_OP_STAT, path);
   return CH_RET_SUCCESS;
 }
@@ -195,6 +234,18 @@ static const struct vfs_fs_vmt vfs_test_fs_vmt = {
   .rmdir    = vfs_test_fs_rmdir
 };
 
+const vfs_stat_t vfs_test_full_stat = {
+  .mode          = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
+  .size          = (vfs_offset_t)1234,
+  .valid         = VFS_STAT_VALID_BLKSIZE |
+                   VFS_STAT_VALID_BLOCKS |
+                   VFS_STAT_VALID_MTIME,
+  .blksize       = (vfs_blksize_t)4096,
+  .blocks        = (vfs_blkcnt_t)17,
+  .mtime.tv_sec  = (int64_t)1700000000,
+  .mtime.tv_nsec = (uint32_t)123456789
+};
+
 vfs_test_fs_c vfs_test_fs;
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 vfs_root_c vfs_test_root;
@@ -210,6 +261,10 @@ void vfs_test_fs_reset(void) {
   vfs_test_fs.newpath[0]      = '\0';
   vfs_test_fs.flags           = 0;
   vfs_test_fs.mode            = (vfs_mode_t)0;
+  vfs_test_fs.stat            = (vfs_stat_t) {
+    .mode = VFS_MODE_S_IFREG,
+    .size = (vfs_offset_t)1234
+  };
   vfs_test_fs.opendir_result  = CH_RET_SUCCESS;
   vfs_test_fs.openfile_result = CH_RET_SUCCESS;
 }
@@ -621,7 +676,14 @@ test_assert(n == (size_t)0, "absolute path overflow accepted");]]></value>
       <shared_code>
         <value><![CDATA[#include <string.h>
 
-#include "vfs.h"]]></value>
+#include "vfs.h"
+
+static const struct vfs_node_vmt vfs_test_node_vmt = {
+  .dispose = __vfsnode_dispose_impl,
+  .addref  = __ro_addref_impl,
+  .release = __ro_release_impl,
+  .stat    = __vfsnode_stat_impl
+};]]></value>
       </shared_code>
       <cases>
         <case>
@@ -653,19 +715,25 @@ msg_t ret;]]></value>
           <steps>
             <step>
               <description>
-                <value>Stat dispatches through the file system VMT.</value>
+                <value>Stat initializes the output and dispatches through the
+                  file system VMT.</value>
               </description>
               <tags>
                 <value />
               </tags>
               <code>
                 <value><![CDATA[vfs_test_fs_reset();
+memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&vfs_test_fs, "/stat", &stat);
 test_assert(ret == CH_RET_SUCCESS, "stat failed");
 test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_STAT,
             "stat dispatch failed");
 test_assert(strcmp(vfs_test_fs.path, "/stat") == 0,
-            "stat path changed");]]></value>
+            "stat path changed");
+test_assert(stat.mode == VFS_MODE_S_IFREG, "stat mode changed");
+test_assert(stat.size == (vfs_offset_t)1234, "stat size changed");
+test_assert(vfs_test_stat_optional_is_clear(&stat),
+            "optional stat metadata not initialized");]]></value>
               </code>
             </step>
             <step>
@@ -821,6 +889,53 @@ test_assert(vfs_test_fs.calls == 1U, "writable generic open fell back");]]></val
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Node information initialization.</value>
+          </brief>
+          <description>
+            <value>Node information is initialized before dispatching through
+              the node VMT.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[vfs_node_c node;
+vfs_stat_t stat;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Optional node information is cleared before the
+                  provider runs.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[(void)__vfsnode_objinit_impl(
+    &node, &vfs_test_node_vmt, NULL, VFS_MODE_S_IFDIR);
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(&node, &stat);
+test_assert(ret == CH_RET_SUCCESS, "node stat failed");
+test_assert(stat.mode == VFS_MODE_S_IFDIR, "node mode changed");
+test_assert(stat.size == (vfs_offset_t)0, "node size changed");
+test_assert(vfs_test_stat_optional_is_clear(&stat),
+            "optional node metadata not initialized");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
     <sequence>
@@ -828,20 +943,27 @@ test_assert(vfs_test_fs.calls == 1U, "writable generic open fell back");]]></val
         <value>Internal Tests</value>
       </type>
       <brief>
-        <value>Root and Overlay Path Handling.</value>
+        <value>Routing and Synthetic File Systems.</value>
       </brief>
       <description>
         <value>The overlay-derived root resolves relative paths and owns the
-          current directory, while a plain overlay remains an absolute-path
-          file system suitable for non-root use.</value>
+          current directory, plain overlays route absolute paths, and
+          synthetic file systems report only metadata they own.</value>
       </description>
       <condition>
-        <value><![CDATA[VFS_CFG_ENABLE_DRV_OVERLAY == TRUE]]></value>
+        <value><![CDATA[(VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || (VFS_CFG_ENABLE_DRV_STREAMS == TRUE)]]></value>
       </condition>
       <shared_code>
         <value><![CDATA[#include <string.h>
 
-#include "vfs.h"]]></value>
+#include "vfs.h"
+
+#if VFS_CFG_ENABLE_DRV_STREAMS == TRUE
+static const drv_streams_element_t vfs_test_streams[] = {
+  {"console", NULL, NULL, VFS_MODE_S_IFCHR},
+  {NULL, NULL, NULL, (vfs_mode_t)0}
+};
+#endif]]></value>
       </shared_code>
       <cases>
         <case>
@@ -854,7 +976,7 @@ test_assert(vfs_test_fs.calls == 1U, "writable generic open fell back");]]></val
               failed directory changes preserve the path context.</value>
           </description>
           <condition>
-            <value><![CDATA[VFS_CFG_ENABLE_DRV_ROOT == TRUE]]></value>
+            <value><![CDATA[(VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)]]></value>
           </condition>
           <various_code>
             <setup_code>
@@ -884,10 +1006,13 @@ msg_t ret;]]></value>
               </tags>
               <code>
                 <value><![CDATA[vfs_test_root_reset();
+vfs_test_fs.stat = vfs_test_full_stat;
 ret = vfsFSStat(&vfs_test_root, "../data", &stat);
 test_assert(ret == CH_RET_SUCCESS, "relative stat failed");
 test_assert(strcmp(vfs_test_fs.path, "/home/data") == 0,
-            "relative stat path not resolved");]]></value>
+            "relative stat path not resolved");
+test_assert(vfs_test_stat_equal(&stat, &vfs_test_full_stat),
+            "root did not preserve backing metadata");]]></value>
               </code>
             </step>
             <step>
@@ -1011,11 +1136,11 @@ test_assert(strcmp(cwd, "/") == 0, "synthetic root cwd changed");]]></value>
           </brief>
           <description>
             <value>A plain overlay accepts absolute paths, applies its
-              backing prefix, and rejects relative paths without owning a
-              current directory.</value>
+              backing prefix, exposes a synthetic root, and rejects relative
+              paths without owning a current directory.</value>
           </description>
           <condition>
-            <value />
+            <value><![CDATA[VFS_CFG_ENABLE_DRV_OVERLAY == TRUE]]></value>
           </condition>
           <various_code>
             <setup_code>
@@ -1026,7 +1151,9 @@ test_assert(strcmp(cwd, "/") == 0, "synthetic root cwd changed");]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[vfs_overlay_driver_c overlay;
+vfs_directory_node_c *dnp;
 vfs_stat_t stat;
+vfs_stat_t expected;
 msg_t ret;]]></value>
             </local_variables>
           </various_code>
@@ -1041,11 +1168,51 @@ msg_t ret;]]></value>
               </tags>
               <code>
                 <value><![CDATA[vfs_test_fs_reset();
+vfs_test_fs.stat = vfs_test_full_stat;
 (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
 ret = vfsFSStat(&overlay, "/nested", &stat);
 test_assert(ret == CH_RET_SUCCESS, "non-root overlay stat failed");
 test_assert(strcmp(vfs_test_fs.path, "/base/nested") == 0,
-            "non-root overlay prefix not applied");]]></value>
+            "non-root overlay prefix not applied");
+test_assert(vfs_test_stat_equal(&stat, &vfs_test_full_stat),
+            "overlay did not preserve backing metadata");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The overlay root has the same synthetic metadata when
+                  queried by path or through an opened node.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+vfs_test_fs.stat = vfs_test_full_stat;
+(void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&overlay, "/", &stat);
+test_assert(ret == CH_RET_SUCCESS, "synthetic overlay root stat failed");
+test_assert(vfs_test_fs.calls == 0U,
+            "synthetic overlay root reached backing file system");
+expected = (vfs_stat_t) {
+  .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
+  .size = (vfs_offset_t)0
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "synthetic overlay root metadata changed");
+
+(void)ovldrvObjectInit(&overlay, NULL, NULL);
+ret = vfsFSStat(&overlay, "/missing", &stat);
+test_assert(ret == CH_RET_ENOENT, "missing overlay path reported as root");
+ret = vfsFSOpenDirectory(&overlay, "/", &dnp);
+test_assert(ret == CH_RET_SUCCESS, "synthetic overlay root open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(dnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "synthetic overlay node stat failed");
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "synthetic overlay node metadata changed");
+(void)roRelease(dnp);]]></value>
               </code>
             </step>
             <step>
@@ -1062,6 +1229,926 @@ ret = vfsFSStat(&overlay, "relative", &stat);
 test_assert(ret == CH_RET_EINVAL, "relative overlay path accepted");
 test_assert(vfs_test_fs.calls == 0U,
             "relative overlay path reached backing file system");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Streams metadata.</value>
+          </brief>
+          <description>
+            <value>The streams driver exposes consistent synthetic modes and
+              sizes while leaving storage and time metadata unavailable.</value>
+          </description>
+          <condition>
+            <value><![CDATA[VFS_CFG_ENABLE_DRV_STREAMS == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[vfs_streams_driver_c streams;
+vfs_directory_node_c *dnp;
+vfs_file_node_c *fnp;
+vfs_direntry_info_t direntry;
+vfs_stat_t stat;
+vfs_stat_t expected;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Path queries expose the synthetic directory and stream
+                  modes without optional metadata.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[(void)stmdrvObjectInit(&streams, &vfs_test_streams[0]);
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&streams, "/", &stat);
+test_assert(ret == CH_RET_SUCCESS, "streams root stat failed");
+expected = (vfs_stat_t) {
+  .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
+  .size = (vfs_offset_t)0
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "streams root metadata changed");
+
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&streams, "/console", &stat);
+test_assert(ret == CH_RET_SUCCESS, "stream stat failed");
+expected = (vfs_stat_t) {
+  .mode = VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+  .size = (vfs_offset_t)0
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "stream metadata changed");
+ret = vfsFSStat(&streams, "/console/child", &stat);
+test_assert(ret == CH_RET_ENOENT, "nested stream path accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Opened nodes and directory entries report the same
+                  synthetic metadata as path queries.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[(void)stmdrvObjectInit(&streams, &vfs_test_streams[0]);
+ret = vfsFSOpenDirectory(&streams, "/", &dnp);
+test_assert(ret == CH_RET_SUCCESS, "streams root open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(dnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "streams directory node stat failed");
+expected = (vfs_stat_t) {
+  .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR,
+  .size = (vfs_offset_t)0
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "streams directory node metadata changed");
+expected = (vfs_stat_t) {
+  .mode = VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+  .size = (vfs_offset_t)0
+};
+ret = vfsDirReadFirst(dnp, &direntry);
+test_assert(ret == (msg_t)1, "stream directory entry missing");
+test_assert(strcmp(direntry.name, "console") == 0,
+            "stream directory entry name changed");
+test_assert(direntry.mode == expected.mode,
+            "stream directory entry mode changed");
+test_assert(direntry.size == expected.size,
+            "stream directory entry size changed");
+(void)roRelease(dnp);
+
+ret = vfsFSOpenFile(&streams, "/console", VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "stream open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(fnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "stream node stat failed");
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "stream node metadata changed");
+(void)roRelease(fnp);]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type>
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>LittleFS Metadata.</value>
+      </brief>
+      <description>
+        <value>The LittleFS driver reports its configured block size and
+          obtains live sizes from opened file objects.</value>
+      </description>
+      <condition>
+        <value><![CDATA[VFS_CFG_ENABLE_DRV_LITTLEFS == TRUE]]></value>
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>
+
+#include "vfs.h"
+#include "lfs.h"
+#include "lfs_hal.h"
+
+#define VFS_TEST_LFS_BLOCK_SIZE             4096U
+
+static uint8_t vfs_test_lfs_read_buffer[16];
+static uint8_t vfs_test_lfs_prog_buffer[16];
+static uint8_t vfs_test_lfs_lookahead_buffer[16];
+static vfs_littlefs_driver_c vfs_test_lfs_driver;
+
+static const hal_lfs_binding_t vfs_test_lfs_binding = {
+  .base = 0,
+  .flp  = (BaseFlash *)&EFLD1
+};
+
+static const struct lfs_config vfs_test_lfs_config = {
+  .context          = (void *)&vfs_test_lfs_binding,
+  .read             = __lfs_read,
+  .prog             = __lfs_prog,
+  .erase            = __lfs_erase,
+  .sync             = __lfs_sync,
+  .lock             = __lfs_lock,
+  .unlock           = __lfs_unlock,
+  .read_size        = 16,
+  .prog_size        = 16,
+  .block_size       = VFS_TEST_LFS_BLOCK_SIZE,
+  .block_count      = SIM_EFL_TOTAL_SIZE / VFS_TEST_LFS_BLOCK_SIZE,
+  .block_cycles     = 500,
+  .cache_size       = 16,
+  .lookahead_size   = 16,
+  .read_buffer      = vfs_test_lfs_read_buffer,
+  .prog_buffer      = vfs_test_lfs_prog_buffer,
+  .lookahead_buffer = vfs_test_lfs_lookahead_buffer,
+  .name_max         = 0,
+  .file_max         = 0,
+  .attr_max         = 0,
+  .metadata_max     = 0
+};]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Path and opened-node metadata.</value>
+          </brief>
+          <description>
+            <value>Path queries and opened nodes expose the configured block
+              size, opened files report their live size, and unsupported
+              metadata remains invalid.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[msg_t ret;
+
+eflStart(&EFLD1, NULL);
+(void)lfsdrvObjectInit(&vfs_test_lfs_driver, &vfs_test_lfs_config);
+ret = lfsdrvFormat(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS format failed");
+ret = lfsdrvMount(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS mount failed");]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[msg_t ret;
+
+ret = lfsdrvUnmount(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS unmount failed");
+eflStop(&EFLD1);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[static const uint8_t contents[] = "LittleFS metadata test";
+vfs_directory_node_c *dnp;
+vfs_file_node_c *fnp;
+vfs_stat_t stat;
+vfs_stat_t expected;
+ssize_t n;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Directory path and opened-node queries report the
+                  configured block size and no unsupported metadata.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&vfs_test_lfs_driver, "/", &stat);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS root stat failed");
+expected = (vfs_stat_t) {
+  .mode    = VFS_MODE_S_IFDIR,
+  .size    = (vfs_offset_t)0,
+  .valid   = VFS_STAT_VALID_BLKSIZE,
+  .blksize = (vfs_blksize_t)VFS_TEST_LFS_BLOCK_SIZE
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "LittleFS root metadata changed");
+
+ret = vfsFSOpenDirectory(&vfs_test_lfs_driver, "/", &dnp);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS root open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(dnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS directory node stat failed");
+expected.mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRWXU;
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "LittleFS directory node metadata changed");
+(void)roRelease(dnp);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An opened file reports its size before close, then its
+                  path reports the same size after close.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[ret = vfsFSOpenFile(&vfs_test_lfs_driver, "/metadata",
+                    VO_CREAT | VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS file open failed");
+n = vfsFileWrite(fnp, contents, sizeof contents - 1U);
+test_assert(n == (ssize_t)(sizeof contents - 1U),
+            "LittleFS file write failed");
+
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(fnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS file node stat failed");
+expected = (vfs_stat_t) {
+  .mode    = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+  .size    = (vfs_offset_t)(sizeof contents - 1U),
+  .valid   = VFS_STAT_VALID_BLKSIZE,
+  .blksize = (vfs_blksize_t)VFS_TEST_LFS_BLOCK_SIZE
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "LittleFS file node metadata changed");
+(void)roRelease(fnp);
+
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&vfs_test_lfs_driver, "/metadata", &stat);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS file path stat failed");
+expected.mode = VFS_MODE_S_IFREG;
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "LittleFS file path metadata changed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type>
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>ROMFS Metadata.</value>
+      </brief>
+      <description>
+        <value>The ROMFS driver reports allocation metadata only when the
+          embedded representation makes it knowable.</value>
+      </description>
+      <condition>
+        <value><![CDATA[(VFS_CFG_ENABLE_DRV_ROMFS == TRUE) && (DRV_CFG_ROM_ENABLE_COMPRESSION == TRUE)]]></value>
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>
+
+#include "vfs.h"
+
+static const uint8_t vfs_test_rom_data[600];
+
+static const uint32_t vfs_test_rom_chunk_offsets[] = {
+  0U, 256U, 512U, 600U
+};
+
+static const vfs_romfs_chunked_desc_t vfs_test_rom_chunked = {
+  .size       = (vfs_offset_t)600,
+  .chunk_size = 256U,
+  .chunks_num = 3U,
+  .offsets    = vfs_test_rom_chunk_offsets,
+  .data       = vfs_test_rom_data
+};
+
+static msg_t vfs_test_rom_dynamic_stat(const void *arg,
+                                       vfs_offset_t *sizep) {
+
+  (void)arg;
+  *sizep = (vfs_offset_t)37;
+
+  return CH_RET_SUCCESS;
+}
+
+static const vfs_romfs_dynamic_ops_t vfs_test_rom_dynamic_ops = {
+  .open  = NULL,
+  .close = NULL,
+  .read  = NULL,
+  .stat  = vfs_test_rom_dynamic_stat
+};
+
+static const vfs_romfs_file_desc_t vfs_test_rom_files[] = {
+  {
+    .name    = "compressed.bin",
+    .mode    = VFS_MODE_S_IRUSR,
+    .flags   = VFS_ROMFS_FILE_TYPE_COMPRESSED,
+    .size    = (vfs_offset_t)600,
+    .content = {
+      .compressed = {
+        .ops = &vfs_romfs_chunked_stored_ops,
+        .arg = &vfs_test_rom_chunked
+      }
+    }
+  },
+  {
+    .name    = "dynamic",
+    .mode    = VFS_MODE_S_IRUSR,
+    .flags   = VFS_ROMFS_FILE_TYPE_DYNAMIC,
+    .size    = (vfs_offset_t)0,
+    .content = {
+      .dynamic = {
+        .ops = &vfs_test_rom_dynamic_ops,
+        .arg = NULL
+      }
+    }
+  },
+  {
+    .name    = "raw.bin",
+    .mode    = VFS_MODE_S_IRUSR,
+    .flags   = VFS_ROMFS_FILE_TYPE_RAW,
+    .size    = (vfs_offset_t)sizeof vfs_test_rom_data,
+    .content = {
+      .data = vfs_test_rom_data
+    }
+  }
+};
+
+static const vfs_romfs_dir_desc_t vfs_test_rom_dirs[] = {
+  {
+    .path      = "/",
+    .files     = vfs_test_rom_files,
+    .files_num = sizeof vfs_test_rom_files / sizeof vfs_test_rom_files[0]
+  }
+};
+
+static const vfs_romfs_tree_t vfs_test_rom_tree = {
+  .dirs     = vfs_test_rom_dirs,
+  .dirs_num = sizeof vfs_test_rom_dirs / sizeof vfs_test_rom_dirs[0]
+};
+
+static vfs_rom_driver_c vfs_test_rom_driver;]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Representation-aware metadata.</value>
+          </brief>
+          <description>
+            <value>Directories and dynamic files leave storage metadata
+              unavailable, raw files expose payload blocks, and the built-in
+              chunked backend also exposes its chunk size.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[(void)romdrvObjectInit(&vfs_test_rom_driver, &vfs_test_rom_tree);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[vfs_directory_node_c *dnp;
+vfs_file_node_c *fnp;
+vfs_stat_t stat;
+vfs_stat_t expected;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Directory path and opened-node queries leave optional
+                  metadata unavailable.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&vfs_test_rom_driver, "/", &stat);
+test_assert(ret == CH_RET_SUCCESS, "ROMFS root stat failed");
+expected = (vfs_stat_t) {
+  .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR | VFS_MODE_S_IXUSR,
+  .size = (vfs_offset_t)0
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "ROMFS root metadata changed");
+
+ret = vfsFSOpenDirectory(&vfs_test_rom_driver, "/", &dnp);
+test_assert(ret == CH_RET_SUCCESS, "ROMFS root open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(dnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "ROMFS directory node stat failed");
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "ROMFS directory node metadata changed");
+(void)roRelease(dnp);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Raw files report their embedded payload allocation by
+                  path and through an opened node.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&vfs_test_rom_driver, "/raw.bin", &stat);
+test_assert(ret == CH_RET_SUCCESS, "ROMFS raw path stat failed");
+expected = (vfs_stat_t) {
+  .mode   = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
+  .size   = (vfs_offset_t)sizeof vfs_test_rom_data,
+  .valid  = VFS_STAT_VALID_BLOCKS,
+  .blocks = (vfs_blkcnt_t)2
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "ROMFS raw path metadata changed");
+
+ret = vfsFSOpenFile(&vfs_test_rom_driver, "/raw.bin", VO_RDONLY, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "ROMFS raw file open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(fnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "ROMFS raw node stat failed");
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "ROMFS raw node metadata changed");
+(void)roRelease(fnp);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The built-in chunked representation reports its
+                  preferred chunk size and physical payload blocks.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&vfs_test_rom_driver, "/compressed.bin", &stat);
+test_assert(ret == CH_RET_SUCCESS, "ROMFS compressed path stat failed");
+expected = (vfs_stat_t) {
+  .mode    = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
+  .size    = (vfs_offset_t)600,
+  .valid   = VFS_STAT_VALID_BLKSIZE | VFS_STAT_VALID_BLOCKS,
+  .blksize = (vfs_blksize_t)256,
+  .blocks  = (vfs_blkcnt_t)2
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "ROMFS compressed path metadata changed");
+
+ret = vfsFSOpenFile(&vfs_test_rom_driver, "/compressed.bin", VO_RDONLY, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "ROMFS compressed file open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(fnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "ROMFS compressed node stat failed");
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "ROMFS compressed node metadata changed");
+(void)roRelease(fnp);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Dynamic files update their logical size without
+                  claiming unavailable storage or timestamp metadata.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&vfs_test_rom_driver, "/dynamic", &stat);
+test_assert(ret == CH_RET_SUCCESS, "ROMFS dynamic path stat failed");
+expected = (vfs_stat_t) {
+  .mode = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR,
+  .size = (vfs_offset_t)37
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "ROMFS dynamic metadata changed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type>
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>FatFS Metadata.</value>
+      </brief>
+      <description>
+        <value>The FatFS driver reports cluster allocation and converts its
+          timezone-less two-second timestamp into the VFS UTC representation.</value>
+      </description>
+      <condition>
+        <value><![CDATA[VFS_CFG_ENABLE_DRV_FATFS == TRUE]]></value>
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>
+
+#include "ff.h"
+#include "diskio.h"
+#include "vfs.h"
+
+#define VFS_TEST_FAT_SECTOR_SIZE            512U
+#define VFS_TEST_FAT_SECTORS                256U
+
+static uint8_t vfs_test_fat_disk[VFS_TEST_FAT_SECTOR_SIZE *
+                                 VFS_TEST_FAT_SECTORS];
+static DSTATUS vfs_test_fat_status = STA_NOINIT;
+static vfs_fatfs_driver_c vfs_test_fat_driver;
+
+DSTATUS disk_initialize(BYTE pdrv) {
+
+  if (pdrv != 0U) {
+    return STA_NOINIT;
+  }
+
+  vfs_test_fat_status = 0U;
+  return vfs_test_fat_status;
+}
+
+DSTATUS disk_status(BYTE pdrv) {
+
+  if (pdrv != 0U) {
+    return STA_NOINIT;
+  }
+
+  return vfs_test_fat_status;
+}
+
+DRESULT disk_read(BYTE pdrv, BYTE *buf, LBA_t sector, UINT count) {
+
+  if ((pdrv != 0U) || ((vfs_test_fat_status & STA_NOINIT) != 0U)) {
+    return RES_NOTRDY;
+  }
+  if ((count == 0U) || (sector >= VFS_TEST_FAT_SECTORS) ||
+      ((LBA_t)count > (LBA_t)VFS_TEST_FAT_SECTORS - sector)) {
+    return RES_PARERR;
+  }
+
+  memcpy(buf, &vfs_test_fat_disk[(size_t)sector *
+                                 VFS_TEST_FAT_SECTOR_SIZE],
+         (size_t)count * VFS_TEST_FAT_SECTOR_SIZE);
+  return RES_OK;
+}
+
+DRESULT disk_write(BYTE pdrv, const BYTE *buf, LBA_t sector, UINT count) {
+
+  if ((pdrv != 0U) || ((vfs_test_fat_status & STA_NOINIT) != 0U)) {
+    return RES_NOTRDY;
+  }
+  if ((count == 0U) || (sector >= VFS_TEST_FAT_SECTORS) ||
+      ((LBA_t)count > (LBA_t)VFS_TEST_FAT_SECTORS - sector)) {
+    return RES_PARERR;
+  }
+
+  memcpy(&vfs_test_fat_disk[(size_t)sector * VFS_TEST_FAT_SECTOR_SIZE],
+         buf, (size_t)count * VFS_TEST_FAT_SECTOR_SIZE);
+  return RES_OK;
+}
+
+DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buf) {
+
+  if ((pdrv != 0U) || ((vfs_test_fat_status & STA_NOINIT) != 0U)) {
+    return RES_NOTRDY;
+  }
+
+  switch (cmd) {
+  case CTRL_SYNC:
+    return RES_OK;
+  case GET_SECTOR_COUNT:
+    *(LBA_t *)buf = (LBA_t)VFS_TEST_FAT_SECTORS;
+    return RES_OK;
+  case GET_SECTOR_SIZE:
+    *(WORD *)buf = (WORD)VFS_TEST_FAT_SECTOR_SIZE;
+    return RES_OK;
+  case GET_BLOCK_SIZE:
+    *(DWORD *)buf = 1U;
+    return RES_OK;
+  default:
+    return RES_PARERR;
+  }
+}
+
+DWORD get_fattime(void) {
+
+  return ((DWORD)(2024U - 1980U) << 25) |
+         ((DWORD)2U << 21) |
+         ((DWORD)29U << 16) |
+         ((DWORD)12U << 11) |
+         ((DWORD)34U << 5) |
+         ((DWORD)56U / 2U);
+}]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Cluster and modification metadata.</value>
+          </brief>
+          <description>
+            <value>Path queries expose cluster allocation and modification
+              time, while opened nodes expose only metadata available from
+              their live FatFS objects.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[MKFS_PARM options = {
+  .fmt     = FM_ANY,
+  .n_fat   = 1U,
+  .align   = 0U,
+  .n_root  = 0U,
+  .au_size = VFS_TEST_FAT_SECTOR_SIZE
+};
+uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+FRESULT fres;
+msg_t ret;
+
+memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+vfs_test_fat_status = STA_NOINIT;
+(void)ffdrvObjectInit(&vfs_test_fat_driver);
+fres = f_mkfs("0:", &options, work, sizeof work);
+test_assert(fres == FR_OK, "FatFS format failed");
+ret = ffdrvMount("0:", true);
+test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[msg_t ret;
+
+ret = ffdrvUnmount("0:");
+test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[static const uint8_t contents[600];
+static const uint8_t extension[500];
+vfs_directory_node_c *dnp;
+vfs_file_node_c *fnp;
+vfs_stat_t stat;
+vfs_stat_t expected;
+ssize_t n;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A closed file reports cluster size, allocated blocks,
+                  and its two-second modification timestamp.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[ret = vfsFSOpenFile(&vfs_test_fat_driver, "/file.bin",
+                    VO_CREAT | VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file create failed");
+n = vfsFileWrite(fnp, contents, sizeof contents);
+test_assert(n == (ssize_t)sizeof contents, "FatFS file write failed");
+(void)roRelease(fnp);
+
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&vfs_test_fat_driver, "/file.bin", &stat);
+test_assert(ret == CH_RET_SUCCESS, "FatFS path stat failed");
+expected = (vfs_stat_t) {
+  .mode          = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+  .size          = (vfs_offset_t)sizeof contents,
+  .valid         = VFS_STAT_VALID_BLKSIZE |
+                   VFS_STAT_VALID_BLOCKS |
+                   VFS_STAT_VALID_MTIME,
+  .blksize       = (vfs_blksize_t)VFS_TEST_FAT_SECTOR_SIZE,
+  .blocks        = (vfs_blkcnt_t)2,
+  .mtime.tv_sec  = (int64_t)1709210096,
+  .mtime.tv_nsec = 0U
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "FatFS path metadata changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An opened file reports live size and cluster
+                  allocation without claiming an unavailable timestamp.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[ret = vfsFSOpenFile(&vfs_test_fat_driver, "/file.bin",
+                    VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file reopen failed");
+ret = vfsFileSetPosition(fnp, (vfs_offset_t)0, VFS_SEEK_END);
+test_assert(ret == CH_RET_SUCCESS, "FatFS seek failed");
+n = vfsFileWrite(fnp, extension, sizeof extension);
+test_assert(n == (ssize_t)sizeof extension, "FatFS extension write failed");
+
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(fnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file node stat failed");
+expected = (vfs_stat_t) {
+  .mode    = VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+  .size    = (vfs_offset_t)(sizeof contents + sizeof extension),
+  .valid   = VFS_STAT_VALID_BLKSIZE | VFS_STAT_VALID_BLOCKS,
+  .blksize = (vfs_blksize_t)VFS_TEST_FAT_SECTOR_SIZE,
+  .blocks  = (vfs_blkcnt_t)3
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "FatFS file node metadata changed");
+(void)roRelease(fnp);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Directory path metadata includes modification time,
+                  while an opened directory retains only cluster size.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[ret = vfsFSMkdir(&vfs_test_fat_driver, "/dir",
+                 VFS_MODE_S_IRWXU);
+test_assert(ret == CH_RET_SUCCESS, "FatFS directory create failed");
+
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsFSStat(&vfs_test_fat_driver, "/dir", &stat);
+test_assert(ret == CH_RET_SUCCESS, "FatFS directory path stat failed");
+expected = (vfs_stat_t) {
+  .mode          = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+  .size          = (vfs_offset_t)0,
+  .valid         = VFS_STAT_VALID_BLKSIZE | VFS_STAT_VALID_MTIME,
+  .blksize       = (vfs_blksize_t)VFS_TEST_FAT_SECTOR_SIZE,
+  .mtime.tv_sec  = (int64_t)1709210096,
+  .mtime.tv_nsec = 0U
+};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "FatFS directory path metadata changed");
+
+ret = vfsFSOpenDirectory(&vfs_test_fat_driver, "/dir", &dnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS directory open failed");
+memset(&stat, 0xA5, sizeof stat);
+ret = vfsNodeStat(dnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "FatFS directory node stat failed");
+expected.valid = VFS_STAT_VALID_BLKSIZE;
+expected.mtime = (vfs_timestamp_t) {0};
+test_assert(vfs_test_stat_equal(&stat, &expected),
+            "FatFS directory node metadata changed");
+(void)roRelease(dnp);]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Open flag semantics.</value>
+          </brief>
+          <description>
+            <value>Creation preserves existing contents unless truncation is
+              requested, truncation without creation requires an existing
+              file.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[MKFS_PARM options = {
+  .fmt     = FM_ANY,
+  .n_fat   = 1U,
+  .align   = 0U,
+  .n_root  = 0U,
+  .au_size = VFS_TEST_FAT_SECTOR_SIZE
+};
+uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+FRESULT fres;
+msg_t ret;
+
+memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+vfs_test_fat_status = STA_NOINIT;
+(void)ffdrvObjectInit(&vfs_test_fat_driver);
+fres = f_mkfs("0:", &options, work, sizeof work);
+test_assert(fres == FR_OK, "FatFS format failed");
+ret = ffdrvMount("0:", true);
+test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[msg_t ret;
+
+ret = ffdrvUnmount("0:");
+test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[static const uint8_t contents[37];
+vfs_file_node_c *fnp;
+vfs_stat_t stat;
+ssize_t n;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Creation without truncation preserves an existing
+                  file.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
+                    VO_CREAT | VO_WRONLY, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file create failed");
+n = vfsFileWrite(fnp, contents, sizeof contents);
+test_assert(n == (ssize_t)sizeof contents, "FatFS file write failed");
+(void)roRelease(fnp);
+
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
+                    VO_CREAT | VO_WRONLY, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS existing create-open failed");
+(void)roRelease(fnp);
+
+ret = vfsFSStat(&vfs_test_fat_driver, "/flags.bin", &stat);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file stat failed");
+test_assert(stat.size == (vfs_offset_t)sizeof contents,
+            "FatFS create-open truncated existing file");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Truncation clears an existing file but does not create
+                  a missing file unless creation is also requested.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
+                    VO_TRUNC | VO_WRONLY, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS existing truncate failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "FatFS truncated node stat failed");
+test_assert(stat.size == (vfs_offset_t)0, "FatFS file not truncated");
+(void)roRelease(fnp);
+
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/missing.bin",
+                    VO_TRUNC | VO_WRONLY, &fnp);
+test_assert(ret == CH_RET_ENOENT, "FatFS truncate created missing file");
+
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
+                    VO_WRONLY, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS write-only reopen failed");
+n = vfsFileWrite(fnp, contents, sizeof contents);
+test_assert(n == (ssize_t)sizeof contents, "FatFS seed write failed");
+(void)roRelease(fnp);
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
+                    VO_CREAT | VO_TRUNC | VO_WRONLY, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS existing create-truncate failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "FatFS retruncated node stat failed");
+test_assert(stat.size == (vfs_offset_t)0, "FatFS file not retruncated");
+(void)roRelease(fnp);
+
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/created.bin",
+                    VO_CREAT | VO_TRUNC | VO_WRONLY, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS create-truncate failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(ret == CH_RET_SUCCESS, "FatFS created node stat failed");
+test_assert(stat.size == (vfs_offset_t)0, "FatFS created file not empty");
+(void)roRelease(fnp);]]></value>
               </code>
             </step>
           </steps>

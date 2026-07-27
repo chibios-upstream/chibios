@@ -116,8 +116,9 @@ typedef struct {
 
 /**
  * @brief   Implementation-specific @p RTCDriver fields.
- * @note    The POWMAN AON timer is accessed through fixed register
- *          addresses, no peripheral pointer is required.
+ * @note    There is a single AON timer, reached through the CMSIS
+ *          @p POWMAN peripheral pointer, so no per-instance register
+ *          pointer field is required.
  */
 #define rtc_lld_driver_fields                                               \
   /* Callback pointer.*/                                                   \

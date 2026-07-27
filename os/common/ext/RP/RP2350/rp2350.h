@@ -1481,10 +1481,204 @@ typedef struct {
 } CLOCKS_FC0_TypeDef;
 
 typedef struct {
-  __IO uint32_t         BADPASSWD;
-  __IO uint32_t         VREG_CTRL;
-  __I  uint32_t         VREG_STS;
-  __IO uint32_t         VREG;
+  __IO uint32_t         BADPASSWD;              /* 0x000 */
+  __IO uint32_t         VREG_CTRL;              /* 0x004 */
+  __I  uint32_t         VREG_STS;               /* 0x008 */
+  __IO uint32_t         VREG;                   /* 0x00C */
+  __IO uint32_t         VREG_LP_ENTRY;          /* 0x010 */
+  __IO uint32_t         VREG_LP_EXIT;           /* 0x014 */
+  __IO uint32_t         BOD_CTRL;               /* 0x018 */
+  __IO uint32_t         BOD;                    /* 0x01C */
+  __IO uint32_t         BOD_LP_ENTRY;           /* 0x020 */
+  __IO uint32_t         BOD_LP_EXIT;            /* 0x024 */
+  __IO uint32_t         LPOSC;                  /* 0x028 */
+  __IO uint32_t         CHIP_RESET;             /* 0x02C */
+  __IO uint32_t         WDSEL;                  /* 0x030 */
+  __IO uint32_t         SEQ_CFG;                /* 0x034 */
+  __IO uint32_t         STATE;                  /* 0x038 */
+  __IO uint32_t         POW_FASTDIV;            /* 0x03C */
+  __IO uint32_t         POW_DELAY;              /* 0x040 */
+  __IO uint32_t         EXT_CTRL0;              /* 0x044 */
+  __IO uint32_t         EXT_CTRL1;              /* 0x048 */
+  __IO uint32_t         EXT_TIME_REF;           /* 0x04C */
+  __IO uint32_t         LPOSC_FREQ_KHZ_INT;     /* 0x050 */
+  __IO uint32_t         LPOSC_FREQ_KHZ_FRAC;    /* 0x054 */
+  __IO uint32_t         XOSC_FREQ_KHZ_INT;      /* 0x058 */
+  __IO uint32_t         XOSC_FREQ_KHZ_FRAC;     /* 0x05C */
+  __IO uint32_t         SET_TIME_63TO48;        /* 0x060 */
+  __IO uint32_t         SET_TIME_47TO32;        /* 0x064 */
+  __IO uint32_t         SET_TIME_31TO16;        /* 0x068 */
+  __IO uint32_t         SET_TIME_15TO0;         /* 0x06C */
+  __I  uint32_t         READ_TIME_UPPER;        /* 0x070 */
+  __I  uint32_t         READ_TIME_LOWER;        /* 0x074 */
+  __IO uint32_t         ALARM_TIME_63TO48;      /* 0x078 */
+  __IO uint32_t         ALARM_TIME_47TO32;      /* 0x07C */
+  __IO uint32_t         ALARM_TIME_31TO16;      /* 0x080 */
+  __IO uint32_t         ALARM_TIME_15TO0;       /* 0x084 */
+  __IO uint32_t         TIMER;                  /* 0x088 */
+  __IO uint32_t         PWRUP[4];               /* 0x08C-0x098 */
+  __I  uint32_t         CURRENT_PWRUP_REQ;      /* 0x09C */
+  __I  uint32_t         LAST_SWCORE_PWRUP;      /* 0x0A0 */
+  __IO uint32_t         DBG_PWRCFG;             /* 0x0A4 */
+  __IO uint32_t         BOOTDIS;                /* 0x0A8 */
+  __IO uint32_t         DBGCONFIG;              /* 0x0AC */
+  __IO uint32_t         SCRATCH[8];             /* 0x0B0-0x0CC */
+  __IO uint32_t         BOOT[4];                /* 0x0D0-0x0DC */
+  __IO uint32_t         INTR;                   /* 0x0E0 */
+  __IO uint32_t         INTE;                   /* 0x0E4 */
+  __IO uint32_t         INTF;                   /* 0x0E8 */
+  __I  uint32_t         INTS;                   /* 0x0EC */
+  __I  uint32_t         resvdF0[964];           /* 0x0F0-0xFFF */
+  struct {
+    __IO uint32_t       BADPASSWD;
+    __IO uint32_t       VREG_CTRL;
+    __I  uint32_t       VREG_STS;
+    __IO uint32_t       VREG;
+    __IO uint32_t       VREG_LP_ENTRY;
+    __IO uint32_t       VREG_LP_EXIT;
+    __IO uint32_t       BOD_CTRL;
+    __IO uint32_t       BOD;
+    __IO uint32_t       BOD_LP_ENTRY;
+    __IO uint32_t       BOD_LP_EXIT;
+    __IO uint32_t       LPOSC;
+    __IO uint32_t       CHIP_RESET;
+    __IO uint32_t       WDSEL;
+    __IO uint32_t       SEQ_CFG;
+    __IO uint32_t       STATE;
+    __IO uint32_t       POW_FASTDIV;
+    __IO uint32_t       POW_DELAY;
+    __IO uint32_t       EXT_CTRL0;
+    __IO uint32_t       EXT_CTRL1;
+    __IO uint32_t       EXT_TIME_REF;
+    __IO uint32_t       LPOSC_FREQ_KHZ_INT;
+    __IO uint32_t       LPOSC_FREQ_KHZ_FRAC;
+    __IO uint32_t       XOSC_FREQ_KHZ_INT;
+    __IO uint32_t       XOSC_FREQ_KHZ_FRAC;
+    __IO uint32_t       SET_TIME_63TO48;
+    __IO uint32_t       SET_TIME_47TO32;
+    __IO uint32_t       SET_TIME_31TO16;
+    __IO uint32_t       SET_TIME_15TO0;
+    __I  uint32_t       READ_TIME_UPPER;
+    __I  uint32_t       READ_TIME_LOWER;
+    __IO uint32_t       ALARM_TIME_63TO48;
+    __IO uint32_t       ALARM_TIME_47TO32;
+    __IO uint32_t       ALARM_TIME_31TO16;
+    __IO uint32_t       ALARM_TIME_15TO0;
+    __IO uint32_t       TIMER;
+    __IO uint32_t       PWRUP[4];
+    __I  uint32_t       CURRENT_PWRUP_REQ;
+    __I  uint32_t       LAST_SWCORE_PWRUP;
+    __IO uint32_t       DBG_PWRCFG;
+    __IO uint32_t       BOOTDIS;
+    __IO uint32_t       DBGCONFIG;
+    __IO uint32_t       SCRATCH[8];
+    __IO uint32_t       BOOT[4];
+    __IO uint32_t       INTR;
+    __IO uint32_t       INTE;
+    __IO uint32_t       INTF;
+    __I  uint32_t       INTS;
+    __I  uint32_t       resvdF0[964];
+  } XOR;                                    /* 0x1000 */
+  struct {
+    __IO uint32_t       BADPASSWD;
+    __IO uint32_t       VREG_CTRL;
+    __I  uint32_t       VREG_STS;
+    __IO uint32_t       VREG;
+    __IO uint32_t       VREG_LP_ENTRY;
+    __IO uint32_t       VREG_LP_EXIT;
+    __IO uint32_t       BOD_CTRL;
+    __IO uint32_t       BOD;
+    __IO uint32_t       BOD_LP_ENTRY;
+    __IO uint32_t       BOD_LP_EXIT;
+    __IO uint32_t       LPOSC;
+    __IO uint32_t       CHIP_RESET;
+    __IO uint32_t       WDSEL;
+    __IO uint32_t       SEQ_CFG;
+    __IO uint32_t       STATE;
+    __IO uint32_t       POW_FASTDIV;
+    __IO uint32_t       POW_DELAY;
+    __IO uint32_t       EXT_CTRL0;
+    __IO uint32_t       EXT_CTRL1;
+    __IO uint32_t       EXT_TIME_REF;
+    __IO uint32_t       LPOSC_FREQ_KHZ_INT;
+    __IO uint32_t       LPOSC_FREQ_KHZ_FRAC;
+    __IO uint32_t       XOSC_FREQ_KHZ_INT;
+    __IO uint32_t       XOSC_FREQ_KHZ_FRAC;
+    __IO uint32_t       SET_TIME_63TO48;
+    __IO uint32_t       SET_TIME_47TO32;
+    __IO uint32_t       SET_TIME_31TO16;
+    __IO uint32_t       SET_TIME_15TO0;
+    __I  uint32_t       READ_TIME_UPPER;
+    __I  uint32_t       READ_TIME_LOWER;
+    __IO uint32_t       ALARM_TIME_63TO48;
+    __IO uint32_t       ALARM_TIME_47TO32;
+    __IO uint32_t       ALARM_TIME_31TO16;
+    __IO uint32_t       ALARM_TIME_15TO0;
+    __IO uint32_t       TIMER;
+    __IO uint32_t       PWRUP[4];
+    __I  uint32_t       CURRENT_PWRUP_REQ;
+    __I  uint32_t       LAST_SWCORE_PWRUP;
+    __IO uint32_t       DBG_PWRCFG;
+    __IO uint32_t       BOOTDIS;
+    __IO uint32_t       DBGCONFIG;
+    __IO uint32_t       SCRATCH[8];
+    __IO uint32_t       BOOT[4];
+    __IO uint32_t       INTR;
+    __IO uint32_t       INTE;
+    __IO uint32_t       INTF;
+    __I  uint32_t       INTS;
+    __I  uint32_t       resvdF0[964];
+  } SET;                                    /* 0x2000 */
+  struct {
+    __IO uint32_t       BADPASSWD;
+    __IO uint32_t       VREG_CTRL;
+    __I  uint32_t       VREG_STS;
+    __IO uint32_t       VREG;
+    __IO uint32_t       VREG_LP_ENTRY;
+    __IO uint32_t       VREG_LP_EXIT;
+    __IO uint32_t       BOD_CTRL;
+    __IO uint32_t       BOD;
+    __IO uint32_t       BOD_LP_ENTRY;
+    __IO uint32_t       BOD_LP_EXIT;
+    __IO uint32_t       LPOSC;
+    __IO uint32_t       CHIP_RESET;
+    __IO uint32_t       WDSEL;
+    __IO uint32_t       SEQ_CFG;
+    __IO uint32_t       STATE;
+    __IO uint32_t       POW_FASTDIV;
+    __IO uint32_t       POW_DELAY;
+    __IO uint32_t       EXT_CTRL0;
+    __IO uint32_t       EXT_CTRL1;
+    __IO uint32_t       EXT_TIME_REF;
+    __IO uint32_t       LPOSC_FREQ_KHZ_INT;
+    __IO uint32_t       LPOSC_FREQ_KHZ_FRAC;
+    __IO uint32_t       XOSC_FREQ_KHZ_INT;
+    __IO uint32_t       XOSC_FREQ_KHZ_FRAC;
+    __IO uint32_t       SET_TIME_63TO48;
+    __IO uint32_t       SET_TIME_47TO32;
+    __IO uint32_t       SET_TIME_31TO16;
+    __IO uint32_t       SET_TIME_15TO0;
+    __I  uint32_t       READ_TIME_UPPER;
+    __I  uint32_t       READ_TIME_LOWER;
+    __IO uint32_t       ALARM_TIME_63TO48;
+    __IO uint32_t       ALARM_TIME_47TO32;
+    __IO uint32_t       ALARM_TIME_31TO16;
+    __IO uint32_t       ALARM_TIME_15TO0;
+    __IO uint32_t       TIMER;
+    __IO uint32_t       PWRUP[4];
+    __I  uint32_t       CURRENT_PWRUP_REQ;
+    __I  uint32_t       LAST_SWCORE_PWRUP;
+    __IO uint32_t       DBG_PWRCFG;
+    __IO uint32_t       BOOTDIS;
+    __IO uint32_t       DBGCONFIG;
+    __IO uint32_t       SCRATCH[8];
+    __IO uint32_t       BOOT[4];
+    __IO uint32_t       INTR;
+    __IO uint32_t       INTE;
+    __IO uint32_t       INTF;
+    __I  uint32_t       INTS;
+    __I  uint32_t       resvdF0[964];
+  } CLR;                                    /* 0x3000 */
 } POWMAN_TypeDef;
 
 typedef struct {
@@ -3102,8 +3296,18 @@ typedef struct {
 
 /**
  * @name    POWMAN bits definitions
- * @note    Every POWMAN register write requires the password in the
- *          upper half word.
+ * @note    See RP2350 Datasheet 6.4 Power management (POWMAN) registers
+ * @note    Registers at offsets up to and including 0x0AC are password
+ *          protected: writes without @p POWMAN_PASSWORD in the upper
+ *          half word are ignored and set a flag in @p BADPASSWD. Reads
+ *          do not return the password. The rule applies to the atomic
+ *          XOR/SET/CLR aliases as well, the password is not part of the
+ *          register state. SCRATCH, BOOT and the interrupt registers
+ *          are unprotected and have plain 32-bit write access.
+ * @note    The interrupt registers implement bits 3:0 only, so a
+ *          password in the upper half word is discarded and including
+ *          one is harmless. SCRATCH and BOOT are full 32-bit storage:
+ *          never OR @p POWMAN_PASSWORD into writes to those.
  * @{
  */
 #define POWMAN_PASSWORD                   (0x5AFEU << 16)
@@ -3112,6 +3316,123 @@ typedef struct {
 #define POWMAN_VREG_VSEL(n)               ((n) << POWMAN_VREG_VSEL_Pos)
 #define POWMAN_VREG_UPDATE_IN_PROGRESS    (1U << 15)
 #define POWMAN_VREG_HIZ                   (1U << 1)
+
+#define POWMAN_LPOSC_TRIM_Pos             4U
+#define POWMAN_LPOSC_TRIM_Msk             (0x3FU << POWMAN_LPOSC_TRIM_Pos)
+#define POWMAN_LPOSC_TRIM(n)              ((n) << POWMAN_LPOSC_TRIM_Pos)
+#define POWMAN_LPOSC_MODE_Pos             0U
+#define POWMAN_LPOSC_MODE_Msk             (0x3U << POWMAN_LPOSC_MODE_Pos)
+#define POWMAN_LPOSC_MODE(n)              ((n) << POWMAN_LPOSC_MODE_Pos)
+
+#define POWMAN_EXT_TIME_REF_DRIVE_LPCK_Pos 4U
+#define POWMAN_EXT_TIME_REF_DRIVE_LPCK_Msk (1U << POWMAN_EXT_TIME_REF_DRIVE_LPCK_Pos)
+#define POWMAN_EXT_TIME_REF_DRIVE_LPCK    POWMAN_EXT_TIME_REF_DRIVE_LPCK_Msk
+#define POWMAN_EXT_TIME_REF_SOURCE_SEL_Pos 0U
+#define POWMAN_EXT_TIME_REF_SOURCE_SEL_Msk (0x3U << POWMAN_EXT_TIME_REF_SOURCE_SEL_Pos)
+#define POWMAN_EXT_TIME_REF_SOURCE_SEL(n) ((n) << POWMAN_EXT_TIME_REF_SOURCE_SEL_Pos)
+
+#define POWMAN_LPOSC_FREQ_KHZ_INT_Msk     0x3FU
+#define POWMAN_LPOSC_FREQ_KHZ_FRAC_Msk    0xFFFFU
+#define POWMAN_XOSC_FREQ_KHZ_INT_Msk      0xFFFFU
+#define POWMAN_XOSC_FREQ_KHZ_FRAC_Msk     0xFFFFU
+
+#define POWMAN_TIMER_USING_GPIO_1HZ_Pos   19U
+#define POWMAN_TIMER_USING_GPIO_1HZ_Msk   (1U << POWMAN_TIMER_USING_GPIO_1HZ_Pos)
+#define POWMAN_TIMER_USING_GPIO_1HZ       POWMAN_TIMER_USING_GPIO_1HZ_Msk
+#define POWMAN_TIMER_USING_GPIO_1KHZ_Pos  18U
+#define POWMAN_TIMER_USING_GPIO_1KHZ_Msk  (1U << POWMAN_TIMER_USING_GPIO_1KHZ_Pos)
+#define POWMAN_TIMER_USING_GPIO_1KHZ      POWMAN_TIMER_USING_GPIO_1KHZ_Msk
+#define POWMAN_TIMER_USING_LPOSC_Pos      17U
+#define POWMAN_TIMER_USING_LPOSC_Msk      (1U << POWMAN_TIMER_USING_LPOSC_Pos)
+#define POWMAN_TIMER_USING_LPOSC          POWMAN_TIMER_USING_LPOSC_Msk
+#define POWMAN_TIMER_USING_XOSC_Pos       16U
+#define POWMAN_TIMER_USING_XOSC_Msk       (1U << POWMAN_TIMER_USING_XOSC_Pos)
+#define POWMAN_TIMER_USING_XOSC           POWMAN_TIMER_USING_XOSC_Msk
+#define POWMAN_TIMER_USE_GPIO_1HZ_Pos     13U
+#define POWMAN_TIMER_USE_GPIO_1HZ_Msk     (1U << POWMAN_TIMER_USE_GPIO_1HZ_Pos)
+#define POWMAN_TIMER_USE_GPIO_1HZ         POWMAN_TIMER_USE_GPIO_1HZ_Msk
+#define POWMAN_TIMER_USE_GPIO_1KHZ_Pos    10U
+#define POWMAN_TIMER_USE_GPIO_1KHZ_Msk    (1U << POWMAN_TIMER_USE_GPIO_1KHZ_Pos)
+#define POWMAN_TIMER_USE_GPIO_1KHZ        POWMAN_TIMER_USE_GPIO_1KHZ_Msk
+#define POWMAN_TIMER_USE_XOSC_Pos         9U
+#define POWMAN_TIMER_USE_XOSC_Msk         (1U << POWMAN_TIMER_USE_XOSC_Pos)
+#define POWMAN_TIMER_USE_XOSC             POWMAN_TIMER_USE_XOSC_Msk
+#define POWMAN_TIMER_USE_LPOSC_Pos        8U
+#define POWMAN_TIMER_USE_LPOSC_Msk        (1U << POWMAN_TIMER_USE_LPOSC_Pos)
+#define POWMAN_TIMER_USE_LPOSC            POWMAN_TIMER_USE_LPOSC_Msk
+#define POWMAN_TIMER_ALARM_Pos            6U
+#define POWMAN_TIMER_ALARM_Msk            (1U << POWMAN_TIMER_ALARM_Pos)
+#define POWMAN_TIMER_ALARM                POWMAN_TIMER_ALARM_Msk
+#define POWMAN_TIMER_PWRUP_ON_ALARM_Pos   5U
+#define POWMAN_TIMER_PWRUP_ON_ALARM_Msk   (1U << POWMAN_TIMER_PWRUP_ON_ALARM_Pos)
+#define POWMAN_TIMER_PWRUP_ON_ALARM       POWMAN_TIMER_PWRUP_ON_ALARM_Msk
+#define POWMAN_TIMER_ALARM_ENAB_Pos       4U
+#define POWMAN_TIMER_ALARM_ENAB_Msk       (1U << POWMAN_TIMER_ALARM_ENAB_Pos)
+#define POWMAN_TIMER_ALARM_ENAB           POWMAN_TIMER_ALARM_ENAB_Msk
+#define POWMAN_TIMER_CLEAR_Pos            2U
+#define POWMAN_TIMER_CLEAR_Msk            (1U << POWMAN_TIMER_CLEAR_Pos)
+#define POWMAN_TIMER_CLEAR                POWMAN_TIMER_CLEAR_Msk
+#define POWMAN_TIMER_RUN_Pos              1U
+#define POWMAN_TIMER_RUN_Msk              (1U << POWMAN_TIMER_RUN_Pos)
+#define POWMAN_TIMER_RUN                  POWMAN_TIMER_RUN_Msk
+#define POWMAN_TIMER_NONSEC_WRITE_Pos     0U
+#define POWMAN_TIMER_NONSEC_WRITE_Msk     (1U << POWMAN_TIMER_NONSEC_WRITE_Pos)
+#define POWMAN_TIMER_NONSEC_WRITE         POWMAN_TIMER_NONSEC_WRITE_Msk
+
+/* INTR, INTE, INTF and INTS share an identical layout. Each is spelled
+   out so a register name taken from the datasheet maps directly to a
+   macro, matching the PWM_INTR/INTE/INTF/INTS_CH() convention above.*/
+#define POWMAN_INTR_PWRUP_WHILE_WAITING_Pos 3U
+#define POWMAN_INTR_PWRUP_WHILE_WAITING_Msk (1U << POWMAN_INTR_PWRUP_WHILE_WAITING_Pos)
+#define POWMAN_INTR_PWRUP_WHILE_WAITING   POWMAN_INTR_PWRUP_WHILE_WAITING_Msk
+#define POWMAN_INTR_STATE_REQ_IGNORED_Pos 2U
+#define POWMAN_INTR_STATE_REQ_IGNORED_Msk (1U << POWMAN_INTR_STATE_REQ_IGNORED_Pos)
+#define POWMAN_INTR_STATE_REQ_IGNORED     POWMAN_INTR_STATE_REQ_IGNORED_Msk
+#define POWMAN_INTR_TIMER_Pos             1U
+#define POWMAN_INTR_TIMER_Msk             (1U << POWMAN_INTR_TIMER_Pos)
+#define POWMAN_INTR_TIMER                 POWMAN_INTR_TIMER_Msk
+#define POWMAN_INTR_VREG_OUTPUT_LOW_Pos   0U
+#define POWMAN_INTR_VREG_OUTPUT_LOW_Msk   (1U << POWMAN_INTR_VREG_OUTPUT_LOW_Pos)
+#define POWMAN_INTR_VREG_OUTPUT_LOW       POWMAN_INTR_VREG_OUTPUT_LOW_Msk
+
+#define POWMAN_INTE_PWRUP_WHILE_WAITING_Pos 3U
+#define POWMAN_INTE_PWRUP_WHILE_WAITING_Msk (1U << POWMAN_INTE_PWRUP_WHILE_WAITING_Pos)
+#define POWMAN_INTE_PWRUP_WHILE_WAITING   POWMAN_INTE_PWRUP_WHILE_WAITING_Msk
+#define POWMAN_INTE_STATE_REQ_IGNORED_Pos 2U
+#define POWMAN_INTE_STATE_REQ_IGNORED_Msk (1U << POWMAN_INTE_STATE_REQ_IGNORED_Pos)
+#define POWMAN_INTE_STATE_REQ_IGNORED     POWMAN_INTE_STATE_REQ_IGNORED_Msk
+#define POWMAN_INTE_TIMER_Pos             1U
+#define POWMAN_INTE_TIMER_Msk             (1U << POWMAN_INTE_TIMER_Pos)
+#define POWMAN_INTE_TIMER                 POWMAN_INTE_TIMER_Msk
+#define POWMAN_INTE_VREG_OUTPUT_LOW_Pos   0U
+#define POWMAN_INTE_VREG_OUTPUT_LOW_Msk   (1U << POWMAN_INTE_VREG_OUTPUT_LOW_Pos)
+#define POWMAN_INTE_VREG_OUTPUT_LOW       POWMAN_INTE_VREG_OUTPUT_LOW_Msk
+
+#define POWMAN_INTF_PWRUP_WHILE_WAITING_Pos 3U
+#define POWMAN_INTF_PWRUP_WHILE_WAITING_Msk (1U << POWMAN_INTF_PWRUP_WHILE_WAITING_Pos)
+#define POWMAN_INTF_PWRUP_WHILE_WAITING   POWMAN_INTF_PWRUP_WHILE_WAITING_Msk
+#define POWMAN_INTF_STATE_REQ_IGNORED_Pos 2U
+#define POWMAN_INTF_STATE_REQ_IGNORED_Msk (1U << POWMAN_INTF_STATE_REQ_IGNORED_Pos)
+#define POWMAN_INTF_STATE_REQ_IGNORED     POWMAN_INTF_STATE_REQ_IGNORED_Msk
+#define POWMAN_INTF_TIMER_Pos             1U
+#define POWMAN_INTF_TIMER_Msk             (1U << POWMAN_INTF_TIMER_Pos)
+#define POWMAN_INTF_TIMER                 POWMAN_INTF_TIMER_Msk
+#define POWMAN_INTF_VREG_OUTPUT_LOW_Pos   0U
+#define POWMAN_INTF_VREG_OUTPUT_LOW_Msk   (1U << POWMAN_INTF_VREG_OUTPUT_LOW_Pos)
+#define POWMAN_INTF_VREG_OUTPUT_LOW       POWMAN_INTF_VREG_OUTPUT_LOW_Msk
+
+#define POWMAN_INTS_PWRUP_WHILE_WAITING_Pos 3U
+#define POWMAN_INTS_PWRUP_WHILE_WAITING_Msk (1U << POWMAN_INTS_PWRUP_WHILE_WAITING_Pos)
+#define POWMAN_INTS_PWRUP_WHILE_WAITING   POWMAN_INTS_PWRUP_WHILE_WAITING_Msk
+#define POWMAN_INTS_STATE_REQ_IGNORED_Pos 2U
+#define POWMAN_INTS_STATE_REQ_IGNORED_Msk (1U << POWMAN_INTS_STATE_REQ_IGNORED_Pos)
+#define POWMAN_INTS_STATE_REQ_IGNORED     POWMAN_INTS_STATE_REQ_IGNORED_Msk
+#define POWMAN_INTS_TIMER_Pos             1U
+#define POWMAN_INTS_TIMER_Msk             (1U << POWMAN_INTS_TIMER_Pos)
+#define POWMAN_INTS_TIMER                 POWMAN_INTS_TIMER_Msk
+#define POWMAN_INTS_VREG_OUTPUT_LOW_Pos   0U
+#define POWMAN_INTS_VREG_OUTPUT_LOW_Msk   (1U << POWMAN_INTS_VREG_OUTPUT_LOW_Pos)
+#define POWMAN_INTS_VREG_OUTPUT_LOW       POWMAN_INTS_VREG_OUTPUT_LOW_Msk
 /** @} */
 
 /**
