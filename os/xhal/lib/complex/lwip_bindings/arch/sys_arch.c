@@ -148,8 +148,10 @@ int sys_sem_valid(sys_sem_t *sem) {
   return *sem != SYS_SEM_NULL;
 }
 
-// typically called within lwIP after freeing a semaphore
-// to make sure the pointer is not left pointing to invalid data
+/*
+ * Typically called within lwIP after freeing a semaphore to make sure the
+ * pointer is not left pointing to invalid data.
+ */
 void sys_sem_set_invalid(sys_sem_t *sem) {
   *sem = SYS_SEM_NULL;
 }
@@ -184,9 +186,11 @@ void sys_mbox_free(sys_mbox_t *mbox) {
   chSysUnlock();
 
   if (tmpcnt != 0) {
-    // If there are messages still present in the mailbox when the mailbox
-    // is deallocated, it is an indication of a programming error in lwIP
-    // and the developer should be notified.
+    /*
+     * If there are messages still present in the mailbox when the mailbox
+     * is deallocated, it is an indication of a programming error in lwIP
+     * and the developer should be notified.
+     */
     SYS_STATS_INC(mbox.err);
     chMBReset(*mbox);
   }
@@ -240,8 +244,10 @@ int sys_mbox_valid(sys_mbox_t *mbox) {
   return *mbox != SYS_MBOX_NULL;
 }
 
-// typically called within lwIP after freeing an mbox
-// to make sure the pointer is not left pointing to invalid data
+/*
+ * Typically called within lwIP after freeing an mbox to make sure the pointer
+ * is not left pointing to invalid data.
+ */
 void sys_mbox_set_invalid(sys_mbox_t *mbox) {
   *mbox = SYS_MBOX_NULL;
 }

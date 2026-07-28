@@ -5,26 +5,28 @@ sandbox termination, restart, and late asynchronous VRQ producers that are
 not necessarily owned by VIO, such as host worker threads, custom timers, DMA
 completion paths, or board-specific IRQ sources.
 
+Any future lifecycle work is tracked only in [open_points.md](open_points.md).
+
 ## Problem
 
-The current VRQ acceptance check relies on the state of the host thread. The
-thread object is embedded in `sb_class_t` and reused on restart, however, so
-thread state is not a sandbox lifecycle boundary. Once a replacement thread
-has been spawned, an old producer sees a non-terminated thread and cannot be
+The previous VRQ acceptance check relied on the state of the host thread. The
+thread object is embedded in `sb_class_t` and reused on restart, so thread
+state is not a sandbox lifecycle boundary. Once a replacement thread had
+been spawned, an old producer saw a non-terminated thread and could not be
 distinguished from a producer belonging to the new execution.
 
-The built-in VIO paths avoid this in normal operation by removing callbacks
+The built-in VIO paths avoided this in normal operation by removing callbacks
 and stopping drivers during sandbox exit or abort, and the alarm virtual
-timer is reset. This is not a complete host contract: an application may add
-other producers whose lifetime is independent of VIO and which can still
-reference the sandbox after its thread has terminated.
+timer was reset. This was not a complete host contract: an application could
+add other producers whose lifetime was independent of VIO and which could
+still reference the sandbox after its thread had terminated.
 
 Making every producer carry a sandbox generation would solve the ambiguity,
 but would spread generation awareness through all callbacks and worker APIs.
-The preferred model is instead an explicit lifecycle and a synchronous
+The implemented model instead uses an explicit lifecycle and a synchronous
 producer-quiescence contract.
 
-## Proposed state machine
+## State machine
 
 ```text
 UNINIT -- object init --> STOPPED -> STARTING -> RUNNING -> STOPPING
@@ -67,13 +69,13 @@ Termination leaves the sandbox in `STOPPING`. The host must then:
    and stop or join workers that can reference the sandbox or its memory.
 3. Call `sbFinalize()`.
 
-`sbSync()` replaces `sbWait()` and wraps `chThdSync()`. The original thread
-reference remains owned by `sb_class_t`, so synchronization does not invoke
-the thread dispose callback and dynamic sandbox memory remains valid while
-the host quiesces external producers. Calling it while the sandbox is
-`RUNNING` blocks until termination changes the lifecycle to `STOPPING`;
-calling it after that transition waits only if the thread has not reached its
-final state yet. It returns with the lifecycle still in `STOPPING`.
+`sbSync()` wraps `chThdSync()`. The original thread reference remains owned
+by `sb_class_t`, so synchronization does not invoke the thread dispose
+callback and dynamic sandbox memory remains valid while the host quiesces
+external producers. Calling it while the sandbox is `RUNNING` blocks until
+termination changes the lifecycle to `STOPPING`; calling it after that
+transition waits only if the thread has not reached its final state yet. It
+returns with the lifecycle still in `STOPPING`.
 
 `sbFinalize()` is preferable to a public state setter. It represents the
 host's assertion that every external producer is quiescent. It verifies that
@@ -85,25 +87,6 @@ boundary. A subsequent start is rejected until finalization succeeds.
 For a sandbox using only built-in VIO and the alarm timer, the existing
 termination cleanup already quiesces its producers, so the host can finalize
 immediately after `sbSync()` returns.
-
-## Incremental implementation plan
-
-Each step must build and carry its own focused validation.
-
-1. Add `sbSync()` using `chThdSync()` while retaining the existing `sbWait()`.
-   Validate that `sbSync()` followed by `sbWait()` succeeds, proving that
-   synchronization did not consume the reference. **Implemented 2026-07-23.**
-2. Add the lifecycle state and `sbFinalize()` together with all start,
-   failed-start, normal-exit, and abort transitions. Temporarily implement
-   `sbWait()` as `sbSync()` followed by `sbFinalize()` so existing callers
-   remain functional. Validate finalization preconditions and restart.
-   **Implemented 2026-07-23.**
-3. Reject VRQ flag updates and triggers outside `RUNNING`. Validate acceptance
-   in `RUNNING` and rejection in the other lifecycle states.
-   **Implemented 2026-07-23.**
-4. Migrate callers to the explicit `sbSync()` -> producer quiescence ->
-   `sbFinalize()` protocol, validate a custom worker during that interval,
-   then remove `sbWait()`. **Implemented 2026-07-23.**
 
 ## VRQ producer contract
 

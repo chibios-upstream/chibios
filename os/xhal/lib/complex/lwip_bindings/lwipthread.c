@@ -100,14 +100,14 @@ static THD_WORKING_AREA(wa_lwip_thread, LWIP_THREAD_STACK_SIZE);
  * Initialization.
  */
 static void low_level_init(struct netif *netif) {
-  /* set MAC hardware address length */
+  /* Set MAC hardware address length. */
   netif->hwaddr_len = ETHARP_HWADDR_LEN;
 
-  /* maximum transfer unit */
+  /* Maximum transfer unit. */
   netif->mtu = LWIP_NETIF_MTU;
 
-  /* device capabilities */
-  /* don't set NETIF_FLAG_ETHARP if this device is not an Ethernet one */
+  /* Device capabilities. */
+  /* Don't set NETIF_FLAG_ETHARP if this device is not an Ethernet one. */
   netif->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP;
 
   /* Do whatever else is needed to initialize interface. */
@@ -137,7 +137,7 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p) {
     return ERR_TIMEOUT;
 
 #if ETH_PAD_SIZE
-  pbuf_header(p, -ETH_PAD_SIZE);        /* drop the padding word */
+  pbuf_header(p, -ETH_PAD_SIZE);        /* Drop the padding word. */
 #endif
 
   /* Iterates through the pbuf chain. */
@@ -147,7 +147,7 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p) {
     if (n != (size_t)q->len) {
       lwip_release_transmit_handle(&txh);
 #if ETH_PAD_SIZE
-      pbuf_header(p, ETH_PAD_SIZE);      /* reclaim the padding word */
+      pbuf_header(p, ETH_PAD_SIZE);      /* Reclaim the padding word. */
 #endif
       LINK_STATS_INC(link.drop);
       MIB2_STATS_NETIF_INC(netif, ifoutdiscards);
@@ -158,17 +158,17 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p) {
 
   MIB2_STATS_NETIF_ADD(netif, ifoutoctets, p->tot_len);
   if (((u8_t*)p->payload)[0] & 1) {
-    /* broadcast or multicast packet*/
+    /* Broadcast or multicast packet.*/
     MIB2_STATS_NETIF_INC(netif, ifoutnucastpkts);
   }
   else {
-    /* unicast packet */
+    /* Unicast packet. */
     MIB2_STATS_NETIF_INC(netif, ifoutucastpkts);
   }
-  /* increase ifoutdiscards or ifouterrors on error */
+  /* Increase ifoutdiscards or ifouterrors on error. */
 
 #if ETH_PAD_SIZE
-  pbuf_header(p, ETH_PAD_SIZE);         /* reclaim the padding word */
+  pbuf_header(p, ETH_PAD_SIZE);         /* Reclaim the padding word. */
 #endif
 
   LINK_STATS_INC(link.xmit);
@@ -201,7 +201,7 @@ static bool low_level_input(struct netif *netif, struct pbuf **pbuf) {
   len = (u16_t)lwip_receive_size(&rxh);
 
 #if ETH_PAD_SIZE
-  len += ETH_PAD_SIZE;        /* allow room for Ethernet padding */
+  len += ETH_PAD_SIZE;        /* Allow room for Ethernet padding. */
 #endif
 
   /* We allocate a pbuf chain of pbufs from the pool. */
@@ -209,7 +209,7 @@ static bool low_level_input(struct netif *netif, struct pbuf **pbuf) {
 
   if (*pbuf != NULL) {
 #if ETH_PAD_SIZE
-    pbuf_header(*pbuf, -ETH_PAD_SIZE); /* drop the padding word */
+    pbuf_header(*pbuf, -ETH_PAD_SIZE); /* Drop the padding word. */
 #endif
     total = 0U;
 
@@ -233,16 +233,16 @@ static bool low_level_input(struct netif *netif, struct pbuf **pbuf) {
     MIB2_STATS_NETIF_ADD(netif, ifinoctets, (*pbuf)->tot_len);
 
     if (*(uint8_t *)((*pbuf)->payload) & 1) {
-      /* broadcast or multicast packet*/
+      /* Broadcast or multicast packet.*/
       MIB2_STATS_NETIF_INC(netif, ifinnucastpkts);
     }
     else {
-      /* unicast packet*/
+      /* Unicast packet.*/
       MIB2_STATS_NETIF_INC(netif, ifinucastpkts);
     }
 
 #if ETH_PAD_SIZE
-    pbuf_header(*pbuf, ETH_PAD_SIZE); /* reclaim the padding word */
+    pbuf_header(*pbuf, ETH_PAD_SIZE); /* Reclaim the padding word. */
 #endif
 
     LINK_STATS_INC(link.recv);
@@ -289,7 +289,7 @@ static err_t ethernetif_init(struct netif *netif) {
   netif->output = etharp_output;
   netif->linkoutput = low_level_output;
 
-  /* initialize the hardware */
+  /* Initialize the hardware. */
   low_level_init(netif);
 
   return ERR_OK;
@@ -393,8 +393,11 @@ static THD_FUNCTION(lwip_thread, p) {
   result = netifapi_netif_add(&thisif, &ip, &netmask, &gateway, NULL, ethernetif_init, tcpip_input);
   if (result != ERR_OK)
   {
-    chThdSleepMilliseconds(1000);     // Give some time to print any other diagnostics.
-    chSysHalt("netif_add error");   // Not sure what else we can do if an error occurs here.
+    /* Give some time to print any other diagnostics.*/
+    chThdSleepMilliseconds(1000);
+
+    /* There is no recovery path if adding the interface failed.*/
+    chSysHalt("netif_add error");
   };
 
   netifapi_netif_set_default(&thisif);
@@ -442,7 +445,7 @@ static THD_FUNCTION(lwip_thread, p) {
 #if LWIP_IPV6
             case ETHTYPE_IPV6:
 #endif
-              /* full packet send to tcpip_thread to process */
+              /* Full packet send to tcpip_thread to process. */
               if (thisif.input(p, &thisif) == ERR_OK)
                 break;
               LWIP_DEBUGF(NETIF_DEBUG, ("ethernetif_input: IP input error\n"));

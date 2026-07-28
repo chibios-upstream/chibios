@@ -19,17 +19,18 @@
 #include "sbuser.h"
 #include "sbhdr.h"
 #include "syscalls.h"
+#include "elfexec.h"
 
 extern int __callelf(sb_header_t *sbhp, int argc, char *argv[], char *envp[]);
 extern int __returnelf(void);
 
-int runelf(int argc, char *argv[], char *envp[]) {
+int sbRunElfAt(int argc, char *argv[], char *envp[], void *base) {
   uint8_t *buf, *bufend;
   sb_header_t *sbhp;
   msg_t ret;
 
   /* Boundaries of available RAM in the sandbox.*/
-  buf = sbrk(0);
+  buf = base;
   bufend = __sb_parameters.heap_end;
 
   /* Aligning the start address.*/
@@ -42,7 +43,7 @@ int runelf(int argc, char *argv[], char *envp[]) {
   /* Loading the specified file.*/
   ret = sbLoadElf(argv[0], buf, (size_t)(bufend - buf));
   if (CH_RET_IS_ERROR(ret)) {
-    errno =  CH_DECODE_ERROR(ret);
+    errno = CH_DECODE_ERROR(ret);
     return -1;
   }
 
@@ -53,7 +54,7 @@ int runelf(int argc, char *argv[], char *envp[]) {
   if ((sbhp->hdr_magic1 != SB_HDR_MAGIC1) ||
       (sbhp->hdr_magic2 != SB_HDR_MAGIC2) ||
       (sbhp->hdr_size != sizeof (sb_header_t))) {
-    errno =  ENOEXEC;
+    errno = ENOEXEC;
     return -1;
   }
 
@@ -61,4 +62,9 @@ int runelf(int argc, char *argv[], char *envp[]) {
   sbhp->hdr_exit = (uint32_t)__returnelf;
   sbhp->user[0]  = (uint32_t)bufend;
   return __callelf(sbhp, argc, argv, envp);
+}
+
+int sbRunElf(int argc, char *argv[], char *envp[]) {
+
+  return sbRunElfAt(argc, argv, envp, sbrk(0));
 }

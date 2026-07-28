@@ -439,6 +439,12 @@ static bool sb_start_begin(sb_class_t *sbp) {
 
 static void sb_start_failed(sb_class_t *sbp) {
 
+#if SB_CFG_ENABLE_VFS == TRUE
+  /* Releasing descriptors transferred to the sandbox before the failed
+     start. No guest cleanup path exists if execution never begins.*/
+  __sb_io_cleanup(sbp);
+#endif
+
   chSysLock();
   chDbgAssert(sbp->state == SB_STATE_STARTING, "invalid lifecycle state");
   sbp->state = SB_STATE_STOPPED;

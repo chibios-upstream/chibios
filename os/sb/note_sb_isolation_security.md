@@ -11,6 +11,8 @@ security effects of the design decisions recorded there are collected in
 the "Design-decision impacts" section at the end of this note. Sandbox
 restart and asynchronous-producer lifetime are covered by
 [note_sb_lifecycle.md](note_sb_lifecycle.md).
+Implementation status and remaining hardening work are tracked only in
+[open_points.md](open_points.md).
 
 ## Defenses currently in place (sound)
 

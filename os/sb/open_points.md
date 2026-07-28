@@ -1,86 +1,177 @@
 # SB Open Points
 
-This file tracks the current known follow-up work in `os/sb/`.
-It is not meant to be a strict roadmap; it is a grouped backlog of the
-remaining technical points across the SB subsystems.
+Authoritative sandbox backlog, consolidated 2026-07-25. This is the only
+document that tracks implementation status and remaining work in `os/sb/`.
+The following notes retain detailed analysis and design rationale but are
+not separate backlogs:
 
-A prioritized, tiered list of the 2026-06 proposed SB improvements is
-maintained in
-[note_sb_improvement_priorities.md](note_sb_improvement_priorities.md).
+- [Isolation and escape resistance](note_sb_isolation_security.md)
+- [Async VFS](note_sb_async_vfs.md)
+- [Lifecycle and restart protocol](note_sb_lifecycle.md)
+- [SVC and MPU optimizations](note_svc_mpu_optimizations.md)
 
-## Common
+## Completed baseline
 
-- Review the SB syscall namespace in `common/sbsysc.h` after the recent VETH addition and keep the fastcall/syscall split semantically strict.
-- Keep the ETH, SPI, UART, GPIO VIO call layout aligned and documented so client and host ports evolve together.
-- Add a short protocol note for VETH in `os/sb/` describing the current direct-handle model, its assumptions, and the intended future zero-copy extension.
+The following work is complete and must not be reintroduced as an open item:
 
-## Host
+- VFS roots are optional and externally owned (PR #91).
+- MPU switched regions use shared table pointers; the default privileged
+  table is constant and no region state is stored back on a switch.
+- VRQ masking and pending-state read-modify-write sequences were re-reviewed
+  and guarded by the required SVCall/kernel priority relationship.
+- Kernel-object IRQ-like fastcalls are implemented for flag broadcast and
+  VRQ alarm set/reset. Message reply deliberately remains a syscall.
+- ADC, SPI, I2C, GPT, and ETH data-plane operations have been migrated to
+  fastcalls. Only driver lifecycle operations remain syscalls. ADC, SPI, and
+  GPT were hardware-validated on G474; ETH was validated on H563. I2C is
+  compile-validated but still needs hardware validation.
+- The explicit `UNINIT`/`STOPPED`/`STARTING`/`RUNNING`/`STOPPING` lifecycle,
+  `sbSync()`, producer quiescence, and `sbFinalize()` protocol is implemented
+  (PR #144). VRQs are accepted only in `RUNNING`.
 
-- Decide whether sandbox memory-range violations in host services should keep returning `CH_RET_EFAULT` or escalate to a sandbox fault/termination policy.
-- Add more host-side validation tests for multi-image bring-up, because incorrect flashing order can produce misleading startup failures during debug.
-- Evaluate whether a host-side integration demo/test should be added for the working host + SB1 + SB2 configuration used during VETH/lwIP bring-up.
-- Evaluate the SVC/MPU context switch optimizations and the planned shared-memory region API analyzed in [note_svc_mpu_optimizations.md](note_svc_mpu_optimizations.md). MPU region-table design (point 3) is **implemented** on `chibios-sandboxes-dev` (2026-06-12, commits `d9e47421` + `6d2fa405`): thread context holds a pointer to a region table (per-SB shared table, const default table honoring the static init settings for ordinary threads), switch-in compares table pointers only and burst-loads via the RBAR/RASR alias registers, no store-back. Still open from that note: the SVC role split (point 1), R12 syscall-number ABI (point 2), and the VRQ deliverable-word precompute (point 4). When the shared-memory API is added, writers of a live table must update the live registers in the same critical section (revocation especially) — the switch code compares pointers only.
-- Async VFS for sandboxes, designed in [note_sb_async_vfs.md](note_sb_async_vfs.md) (2026-06-11): submit/complete host ABI with a per-SB worker thread and VRQ-flags completion, fixing the whole-SB stall on blocking POSIX calls under the guest sub-scheduler threading model (host-side multi-threading per SB assessed and rejected, reasoning in the note). Open items listed in the note: slot ABI, one-in-flight-per-FD, restart/cancellation semantics, guest runtime integration.
-- IRQ-like fastcalls decided 2026-06-11 ([note_svc_mpu_optimizations.md](note_svc_mpu_optimizations.md) point 5): fastcall handlers may opt into RTOS interaction by being written as ISR bodies (CH_IRQ_PROLOGUE / lock / I-class / unlock / CH_IRQ_EPILOGUE), dispatcher untouched, trivial fastcalls zero-cost; contract enforced by the debug state checker. Start with SVC above the kernel mask (existing handlers keep implicit atomicity); kernel-band placement is a later refinement requiring a handler locking audit. Prologue/epilogue behavior is port-defined and the portable RTOS is priority-agnostic, so SVC priority is not a design concern (any adaptation would be local to the port). Enables single-exception submit/status/cancel for async VFS. A syscall/fastcall re-distribution analysis in light of this (which current syscalls should become fastcalls) is in that note's point 5 addendum (2026-06-16): kernel-object side — `broadcast_flags` and the VRQ alarm set/reset **migrated to fastcalls 2026-06-17** (slots 3 and 117/118); `reply_message` stays a syscall by decision (2026-06-17) — not a hot path, not worth adding a public `chMsgReleaseI` RT primitive. The larger surface is VIO: the data-plane sub-codes of the SPI/I2C/ADC/GPT/ETH syscall handlers (225-230) are non-blocking async I-class kicks (already calling `spiStart*I`/`i2cStartMaster*I`/`adcStartConversion*`/etc.) and should migrate per sub-code, leaving only `INIT`/`DEINIT`/`SELCFG` lifecycle and GPT `PDELAY` as syscalls — UART (225) already has this shape. A guest ABI change; see the addendum for the per-peripheral list and the two-number-split consequence. Driver-by-driver tracking checklist in [note_sb_vio_fastcall_migration.md](note_sb_vio_fastcall_migration.md) (order: ADC, SPI, I2C, GPT, ETH; gated on point 5 being implemented first).
-- Preferred SVC design decided 2026-06-11 (same note, point 1): move the context switch off SVC to a software-pended unused NVIC IRQ (opt-in per platform; trigger is `str` to STIR + 2-byte spin loop, handler skips 2 bytes on the stacked PC — no DSB/ISB). SVC becomes SB-only; the `svc 1` syscall return loses the discrimination fetch on every syscall, kernel-side only. Fallback for IRQ-constrained platforms: shared SVC with the `movs r0, #0` register convention. Complemented by the syscall-number-in-R12 ABI change for the entry side.
+## Priority 1: security and isolation
 
-## Host isolation / escape resistance
+### VIO handles and invalid guest memory
 
-Full assessment in [note_sb_isolation_security.md](note_sb_isolation_security.md).
+This is the highest-priority live security surface.
 
-- Define a copy-in-once contract for any syscall buffer backed by shared or DMA-capable memory (validate and use a private privileged copy, never re-dereference guest memory after the check). This is a prerequisite for the planned shared-memory region API, which is what activates the TOCTOU/double-fetch risk.
-- Move the syscall number out of guest code memory (R12 instead of the `ldrb` of the SVC immediate); removes a privileged read at a guest-influenced address and is also a perf win. The R12 value is 32-bit guest-controlled (the immediate was one byte), so the handler must clamp it (`uxtb`) before table indexing.
-- Add a compile-time/debug assertion enforcing that syscall handlers do not change FPCA state, instead of relying on review (corrupt FPCA -> wrong return frame shape -> supervisor crash).
-- Confirm the guard MPU region covers the privileged stack base (`SB_CFG_PRIVILEGED_STACK_SIZE`) for every sandbox config on v7-M (no PSPLIM there); deep host call chains under a syscall are the realistic overflow consumers.
+- Make native-handle validation ownership-aware, especially for VETH.
+  Structural validation alone cannot reject a forged handle that names a
+  valid object owned by another sandbox or a previous execution.
+- Decide the common policy for invalid guest ranges in host services:
+  return `CH_RET_EFAULT` or terminate/fault the sandbox.
+- Apply that policy to every `TODO enforce fault instead.` path in
+  `vio/sbvio_spi.c` and `vio/sbvio_uart.c`.
+- Add malformed-request tests covering invalid ranges, stop-result buffers,
+  callback behavior, and completion VRQs.
+- Exercise stale VETH handles across sandbox finalization and restart.
 
-## Host VIO
+### Copy-in-once contract
 
-### ETH
+- Define helpers and a host-service contract for metadata in memory that can
+  be modified by DMA, a worker, the host, or another sandbox.
+- Copy metadata into privileged private storage once, validate that copy,
+  and never re-read the guest metadata after validation.
+- Use this contract before enabling async VFS or shared-memory regions.
+  Bulk data buffers may retain explicit DMA-like concurrent-access semantics.
 
-- Decide and document the final VETH ABI shape.
-  Current model: direct validated native handles across the boundary.
-  Alternative model kept as a backup: host-generated slot tokens.
-- Add a real receive-size query or equivalent contract for copy-mode VETH so the client does not need to infer RX length from MTU-sized buffers.
-- Add optional zero-copy support later, only as an explicit capability:
-  host-mapped packet buffers, no descriptor sharing.
-- Improve host-side VETH validation in `vio/sbvio_eth.c`.
-  Current validation is intentionally structural, not ownership-aware.
+### Privileged stack and FP state
+
+- Verify that every v7-M sandbox configuration maps the MPU guard over the
+  base of `SB_CFG_PRIVILEGED_STACK_SIZE`. v8-M has PSPLIM; v7-M depends on
+  the guard region.
+- Add a compile-time or debug assertion for the FPCA/lazy-stacking invariant
+  required by syscall entry and return, including the
+  `PORT_USE_FPU_FAST_SWITCHING >= 2` case.
+
+## Priority 2: functional features
+
+### Async VFS
+
+The design is in [note_sb_async_vfs.md](note_sb_async_vfs.md): one worker per
+sandbox, a submit/complete ABI, VRQ-flags completion, and synchronous guest
+semantics.
+
+- Define the submission-slot layout, ownership rules, status/error codes,
+  and cancellation states.
+- Choose the first asynchronous operations. Block-backed `read` and `write`
+  are the primary stall sources; `open` may also block during path lookup.
+- Decide whether to allow only one in-flight operation per descriptor.
+  Rejecting overlap is the preferred simple initial contract.
+- Define operation-specific cancellation and drain behavior. After
+  `sbSync()`, all operations must be cancelled and joined, or detached
+  without retaining sandbox references, before `sbFinalize()`.
+- Integrate completion VRQs with guest green-thread wait/wake behavior and
+  define the `vrq_wait` idle policy.
+
+### Shared-memory regions
+
+- Define the host and guest API for granting, updating, and revoking shared
+  regions.
+- Require the copy-in-once contract for shared metadata.
+- Update both the sandbox master MPU table and, when that table is active,
+  the live MPU registers in the same critical section. Revocation must take
+  effect immediately because context switching compares table pointers and
+  will not reload a modified active table.
+
+### VETH completeness
+
+- Decide and document the final VETH ABI: directly validated native handles
+  or host-generated slot tokens.
+- Add an explicit receive-size query or equivalent contract so copy-mode
+  clients do not infer packet length from an MTU-sized buffer.
+- Improve ownership and range validation in `vio/sbvio_eth.c`.
 - Align the VIO ETH handle-validity queries with the generic API contract.
   The VIO client currently treats any nonzero opaque RX/TX handle as locally
   valid. Handle operations remain safe because the host validates each use
   through the native driver and returns an error, but
   `ethIsRXHandleValidX()` and `ethIsTXHandleValidX()` cannot reliably
   identify forged or stale handles. Decide whether to add host validity-query
-  operations or to narrow and document the VIO-local query semantics.
-- Review restart behavior and stale-handle behavior once sandbox restart and VETH reuse are exercised more aggressively.
+  operations or narrow and document the VIO-local query semantics.
+- Add optional zero-copy only as an explicit capability using host-mapped
+  packet buffers; do not share native descriptor rings.
+- Add a concise VETH protocol document covering handle lifetime, restart,
+  copy-mode behavior, and the zero-copy extension boundary.
 
-### SPI
+## Priority 3: SVC and MPU architecture
 
-- Resolve the in-tree `TODO enforce fault instead.` sites in `vio/sbvio_spi.c` for invalid client buffers and invalid stop-result buffers.
-- Decide whether SPI should continue returning `CH_RET_EFAULT` or should actively fault the sandbox on invalid memory access attempts.
-- Add explicit tests for invalid-range handling and callback/VRQ behavior under malformed client requests.
+Detailed designs are in
+[note_svc_mpu_optimizations.md](note_svc_mpu_optimizations.md).
 
-### UART
+- Move the context-switch operation from SVC to an opt-in, software-pended
+  unused NVIC IRQ. Keep the shared-SVC `movs r0, #0` convention only as a
+  fallback for platforms without a spare IRQ.
+- Assert that `CCR.USERSETMPEND` is clear when the dedicated switch IRQ is
+  used, preserving its guest-unreachable property.
+- Pass the syscall/fastcall number in R12 instead of reading the SVC
+  immediate from guest code. Clamp the 32-bit guest value with `uxtb` before
+  table indexing and batch this with an SB ABI revision.
+- Precompute the deliverable-VRQ word used on syscall return.
+- If SVCall is later moved into the kernel priority band, audit every handler
+  for the required locking contract first.
 
-- Resolve the in-tree `TODO enforce fault instead.` sites in `vio/sbvio_uart.c`.
-- Review async read/write semantics and event signaling under heavy traffic and restart conditions.
-- Verify whether the exported configuration copy remains sufficient if SIO configuration structures evolve.
+## Priority 4: validation and API completion
 
-### GPIO
+### Hardware and integration tests
 
-- Review whether the current permission model in `vio/sbvio_gpio.c` is enough for future use cases or if read/write/setmode permissions need to be made more granular.
+- Add an I2C command to the SB VIO test client and validate the migrated I2C
+  fastcall path with a real device under the state checker.
+- Add host-side multi-image bring-up validation that distinguishes incorrect
+  flashing order from sandbox startup defects.
+- Preserve the working host + SB1 + SB2 VETH/lwIP configuration as an
+  integration regression test or maintained demo.
+- Stress UART asynchronous read/write, event delivery, and restart behavior.
+- Add a minimal networking-oriented sandbox sample after the VETH contract
+  is stable.
 
-## User
+### API and ABI review
 
-- Re-review the SB user syscall wrappers in `user/sbuser.h` with emphasis on calling-context assumptions and early startup behavior.
-- Add more user-side notes about the required flashing/debugging order for host + multiple sandbox images.
-- Expand user-side helper coverage only after the host-side contracts are considered stable, especially for VETH.
+- Review `common/sbsysc.h` after the VETH additions and keep the
+  fastcall/syscall split semantically strict.
+- Keep ETH, SPI, UART, and GPIO VIO layouts aligned and documented across
+  host and client ports.
+- Re-review user syscall wrappers in `user/sbuser.h`, especially calling
+  context and early-startup assumptions.
+- Decide whether GPIO read/write/set-mode permissions need finer granularity.
+- Verify that copying SIO configuration structures remains sufficient if the
+  native configuration type evolves.
+- Expand user helpers only after the corresponding host contracts stabilize.
 
-## Apps
+### POSIX and examples
 
-- Revisit the sample applications in `apps/` and decide which ones should become maintained regression/demo apps versus historical examples.
-- Add a minimal networking-oriented SB sample once the current host + VETH + lwIP path is considered stable enough to preserve as a regression baseline.
+- Complete the missing `stat` metadata in `host/sbposix.c`
+  (`st_blocks`, `st_blksize`, `st_ino`, and timestamps).
+- Replace the placeholder directory-entry inode value when the VFS can
+  provide one.
+- Add concise host and user documentation for the required flashing and
+  debugging order of multi-image systems.
+- Classify applications under `apps/` as maintained regressions/demos or
+  historical examples.
 
-## Cleanup
+## Maintenance rule
 
-- Periodically sync this file with resolved items so it stays a useful working backlog rather than a historical dump.
+Add new actionable sandbox work only to this file. Design notes may explain
+an item in detail, but must link here instead of maintaining their own status
+or open-item lists. Remove completed items from the priority sections and,
+when the result is an important architectural baseline, summarize it under
+Completed baseline.

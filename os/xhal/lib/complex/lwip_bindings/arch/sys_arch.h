@@ -74,7 +74,7 @@ typedef syssts_t        sys_prot_t;
 #define SYS_THREAD_NULL (thread_t *)0
 #define SYS_SEM_NULL    (semaphore_t *)0
 
-/* let sys.h use binary semaphores for mutexes */
+/* Let sys.h use binary semaphores for mutexes. */
 #define LWIP_COMPAT_MUTEX 1
 
 #endif /* __SYS_ARCH_H__ */
