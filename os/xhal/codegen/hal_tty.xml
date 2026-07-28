@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
+  name="hal_tty" descr="Terminal Interface" editcode="false">
+  <brief>Generic terminal interface.</brief>
+  <details><![CDATA[This module defines the transport-independent interface
+    implemented by terminal devices. Terminal implementations provide
+    sequential-stream I/O together with line-discipline attributes, flow and
+    queue control, and window size handling.]]></details>
+  <imports>
+    <import>oop_sequential_stream.xml</import>
+  </imports>
+  <public>
+    <includes_always>
+      <include style="regular">ch.h</include>
+      <include style="regular">oop_sequential_stream.h</include>
+    </includes_always>
+    <definitions_early>
+    </definitions_early>
+    <types>
+      <verbatim><![CDATA[
+/**
+ * @brief       POSIX terminal attributes structure.
+ * @details     The complete definition is provided by @p <termios.h>.
+ */
+struct termios;
+
+/**
+ * @brief       Terminal window size structure.
+ * @details     The complete definition is provided by @p <sys/ioctl.h>.
+ */
+struct winsize;]]></verbatim>
+      <interface name="tty" namespace="tty" ancestorname="sequential_stream"
+        descr="terminal">
+        <brief>Generic terminal interface.</brief>
+        <details><![CDATA[This interface extends a sequential stream with
+          terminal-specific, typed control operations using the attributes and
+          action values defined by @p <termios.h>. It deliberately does not
+          expose ioctl request numbers or untyped argument pointers.
+          Implementations define which optional flags and actions are
+          supported.]]></details>
+        <note><![CDATA[The inherited stream operations obey the active input
+          and output processing attributes. In canonical mode a zero-length
+          read represents an end-of-file condition.]]></note>
+        <consts>
+        </consts>
+        <methods>
+          <method name="ttyGetAttributes" shortname="getattr" ctype="msg_t">
+            <brief>Gets the active terminal attributes.</brief>
+            <param name="attrp" ctype="struct termios *" dir="out">
+              Pointer to the returned attributes.
+            </param>
+            <return>The operation status.</return>
+            <retval value="HAL_RET_SUCCESS">Operation successful.</retval>
+            <retval value="HAL_RET_INV_STATE">
+              The terminal is not available.
+            </retval>
+            <api />
+          </method>
+          <method name="ttySetAttributes" shortname="setattr" ctype="msg_t">
+            <brief>Changes the terminal attributes.</brief>
+            <details><![CDATA[Attribute changes are performed according to
+              @p action. Implementations must apply the complete structure
+              atomically with respect to input processing.]]></details>
+            <param name="action" ctype="int" dir="in">
+              One of @p TCSANOW, @p TCSADRAIN, or @p TCSAFLUSH.
+            </param>
+            <param name="attrp" ctype="const struct termios *" dir="in">
+              Pointer to the requested attributes.
+            </param>
+            <return>The operation status.</return>
+            <retval value="HAL_RET_SUCCESS">Operation successful.</retval>
+            <retval value="HAL_RET_CONFIG_ERROR">
+              An action, flag, or attribute value is not supported.
+            </retval>
+            <retval value="HAL_RET_INV_STATE">
+              The terminal is not available.
+            </retval>
+            <api />
+          </method>
+          <method name="ttyDrain" shortname="drain" ctype="msg_t">
+            <brief>Waits until all pending output has been transmitted.</brief>
+            <return>The operation status.</return>
+            <retval value="HAL_RET_SUCCESS">Operation successful.</retval>
+            <retval value="HAL_RET_INV_STATE">
+              The terminal became unavailable.
+            </retval>
+            <api />
+          </method>
+          <method name="ttyFlush" shortname="flush" ctype="msg_t">
+            <brief>Discards queued terminal data.</brief>
+            <param name="queues" ctype="int" dir="in">
+              One of @p TCIFLUSH, @p TCOFLUSH, or @p TCIOFLUSH.
+            </param>
+            <return>The operation status.</return>
+            <retval value="HAL_RET_SUCCESS">Operation successful.</retval>
+            <retval value="HAL_RET_CONFIG_ERROR">
+              The queue selector is invalid or unsupported.
+            </retval>
+            <retval value="HAL_RET_INV_STATE">
+              The terminal is not available.
+            </retval>
+            <api />
+          </method>
+          <method name="ttyFlow" shortname="flow" ctype="msg_t">
+            <brief>Performs a terminal flow-control action.</brief>
+            <param name="action" ctype="int" dir="in">
+              One of @p TCOOFF, @p TCOON, @p TCIOFF, or @p TCION.
+            </param>
+            <return>The operation status.</return>
+            <retval value="HAL_RET_SUCCESS">Operation successful.</retval>
+            <retval value="HAL_RET_CONFIG_ERROR">
+              The flow-control action is invalid or unsupported.
+            </retval>
+            <retval value="HAL_RET_INV_STATE">
+              The terminal is not available.
+            </retval>
+            <api />
+          </method>
+          <method name="ttyGetWindowSize" shortname="getwinsize"
+            ctype="msg_t">
+            <brief>Gets the terminal window dimensions.</brief>
+            <param name="sizep" ctype="struct winsize *" dir="out">
+              Pointer to the returned window size.
+            </param>
+            <return>The operation status.</return>
+            <retval value="HAL_RET_SUCCESS">Operation successful.</retval>
+            <retval value="HAL_RET_INV_STATE">
+              The terminal is not available.
+            </retval>
+            <api />
+          </method>
+          <method name="ttySetWindowSize" shortname="setwinsize"
+            ctype="msg_t">
+            <brief>Changes the terminal window dimensions.</brief>
+            <param name="sizep" ctype="const struct winsize *" dir="in">
+              Pointer to the requested window size.
+            </param>
+            <return>The operation status.</return>
+            <retval value="HAL_RET_SUCCESS">Operation successful.</retval>
+            <retval value="HAL_RET_CONFIG_ERROR">
+              The requested window size is invalid or unsupported.
+            </retval>
+            <retval value="HAL_RET_INV_STATE">
+              The terminal is not available.
+            </retval>
+            <api />
+          </method>
+        </methods>
+      </interface>
+    </types>
+  </public>
+  <private>
+  </private>
+</module>

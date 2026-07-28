@@ -3,6 +3,7 @@
   <!ENTITY hal_base_driver     SYSTEM "hal_base_driver.xml">
   <!ENTITY hal_cb_driver       SYSTEM "hal_cb_driver.xml">
   <!ENTITY hal_channels        SYSTEM "hal_channels.xml">
+  <!ENTITY hal_tty             SYSTEM "hal_tty.xml">
   <!ENTITY hal_block_io        SYSTEM "hal_block_io.xml">
   <!ENTITY hal_flash_interface SYSTEM "hal_flash_interface.xml">
   <!ENTITY hal_flash_base      SYSTEM "hal_flash_base.xml">
@@ -35,6 +36,7 @@
     &hal_base_driver;
     &hal_cb_driver;
     &hal_channels;
+    &hal_tty;
     &hal_block_io;
     &hal_flash_interface;
     &hal_flash_base;
