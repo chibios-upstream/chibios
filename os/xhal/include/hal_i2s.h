@@ -106,7 +106,7 @@
  * @notapi
  */
 #define _i2s_reset_i(i2sp)                                                  \
-  osalThreadResumeI(&(i2sp)->thread, MSG_RESET)
+  chThdResumeI(&(i2sp)->thread, MSG_RESET)
 
 /**
  * @brief       Resumes a thread waiting for I2S exchange completion.
@@ -116,7 +116,7 @@
  * @notapi
  */
 #define _i2s_reset_s(i2sp)                                                  \
-  osalThreadResumeS(&(i2sp)->thread, MSG_RESET)
+  chThdResumeS(&(i2sp)->thread, MSG_RESET)
 
 /**
  * @brief       Wakes up a thread waiting for an I2S exchange state.
@@ -128,11 +128,11 @@
  */
 #define _i2s_wakeup_isr(i2sp, state)                                        \
   do {                                                                      \
-    osalSysLockFromISR();                                                   \
+    chSysLockFromISR();                                                     \
     if ((i2sp)->sync_state == (state)) {                                    \
-      osalThreadResumeI(&(i2sp)->thread, MSG_OK);                           \
+      chThdResumeI(&(i2sp)->thread, MSG_OK);                                \
     }                                                                       \
-    osalSysUnlockFromISR();                                                 \
+    chSysUnlockFromISR();                                                   \
   } while (false)
 
 /**
@@ -145,9 +145,9 @@
  */
 #define _i2s_error_wakeup_isr(i2sp)                                         \
   do {                                                                      \
-    osalSysLockFromISR();                                                   \
-    osalThreadResumeI(&(i2sp)->thread, MSG_RESET);                          \
-    osalSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                     \
+    chThdResumeI(&(i2sp)->thread, MSG_RESET);                               \
+    chSysUnlockFromISR();                                                   \
   } while (false)
 
 #else
@@ -305,9 +305,9 @@ struct hal_i2s_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -443,10 +443,10 @@ static inline i2seventflags_t i2sGetAndClearEventsX(void *ip,
   i2seventflags_t flags;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   flags = self->events & mask;
   self->events &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return flags;
 }
@@ -480,10 +480,10 @@ static inline i2serror_t i2sGetAndClearErrorsX(void *ip, i2serror_t mask) {
   i2serror_t errors;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   errors = self->errors & mask;
   self->errors &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return errors;
 }

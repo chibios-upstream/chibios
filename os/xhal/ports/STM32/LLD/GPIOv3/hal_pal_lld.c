@@ -165,7 +165,7 @@ void _pal_lld_enablepadevent(ioportid_t port,
   /* Multiple channel setting of the same channel not allowed, first disable
      it. This is done because on STM32 the same channel cannot be mapped on
      multiple ports.*/
-  osalDbgAssert(((EXTI->RTSR1 & padmask) == 0U) &&
+  chDbgAssert(((EXTI->RTSR1 & padmask) == 0U) &&
                 ((EXTI->FTSR1 & padmask) == 0U), "channel already in use");
 
   /* Index and mask of the SYSCFG CR register to be used.*/
@@ -227,7 +227,7 @@ void _pal_lld_disablepadevent(ioportid_t port, iopadid_t pad) {
 
     crport = (SYSCFG->EXTICR[cridx] >> croff) & 0xFU;
 
-    osalDbgAssert(crport == portidx, "channel mapped on different port");
+    chDbgAssert(crport == portidx, "channel mapped on different port");
 
     /* Disabling channel.*/
     EXTI->IMR1  &= ~padmask;

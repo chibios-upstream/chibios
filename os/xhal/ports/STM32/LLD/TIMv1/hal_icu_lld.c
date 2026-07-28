@@ -154,7 +154,7 @@ static bool icu_lld_wait_edge(hal_icu_driver_c *icup) {
   bool result;
 
   /* Polled mode so re-enabling interrupts while waiting.*/
-  osalSysUnlock();
+  chSysUnlock();
 
   if (cfg->channel == ICU_CHANNEL_1) {
     while (((sr = icup->tim->SR) &
@@ -169,7 +169,7 @@ static bool icu_lld_wait_edge(hal_icu_driver_c *icup) {
 
   result = (bool)((sr & STM32_TIM_SR_UIF) != 0U);
 
-  osalSysLock();
+  chSysLock();
 
   icup->tim->SR &= ~(STM32_TIM_SR_CC1IF |
                      STM32_TIM_SR_CC2IF |
@@ -496,7 +496,7 @@ msg_t icu_lld_start(hal_icu_driver_c *icup) {
   icup->tim->DIER   = cfg->dier & ~STM32_TIM_DIER_IRQ_MASK;
 
   psc = (icup->clock / cfg->frequency) - 1U;
-  osalDbgAssert((psc <= 0xFFFFU) &&
+  chDbgAssert((psc <= 0xFFFFU) &&
                 (((psc + 1U) * cfg->frequency) == icup->clock),
                 "invalid frequency");
 

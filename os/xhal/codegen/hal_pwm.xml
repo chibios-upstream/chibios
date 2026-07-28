@@ -252,9 +252,9 @@ PWM_DRIVER_EXT_INIT_HOOK(self);
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->period = period;
 pwm_lld_change_period(self, period);]]></implementation>
@@ -266,11 +266,11 @@ pwm_lld_change_period(self, period);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 pwmChangePeriodI(self, period);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="pwmEnableChannelI" ctype="void">
               <brief>Enables a PWM channel.</brief>
@@ -282,9 +282,9 @@ osalSysUnlock();]]></implementation>
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (channel < self->channels));
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (channel < self->channels));
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->enabled |= ((pwmchnmsk_t)1U << (pwmchnmsk_t)channel);
 pwm_lld_enable_channel(self, channel, width);]]></implementation>
@@ -299,11 +299,11 @@ pwm_lld_enable_channel(self, channel, width);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 pwmEnableChannelI(self, channel, width);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="pwmDisableChannelI" ctype="void">
               <brief>Disables a PWM channel.</brief>
@@ -312,9 +312,9 @@ osalSysUnlock();]]></implementation>
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (channel < self->channels));
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (channel < self->channels));
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->enabled &= ~((pwmchnmsk_t)1U << (pwmchnmsk_t)channel);
 self->enabled_events &= ~PWM_EVENT_CHANNEL(channel);
@@ -327,11 +327,11 @@ pwm_lld_disable_channel(self, channel);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 pwmDisableChannelI(self, channel);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="pwmEnableEventsI" ctype="void">
               <brief>Enables PWM event notifications.</brief>
@@ -340,10 +340,10 @@ osalSysUnlock();]]></implementation>
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
-osalDbgAssert(drvGetCallbackX(self) != NULL, "undefined callback");
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgAssert(drvGetCallbackX(self) != NULL, "undefined callback");
 
 self->enabled_events |= events;
 pwm_lld_enable_events(self, events);]]></implementation>
@@ -355,11 +355,11 @@ pwm_lld_enable_events(self, events);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 pwmEnableEventsI(self, events);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="pwmDisableEventsI" ctype="void">
               <brief>Disables PWM event notifications.</brief>
@@ -368,9 +368,9 @@ osalSysUnlock();]]></implementation>
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->enabled_events &= ~events;
 pwm_lld_disable_events(self, events);]]></implementation>
@@ -382,11 +382,11 @@ pwm_lld_disable_events(self, events);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 pwmDisableEventsI(self, events);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="pwmEnablePeriodicNotification" ctype="void">
               <brief>Enables the periodic activation edge notification.</brief>
@@ -407,15 +407,15 @@ pwmDisableEvents(self, PWM_EVENT_PERIOD);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgCheck(channel < self->channels);
-osalDbgAssert((self->enabled &
+chSysLock();
+chDbgCheck(channel < self->channels);
+chDbgAssert((self->enabled &
                ((pwmchnmsk_t)1U << (pwmchnmsk_t)channel)) != 0U,
               "channel not enabled");
 pwmEnableEventsI(self, PWM_EVENT_CHANNEL(channel));
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="pwmDisableChannelNotification" ctype="void">
               <brief>Disables a channel de-activation edge notification.</brief>
@@ -424,12 +424,12 @@ osalSysUnlock();]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgCheck(channel < self->channels);
+chSysLock();
+chDbgCheck(channel < self->channels);
 pwmDisableEventsI(self, PWM_EVENT_CHANNEL(channel));
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
           </regular>
           <inline>
@@ -463,8 +463,8 @@ pwmDisableEventsI(self, PWM_EVENT_PERIOD);]]></implementation>
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheck(channel < self->channels);
-osalDbgAssert((self->enabled &
+chDbgCheck(channel < self->channels);
+chDbgAssert((self->enabled &
                ((pwmchnmsk_t)1U << (pwmchnmsk_t)channel)) != 0U,
               "channel not enabled");
 pwmEnableEventsI(self, PWM_EVENT_CHANNEL(channel));]]></implementation>
@@ -476,7 +476,7 @@ pwmEnableEventsI(self, PWM_EVENT_CHANNEL(channel));]]></implementation>
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheck(channel < self->channels);
+chDbgCheck(channel < self->channels);
 pwmDisableEventsI(self, PWM_EVENT_CHANNEL(channel));]]></implementation>
             </method>
             <method name="pwmGetEventsX" ctype="pwm_events_t">
@@ -497,10 +497,10 @@ return self->events;]]></implementation>
 pwm_events_t events;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 events = self->events & mask;
 self->events &= ~mask;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return events;]]></implementation>
             </method>

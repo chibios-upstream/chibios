@@ -1,5 +1,8 @@
 # XHAL subsystem build.
 
+# XHAL uses the direct ChibiOS backend in the common OOP subsystem.
+DDEFS += -DOOP_USE_CHIBIOS
+
 # Dependencies.
 include $(CHIBIOS)/os/common/oop/oop.mk
 
@@ -113,7 +116,8 @@ XHALSRC = $(CHIBIOS)/os/xhal/src/hal.c \
 endif
 
 # Required include directories
-XHALINC = $(CHIBIOS)/os/xhal/include
+XHALINC = $(CHIBIOS)/os/xhal/include \
+          $(CHIBIOS)/os/xhal/lib/complex/rt-nil_bindings
 
 # Shared variables
 ALLCSRC += $(XHALSRC)

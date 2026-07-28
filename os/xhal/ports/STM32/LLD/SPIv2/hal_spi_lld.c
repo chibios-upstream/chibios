@@ -234,7 +234,7 @@ static void spi_lld_disable(SPIDriver *spip) {
 #endif
 
     else {
-      osalDbgAssert(false, "invalid SPI instance");
+      chDbgAssert(false, "invalid SPI instance");
     }
   }
 }
@@ -586,7 +586,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
 #endif
 
   else {
-    osalDbgAssert(false, "invalid SPI instance");
+    chDbgAssert(false, "invalid SPI instance");
   }
 
   /* DMA setup.*/
@@ -598,7 +598,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     config = &spi_default_config;
   }
   spip->config = spi_lld_setcfg(spip, config);
-  osalDbgAssert(spip->config != NULL, "configuration failed");
+  chDbgAssert(spip->config != NULL, "configuration failed");
 
   return HAL_RET_SUCCESS;
 }
@@ -666,7 +666,7 @@ void spi_lld_stop(SPIDriver *spip) {
 #endif
 
   else {
-    osalDbgAssert(false, "invalid SPI instance");
+    chDbgAssert(false, "invalid SPI instance");
   }
 }
 
@@ -790,7 +790,7 @@ const hal_spi_config_t *spi_lld_selcfg(SPIDriver *spip,
  */
 msg_t spi_lld_ignore(SPIDriver *spip, size_t n) {
 
-  osalDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
+  chDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
 
   dmaStreamSetMemory0(spip->dmarx, &spip->rxsink);
   dmaStreamSetTransactionSize(spip->dmarx, n);
@@ -825,7 +825,7 @@ msg_t spi_lld_ignore(SPIDriver *spip, size_t n) {
 msg_t spi_lld_exchange(SPIDriver *spip, size_t n,
                        const void *txbuf, void *rxbuf) {
 
-  osalDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
+  chDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
 
   dmaStreamSetMemory0(spip->dmarx, rxbuf);
   dmaStreamSetTransactionSize(spip->dmarx, n);
@@ -857,7 +857,7 @@ msg_t spi_lld_exchange(SPIDriver *spip, size_t n,
  */
 msg_t spi_lld_send(SPIDriver *spip, size_t n, const void *txbuf) {
 
-  osalDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
+  chDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
 
   dmaStreamSetMemory0(spip->dmarx, &spip->rxsink);
   dmaStreamSetTransactionSize(spip->dmarx, n);
@@ -889,7 +889,7 @@ msg_t spi_lld_send(SPIDriver *spip, size_t n, const void *txbuf) {
  */
 msg_t spi_lld_receive(SPIDriver *spip, size_t n, void *rxbuf) {
 
-  osalDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
+  chDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
 
   dmaStreamSetMemory0(spip->dmarx, rxbuf);
   dmaStreamSetTransactionSize(spip->dmarx, n);

@@ -55,7 +55,7 @@
 #endif
 
 /* Priority settings checks.*/
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_SPI3_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_SPI3_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_SPI3_PRIORITY"
 #endif
 
@@ -95,13 +95,13 @@ static inline void spi3_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_SPI3_HANDLER) {
+CH_IRQ_HANDLER(STM32_SPI3_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   spi_lld_serve_interrupt(&SPID3);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 

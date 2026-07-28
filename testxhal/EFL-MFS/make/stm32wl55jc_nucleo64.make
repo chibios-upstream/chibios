@@ -98,11 +98,10 @@ DEPDIR   := ./.dep/sstm32wl55jc_nucleo64
 include $(CHIBIOS)/os/license/license.mk
 # Startup files.
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32wlxx.mk
-# HAL-OSAL files (optional).
+# XHAL files.
 include $(CHIBIOS)/os/xhal/xhal.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/STM32WLxx/platform.mk
 include $(CHIBIOS)/os/hal/boards/ST_NUCLEO64_WL55JC/board.mk
-include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMv7-M/compilers/GCC/mk/port.mk
@@ -111,7 +110,7 @@ include $(CHIBIOS)/tools/mk/autobuild.mk
 # Other files (optional).
 include $(CHIBIOS)/os/test/test.mk
 include $(CHIBIOS)/test/mfs/mfs_test.mk
-include $(CHIBIOS)/os/hal/lib/complex/mfs/hal_mfs.mk
+include $(CHIBIOS)/os/xhal/lib/complex/mfs/hal_mfs.mk
 
 # Define linker script file here.
 LDSCRIPT= $(STARTUPLD)/STM32WLxxxC.ld

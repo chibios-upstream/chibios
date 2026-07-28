@@ -150,13 +150,13 @@ static void gpt_lld_serve_interrupt(hal_gpt_driver_c *gptp, uint32_t nvrq) {
 
 #if VIO_GPT_USE_VGPT1 || defined(__DOXYGEN__)
 #if !defined(VIO_VGPT1_SUPPRESS_ISR)
-OSAL_IRQ_HANDLER(MK_VECTOR(VIO_VGPT1_IRQ)) {
+CH_IRQ_HANDLER(MK_VECTOR(VIO_VGPT1_IRQ)) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   gpt_lld_serve_interrupt(&GPTD1, VIO_VGPT1_IRQ);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif
@@ -202,7 +202,7 @@ msg_t gpt_lld_start(hal_gpt_driver_c *gptp) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid GPT instance");
+    chDbgAssert(false, "invalid GPT instance");
   }
 
   if (msg == HAL_RET_SUCCESS) {
@@ -233,10 +233,10 @@ void gpt_lld_stop(hal_gpt_driver_c *gptp) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid GPT instance");
+    chDbgAssert(false, "invalid GPT instance");
   }
 
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
   gptp->interval = (gptcnt_t)0;
 }
 
@@ -299,7 +299,7 @@ void gpt_lld_set_callback(hal_gpt_driver_c *gptp, drv_cb_t cb) {
     msg_t msg;
 
     msg = (msg_t)__gpt_vgpt_setcb(gptp->nvgpt, cb != NULL ? 1U : 0U);
-    osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+    chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
   }
 }
 
@@ -316,7 +316,7 @@ void gpt_lld_change_interval_impl(hal_gpt_driver_c *gptp,
   msg_t msg;
 
   msg = (msg_t)__gpt_vgpt_chgi(gptp->nvgpt, interval);
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
   gptp->interval = interval;
 }
 
@@ -349,12 +349,12 @@ void gpt_lld_start_timer(hal_gpt_driver_c *gptp, gptcnt_t interval) {
     mode = SB_VGPT_CONTINUOUS;
   }
   else {
-    osalDbgAssert(gptp->state == GPT_ONESHOT, "invalid state");
+    chDbgAssert(gptp->state == GPT_ONESHOT, "invalid state");
     mode = SB_VGPT_ONESHOT;
   }
 
   msg = (msg_t)__gpt_vgpt_start(gptp->nvgpt, mode, interval);
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
   gptp->interval = interval;
 }
 
@@ -369,7 +369,7 @@ void gpt_lld_stop_timer(hal_gpt_driver_c *gptp) {
   msg_t msg;
 
   msg = (msg_t)__gpt_vgpt_stop(gptp->nvgpt);
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
   gptp->interval = (gptcnt_t)0;
 }
 
@@ -385,7 +385,7 @@ void gpt_lld_polled_delay(hal_gpt_driver_c *gptp, gptcnt_t interval) {
   msg_t msg;
 
   msg = (msg_t)__gpt_vgpt_pdelay(gptp->nvgpt, interval);
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
 }
 
 #endif /* HAL_USE_GPT */

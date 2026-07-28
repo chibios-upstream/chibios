@@ -234,8 +234,8 @@ void sb_fastc_vio_i2c(sb_class_t *sbp, struct port_extctx *ectxp) {
 
         /* IRQ-like fastcall: the transfer start is an I-class async kick,
            completion is delivered later via VRQ from vi2c_cb().*/
-        OSAL_IRQ_PROLOGUE();
-        osalSysLockFromISR();
+        CH_IRQ_PROLOGUE();
+        chSysLockFromISR();
         if (drvGetStateX(unitp->i2cp) != HAL_DRV_STATE_READY) {
           msg = HAL_RET_INV_STATE;
         }
@@ -247,8 +247,8 @@ void sb_fastc_vio_i2c(sb_class_t *sbp, struct port_extctx *ectxp) {
                                         transfer.rxbuf,
                                         (size_t)transfer.rxbytes);
         }
-        osalSysUnlockFromISR();
-        OSAL_IRQ_EPILOGUE();
+        chSysUnlockFromISR();
+        CH_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;
@@ -277,8 +277,8 @@ void sb_fastc_vio_i2c(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        OSAL_IRQ_PROLOGUE();
-        osalSysLockFromISR();
+        CH_IRQ_PROLOGUE();
+        chSysLockFromISR();
         if (drvGetStateX(unitp->i2cp) != HAL_DRV_STATE_READY) {
           msg = HAL_RET_INV_STATE;
         }
@@ -288,8 +288,8 @@ void sb_fastc_vio_i2c(sb_class_t *sbp, struct port_extctx *ectxp) {
                                        transfer.rxbuf,
                                        (size_t)transfer.rxbytes);
         }
-        osalSysUnlockFromISR();
-        OSAL_IRQ_EPILOGUE();
+        chSysUnlockFromISR();
+        CH_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;
@@ -298,16 +298,16 @@ void sb_fastc_vio_i2c(sb_class_t *sbp, struct port_extctx *ectxp) {
       {
         msg_t msg;
 
-        OSAL_IRQ_PROLOGUE();
-        osalSysLockFromISR();
+        CH_IRQ_PROLOGUE();
+        chSysLockFromISR();
         if (drvGetStateX(unitp->i2cp) == HAL_DRV_STATE_STOP) {
           msg = HAL_RET_INV_STATE;
         }
         else {
           msg = i2cStopTransferI(unitp->i2cp);
         }
-        osalSysUnlockFromISR();
-        OSAL_IRQ_EPILOGUE();
+        chSysUnlockFromISR();
+        CH_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;

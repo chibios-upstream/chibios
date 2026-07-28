@@ -4,4 +4,4 @@ else
 PLATFORMSRC +=
 endif
 
-PLATFORMINC += $(CHIBIOS)/os/hal/ports/STM32/LLD/RCCv1
+PLATFORMINC += $(CHIBIOS)/os/xhal/ports/STM32/LLD/RCCv1

@@ -214,9 +214,9 @@ void wspi_lld_stop(hal_wspi_driver_c *wspip) {
   wspip->ospi->CR = 0U;
 
   if (wspip->mdma != NULL) {
-    osalSysLock();
+    chSysLock();
     mdmaChannelDisableX(wspip->mdma);
-    osalSysUnlock();
+    chSysUnlock();
     mdmaChannelFree(wspip->mdma);
     wspip->mdma = NULL;
   }
@@ -293,9 +293,9 @@ void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
 
   if ((sr & OCTOSPI_SR_TEF) != 0U) {
     if (data_transfer && (wspip->mdma != NULL)) {
-      osalSysLockFromISR();
+      chSysLockFromISR();
       mdmaChannelDisableX(wspip->mdma);
-      osalSysUnlockFromISR();
+      chSysUnlockFromISR();
     }
     wspip->ospi->CR &= ~OCTOSPI_CR_DMAEN;
     _wspi_isr_error_code(wspip);

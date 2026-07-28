@@ -100,11 +100,10 @@ DEPDIR   := ./.dep/stm32l4r9_discovery
 include $(CHIBIOS)/os/license/license.mk
 # Startup files.
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32l4xx.mk
-# HAL-OSAL files (optional).
+# XHAL files.
 include $(CHIBIOS)/os/xhal/xhal.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/STM32L4xx+/platform.mk
 include $(CHIBIOS)/os/hal/boards/ST_STM32L4R9I_DISCOVERY/board.mk
-include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMv7-M/compilers/GCC/mk/port.mk
@@ -113,7 +112,7 @@ include $(CHIBIOS)/tools/mk/autobuild.mk
 # Other files (optional).
 include $(CHIBIOS)/os/test/test.mk
 include $(CHIBIOS)/test/mfs/mfs_test.mk
-include $(CHIBIOS)/os/hal/lib/complex/mfs/hal_mfs.mk
+include $(CHIBIOS)/os/xhal/lib/complex/mfs/hal_mfs.mk
 include $(CHIBIOS)/os/xhal/lib/complex/xsnor/devices/micron_n25q/hal_xsnor_micron_n25q.mk
 include $(CHIBIOS)/os/xhal/lib/complex/xsnor/devices/macronix_mx25/hal_xsnor_macronix_mx25.mk
 

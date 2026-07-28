@@ -36,7 +36,7 @@
 #endif
 
 #if !defined(STM32_DISABLE_EXTI10_15_HANDLER) &&                            \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_EXTI10_15_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_EXTI10_15_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_EXTI10_15_PRIORITY"
 #endif
 
@@ -75,10 +75,10 @@ static inline void exti10_15_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_EXTI10_15_HANDLER) {
+CH_IRQ_HANDLER(STM32_EXTI10_15_HANDLER) {
   uint32_t pr;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   extiGetAndClearGroup1((1U << 10) | (1U << 11) | (1U << 12) | (1U << 13) |
                         (1U << 14) | (1U << 15), pr);
@@ -90,7 +90,7 @@ OSAL_IRQ_HANDLER(STM32_EXTI10_15_HANDLER) {
   exti_serve_irq(pr, 14);
   exti_serve_irq(pr, 15);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif

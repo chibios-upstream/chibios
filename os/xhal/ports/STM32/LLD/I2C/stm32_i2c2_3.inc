@@ -68,7 +68,7 @@
 #endif
 
 /* Priority settings checks.*/
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_I2C2_3_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_I2C2_3_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_I2C2_3_PRIORITY"
 #endif
 
@@ -108,9 +108,9 @@ static inline void i2c2_i2c3_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_I2C2_3_GLOBAL_HANDLER) {
+CH_IRQ_HANDLER(STM32_I2C2_3_GLOBAL_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
 #if STM32_I2C_USE_I2C2
   i2c_lld_serve_global_interrupt(&I2CD2);
@@ -120,7 +120,7 @@ OSAL_IRQ_HANDLER(STM32_I2C2_3_GLOBAL_HANDLER) {
   i2c_lld_serve_global_interrupt(&I2CD3);
 #endif
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif /* defined(STM32_I2C2_IS_USED) || defined(STM32_I2C3_IS_USED) */
 

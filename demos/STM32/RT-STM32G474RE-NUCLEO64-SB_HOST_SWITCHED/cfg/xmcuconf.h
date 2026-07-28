@@ -253,7 +253,7 @@
 #define STM32_I2C_I2C2_DMA_PRIORITY         1
 #define STM32_I2C_I2C3_DMA_PRIORITY         1
 #define STM32_I2C_I2C4_DMA_PRIORITY         1
-#define STM32_I2C_DMA_ERROR_HOOK(i2cp)      osalSysHalt("DMA failure")
+#define STM32_I2C_DMA_ERROR_HOOK(i2cp)      chSysHalt("DMA failure")
 
 /*
  * I2S driver system settings.
@@ -270,7 +270,7 @@
 #define STM32_I2S_SPI2_TX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_I2S_SPI3_RX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_I2S_SPI3_TX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
-#define STM32_I2S_DMA_ERROR_HOOK(i2sp)      osalSysHalt("DMA failure")
+#define STM32_I2S_DMA_ERROR_HOOK(i2sp)      chSysHalt("DMA failure")
 
 /*
  * ICU driver system settings.
@@ -331,7 +331,7 @@
 #define STM32_SPI_SPI2_IRQ_PRIORITY         10
 #define STM32_SPI_SPI3_IRQ_PRIORITY         10
 #define STM32_SPI_SPI4_IRQ_PRIORITY         10
-#define STM32_SPI_DMA_ERROR_HOOK(spip)      osalSysHalt("DMA failure")
+#define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*
  * ST driver system settings.
@@ -375,6 +375,6 @@
 #define STM32_WSPI_QUADSPI1_PRESCALER_VALUE 1
 #define STM32_WSPI_QUADSPI1_DMA_PRIORITY    1
 #define STM32_WSPI_QUADSPI1_DMA_IRQ_PRIORITY 10
-#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    osalSysHalt("DMA failure")
+#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    chSysHalt("DMA failure")
 
 #endif /* XMCUCONF_H */

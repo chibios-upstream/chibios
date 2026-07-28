@@ -36,7 +36,7 @@
 #endif
 
 #if !defined(STM32_DISABLE_EXTI8_HANDLER) &&                                \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_EXTI8_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_EXTI8_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_EXTI8_PRIORITY"
 #endif
 
@@ -75,16 +75,16 @@ static inline void exti8_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_EXTI8_HANDLER) {
+CH_IRQ_HANDLER(STM32_EXTI8_HANDLER) {
   uint32_t pr;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   extiGetAndClearGroup1(1U << 8, pr);
 
   exti_serve_irq(pr, 8);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif

@@ -295,13 +295,13 @@ static struct {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA1_CH1_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA1_CH1_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA1_STREAM1);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -311,13 +311,13 @@ OSAL_IRQ_HANDLER(STM32_DMA1_CH1_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA1_CH2_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA1_CH2_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA1_STREAM2);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -327,13 +327,13 @@ OSAL_IRQ_HANDLER(STM32_DMA1_CH2_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA1_CH3_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA1_CH3_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA1_STREAM3);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -343,13 +343,13 @@ OSAL_IRQ_HANDLER(STM32_DMA1_CH3_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA1_CH4_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA1_CH4_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA1_STREAM4);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -359,13 +359,13 @@ OSAL_IRQ_HANDLER(STM32_DMA1_CH4_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA1_CH5_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA1_CH5_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA1_STREAM5);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -375,13 +375,13 @@ OSAL_IRQ_HANDLER(STM32_DMA1_CH5_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA1_CH6_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA1_CH6_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA1_STREAM6);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -391,13 +391,13 @@ OSAL_IRQ_HANDLER(STM32_DMA1_CH6_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA1_CH7_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA1_CH7_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA1_STREAM7);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -407,13 +407,13 @@ OSAL_IRQ_HANDLER(STM32_DMA1_CH7_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA1_CH8_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA1_CH8_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA1_STREAM8);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -423,13 +423,13 @@ OSAL_IRQ_HANDLER(STM32_DMA1_CH8_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA2_CH1_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA2_CH1_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA2_STREAM1);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -439,13 +439,13 @@ OSAL_IRQ_HANDLER(STM32_DMA2_CH1_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA2_CH2_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA2_CH2_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA2_STREAM2);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -455,13 +455,13 @@ OSAL_IRQ_HANDLER(STM32_DMA2_CH2_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA2_CH3_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA2_CH3_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA2_STREAM3);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -471,13 +471,13 @@ OSAL_IRQ_HANDLER(STM32_DMA2_CH3_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA2_CH4_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA2_CH4_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA2_STREAM4);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -487,13 +487,13 @@ OSAL_IRQ_HANDLER(STM32_DMA2_CH4_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA2_CH5_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA2_CH5_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA2_STREAM5);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -503,13 +503,13 @@ OSAL_IRQ_HANDLER(STM32_DMA2_CH5_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA2_CH6_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA2_CH6_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA2_STREAM6);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -519,13 +519,13 @@ OSAL_IRQ_HANDLER(STM32_DMA2_CH6_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA2_CH7_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA2_CH7_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA2_STREAM7);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -535,13 +535,13 @@ OSAL_IRQ_HANDLER(STM32_DMA2_CH7_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA2_CH8_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA2_CH8_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmaServeInterrupt(STM32_DMA2_STREAM8);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -597,7 +597,7 @@ const stm32_dma_stream_t *dmaStreamAllocI(uint32_t id,
                                           void *param) {
   uint32_t i, startid, endid;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   if (id < STM32_DMA_STREAMS) {
     startid = id;
@@ -620,7 +620,7 @@ const stm32_dma_stream_t *dmaStreamAllocI(uint32_t id,
 #endif
 #endif
   else {
-    osalDbgCheck(false);
+    chDbgCheck(false);
     return NULL;
   }
 
@@ -699,9 +699,9 @@ const stm32_dma_stream_t *dmaStreamAlloc(uint32_t id,
                                          void *param) {
   const stm32_dma_stream_t *dmastp;
 
-  osalSysLock();
+  chSysLock();
   dmastp = dmaStreamAllocI(id, priority, func, param);
-  osalSysUnlock();
+  chSysUnlock();
 
   return dmastp;
 }
@@ -719,10 +719,10 @@ const stm32_dma_stream_t *dmaStreamAlloc(uint32_t id,
 void dmaStreamFreeI(const stm32_dma_stream_t *dmastp) {
   uint32_t selfindex = (uint32_t)dmastp->selfindex;
 
-  osalDbgCheck(dmastp != NULL);
+  chDbgCheck(dmastp != NULL);
 
   /* Check if the streams is not taken.*/
-  osalDbgAssert((dma.allocated_mask & (1 << selfindex)) != 0U,
+  chDbgAssert((dma.allocated_mask & (1 << selfindex)) != 0U,
                 "not allocated");
 
   /* Marks the stream as not allocated.*/
@@ -768,9 +768,9 @@ void dmaStreamFreeI(const stm32_dma_stream_t *dmastp) {
  */
 void dmaStreamFree(const stm32_dma_stream_t *dmastp) {
 
-  osalSysLock();
+  chSysLock();
   dmaStreamFreeI(dmastp);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -805,7 +805,7 @@ void dmaServeInterrupt(const stm32_dma_stream_t *dmastp) {
  */
 void dmaSetRequestSource(const stm32_dma_stream_t *dmastp, uint32_t per) {
 
-  osalDbgCheck(per < 256U);
+  chDbgCheck(per < 256U);
 
   dmastp->mux->CCR = per;
 }

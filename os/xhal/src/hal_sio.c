@@ -136,7 +136,7 @@ static void __bsio_default_cb(void *ip) {
     return;
   }
 
-  osalSysLockFromISR();
+  chSysLockFromISR();
 
   /* Drain/fill FIFOs before re-enabling data interrupts in the LLD.
      NOTE: this assumes status/error flags are not cleared by data reads,
@@ -153,7 +153,7 @@ static void __bsio_default_cb(void *ip) {
   events = sioGetAndClearEventsX(siop, SIO_EV_ALL_EVENTS);
   bsAddFlagsI(bsiop, (eventflags_t)(events & ~SIO_EV_ALL_DATA));
 
-  osalSysUnlockFromISR();
+  chSysUnlockFromISR();
 }
 
 static void __bsio_onotify(io_queue_t *qp) {
@@ -414,7 +414,7 @@ static msg_t __sio_chn_ctl_impl(void *ip, unsigned int operation, void *arg) {
 
   switch (operation) {
   case CHN_CTL_NOP:
-    osalDbgCheck(arg == NULL);
+    chDbgCheck(arg == NULL);
     break;
   case CHN_CTL_INVALID:
     return HAL_RET_UNKNOWN_CTL;
@@ -548,13 +548,13 @@ void __sio_stop_impl(void *ip) {
 
 #if SIO_USE_SYNCHRONIZATION == TRUE
   /* Informing waiting threads, if any.*/
-  osalSysLock();
-  osalThreadResumeI(&self->sync_rx, MSG_RESET);
-  osalThreadResumeI(&self->sync_rxidle, MSG_RESET);
-  osalThreadResumeI(&self->sync_tx, MSG_RESET);
-  osalThreadResumeI(&self->sync_txend, MSG_RESET);
-  osalOsRescheduleS();
-  osalSysUnlock();
+  chSysLock();
+  chThdResumeI(&self->sync_rx, MSG_RESET);
+  chThdResumeI(&self->sync_rxidle, MSG_RESET);
+  chThdResumeI(&self->sync_tx, MSG_RESET);
+  chThdResumeI(&self->sync_txend, MSG_RESET);
+  chSchRescheduleS();
+  chSysUnlock();
 #endif
 }
 
@@ -613,12 +613,12 @@ const struct hal_sio_driver_vmt __hal_sio_driver_vmt = {
 void sioWriteEnableFlags(void *ip, sioevents_t mask) {
   hal_sio_driver_c *self = (hal_sio_driver_c *)ip;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chSysLock();
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   sioWriteEnableFlagsX(self, mask);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -632,12 +632,12 @@ void sioWriteEnableFlags(void *ip, sioevents_t mask) {
 void sioSetEnableFlags(void *ip, sioevents_t mask) {
   hal_sio_driver_c *self = (hal_sio_driver_c *)ip;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chSysLock();
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   sioSetEnableFlagsX(self, mask);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -651,12 +651,12 @@ void sioSetEnableFlags(void *ip, sioevents_t mask) {
 void sioClearEnableFlags(void *ip, sioevents_t mask) {
   hal_sio_driver_c *self = (hal_sio_driver_c *)ip;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chSysLock();
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   sioClearEnableFlagsX(self, mask);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -671,12 +671,12 @@ sioevents_t sioGetAndClearErrors(void *ip) {
   hal_sio_driver_c *self = (hal_sio_driver_c *)ip;
   sioevents_t errors;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chSysLock();
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   errors = sioGetAndClearErrorsX(self);
-  osalSysUnlock();
+  chSysUnlock();
 
   return errors;
 }
@@ -694,12 +694,12 @@ sioevents_t sioGetAndClearEvents(void *ip, sioevents_t mask) {
   hal_sio_driver_c *self = (hal_sio_driver_c *)ip;
   sioevents_t events;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chSysLock();
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   events = sioGetAndClearEventsX(self, mask);
-  osalSysUnlock();
+  chSysUnlock();
 
   return events;
 }
@@ -716,12 +716,12 @@ sioevents_t sioGetEvents(void *ip) {
   hal_sio_driver_c *self = (hal_sio_driver_c *)ip;
   sioevents_t events;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chSysLock();
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   events = sioGetEventsX(self);
-  osalSysUnlock();
+  chSysUnlock();
 
   return events;
 }
@@ -747,15 +747,15 @@ msg_t sioSynchronizeRX(void *ip, sysinterval_t timeout) {
   hal_sio_driver_c *self = (hal_sio_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 
   /* Checking for errors before going to sleep.*/
   if (sioHasRXErrorsX(self)) {
-    osalSysUnlock();
+    chSysUnlock();
     return SIO_MSG_ERRORS;
   }
 
@@ -765,13 +765,13 @@ msg_t sioSynchronizeRX(void *ip, sysinterval_t timeout) {
     is constant.*/
   while (sioIsRXEmptyX(self)) {
   /*lint -restore*/
-    msg = osalThreadSuspendTimeoutS(&self->sync_rx, timeout);
+    msg = chThdSuspendTimeoutS(&self->sync_rx, timeout);
     if (msg != MSG_OK) {
       break;
     }
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -794,15 +794,15 @@ msg_t sioSynchronizeRXIdle(void *ip, sysinterval_t timeout) {
   hal_sio_driver_c *self = (hal_sio_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 
   /* Checking for errors before going to sleep.*/
   if (sioHasRXErrorsX(self)) {
-    osalSysUnlock();
+    chSysUnlock();
     return SIO_MSG_ERRORS;
   }
 
@@ -812,13 +812,13 @@ msg_t sioSynchronizeRXIdle(void *ip, sysinterval_t timeout) {
     is constant.*/
   while (!sioIsRXIdleX(self)) {
   /*lint -restore*/
-    msg = osalThreadSuspendTimeoutS(&self->sync_rxidle, timeout);
+    msg = chThdSuspendTimeoutS(&self->sync_rxidle, timeout);
     if (msg != MSG_OK) {
       break;
     }
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -842,11 +842,11 @@ msg_t sioSynchronizeTX(void *ip, sysinterval_t timeout) {
   hal_sio_driver_c *self = (hal_sio_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 
   msg = MSG_OK;
   /*lint -save -e506 -e681 [2.1] Silencing this error because it is
@@ -854,13 +854,13 @@ msg_t sioSynchronizeTX(void *ip, sysinterval_t timeout) {
     is constant.*/
   while (sioIsTXFullX(self)) {
   /*lint -restore*/
-    msg = osalThreadSuspendTimeoutS(&self->sync_tx, timeout);
+    msg = chThdSuspendTimeoutS(&self->sync_tx, timeout);
     if (msg != MSG_OK) {
       break;
     }
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -882,24 +882,24 @@ msg_t sioSynchronizeTXEnd(void *ip, sysinterval_t timeout) {
   hal_sio_driver_c *self = (hal_sio_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 
   /*lint -save -e506 -e774 [2.1, 14.3] Silencing this error because
     it is tested with a template implementation of sio_lld_is_tx_ongoing()
     which is constant.*/
   if (sioIsTXOngoingX(self)) {
   /*lint -restore*/
-    msg = osalThreadSuspendTimeoutS(&self->sync_txend, timeout);
+    msg = chThdSuspendTimeoutS(&self->sync_txend, timeout);
   }
   else {
     msg = MSG_OK;
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -1177,7 +1177,7 @@ void *__bsio_objinit_impl(void *ip, const void *vmt, hal_sio_driver_c *siop,
     oopIfObjectInit(&self->chn, &bsio_chn_vmt);
   }
 
-  osalEventObjectInit(&self->event);
+  chEvtObjectInit(&self->event);
   iqObjectInit(&self->iqueue, ib, ibsize, NULL, NULL);
   oqObjectInit(&self->oqueue, ob, obsize, __bsio_onotify, (void *)self);
   drvSetArgumentX(siop, self);
@@ -1285,8 +1285,8 @@ const struct hal_buffered_sio_vmt __hal_buffered_sio_vmt = {
 void bsIncomingDataI(void *ip, uint8_t b) {
   hal_buffered_sio_c *self = (hal_buffered_sio_c *)ip;
 
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
 
   if (iqIsEmptyI(&self->iqueue)) {
     bsAddFlagsI(self, CHN_FL_RX_NOTEMPTY);
@@ -1311,8 +1311,8 @@ msg_t bsRequestDataI(void *ip) {
   hal_buffered_sio_c *self = (hal_buffered_sio_c *)ip;
   msg_t b;
 
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
 
   b = oqGetI(&self->oqueue);
   if (b < MSG_OK) {

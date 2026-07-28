@@ -50,8 +50,8 @@
  * @brief   Read from an I/O bus.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function internally uses the @p palReadGroup() macro. The use
  *          of this function is preferred when you value code size, readability
  *          and error checking over speed.
@@ -64,7 +64,7 @@
  */
 ioportmask_t palReadBus(const IOBus *bus) {
 
-  osalDbgCheck((bus != NULL) && (bus->offset < PAL_IOPORTS_WIDTH));
+  chDbgCheck((bus != NULL) && (bus->offset < PAL_IOPORTS_WIDTH));
 
   return palReadGroup(bus->portid, bus->mask, bus->offset);
 }
@@ -73,8 +73,8 @@ ioportmask_t palReadBus(const IOBus *bus) {
  * @brief   Write to an I/O bus.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The default implementation is non atomic and not necessarily
  *          optimal. Low level drivers may  optimize the function by using
  *          specific hardware or coding.
@@ -89,7 +89,7 @@ ioportmask_t palReadBus(const IOBus *bus) {
  */
 void palWriteBus(const IOBus *bus, ioportmask_t bits) {
 
-  osalDbgCheck((bus != NULL) && (bus->offset < PAL_IOPORTS_WIDTH));
+  chDbgCheck((bus != NULL) && (bus->offset < PAL_IOPORTS_WIDTH));
 
   palWriteGroup(bus->portid, bus->mask, bus->offset, bits);
 }
@@ -98,8 +98,8 @@ void palWriteBus(const IOBus *bus, ioportmask_t bits) {
  * @brief   Programs a bus with the specified mode.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The default implementation is non atomic and not necessarily
  *          optimal. Low level drivers may  optimize the function by using
  *          specific hardware or coding.
@@ -112,7 +112,7 @@ void palWriteBus(const IOBus *bus, ioportmask_t bits) {
  */
 void palSetBusMode(const IOBus *bus, iomode_t mode) {
 
-  osalDbgCheck((bus != NULL) && (bus->offset < PAL_IOPORTS_WIDTH));
+  chDbgCheck((bus != NULL) && (bus->offset < PAL_IOPORTS_WIDTH));
 
   palSetGroupMode(bus->portid, bus->mask, bus->offset, mode);
 }
@@ -177,7 +177,7 @@ msg_t palWaitPadTimeoutS(ioportid_t port,
                          sysinterval_t timeout) {
 
   palevent_t *pep = pal_lld_get_pad_event(port, pad);
-  return osalThreadEnqueueTimeoutS(&pep->threads, timeout);
+  return chThdEnqueueTimeoutS(&pep->threads, timeout);
 }
 
 /**
@@ -203,9 +203,9 @@ msg_t palWaitPadTimeout(ioportid_t port,
                         sysinterval_t timeout) {
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = palWaitPadTimeoutS(port, pad, timeout);
-  osalSysUnlock();
+  chSysUnlock();
   return msg;
 }
 
@@ -226,7 +226,7 @@ msg_t palWaitLineTimeoutS(ioline_t line,
                           sysinterval_t timeout) {
 
   palevent_t *pep = pal_lld_get_line_event(line);
-  return osalThreadEnqueueTimeoutS(&pep->threads, timeout);
+  return chThdEnqueueTimeoutS(&pep->threads, timeout);
 }
 
 /**
@@ -245,9 +245,9 @@ msg_t palWaitLineTimeoutS(ioline_t line,
 msg_t palWaitLineTimeout(ioline_t line, sysinterval_t timeout) {
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = palWaitLineTimeoutS(line, timeout);
-  osalSysUnlock();
+  chSysUnlock();
   return msg;
 }
 #endif /* PAL_USE_WAIT == TRUE */

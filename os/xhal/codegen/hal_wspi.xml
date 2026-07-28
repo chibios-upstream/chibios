@@ -44,9 +44,9 @@
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
-  osalThreadResumeI(&(wspip)->sync_transfer, msg);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&(wspip)->sync_transfer, msg);
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
         </condition>
@@ -194,10 +194,10 @@ WSPI_DRIVER_EXT_INIT_HOOK(self);
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (cmdp != NULL));
-osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) == WSPI_CFG_DATA_MODE_NONE);
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (cmdp != NULL));
+chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) == WSPI_CFG_DATA_MODE_NONE);
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = WSPI_STATE_COMMAND;
 wspi_lld_command(self, cmdp);]]></implementation>
@@ -209,11 +209,11 @@ wspi_lld_command(self, cmdp);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck((self != NULL) && (cmdp != NULL));
+chDbgCheck((self != NULL) && (cmdp != NULL));
 
-osalSysLock();
+chSysLock();
 wspiStartCommandI(self, cmdp);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="wspiStartSendI" ctype="void">
               <brief>Sends a command with data over the WSPI bus.</brief>
@@ -228,10 +228,10 @@ osalSysUnlock();]]></implementation>
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
-osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
+chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = WSPI_STATE_SEND;
 wspi_lld_send(self, cmdp, n, txbuf);]]></implementation>
@@ -249,11 +249,11 @@ wspi_lld_send(self, cmdp, n, txbuf);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
+chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
 
-osalSysLock();
+chSysLock();
 wspiStartSendI(self, cmdp, n, txbuf);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="wspiStartReceiveI" ctype="void">
               <brief>Receives data from the WSPI bus.</brief>
@@ -268,10 +268,10 @@ osalSysUnlock();]]></implementation>
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
-osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
+chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = WSPI_STATE_RECEIVE;
 wspi_lld_receive(self, cmdp, n, rxbuf);]]></implementation>
@@ -289,11 +289,11 @@ wspi_lld_receive(self, cmdp, n, rxbuf);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
+chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
 
-osalSysLock();
+chSysLock();
 wspiStartReceiveI(self, cmdp, n, rxbuf);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <condition check="WSPI_USE_SYNCHRONIZATION == TRUE">
               <method name="wspiCommand" ctype="bool">
@@ -308,14 +308,14 @@ osalSysUnlock();]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck((self != NULL) && (cmdp != NULL));
-osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) == WSPI_CFG_DATA_MODE_NONE);
+chDbgCheck((self != NULL) && (cmdp != NULL));
+chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) == WSPI_CFG_DATA_MODE_NONE);
 
-osalSysLock();
-osalDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
+chSysLock();
+chDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
 wspiStartCommandI(self, cmdp);
-msg = osalThreadSuspendS(&self->sync_transfer);
-osalSysUnlock();
+msg = chThdSuspendTimeoutS(&self->sync_transfer, TIME_INFINITE);
+chSysUnlock();
 
 return (bool)(msg != MSG_OK);]]></implementation>
               </method>
@@ -337,14 +337,14 @@ return (bool)(msg != MSG_OK);]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
-osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
+chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
 
-osalSysLock();
-osalDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
+chSysLock();
+chDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
 wspiStartSendI(self, cmdp, n, txbuf);
-msg = osalThreadSuspendS(&self->sync_transfer);
-osalSysUnlock();
+msg = chThdSuspendTimeoutS(&self->sync_transfer, TIME_INFINITE);
+chSysUnlock();
 
 return (bool)(msg != MSG_OK);]]></implementation>
               </method>
@@ -366,14 +366,14 @@ return (bool)(msg != MSG_OK);]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
-osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
+chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
 
-osalSysLock();
-osalDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
+chSysLock();
+chDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
 wspiStartReceiveI(self, cmdp, n, rxbuf);
-msg = osalThreadSuspendS(&self->sync_transfer);
-osalSysUnlock();
+msg = chThdSuspendTimeoutS(&self->sync_transfer, TIME_INFINITE);
+chSysUnlock();
 
 return (bool)(msg != MSG_OK);]]></implementation>
               </method>
@@ -389,10 +389,10 @@ return (bool)(msg != MSG_OK);]]></implementation>
                 </param>
                 <iclass />
                 <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (cmdp != NULL));
-osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (cmdp != NULL));
+chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = WSPI_STATE_MEMMAP;
 wspi_lld_map_flash(self, cmdp, addrp);]]></implementation>
@@ -407,19 +407,19 @@ wspi_lld_map_flash(self, cmdp, addrp);]]></implementation>
                 </param>
                 <api />
                 <implementation><![CDATA[
-osalDbgCheck((self != NULL) && (cmdp != NULL));
+chDbgCheck((self != NULL) && (cmdp != NULL));
 
-osalSysLock();
+chSysLock();
 wspiMapFlashI(self, cmdp, addrp);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
               </method>
               <method name="wspiUnmapFlashI" ctype="void">
                 <brief>Unmaps a WSPI flash device from memory space.</brief>
                 <iclass />
                 <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert(self->state == WSPI_STATE_MEMMAP, "not mapped");
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert(self->state == WSPI_STATE_MEMMAP, "not mapped");
 
 wspi_lld_unmap_flash(self);
 self->state = HAL_DRV_STATE_READY;]]></implementation>
@@ -428,11 +428,11 @@ self->state = HAL_DRV_STATE_READY;]]></implementation>
                 <brief>Unmaps a WSPI flash device from memory space.</brief>
                 <api />
                 <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 wspiUnmapFlashI(self);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
               </method>
             </condition>
           </regular>
@@ -459,10 +459,10 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 wspi_lld_stop(self);
 #if WSPI_USE_SYNCHRONIZATION == TRUE
-osalSysLock();
-osalThreadResumeI(&self->sync_transfer, MSG_RESET);
-osalOsRescheduleS();
-osalSysUnlock();
+chSysLock();
+chThdResumeI(&self->sync_transfer, MSG_RESET);
+chSchRescheduleS();
+chSysUnlock();
 #endif]]></implementation>
             </method>
             <method shortname="setcfg">

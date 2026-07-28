@@ -47,18 +47,8 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
-#if OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING
-
-#error "OSAL_ST_MODE_FREERUNNING unsupported"
-
-#elif OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC
-
-#elif OSAL_ST_MODE == OSAL_ST_MODE_NONE
-
-#else
-
-#error "invalid OSAL_ST_MODE"
-
+#if CH_CFG_ST_TIMEDELTA > 0
+#error "VIO system timer does not support tickless mode"
 #endif
 
 #if (PORT_USE_LOCAL_SYSTICK == FALSE) && ((SB_VRQ_ALARM < 0) || (SB_VRQ_ALARM > 31))

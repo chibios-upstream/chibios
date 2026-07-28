@@ -238,7 +238,7 @@
  * @brief   SPI DMA error hook.
  */
 #if !defined(STM32_SPI_DMA_ERROR_HOOK) || defined(__DOXYGEN__)
-#define STM32_SPI_DMA_ERROR_HOOK(spip)      osalSysHalt("DMA failure")
+#define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 #endif
 
 /**
@@ -331,32 +331,32 @@
 #endif
 
 #if STM32_SPI_USE_SPI1 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI1_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI1_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI1"
 #endif
 
 #if STM32_SPI_USE_SPI2 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI2_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI2_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI2"
 #endif
 
 #if STM32_SPI_USE_SPI3 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI3_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI3_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI3"
 #endif
 
 #if STM32_SPI_USE_SPI4 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI4_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI4_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI4"
 #endif
 
 #if STM32_SPI_USE_SPI5 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI5_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI5_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI5"
 #endif
 
 #if STM32_SPI_USE_SPI6 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI6_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI6_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI6"
 #endif
 

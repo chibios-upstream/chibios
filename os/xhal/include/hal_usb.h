@@ -255,9 +255,9 @@
 #define _usb_isr_invoke_sof_cb(usbp)                                        \
   do {                                                                      \
     if ((usbp)->binder != NULL) {                                           \
-      osalSysLockFromISR();                                                 \
+      chSysLockFromISR();                                                   \
       usbBinderSOFI((usbp)->binder);                                        \
-      osalSysUnlockFromISR();                                               \
+      chSysUnlockFromISR();                                                 \
     }                                                                       \
   } while (false)
 
@@ -291,9 +291,9 @@
     if ((usbp)->epc[ep]->in_cb != NULL) {                                   \
       (usbp)->epc[ep]->in_cb(usbp, ep);                                     \
     }                                                                       \
-    osalSysLockFromISR();                                                   \
-    osalThreadResumeI(&(usbp)->epc[ep]->in_state->thread, MSG_OK);          \
-    osalSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                     \
+    chThdResumeI(&(usbp)->epc[ep]->in_state->thread, MSG_OK);               \
+    chSysUnlockFromISR();                                                   \
   } while (false)
 
 /**
@@ -310,10 +310,10 @@
     if ((usbp)->epc[ep]->out_cb != NULL) {                                  \
       (usbp)->epc[ep]->out_cb(usbp, ep);                                    \
     }                                                                       \
-    osalSysLockFromISR();                                                   \
-    osalThreadResumeI(&(usbp)->epc[ep]->out_state->thread,                  \
+    chSysLockFromISR();                                                     \
+    chThdResumeI(&(usbp)->epc[ep]->out_state->thread,                       \
                       usbGetReceiveTransactionSizeX(usbp, ep));             \
-    osalSysUnlockFromISR();                                                 \
+    chSysUnlockFromISR();                                                   \
   } while (false)
 
 #else
@@ -669,9 +669,9 @@ struct hal_usb_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -1487,10 +1487,10 @@ static inline usbeventflags_t usbGetAndClearEventsX(void *ip,
   usbeventflags_t flags;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   flags = self->events & mask;
   self->events &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return flags;
 }

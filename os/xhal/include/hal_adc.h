@@ -140,7 +140,7 @@
  * @notapi
  */
 #define _adc_reset_i(adcp)                                                  \
-  osalThreadResumeI(&(adcp)->thread, MSG_RESET)
+  chThdResumeI(&(adcp)->thread, MSG_RESET)
 
 /**
  * @brief       Resumes a thread waiting for conversion completion.
@@ -150,7 +150,7 @@
  * @notapi
  */
 #define _adc_reset_s(adcp)                                                  \
-  osalThreadResumeS(&(adcp)->thread, MSG_RESET)
+  chThdResumeS(&(adcp)->thread, MSG_RESET)
 
 /**
  * @brief       Wakes up a thread waiting for a conversion state.
@@ -162,11 +162,11 @@
  */
 #define _adc_wakeup_isr(adcp, state)                                        \
   do {                                                                      \
-    osalSysLockFromISR();                                                   \
+    chSysLockFromISR();                                                     \
     if ((adcp)->sync_state == (state)) {                                    \
-      osalThreadResumeI(&(adcp)->thread, MSG_OK);                           \
+      chThdResumeI(&(adcp)->thread, MSG_OK);                                \
     }                                                                       \
-    osalSysUnlockFromISR();                                                 \
+    chSysUnlockFromISR();                                                   \
   } while (false)
 
 /**
@@ -179,9 +179,9 @@
  */
 #define _adc_error_wakeup_isr(adcp)                                         \
   do {                                                                      \
-    osalSysLockFromISR();                                                   \
-    osalThreadResumeI(&(adcp)->thread, MSG_RESET);                          \
-    osalSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                     \
+    chThdResumeI(&(adcp)->thread, MSG_RESET);                               \
+    chSysUnlockFromISR();                                                   \
   } while (false)
 
 #else
@@ -403,9 +403,9 @@ struct hal_adc_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -562,10 +562,10 @@ static inline adceventflags_t adcGetAndClearEventsX(void *ip,
   adceventflags_t flags;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   flags = self->events & mask;
   self->events &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return flags;
 }
@@ -599,10 +599,10 @@ static inline adcerror_t adcGetAndClearErrorsX(void *ip, adcerror_t mask) {
   adcerror_t errors;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   errors = self->errors & mask;
   self->errors &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return errors;
 }

@@ -29,7 +29,7 @@
 
 #include "ccportab.h"
 
-#include "osal.h"
+#include "ch.h"
 #include "board.h"
 #include "xhalconf.h"
 
@@ -351,13 +351,8 @@ static inline bool halClockSwitchMode(const halclkcfg_t *ccp) {
 #include "hal_wdg.h"
 #include "hal_wspi.h"
 
-/*
- *  The ST driver is a special case, it is only included if the OSAL is
- *  configured to require it.
- */
-#if OSAL_ST_MODE != OSAL_ST_MODE_NONE
+/* System timer driver.*/
 #include "hal_st.h"
-#endif
 
 /* Complex drivers.*/
 //#include "hal_mmc_spi.h"

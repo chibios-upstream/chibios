@@ -227,9 +227,9 @@ const struct hal_pwm_driver_vmt __hal_pwm_driver_vmt = {
  */
 void pwmChangePeriodI(void *ip, pwmcnt_t period) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->period = period;
   pwm_lld_change_period(self, period);
@@ -245,11 +245,11 @@ void pwmChangePeriodI(void *ip, pwmcnt_t period) {
  */
 void pwmChangePeriod(void *ip, pwmcnt_t period) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   pwmChangePeriodI(self, period);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -263,9 +263,9 @@ void pwmChangePeriod(void *ip, pwmcnt_t period) {
  */
 void pwmEnableChannelI(void *ip, pwmchannel_t channel, pwmcnt_t width) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (channel < self->channels));
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (channel < self->channels));
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->enabled |= ((pwmchnmsk_t)1U << (pwmchnmsk_t)channel);
   pwm_lld_enable_channel(self, channel, width);
@@ -282,11 +282,11 @@ void pwmEnableChannelI(void *ip, pwmchannel_t channel, pwmcnt_t width) {
  */
 void pwmEnableChannel(void *ip, pwmchannel_t channel, pwmcnt_t width) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   pwmEnableChannelI(self, channel, width);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -299,9 +299,9 @@ void pwmEnableChannel(void *ip, pwmchannel_t channel, pwmcnt_t width) {
  */
 void pwmDisableChannelI(void *ip, pwmchannel_t channel) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (channel < self->channels));
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (channel < self->channels));
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->enabled &= ~((pwmchnmsk_t)1U << (pwmchnmsk_t)channel);
   self->enabled_events &= ~PWM_EVENT_CHANNEL(channel);
@@ -318,11 +318,11 @@ void pwmDisableChannelI(void *ip, pwmchannel_t channel) {
  */
 void pwmDisableChannel(void *ip, pwmchannel_t channel) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   pwmDisableChannelI(self, channel);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -335,10 +335,10 @@ void pwmDisableChannel(void *ip, pwmchannel_t channel) {
  */
 void pwmEnableEventsI(void *ip, pwm_events_t events) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
-  osalDbgAssert(drvGetCallbackX(self) != NULL, "undefined callback");
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(drvGetCallbackX(self) != NULL, "undefined callback");
 
   self->enabled_events |= events;
   pwm_lld_enable_events(self, events);
@@ -354,11 +354,11 @@ void pwmEnableEventsI(void *ip, pwm_events_t events) {
  */
 void pwmEnableEvents(void *ip, pwm_events_t events) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   pwmEnableEventsI(self, events);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -371,9 +371,9 @@ void pwmEnableEvents(void *ip, pwm_events_t events) {
  */
 void pwmDisableEventsI(void *ip, pwm_events_t events) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->enabled_events &= ~events;
   pwm_lld_disable_events(self, events);
@@ -389,11 +389,11 @@ void pwmDisableEventsI(void *ip, pwm_events_t events) {
  */
 void pwmDisableEvents(void *ip, pwm_events_t events) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   pwmDisableEventsI(self, events);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -430,15 +430,15 @@ void pwmDisablePeriodicNotification(void *ip) {
  */
 void pwmEnableChannelNotification(void *ip, pwmchannel_t channel) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgCheck(channel < self->channels);
-  osalDbgAssert((self->enabled &
+  chSysLock();
+  chDbgCheck(channel < self->channels);
+  chDbgAssert((self->enabled &
                  ((pwmchnmsk_t)1U << (pwmchnmsk_t)channel)) != 0U,
                 "channel not enabled");
   pwmEnableEventsI(self, PWM_EVENT_CHANNEL(channel));
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -451,12 +451,12 @@ void pwmEnableChannelNotification(void *ip, pwmchannel_t channel) {
  */
 void pwmDisableChannelNotification(void *ip, pwmchannel_t channel) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgCheck(channel < self->channels);
+  chSysLock();
+  chDbgCheck(channel < self->channels);
   pwmDisableEventsI(self, PWM_EVENT_CHANNEL(channel));
-  osalSysUnlock();
+  chSysUnlock();
 }
 /** @} */
 

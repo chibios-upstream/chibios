@@ -24,8 +24,6 @@
 
 #include "hal.h"
 
-#if (OSAL_ST_MODE != OSAL_ST_MODE_NONE) || defined(__DOXYGEN__)
-
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
@@ -42,7 +40,7 @@
 /* Driver local variables and types.                                         */
 /*===========================================================================*/
 
-#if (PORT_USE_LOCAL_SYSTICK == FALSE) && (OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC)
+#if (PORT_USE_LOCAL_SYSTICK == FALSE) && (CH_CFG_ST_TIMEDELTA == 0)
 static sysinterval_t st_alarm_interval;
 #endif
 
@@ -59,16 +57,16 @@ static sysinterval_t st_alarm_interval;
  *
  * @isr
  */
-#if (PORT_USE_LOCAL_SYSTICK == FALSE) && (OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC)
-OSAL_IRQ_HANDLER(MK_VECTOR(SB_VRQ_ALARM)) {
+#if (PORT_USE_LOCAL_SYSTICK == FALSE) && (CH_CFG_ST_TIMEDELTA == 0)
+CH_IRQ_HANDLER(MK_VECTOR(SB_VRQ_ALARM)) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
-  osalSysLockFromISR();
-  osalOsTimerHandlerI();
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chSysTimerHandlerI();
+  chSysUnlockFromISR();
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -83,15 +81,13 @@ OSAL_IRQ_HANDLER(MK_VECTOR(SB_VRQ_ALARM)) {
  */
 void st_lld_init(void) {
 
-#if (PORT_USE_LOCAL_SYSTICK == FALSE) && (OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC)
-  st_alarm_interval = sbGetFrequency() / OSAL_ST_FREQUENCY;
+#if (PORT_USE_LOCAL_SYSTICK == FALSE) && (CH_CFG_ST_TIMEDELTA == 0)
+  st_alarm_interval = sbGetFrequency() / CH_CFG_ST_FREQUENCY;
 
   /* The ST layer owns the alarm VRQ when the port-local systick is disabled. */
   __sb_vrq_seten(1U << SB_VRQ_ALARM);
   sbSetAlarm(st_alarm_interval, true);
 #endif
 }
-
-#endif /* OSAL_ST_MODE != OSAL_ST_MODE_NONE */
 
 /** @} */

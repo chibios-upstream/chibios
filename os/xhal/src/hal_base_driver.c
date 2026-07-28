@@ -166,7 +166,7 @@ hal_base_driver_c *drvStartByName(const char *name, msg_t *msgp) {
   msg_t msg = HAL_RET_SUCCESS;
   hal_base_driver_c *drvp;
 
-  osalSysLock();
+  chSysLock();
 
   drvp = drvRegGetFirstX();
   while (drvp != NULL) {
@@ -185,7 +185,7 @@ hal_base_driver_c *drvStartByName(const char *name, msg_t *msgp) {
     *msgp = msg;
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return drvp;
 }
@@ -218,7 +218,13 @@ void *__drv_objinit_impl(void *ip, const void *vmt) {
   self->state  = HAL_DRV_STATE_STOP;
   self->arg    = NULL;
   self->config = NULL;
-  osalMutexObjectInit(&self->mutex);
+#if HAL_USE_MUTUAL_EXCLUSION == TRUE
+#if CH_CFG_USE_MUTEXES == TRUE
+  chMtxObjectInit(&self->mutex);
+#elif CH_CFG_USE_SEMAPHORES == TRUE
+  chSemObjectInit(&self->mutex, (cnt_t)1);
+#endif
+#endif
 #if HAL_USE_REGISTRY == TRUE
   self->id     = 0U;
   self->name   = "unk";
@@ -288,9 +294,9 @@ msg_t drvStart(void *ip, const void *config) {
   const void *newcfg = NULL;
   bool start = false;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
 
   switch (self->state) {
   case HAL_DRV_STATE_UNINIT:
@@ -320,24 +326,24 @@ msg_t drvStart(void *ip, const void *config) {
     break;
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   if (start) {
     /* Physically starting the peripheral.*/
     msg = __drv_start(self, config);
 
-    osalSysLock();
+    chSysLock();
     if (msg == HAL_RET_SUCCESS) {
       self->state = HAL_DRV_STATE_READY;
 
       /* LLD is supposed to set a configuration.*/
-      osalDbgAssert(self->config != NULL, "no configuration");
+      chDbgAssert(self->config != NULL, "no configuration");
     }
     else {
       self->state = HAL_DRV_STATE_STOP;
       self->config = NULL;
     }
-    osalSysUnlock();
+    chSysUnlock();
   }
 
   return msg;
@@ -356,10 +362,10 @@ void drvStop(void *ip) {
   hal_base_driver_c *self = (hal_base_driver_c *)ip;
   bool stop = false;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert(self->state != HAL_DRV_STATE_UNINIT, "invalid state");
+  chSysLock();
+  chDbgAssert(self->state != HAL_DRV_STATE_UNINIT, "invalid state");
 
   switch (self->state) {
   case HAL_DRV_STATE_STOP:
@@ -374,15 +380,15 @@ void drvStop(void *ip) {
     break;
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   if (stop) {
     __drv_stop(self);
 
-    osalSysLock();
+    chSysLock();
     self->state  = HAL_DRV_STATE_STOP;
     self->config = NULL;
-    osalSysUnlock();
+    chSysUnlock();
   }
 }
 

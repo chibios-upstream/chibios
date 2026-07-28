@@ -225,9 +225,9 @@ const struct hal_icu_driver_vmt __hal_icu_driver_vmt = {
  */
 void icuStartCaptureI(void *ip) {
   hal_icu_driver_c *self = (hal_icu_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->width  = 0U;
   self->period = 0U;
@@ -245,11 +245,11 @@ void icuStartCaptureI(void *ip) {
  */
 void icuStartCapture(void *ip) {
   hal_icu_driver_c *self = (hal_icu_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   icuStartCaptureI(self);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -266,13 +266,13 @@ bool icuWaitCapture(void *ip) {
   hal_icu_driver_c *self = (hal_icu_driver_c *)ip;
   bool status;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert((self->state == ICU_WAITING) ||
+  chSysLock();
+  chDbgAssert((self->state == ICU_WAITING) ||
                 (self->state == ICU_ACTIVE),
                 "invalid state");
-  osalDbgAssert(icuAreNotificationsEnabledX(self) == false,
+  chDbgAssert(icuAreNotificationsEnabledX(self) == false,
                 "notifications enabled");
 
   status = icu_lld_wait_capture(self);
@@ -284,7 +284,7 @@ bool icuWaitCapture(void *ip) {
     self->period = icu_lld_get_period(self);
     self->state  = ICU_ACTIVE;
   }
-  osalSysUnlock();
+  chSysUnlock();
 
   return status;
 }
@@ -298,9 +298,9 @@ bool icuWaitCapture(void *ip) {
  */
 void icuStopCaptureI(void *ip) {
   hal_icu_driver_c *self = (hal_icu_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == ICU_WAITING) ||
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == ICU_WAITING) ||
                 (self->state == ICU_ACTIVE),
                 "invalid state");
 
@@ -318,11 +318,11 @@ void icuStopCaptureI(void *ip) {
  */
 void icuStopCapture(void *ip) {
   hal_icu_driver_c *self = (hal_icu_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   icuStopCaptureI(self);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -335,12 +335,12 @@ void icuStopCapture(void *ip) {
  */
 void icuEnableEventsI(void *ip, icu_events_t events) {
   hal_icu_driver_c *self = (hal_icu_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == ICU_WAITING) ||
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == ICU_WAITING) ||
                 (self->state == ICU_ACTIVE),
                 "invalid state");
-  osalDbgAssert(drvGetCallbackX(self) != NULL, "undefined callback");
+  chDbgAssert(drvGetCallbackX(self) != NULL, "undefined callback");
 
   events &= ICU_EVENT_ALL;
   self->enabled_events |= events;
@@ -357,11 +357,11 @@ void icuEnableEventsI(void *ip, icu_events_t events) {
  */
 void icuEnableEvents(void *ip, icu_events_t events) {
   hal_icu_driver_c *self = (hal_icu_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   icuEnableEventsI(self, events);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -374,9 +374,9 @@ void icuEnableEvents(void *ip, icu_events_t events) {
  */
 void icuDisableEventsI(void *ip, icu_events_t events) {
   hal_icu_driver_c *self = (hal_icu_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == ICU_WAITING) ||
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == ICU_WAITING) ||
                 (self->state == ICU_ACTIVE),
                 "invalid state");
 
@@ -395,11 +395,11 @@ void icuDisableEventsI(void *ip, icu_events_t events) {
  */
 void icuDisableEvents(void *ip, icu_events_t events) {
   hal_icu_driver_c *self = (hal_icu_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   icuDisableEventsI(self, events);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**

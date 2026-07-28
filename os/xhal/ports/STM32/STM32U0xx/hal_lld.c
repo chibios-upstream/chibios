@@ -834,7 +834,7 @@ bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
  */
 halfreq_t hal_lld_get_clock_point(halclkpt_t clkpt) {
 
-  osalDbgAssert(clkpt < CLK_ARRAY_SIZE, "invalid clock point");
+  chDbgAssert(clkpt < CLK_ARRAY_SIZE, "invalid clock point");
 
   return clock_points[clkpt];
 }

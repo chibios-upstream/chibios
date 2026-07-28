@@ -46,8 +46,9 @@
 
 /* Handling differences in ST headers.*/
 #if !defined(STM32H7XX) && !defined(STM32L4XX) && !defined(STM32L4XXP) &&   \
-    !defined(STM32G0XX) && !defined(STM32G4XX) && !defined(STM32WBXX) &&    \
-    !defined(STM32WLXX)
+    !defined(STM32C0XX) && !defined(STM32G0XX) && !defined(STM32G4XX) &&    \
+    !defined(STM32WBXX) && !defined(STM32WLXX) && !defined(STM32H5XX) &&    \
+    !defined(STM32U0XX) && !defined(STM32U3XX) && !defined(STM32U5XX)
 #define EMR1    EMR
 #define IMR1    IMR
 #define PR1     PR
@@ -145,12 +146,12 @@ typedef uint32_t extimode_t;
  */
 #if (STM32_EXTI_SEPARATE_RF == FALSE) || defined(__DOXYGEN__)
 #define extiClearGroup1(mask) do {                                          \
-  osalDbgAssert(((mask) & STM32_EXTI_IMR1_MASK) == 0U, "fixed lines");      \
+  chDbgAssert(((mask) & STM32_EXTI_IMR1_MASK) == 0U, "fixed lines");      \
   EXTI->PR1 = (uint32_t)(mask);                                             \
 } while (false)
 #else
 #define extiClearGroup1(mask) do {                                          \
-  osalDbgAssert(((mask) & STM32_EXTI_IMR1_MASK) == 0U, "fixed lines");      \
+  chDbgAssert(((mask) & STM32_EXTI_IMR1_MASK) == 0U, "fixed lines");      \
   EXTI->RPR1 = (uint32_t)(mask);                                            \
   EXTI->FPR1 = (uint32_t)(mask);                                            \
 } while (false)
@@ -166,12 +167,12 @@ typedef uint32_t extimode_t;
  */
 #if (STM32_EXTI_SEPARATE_RF == FALSE) || defined(__DOXYGEN__)
 #define extiClearGroup2(mask) do {                                          \
-  osalDbgAssert(((mask) & STM32_EXTI_IMR2_MASK) == 0U, "fixed lines");      \
+  chDbgAssert(((mask) & STM32_EXTI_IMR2_MASK) == 0U, "fixed lines");      \
   EXTI->PR2 = (uint32_t)(mask);                                             \
 } while (false)
 #else
 #define extiClearGroup2(mask) do {                                          \
-  osalDbgAssert(((mask) & STM32_EXTI_IMR2_MASK) == 0U, "fixed lines");      \
+  chDbgAssert(((mask) & STM32_EXTI_IMR2_MASK) == 0U, "fixed lines");      \
   EXTI->RPR2 = (uint32_t)(mask);                                            \
   EXTI->FPR2 = (uint32_t)(mask);                                            \
 } while (false)

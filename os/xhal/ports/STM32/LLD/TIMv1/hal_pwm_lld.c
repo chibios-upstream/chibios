@@ -580,7 +580,7 @@ msg_t pwm_lld_start(hal_pwm_driver_c *pwmp) {
 #endif
 
   psc = (pwmp->clock / cfg->frequency) - 1U;
-  osalDbgAssert((psc <= 0xFFFFU) &&
+  chDbgAssert((psc <= 0xFFFFU) &&
                 (((psc + 1U) * cfg->frequency) == pwmp->clock),
                 "invalid frequency");
 
@@ -916,7 +916,7 @@ void pwm_lld_enable_events(hal_pwm_driver_c *pwmp, pwm_events_t events) {
   uint32_t sr;
   uint32_t dier;
 
-  osalDbgAssert((events & ~PWM_EVENT_ALL) == 0U, "unsupported events");
+  chDbgAssert((events & ~PWM_EVENT_ALL) == 0U, "unsupported events");
 
   sr   = pwm_lld_events_to_sr(events);
   dier = pwm_lld_events_to_dier(events);

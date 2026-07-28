@@ -55,7 +55,7 @@
 #endif
 
 /* Priority settings checks.*/
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC5_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC5_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_ADC5_PRIORITY"
 #endif
 
@@ -101,10 +101,10 @@ static inline void adc5_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_ADC5_HANDLER) {
+CH_IRQ_HANDLER(STM32_ADC5_HANDLER) {
   uint32_t isr;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   isr  = ADC5->ISR;
 #if defined(STM32_ADC_ADC5_IRQ_HOOK)
@@ -113,7 +113,7 @@ OSAL_IRQ_HANDLER(STM32_ADC5_HANDLER) {
   adc_lld_serve_interrupt(&ADCD5);
   (void)isr;
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 

@@ -199,18 +199,18 @@ msg_t trngGenerate(void *ip, size_t size, uint8_t *out) {
   hal_trng_driver_c *self = (hal_trng_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck((self != NULL) && (size > 0U) && (out != NULL));
+  chDbgCheck((self != NULL) && (size > 0U) && (out != NULL));
 
-  osalSysLock();
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chSysLock();
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
   self->state = HAL_DRV_STATE_ACTIVE;
-  osalSysUnlock();
+  chSysUnlock();
 
   msg = trng_lld_generate(self, size, out);
 
-  osalSysLock();
+  chSysLock();
   self->state = HAL_DRV_STATE_READY;
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }

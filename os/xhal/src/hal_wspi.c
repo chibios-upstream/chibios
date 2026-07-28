@@ -152,10 +152,10 @@ void __wspi_stop_impl(void *ip) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
   wspi_lld_stop(self);
 #if WSPI_USE_SYNCHRONIZATION == TRUE
-  osalSysLock();
-  osalThreadResumeI(&self->sync_transfer, MSG_RESET);
-  osalOsRescheduleS();
-  osalSysUnlock();
+  chSysLock();
+  chThdResumeI(&self->sync_transfer, MSG_RESET);
+  chSchRescheduleS();
+  chSysUnlock();
 #endif
 }
 
@@ -212,10 +212,10 @@ const struct hal_wspi_driver_vmt __hal_wspi_driver_vmt = {
  */
 void wspiStartCommandI(void *ip, const wspi_command_t *cmdp) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (cmdp != NULL));
-  osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) == WSPI_CFG_DATA_MODE_NONE);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (cmdp != NULL));
+  chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) == WSPI_CFG_DATA_MODE_NONE);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->state = WSPI_STATE_COMMAND;
   wspi_lld_command(self, cmdp);
@@ -231,11 +231,11 @@ void wspiStartCommandI(void *ip, const wspi_command_t *cmdp) {
  */
 void wspiStartCommand(void *ip, const wspi_command_t *cmdp) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  osalDbgCheck((self != NULL) && (cmdp != NULL));
+  chDbgCheck((self != NULL) && (cmdp != NULL));
 
-  osalSysLock();
+  chSysLock();
   wspiStartCommandI(self, cmdp);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -251,10 +251,10 @@ void wspiStartCommand(void *ip, const wspi_command_t *cmdp) {
 void wspiStartSendI(void *ip, const wspi_command_t *cmdp, size_t n,
                     const uint8_t *txbuf) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
-  osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
+  chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->state = WSPI_STATE_SEND;
   wspi_lld_send(self, cmdp, n, txbuf);
@@ -273,11 +273,11 @@ void wspiStartSendI(void *ip, const wspi_command_t *cmdp, size_t n,
 void wspiStartSend(void *ip, const wspi_command_t *cmdp, size_t n,
                    const uint8_t *txbuf) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
+  chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
 
-  osalSysLock();
+  chSysLock();
   wspiStartSendI(self, cmdp, n, txbuf);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -293,10 +293,10 @@ void wspiStartSend(void *ip, const wspi_command_t *cmdp, size_t n,
 void wspiStartReceiveI(void *ip, const wspi_command_t *cmdp, size_t n,
                        uint8_t *rxbuf) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
-  osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
+  chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->state = WSPI_STATE_RECEIVE;
   wspi_lld_receive(self, cmdp, n, rxbuf);
@@ -315,11 +315,11 @@ void wspiStartReceiveI(void *ip, const wspi_command_t *cmdp, size_t n,
 void wspiStartReceive(void *ip, const wspi_command_t *cmdp, size_t n,
                       uint8_t *rxbuf) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
+  chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
 
-  osalSysLock();
+  chSysLock();
   wspiStartReceiveI(self, cmdp, n, rxbuf);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 #if (WSPI_USE_SYNCHRONIZATION == TRUE) || defined (__DOXYGEN__)
@@ -338,14 +338,14 @@ bool wspiCommand(void *ip, const wspi_command_t *cmdp) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck((self != NULL) && (cmdp != NULL));
-  osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) == WSPI_CFG_DATA_MODE_NONE);
+  chDbgCheck((self != NULL) && (cmdp != NULL));
+  chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) == WSPI_CFG_DATA_MODE_NONE);
 
-  osalSysLock();
-  osalDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
+  chSysLock();
+  chDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
   wspiStartCommandI(self, cmdp);
-  msg = osalThreadSuspendS(&self->sync_transfer);
-  osalSysUnlock();
+  msg = chThdSuspendTimeoutS(&self->sync_transfer, TIME_INFINITE);
+  chSysUnlock();
 
   return (bool)(msg != MSG_OK);
 }
@@ -369,14 +369,14 @@ bool wspiSend(void *ip, const wspi_command_t *cmdp, size_t n,
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
-  osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+  chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (txbuf != NULL));
+  chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
 
-  osalSysLock();
-  osalDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
+  chSysLock();
+  chDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
   wspiStartSendI(self, cmdp, n, txbuf);
-  msg = osalThreadSuspendS(&self->sync_transfer);
-  osalSysUnlock();
+  msg = chThdSuspendTimeoutS(&self->sync_transfer, TIME_INFINITE);
+  chSysUnlock();
 
   return (bool)(msg != MSG_OK);
 }
@@ -399,14 +399,14 @@ bool wspiReceive(void *ip, const wspi_command_t *cmdp, size_t n,
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
-  osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+  chDbgCheck((self != NULL) && (cmdp != NULL) && (n > 0U) && (rxbuf != NULL));
+  chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
 
-  osalSysLock();
-  osalDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
+  chSysLock();
+  chDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
   wspiStartReceiveI(self, cmdp, n, rxbuf);
-  msg = osalThreadSuspendS(&self->sync_transfer);
-  osalSysUnlock();
+  msg = chThdSuspendTimeoutS(&self->sync_transfer, TIME_INFINITE);
+  chSysUnlock();
 
   return (bool)(msg != MSG_OK);
 }
@@ -425,10 +425,10 @@ bool wspiReceive(void *ip, const wspi_command_t *cmdp, size_t n,
  */
 void wspiMapFlashI(void *ip, const wspi_command_t *cmdp, uint8_t **addrp) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (cmdp != NULL));
-  osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (cmdp != NULL));
+  chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->state = WSPI_STATE_MEMMAP;
   wspi_lld_map_flash(self, cmdp, addrp);
@@ -446,11 +446,11 @@ void wspiMapFlashI(void *ip, const wspi_command_t *cmdp, uint8_t **addrp) {
  */
 void wspiMapFlash(void *ip, const wspi_command_t *cmdp, uint8_t **addrp) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  osalDbgCheck((self != NULL) && (cmdp != NULL));
+  chDbgCheck((self != NULL) && (cmdp != NULL));
 
-  osalSysLock();
+  chSysLock();
   wspiMapFlashI(self, cmdp, addrp);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -462,9 +462,9 @@ void wspiMapFlash(void *ip, const wspi_command_t *cmdp, uint8_t **addrp) {
  */
 void wspiUnmapFlashI(void *ip) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == WSPI_STATE_MEMMAP, "not mapped");
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == WSPI_STATE_MEMMAP, "not mapped");
 
   wspi_lld_unmap_flash(self);
   self->state = HAL_DRV_STATE_READY;
@@ -479,11 +479,11 @@ void wspiUnmapFlashI(void *ip) {
  */
 void wspiUnmapFlash(void *ip) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   wspiUnmapFlashI(self);
-  osalSysUnlock();
+  chSysUnlock();
 }
 #endif /* WSPI_SUPPORTS_MEMMAP == TRUE */
 /** @} */

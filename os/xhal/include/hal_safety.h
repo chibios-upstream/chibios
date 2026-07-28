@@ -203,7 +203,7 @@ extern "C" {
 /**
  * @brief   Enters a common safety fault handler on error.
  * @note    IF a custom handler is not defined then the default action is to
- *          call @p osalSysHalt().
+ *          call @p chSysHalt().
  * @note    This function can potentially not return.
  *
  * @param[in] result    the error status, @p true if an error occurred
@@ -465,7 +465,7 @@ static inline void halRegMaskedWrite8X(volatile uint8_t *p,
                                        bool verify) {
   uint8_t v;
 
-  osalDbgCheck((value & ~mask) == 0U);
+  chDbgCheck((value & ~mask) == 0U);
 
   v = *p;
   v &= ~mask;
@@ -510,7 +510,7 @@ static inline void halRegMaskedWrite16X(volatile uint16_t *p,
                                         bool verify) {
   uint16_t v;
 
-  osalDbgCheck((value & ~mask) == 0U);
+  chDbgCheck((value & ~mask) == 0U);
 
   v = *p;
   v &= ~mask;
@@ -555,7 +555,7 @@ static inline void halRegMaskedWrite32X(volatile uint32_t *p,
                                         bool verify) {
   uint32_t v;
 
-  osalDbgCheck((value & ~mask) == 0U);
+  chDbgCheck((value & ~mask) == 0U);
 
   v = *p;
   v &= ~mask;

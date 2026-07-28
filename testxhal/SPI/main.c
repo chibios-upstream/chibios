@@ -35,9 +35,9 @@ void spi_circular_cb(void *ip) {
 
   /* Stopping circular transfer on button press.*/
   if (palReadLine(PORTAB_LINE_BUTTON) == PORTAB_BUTTON_PRESSED) {
-    osalSysLockFromISR();
+    chSysLockFromISR();
     spiStopTransferI(&PORTAB_SPI1, &n);
-    osalSysUnlockFromISR();
+    chSysUnlockFromISR();
   }
 
   switch (drvGetStateX(spip)) {

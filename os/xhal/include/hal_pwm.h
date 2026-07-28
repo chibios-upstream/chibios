@@ -368,9 +368,9 @@ struct hal_pwm_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -537,8 +537,8 @@ CC_FORCE_INLINE
 static inline void pwmEnableChannelNotificationI(void *ip,
                                                  pwmchannel_t channel) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheck(channel < self->channels);
-  osalDbgAssert((self->enabled &
+  chDbgCheck(channel < self->channels);
+  chDbgAssert((self->enabled &
                  ((pwmchnmsk_t)1U << (pwmchnmsk_t)channel)) != 0U,
                 "channel not enabled");
   pwmEnableEventsI(self, PWM_EVENT_CHANNEL(channel));
@@ -556,7 +556,7 @@ CC_FORCE_INLINE
 static inline void pwmDisableChannelNotificationI(void *ip,
                                                   pwmchannel_t channel) {
   hal_pwm_driver_c *self = (hal_pwm_driver_c *)ip;
-  osalDbgCheck(channel < self->channels);
+  chDbgCheck(channel < self->channels);
   pwmDisableEventsI(self, PWM_EVENT_CHANNEL(channel));
 }
 
@@ -589,10 +589,10 @@ static inline pwm_events_t pwmGetAndClearEventsX(void *ip, pwm_events_t mask) {
   pwm_events_t events;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   events = self->events & mask;
   self->events &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return events;
 }

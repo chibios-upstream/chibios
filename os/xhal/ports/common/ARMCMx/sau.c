@@ -86,9 +86,9 @@ void sauDisable(void) {
 void sauEnableRegion(uint32_t region, uint32_t start,
                      uint32_t end, uint32_t flags) {
 
-  osalDbgCheck(region < SAU->TYPE);
-  osalDbgCheck((start & 0x1FU) == 0U);
-  osalDbgCheck((end & 0x1FU) == 0U);
+  chDbgCheck(region < SAU->TYPE);
+  chDbgCheck((start & 0x1FU) == 0U);
+  chDbgCheck((end & 0x1FU) == 0U);
 
   SAU->RNR  = region;
   SAU->RBAR = start;
@@ -102,7 +102,7 @@ void sauEnableRegion(uint32_t region, uint32_t start,
  */
 void sauDisableRegion(uint32_t region) {
 
-  osalDbgCheck(region < SAU->TYPE);
+  chDbgCheck(region < SAU->TYPE);
 
   SAU->RNR  = region;
   SAU->RLAR = 0U;

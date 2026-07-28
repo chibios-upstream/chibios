@@ -24,8 +24,6 @@
 
 #include "hal.h"
 
-#if (OSAL_ST_MODE != OSAL_ST_MODE_NONE) || defined(__DOXYGEN__)
-
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
@@ -90,7 +88,7 @@ void stBind(void) {
 }
 #endif /* defined(ST_LLD_MULTICORE_SUPPORT) */
 
-#if (OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING) || defined(__DOXYGEN__)
+#if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
 /**
  * @brief   Returns the time counter value.
  * @note    This functionality is only available in free running mode, the
@@ -118,7 +116,7 @@ systime_t stGetCounter(void) {
  */
 void stStartAlarm(systime_t abstime) {
 
-  osalDbgAssert(stIsAlarmActive() == false, "already active");
+  chDbgAssert(stIsAlarmActive() == false, "already active");
 
   st_lld_start_alarm(abstime);
 }
@@ -146,7 +144,7 @@ void stStopAlarm(void) {
  */
 void stSetAlarm(systime_t abstime) {
 
-  osalDbgAssert(stIsAlarmActive() != false, "not active");
+  chDbgAssert(stIsAlarmActive() != false, "not active");
 
   st_lld_set_alarm(abstime);
 }
@@ -162,7 +160,7 @@ void stSetAlarm(systime_t abstime) {
  */
 systime_t stGetAlarm(void) {
 
-  osalDbgAssert(stIsAlarmActive() != false, "not active");
+  chDbgAssert(stIsAlarmActive() != false, "not active");
 
   return st_lld_get_alarm();
 }
@@ -196,7 +194,7 @@ bool stIsAlarmActive(void) {
  */
 void stSetCallback(unsigned alarm, st_callback_t cb) {
 
-  osalDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
+  chDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
 
   st_callbacks[alarm] = cb;
 }
@@ -212,8 +210,8 @@ void stSetCallback(unsigned alarm, st_callback_t cb) {
  */
 void stBindAlarmN(unsigned alarm) {
 
-  osalDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
-  osalDbgAssert(stIsAlarmActive() == false, "already active");
+  chDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
+  chDbgAssert(stIsAlarmActive() == false, "already active");
 
   st_lld_bind_alarm_n(alarm);
 }
@@ -233,8 +231,8 @@ void stBindAlarmN(unsigned alarm) {
  */
 void stStartAlarmN(unsigned alarm, systime_t abstime) {
 
-  osalDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
-  osalDbgAssert(stIsAlarmActiveN(alarm) == false, "already active");
+  chDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
+  chDbgAssert(stIsAlarmActiveN(alarm) == false, "already active");
 
   st_lld_start_alarm_n(alarm, abstime);
 }
@@ -250,7 +248,7 @@ void stStartAlarmN(unsigned alarm, systime_t abstime) {
  */
 void stStopAlarmN(unsigned alarm) {
 
-  osalDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
+  chDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
 
   st_lld_stop_alarm_n(alarm);
 }
@@ -267,8 +265,8 @@ void stStopAlarmN(unsigned alarm) {
  */
 void stSetAlarmN(unsigned alarm, systime_t abstime) {
 
-  osalDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
-  osalDbgAssert(stIsAlarmActiveN(alarm) != false, "not active");
+  chDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
+  chDbgAssert(stIsAlarmActiveN(alarm) != false, "not active");
 
   st_lld_set_alarm_n(alarm, abstime);
 }
@@ -285,8 +283,8 @@ void stSetAlarmN(unsigned alarm, systime_t abstime) {
  */
 systime_t stGetAlarmN(unsigned alarm) {
 
-  osalDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
-  osalDbgAssert(stIsAlarmActiveN(alarm) != false, "not active");
+  chDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
+  chDbgAssert(stIsAlarmActiveN(alarm) != false, "not active");
 
   return st_lld_get_alarm_n(alarm);
 }
@@ -303,13 +301,11 @@ systime_t stGetAlarmN(unsigned alarm) {
  */
 bool stIsAlarmActiveN(unsigned alarm) {
 
-  osalDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
+  chDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
 
   return st_lld_is_alarm_active_n(alarm);
 }
 #endif /* ST_LLD_NUM_ALARMS > 1 */
-#endif /* OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING */
-
-#endif /* OSAL_ST_MODE != OSAL_ST_MODE_NONE */
+#endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
 /** @} */

@@ -284,9 +284,9 @@ struct hal_i2c_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -419,10 +419,10 @@ static inline i2cflags_t i2cGetAndClearErrorsX(void *ip) {
   i2cflags_t errors;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   errors = self->errors;
   self->errors = I2C_NO_ERROR;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return errors;
 }
@@ -440,9 +440,9 @@ static inline i2cflags_t i2cGetAndClearErrorsX(void *ip) {
 CC_FORCE_INLINE
 static inline void __i2c_wakeup_isr(void *ip, msg_t msg) {
   hal_i2c_driver_c *self = (hal_i2c_driver_c *)ip;
-  osalSysLockFromISR();
-  osalThreadResumeI(&self->sync_transfer, msg);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&self->sync_transfer, msg);
+  chSysUnlockFromISR();
   __cbdrv_invoke_cb(self);
 }
 

@@ -210,9 +210,9 @@ const struct hal_gpt_driver_vmt __hal_gpt_driver_vmt = {
  */
 void gptChangeIntervalI(void *ip, gptcnt_t interval) {
   hal_gpt_driver_c *self = (hal_gpt_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == GPT_CONTINUOUS, "invalid state");
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == GPT_CONTINUOUS, "invalid state");
 
   gpt_lld_change_interval(self, interval);
 }
@@ -227,11 +227,11 @@ void gptChangeIntervalI(void *ip, gptcnt_t interval) {
  */
 void gptChangeInterval(void *ip, gptcnt_t interval) {
   hal_gpt_driver_c *self = (hal_gpt_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   gptChangeIntervalI(self, interval);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -244,9 +244,9 @@ void gptChangeInterval(void *ip, gptcnt_t interval) {
  */
 void gptStartContinuousI(void *ip, gptcnt_t interval) {
   hal_gpt_driver_c *self = (hal_gpt_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->state = GPT_CONTINUOUS;
   gpt_lld_start_timer(self, interval);
@@ -262,11 +262,11 @@ void gptStartContinuousI(void *ip, gptcnt_t interval) {
  */
 void gptStartContinuous(void *ip, gptcnt_t interval) {
   hal_gpt_driver_c *self = (hal_gpt_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   gptStartContinuousI(self, interval);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -279,10 +279,10 @@ void gptStartContinuous(void *ip, gptcnt_t interval) {
  */
 void gptStartOneShotI(void *ip, gptcnt_t interval) {
   hal_gpt_driver_c *self = (hal_gpt_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(drvGetCallbackX(self) != NULL, "callback not set");
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert(drvGetCallbackX(self) != NULL, "callback not set");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->state = GPT_ONESHOT;
   gpt_lld_start_timer(self, interval);
@@ -298,11 +298,11 @@ void gptStartOneShotI(void *ip, gptcnt_t interval) {
  */
 void gptStartOneShot(void *ip, gptcnt_t interval) {
   hal_gpt_driver_c *self = (hal_gpt_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   gptStartOneShotI(self, interval);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -314,9 +314,9 @@ void gptStartOneShot(void *ip, gptcnt_t interval) {
  */
 void gptStopTimerI(void *ip) {
   hal_gpt_driver_c *self = (hal_gpt_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == GPT_CONTINUOUS) ||
                 (self->state == GPT_ONESHOT) ||
                 (self->state == HAL_DRV_STATE_COMPLETE),
@@ -335,11 +335,11 @@ void gptStopTimerI(void *ip) {
  */
 void gptStopTimer(void *ip) {
   hal_gpt_driver_c *self = (hal_gpt_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   gptStopTimerI(self);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -354,8 +354,8 @@ void gptStopTimer(void *ip) {
  */
 void gptPolledDelayX(void *ip, gptcnt_t interval) {
   hal_gpt_driver_c *self = (hal_gpt_driver_c *)ip;
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   gpt_lld_polled_delay(self, interval);
 }

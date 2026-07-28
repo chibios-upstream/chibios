@@ -56,7 +56,7 @@
 #endif
 
 /* Priority settings checks.*/
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC2_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC2_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_ADC2_PRIORITY"
 #endif
 
@@ -103,10 +103,10 @@ static inline void adc2_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_ADC2_HANDLER) {
+CH_IRQ_HANDLER(STM32_ADC2_HANDLER) {
   uint32_t isr;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   isr  = ADC2->ISR;
 #if defined(STM32_ADC_ADC2_IRQ_HOOK)
@@ -115,7 +115,7 @@ OSAL_IRQ_HANDLER(STM32_ADC2_HANDLER) {
   adc_lld_serve_interrupt(&ADCD2);
   (void)isr;
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 

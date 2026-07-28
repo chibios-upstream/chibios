@@ -580,7 +580,7 @@ if (config->bus_type != XSNOR_BUS_MODE_SPI) {
 else {
 #endif
 #if XSNOR_USE_SPI == TRUE
-  osalDbgAssert((dummy & 7) == 0U, "multiple of 8 dummy cycles");
+  chDbgAssert((dummy & 7) == 0U, "multiple of 8 dummy cycles");
 
   spiSelectX(config->bus.spi.drv);
   config->buffers->spibuf[0] = cmd;
@@ -623,7 +623,7 @@ if (config->bus_type != XSNOR_BUS_MODE_SPI) {
 else {
 #endif
 #if XSNOR_USE_SPI == TRUE
-  osalDbgAssert((dummy & 7) == 0U, "multiple of 8 dummy cycles");
+  chDbgAssert((dummy & 7) == 0U, "multiple of 8 dummy cycles");
 
   spiSelectX(config->bus.spi.drv);
   __xsnor_spi_cmd_addr(self, cmd, offset);
@@ -649,8 +649,8 @@ else {
                 <implementation>
 flash_error_t err;
 
-osalDbgCheck((self != NULL) &amp;&amp; (addrp != NULL));
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chDbgCheck((self != NULL) &amp;&amp; (addrp != NULL));
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 
 __xsnor_bus_acquire(self);
 if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -673,8 +673,8 @@ return err;</implementation>
                 <brief>Leaves the memory mapped mode.</brief>
                 <api />
                 <implementation>
-osalDbgCheck(self != NULL);
-osalDbgAssert(self->state == FLASH_MMAP, "invalid state");
+chDbgCheck(self != NULL);
+chDbgAssert(self->state == FLASH_MMAP, "invalid state");
 
 xsnor_device_mmap_off(self);
 

@@ -229,21 +229,21 @@ SPI_DRIVER_EXT_INIT_HOOK(self);
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
+chDbgCheckClassI();
 
-osalDbgCheck((self != NULL) && (n > 0U));
+chDbgCheck((self != NULL) && (n > 0U));
 #if SPI_SUPPORTS_CIRCULAR
-osalDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
+chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
              ((n & 1U) == 0U));
 #endif
 
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = HAL_DRV_STATE_ACTIVE;
 msg = spi_lld_ignore(self, n);
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
-osalDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
+chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
 #endif
 
 return msg;]]></implementation>
@@ -265,9 +265,9 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = spiStartIgnoreI(self, n);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
             </method>
@@ -298,22 +298,22 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
+chDbgCheckClassI();
 
-osalDbgCheck((self != NULL) && (n > 0U) &&
+chDbgCheck((self != NULL) && (n > 0U) &&
              (rxbuf != NULL) && (txbuf != NULL));
 #if SPI_SUPPORTS_CIRCULAR
-osalDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
+chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
              ((n & 1U) == 0U));
 #endif
 
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = HAL_DRV_STATE_ACTIVE;
 msg = spi_lld_exchange(self, n, txbuf, rxbuf);
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
-osalDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
+chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
 #endif
 
 return msg;]]></implementation>
@@ -345,9 +345,9 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = spiStartExchangeI(self, n, txbuf, rxbuf);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
             </method>
@@ -373,21 +373,21 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
+chDbgCheckClassI();
 
-osalDbgCheck((self != NULL) && (n > 0U) && (txbuf != NULL));
+chDbgCheck((self != NULL) && (n > 0U) && (txbuf != NULL));
 #if SPI_SUPPORTS_CIRCULAR
-osalDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
+chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
              ((n & 1U) == 0U));
 #endif
 
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = HAL_DRV_STATE_ACTIVE;
 msg = spi_lld_send(self, n, txbuf);
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
-osalDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
+chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
 #endif
 
 return msg;]]></implementation>
@@ -414,9 +414,9 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = spiStartSendI(self, n, txbuf);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
             </method>
@@ -443,21 +443,21 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
+chDbgCheckClassI();
 
-osalDbgCheck((self != NULL) && (n > 0U) && (rxbuf != NULL));
+chDbgCheck((self != NULL) && (n > 0U) && (rxbuf != NULL));
 #if SPI_SUPPORTS_CIRCULAR
-osalDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
+chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
              ((n & 1U) == 0U));
 #endif
 
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = HAL_DRV_STATE_ACTIVE;
 msg = spi_lld_receive(self, n, rxbuf);
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
-osalDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
+chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
 #endif
 
 return msg;]]></implementation>
@@ -485,9 +485,9 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = spiStartReceiveI(self, n, rxbuf);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
             </method>
@@ -502,11 +502,11 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
+chDbgCheckClassI();
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == HAL_DRV_STATE_ACTIVE) ||
               (self->state == HAL_DRV_STATE_HALF) ||
               (self->state == HAL_DRV_STATE_FULL) ||
@@ -520,7 +520,7 @@ if (self->state != HAL_DRV_STATE_READY) {
   self->state = HAL_DRV_STATE_READY;
 
 #if SPI_USE_SYNCHRONIZATION == TRUE
-  osalThreadResumeI(&self->sync_transfer, MSG_RESET);
+  chThdResumeI(&self->sync_transfer, MSG_RESET);
 #endif
 }
 else {
@@ -540,12 +540,12 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 
 msg = spiStopTransferI(self, np);
-osalOsRescheduleS();
+chSchRescheduleS();
 
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
             </method>
@@ -572,22 +572,22 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
-osalDbgCheckClassS();
-osalDbgCheck((state == HAL_DRV_STATE_HALF) ||
+chDbgCheck(self != NULL);
+chDbgCheckClassS();
+chDbgCheck((state == HAL_DRV_STATE_HALF) ||
              (state == HAL_DRV_STATE_FULL) ||
              (state == HAL_DRV_STATE_COMPLETE));
-osalDbgAssert((self->state == HAL_DRV_STATE_ACTIVE) ||
+chDbgAssert((self->state == HAL_DRV_STATE_ACTIVE) ||
               ((self->state == HAL_DRV_STATE_READY) &&
                (state == HAL_DRV_STATE_COMPLETE)),
               "invalid state");
-osalDbgCheck((state == HAL_DRV_STATE_COMPLETE) ||
+chDbgCheck((state == HAL_DRV_STATE_COMPLETE) ||
              ((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) != 0U));
-osalDbgAssert(self->sync_transfer == NULL, "already waiting");
+chDbgAssert(self->sync_transfer == NULL, "already waiting");
 
 if (self->state == HAL_DRV_STATE_ACTIVE) {
   self->sync_state = state;
-  msg = osalThreadSuspendTimeoutS(&self->sync_transfer, timeout);
+  msg = chThdSuspendTimeoutS(&self->sync_transfer, timeout);
   self->sync_state = HAL_DRV_STATE_STOP;
 }
 else {
@@ -618,11 +618,11 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 msg = spiSynchronizeStateS(self, state, timeout);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -648,14 +648,14 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 
 msg = spiStartIgnoreI(self, n);
 if (msg == MSG_OK) {
   msg = spiSynchronizeStateS(self, HAL_DRV_STATE_COMPLETE, TIME_INFINITE);
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -691,14 +691,14 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 
 msg = spiStartExchangeI(self, n, txbuf, rxbuf);
 if (msg == MSG_OK) {
   msg = spiSynchronizeStateS(self, HAL_DRV_STATE_COMPLETE, TIME_INFINITE);
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -725,14 +725,14 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 
 msg = spiStartSendI(self, n, txbuf);
 if (msg == MSG_OK) {
   msg = spiSynchronizeStateS(self, HAL_DRV_STATE_COMPLETE, TIME_INFINITE);
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -761,14 +761,14 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 
 msg = spiStartReceiveI(self, n, rxbuf);
 if (msg == MSG_OK) {
   msg = spiSynchronizeStateS(self, HAL_DRV_STATE_COMPLETE, TIME_INFINITE);
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -808,9 +808,9 @@ spi_lld_unselect(self);]]></implementation>
                 <notapi />
                 <implementation><![CDATA[
 
-osalSysLockFromISR();
-osalThreadResumeI(&self->sync_transfer, msg);
-osalSysUnlockFromISR();]]></implementation>
+chSysLockFromISR();
+chThdResumeI(&self->sync_transfer, msg);
+chSysUnlockFromISR();]]></implementation>
               </method>
               <method name="__spi_wakeup_state_isr" ctype="void">
                 <brief>Wakes up a thread waiting for an SPI transfer state.</brief>
@@ -822,11 +822,11 @@ osalSysUnlockFromISR();]]></implementation>
                 <notapi />
                 <implementation><![CDATA[
 
-osalSysLockFromISR();
+chSysLockFromISR();
 if (self->sync_state == state) {
-  osalThreadResumeI(&self->sync_transfer, MSG_OK);
+  chThdResumeI(&self->sync_transfer, MSG_OK);
 }
-osalSysUnlockFromISR();]]></implementation>
+chSysUnlockFromISR();]]></implementation>
               </method>
               <elseif />
               <method name="__spi_wakeup_isr" ctype="void">
