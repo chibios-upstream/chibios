@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE doc [
+  <!ENTITY hal_posix_tty_sio SYSTEM "hal_posix_tty_sio.xml">
+]>
+<instance xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd">
+  <paths>
+    <path>../../../../codegen</path>
+    <path>../../../../../common/oop/codegen</path>
+  </paths>
+  <modules>
+    &hal_posix_tty_sio;
+  </modules>
+</instance>

@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
+  name="hal_posix_tty_sio" descr="POSIX TTY over SIO Driver"
+  check="!defined(POSIX_TTY_SIO_USE_MODULE) || (POSIX_TTY_SIO_USE_MODULE == TRUE)"
+  headerpath="." sourcepath="." editcode="false">
+  <brief>POSIX terminal wrapper over an SIO driver.</brief>
+  <details><![CDATA[This module provides the class skeleton for a POSIX-style
+    terminal line discipline layered over a generic SIO driver. The current
+    implementation is intentionally a non-functional stub; buffering and line
+    processing will be added without changing the public class shape.]]></details>
+  <imports>
+    <import>hal_sio.xml</import>
+    <import>hal_tty.xml</import>
+  </imports>
+  <public>
+    <includes_always>
+      <include style="regular">hal.h</include>
+      <include style="angular">termios.h</include>
+      <include style="angular">sys/ioctl.h</include>
+    </includes_always>
+    <configs>
+      <config name="POSIX_TTY_SIO_USE_MODULE" default="TRUE">
+        <brief>POSIX TTY over SIO driver enable switch.</brief>
+      </config>
+    </configs>
+    <definitions_late>
+      <verbatim><![CDATA[
+#if (POSIX_TTY_SIO_USE_MODULE != FALSE) &&                            \
+    (POSIX_TTY_SIO_USE_MODULE != TRUE)
+#error "invalid POSIX_TTY_SIO_USE_MODULE value"
+#endif
+
+#if (POSIX_TTY_SIO_USE_MODULE == TRUE) && (HAL_USE_SIO != TRUE)
+#error "POSIX TTY over SIO requires HAL_USE_SIO"
+#endif]]></verbatim>
+    </definitions_late>
+    <types>
+      <class type="regular" name="hal_posix_tty_sio" namespace="ptty"
+        ancestorname="hal_cb_driver" descr="POSIX TTY over SIO driver">
+        <brief>POSIX terminal line discipline wrapper over SIO.</brief>
+        <details><![CDATA[The class implements the generic terminal interface
+          and retains a reference to the SIO transport. The callback inherited
+          from @p hal_cb_driver_c is reserved for implementation-dependent
+          terminal notifications.]]></details>
+        <implements>
+          <if name="tty">
+            <method shortname="write">
+              <implementation><![CDATA[
+
+(void)self;
+(void)bp;
+(void)n;
+
+return 0U;]]></implementation>
+            </method>
+            <method shortname="read">
+              <implementation><![CDATA[
+
+(void)self;
+(void)bp;
+(void)n;
+
+return 0U;]]></implementation>
+            </method>
+            <method shortname="put">
+              <implementation><![CDATA[
+
+(void)self;
+(void)b;
+
+return STM_RESET;]]></implementation>
+            </method>
+            <method shortname="get">
+              <implementation><![CDATA[
+
+(void)self;
+
+return STM_RESET;]]></implementation>
+            </method>
+            <method shortname="unget">
+              <implementation><![CDATA[
+
+(void)self;
+(void)b;
+
+return STM_RESET;]]></implementation>
+            </method>
+            <method shortname="getattr">
+              <implementation><![CDATA[
+
+(void)self;
+(void)attrp;
+
+return HAL_RET_INV_STATE;]]></implementation>
+            </method>
+            <method shortname="setattr">
+              <implementation><![CDATA[
+
+(void)self;
+(void)action;
+(void)attrp;
+
+return HAL_RET_INV_STATE;]]></implementation>
+            </method>
+            <method shortname="drain">
+              <implementation><![CDATA[
+
+(void)self;
+
+return HAL_RET_INV_STATE;]]></implementation>
+            </method>
+            <method shortname="flush">
+              <implementation><![CDATA[
+
+(void)self;
+(void)queues;
+
+return HAL_RET_INV_STATE;]]></implementation>
+            </method>
+            <method shortname="flow">
+              <implementation><![CDATA[
+
+(void)self;
+(void)action;
+
+return HAL_RET_INV_STATE;]]></implementation>
+            </method>
+            <method shortname="getwinsize">
+              <implementation><![CDATA[
+
+(void)self;
+(void)sizep;
+
+return HAL_RET_INV_STATE;]]></implementation>
+            </method>
+            <method shortname="setwinsize">
+              <implementation><![CDATA[
+
+(void)self;
+(void)sizep;
+
+return HAL_RET_INV_STATE;]]></implementation>
+            </method>
+          </if>
+        </implements>
+        <fields>
+          <field name="siop" ctype="hal_sio_driver_c$I*">
+            <brief>Associated SIO transport.</brief>
+          </field>
+          <field name="attributes" ctype="struct termios">
+            <brief>Active POSIX terminal attributes.</brief>
+          </field>
+          <field name="winsize" ctype="struct winsize">
+            <brief>Active terminal window size.</brief>
+          </field>
+        </fields>
+        <methods>
+          <objinit callsuper="true">
+            <param name="siop" ctype="hal_sio_driver_c *" dir="in">
+              Pointer to the underlying SIO driver.
+            </param>
+            <implementation><![CDATA[
+
+chDbgCheck(siop != NULL);
+
+self->siop       = siop;
+self->attributes = (struct termios){0};
+self->winsize    = (struct winsize){0};]]></implementation>
+          </objinit>
+          <dispose>
+            <implementation><![CDATA[ ]]></implementation>
+          </dispose>
+          <override>
+            <method shortname="start">
+              <implementation><![CDATA[
+
+(void)self;
+(void)config;
+
+return HAL_RET_INV_STATE;]]></implementation>
+            </method>
+            <method shortname="stop">
+              <implementation><![CDATA[
+
+(void)self;]]></implementation>
+            </method>
+            <method shortname="setcfg">
+              <implementation><![CDATA[
+
+(void)self;
+(void)config;
+
+return NULL;]]></implementation>
+            </method>
+            <method shortname="selcfg">
+              <implementation><![CDATA[
+
+(void)self;
+(void)cfgnum;
+
+return NULL;]]></implementation>
+            </method>
+          </override>
+        </methods>
+      </class>
+    </types>
+  </public>
+  <private>
+    <includes_always>
+      <include style="regular">hal_posix_tty_sio.h</include>
+    </includes_always>
+  </private>
+</module>
