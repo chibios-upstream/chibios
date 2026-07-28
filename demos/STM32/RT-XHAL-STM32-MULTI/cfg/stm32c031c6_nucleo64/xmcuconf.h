@@ -141,7 +141,7 @@
 #define STM32_I2C_BUSY_TIMEOUT              50
 #define STM32_I2C_I2C1_DMA_CHANNEL          STM32_DMA_STREAM_ID_ANY
 #define STM32_I2C_I2C1_DMA_PRIORITY         3
-#define STM32_I2C_DMA_ERROR_HOOK(i2cp)      osalSysHalt("DMA failure")
+#define STM32_I2C_DMA_ERROR_HOOK(i2cp)      chSysHalt("DMA failure")
 
 /*
  * ICU driver system settings.
@@ -179,7 +179,7 @@
 #define STM32_SPI_SPI1_TX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI1_IRQ_PRIORITY         2
-#define STM32_SPI_DMA_ERROR_HOOK(spip)      osalSysHalt("DMA failure")
+#define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*
  * ST driver system settings.

@@ -225,9 +225,9 @@
     (canp)->tx_mailbox_mask |= (canmbxmask_t)((flags) & 0xFFFFU);           \
     (canp)->tx_error_mask   |= (canmbxmask_t)(((flags) >> 16U) & 0xFFFFU);  \
     (canp)->events          |= CAN_EVENT_TX;                                \
-    osalSysLockFromISR();                                                   \
-    osalThreadDequeueAllI(&(canp)->txqueue, MSG_OK);                        \
-    osalSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                     \
+    chThdDequeueAllI(&(canp)->txqueue, MSG_OK);                             \
+    chSysUnlockFromISR();                                                   \
     __cbdrv_invoke_cb(canp);                                                \
   } while (false)
 
@@ -243,9 +243,9 @@
   do {                                                                      \
     (canp)->rx_mailbox_mask |= (canmbxmask_t)(flags);                       \
     (canp)->events          |= CAN_EVENT_RX;                                \
-    osalSysLockFromISR();                                                   \
-    osalThreadDequeueAllI(&(canp)->rxqueue, MSG_OK);                        \
-    osalSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                     \
+    chThdDequeueAllI(&(canp)->rxqueue, MSG_OK);                             \
+    chSysUnlockFromISR();                                                   \
     __cbdrv_invoke_cb(canp);                                                \
   } while (false)
 
@@ -450,9 +450,9 @@ struct hal_can_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -603,10 +603,10 @@ static inline can_events_t canGetAndClearEventsX(void *ip, can_events_t mask) {
   can_events_t events;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   events = self->events & mask;
   self->events &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return events;
 }
@@ -625,10 +625,10 @@ static inline canmbxmask_t canGetAndClearRxMailboxMaskX(void *ip) {
   canmbxmask_t mask;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   mask = self->rx_mailbox_mask;
   self->rx_mailbox_mask = 0U;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return mask;
 }
@@ -647,10 +647,10 @@ static inline canmbxmask_t canGetAndClearTxMailboxMaskX(void *ip) {
   canmbxmask_t mask;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   mask = self->tx_mailbox_mask;
   self->tx_mailbox_mask = 0U;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return mask;
 }
@@ -669,10 +669,10 @@ static inline canmbxmask_t canGetAndClearTxErrorMaskX(void *ip) {
   canmbxmask_t mask;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   mask = self->tx_error_mask;
   self->tx_error_mask = 0U;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return mask;
 }
@@ -691,10 +691,10 @@ static inline canerror_t canGetAndClearErrorsX(void *ip) {
   canerror_t errors;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   errors = self->errors;
   self->errors = 0U;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return errors;
 }

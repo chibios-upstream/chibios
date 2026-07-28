@@ -98,11 +98,10 @@ DEPDIR   := ./.dep/stm32u083rc_nucleo64
 include $(CHIBIOS)/os/license/license.mk
 # Startup files.
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32u0xx.mk
-# HAL-OSAL files (optional).
+# XHAL files.
 include $(CHIBIOS)/os/xhal/xhal.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/STM32U0xx/platform.mk
 include $(CHIBIOS)/os/hal/boards/ST_NUCLEO64_U083RC/board.mk
-include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMv6-M/compilers/GCC/mk/port.mk

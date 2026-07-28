@@ -85,9 +85,9 @@ static void mdma_serve_interrupt(const stm32_mdma_channel_t *mdmachp) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_MDMA_HANDLER) {
+CH_IRQ_HANDLER(STM32_MDMA_HANDLER) {
   uint32_t gisr = MDMA->GISR0;
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   if ((gisr & (1U << 0)) != 0U) {
     mdma_serve_interrupt(&mdma.channels[0]);
@@ -153,7 +153,7 @@ OSAL_IRQ_HANDLER(STM32_MDMA_HANDLER) {
     mdma_serve_interrupt(&mdma.channels[15]);
   }
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /*===========================================================================*/
@@ -211,7 +211,7 @@ const stm32_mdma_channel_t *mdmaChannelAllocI(uint32_t id,
                                              void *param) {
   uint32_t i, startid, endid;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   if (id < STM32_MDMA_CHANNELS) {
     startid = id;
@@ -222,7 +222,7 @@ const stm32_mdma_channel_t *mdmaChannelAllocI(uint32_t id,
     endid   = STM32_MDMA_CHANNELS - 1U;
   }
   else {
-    osalDbgCheck(false);
+    chDbgCheck(false);
     return NULL;
   }
 
@@ -270,9 +270,9 @@ const stm32_mdma_channel_t *mdmaChannelAlloc(uint32_t id,
                                             void *param) {
   const stm32_mdma_channel_t *mdmachp;
 
-  osalSysLock();
+  chSysLock();
   mdmachp = mdmaChannelAllocI(id, func, param);
-  osalSysUnlock();
+  chSysUnlock();
 
   return mdmachp;
 }
@@ -289,10 +289,10 @@ const stm32_mdma_channel_t *mdmaChannelAlloc(uint32_t id,
  */
 void mdmaChannelFreeI(const stm32_mdma_channel_t *mdmachp) {
   uint32_t channel = mdmachp - mdma.channels;
-  osalDbgCheck(mdmachp != NULL);
+  chDbgCheck(mdmachp != NULL);
 
   /* Check if the channels is not taken.*/
-  osalDbgAssert((mdma.allocated_mask & (1U << channel)) != 0U,
+  chDbgAssert((mdma.allocated_mask & (1U << channel)) != 0U,
                 "not allocated");
 
   /* Marks the channel as not allocated.*/
@@ -316,9 +316,9 @@ void mdmaChannelFreeI(const stm32_mdma_channel_t *mdmachp) {
  */
 void mdmaChannelFree(const stm32_mdma_channel_t *mdmachp) {
 
-  osalSysLock();
+  chSysLock();
   mdmaChannelFreeI(mdmachp);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**

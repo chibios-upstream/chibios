@@ -153,10 +153,10 @@ void __i2c_stop_impl(void *ip) {
   i2c_lld_stop(self);
   self->errors = I2C_NO_ERROR;
 #if I2C_USE_SYNCHRONIZATION == TRUE
-  osalSysLock();
-  osalThreadResumeI(&self->sync_transfer, MSG_RESET);
-  osalOsRescheduleS();
-  osalSysUnlock();
+  chSysLock();
+  chThdResumeI(&self->sync_transfer, MSG_RESET);
+  chSchRescheduleS();
+  chSysUnlock();
 #endif
 }
 
@@ -235,11 +235,11 @@ msg_t i2cStartMasterTransmitI(void *ip, i2caddr_t addr, const uint8_t *txbuf,
   hal_i2c_driver_c *self = (hal_i2c_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) &&
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) &&
                (txbytes > 0U) && (txbuf != NULL) &&
                ((rxbytes == 0U) || ((rxbytes > 0U) && (rxbuf != NULL))));
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->errors = I2C_NO_ERROR;
   self->state  = HAL_DRV_STATE_ACTIVE;
@@ -268,10 +268,10 @@ msg_t i2cStartMasterReceiveI(void *ip, i2caddr_t addr, uint8_t *rxbuf,
   hal_i2c_driver_c *self = (hal_i2c_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (addr != 0U) &&
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (addr != 0U) &&
                (rxbytes > 0U) && (rxbuf != NULL));
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->errors = I2C_NO_ERROR;
   self->state  = I2C_ACTIVE_RX;
@@ -295,9 +295,9 @@ msg_t i2cStopTransferI(void *ip) {
   hal_i2c_driver_c *self = (hal_i2c_driver_c *)ip;
   msg_t msg = HAL_RET_SUCCESS;
 
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == HAL_DRV_STATE_ACTIVE) ||
                 (self->state == I2C_ACTIVE_RX),
                 "invalid state");
@@ -307,7 +307,7 @@ msg_t i2cStopTransferI(void *ip) {
     msg = i2c_lld_stop_transfer(self);
     self->state = HAL_DRV_STATE_READY;
 #if I2C_USE_SYNCHRONIZATION == TRUE
-    osalThreadResumeI(&self->sync_transfer, MSG_RESET);
+    chThdResumeI(&self->sync_transfer, MSG_RESET);
 #endif
   }
 
@@ -326,10 +326,10 @@ msg_t i2cStopTransfer(void *ip) {
   hal_i2c_driver_c *self = (hal_i2c_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = i2cStopTransferI(self);
-  osalOsRescheduleS();
-  osalSysUnlock();
+  chSchRescheduleS();
+  chSysUnlock();
 
   return msg;
 }
@@ -349,15 +349,15 @@ msg_t i2cSynchronizeS(void *ip, sysinterval_t timeout) {
   hal_i2c_driver_c *self = (hal_i2c_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == HAL_DRV_STATE_ACTIVE) ||
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == HAL_DRV_STATE_ACTIVE) ||
                 (self->state == I2C_ACTIVE_RX) ||
                 (self->state == HAL_DRV_STATE_READY),
                 "invalid state");
 
   if ((self->state == HAL_DRV_STATE_ACTIVE) ||
       (self->state == I2C_ACTIVE_RX)) {
-    msg = osalThreadSuspendTimeoutS(&self->sync_transfer, timeout);
+    msg = chThdSuspendTimeoutS(&self->sync_transfer, timeout);
     if (msg == MSG_TIMEOUT) {
       (void)i2c_lld_stop_transfer(self);
       self->state = I2C_LOCKED;
@@ -384,9 +384,9 @@ msg_t i2cSynchronize(void *ip, sysinterval_t timeout) {
   hal_i2c_driver_c *self = (hal_i2c_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = i2cSynchronizeS(self, timeout);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -411,12 +411,12 @@ msg_t i2cMasterTransmitTimeout(void *ip, i2caddr_t addr, const uint8_t *txbuf,
   hal_i2c_driver_c *self = (hal_i2c_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = i2cStartMasterTransmitI(self, addr, txbuf, txbytes, rxbuf, rxbytes);
   if (msg == HAL_RET_SUCCESS) {
     msg = i2cSynchronizeS(self, timeout);
   }
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -438,12 +438,12 @@ msg_t i2cMasterReceiveTimeout(void *ip, i2caddr_t addr, uint8_t *rxbuf,
   hal_i2c_driver_c *self = (hal_i2c_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = i2cStartMasterReceiveI(self, addr, rxbuf, rxbytes);
   if (msg == HAL_RET_SUCCESS) {
     msg = i2cSynchronizeS(self, timeout);
   }
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }

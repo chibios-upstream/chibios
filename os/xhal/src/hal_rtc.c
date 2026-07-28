@@ -207,7 +207,7 @@ void rtcInit(void) {
 msg_t rtcConvertDateTimeToTime64(const rtc_datetime_t *src, rtc_time64_t *dst) {
   int64_t days, sec;
 
-  osalDbgCheck((src != NULL) && (dst != NULL));
+  chDbgCheck((src != NULL) && (dst != NULL));
 
   if (!rtc_datetime_is_valid(src)) {
     return HAL_RET_CONFIG_ERROR;
@@ -238,7 +238,7 @@ msg_t rtcConvertTime64ToDateTime(const rtc_time64_t *src, rtc_datetime_t *dst) {
   int64_t year;
   unsigned month, day;
 
-  osalDbgCheck((src != NULL) && (dst != NULL));
+  chDbgCheck((src != NULL) && (dst != NULL));
 
   if ((src->tv_sec < 315532800LL) || (src->tv_nsec >= 1000000000U)) {
     return HAL_RET_CONFIG_ERROR;
@@ -414,8 +414,8 @@ const struct hal_rtc_driver_vmt __hal_rtc_driver_vmt = {
  */
 msg_t rtcSetDateTime(void *ip, const rtc_datetime_t *timespec) {
   hal_rtc_driver_c *self = (hal_rtc_driver_c *)ip;
-  osalDbgCheck((self != NULL) && (timespec != NULL));
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheck((self != NULL) && (timespec != NULL));
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   if (!rtc_datetime_is_valid(timespec)) {
     return HAL_RET_CONFIG_ERROR;
@@ -435,8 +435,8 @@ msg_t rtcSetDateTime(void *ip, const rtc_datetime_t *timespec) {
  */
 msg_t rtcGetDateTimeX(void *ip, rtc_datetime_t *timespec) {
   hal_rtc_driver_c *self = (hal_rtc_driver_c *)ip;
-  osalDbgCheck((self != NULL) && (timespec != NULL));
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheck((self != NULL) && (timespec != NULL));
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   return rtc_lld_get_datetime(self, timespec);
 }
@@ -469,7 +469,7 @@ msg_t rtcSetTime64(void *ip, const rtc_time64_t *timespec) {
   rtc_datetime_t dt;
   msg_t msg;
 
-  osalDbgCheck((ip != NULL) && (timespec != NULL));
+  chDbgCheck((ip != NULL) && (timespec != NULL));
 
   msg = rtcConvertTime64ToDateTime(timespec, &dt);
   if (msg != HAL_RET_SUCCESS) {
@@ -493,7 +493,7 @@ msg_t rtcGetTime64X(void *ip, rtc_time64_t *timespec) {
   rtc_datetime_t dt;
   msg_t msg;
 
-  osalDbgCheck((ip != NULL) && (timespec != NULL));
+  chDbgCheck((ip != NULL) && (timespec != NULL));
 
   msg = rtcGetDateTimeX(self, &dt);
   if (msg != HAL_RET_SUCCESS) {
@@ -529,8 +529,8 @@ msg_t rtcGetTime64(void *ip, rtc_time64_t *timespec) {
  */
 msg_t rtcSetAlarm(void *ip, rtcalarm_t alarm, const rtc_alarm_t *alarmspec) {
   hal_rtc_driver_c *self = (hal_rtc_driver_c *)ip;
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   if (alarm >= (rtcalarm_t)RTC_ALARMS) {
     return HAL_RET_CONFIG_ERROR;
@@ -551,8 +551,8 @@ msg_t rtcSetAlarm(void *ip, rtcalarm_t alarm, const rtc_alarm_t *alarmspec) {
  */
 msg_t rtcGetAlarm(void *ip, rtcalarm_t alarm, rtc_alarm_t *alarmspec) {
   hal_rtc_driver_c *self = (hal_rtc_driver_c *)ip;
-  osalDbgCheck((self != NULL) && (alarmspec != NULL));
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheck((self != NULL) && (alarmspec != NULL));
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   if (alarm >= (rtcalarm_t)RTC_ALARMS) {
     return HAL_RET_CONFIG_ERROR;

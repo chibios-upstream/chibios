@@ -671,7 +671,7 @@ msg_t dac_lld_put_channel(DACDriver *dacp,
 
 #if STM32_DAC_DUAL_MODE
   if (dacp->grpp != NULL) {
-    osalDbgAssert(dacp->grpp->num_channels == 1 && channel == 1,
+    chDbgAssert(dacp->grpp->num_channels == 1 && channel == 1,
                                           "channel busy");
   }
 #endif /* STM32_DAC_DUAL_MODE */
@@ -732,7 +732,7 @@ msg_t dac_lld_put_channel(DACDriver *dacp,
 #endif
     break;
   default:
-    osalDbgAssert(false, "unexpected DAC mode");
+    chDbgAssert(false, "unexpected DAC mode");
     return HAL_RET_CONFIG_ERROR;
   }
 
@@ -783,7 +783,7 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
   switch (cfg->datamode) {
   /* Sets the DAC data register */
   case DAC_DHRM_12BIT_RIGHT:
-    osalDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
+    chDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
 
     dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR12R1 +
                                       dacp->params->dataoffset);
@@ -795,7 +795,7 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
 #endif
     break;
   case DAC_DHRM_12BIT_LEFT:
-    osalDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
+    chDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
 
     dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR12L1 +
                                       dacp->params->dataoffset);
@@ -807,7 +807,7 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
 #endif
     break;
   case DAC_DHRM_8BIT_RIGHT:
-    osalDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
+    chDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
 
     dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR8R1 +
                                       dacp->params->dataoffset);
@@ -824,7 +824,7 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
     break;
 #if STM32_DAC_DUAL_MODE == TRUE
   case DAC_DHRM_12BIT_RIGHT_DUAL:
-    osalDbgAssert(dacp->grpp->num_channels == 2, "invalid number of channels");
+    chDbgAssert(dacp->grpp->num_channels == 2, "invalid number of channels");
 
     dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR12RD);
     dmamode = dacp->params->dmamode |
@@ -832,7 +832,7 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
     n /= 2;
     break;
   case DAC_DHRM_12BIT_LEFT_DUAL:
-    osalDbgAssert(dacp->grpp->num_channels == 2, "invalid number of channels");
+    chDbgAssert(dacp->grpp->num_channels == 2, "invalid number of channels");
 
     dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR12LD);
     dmamode = dacp->params->dmamode |
@@ -840,7 +840,7 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
     n /= 2;
     break;
   case DAC_DHRM_8BIT_RIGHT_DUAL:
-    osalDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
+    chDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
 
     dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR8RD);
     dmamode = dacp->params->dmamode |
@@ -853,7 +853,7 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
     break;
 #endif
   default:
-    osalDbgAssert(false, "unexpected DAC mode");
+    chDbgAssert(false, "unexpected DAC mode");
     return HAL_RET_CONFIG_ERROR;
   }
 

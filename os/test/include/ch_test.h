@@ -264,12 +264,12 @@ typedef struct {
  * @api
  */
 #define test_assert_lock(condition, msg) {                                  \
-  osalSysLock();                                                            \
+  chSysLock();                                                              \
   if (__test_assert(condition, msg)) {                                      \
-    osalSysUnlock();                                                        \
+    chSysUnlock();                                                          \
     return;                                                                 \
   }                                                                         \
-  osalSysUnlock();                                                          \
+  chSysUnlock();                                                            \
 }
 
 /**

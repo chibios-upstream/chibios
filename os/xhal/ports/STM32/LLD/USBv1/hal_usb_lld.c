@@ -88,7 +88,7 @@ static uint32_t usb_pm_alloc(hal_usb_driver_c *usbp, size_t size) {
   next = usbp->pmnext;
   usbp->pmnext += (uint32_t)((size + 1U) & ~1U);
 
-  osalDbgAssert(usbp->pmnext <= STM32_USB_PMA_SIZE, "PMA overflow");
+  chDbgAssert(usbp->pmnext <= STM32_USB_PMA_SIZE, "PMA overflow");
 
   return next;
 }
@@ -328,7 +328,7 @@ msg_t usb_lld_start(hal_usb_driver_c *usbp) {
 #if STM32_USB_USE_USB1
     if (&USBD1 == usbp) {
 
-      osalDbgAssert((STM32_USBCLK >= (48000000U - STM32_USB_48MHZ_DELTA)) &&
+      chDbgAssert((STM32_USBCLK >= (48000000U - STM32_USB_48MHZ_DELTA)) &&
                     (STM32_USBCLK <= (48000000U + STM32_USB_48MHZ_DELTA)),
                     "invalid clock frequency");
 
@@ -391,12 +391,12 @@ void usb_lld_init_endpoint(hal_usb_driver_c *usbp, usbep_t ep) {
   switch (epcp->ep_mode & USB_EP_MODE_TYPE) {
   case USB_EP_MODE_TYPE_ISOC:
 #if STM32_USB_USE_ISOCHRONOUS
-    osalDbgAssert((epcp->in_state == NULL) || (epcp->out_state == NULL),
+    chDbgAssert((epcp->in_state == NULL) || (epcp->out_state == NULL),
                   "isochronous EP cannot be IN and OUT");
     epr = EPR_EP_TYPE_ISO;
     break;
 #else
-    osalDbgAssert(false, "isochronous support disabled");
+    chDbgAssert(false, "isochronous support disabled");
 #endif
   case USB_EP_MODE_TYPE_BULK:
     epr = EPR_EP_TYPE_BULK;

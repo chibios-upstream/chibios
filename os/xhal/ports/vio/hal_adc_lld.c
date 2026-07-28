@@ -150,13 +150,13 @@ static void adc_lld_serve_interrupt(hal_adc_driver_c *adcp, uint32_t nvrq) {
 
 #if VIO_ADC_USE_VADC1 || defined(__DOXYGEN__)
 #if !defined(VIO_VADC1_SUPPRESS_ISR)
-OSAL_IRQ_HANDLER(MK_VECTOR(VIO_VADC1_IRQ)) {
+CH_IRQ_HANDLER(MK_VECTOR(VIO_VADC1_IRQ)) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   adc_lld_serve_interrupt(&ADCD1, VIO_VADC1_IRQ);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif
@@ -200,7 +200,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid ADC instance");
+    chDbgAssert(false, "invalid ADC instance");
   }
 
   if (msg == HAL_RET_SUCCESS) {
@@ -228,10 +228,10 @@ void adc_lld_stop(hal_adc_driver_c *adcp) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid ADC instance");
+    chDbgAssert(false, "invalid ADC instance");
   }
 
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
 }
 
 /**
@@ -329,7 +329,7 @@ void adc_lld_stop_conversion(hal_adc_driver_c *adcp) {
   msg_t msg;
 
   msg = (msg_t)__adc_vadc_stop(adcp->nvadc);
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
 }
 
 #endif /* HAL_USE_ADC */

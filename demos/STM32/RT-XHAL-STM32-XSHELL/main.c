@@ -185,7 +185,7 @@ int main(void) {
                  rxbuf, sizeof rxbuf,
                  txbuf, sizeof txbuf);
   msg = drvStart(&bsio1, NULL);
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "buffered SIO start failed");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "buffered SIO start failed");
 
   /*
    * Normal main() thread activity, spawning shells.

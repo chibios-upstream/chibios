@@ -36,6 +36,12 @@
         <assert invalid="($N != FALSE) &amp;&amp; ($N != TRUE)" />
       </config>
     </configs>
+    <definitions_late>
+      <verbatim><![CDATA[
+#if (ETH_USE_EVENTS == TRUE) && (CH_CFG_USE_EVENTS != TRUE)
+#error "ETH_USE_EVENTS requires CH_CFG_USE_EVENTS"
+#endif]]></verbatim>
+    </definitions_late>
     <macros>
       <macro name="__eth_getconf">
         <brief>Return a pointer to the configuration structure.</brief>
@@ -147,12 +153,12 @@ eth_lld_driver_fields;]]></verbatim>
           <objinit callsuper="true">
             <implementation><![CDATA[
 #if ETH_USE_SYNCHRONIZATION == TRUE
-osalThreadQueueObjectInit(&self->txqueue);
-osalThreadQueueObjectInit(&self->rxqueue);
+chThdQueueObjectInit(&self->txqueue);
+chThdQueueObjectInit(&self->rxqueue);
 #endif
 
 #if ETH_USE_EVENTS == TRUE
-osalEventObjectInit(&self->es);
+chEvtObjectInit(&self->es);
 #endif
 self->lastflags = (eventflags_t)0U;
 
@@ -197,20 +203,20 @@ return false;]]></implementation>
                 <implementation><![CDATA[
 eth_receive_handle_t rxh;
 
-osalDbgCheck(self != NULL);
-osalDbgAssert(drvGetStateX(self) == HAL_DRV_STATE_READY, "not ready");
+chDbgCheck(self != NULL);
+chDbgAssert(drvGetStateX(self) == HAL_DRV_STATE_READY, "not ready");
 
-osalSysLock();
+chSysLock();
 
 while ((rxh = ethGetReceiveHandleX(self)) == (eth_receive_handle_t)0U) {
-  msg_t msg = osalThreadEnqueueTimeoutS(&self->rxqueue, timeout);
+  msg_t msg = chThdEnqueueTimeoutS(&self->rxqueue, timeout);
   if (msg == MSG_TIMEOUT) {
     rxh = (eth_receive_handle_t)0U;
     break;
   }
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return rxh;]]></implementation>
               </method>
@@ -226,20 +232,20 @@ return rxh;]]></implementation>
                 <implementation><![CDATA[
 eth_transmit_handle_t txh;
 
-osalDbgCheck(self != NULL);
-osalDbgAssert(drvGetStateX(self) == HAL_DRV_STATE_READY, "not ready");
+chDbgCheck(self != NULL);
+chDbgAssert(drvGetStateX(self) == HAL_DRV_STATE_READY, "not ready");
 
-osalSysLock();
+chSysLock();
 
 while ((txh = ethGetTransmitHandleX(self)) == (eth_transmit_handle_t)0U) {
-  msg_t msg = osalThreadEnqueueTimeoutS(&self->txqueue, timeout);
+  msg_t msg = chThdEnqueueTimeoutS(&self->txqueue, timeout);
   if (msg == MSG_TIMEOUT) {
     txh = (eth_transmit_handle_t)0U;
     break;
   }
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return txh;]]></implementation>
               </method>

@@ -68,7 +68,7 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
-#if OSAL_ST_MODE != OSAL_ST_MODE_FREERUNNING
+#if CH_CFG_ST_TIMEDELTA == 0
 #error "ST based on RTC supports only free running mode. Change CH_CFG_ST_TIMEDELTA to enable tick-less mode."
 #endif
 
@@ -84,15 +84,15 @@
 #error "RTC does not support binary mode"
 #endif
 
-#if (OSAL_ST_RESOLUTION != 32)
+#if (CH_CFG_ST_RESOLUTION != 32)
 #error "ST based on RTC requires 32bits resolution. Set CH_CFG_ST_RESOLUTION to 32."
 #endif
 
-#if (STM32_RTCCLK % OSAL_ST_FREQUENCY) != 0
+#if (STM32_RTCCLK % CH_CFG_ST_FREQUENCY) != 0
 #error "the selected ST frequency is not obtainable because integer rounding"
 #endif
 
-#if (STM32_RTCCLK / OSAL_ST_FREQUENCY) > 128
+#if (STM32_RTCCLK / CH_CFG_ST_FREQUENCY) > 128
 #error "the selected ST frequency is not obtainable because RTC Prescaler A limits"
 #endif
 

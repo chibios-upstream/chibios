@@ -257,7 +257,7 @@
 #define STM32_I2C_I2C1_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
 #define STM32_I2C_I2C2_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
 #define STM32_I2C_I2C3_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
-#define STM32_I2C_DMA_ERROR_HOOK(i2cp)      osalSysHalt("DMA failure")
+#define STM32_I2C_DMA_ERROR_HOOK(i2cp)      chSysHalt("DMA failure")
 
 /*
  * ICU driver system settings.
@@ -325,7 +325,7 @@
 #define STM32_SPI_SPI1_IRQ_PRIORITY         10
 #define STM32_SPI_SPI2_IRQ_PRIORITY         10
 #define STM32_SPI_SPI3_IRQ_PRIORITY         10
-#define STM32_SPI_DMA_ERROR_HOOK(spip)      osalSysHalt("DMA failure")
+#define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*
  * ST driver system settings.

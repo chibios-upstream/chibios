@@ -174,8 +174,8 @@ void extiEnableGroup2(uint32_t mask, extimode_t mode) {
 void extiEnableLine(extiline_t line, extimode_t mode) {
   uint32_t mask = (1U << (line & 0x1FU));
 
-  osalDbgCheck(line < STM32_EXTI_NUM_LINES);
-  osalDbgCheck((mode & ~EXTI_MODE_MASK) == 0U);
+  chDbgCheck(line < STM32_EXTI_NUM_LINES);
+  chDbgCheck((mode & ~EXTI_MODE_MASK) == 0U);
 
 #if STM32_EXTI_HAS_GROUP2 == TRUE
   if (line < 32) {
@@ -199,7 +199,7 @@ void extiEnableLine(extiline_t line, extimode_t mode) {
 void extiClearLine(extiline_t line) {
   uint32_t mask = (1U << (line & 0x1FU));
 
-  osalDbgCheck(line < STM32_EXTI_NUM_LINES);
+  chDbgCheck(line < STM32_EXTI_NUM_LINES);
 
 #if STM32_EXTI_HAS_GROUP2 == TRUE
   if (line < 32) {

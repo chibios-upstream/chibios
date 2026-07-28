@@ -162,7 +162,7 @@
  * @brief   QUADSPI DMA error hook.
  */
 #if !defined(STM32_WSPI_DMA_ERROR_HOOK) || defined(__DOXYGEN__)
-#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    osalSysHalt("DMA failure")
+#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    chSysHalt("DMA failure")
 #endif
 
 /**
@@ -196,11 +196,11 @@
 #error "WSPI driver activated but no QUADSPI peripheral assigned"
 #endif
 
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_QUADSPI1_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_QUADSPI1_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_QUADSPI1_PRIORITY"
 #endif
 
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_WSPI_QUADSPI1_DMA_IRQ_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_QUADSPI1_DMA_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_WSPI_QUADSPI1_DMA_IRQ_PRIORITY"
 #endif
 

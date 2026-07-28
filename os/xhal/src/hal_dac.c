@@ -231,8 +231,8 @@ const struct hal_dac_driver_vmt __hal_dac_driver_vmt = {
  */
 msg_t dacPutChannelX(void *ip, dacchannel_t channel, dacsample_t sample) {
   hal_dac_driver_c *self = (hal_dac_driver_c *)ip;
-  osalDbgCheck(channel < (dacchannel_t)DAC_MAX_CHANNELS);
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
+  chDbgCheck(channel < (dacchannel_t)DAC_MAX_CHANNELS);
+  chDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
                 (self->state == HAL_DRV_STATE_ACTIVE) ||
                 (self->state == HAL_DRV_STATE_HALF)   ||
                 (self->state == HAL_DRV_STATE_FULL),
@@ -257,10 +257,10 @@ msg_t dacStartConversionI(void *ip, const dac_conversion_group_t *grpp,
   hal_dac_driver_c *self = (hal_dac_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (grpp != NULL) && (samples != NULL) &&
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (grpp != NULL) && (samples != NULL) &&
                (depth > 0U) && ((depth == 1U) || ((depth & 1U) == 0U)));
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->samples = samples;
   self->depth   = depth;
@@ -295,9 +295,9 @@ msg_t dacStartConversion(void *ip, const dac_conversion_group_t *grpp,
   hal_dac_driver_c *self = (hal_dac_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = dacStartConversionI(self, grpp, samples, depth);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -311,9 +311,9 @@ msg_t dacStartConversion(void *ip, const dac_conversion_group_t *grpp,
  */
 void dacStopConversionI(void *ip) {
   hal_dac_driver_c *self = (hal_dac_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
                 (self->state == HAL_DRV_STATE_ACTIVE) ||
                 (self->state == HAL_DRV_STATE_HALF)   ||
                 (self->state == HAL_DRV_STATE_FULL)   ||
@@ -339,10 +339,10 @@ void dacStopConversionI(void *ip) {
  */
 void dacStopConversion(void *ip) {
   hal_dac_driver_c *self = (hal_dac_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
+  chSysLock();
+  chDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
                 (self->state == HAL_DRV_STATE_ACTIVE) ||
                 (self->state == HAL_DRV_STATE_HALF)   ||
                 (self->state == HAL_DRV_STATE_FULL)   ||
@@ -356,7 +356,7 @@ void dacStopConversion(void *ip) {
     self->state   = HAL_DRV_STATE_READY;
     _dac_reset_s(self);
   }
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 #if (DAC_USE_SYNCHRONIZATION == TRUE) || defined (__DOXYGEN__)
@@ -376,15 +376,15 @@ msg_t dacConvert(void *ip, const dac_conversion_group_t *grpp,
   hal_dac_driver_c *self = (hal_dac_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert(self->thread == NULL, "already waiting");
+  chSysLock();
+  chDbgAssert(self->thread == NULL, "already waiting");
   msg = dacStartConversionI(self, grpp, samples, depth);
   if (msg == HAL_RET_SUCCESS) {
     msg = dacSynchronizeStateS(self, HAL_DRV_STATE_FULL, TIME_INFINITE);
   }
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -411,15 +411,15 @@ msg_t dacSynchronizeStateS(void *ip, driver_state_t state,
   hal_dac_driver_c *self = (hal_dac_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
-  osalDbgCheckClassS();
-  osalDbgCheck((state == HAL_DRV_STATE_HALF) ||
+  chDbgCheck(self != NULL);
+  chDbgCheckClassS();
+  chDbgCheck((state == HAL_DRV_STATE_HALF) ||
                (state == HAL_DRV_STATE_FULL));
-  osalDbgAssert(self->state == HAL_DRV_STATE_ACTIVE, "invalid state");
-  osalDbgAssert(self->thread == NULL, "already waiting");
+  chDbgAssert(self->state == HAL_DRV_STATE_ACTIVE, "invalid state");
+  chDbgAssert(self->thread == NULL, "already waiting");
 
   self->sync_state = state;
-  msg = osalThreadSuspendTimeoutS(&self->thread, timeout);
+  msg = chThdSuspendTimeoutS(&self->thread, timeout);
   self->sync_state = HAL_DRV_STATE_STOP;
 
   return msg;
@@ -447,11 +447,11 @@ msg_t dacSynchronizeState(void *ip, driver_state_t state,
   hal_dac_driver_c *self = (hal_dac_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   msg = dacSynchronizeStateS(self, state, timeout);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }

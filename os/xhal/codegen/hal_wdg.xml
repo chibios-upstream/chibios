@@ -70,12 +70,12 @@ wdg_lld_driver_fields;]]></verbatim>
               <brief>Resets the watchdog counter.</brief>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chSysLock();
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 wdgResetI(self);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
           </regular>
           <override>

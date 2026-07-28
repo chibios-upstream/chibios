@@ -585,7 +585,7 @@ msg_t gpt_lld_start(hal_gpt_driver_c *gptp) {
   }
 
   psc = (uint16_t)((gptp->clock / cfg->frequency) - 1U);
-  osalDbgAssert(((uint32_t)(psc + 1U) * cfg->frequency) == gptp->clock,
+  chDbgAssert(((uint32_t)(psc + 1U) * cfg->frequency) == gptp->clock,
                 "invalid frequency");
 
   gptp->tim->CR1  = 0U;
@@ -786,7 +786,7 @@ void gpt_lld_set_callback(hal_gpt_driver_c *gptp, drv_cb_t cb) {
  */
 void gpt_lld_start_timer(hal_gpt_driver_c *gptp, gptcnt_t interval) {
 
-  osalDbgAssert(interval > (gptcnt_t)0, "invalid interval");
+  chDbgAssert(interval > (gptcnt_t)0, "invalid interval");
 
   gptp->tim->ARR = (uint32_t)(interval - 1U);
   gptp->tim->EGR = STM32_TIM_EGR_UG;
@@ -829,7 +829,7 @@ void gpt_lld_stop_timer(hal_gpt_driver_c *gptp) {
  */
 void gpt_lld_polled_delay(hal_gpt_driver_c *gptp, gptcnt_t interval) {
 
-  osalDbgAssert(interval > (gptcnt_t)0, "invalid interval");
+  chDbgAssert(interval > (gptcnt_t)0, "invalid interval");
 
   gptp->tim->CR1 = STM32_TIM_CR1_UDIS;
   gptp->tim->ARR = (uint32_t)(interval - 1U);

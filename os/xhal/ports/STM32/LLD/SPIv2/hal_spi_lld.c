@@ -134,12 +134,38 @@ static const hal_spi_config_t spi_default_config = SPI_DEFAULT_CONFIGURATION;
 /*===========================================================================*/
 
 /**
+ * @brief   Validates a SPI configuration.
+ *
+ * @param[in] config    pointer to the @p hal_spi_config_t structure
+ * @param[out] msizep   pointer to the DMA memory size mode
+ * @return              Configuration validity.
+ */
+static bool spi_lld_validate_config(const hal_spi_config_t *config,
+                                    uint32_t *msizep) {
+
+  switch (config->mode & SPI_MODE_FSIZE_MASK) {
+  case SPI_MODE_FSIZE_8:
+    *msizep = STM32_DMA_CR_MSIZE_BYTE;
+    return true;
+  case SPI_MODE_FSIZE_16:
+    *msizep = STM32_DMA_CR_MSIZE_HWORD;
+    return true;
+  case SPI_MODE_FSIZE_32:
+    *msizep = STM32_DMA_CR_MSIZE_WORD;
+    return true;
+  default:
+    return false;
+  }
+}
+
+/**
  * @brief   Configures and enables a SPI.
  *
  * @param[in] spip      pointer to the @p SPIDriver object
+ * @param[in] config    pointer to the @p hal_spi_config_t structure
  */
-static void spi_lld_enable(SPIDriver *spip) {
-  const hal_spi_config_t *config = __spi_getconf(spip);
+static void spi_lld_enable(SPIDriver *spip,
+                           const hal_spi_config_t *config) {
   uint32_t cr1, cr2;
 
   /* SPI setup.*/
@@ -234,9 +260,59 @@ static void spi_lld_disable(SPIDriver *spip) {
 #endif
 
     else {
-      osalDbgAssert(false, "invalid SPI instance");
+      chDbgAssert(false, "invalid SPI instance");
     }
   }
+}
+
+/**
+ * @brief   Applies a validated SPI configuration.
+ *
+ * @param[in] spip      pointer to the @p SPIDriver object
+ * @param[in] config    pointer to the @p hal_spi_config_t structure
+ * @param[in] msize     DMA memory size mode
+ */
+static void spi_lld_apply_config(SPIDriver *spip,
+                                 const hal_spi_config_t *config,
+                                 uint32_t msize) {
+  uint32_t ds;
+
+  /* Configuration-specific DMA setup.*/
+  spip->rxdmamode &= ~STM32_DMA_CR_SIZE_MASK;
+  spip->txdmamode &= ~STM32_DMA_CR_SIZE_MASK;
+
+  /* Size of the peripheral port large enough to accommodate the physical
+     frame size.*/
+  ds = config->cr2 & SPI_CR2_DS;
+  if (!ds || (ds <= (SPI_CR2_DS_2 | SPI_CR2_DS_1 | SPI_CR2_DS_0))) {
+    /* Frame width is 8 bits or smaller.*/
+    spip->rxdmamode |= STM32_DMA_CR_PSIZE_BYTE;
+    spip->txdmamode |= STM32_DMA_CR_PSIZE_BYTE;
+  }
+  else {
+    /* Frame width is larger than 8 bits.*/
+    spip->rxdmamode |= STM32_DMA_CR_PSIZE_HWORD;
+    spip->txdmamode |= STM32_DMA_CR_PSIZE_HWORD;
+  }
+
+  /* Size of the memory port as specified in the configuration. This may
+     result in data truncation or zero-padding if the peripheral and memory
+     port sizes differ.
+     The behavior is also different between DMAv1 and DMAv2.*/
+  spip->rxdmamode |= msize;
+  spip->txdmamode |= msize;
+
+  if ((config->mode & SPI_MODE_CIRCULAR) != 0U) {
+    spip->rxdmamode |= (STM32_DMA_CR_CIRC | STM32_DMA_CR_HTIE);
+    spip->txdmamode |= (STM32_DMA_CR_CIRC | STM32_DMA_CR_HTIE);
+  }
+  else {
+    spip->rxdmamode &= ~(STM32_DMA_CR_CIRC | STM32_DMA_CR_HTIE);
+    spip->txdmamode &= ~(STM32_DMA_CR_CIRC | STM32_DMA_CR_HTIE);
+  }
+
+  /* SPI setup.*/
+  spi_lld_enable(spip, config);
 }
 
 /**
@@ -468,7 +544,15 @@ void spi_lld_init(void) {
  */
 msg_t spi_lld_start(SPIDriver *spip) {
   const hal_spi_config_t *config = (const hal_spi_config_t *)spip->config;
+  uint32_t msize;
   msg_t msg;
+
+  if (config == NULL) {
+    config = &spi_default_config;
+  }
+  if (!spi_lld_validate_config(config, &msize)) {
+    return HAL_RET_CONFIG_ERROR;
+  }
 
   /* Resetting TX pattern source.*/
   spip->txsource = (uint32_t)STM32_SPI_FILLER_PATTERN;
@@ -586,19 +670,16 @@ msg_t spi_lld_start(SPIDriver *spip) {
 #endif
 
   else {
-    osalDbgAssert(false, "invalid SPI instance");
+    chDbgAssert(false, "invalid SPI instance");
   }
 
   /* DMA setup.*/
   dmaStreamSetPeripheral(spip->dmarx, &spip->spi->DR);
   dmaStreamSetPeripheral(spip->dmatx, &spip->spi->DR);
 
-  /* Configures the peripheral, it is not supposed to fail.*/
-  if (config == NULL) {
-    config = &spi_default_config;
-  }
-  spip->config = spi_lld_setcfg(spip, config);
-  osalDbgAssert(spip->config != NULL, "configuration failed");
+  /* Configures the peripheral.*/
+  spi_lld_apply_config(spip, config, msize);
+  spip->config = config;
 
   return HAL_RET_SUCCESS;
 }
@@ -666,7 +747,7 @@ void spi_lld_stop(SPIDriver *spip) {
 #endif
 
   else {
-    osalDbgAssert(false, "invalid SPI instance");
+    chDbgAssert(false, "invalid SPI instance");
   }
 }
 
@@ -681,67 +762,23 @@ void spi_lld_stop(SPIDriver *spip) {
  */
 const hal_spi_config_t *spi_lld_setcfg(hal_spi_driver_c *spip,
                                        const hal_spi_config_t *config) {
-  uint32_t ds;
-  spi_mode_t mode = __spi_getfield(spip, mode);
+  uint32_t msize;
+
+  chDbgAssert(spip->state == HAL_DRV_STATE_READY, "not ready");
 
   if (config == NULL) {
     config = &spi_default_config;
   }
 
-  /* De-activation before re-configuration.*/
-  spi_lld_disable(spip);
-
-  /* Configuration-specific DMA setup.*/
-  spip->rxdmamode &= ~STM32_DMA_CR_SIZE_MASK;
-  spip->txdmamode &= ~STM32_DMA_CR_SIZE_MASK;
-
-  /* Size of the peripheral port large enough to accommodate the physical
-     frame size.*/
-  ds = __spi_getfield(spip, cr2) & SPI_CR2_DS;
-  if (!ds || (ds <= (SPI_CR2_DS_2 | SPI_CR2_DS_1 | SPI_CR2_DS_0))) {
-    /* Frame width is 8 bits or smaller.*/
-    spip->rxdmamode |= STM32_DMA_CR_PSIZE_BYTE;
-    spip->txdmamode |= STM32_DMA_CR_PSIZE_BYTE;
-  }
-  else {
-    /* Frame width is larger than 8 bits.*/
-    spip->rxdmamode |= STM32_DMA_CR_PSIZE_HWORD;
-    spip->txdmamode |= STM32_DMA_CR_PSIZE_HWORD;
-  }
-
-  /* Size of the memory port as specified in the configuration. This may
-     result in data truncation or zero-padding if the peripheral and memory
-     port sizes differ.
-     The behavior is also different between DMAv1 and DMAv2.*/
-  switch (mode & SPI_MODE_FSIZE_MASK) {
-  case SPI_MODE_FSIZE_8:
-    spip->rxdmamode |= STM32_DMA_CR_MSIZE_BYTE;
-    spip->txdmamode |= STM32_DMA_CR_MSIZE_BYTE;
-    break;
-  case SPI_MODE_FSIZE_16:
-    spip->rxdmamode |= STM32_DMA_CR_MSIZE_HWORD;
-    spip->txdmamode |= STM32_DMA_CR_MSIZE_HWORD;
-    break;
-  case SPI_MODE_FSIZE_32:
-    spip->rxdmamode |= STM32_DMA_CR_MSIZE_WORD;
-    spip->txdmamode |= STM32_DMA_CR_MSIZE_WORD;
-    break;
-  default:
-    /* Unsupported mode.*/
+  if (!spi_lld_validate_config(config, &msize)) {
     return NULL;
   }
 
-  if ((mode & SPI_MODE_CIRCULAR) != 0U) {
-    spip->rxdmamode |= (STM32_DMA_CR_CIRC | STM32_DMA_CR_HTIE);
-    spip->txdmamode |= (STM32_DMA_CR_CIRC | STM32_DMA_CR_HTIE);
-  }
-  else {
-    spip->rxdmamode &= ~(STM32_DMA_CR_CIRC | STM32_DMA_CR_HTIE);
-    spip->txdmamode &= ~(STM32_DMA_CR_CIRC | STM32_DMA_CR_HTIE);
-  }
+  /* De-activation before live re-configuration.*/
+  spi_lld_disable(spip);
 
   /* SPI setup.*/
-  spi_lld_enable(spip);
+  spi_lld_apply_config(spip, config, msize);
 
   return config;
 }
@@ -790,7 +827,7 @@ const hal_spi_config_t *spi_lld_selcfg(SPIDriver *spip,
  */
 msg_t spi_lld_ignore(SPIDriver *spip, size_t n) {
 
-  osalDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
+  chDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
 
   dmaStreamSetMemory0(spip->dmarx, &spip->rxsink);
   dmaStreamSetTransactionSize(spip->dmarx, n);
@@ -825,7 +862,7 @@ msg_t spi_lld_ignore(SPIDriver *spip, size_t n) {
 msg_t spi_lld_exchange(SPIDriver *spip, size_t n,
                        const void *txbuf, void *rxbuf) {
 
-  osalDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
+  chDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
 
   dmaStreamSetMemory0(spip->dmarx, rxbuf);
   dmaStreamSetTransactionSize(spip->dmarx, n);
@@ -857,7 +894,7 @@ msg_t spi_lld_exchange(SPIDriver *spip, size_t n,
  */
 msg_t spi_lld_send(SPIDriver *spip, size_t n, const void *txbuf) {
 
-  osalDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
+  chDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
 
   dmaStreamSetMemory0(spip->dmarx, &spip->rxsink);
   dmaStreamSetTransactionSize(spip->dmarx, n);
@@ -889,7 +926,7 @@ msg_t spi_lld_send(SPIDriver *spip, size_t n, const void *txbuf) {
  */
 msg_t spi_lld_receive(SPIDriver *spip, size_t n, void *rxbuf) {
 
-  osalDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
+  chDbgAssert(n <= STM32_DMA_MAX_TRANSFER, "unsupported DMA transfer size");
 
   dmaStreamSetMemory0(spip->dmarx, rxbuf);
   dmaStreamSetTransactionSize(spip->dmarx, n);
@@ -917,21 +954,31 @@ msg_t spi_lld_receive(SPIDriver *spip, size_t n, void *rxbuf) {
  */
 msg_t spi_lld_stop_transfer(SPIDriver *spip, size_t *sizep) {
 
-  /* Stopping TX DMA.*/
-  dmaStreamDisable(spip->dmatx);
-
-  /* Waiting for current frame completion then stop SPI.*/
-  while ((spip->spi->SR & SPI_SR_BSY) != 0U) {
-    /* Still busy.*/
-  }
-
   /* Size of unprocessed data.*/
   if (sizep != NULL) {
     *sizep = dmaStreamGetTransactionSize(spip->dmarx);
   }
 
-  /* Stopping RX DMA.*/
-  dmaStreamDisable(spip->dmarx);
+  if ((__spi_getfield(spip, mode) & SPI_MODE_SLAVE) == 0U) {
+    /* Stopping TX DMA.*/
+    dmaStreamDisable(spip->dmatx);
+
+    /* Waiting for current frame completion then stop SPI.*/
+    while ((spip->spi->SR & SPI_SR_BSY) != 0U) {
+      /* Still busy.*/
+    }
+
+    /* Stopping RX DMA.*/
+    dmaStreamDisable(spip->dmarx);
+  }
+  else {
+    const hal_spi_config_t *config = __spi_getconf(spip);
+
+    /* In slave mode a graceful stop may be impossible because no additional
+       clock can be generated locally.*/
+    spi_lld_disable(spip);
+    spi_lld_enable(spip, config);
+  }
 
   return HAL_RET_SUCCESS;
 }

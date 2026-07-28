@@ -328,7 +328,7 @@ msg_t sio_lld_start(SIODriver *siop) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid SIO instance");
+    chDbgAssert(false, "invalid SIO instance");
   }
 
   /* Configures the peripheral.*/
@@ -336,7 +336,7 @@ msg_t sio_lld_start(SIODriver *siop) {
     config = &default_config;
   }
   siop->config = sio_lld_setcfg(siop, config);
-  osalDbgAssert(siop->config != NULL, "configuration failed");
+  chDbgAssert(siop->config != NULL, "configuration failed");
 
   return HAL_RET_SUCCESS;
 }
@@ -408,7 +408,7 @@ void sio_lld_stop(SIODriver *siop) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid SIO instance");
+    chDbgAssert(false, "invalid SIO instance");
   }
 }
 
@@ -437,13 +437,13 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
  /* Baud rate setting.*/
 #if STM32_SIO_USE_LPUART1
   if (siop == &LPSIOD1) {
-    osalDbgAssert((clock >= config->baud * 3U) &&
+    chDbgAssert((clock >= config->baud * 3U) &&
                   (clock <= config->baud * 4096U),
                   "invalid baud rate vs input clock");
 
     brr = (uint32_t)(((uint64_t)(clock / presc) * (uint64_t)256) / config->baud);
 
-    osalDbgAssert((brr >= 0x300) && (brr < 0x100000), "invalid BRR value");
+    chDbgAssert((brr >= 0x300) && (brr < 0x100000), "invalid BRR value");
   }
   else
 #endif
@@ -457,7 +457,7 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
       brr = ((brr & ~7U) * 2U) | (brr & 7U);
     }
 
-    osalDbgAssert(brr < 0x10000, "invalid BRR value");
+    chDbgAssert(brr < 0x10000, "invalid BRR value");
   }
 
   /* Setting up USART.*/
@@ -772,7 +772,7 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
   USART_TypeDef *u = siop->usart;
   uint32_t cr1, cr2, cr3, isr, isrmask;
 
-  osalDbgAssert((siop->state == HAL_DRV_STATE_STARTING) ||
+  chDbgAssert((siop->state == HAL_DRV_STATE_STARTING) ||
                 (siop->state == HAL_DRV_STATE_READY), "invalid state");
 
   /* Read on control registers.*/

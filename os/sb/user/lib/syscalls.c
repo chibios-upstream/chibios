@@ -265,7 +265,7 @@ int _rmdir_r(struct _reent *r, const char *path) {
 #ifdef __cplusplus
 extern "C" {
   void __cxa_pure_virtual(void) {
-    osalSysHalt("pure virtual");
+    chSysHalt("pure virtual");
   }
 }
 #endif

@@ -308,7 +308,7 @@
 #define STM32_I2C_I2C3_DMA_PRIORITY         ${doc.STM32_I2C_I2C3_DMA_PRIORITY!"3"}
 #define STM32_I2C_I2C4_DMA_PRIORITY         ${doc.STM32_I2C_I2C4_DMA_PRIORITY!"3"}
 #define STM32_I2C_I2C5_DMA_PRIORITY         ${doc.STM32_I2C_I2C5_DMA_PRIORITY!"3"}
-#define STM32_I2C_DMA_ERROR_HOOK(i2cp)      ${doc.STM32_I2C_DMA_ERROR_HOOK!"osalSysHalt(\"DMA failure\")"}
+#define STM32_I2C_DMA_ERROR_HOOK(i2cp)      ${doc.STM32_I2C_DMA_ERROR_HOOK!"chSysHalt(\"DMA failure\")"}
 
 /*
  * ICU driver system settings.
@@ -435,7 +435,7 @@
 #define STM32_SPI_SPI4_IRQ_PRIORITY         ${doc.STM32_SPI_SPI4_IRQ_PRIORITY!"10"}
 #define STM32_SPI_SPI5_IRQ_PRIORITY         ${doc.STM32_SPI_SPI5_IRQ_PRIORITY!"10"}
 #define STM32_SPI_SPI6_IRQ_PRIORITY         ${doc.STM32_SPI_SPI6_IRQ_PRIORITY!"10"}
-#define STM32_SPI_DMA_ERROR_HOOK(spip)      ${doc.STM32_SPI_DMA_ERROR_HOOK!"osalSysHalt(\"DMA failure\")"}
+#define STM32_SPI_DMA_ERROR_HOOK(spip)      ${doc.STM32_SPI_DMA_ERROR_HOOK!"chSysHalt(\"DMA failure\")"}
 
 /*
  * ST driver system settings.
@@ -492,7 +492,7 @@
 #define STM32_UART_UART8_DMA_PRIORITY       ${doc.STM32_UART_UART8_DMA_PRIORITY!"0"}
 #define STM32_UART_UART9_DMA_PRIORITY       ${doc.STM32_UART_UART9_DMA_PRIORITY!"0"}
 #define STM32_UART_USART10_DMA_PRIORITY     ${doc.STM32_UART_USART10_DMA_PRIORITY!"0"}
-#define STM32_UART_DMA_ERROR_HOOK(uartp)    ${doc.STM32_UART_DMA_ERROR_HOOK!"osalSysHalt(\"DMA failure\")"}
+#define STM32_UART_DMA_ERROR_HOOK(uartp)    ${doc.STM32_UART_DMA_ERROR_HOOK!"chSysHalt(\"DMA failure\")"}
 
 /*
  * USB driver system settings.
@@ -524,6 +524,6 @@
 #define STM32_WSPI_OCTOSPI2_MDMA_PRIORITY   ${doc.STM32_WSPI_OCTOSPI2_MDMA_PRIORITY!"1"}
 #define STM32_WSPI_OCTOSPI1_MDMA_IRQ_PRIORITY ${doc.STM32_WSPI_OCTOSPI1_MDMA_IRQ_PRIORITY!"10"}
 #define STM32_WSPI_OCTOSPI2_MDMA_IRQ_PRIORITY ${doc.STM32_WSPI_OCTOSPI2_MDMA_IRQ_PRIORITY!"10"}
-#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    ${doc.STM32_WSPI_DMA_ERROR_HOOK!"osalSysHalt(\"MDMA failure\")"}
+#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    ${doc.STM32_WSPI_DMA_ERROR_HOOK!"chSysHalt(\"MDMA failure\")"}
 
 #endif /* XMCUCONF_H */

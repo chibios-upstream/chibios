@@ -186,9 +186,9 @@ ICU_DRIVER_EXT_INIT_HOOK(self);
               <brief>Starts the input capture.</brief>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->width  = 0U;
 self->period = 0U;
@@ -200,11 +200,11 @@ icu_lld_start_capture(self);]]></implementation>
               <brief>Starts the input capture.</brief>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 icuStartCaptureI(self);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="icuWaitCapture" ctype="bool">
               <brief>Waits for a completed capture.</brief>
@@ -215,13 +215,13 @@ osalSysUnlock();]]></implementation>
               <implementation><![CDATA[
 bool status;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert((self->state == ICU_WAITING) ||
+chSysLock();
+chDbgAssert((self->state == ICU_WAITING) ||
               (self->state == ICU_ACTIVE),
               "invalid state");
-osalDbgAssert(icuAreNotificationsEnabledX(self) == false,
+chDbgAssert(icuAreNotificationsEnabledX(self) == false,
               "notifications enabled");
 
 status = icu_lld_wait_capture(self);
@@ -233,7 +233,7 @@ else {
   self->period = icu_lld_get_period(self);
   self->state  = ICU_ACTIVE;
 }
-osalSysUnlock();
+chSysUnlock();
 
 return status;]]></implementation>
             </method>
@@ -241,9 +241,9 @@ return status;]]></implementation>
               <brief>Stops the input capture.</brief>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == ICU_WAITING) ||
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == ICU_WAITING) ||
               (self->state == ICU_ACTIVE),
               "invalid state");
 
@@ -255,11 +255,11 @@ self->state = HAL_DRV_STATE_READY;]]></implementation>
               <brief>Stops the input capture.</brief>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 icuStopCaptureI(self);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="icuEnableEventsI" ctype="void">
               <brief>Enables ICU event notifications.</brief>
@@ -268,12 +268,12 @@ osalSysUnlock();]]></implementation>
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == ICU_WAITING) ||
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == ICU_WAITING) ||
               (self->state == ICU_ACTIVE),
               "invalid state");
-osalDbgAssert(drvGetCallbackX(self) != NULL, "undefined callback");
+chDbgAssert(drvGetCallbackX(self) != NULL, "undefined callback");
 
 events &= ICU_EVENT_ALL;
 self->enabled_events |= events;
@@ -286,11 +286,11 @@ icu_lld_enable_events(self, events);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 icuEnableEventsI(self, events);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="icuDisableEventsI" ctype="void">
               <brief>Disables ICU event notifications.</brief>
@@ -299,9 +299,9 @@ osalSysUnlock();]]></implementation>
               </param>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == ICU_WAITING) ||
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == ICU_WAITING) ||
               (self->state == ICU_ACTIVE),
               "invalid state");
 
@@ -316,11 +316,11 @@ icu_lld_disable_events(self, events);]]></implementation>
               </param>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 icuDisableEventsI(self, events);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="icuEnableNotifications" ctype="void">
               <brief>Enables ICU notifications for all event kinds.</brief>
@@ -387,10 +387,10 @@ return self->events;]]></implementation>
 icu_events_t events;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 events = self->events & mask;
 self->events &= ~mask;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return events;]]></implementation>
             </method>

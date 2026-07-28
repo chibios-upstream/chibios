@@ -31,6 +31,13 @@
         <assert invalid="($N != FALSE) &amp;&amp; ($N != TRUE)" />
       </config>
     </configs>
+    <definitions_late>
+      <verbatim><![CDATA[
+#if (HAL_USE_MUTUAL_EXCLUSION == TRUE) &&                              \
+    (CH_CFG_USE_MUTEXES != TRUE) && (CH_CFG_USE_SEMAPHORES != TRUE)
+#error "HAL_USE_MUTUAL_EXCLUSION requires mutexes or semaphores"
+#endif]]></verbatim>
+    </definitions_late>
     <macros></macros>
     <types>
       <typedef name="hal_base_driver_c">
@@ -40,6 +47,16 @@
         <brief>Type of a driver state variable.</brief>
         <basetype ctype="unsigned int" />
       </typedef>
+      <verbatim><![CDATA[
+#if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
+typedef mutex_t driver_mutex_t;
+#elif CH_CFG_USE_SEMAPHORES == TRUE
+typedef semaphore_t driver_mutex_t;
+#else
+typedef unsigned driver_mutex_t;
+#endif
+#endif]]></verbatim>
       <condition check="HAL_USE_REGISTRY == TRUE">
         <typedef name="hal_regent_t">
           <brief>Type of a registry entry structure.</brief>
@@ -71,8 +88,8 @@
             <brief>Driver argument.</brief>
           </field>
           <condition check="HAL_USE_MUTUAL_EXCLUSION == TRUE">
-            <field name="mutex" ctype="mutex_t">
-              <brief>Driver mutex.</brief>
+            <field name="mutex" ctype="driver_mutex_t">
+              <brief>Driver mutual exclusion object.</brief>
             </field>
           </condition>
           <condition check="HAL_USE_REGISTRY == TRUE">
@@ -93,7 +110,13 @@
 self->state  = HAL_DRV_STATE_STOP;
 self->arg    = NULL;
 self->config = NULL;
-osalMutexObjectInit(&self->mutex);
+#if HAL_USE_MUTUAL_EXCLUSION == TRUE
+#if CH_CFG_USE_MUTEXES == TRUE
+chMtxObjectInit(&self->mutex);
+#elif CH_CFG_USE_SEMAPHORES == TRUE
+chSemObjectInit(&self->mutex, (cnt_t)1);
+#endif
+#endif
 #if HAL_USE_REGISTRY == TRUE
 self->id     = 0U;
 self->name   = "unk";
@@ -184,9 +207,9 @@ msg_t msg = HAL_RET_SUCCESS;
 const void *newcfg = NULL;
 bool start = false;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 
 switch (self->state) {
 case HAL_DRV_STATE_UNINIT:
@@ -216,24 +239,24 @@ default:
   break;
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 if (start) {
   /* Physically starting the peripheral.*/
   msg = __drv_start(self, config);
 
-  osalSysLock();
+  chSysLock();
   if (msg == HAL_RET_SUCCESS) {
     self->state = HAL_DRV_STATE_READY;
 
     /* LLD is supposed to set a configuration.*/
-    osalDbgAssert(self->config != NULL, "no configuration");
+    chDbgAssert(self->config != NULL, "no configuration");
   }
   else {
     self->state = HAL_DRV_STATE_STOP;
     self->config = NULL;
   }
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 return msg;]]></implementation>
@@ -247,10 +270,10 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 bool stop = false;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert(self->state != HAL_DRV_STATE_UNINIT, "invalid state");
+chSysLock();
+chDbgAssert(self->state != HAL_DRV_STATE_UNINIT, "invalid state");
 
 switch (self->state) {
 case HAL_DRV_STATE_STOP:
@@ -265,15 +288,15 @@ default:
   break;
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 if (stop) {
   __drv_stop(self);
 
-  osalSysLock();
+  chSysLock();
   self->state  = HAL_DRV_STATE_STOP;
   self->config = NULL;
-  osalSysUnlock();
+  chSysUnlock();
 }]]></implementation>
             </method>
             <method name="drvSetCfgX" ctype="msg_t">
@@ -413,14 +436,26 @@ self->name = name;
                 <api />
                 <implementation><![CDATA[
 
-osalMutexLock(&self->mutex);]]></implementation>
+#if CH_CFG_USE_MUTEXES == TRUE
+chMtxLock(&self->mutex);
+#elif CH_CFG_USE_SEMAPHORES == TRUE
+(void)chSemWait(&self->mutex);
+#else
+(void)self;
+#endif]]></implementation>
               </method>
               <method name="drvUnlock" ctype="void">
                 <brief>Driver unlock.</brief>
                 <api />
                 <implementation><![CDATA[
 
-osalMutexUnlock(&self->mutex);]]></implementation>
+#if CH_CFG_USE_MUTEXES == TRUE
+chMtxUnlock(&self->mutex);
+#elif CH_CFG_USE_SEMAPHORES == TRUE
+chSemSignal(&self->mutex);
+#else
+(void)self;
+#endif]]></implementation>
               </method>
             </condition>
             
@@ -510,7 +545,7 @@ return oopGetOwner(hal_base_driver_c, regent, rep);]]></implementation>
 msg_t msg = HAL_RET_SUCCESS;
 hal_base_driver_c *drvp;
 
-osalSysLock();
+chSysLock();
 
 drvp = drvRegGetFirstX();
 while (drvp != NULL) {
@@ -529,7 +564,7 @@ if (msgp != NULL) {
   *msgp = msg;
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return drvp;]]></implementation>
         </function>

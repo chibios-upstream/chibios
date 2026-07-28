@@ -31,7 +31,7 @@
 #define ST_HANDLER                          STM32_RTC_ALARM_HANDLER
 #define ST_NUMBER                           STM32_RTC_ALARM_NUMBER
 
-#define STM32_ST_RTC_PREDIVA                (STM32_RTCCLK / OSAL_ST_FREQUENCY)
+#define STM32_ST_RTC_PREDIVA                (STM32_RTCCLK / CH_CFG_ST_FREQUENCY)
 
 /**
  * Initialization for the RTC_PRER register.
@@ -64,13 +64,13 @@
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(ST_HANDLER) {
+CH_IRQ_HANDLER(ST_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   st_lld_serve_interrupt();
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -146,9 +146,9 @@ void st_lld_serve_interrupt(void) {
 
   if ((isr & RTC_MISR_ALRAMF) != 0U) {
 
-    osalSysLockFromISR();
-    osalOsTimerHandlerI();
-    osalSysUnlockFromISR();
+    chSysLockFromISR();
+    chSysTimerHandlerI();
+    chSysUnlockFromISR();
   }
 
 }

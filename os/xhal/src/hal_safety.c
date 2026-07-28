@@ -91,7 +91,7 @@ void halSftFail(const char *message) {
 #if defined(HAL_SAFETY_HANDLER)
     HAL_SAFETY_HANDLER(message);
 #else
-    osalSysHalt(message);
+    chSysHalt(message);
     while (true) {} /* TODO: Temporary, suppresses a warning.*/
 #endif
 }

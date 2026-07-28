@@ -271,9 +271,9 @@ struct hal_icu_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -476,10 +476,10 @@ static inline icu_events_t icuGetAndClearEventsX(void *ip, icu_events_t mask) {
   icu_events_t events;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   events = self->events & mask;
   self->events &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return events;
 }

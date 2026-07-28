@@ -187,11 +187,11 @@ I2C_DRIVER_EXT_INIT_HOOK(self);
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) &&
+chDbgCheckClassI();
+chDbgCheck((self != NULL) &&
              (txbytes > 0U) && (txbuf != NULL) &&
              ((rxbytes == 0U) || ((rxbytes > 0U) && (rxbuf != NULL))));
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->errors = I2C_NO_ERROR;
 self->state  = HAL_DRV_STATE_ACTIVE;
@@ -213,10 +213,10 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (addr != 0U) &&
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (addr != 0U) &&
              (rxbytes > 0U) && (rxbuf != NULL));
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->errors = I2C_NO_ERROR;
 self->state  = I2C_ACTIVE_RX;
@@ -234,9 +234,9 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg = HAL_RET_SUCCESS;
 
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == HAL_DRV_STATE_ACTIVE) ||
               (self->state == I2C_ACTIVE_RX),
               "invalid state");
@@ -246,7 +246,7 @@ if ((self->state == HAL_DRV_STATE_ACTIVE) ||
   msg = i2c_lld_stop_transfer(self);
   self->state = HAL_DRV_STATE_READY;
 #if I2C_USE_SYNCHRONIZATION == TRUE
-  osalThreadResumeI(&self->sync_transfer, MSG_RESET);
+  chThdResumeI(&self->sync_transfer, MSG_RESET);
 #endif
 }
 
@@ -259,10 +259,10 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = i2cStopTransferI(self);
-osalOsRescheduleS();
-osalSysUnlock();
+chSchRescheduleS();
+chSysUnlock();
 
 return msg;]]></implementation>
             </method>
@@ -278,15 +278,15 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == HAL_DRV_STATE_ACTIVE) ||
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == HAL_DRV_STATE_ACTIVE) ||
               (self->state == I2C_ACTIVE_RX) ||
               (self->state == HAL_DRV_STATE_READY),
               "invalid state");
 
 if ((self->state == HAL_DRV_STATE_ACTIVE) ||
     (self->state == I2C_ACTIVE_RX)) {
-  msg = osalThreadSuspendTimeoutS(&self->sync_transfer, timeout);
+  msg = chThdSuspendTimeoutS(&self->sync_transfer, timeout);
   if (msg == MSG_TIMEOUT) {
     (void)i2c_lld_stop_transfer(self);
     self->state = I2C_LOCKED;
@@ -309,9 +309,9 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = i2cSynchronizeS(self, timeout);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -328,12 +328,12 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = i2cStartMasterTransmitI(self, addr, txbuf, txbytes, rxbuf, rxbytes);
 if (msg == HAL_RET_SUCCESS) {
   msg = i2cSynchronizeS(self, timeout);
 }
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -348,12 +348,12 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = i2cStartMasterReceiveI(self, addr, rxbuf, rxbytes);
 if (msg == HAL_RET_SUCCESS) {
   msg = i2cSynchronizeS(self, timeout);
 }
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -375,10 +375,10 @@ return self->errors;]]></implementation>
 i2cflags_t errors;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 errors = self->errors;
 self->errors = I2C_NO_ERROR;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return errors;]]></implementation>
             </method>
@@ -389,9 +389,9 @@ return errors;]]></implementation>
                 <param name="msg" ctype="msg_t" dir="in">The wakeup message.</param>
                 <notapi />
                 <implementation><![CDATA[
-osalSysLockFromISR();
-osalThreadResumeI(&self->sync_transfer, msg);
-osalSysUnlockFromISR();
+chSysLockFromISR();
+chThdResumeI(&self->sync_transfer, msg);
+chSysUnlockFromISR();
 __cbdrv_invoke_cb(self);]]></implementation>
               </method>
               <elseif />
@@ -443,10 +443,10 @@ return msg;]]></implementation>
 i2c_lld_stop(self);
 self->errors = I2C_NO_ERROR;
 #if I2C_USE_SYNCHRONIZATION == TRUE
-osalSysLock();
-osalThreadResumeI(&self->sync_transfer, MSG_RESET);
-osalOsRescheduleS();
-osalSysUnlock();
+chSysLock();
+chThdResumeI(&self->sync_transfer, MSG_RESET);
+chSchRescheduleS();
+chSysUnlock();
 #endif]]></implementation>
             </method>
             <method shortname="setcfg">

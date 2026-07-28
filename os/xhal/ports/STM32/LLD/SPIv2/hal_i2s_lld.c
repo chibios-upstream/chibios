@@ -534,7 +534,7 @@ void i2s_lld_stop(I2SDriver *i2sp) {
     }
 #endif
     else {
-      osalDbgAssert(false, "invalid I2S instance");
+      chDbgAssert(false, "invalid I2S instance");
     }
   }
 }

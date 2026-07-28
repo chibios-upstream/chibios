@@ -146,7 +146,7 @@ void nvicDisableVector(uint32_t n) {
  */
 void nvicSetSystemHandlerPriority(uint32_t handler, uint32_t prio) {
 
-  osalDbgCheck(handler < 12U);
+  chDbgCheck(handler < 12U);
 
 #if defined(__CORE_CM0_H_GENERIC) || defined(__CORE_CM0PLUS_H_GENERIC) ||   \
     defined(__CORE_CM23_H_GENERIC)

@@ -266,7 +266,7 @@ usbCdcServiceOnDisconnectedI(self);]]></implementation>
             </method>
             <method shortname="configure">
               <implementation><![CDATA[
-osalDbgAssert(self->config != NULL, "service not started");
+chDbgAssert(self->config != NULL, "service not started");
 
 usbInitEndpointI(self->config->usbp, self->config->bulk_in,
                  &self->bulk_in_epc);
@@ -320,7 +320,7 @@ if ((self->config != NULL) && (ep == self->config->bulk_out)) {
               <implementation><![CDATA[
 uint8_t *setup;
 
-osalDbgAssert((handledp != NULL) && (self->config != NULL),
+chDbgAssert((handledp != NULL) && (self->config != NULL),
               "invalid setup context");
 
 *handledp = false;
@@ -377,21 +377,21 @@ return HAL_RET_SUCCESS;]]></implementation>
 hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
 hal_usb_driver_c *usbp;
 
-osalDbgCheck((self != NULL) && (config != NULL) && (config->usbp != NULL));
-osalDbgCheck((config->bulk_in > 0U) &&
+chDbgCheck((self != NULL) && (config != NULL) && (config->usbp != NULL));
+chDbgCheck((config->bulk_in > 0U) &&
              (config->bulk_in <= (usbep_t)USB_MAX_ENDPOINTS));
-osalDbgCheck((config->bulk_out > 0U) &&
+chDbgCheck((config->bulk_out > 0U) &&
              (config->bulk_out <= (usbep_t)USB_MAX_ENDPOINTS));
-osalDbgCheck(config->bulk_in_maxsize > 0U);
-osalDbgCheck(config->bulk_out_maxsize > 0U);
+chDbgCheck(config->bulk_in_maxsize > 0U);
+chDbgCheck(config->bulk_out_maxsize > 0U);
 if (config->int_in > 0U) {
-  osalDbgCheck((config->int_in <= (usbep_t)USB_MAX_ENDPOINTS) &&
+  chDbgCheck((config->int_in <= (usbep_t)USB_MAX_ENDPOINTS) &&
                (config->int_in_maxsize > 0U));
 }
-osalDbgAssert(usbServiceGetBinderX(self) == NULL, "service bound");
+chDbgAssert(usbServiceGetBinderX(self) == NULL, "service bound");
 
-osalSysLock();
-osalDbgAssert((self->state == USB_CDC_SERVICE_STOP) ||
+chSysLock();
+chDbgAssert((self->state == USB_CDC_SERVICE_STOP) ||
               (self->state == USB_CDC_SERVICE_READY), "invalid state");
 
 usbp = config->usbp;
@@ -429,7 +429,7 @@ if (config->int_in > 0U) {
 self->svcinfo.out_ep_mask =
     (uint16_t)((uint16_t)1U << (unsigned)config->bulk_out);
 self->state = USB_CDC_SERVICE_READY;
-osalSysUnlock();
+chSysUnlock();
 
 return HAL_RET_SUCCESS;]]></implementation>
       </function>
@@ -443,11 +443,11 @@ return HAL_RET_SUCCESS;]]></implementation>
 hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
 hal_usb_driver_c *usbp = NULL;
 
-osalDbgCheck(self != NULL);
-osalDbgAssert(usbServiceGetBinderX(self) == NULL, "service bound");
+chDbgCheck(self != NULL);
+chDbgAssert(usbServiceGetBinderX(self) == NULL, "service bound");
 
-osalSysLock();
-osalDbgAssert((self->state == USB_CDC_SERVICE_STOP) ||
+chSysLock();
+chDbgAssert((self->state == USB_CDC_SERVICE_STOP) ||
               (self->state == USB_CDC_SERVICE_READY), "invalid state");
 
 if (self->config != NULL) {
@@ -466,7 +466,7 @@ self->svcinfo.if_count = 0U;
 self->svcinfo.in_ep_mask = 0U;
 self->svcinfo.out_ep_mask = 0U;
 self->state = USB_CDC_SERVICE_STOP;
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
       </function>
       <function name="usbCdcServiceGetLineCodingX"
         ctype="const usb_cdc_linecoding_t *">
@@ -479,7 +479,7 @@ osalSysUnlock();]]></implementation>
         <implementation><![CDATA[
 hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
 return &self->linecoding;]]></implementation>
       </function>
@@ -493,7 +493,7 @@ return &self->linecoding;]]></implementation>
         <implementation><![CDATA[
 hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
 return self->control_line_state;]]></implementation>
       </function>
@@ -508,7 +508,7 @@ return self->control_line_state;]]></implementation>
         <implementation><![CDATA[
 hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
 return self->config;]]></implementation>
       </function>
@@ -522,7 +522,7 @@ return self->config;]]></implementation>
         <implementation><![CDATA[
 hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
 return self->connected;]]></implementation>
       </function>
@@ -553,9 +553,9 @@ hal_usb_binder_c *binderp;
 
 binderp = usbGetBinderX(usbp);
 if (binderp != NULL) {
-  osalSysLockFromISR();
+  chSysLockFromISR();
   usbBinderInI(binderp, ep);
-  osalSysUnlockFromISR();
+  chSysUnlockFromISR();
 }]]></implementation>
       </function>
       <function name="cdcsvc_endpoint_out_cb" ctype="void">
@@ -566,9 +566,9 @@ hal_usb_binder_c *binderp;
 
 binderp = usbGetBinderX(usbp);
 if (binderp != NULL) {
-  osalSysLockFromISR();
+  chSysLockFromISR();
   usbBinderOutI(binderp, ep);
-  osalSysUnlockFromISR();
+  chSysUnlockFromISR();
 }]]></implementation>
       </function>
     </functions>

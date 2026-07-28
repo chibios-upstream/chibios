@@ -78,19 +78,19 @@ static void eth_lld_serve_interrupt(hal_eth_driver_c *ethp, uint32_t nvrq) {
     return;
   }
 
-  osalSysLockFromISR();
+  chSysLockFromISR();
 #if ETH_USE_SYNCHRONIZATION == TRUE
   if ((flags & ETH_FLAGS_TX) != 0U) {
-    osalThreadDequeueAllI(&ethp->txqueue, MSG_OK);
+    chThdDequeueAllI(&ethp->txqueue, MSG_OK);
   }
   if ((flags & ETH_FLAGS_RX) != 0U) {
-    osalThreadDequeueAllI(&ethp->rxqueue, MSG_OK);
+    chThdDequeueAllI(&ethp->rxqueue, MSG_OK);
   }
 #endif
 #if ETH_USE_EVENTS == TRUE
-  osalEventBroadcastFlagsI(&ethp->es, flags);
+  chEvtBroadcastFlagsI(&ethp->es, flags);
 #endif
-  osalSysUnlockFromISR();
+  chSysUnlockFromISR();
 
   __cbdrv_invoke_cb(ethp);
 }
@@ -111,26 +111,26 @@ static void eth_lld_apply_cfgbuf(hal_eth_driver_c *ethp,
 
 #if VIO_ETH_USE_VETH1 || defined(__DOXYGEN__)
 #if !defined(VIO_VETH1_SUPPRESS_ISR)
-OSAL_IRQ_HANDLER(MK_VECTOR(VIO_VETH1_IRQ)) {
+CH_IRQ_HANDLER(MK_VECTOR(VIO_VETH1_IRQ)) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   eth_lld_serve_interrupt(&ETHD1, VIO_VETH1_IRQ);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif
 
 #if VIO_ETH_USE_VETH2 || defined(__DOXYGEN__)
 #if !defined(VIO_VETH2_SUPPRESS_ISR)
-OSAL_IRQ_HANDLER(MK_VECTOR(VIO_VETH2_IRQ)) {
+CH_IRQ_HANDLER(MK_VECTOR(VIO_VETH2_IRQ)) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   eth_lld_serve_interrupt(&ETHD2, VIO_VETH2_IRQ);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif
@@ -170,7 +170,7 @@ msg_t eth_lld_start(hal_eth_driver_c *ethp) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid ETH instance");
+    chDbgAssert(false, "invalid ETH instance");
   }
 
   if (msg == HAL_RET_SUCCESS) {
@@ -197,10 +197,10 @@ void eth_lld_stop(hal_eth_driver_c *ethp) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid ETH instance");
+    chDbgAssert(false, "invalid ETH instance");
   }
 
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
 }
 
 const hal_eth_config_t *eth_lld_setcfg(hal_eth_driver_c *ethp,

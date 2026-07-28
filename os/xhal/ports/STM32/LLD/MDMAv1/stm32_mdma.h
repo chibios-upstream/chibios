@@ -265,7 +265,7 @@
 #error "STM32_IRQ_MDMA_PRIORITY not defined in mcuconf.h"
 #endif
 
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_MDMA_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_MDMA_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_MDMA_PRIORITY"
 #endif
 

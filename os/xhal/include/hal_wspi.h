@@ -102,9 +102,9 @@
  */
 #define _wspi_wakeup_isr(wspip, msg)                                        \
   do {                                                                      \
-    osalSysLockFromISR();                                                   \
-    osalThreadResumeI(&(wspip)->sync_transfer, msg);                        \
-    osalSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                     \
+    chThdResumeI(&(wspip)->sync_transfer, msg);                             \
+    chSysUnlockFromISR();                                                   \
   } while (false)
 #endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 
@@ -283,9 +283,9 @@ struct hal_wspi_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**

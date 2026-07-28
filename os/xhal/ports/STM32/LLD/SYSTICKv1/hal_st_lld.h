@@ -147,7 +147,7 @@
 #endif
 /* End of checks to be removed.*/
 
-#if OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING
+#if CH_CFG_ST_TIMEDELTA > 0
 
 #if STM32_ST_USE_TIMER == 1
 
@@ -723,7 +723,7 @@
 #define ST_LLD_NUM_ALARMS                   STM32_ST_OVERRIDE_ALARMS
 #endif
 
-#elif OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC
+#elif CH_CFG_ST_TIMEDELTA == 0
 
 #define STM32_ST_USE_SYSTICK                TRUE
 #define STM32_ST_USE_TIM1                   FALSE
@@ -792,7 +792,7 @@ extern "C" {
 /* Driver inline functions.                                                  */
 /*===========================================================================*/
 
-#if (OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING) || defined(__DOXYGEN__)
+#if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
 
 /**
  * @brief   Returns the time counter value.
@@ -958,7 +958,7 @@ static inline bool st_lld_is_alarm_active_n(unsigned alarm) {
 }
 #endif /* ST_LLD_NUM_ALARMS > 1 */
 
-#endif /* OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING */
+#endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
 #endif /* HAL_ST_LLD_H */
 

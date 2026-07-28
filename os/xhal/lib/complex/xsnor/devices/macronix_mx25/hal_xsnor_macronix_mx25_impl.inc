@@ -325,7 +325,7 @@ static flash_error_t mx25_poll_status(hal_xsnor_macronix_mx25_c *self) {
 
   do {
     if ((xsnorcfg->options & MX25_OPT_NICE_WAITING) != 0U) {
-      osalThreadSleepMilliseconds(1);
+      chThdSleepMilliseconds(1);
     }
 
     /* Read status command.*/
@@ -376,7 +376,7 @@ static void mx25_reset_memory_spi(hal_xsnor_macronix_mx25_c *self) {
   /* The device requires at least 10uS to recover after a reset, it could
      need up to 100mS in case a reset occurred during a chip erase, 50uS
      covers most cases.*/
-  osalThreadSleepMicroseconds(50);
+  chThdSleepMicroseconds(50);
 }
 #endif
 
@@ -401,7 +401,7 @@ static void mx25_reset_memory(hal_xsnor_macronix_mx25_c *self) {
   /* The device requires at least 10uS to recover after a reset, it could
      need up to 100mS in case a reset occurred during a chip erase, 50uS
      covers most cases.*/
-  osalThreadSleepMicroseconds(50);
+  chThdSleepMicroseconds(50);
 }
 
 static void mx25_read_id(hal_xsnor_macronix_mx25_c *self, uint8_t *buf) {
@@ -428,7 +428,7 @@ static void mx25_read_id(hal_xsnor_macronix_mx25_c *self, uint8_t *buf) {
       cmd.dummy = 4U;
       break;
     default:
-      osalDbgAssert(false, "invalid bus type");
+      chDbgAssert(false, "invalid bus type");
       buf[0] = 0;
       buf[1] = 0;
       buf[2] = 0;
@@ -467,7 +467,7 @@ static void mx25_write_cr2(hal_xsnor_macronix_mx25_c *self,
       cmd.cmd = CMD_OPI_WREN;
       break;
     default:
-      osalDbgAssert(false, "invalid bus type");
+      chDbgAssert(false, "invalid bus type");
       return;
     }
   }
@@ -498,7 +498,7 @@ static void mx25_write_cr2(hal_xsnor_macronix_mx25_c *self,
       cmd.cmd = CMD_OPI_WRCR2;
       break;
     default:
-      osalDbgAssert(false, "invalid bus type");
+      chDbgAssert(false, "invalid bus type");
       return;
     }
   }
@@ -542,7 +542,7 @@ static flash_error_t mx25_read_unlocked(hal_xsnor_macronix_mx25_c *self,
     }
     break;
   default:
-    osalDbgAssert(false, "invalid bus type");
+    chDbgAssert(false, "invalid bus type");
     err = FLASH_ERROR_HW_FAILURE;
     break;
   }
@@ -699,7 +699,7 @@ flash_error_t __mx25_init_impl(void *ip) {
     }
     break;
   default:
-    osalDbgAssert(false, "invalid bus type");
+    chDbgAssert(false, "invalid bus type");
     self->commands = NULL;
     return FLASH_ERROR_HW_FAILURE;
   }
@@ -847,7 +847,7 @@ flash_error_t __mx25_read_impl(void *ip, flash_offset_t offset, size_t n,
   hal_xsnor_macronix_mx25_c *self = (hal_xsnor_macronix_mx25_c *)ip;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgAssert(self->state == FLASH_READ, "invalid state");
+  chDbgAssert(self->state == FLASH_READ, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -877,7 +877,7 @@ flash_error_t __mx25_program_impl(void *ip, flash_offset_t offset, size_t n,
   hal_xsnor_macronix_mx25_c *self = (hal_xsnor_macronix_mx25_c *)ip;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgAssert(self->state == FLASH_PGM, "invalid state");
+  chDbgAssert(self->state == FLASH_PGM, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -914,7 +914,7 @@ flash_error_t __mx25_program_impl(void *ip, flash_offset_t offset, size_t n,
       __xsnor_bus_cmd_addr_send(self, CMD_OPI_PP, offset, chunk, pp);
       break;
     default:
-      osalDbgAssert(false, "invalid bus type");
+      chDbgAssert(false, "invalid bus type");
       err = FLASH_ERROR_HW_FAILURE;
       break;
     }
@@ -948,7 +948,7 @@ flash_error_t __mx25_start_erase_all_impl(void *ip) {
   hal_xsnor_macronix_mx25_c *self = (hal_xsnor_macronix_mx25_c *)ip;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
+  chDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -973,7 +973,7 @@ flash_error_t __mx25_start_erase_all_impl(void *ip) {
     __xsnor_bus_cmd(self, CMD_OPI_CE);
     break;
   default:
-    osalDbgAssert(false, "invalid bus type");
+    chDbgAssert(false, "invalid bus type");
     err = FLASH_ERROR_HW_FAILURE;
     break;
   }
@@ -996,7 +996,7 @@ flash_error_t __mx25_start_erase_sector_impl(void *ip, flash_sector_t sector) {
   flash_offset_t offset = (flash_offset_t)(sector * self->descriptor.sectors_size);
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
+  chDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -1037,7 +1037,7 @@ flash_error_t __mx25_start_erase_sector_impl(void *ip, flash_sector_t sector) {
     }
     break;
   default:
-    osalDbgAssert(false, "invalid bus type");
+    chDbgAssert(false, "invalid bus type");
     err = FLASH_ERROR_HW_FAILURE;
     break;
   }
@@ -1061,7 +1061,7 @@ flash_error_t __mx25_query_erase_impl(void *ip, unsigned *msec) {
   hal_xsnor_macronix_mx25_c *self = (hal_xsnor_macronix_mx25_c *)ip;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
+  chDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -1092,7 +1092,7 @@ flash_error_t __mx25_query_erase_impl(void *ip, unsigned *msec) {
                                        &xsnorcfg->buffers->databuf[16]);
     break;
   default:
-    osalDbgAssert(false, "invalid bus type");
+    chDbgAssert(false, "invalid bus type");
     err = FLASH_ERROR_HW_FAILURE;
     break;
   }
@@ -1139,7 +1139,7 @@ flash_error_t __mx25_verify_erase_impl(void *ip, flash_sector_t sector) {
   size_t n;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgAssert(self->state == FLASH_READ, "invalid state");
+  chDbgAssert(self->state == FLASH_READ, "invalid state");
 
   /* Read command.*/
   offset = (flash_offset_t)(sector * self->descriptor.sectors_size);
@@ -1229,7 +1229,7 @@ flash_error_t __mx25_mmap_on_impl(void *ip, uint8_t **addrp) {
       cmd.dummy = (uint32_t)(xsnorcfg->options & MX25_OPT_DUMMY_CYCLES_MASK);
       break;
     default:
-      osalDbgAssert(false, "invalid bus type");
+      chDbgAssert(false, "invalid bus type");
       return FLASH_ERROR_HW_FAILURE;
     }
     cmd.addr  = 0U;

@@ -64,7 +64,7 @@ static const hal_adc_config_t default_config = {
  */
 NOINLINE static void adc_lld_vreg_on(ADC_TypeDef *adc) {
 
-  osalDbgAssert(adc->CR == 0, "invalid register state");
+  chDbgAssert(adc->CR == 0, "invalid register state");
 
 #if defined(ADC_CR_ADVREGEN)
   adc->CR = ADC_CR_ADVREGEN;
@@ -153,9 +153,9 @@ static void adc_lld_serve_rx_interrupt(hal_adc_driver_c *adcp, uint32_t flags) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_ADC1_HANDLER) {
+CH_IRQ_HANDLER(STM32_ADC1_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   adc_lld_serve_interrupt(&ADCD1);
 
@@ -163,7 +163,7 @@ OSAL_IRQ_HANDLER(STM32_ADC1_HANDLER) {
   STM32_ADC_ADC1_IRQ_HOOK
 #endif
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -223,7 +223,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                                     STM32_ADC_ADC1_DMA_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_rx_interrupt,
                                     (void *)adcp);
-      osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
+      chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
       rccResetADC1();
       rccEnableADC1(true);
 

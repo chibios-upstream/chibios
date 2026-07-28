@@ -242,13 +242,13 @@
 
 /* ADC IRQ priority tests.*/
 #if STM32_ADC_USE_ADC1 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_ADC_ADC1_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADC_ADC1_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC1"
 #endif
 
 /* DMA IRQ priority tests.*/
 #if STM32_ADC_USE_ADC1 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_ADC_ADC1_DMA_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADC_ADC1_DMA_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC1 DMA"
 #endif
 

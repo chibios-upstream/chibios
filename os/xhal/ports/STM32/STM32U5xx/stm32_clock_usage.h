@@ -143,8 +143,7 @@
 #endif
 
 /* System timer clock requirement atoms.*/
-#if defined(OSAL_ST_MODE) && defined(OSAL_ST_MODE_PERIODIC) &&              \
-    (OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC)
+#if defined(CH_CFG_ST_TIMEDELTA) && (CH_CFG_ST_TIMEDELTA == 0)
 #define STM32_SYSTICK_CLOCK_REQUIRED
 #endif
 

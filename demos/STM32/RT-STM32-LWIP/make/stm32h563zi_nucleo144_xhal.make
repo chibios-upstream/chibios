@@ -101,11 +101,10 @@ OOPSELECT := base referenced
 include $(CHIBIOS)/os/license/license.mk
 # Startup files.
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32h5xx.mk
-# HAL-OSAL files (optional).
+# XHAL files.
 include $(CHIBIOS)/os/xhal/xhal.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/STM32H5xx/platform.mk
 include $(CHIBIOS)/os/hal/boards/ST_NUCLEO144_H563ZI/board.mk
-include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMv8-M-ML-ALT/compilers/GCC/mk/port.mk
@@ -114,9 +113,9 @@ include $(CHIBIOS)/os/common/utils/utils.mk
 # Auto-build files in ./source recursively.
 include $(CHIBIOS)/tools/mk/autobuild.mk
 # Other files.
-include $(CHIBIOS)/os/various/lwip_bindings/lwip_xhal.mk
+include $(CHIBIOS)/os/xhal/lib/complex/lwip_bindings/lwip_xhal.mk
 include $(CHIBIOS)/os/vfs/vfs.mk
-include $(CHIBIOS)/os/various/httpd_vfs_bindings/httpd_vfs.mk
+include $(CHIBIOS)/os/xhal/lib/complex/httpd_vfs_bindings/httpd_vfs.mk
 
 # Define linker script file here.
 LDSCRIPT= $(STARTUPLD)/STM32H563xI.ld

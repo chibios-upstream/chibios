@@ -92,12 +92,12 @@ void *__eth_objinit_impl(void *ip, const void *vmt) {
 
   /* Initialization code.*/
 #if ETH_USE_SYNCHRONIZATION == TRUE
-  osalThreadQueueObjectInit(&self->txqueue);
-  osalThreadQueueObjectInit(&self->rxqueue);
+  chThdQueueObjectInit(&self->txqueue);
+  chThdQueueObjectInit(&self->rxqueue);
 #endif
 
 #if ETH_USE_EVENTS == TRUE
-  osalEventObjectInit(&self->es);
+  chEvtObjectInit(&self->es);
 #endif
   self->lastflags = (eventflags_t)0U;
 
@@ -243,20 +243,20 @@ eth_receive_handle_t ethWaitReceiveHandle(void *ip, sysinterval_t timeout) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
   eth_receive_handle_t rxh;
 
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(drvGetStateX(self) == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheck(self != NULL);
+  chDbgAssert(drvGetStateX(self) == HAL_DRV_STATE_READY, "not ready");
 
-  osalSysLock();
+  chSysLock();
 
   while ((rxh = ethGetReceiveHandleX(self)) == (eth_receive_handle_t)0U) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&self->rxqueue, timeout);
+    msg_t msg = chThdEnqueueTimeoutS(&self->rxqueue, timeout);
     if (msg == MSG_TIMEOUT) {
       rxh = (eth_receive_handle_t)0U;
       break;
     }
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return rxh;
 }
@@ -274,20 +274,20 @@ eth_transmit_handle_t ethWaitTransmitHandle(void *ip, sysinterval_t timeout) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
   eth_transmit_handle_t txh;
 
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(drvGetStateX(self) == HAL_DRV_STATE_READY, "not ready");
+  chDbgCheck(self != NULL);
+  chDbgAssert(drvGetStateX(self) == HAL_DRV_STATE_READY, "not ready");
 
-  osalSysLock();
+  chSysLock();
 
   while ((txh = ethGetTransmitHandleX(self)) == (eth_transmit_handle_t)0U) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&self->txqueue, timeout);
+    msg_t msg = chThdEnqueueTimeoutS(&self->txqueue, timeout);
     if (msg == MSG_TIMEOUT) {
       txh = (eth_transmit_handle_t)0U;
       break;
     }
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return txh;
 }

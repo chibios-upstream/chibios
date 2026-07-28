@@ -239,9 +239,9 @@ static rtceventflags_t rtc_update_events(uint32_t cr, uint32_t misr) {
 #endif
 
   if (flags != 0U) {
-    sts = osalSysGetStatusAndLockX();
+    sts = chSysGetStatusAndLockX();
     RTCD1.events |= flags;
-    osalSysRestoreStatusX(sts);
+    chSysRestoreStatusX(sts);
   }
 
   return flags;
@@ -348,7 +348,7 @@ msg_t rtc_lld_set_datetime(hal_rtc_driver_c *rtcp,
   tr = rtc_encode_time(timespec);
   dr = rtc_encode_date(timespec);
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   rtc_wpr_unlock(rtcp);
   rtc_enter_init(rtcp);
   rtcp->rtc->TR = tr;
@@ -357,7 +357,7 @@ msg_t rtc_lld_set_datetime(hal_rtc_driver_c *rtcp,
                   ((uint32_t)timespec->dstflag << RTC_CR_BKP_OFFSET);
   rtc_exit_init(rtcp);
   rtc_wpr_lock(rtcp);
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return HAL_RET_SUCCESS;
 }
@@ -367,7 +367,7 @@ msg_t rtc_lld_get_datetime(hal_rtc_driver_c *rtcp, rtc_datetime_t *timespec) {
   uint32_t subs;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   ssr = 0U;
   tr = 0U;
   dr = 0U;
@@ -380,7 +380,7 @@ msg_t rtc_lld_get_datetime(hal_rtc_driver_c *rtcp, rtc_datetime_t *timespec) {
     dr = rtcp->rtc->DR;
   } while ((ssr != prev_ssr) || (tr != prev_tr) || (dr != prev_dr));
   cr = rtcp->rtc->CR;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   rtc_decode_time(tr, timespec);
   subs = ((((rtcp->rtc->PRER & RTC_PRER_PREDIV_S_Msk) >> RTC_PRER_PREDIV_S_Pos) - ssr) * 1000U) /
@@ -401,7 +401,7 @@ msg_t rtc_lld_set_alarm(hal_rtc_driver_c *rtcp,
     return HAL_RET_CONFIG_ERROR;
   }
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   rtc_wpr_unlock(rtcp);
   if (alarm == 0U) {
     if (alarmspec != NULL) {
@@ -438,7 +438,7 @@ msg_t rtc_lld_set_alarm(hal_rtc_driver_c *rtcp,
   }
 #endif
   rtc_wpr_lock(rtcp);
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return HAL_RET_SUCCESS;
 }

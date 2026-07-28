@@ -260,7 +260,7 @@
 #if !defined(STM32_IRQ_TIM6_DAC_PRIORITY)
 #error "STM32_IRQ_TIM6_DAC_PRIORITY not defined in xmcuconf.h"
 #endif
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_TIM6_DAC_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_TIM6_DAC_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_TIM6_DAC_PRIORITY"
 #endif
 #endif
@@ -270,7 +270,7 @@
 #if !defined(STM32_IRQ_TIM7_DAC_PRIORITY)
 #error "STM32_IRQ_TIM7_DAC_PRIORITY not defined in xmcuconf.h"
 #endif
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_TIM7_DAC_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_TIM7_DAC_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_TIM7_DAC_PRIORITY"
 #endif
 #endif

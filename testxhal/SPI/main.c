@@ -33,13 +33,6 @@ void spi_circular_cb(void *ip) {
   hal_spi_driver_c *spip = (hal_spi_driver_c *)ip;
   size_t n;
 
-  /* Stopping circular transfer on button press.*/
-  if (palReadLine(PORTAB_LINE_BUTTON) == PORTAB_BUTTON_PRESSED) {
-    osalSysLockFromISR();
-    spiStopTransferI(&PORTAB_SPI1, &n);
-    osalSysUnlockFromISR();
-  }
-
   switch (drvGetStateX(spip)) {
   case HAL_DRV_STATE_HALF:
     /* 1st half buffer filled.*/
@@ -62,6 +55,13 @@ void spi_circular_cb(void *ip) {
   default:
     /* Must be HAL_DRV_STATE_ERROR.*/
     chSysHalt("SPI error");
+  }
+
+  /* Stopping circular transfer on button press.*/
+  if (palReadLine(PORTAB_LINE_BUTTON) == PORTAB_BUTTON_PRESSED) {
+    chSysLockFromISR();
+    spiStopTransferI(&PORTAB_SPI1, &n);
+    chSysUnlockFromISR();
   }
 }
 #endif

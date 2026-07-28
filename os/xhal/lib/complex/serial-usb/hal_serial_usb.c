@@ -45,11 +45,11 @@
 
 static void sdu_add_flags_i(SerialUSBDriver *self, chnflags_t flags) {
   self->flags |= flags;
-  osalEventBroadcastFlagsI(&self->event, flags);
+  chEvtBroadcastFlagsI(&self->event, flags);
 }
 
 static void sdu_resume_tx_waiter_i(SerialUSBDriver *self, msg_t msg) {
-  osalThreadResumeI(&self->txsync, msg);
+  chThdResumeI(&self->txsync, msg);
 }
 
 static bool sdu_is_usb_active_x(SerialUSBDriver *self) {
@@ -93,7 +93,7 @@ static size_t sdu_tx_collect_i(SerialUSBDriver *self, size_t n) {
   for (i = 0U; i < n; i++) {
     msg_t msg = oqGetI(&self->oqueue);
 
-    osalDbgAssert(msg >= MSG_OK, "queue unexpectedly empty");
+    chDbgAssert(msg >= MSG_OK, "queue unexpectedly empty");
     self->txbuf[i] = (uint8_t)msg;
   }
 
@@ -110,7 +110,7 @@ static bool sdu_start_receive_i(SerialUSBDriver *self) {
 
 #if (SERIAL_USB_RX_PACKET_MODE == TRUE)
   n = (size_t)cfg->bulk_out_maxsize;
-  osalDbgAssert(n <= (size_t)SERIAL_USB_BUFFERS_SIZE,
+  chDbgAssert(n <= (size_t)SERIAL_USB_BUFFERS_SIZE,
                 "SERIAL_USB_BUFFERS_SIZE too small");
 #else
   n = (size_t)SERIAL_USB_BUFFERS_SIZE;
@@ -239,7 +239,7 @@ static void sdu_onotify(io_queue_t *qp) {
 const sdu_linecoding_t *sduGetLineCodingX(void *ip) {
   SerialUSBDriver *self = (SerialUSBDriver *)ip;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
   return (const sdu_linecoding_t *)usbCdcServiceGetLineCodingX((void *)self);
 }
@@ -255,7 +255,7 @@ const sdu_linecoding_t *sduGetLineCodingX(void *ip) {
 event_source_t *sduGetEventSourceX(void *ip) {
   SerialUSBDriver *self = (SerialUSBDriver *)ip;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
   return &self->event;
 }
@@ -271,7 +271,7 @@ event_source_t *sduGetEventSourceX(void *ip) {
 hal_usb_service_c *sduGetServiceX(void *ip) {
   SerialUSBDriver *self = (SerialUSBDriver *)ip;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
   return (hal_usb_service_c *)self;
 }
@@ -289,25 +289,25 @@ msg_t sduStart(void *ip, const SerialUSBConfig *config) {
   SerialUSBDriver *self = (SerialUSBDriver *)ip;
   msg_t msg;
 
-  osalDbgCheck((self != NULL) && (config != NULL));
-  osalDbgCheck((config->bulk_in_maxsize > 0U) &&
+  chDbgCheck((self != NULL) && (config != NULL));
+  chDbgCheck((config->bulk_in_maxsize > 0U) &&
                (config->bulk_in_maxsize <= SERIAL_USB_BUFFERS_SIZE));
-  osalDbgCheck((config->bulk_out_maxsize > 0U) &&
+  chDbgCheck((config->bulk_out_maxsize > 0U) &&
                (config->bulk_out_maxsize <= SERIAL_USB_BUFFERS_SIZE));
   if (config->int_in > 0U) {
-    osalDbgCheck((config->int_in_maxsize > 0U) &&
+    chDbgCheck((config->int_in_maxsize > 0U) &&
                  (config->int_in_maxsize <= SERIAL_USB_BUFFERS_SIZE));
   }
 
   msg = usbCdcServiceStart((void *)self,
                            (const hal_usb_cdc_config_t *)config);
   if (msg == HAL_RET_SUCCESS) {
-    osalSysLock();
+    chSysLock();
     self->flags = CHN_FL_NONE;
     self->last_txsize = 0U;
     iqResetI(&self->iqueue);
     oqResetI(&self->oqueue);
-    osalSysUnlock();
+    chSysUnlock();
   }
 
   return msg;
@@ -323,13 +323,13 @@ msg_t sduStart(void *ip, const SerialUSBConfig *config) {
 void sduStop(void *ip) {
   SerialUSBDriver *self = (SerialUSBDriver *)ip;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   sdu_add_flags_i(self, CHN_FL_DISCONNECTED);
   sdu_reset_queues_i(self, MSG_RESET);
-  osalOsRescheduleS();
-  osalSysUnlock();
+  chSchRescheduleS();
+  chSysUnlock();
 
   usbCdcServiceStop((void *)self);
 }
@@ -551,10 +551,10 @@ static chnflags_t __sdu_chn_getclr_impl(void *ip, chnflags_t mask) {
   chnflags_t flags;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   flags = self->flags & mask;
   self->flags &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return flags;
 }
@@ -572,24 +572,24 @@ static msg_t __sdu_chn_ctl_impl(void *ip, unsigned int operation, void *arg) {
   hal_serial_usb_driver_c *self = oopIfGetOwner(hal_serial_usb_driver_c, ip);
   switch (operation) {
   case CHN_CTL_NOP:
-    osalDbgCheck(arg == NULL);
+    chDbgCheck(arg == NULL);
     return HAL_RET_SUCCESS;
   case CHN_CTL_TX_WAIT:
-    osalDbgCheck(arg == NULL);
-    osalSysLock();
+    chDbgCheck(arg == NULL);
+    chSysLock();
     if ((self->state != SDU_READY) || (self->config == NULL) ||
         !self->connected) {
-      osalSysUnlock();
+      chSysUnlock();
       return MSG_RESET;
     }
     if ((oqGetFullI(&self->oqueue) == 0U) && !sdu_is_transmitting_i(self)) {
-      osalSysUnlock();
+      chSysUnlock();
       return MSG_OK;
     }
     self->txsync = NULL;
     {
-      msg_t msg = osalThreadSuspendS(&self->txsync);
-      osalSysUnlock();
+      msg_t msg = chThdSuspendTimeoutS(&self->txsync, TIME_INFINITE);
+      chSysUnlock();
       return msg;
     }
   default:
@@ -639,7 +639,7 @@ void *__sdu_objinit_impl(void *ip, const void *vmt) {
   __cdcsvc_objinit_impl((void *)self, vmt);
   iqObjectInit(&self->iqueue, self->ib, sizeof(self->ib), sdu_inotify, self);
   oqObjectInit(&self->oqueue, self->ob, sizeof(self->ob), sdu_onotify, self);
-  osalEventObjectInit(&self->event);
+  chEvtObjectInit(&self->event);
   self->flags = CHN_FL_NONE;
   self->last_txsize = 0U;
   self->txsync = NULL;
@@ -672,11 +672,11 @@ void __sdu_dispose_impl(void *ip) {
  */
 void __sdu_unbind_impl(void *ip) {
   hal_serial_usb_driver_c *self = (hal_serial_usb_driver_c *)ip;
-  osalSysLock();
+  chSysLock();
   sdu_add_flags_i(self, CHN_FL_DISCONNECTED);
   sdu_reset_queues_i(self, MSG_RESET);
-  osalOsRescheduleS();
-  osalSysUnlock();
+  chSchRescheduleS();
+  chSysUnlock();
 }
 
 /**

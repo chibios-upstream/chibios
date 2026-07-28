@@ -105,11 +105,10 @@ include $(CHIBIOS)/os/common/startup/ARMCMx-SB/compilers/GCC/mk/startup.mk
 # Common files.
 include $(CHIBIOS)/os/common/oop/oop.mk
 include $(CHIBIOS)/os/common/utils/utils.mk
-# HAL-OSAL files (optional).
+# XHAL files.
 include $(CHIBIOS)/os/xhal/xhal.mk
 include $(CHIBIOS)/os/xhal/ports/vio/platform.mk
 include $(CHIBIOS)/os/hal/boards/SB_GENERIC/board.mk
-include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 #include $(CHIBIOS)/os/hal/lib/complex/buffered_sio/hal_buffered_sio.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
@@ -118,8 +117,8 @@ include $(CHIBIOS)/os/sb/user/sbuser.mk
 # Auto-build files in ./source recursively.
 include $(CHIBIOS)/tools/mk/autobuild.mk
 # Other files (optional).
-include $(CHIBIOS)/os/various/lwip_bindings/lwip_xhal.mk
-include $(CHIBIOS)/os/various/httpd_posix_bindings/httpd_posix.mk
+include $(CHIBIOS)/os/xhal/lib/complex/lwip_bindings/lwip_xhal.mk
+include $(CHIBIOS)/os/xhal/lib/complex/httpd_posix_bindings/httpd_posix.mk
 
 # Define linker script file here.
 LDSCRIPT= ./ld/128k-081E0000-48k-20004000.ld

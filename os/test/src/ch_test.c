@@ -175,7 +175,7 @@ static bool test_execute_inner(const testsuite_t *tsp) {
       test_print_line();
       test_printf("--- Test Case %u.%u (%s)"TEST_CFG_EOL_STRING, tseq + 1U, tcase + 1U, tsp->sequences[tseq]->cases[tcase]->name);
 #if TEST_CFG_DELAY_BETWEEN_TESTS > 0
-      osalThreadSleepMilliseconds(TEST_CFG_DELAY_BETWEEN_TESTS);
+      chThdSleepMilliseconds(TEST_CFG_DELAY_BETWEEN_TESTS);
 #endif
 #if defined(TEST_REPORT_HOOK_TESTCASE)
       TEST_REPORT_HOOK_TESTCASE(tsp->sequences[tseq]->cases[tcase]);
@@ -247,7 +247,7 @@ bool __test_assert_time_window(systime_t start,
                                systime_t end,
                                const char *msg) {
 
-  return __test_assert(osalTimeIsInRangeX(osalOsGetSystemTimeX(), start, end),
+  return __test_assert(chTimeIsInRangeX(chVTGetSystemTimeX(), start, end),
                        msg);
 }
 #endif /* TEST_CFG_CHIBIOS_SUPPORT == TRUE */

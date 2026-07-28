@@ -264,7 +264,7 @@ typedef struct {
  */
 #define _pal_init_event(e)                                                  \
   do {                                                                      \
-    osalThreadQueueObjectInit(&_pal_events[e].threads);                     \
+    chThdQueueObjectInit(&_pal_events[e].threads);                     \
     _pal_events[e].cb = NULL;                                               \
     _pal_events[e].arg = NULL;                                              \
   } while (false)
@@ -281,7 +281,7 @@ typedef struct {
 #if (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
 #define _pal_init_event(e)                                                  \
   do {                                                                      \
-    osalThreadQueueObjectInit(&_pal_events[e].threads);                     \
+    chThdQueueObjectInit(&_pal_events[e].threads);                     \
   } while (false)
 #endif /* (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE) */
 
@@ -295,7 +295,7 @@ typedef struct {
  */
 #define _pal_clear_event(e)                                                 \
   do {                                                                      \
-    osalThreadDequeueAllI(&_pal_events[e].threads, MSG_RESET);              \
+    chThdDequeueAllI(&_pal_events[e].threads, MSG_RESET);              \
     _pal_events[e].cb = NULL;                                               \
     _pal_events[e].arg = NULL;                                              \
   } while (false)
@@ -312,7 +312,7 @@ typedef struct {
 #if (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
 #define _pal_clear_event(e)                                                 \
   do {                                                                      \
-    osalThreadDequeueAllI(&_pal_events[e].threads, MSG_RESET);              \
+    chThdDequeueAllI(&_pal_events[e].threads, MSG_RESET);              \
   } while (false)
 #endif /* (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE) */
 
@@ -332,9 +332,9 @@ typedef struct {
     if (_pal_events[e].cb != NULL) {                                        \
       _pal_events[e].cb(_pal_events[e].arg);                                \
     }                                                                       \
-    osalSysLockFromISR();                                                   \
-    osalThreadDequeueAllI(&_pal_events[e].threads, MSG_OK);                 \
-    osalSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                   \
+    chThdDequeueAllI(&_pal_events[e].threads, MSG_OK);                 \
+    chSysUnlockFromISR();                                                 \
   } while (false)
 #endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE) */
 
@@ -351,9 +351,9 @@ typedef struct {
     defined(__DOXYGEN__)
 #define _pal_isr_code(e)                                                    \
   do {                                                                      \
-    osalSysLockFromISR();                                                   \
-    osalThreadDequeueAllI(&_pal_events[e].threads, MSG_OK);                 \
-    osalSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                   \
+    chThdDequeueAllI(&_pal_events[e].threads, MSG_OK);                 \
+    chSysUnlockFromISR();                                                 \
   } while (false)
 #endif /* (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE) */
 
@@ -428,8 +428,8 @@ typedef struct {
  * @brief   Sets a bits mask on a I/O port.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] port      port identifier
@@ -448,8 +448,8 @@ typedef struct {
  * @brief   Clears a bits mask on a I/O port.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures,  for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] port      port identifier
@@ -468,8 +468,8 @@ typedef struct {
  * @brief   Toggles a bits mask on a I/O port.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] port      port identifier
@@ -526,8 +526,8 @@ typedef struct {
  * @brief   Writes a group of bits.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] port      port identifier
@@ -554,8 +554,8 @@ typedef struct {
  *          with the specified mode.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    Programming an unknown or unsupported mode is silently ignored.
  * @note    The function can be called from any context.
  *
@@ -601,8 +601,8 @@ typedef struct {
  * @brief   Writes a logic state on an output pad.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] port      port identifier
@@ -624,8 +624,8 @@ typedef struct {
  * @brief   Sets a pad logic state to @p PAL_HIGH.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] port      port identifier
@@ -643,8 +643,8 @@ typedef struct {
  * @brief   Clears a pad logic state to @p PAL_LOW.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] port      port identifier
@@ -662,8 +662,8 @@ typedef struct {
  * @brief   Toggles a pad logic state.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] port      port identifier
@@ -682,8 +682,8 @@ typedef struct {
  * @details This function programs a pad with the specified mode.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    Programming an unknown or unsupported mode is silently ignored.
  * @note    The function can be called from any context.
  *
@@ -721,8 +721,8 @@ typedef struct {
  * @brief   Writes a logic state on an output line.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] line      line identifier
@@ -741,8 +741,8 @@ typedef struct {
  * @brief   Sets a line logic state to @p PAL_HIGH.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] line      line identifier
@@ -759,8 +759,8 @@ typedef struct {
  * @brief   Clears a line logic state to @p PAL_LOW.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] line      line identifier
@@ -777,8 +777,8 @@ typedef struct {
  * @brief   Toggles a line logic state.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] line      line identifier
@@ -795,8 +795,8 @@ typedef struct {
  * @brief   Line mode setup.
  * @note    The operation is not guaranteed to be atomic on all the
  *          architectures, for atomicity and/or portability reasons you may
- *          need to enclose port I/O operations between @p osalSysLock() and
- *          @p osalSysUnlock().
+ *          need to enclose port I/O operations between @p chSysLock() and
+ *          @p chSysUnlock().
  * @note    The function can be called from any context.
  *
  * @param[in] line      line identifier
@@ -858,9 +858,9 @@ typedef struct {
  */
 #define palEnablePadEvent(port, pad, mode)                                  \
   do {                                                                      \
-    osalSysLock();                                                          \
+    chSysLock();                                                          \
     palEnablePadEventI(port, pad, mode);                                    \
-    osalSysUnlock();                                                        \
+    chSysUnlock();                                                        \
   } while (false)
 
 /**
@@ -874,9 +874,9 @@ typedef struct {
  */
 #define palDisablePadEvent(port, pad)                                       \
   do {                                                                      \
-    osalSysLock();                                                          \
+    chSysLock();                                                          \
     palDisablePadEventI(port, pad);                                         \
-    osalSysUnlock();                                                        \
+    chSysUnlock();                                                        \
   } while (false)
 
 /**
@@ -922,9 +922,9 @@ typedef struct {
  */
 #define palEnableLineEvent(line, mode)                                      \
   do {                                                                      \
-    osalSysLock();                                                          \
+    chSysLock();                                                          \
     palEnableLineEventI(line, mode);                                        \
-    osalSysUnlock();                                                        \
+    chSysUnlock();                                                        \
   } while (false)
 
 /**
@@ -937,9 +937,9 @@ typedef struct {
  */
 #define palDisableLineEvent(line)                                           \
   do {                                                                      \
-    osalSysLock();                                                          \
+    chSysLock();                                                          \
     palDisableLineEventI(line);                                             \
-    osalSysUnlock();                                                        \
+    chSysUnlock();                                                        \
   } while (false)
 
 /**
@@ -993,9 +993,9 @@ typedef struct {
  */
 #define palSetPadCallback(port, pad, cb, arg)                               \
   do {                                                                      \
-    osalSysLock();                                                          \
+    chSysLock();                                                          \
     palSetPadCallbackI(port, pad, cb, arg);                                 \
-    osalSysUnlock();                                                        \
+    chSysUnlock();                                                        \
   } while (false)
 
 /**
@@ -1009,9 +1009,9 @@ typedef struct {
  */
 #define palSetLineCallback(line, cb, arg)                                   \
   do {                                                                      \
-    osalSysLock();                                                          \
+    chSysLock();                                                          \
     palSetLineCallbackI(line, cb, arg);                                     \
-    osalSysUnlock();                                                        \
+    chSysUnlock();                                                        \
   } while (false)
 #endif /* PAL_USE_CALLBACKS == TRUE */
 

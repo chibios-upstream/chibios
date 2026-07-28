@@ -52,10 +52,10 @@
 #endif
 
 /* Priority settings checks.*/
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_RTC_GLOBAL_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_RTC_GLOBAL_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_RTC_GLOBAL_PRIORITY"
 #endif
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_RTC_TAMP_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_RTC_TAMP_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_RTC_TAMP_PRIORITY"
 #endif
 
@@ -83,11 +83,11 @@ static inline void rtc_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_RTC_GLOBAL_HANDLER) {
+CH_IRQ_HANDLER(STM32_RTC_GLOBAL_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
   rtc_lld_serve_interrupt();
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /**
@@ -95,11 +95,11 @@ OSAL_IRQ_HANDLER(STM32_RTC_GLOBAL_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_RTC_TAMP_HANDLER) {
+CH_IRQ_HANDLER(STM32_RTC_TAMP_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
   rtc_lld_serve_interrupt();
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 

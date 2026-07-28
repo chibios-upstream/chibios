@@ -112,7 +112,7 @@ static inline flash_error_t stm32_flash_check_errors(hal_efl_driver_c *self) {
   self->flash->SR = sr & 0x0000FFFFU;
 
   /* Some errors are only caught by assertion.*/
-  osalDbgAssert((sr & (FLASH_SR_FASTERR |
+  chDbgAssert((sr & (FLASH_SR_FASTERR |
                        FLASH_SR_MISERR |
                        FLASH_SR_SIZERR)) == 0U, "unexpected flash error");
 
@@ -192,9 +192,9 @@ flash_error_t efl_lld_read(hal_efl_driver_c *self, flash_offset_t offset,
                            size_t n, uint8_t *rp) {
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgCheck((self != NULL) && (rp != NULL) && (n > 0U));
-  osalDbgCheck((size_t)offset + n <= (size_t)self->descriptor.size);
-  osalDbgAssert(self->state == FLASH_READ, "invalid state");
+  chDbgCheck((self != NULL) && (rp != NULL) && (n > 0U));
+  chDbgCheck((size_t)offset + n <= (size_t)self->descriptor.size);
+  chDbgAssert(self->state == FLASH_READ, "invalid state");
 
   stm32_flash_clear_status(self);
   memcpy((void *)rp, (const void *)(self->descriptor.address + offset), n);
@@ -222,9 +222,9 @@ flash_error_t efl_lld_program(hal_efl_driver_c *self, flash_offset_t offset,
                               size_t n, const uint8_t *pp) {
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgCheck((self != NULL) && (pp != NULL) && (n > 0U));
-  osalDbgCheck((size_t)offset + n <= (size_t)self->descriptor.size);
-  osalDbgAssert(self->state == FLASH_PGM, "invalid state");
+  chDbgCheck((self != NULL) && (pp != NULL) && (n > 0U));
+  chDbgCheck((size_t)offset + n <= (size_t)self->descriptor.size);
+  chDbgAssert(self->state == FLASH_PGM, "invalid state");
 
   stm32_flash_clear_status(self);
   stm32_flash_enable_pgm(self);
@@ -245,7 +245,7 @@ flash_error_t efl_lld_program(hal_efl_driver_c *self, flash_offset_t offset,
 
     address_value = (uintptr_t)self->descriptor.address +
                     (uintptr_t)(offset & ~STM32_FLASH_LINE_MASK);
-    osalDbgAssert((address_value & (uintptr_t)(sizeof(uint32_t) - 1U)) == 0U,
+    chDbgAssert((address_value & (uintptr_t)(sizeof(uint32_t) - 1U)) == 0U,
                   "unaligned flash line");
     address = (volatile uint32_t *)address_value;
 
@@ -283,8 +283,8 @@ flash_error_t efl_lld_program(hal_efl_driver_c *self, flash_offset_t offset,
  */
 flash_error_t efl_lld_start_erase_all(hal_efl_driver_c *self) {
 
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   /* Clearing error status bits.*/
   stm32_flash_clear_status(self);
@@ -309,9 +309,9 @@ flash_error_t efl_lld_start_erase_all(hal_efl_driver_c *self) {
 flash_error_t efl_lld_start_erase_sector(hal_efl_driver_c *self,
                                          flash_sector_t sector) {
 
-  osalDbgCheck(self != NULL);
-  osalDbgCheck(sector < self->descriptor.sectors_count);
-  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
+  chDbgCheck(self != NULL);
+  chDbgCheck(sector < self->descriptor.sectors_count);
+  chDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   /* Clearing error status bits.*/
   stm32_flash_clear_status(self);
@@ -354,8 +354,8 @@ flash_error_t efl_lld_start_erase_sector(hal_efl_driver_c *self,
  */
 flash_error_t efl_lld_query_erase(hal_efl_driver_c *self, unsigned *msec) {
 
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   /* Checking for operation in progress.*/
   if ((self->flash->SR & FLASH_SR_BSY) == 0U) {
@@ -394,13 +394,13 @@ flash_error_t efl_lld_verify_erase(hal_efl_driver_c *self,
   uint32_t sector_size;
   unsigned i;
 
-  osalDbgCheck(self != NULL);
-  osalDbgCheck(sector < self->descriptor.sectors_count);
-  osalDbgAssert(self->state == FLASH_READ, "invalid state");
+  chDbgCheck(self != NULL);
+  chDbgCheck(sector < self->descriptor.sectors_count);
+  chDbgAssert(self->state == FLASH_READ, "invalid state");
 
   address_value = (uintptr_t)self->descriptor.address +
                   (uintptr_t)flashGetSectorOffset(self, sector);
-  osalDbgAssert((address_value & (uintptr_t)(sizeof(uint32_t) - 1U)) == 0U,
+  chDbgAssert((address_value & (uintptr_t)(sizeof(uint32_t) - 1U)) == 0U,
                 "unaligned flash sector");
   address = (uint32_t *)address_value;
   sector_size = flashGetSectorSize(self, sector);

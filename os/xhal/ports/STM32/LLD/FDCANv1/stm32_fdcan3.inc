@@ -55,7 +55,7 @@
 #error "STM32_IRQ_FDCAN3_PRIORITY not defined in mcuconf.h"
 #endif
 
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_FDCAN3_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_FDCAN3_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_FDCAN3_PRIORITY"
 #endif
 
@@ -102,13 +102,13 @@ static inline void fdcan3_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_FDCAN3_IT0_HANDLER) {
+CH_IRQ_HANDLER(STM32_FDCAN3_IT0_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   can_lld_serve_interrupt(&CAND3);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 

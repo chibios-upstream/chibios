@@ -101,12 +101,12 @@
 
 #if STM32_USB_USE_USB1 &&                                                   \
     (STM32_USB1_HP_NUMBER != STM32_USB1_LP_NUMBER) &&                       \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_USB_USB1_HP_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_USB_USB1_HP_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to USB HP"
 #endif
 
 #if STM32_USB_USE_USB1 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_USB_USB1_LP_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_USB_USB1_LP_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to USB LP"
 #endif
 
@@ -189,7 +189,7 @@
 #define usb_lld_wakeup_host(usbp)                                          \
   do {                                                                     \
     STM32_USB->CNTR |= USB_CNTR_L2RES;                                     \
-    osalThreadSleepMilliseconds(STM32_USB_HOST_WAKEUP_DURATION);           \
+    chThdSleepMilliseconds(STM32_USB_HOST_WAKEUP_DURATION);           \
     STM32_USB->CNTR &= ~USB_CNTR_L2RES;                                    \
   } while (false)
 

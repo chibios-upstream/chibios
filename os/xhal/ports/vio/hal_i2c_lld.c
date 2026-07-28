@@ -126,13 +126,13 @@ static void i2c_lld_serve_interrupt(hal_i2c_driver_c *i2cp, uint32_t nvrq) {
 
 #if VIO_I2C_USE_VI2C1 || defined(__DOXYGEN__)
 #if !defined(VIO_VI2C1_SUPPRESS_ISR)
-OSAL_IRQ_HANDLER(MK_VECTOR(VIO_VI2C1_IRQ)) {
+CH_IRQ_HANDLER(MK_VECTOR(VIO_VI2C1_IRQ)) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   i2c_lld_serve_interrupt(&I2CD1, VIO_VI2C1_IRQ);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif
@@ -178,7 +178,7 @@ msg_t i2c_lld_start(hal_i2c_driver_c *i2cp) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid I2C instance");
+    chDbgAssert(false, "invalid I2C instance");
   }
 
   if (msg == HAL_RET_SUCCESS) {
@@ -207,10 +207,10 @@ void i2c_lld_stop(hal_i2c_driver_c *i2cp) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid I2C instance");
+    chDbgAssert(false, "invalid I2C instance");
   }
 
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
 }
 
 /**

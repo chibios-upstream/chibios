@@ -337,9 +337,9 @@ struct hal_spi_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -502,9 +502,9 @@ CC_FORCE_INLINE
 static inline void __spi_wakeup_isr(void *ip, msg_t msg) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
 
-  osalSysLockFromISR();
-  osalThreadResumeI(&self->sync_transfer, msg);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&self->sync_transfer, msg);
+  chSysUnlockFromISR();
 }
 
 /**
@@ -521,11 +521,11 @@ CC_FORCE_INLINE
 static inline void __spi_wakeup_state_isr(void *ip, driver_state_t state) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
 
-  osalSysLockFromISR();
+  chSysLockFromISR();
   if (self->sync_state == state) {
-    osalThreadResumeI(&self->sync_transfer, MSG_OK);
+    chThdResumeI(&self->sync_transfer, MSG_OK);
   }
-  osalSysUnlockFromISR();
+  chSysUnlockFromISR();
 }
 
 #else

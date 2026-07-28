@@ -1,2 +1,2 @@
-PLATFORMSRC += $(CHIBIOS)/os/hal/ports/STM32/LLD/EXTIv1/stm32_exti.c
-PLATFORMINC += $(CHIBIOS)/os/hal/ports/STM32/LLD/EXTIv1
+PLATFORMSRC += $(CHIBIOS)/os/xhal/ports/STM32/LLD/EXTIv1/stm32_exti.c
+PLATFORMINC += $(CHIBIOS)/os/xhal/ports/STM32/LLD/EXTIv1
