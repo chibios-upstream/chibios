@@ -152,7 +152,7 @@ const WDGConfig *wdg_lld_setcfg(WDGDriver *wdgp, const WDGConfig *config) {
 
   chDbgCheck(wdgp != NULL);
 
-  if (wdgp->state != HAL_DRV_STATE_STOP) {
+  if (wdgp->state != HAL_DRV_STATE_STARTING) {
     return NULL;
   }
 
