@@ -175,13 +175,13 @@
  *           stored with LS byte of network address in MS byte of unsigned int.
  */
 #if BYTE_ORDER == LITTLE_ENDIAN
-#define IP4_ADDR_VALUE(a,b,c,d)        \
+#define IP4_ADDR_VALUE(a, b, c, d)     \
         (((u32_t)((d) & 0xff) << 24) | \
          ((u32_t)((c) & 0xff) << 16) | \
          ((u32_t)((b) & 0xff) << 8)  | \
           (u32_t)((a) & 0xff))
 #else
-#define IP4_ADDR_VALUE(a,b,c,d)        \
+#define IP4_ADDR_VALUE(a, b, c, d)     \
         (((u32_t)((a) & 0xff) << 24) | \
          ((u32_t)((b) & 0xff) << 16) | \
          ((u32_t)((c) & 0xff) << 8)  | \
