@@ -1080,17 +1080,6 @@ static vfs_offset_t __romfile_getpos_impl(void *ip) {
   return self->position;
 }
 
-/**
- * @brief       Override of method @p vfsFileGetStream().
- *
- * @param[in,out] ip            Pointer to a @p vfs_rom_file_node_c instance.
- * @return                      Pointer to the random stream interface.
- */
-static random_stream_i *__romfile_getstream_impl(void *ip) {
-  vfs_rom_file_node_c *self = (vfs_rom_file_node_c *)ip;
-
-  return &self->rstm;
-}
 /** @} */
 
 /**
@@ -1106,7 +1095,7 @@ static const struct vfs_rom_file_node_vmt __vfs_rom_file_node_vmt = {
   .write                    = __romfile_write_impl,
   .setpos                   = __romfile_setpos_impl,
   .getpos                   = __romfile_getpos_impl,
-  .getstream                = __romfile_getstream_impl
+  .control                  = __vfsfile_control_impl
 };
 
 /**

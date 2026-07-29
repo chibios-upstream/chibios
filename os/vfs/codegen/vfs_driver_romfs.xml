@@ -352,10 +352,6 @@ self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementa
               <implementation><![CDATA[
 ]]></implementation>
             </method>
-            <method shortname="getstream">
-              <implementation><![CDATA[
-]]></implementation>
-            </method>
           </override>
         </methods>
       </class>

@@ -5,12 +5,8 @@
   <brief>Common ancestor class of all file system nodes.</brief>
   <imports>
     <import>oop_referenced_object.xml</import>
-    <import>oop_random_stream.xml</import>
   </imports>
   <public>
-    <includes>
-      <include style="regular">oop_random_stream.h</include>
-    </includes>
     <definitions_early>
       <group description="Node types">
         <define name="VFS_MODE_S_IFBLK" value="S_IFBLK" />
@@ -48,6 +44,53 @@
         <define name="VFS_SEEK_CUR" value="SEEK_CUR" />
         <define name="VFS_SEEK_END" value="SEEK_END" />
       </group>
+      <group description="File control operation classes">
+        <define name="VFS_CTL_TTY_BASE" value="0x00000100U">
+          <brief>Base of the terminal control operation range.</brief>
+        </define>
+      </group>
+      <group description="Terminal control operations">
+        <define name="VFS_CTL_TTY_ISATTY" value="(VFS_CTL_TTY_BASE + 0U)">
+          <brief>Checks whether a file node represents a terminal.</brief>
+          <details>The control argument must be @p NULL.</details>
+        </define>
+        <define name="VFS_CTL_TTY_GETATTR" value="(VFS_CTL_TTY_BASE + 1U)">
+          <brief>Retrieves the terminal attributes.</brief>
+          <details>The control argument points to a writable @p struct
+            termios.</details>
+        </define>
+        <define name="VFS_CTL_TTY_SETATTR" value="(VFS_CTL_TTY_BASE + 2U)">
+          <brief>Changes the terminal attributes.</brief>
+          <details>The control argument points to a @p
+            vfs_tty_setattr_args_t structure.</details>
+        </define>
+        <define name="VFS_CTL_TTY_DRAIN" value="(VFS_CTL_TTY_BASE + 3U)">
+          <brief>Waits for pending terminal output to drain.</brief>
+          <details>The control argument must be @p NULL.</details>
+        </define>
+        <define name="VFS_CTL_TTY_FLUSH" value="(VFS_CTL_TTY_BASE + 4U)">
+          <brief>Flushes terminal queues.</brief>
+          <details>The control argument points to an @p int containing the
+            queue selector.</details>
+        </define>
+        <define name="VFS_CTL_TTY_FLOW" value="(VFS_CTL_TTY_BASE + 5U)">
+          <brief>Performs a terminal flow-control action.</brief>
+          <details>The control argument points to an @p int containing the
+            flow-control action.</details>
+        </define>
+        <define name="VFS_CTL_TTY_GETWINSIZE"
+          value="(VFS_CTL_TTY_BASE + 6U)">
+          <brief>Retrieves the terminal window size.</brief>
+          <details>The control argument points to a writable @p struct
+            winsize.</details>
+        </define>
+        <define name="VFS_CTL_TTY_SETWINSIZE"
+          value="(VFS_CTL_TTY_BASE + 7U)">
+          <brief>Changes the terminal window size.</brief>
+          <details>The control argument points to a constant @p struct
+            winsize.</details>
+        </define>
+      </group>
       <group description="Node information constants">
         <define name="VFS_STAT_BLOCKS_UNIT" value="512U">
           <brief>Unit in bytes used by the allocated blocks count.</brief>
@@ -66,8 +109,28 @@
       </group>
     </definitions_early>
     <types>
+      <verbatim><![CDATA[
+/**
+ * @brief       POSIX terminal attributes structure.
+ * @details     The complete definition is provided by @p <termios.h>.
+ */
+struct termios;
+
+/**
+ * @brief       Terminal window size structure.
+ * @details     The complete definition is provided by @p <sys/ioctl.h>.
+ */
+struct winsize;]]></verbatim>
       <typedef name="vfs_fs_c">
         <basetype ctype="struct vfs_fs" />
+      </typedef>
+      <typedef name="vfs_control_op_t">
+        <brief>Type of a file control operation code.</brief>
+        <basetype ctype="unsigned int" />
+      </typedef>
+      <typedef name="vfs_tty_setattr_args_t">
+        <brief>Type of terminal attribute change arguments.</brief>
+        <basetype ctype="struct vfs_tty_setattr_args" />
       </typedef>
       <typedef name="vfs_offset_t">
         <brief>Type of a file offset.</brief>
@@ -116,6 +179,17 @@
           <field name="tv_nsec" ctype="uint32_t">
             <brief>Nanoseconds within the second, in the range 0 through
               999999999.</brief>
+          </field>
+        </fields>
+      </struct>
+      <struct name="vfs_tty_setattr_args">
+        <brief>Arguments for @p VFS_CTL_TTY_SETATTR.</brief>
+        <fields>
+          <field name="action" ctype="int">
+            <brief>Attribute change action.</brief>
+          </field>
+          <field name="attrp" ctype="const struct termios$I*">
+            <brief>Pointer to the requested terminal attributes.</brief>
           </field>
         </fields>
       </struct>
@@ -273,89 +347,6 @@ return CH_RET_ENOSYS;<![CDATA[]]></implementation>
       <class type="abstract" name="vfs_file_node" namespace="vfsfile"
         ancestorname="vfs_node" descr="VFS file node">
         <brief>Ancestor class of all VFS file nodes classes.</brief>
-        <implements>
-          <if name="random_stream">
-            <method shortname="write">
-              <implementation><![CDATA[
-msg_t msg;
-
-msg = vfsFileWrite((void *)self, bp, n);
-if (CH_RET_IS_ERROR(msg)) {
-
-  return (size_t)0;
-}
-
-return (size_t)msg;]]></implementation>
-            </method>
-            <method shortname="read">
-              <implementation><![CDATA[
-msg_t msg;
-
-msg = vfsFileRead((void *)self, bp, n);
-if (CH_RET_IS_ERROR(msg)) {
-
-  return (size_t)0;
-}
-
-return (size_t)msg;]]></implementation>
-            </method>
-            <method shortname="put">
-              <implementation><![CDATA[
-msg_t msg;
-
-msg = vfsFileWrite((void *)self, &b, (size_t)1);
-if (CH_RET_IS_ERROR(msg)) {
-
-  return STM_TIMEOUT;
-}
-
-return msg;]]></implementation>
-            </method>
-            <method shortname="get">
-              <implementation><![CDATA[
-msg_t msg;
-uint8_t b;
-
-msg = vfsFileRead((void *)self, &b, (size_t)1);
-if (CH_RET_IS_ERROR(msg)) {
-
-  return STM_TIMEOUT;
-}
-
-return (msg_t)b;]]></implementation>
-            </method>
-            <method shortname="unget">
-              <implementation><![CDATA[
-msg_t msg;
-
-/* For seekable file nodes, unget is implemented as a seek-back by one
-   byte. The parameter b is ignored because re-reading the position
-   will return the original byte from the file.*/
-(void)b;
-
-msg = vfsFileSetPosition((void *)self, (vfs_offset_t)-1, VFS_SEEK_CUR);
-if (CH_RET_IS_ERROR(msg)) {
-
-  return STM_RESET;
-}
-
-return STM_OK;]]></implementation>
-            </method>
-            <method shortname="seek">
-              <implementation><![CDATA[
-msg_t msg;
-
-msg = vfsFileSetPosition((void *)self, (vfs_offset_t)offset,
-                         (vfs_seekmode_t)whence);
-if (CH_RET_IS_ERROR(msg)) {
-
-  return 0U;
-}
-
-return (uint32_t)vfsFileGetPosition((void *)self);]]></implementation>
-            </method>
-          </if>
-        </implements>
         <fields>
         </fields>
         <methods>
@@ -432,14 +423,26 @@ return CH_RET_ENOSYS;<![CDATA[]]></implementation>
 
 return CH_RET_ENOSYS;<![CDATA[]]></implementation>
             </method>
-            <method name="vfsFileGetStream" shortname="getstream"
-              ctype="random_stream_i *">
-              <brief>Returns the inner stream associated to the file.</brief>
-              <return>Pointer to the random stream interface.</return>
+            <method name="vfsFileControl" shortname="control" ctype="msg_t">
+              <brief>Performs a file-specific control operation.</brief>
+              <param name="operation" ctype="vfs_control_op_t" dir="in">
+                Control operation code.
+              </param>
+              <param name="arg" ctype="void *" dir="both">
+                Pointer to operation-specific arguments or @p NULL.
+              </param>
+              <return>The operation result.</return>
+              <retval value="CH_RET_ENOTTY">
+                The operation is not supported by this node.
+              </retval>
               <api />
-              <implementation><![CDATA[
+              <implementation>
 
-return &self->rstm;]]></implementation>
+(void)self;
+(void)operation;
+(void)arg;
+
+return CH_RET_ENOTTY;<![CDATA[]]></implementation>
             </method>
           </virtual>
         </methods>

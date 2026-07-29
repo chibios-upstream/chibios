@@ -338,7 +338,8 @@ static const testcase_t vfs_test_003_002 = {
  * - [3.3.1] Path queries expose the synthetic directory and stream
  *   modes without optional metadata.
  * - [3.3.2] Opened nodes and directory entries report the same
- *   synthetic metadata as path queries.
+ *   synthetic metadata as path queries, and unsupported control
+ *   operations return ENOTTY.
  * .
  */
 
@@ -381,7 +382,8 @@ static void vfs_test_003_003_execute(void) {
   test_end_step(1);
 
   /* [3.3.2] Opened nodes and directory entries report the same
-     synthetic metadata as path queries.*/
+     synthetic metadata as path queries, and unsupported control
+     operations return ENOTTY.*/
   test_set_step(2);
   {
     (void)stmdrvObjectInit(&streams, &vfs_test_streams[0]);
@@ -417,6 +419,8 @@ static void vfs_test_003_003_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "stream node stat failed");
     test_assert(vfs_test_stat_equal(&stat, &expected),
                 "stream node metadata changed");
+    ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, NULL);
+    test_assert(ret == CH_RET_ENOTTY, "unsupported stream control accepted");
     (void)roRelease(fnp);
   }
   test_end_step(2);

@@ -357,7 +357,7 @@ const struct vfs_streams_file_node_vmt __vfs_streams_file_node_vmt = {
   .write                    = __stmfile_write_impl,
   .setpos                   = __stmfile_setpos_impl,
   .getpos                   = __stmfile_getpos_impl,
-  .getstream                = __vfsfile_getstream_impl
+  .control                  = __vfsfile_control_impl
 };
 
 /*===========================================================================*/

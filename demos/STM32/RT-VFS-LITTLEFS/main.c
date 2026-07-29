@@ -177,7 +177,6 @@ static THD_FUNCTION(thd1_func, arg) {
  */
 int main(void) {
   xshell_manager_t sm1;
-  vfs_file_node_c *file1;
   msg_t msg;
 
   /*
@@ -247,18 +246,13 @@ int main(void) {
     chSysHalt("VFS");
   }
 
-  /* Opening a file for shell I/O.*/
-  msg = vfsOpenFile("/dev/VSIOD1", VO_RDWR, &file1);
-  if (CH_RET_IS_ERROR(msg)) {
-    chSysHalt("VFS");
-  }
-
   /* Shell manager initialization.*/
   xshellObjectInit(&sm1, &cfg1);
 
   /* Normal main() thread activity, spawning shells.*/
   while (true) {
-    xshell_t *xshp = xshellSpawn(&sm1, (BaseSequentialStream *)vfsGetFileStream(file1),
+    xshell_t *xshp = xshellSpawn(&sm1,
+                                 (BaseSequentialStream *)&PORTAB_SIOD1,
                                  NORMALPRIO + 1, NULL);
     chThdWait(&xshp->thread);
     chThdSleepMilliseconds(500);

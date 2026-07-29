@@ -233,7 +233,6 @@ static THD_FUNCTION(thd1_func, arg) {
  * Application entry point.
  */
 int main(void) {
-  vfs_file_node_c *file1;
   msg_t msg;
   event_listener_t el0, el1, el2;
   static const evhandler_t evhndl[] = {
@@ -298,12 +297,6 @@ int main(void) {
     chSysHalt("VFS");
   }
 
-  /* Opening a file for shell I/O.*/
-  msg = vfsOpenFile("/dev/VSD1", VO_RDWR, &file1);
-  if (CH_RET_IS_ERROR(msg)) {
-    chSysHalt("VFS");
-  }
-
   /* Shell manager initialization.*/
   xshellObjectInit(&sm1, &cfg1);
 
@@ -314,7 +307,7 @@ int main(void) {
   while (true) {
     if (xshp == NULL) {
       /* Spawning a shell.*/
-      xshp = xshellSpawn(&sm1, (BaseSequentialStream *)vfsGetFileStream(file1),
+      xshp = xshellSpawn(&sm1, (BaseSequentialStream *)&PORTAB_SD1,
                          NORMALPRIO + 1, NULL);
     }
     chEvtDispatch(evhndl, chEvtWaitOneTimeout(ALL_EVENTS, TIME_MS2I(500)));

@@ -27,8 +27,6 @@
 #ifndef VFSNODES_H
 #define VFSNODES_H
 
-#include "oop_random_stream.h"
-
 /*===========================================================================*/
 /* Module constants.                                                         */
 /*===========================================================================*/
@@ -73,6 +71,72 @@
 #define VFS_SEEK_SET                        SEEK_SET
 #define VFS_SEEK_CUR                        SEEK_CUR
 #define VFS_SEEK_END                        SEEK_END
+/** @} */
+
+/**
+ * @name    File control operation classes
+ * @{
+ */
+/**
+ * @brief       Base of the terminal control operation range.
+ */
+#define VFS_CTL_TTY_BASE                    0x00000100U
+/** @} */
+
+/**
+ * @name    Terminal control operations
+ * @{
+ */
+/**
+ * @brief       Checks whether a file node represents a terminal.
+ * @details     The control argument must be @p NULL.
+ */
+#define VFS_CTL_TTY_ISATTY                  (VFS_CTL_TTY_BASE + 0U)
+
+/**
+ * @brief       Retrieves the terminal attributes.
+ * @details     The control argument points to a writable @p struct termios.
+ */
+#define VFS_CTL_TTY_GETATTR                 (VFS_CTL_TTY_BASE + 1U)
+
+/**
+ * @brief       Changes the terminal attributes.
+ * @details     The control argument points to a @p vfs_tty_setattr_args_t
+ *              structure.
+ */
+#define VFS_CTL_TTY_SETATTR                 (VFS_CTL_TTY_BASE + 2U)
+
+/**
+ * @brief       Waits for pending terminal output to drain.
+ * @details     The control argument must be @p NULL.
+ */
+#define VFS_CTL_TTY_DRAIN                   (VFS_CTL_TTY_BASE + 3U)
+
+/**
+ * @brief       Flushes terminal queues.
+ * @details     The control argument points to an @p int containing the queue
+ *              selector.
+ */
+#define VFS_CTL_TTY_FLUSH                   (VFS_CTL_TTY_BASE + 4U)
+
+/**
+ * @brief       Performs a terminal flow-control action.
+ * @details     The control argument points to an @p int containing the
+ *              flow-control action.
+ */
+#define VFS_CTL_TTY_FLOW                    (VFS_CTL_TTY_BASE + 5U)
+
+/**
+ * @brief       Retrieves the terminal window size.
+ * @details     The control argument points to a writable @p struct winsize.
+ */
+#define VFS_CTL_TTY_GETWINSIZE              (VFS_CTL_TTY_BASE + 6U)
+
+/**
+ * @brief       Changes the terminal window size.
+ * @details     The control argument points to a constant @p struct winsize.
+ */
+#define VFS_CTL_TTY_SETWINSIZE              (VFS_CTL_TTY_BASE + 7U)
 /** @} */
 
 /**
@@ -121,7 +185,29 @@
 /* Module data structures and types.                                         */
 /*===========================================================================*/
 
+/**
+ * @brief       POSIX terminal attributes structure.
+ * @details     The complete definition is provided by @p <termios.h>.
+ */
+struct termios;
+
+/**
+ * @brief       Terminal window size structure.
+ * @details     The complete definition is provided by @p <sys/ioctl.h>.
+ */
+struct winsize;
+
 typedef struct vfs_fs vfs_fs_c;
+
+/**
+ * @brief       Type of a file control operation code.
+ */
+typedef unsigned int vfs_control_op_t;
+
+/**
+ * @brief       Type of terminal attribute change arguments.
+ */
+typedef struct vfs_tty_setattr_args vfs_tty_setattr_args_t;
 
 /**
  * @brief       Type of a file offset.
@@ -183,6 +269,20 @@ struct vfs_timestamp {
    *              999999999.
    */
   uint32_t                  tv_nsec;
+};
+
+/**
+ * @brief       Arguments for @p VFS_CTL_TTY_SETATTR.
+ */
+struct vfs_tty_setattr_args {
+  /**
+   * @brief       Attribute change action.
+   */
+  int                       action;
+  /**
+   * @brief       Pointer to the requested terminal attributes.
+   */
+  const struct termios      *attrp;
 };
 
 /**
@@ -341,7 +441,6 @@ struct vfs_directory_node {
 /**
  * @class       vfs_file_node_c
  * @extends     vfs_node_c
- * @implements  random_stream_i
  *
  * @brief       Ancestor class of all VFS file nodes classes.
  *
@@ -370,7 +469,7 @@ struct vfs_file_node_vmt {
   ssize_t (*write)(void *ip, const uint8_t *buf, size_t n);
   msg_t (*setpos)(void *ip, vfs_offset_t offset, vfs_seekmode_t whence);
   vfs_offset_t (*getpos)(void *ip);
-  random_stream_i * (*getstream)(void *ip);
+  msg_t (*control)(void *ip, vfs_control_op_t operation, void *arg);
 };
 
 /**
@@ -393,10 +492,6 @@ struct vfs_file_node {
    * @brief       Node mode information.
    */
   vfs_mode_t                mode;
-  /**
-   * @brief       Implemented interface @p random_stream_i.
-   */
-  random_stream_i           rstm;
 };
 /** @} */
 
@@ -427,7 +522,7 @@ extern "C" {
   msg_t __vfsfile_setpos_impl(void *ip, vfs_offset_t offset,
                               vfs_seekmode_t whence);
   vfs_offset_t __vfsfile_getpos_impl(void *ip);
-  random_stream_i *__vfsfile_getstream_impl(void *ip);
+  msg_t __vfsfile_control_impl(void *ip, vfs_control_op_t operation, void *arg);
 #ifdef __cplusplus
 }
 #endif
@@ -592,18 +687,23 @@ static inline vfs_offset_t vfsFileGetPosition(void *ip) {
 }
 
 /**
- * @brief       Returns the inner stream associated to the file.
+ * @brief       Performs a file-specific control operation.
  *
  * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
- * @return                      Pointer to the random stream interface.
+ * @param[in]     operation     Control operation code.
+ * @param[in,out] arg           Pointer to operation-specific arguments or @p
+ *                              NULL.
+ * @return                      The operation result.
+ * @retval CH_RET_ENOTTY        The operation is not supported by this node.
  *
  * @api
  */
 CC_FORCE_INLINE
-static inline random_stream_i *vfsFileGetStream(void *ip) {
+static inline msg_t vfsFileControl(void *ip, vfs_control_op_t operation,
+                                   void *arg) {
   vfs_file_node_c *self = (vfs_file_node_c *)ip;
 
-  return self->vmt->getstream(ip);
+  return self->vmt->control(ip, operation, arg);
 }
 /** @} */
 

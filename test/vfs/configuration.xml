@@ -1298,7 +1298,8 @@ test_assert(ret == CH_RET_ENOENT, "nested stream path accepted");]]></value>
             <step>
               <description>
                 <value>Opened nodes and directory entries report the same
-                  synthetic metadata as path queries.</value>
+                  synthetic metadata as path queries, and unsupported control
+                  operations return ENOTTY.</value>
               </description>
               <tags>
                 <value />
@@ -1337,6 +1338,8 @@ ret = vfsNodeStat(fnp, &stat);
 test_assert(ret == CH_RET_SUCCESS, "stream node stat failed");
 test_assert(vfs_test_stat_equal(&stat, &expected),
             "stream node metadata changed");
+ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, NULL);
+test_assert(ret == CH_RET_ENOTTY, "unsupported stream control accepted");
 (void)roRelease(fnp);]]></value>
               </code>
             </step>
