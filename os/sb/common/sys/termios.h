@@ -57,6 +57,13 @@
 /** @} */
 
 /**
+ * @name    Disabled control character value
+ * @{
+ */
+#define _POSIX_VDISABLE     0U
+/** @} */
+
+/**
  * @name    Input flags
  * @{
  */

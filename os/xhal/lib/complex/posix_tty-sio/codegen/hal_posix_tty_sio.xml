@@ -2,13 +2,22 @@
 <module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
   name="hal_posix_tty_sio" descr="POSIX TTY over SIO Driver"
-  check="!defined(POSIX_TTY_SIO_USE_MODULE) || (POSIX_TTY_SIO_USE_MODULE == TRUE)"
   headerpath="." sourcepath="." editcode="false">
   <brief>POSIX terminal wrapper over an SIO driver.</brief>
-  <details><![CDATA[This module provides the class skeleton for a POSIX-style
-    terminal line discipline layered over a generic SIO driver. The current
-    implementation is intentionally a non-functional stub; buffering and line
-    processing will be added without changing the public class shape.]]></details>
+  <details><![CDATA[This module implements a fixed-storage POSIX-style
+    terminal line discipline layered over a generic SIO driver. It provides
+    canonical input editing, local echo, buffered output, software flow
+    control, and typed terminal control operations without dynamic memory
+    allocation. The initial non-canonical mode implements VMIN=1 and VTIME=0;
+    the data format is fixed to CS8, CREAD, and CLOCAL. Speed fields report the
+    SIO default and are not used to reconfigure the transport. Received
+    transport errors are cleared and ignored, error-related input flags are
+    not supported. A blocked read returns zero bytes when the driver is
+    stopped or when a terminal signal flushes the input queue, pending signal
+    flags allow distinguishing an interrupted read from an end-of-file
+    condition. Only one drain operation can be active at a time. Stopping the
+    driver during active blocking I/O operations is not supported. Erasing a
+    tabulation character does not restore the previous column.]]></details>
   <imports>
     <import>hal_sio.xml</import>
     <import>hal_tty.xml</import>
@@ -16,65 +25,164 @@
   <public>
     <includes_always>
       <include style="regular">hal.h</include>
-      <include style="angular">termios.h</include>
+      <include style="angular">sys/termios.h</include>
       <include style="angular">sys/ioctl.h</include>
     </includes_always>
+    <definitions_early>
+      <group description="Supported terminal attribute masks">
+        <define name="PTTY_SUPPORTED_IFLAGS"
+          value="(ISTRIP | INLCR | IGNCR | ICRNL | IXON | IMAXBEL)">
+          <brief>Supported input attribute flags.</brief>
+        </define>
+        <define name="PTTY_SUPPORTED_OFLAGS" value="(OPOST | ONLCR)">
+          <brief>Supported output attribute flags.</brief>
+        </define>
+        <define name="PTTY_SUPPORTED_CFLAGS"
+          value="(CSIZE | CREAD | CLOCAL)">
+          <brief>Supported control attribute bits; all are required.</brief>
+        </define>
+        <define name="PTTY_SUPPORTED_LFLAGS"
+          value="(ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHONL | NOFLSH | ECHOCTL)">
+          <brief>Supported local attribute flags.</brief>
+        </define>
+      </group>
+      <group description="Terminal signal flags">
+        <define name="PTTY_SIGNAL_NONE" value="0U">
+          <brief>No pending terminal signal.</brief>
+        </define>
+        <define name="PTTY_SIGNAL_INTR" value="(1U &lt;&lt; 0)">
+          <brief>Interrupt character received.</brief>
+        </define>
+        <define name="PTTY_SIGNAL_QUIT" value="(1U &lt;&lt; 1)">
+          <brief>Quit character received.</brief>
+        </define>
+        <define name="PTTY_SIGNAL_SUSP" value="(1U &lt;&lt; 2)">
+          <brief>Suspend character received.</brief>
+        </define>
+        <define name="PTTY_SIGNAL_ALL"
+          value="(PTTY_SIGNAL_INTR | PTTY_SIGNAL_QUIT | PTTY_SIGNAL_SUSP)">
+          <brief>Mask of all terminal signals.</brief>
+        </define>
+      </group>
+    </definitions_early>
     <configs>
-      <config name="POSIX_TTY_SIO_USE_MODULE" default="TRUE">
-        <brief>POSIX TTY over SIO driver enable switch.</brief>
+      <config name="PTTY_DEFAULT_COLUMNS" default="80U">
+        <brief>Default terminal width for each terminal instance.</brief>
+      </config>
+      <config name="PTTY_DEFAULT_ROWS" default="24U">
+        <brief>Default terminal height for each terminal instance.</brief>
+      </config>
+      <config name="PTTY_INPUT_BUFFER_SIZE" default="128U">
+        <brief>Input ring size for each terminal instance.</brief>
+        <details><![CDATA[One slot is reserved in canonical mode so that a
+          full editing line can still be terminated by newline or EOF.]]></details>
+      </config>
+      <config name="PTTY_OUTPUT_BUFFER_SIZE" default="128U">
+        <brief>Application output queue size for each terminal instance.</brief>
+      </config>
+      <config name="PTTY_ECHO_BUFFER_SIZE" default="8U">
+        <brief>Echo and control queue size for each terminal instance.</brief>
       </config>
     </configs>
     <definitions_late>
+      <group description="Derived buffer sizes">
+        <define name="PTTY_INPUT_BOUNDARY_MAP_SIZE"
+          value="((PTTY_INPUT_BUFFER_SIZE + 7U) / 8U)">
+          <brief>Input boundary bitmap size in bytes.</brief>
+        </define>
+      </group>
       <verbatim><![CDATA[
-#if (POSIX_TTY_SIO_USE_MODULE != FALSE) &&                            \
-    (POSIX_TTY_SIO_USE_MODULE != TRUE)
-#error "invalid POSIX_TTY_SIO_USE_MODULE value"
+#if HAL_USE_SIO != TRUE
+#error "POSIX TTY over SIO requires HAL_USE_SIO"
 #endif
 
-#if (POSIX_TTY_SIO_USE_MODULE == TRUE) && (HAL_USE_SIO != TRUE)
-#error "POSIX TTY over SIO requires HAL_USE_SIO"
+#if PTTY_DEFAULT_COLUMNS == 0U
+#error "PTTY_DEFAULT_COLUMNS must be greater than zero"
+#endif
+
+#if PTTY_DEFAULT_ROWS == 0U
+#error "PTTY_DEFAULT_ROWS must be greater than zero"
+#endif
+
+#if PTTY_INPUT_BUFFER_SIZE < 2U
+#error "PTTY_INPUT_BUFFER_SIZE must be at least two"
+#endif
+
+#if PTTY_OUTPUT_BUFFER_SIZE == 0U
+#error "PTTY_OUTPUT_BUFFER_SIZE must be greater than zero"
+#endif
+
+#if PTTY_ECHO_BUFFER_SIZE == 0U
+#error "PTTY_ECHO_BUFFER_SIZE must be greater than zero"
 #endif]]></verbatim>
     </definitions_late>
     <types>
+      <verbatim><![CDATA[
+/**
+ * @brief       Terminal signal flags type.
+ * @note        Pending flags can be fetched and cleared from the inherited
+ *              driver callback using @p pttyGetAndClearSignalsX().
+ */
+typedef uint32_t pttysignals_t;
+
+/**
+ * @brief       Canonical-aware input ring.
+ * @details     Canonical record endings are represented by one bit per data
+ *              slot. A marked zero byte is an internal EOF placeholder.
+ */
+typedef struct {
+  threads_queue_t           waiting;
+  uint8_t                   buffer[PTTY_INPUT_BUFFER_SIZE];
+  uint8_t                   boundaries[PTTY_INPUT_BOUNDARY_MAP_SIZE];
+  size_t                    read;
+  size_t                    write;
+  size_t                    committed;
+  size_t                    editing;
+} ptty_input_queue_t;]]></verbatim>
       <class type="regular" name="hal_posix_tty_sio" namespace="ptty"
         ancestorname="hal_cb_driver" descr="POSIX TTY over SIO driver">
         <brief>POSIX terminal line discipline wrapper over SIO.</brief>
-        <details><![CDATA[The class implements the generic terminal interface
-          and retains a reference to the SIO transport. The callback inherited
-          from @p hal_cb_driver_c is reserved for implementation-dependent
-          terminal notifications.]]></details>
+        <details><![CDATA[The class owns the callback of the associated SIO
+          driver while started. Application output uses an output queue;
+          terminal echo uses a separate higher-priority output queue; both
+          queues are held while output is stopped by flow control. A dedicated
+          one-character slot holds a pending flow-control character requested
+          by @p ttyFlow(), it is transmitted even while output is stopped.
+          The inherited callback is reserved for
+          terminal-generated integration notifications and is invoked from
+          ISR context outside system locks. Echo is generated without blocking
+          in ISR context, therefore @p PTTY_ECHO_BUFFER_SIZE should cover the
+          longest editing sequence that must be preserved. All queue storage is
+          embedded in each instance and sized by module configuration
+          options.]]></details>
         <implements>
           <if name="tty">
             <method shortname="write">
               <implementation><![CDATA[
 
-(void)self;
-(void)bp;
-(void)n;
-
-return 0U;]]></implementation>
+return __ptty_write(self, bp, n);]]></implementation>
             </method>
             <method shortname="read">
               <implementation><![CDATA[
 
-(void)self;
-(void)bp;
-(void)n;
-
-return 0U;]]></implementation>
+return __ptty_read(self, bp, n);]]></implementation>
             </method>
             <method shortname="put">
               <implementation><![CDATA[
 
-(void)self;
-(void)b;
+if (__ptty_write(self, &b, 1U) == 1U) {
+  return STM_OK;
+}
 
 return STM_RESET;]]></implementation>
             </method>
             <method shortname="get">
               <implementation><![CDATA[
+uint8_t b;
 
-(void)self;
+if (__ptty_read(self, &b, 1U) == 1U) {
+  return (int)b;
+}
 
 return STM_RESET;]]></implementation>
             </method>
@@ -89,62 +197,178 @@ return STM_RESET;]]></implementation>
             <method shortname="getattr">
               <implementation><![CDATA[
 
-(void)self;
-(void)attrp;
+chDbgCheck(attrp != NULL);
 
-return HAL_RET_INV_STATE;]]></implementation>
+chSysLock();
+if (self->state != HAL_DRV_STATE_READY) {
+  chSysUnlock();
+  return HAL_RET_INV_STATE;
+}
+*attrp = self->attributes;
+chSysUnlock();
+
+return HAL_RET_SUCCESS;]]></implementation>
             </method>
             <method shortname="setattr">
               <implementation><![CDATA[
+msg_t msg;
 
-(void)self;
-(void)action;
-(void)attrp;
+chDbgCheck(attrp != NULL);
 
-return HAL_RET_INV_STATE;]]></implementation>
+if ((action != TCSANOW) &&
+    (action != TCSADRAIN) &&
+    (action != TCSAFLUSH)) {
+  return HAL_RET_CONFIG_ERROR;
+}
+if (!__ptty_attributes_valid(self, attrp)) {
+  return HAL_RET_CONFIG_ERROR;
+}
+
+if ((action == TCSADRAIN) || (action == TCSAFLUSH)) {
+  msg = __ptty_drain(self);
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+}
+
+chSysLock();
+if (self->state != HAL_DRV_STATE_READY) {
+  chSysUnlock();
+  return HAL_RET_INV_STATE;
+}
+if (action == TCSAFLUSH) {
+  __ptty_input_reset_i(self);
+}
+__ptty_apply_attributes_i(self, attrp);
+chSchRescheduleS();
+chSysUnlock();
+
+return HAL_RET_SUCCESS;]]></implementation>
             </method>
             <method shortname="drain">
               <implementation><![CDATA[
 
-(void)self;
-
-return HAL_RET_INV_STATE;]]></implementation>
+return __ptty_drain(self);]]></implementation>
             </method>
             <method shortname="flush">
               <implementation><![CDATA[
 
-(void)self;
-(void)queues;
+if ((queues != TCIFLUSH) &&
+    (queues != TCOFLUSH) &&
+    (queues != TCIOFLUSH)) {
+  return HAL_RET_CONFIG_ERROR;
+}
 
-return HAL_RET_INV_STATE;]]></implementation>
+chSysLock();
+if (self->state != HAL_DRV_STATE_READY) {
+  chSysUnlock();
+  return HAL_RET_INV_STATE;
+}
+if ((queues == TCIFLUSH) || (queues == TCIOFLUSH)) {
+  __ptty_input_reset_i(self);
+}
+if ((queues == TCOFLUSH) || (queues == TCIOFLUSH)) {
+  oqResetI(&self->oqueue);
+  oqResetI(&self->equeue);
+  __ptty_push_output_i(self);
+}
+chSchRescheduleS();
+chSysUnlock();
+
+return HAL_RET_SUCCESS;]]></implementation>
             </method>
             <method shortname="flow">
               <implementation><![CDATA[
+unsigned index;
+uint8_t b;
 
-(void)self;
-(void)action;
+switch (action) {
+case TCOOFF:
+  chSysLock();
+  if (self->state != HAL_DRV_STATE_READY) {
+    chSysUnlock();
+    return HAL_RET_INV_STATE;
+  }
+  self->output_stopped = true;
+  __ptty_update_tx_i(self);
+  chSysUnlock();
+  return HAL_RET_SUCCESS;
+case TCOON:
+  chSysLock();
+  if (self->state != HAL_DRV_STATE_READY) {
+    chSysUnlock();
+    return HAL_RET_INV_STATE;
+  }
+  self->output_stopped = false;
+  __ptty_push_output_i(self);
+  chSchRescheduleS();
+  chSysUnlock();
+  return HAL_RET_SUCCESS;
+case TCIOFF:
+  index = VSTOP;
+  break;
+case TCION:
+  index = VSTART;
+  break;
+default:
+  return HAL_RET_CONFIG_ERROR;
+}
 
-return HAL_RET_INV_STATE;]]></implementation>
+chSysLock();
+if (self->state != HAL_DRV_STATE_READY) {
+  chSysUnlock();
+  return HAL_RET_INV_STATE;
+}
+b = self->attributes.c_cc[index];
+if (b != (uint8_t)_POSIX_VDISABLE) {
+  self->flow_pending = true;
+  self->flow_char    = b;
+  __ptty_push_output_i(self);
+  chSchRescheduleS();
+}
+chSysUnlock();
+
+return HAL_RET_SUCCESS;]]></implementation>
             </method>
             <method shortname="getwinsize">
               <implementation><![CDATA[
 
-(void)self;
-(void)sizep;
+chDbgCheck(sizep != NULL);
 
-return HAL_RET_INV_STATE;]]></implementation>
+chSysLock();
+if (self->state != HAL_DRV_STATE_READY) {
+  chSysUnlock();
+  return HAL_RET_INV_STATE;
+}
+*sizep = self->winsize;
+chSysUnlock();
+
+return HAL_RET_SUCCESS;]]></implementation>
             </method>
             <method shortname="setwinsize">
               <implementation><![CDATA[
 
-(void)self;
-(void)sizep;
+chDbgCheck(sizep != NULL);
 
-return HAL_RET_INV_STATE;]]></implementation>
+chSysLock();
+if (self->state != HAL_DRV_STATE_READY) {
+  chSysUnlock();
+  return HAL_RET_INV_STATE;
+}
+self->winsize = *sizep;
+chSysUnlock();
+
+return HAL_RET_SUCCESS;]]></implementation>
             </method>
           </if>
         </implements>
         <fields>
+          <field name="oqueue" ctype="output_queue_t">
+            <brief>Application output queue.</brief>
+          </field>
+          <field name="equeue" ctype="output_queue_t">
+            <brief>High-priority echo and control output queue.</brief>
+          </field>
           <field name="siop" ctype="hal_sio_driver_c$I*">
             <brief>Associated SIO transport.</brief>
           </field>
@@ -153,6 +377,35 @@ return HAL_RET_INV_STATE;]]></implementation>
           </field>
           <field name="winsize" ctype="struct winsize">
             <brief>Active terminal window size.</brief>
+          </field>
+          <field name="drainsync" ctype="thread_reference_t">
+            <brief>Thread waiting for output drain completion.</brief>
+          </field>
+          <field name="signals" ctype="volatile pttysignals_t">
+            <brief>Pending terminal signal flags.</brief>
+          </field>
+          <field name="output_stopped" ctype="bool">
+            <brief>Application output software-flow-control state.</brief>
+          </field>
+          <field name="drain_waiting" ctype="bool">
+            <brief>Output drain synchronization state.</brief>
+          </field>
+          <field name="flow_pending" ctype="bool">
+            <brief>Pending flow-control character state.</brief>
+          </field>
+          <field name="flow_char" ctype="uint8_t">
+            <brief>Pending flow-control character value.</brief>
+          </field>
+          <field name="iqueue" ctype="ptty_input_queue_t">
+            <brief>Canonical-aware input queue.</brief>
+          </field>
+          <field name="obuffer"
+            ctype="uint8_t$I$N[PTTY_OUTPUT_BUFFER_SIZE]">
+            <brief>Embedded application output storage.</brief>
+          </field>
+          <field name="ebuffer"
+            ctype="uint8_t$I$N[PTTY_ECHO_BUFFER_SIZE]">
+            <brief>Embedded echo and control output storage.</brief>
           </field>
         </fields>
         <methods>
@@ -164,42 +417,113 @@ return HAL_RET_INV_STATE;]]></implementation>
 
 chDbgCheck(siop != NULL);
 
-self->siop       = siop;
-self->attributes = (struct termios){0};
-self->winsize    = (struct winsize){0};]]></implementation>
+__ptty_input_init(&self->iqueue);
+oqObjectInit(&self->oqueue, self->obuffer, sizeof self->obuffer,
+             __ptty_onotify, self);
+oqObjectInit(&self->equeue, self->ebuffer, sizeof self->ebuffer,
+             __ptty_onotify, self);
+self->siop           = siop;
+self->drainsync      = NULL;
+self->signals        = PTTY_SIGNAL_NONE;
+self->output_stopped = false;
+self->drain_waiting  = false;
+self->flow_pending   = false;
+self->flow_char      = 0U;
+__ptty_attributes_default(&self->attributes);
+self->winsize.ws_row    = PTTY_DEFAULT_ROWS;
+self->winsize.ws_col    = PTTY_DEFAULT_COLUMNS;
+self->winsize.ws_xpixel = 0U;
+self->winsize.ws_ypixel = 0U;]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[ ]]></implementation>
           </dispose>
+          <inline>
+            <method name="pttyGetAndClearSignalsX" ctype="pttysignals_t">
+              <brief>Gets and clears pending terminal signal flags.</brief>
+              <param name="mask" ctype="pttysignals_t" dir="in">
+                Mask of signals to be returned and cleared.
+              </param>
+              <return>The selected pending signal flags.</return>
+              <xclass />
+              <implementation><![CDATA[
+pttysignals_t signals;
+syssts_t sts;
+
+sts = chSysGetStatusAndLockX();
+signals = self->signals & mask;
+self->signals &= ~mask;
+chSysRestoreStatusX(sts);
+
+return signals;]]></implementation>
+            </method>
+          </inline>
           <override>
             <method shortname="start">
               <implementation><![CDATA[
+msg_t msg;
 
-(void)self;
-(void)config;
+msg = drvStart(self->siop, config);
+if (msg != HAL_RET_SUCCESS) {
+  return msg;
+}
 
-return HAL_RET_INV_STATE;]]></implementation>
+chSysLock();
+__ptty_input_reset_i(self);
+oqResetI(&self->oqueue);
+oqResetI(&self->equeue);
+self->config         = self->siop->config;
+self->signals        = PTTY_SIGNAL_NONE;
+self->output_stopped = false;
+self->drain_waiting  = false;
+self->flow_pending   = false;
+self->drainsync      = NULL;
+drvSetArgumentX(self->siop, self);
+drvSetCallbackX(self->siop, __ptty_sio_cb);
+sioWriteEnableFlagsX(self->siop,
+                     SIO_EV_ALL_ERRORS |
+                     SIO_EV_RX_NOTEMPTY |
+                     SIO_EV_RX_IDLE);
+chSchRescheduleS();
+chSysUnlock();
+
+return HAL_RET_SUCCESS;]]></implementation>
             </method>
             <method shortname="stop">
               <implementation><![CDATA[
 
-(void)self;]]></implementation>
+chSysLock();
+sioWriteEnableFlagsX(self->siop, SIO_EV_NONE);
+drvSetCallbackX(self->siop, NULL);
+drvSetArgumentX(self->siop, NULL);
+__ptty_input_reset_i(self);
+oqResetI(&self->oqueue);
+oqResetI(&self->equeue);
+if (self->drain_waiting) {
+  self->drain_waiting = false;
+  chThdResumeI(&self->drainsync, MSG_RESET);
+}
+self->signals        = PTTY_SIGNAL_NONE;
+self->output_stopped = false;
+self->flow_pending   = false;
+chSchRescheduleS();
+chSysUnlock();
+
+drvStop(self->siop);]]></implementation>
             </method>
             <method shortname="setcfg">
               <implementation><![CDATA[
 
-(void)self;
-(void)config;
+if (drvSetCfgX(self->siop, config) != HAL_RET_SUCCESS) {
+  return NULL;
+}
 
-return NULL;]]></implementation>
+return self->siop->config;]]></implementation>
             </method>
             <method shortname="selcfg">
               <implementation><![CDATA[
 
-(void)self;
-(void)cfgnum;
-
-return NULL;]]></implementation>
+return drvSelectCfgX(self->siop, cfgnum);]]></implementation>
             </method>
           </override>
         </methods>
@@ -210,5 +534,680 @@ return NULL;]]></implementation>
     <includes_always>
       <include style="regular">hal_posix_tty_sio.h</include>
     </includes_always>
+    <types>
+      <verbatim><![CDATA[
+static void __ptty_update_tx_i(hal_posix_tty_sio_c *self);
+static void __ptty_push_output_i(hal_posix_tty_sio_c *self);
+
+static void __ptty_input_init(ptty_input_queue_t *iqp) {
+  size_t i;
+
+  chThdQueueObjectInit(&iqp->waiting);
+  iqp->read      = 0U;
+  iqp->write     = 0U;
+  iqp->committed = 0U;
+  iqp->editing   = 0U;
+  for (i = 0U; i < PTTY_INPUT_BOUNDARY_MAP_SIZE; i++) {
+    iqp->boundaries[i] = 0U;
+  }
+}
+
+static void __ptty_attributes_default(struct termios *attrp) {
+  size_t i;
+
+  attrp->c_iflag  = ICRNL | IXON | IMAXBEL;
+  attrp->c_oflag  = OPOST | ONLCR;
+  attrp->c_cflag  = CS8 | CREAD | CLOCAL;
+  attrp->c_lflag  = ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHOCTL;
+  for (i = 0U; i < NCCS; i++) {
+    attrp->c_cc[i] = 0U;
+  }
+  attrp->c_cc[VINTR]  = 0x03U;
+  attrp->c_cc[VQUIT]  = 0x1CU;
+  attrp->c_cc[VERASE] = 0x7FU;
+  attrp->c_cc[VKILL]  = 0x15U;
+  attrp->c_cc[VEOF]   = 0x04U;
+  attrp->c_cc[VTIME]  = 0U;
+  attrp->c_cc[VMIN]   = 1U;
+  attrp->c_cc[VSTART] = 0x11U;
+  attrp->c_cc[VSTOP]  = 0x13U;
+  attrp->c_cc[VSUSP]  = 0x1AU;
+  attrp->c_ispeed     = (speed_t)SIO_DEFAULT_BITRATE;
+  attrp->c_ospeed     = (speed_t)SIO_DEFAULT_BITRATE;
+}
+
+static bool __ptty_attributes_valid(hal_posix_tty_sio_c *self,
+                                    const struct termios *attrp) {
+
+  if ((attrp->c_iflag & ~PTTY_SUPPORTED_IFLAGS) != 0U) {
+    return false;
+  }
+  if ((attrp->c_oflag & ~PTTY_SUPPORTED_OFLAGS) != 0U) {
+    return false;
+  }
+  if (attrp->c_cflag != (CS8 | CREAD | CLOCAL)) {
+    return false;
+  }
+  if ((attrp->c_lflag & ~PTTY_SUPPORTED_LFLAGS) != 0U) {
+    return false;
+  }
+  if ((attrp->c_cc[VMIN] != 1U) || (attrp->c_cc[VTIME] != 0U)) {
+    return false;
+  }
+  if ((attrp->c_ispeed != self->attributes.c_ispeed) ||
+      (attrp->c_ospeed != self->attributes.c_ospeed)) {
+    return false;
+  }
+
+  return true;
+}
+
+static bool __ptty_cc_equal_i(const hal_posix_tty_sio_c *self,
+                              unsigned index,
+                              uint8_t b) {
+  cc_t c;
+
+  c = self->attributes.c_cc[index];
+  return (c != (cc_t)_POSIX_VDISABLE) && (b == (uint8_t)c);
+}
+
+static size_t __ptty_input_used_i(const hal_posix_tty_sio_c *self) {
+
+  return self->iqueue.committed + self->iqueue.editing;
+}
+
+static size_t __ptty_input_advance(size_t pos) {
+
+  pos++;
+  if (pos >= PTTY_INPUT_BUFFER_SIZE) {
+    pos = 0U;
+  }
+
+  return pos;
+}
+
+static size_t __ptty_input_retreat(size_t pos) {
+
+  if (pos == 0U) {
+    pos = PTTY_INPUT_BUFFER_SIZE;
+  }
+
+  return pos - 1U;
+}
+
+static bool __ptty_input_is_boundary_i(const ptty_input_queue_t *iqp,
+                                       size_t pos) {
+  uint8_t mask;
+
+  mask = (uint8_t)(1U << (pos & 7U));
+  return (iqp->boundaries[pos >> 3] & mask) != 0U;
+}
+
+static void __ptty_input_set_boundary_i(ptty_input_queue_t *iqp,
+                                        size_t pos) {
+  uint8_t mask;
+
+  mask = (uint8_t)(1U << (pos & 7U));
+  iqp->boundaries[pos >> 3] |= mask;
+}
+
+static void __ptty_input_clear_boundary_i(ptty_input_queue_t *iqp,
+                                          size_t pos) {
+  uint8_t mask;
+
+  mask = (uint8_t)(1U << (pos & 7U));
+  iqp->boundaries[pos >> 3] &= (uint8_t)~mask;
+}
+
+static void __ptty_input_wakeup_i(hal_posix_tty_sio_c *self) {
+
+  chThdDequeueNextI(&self->iqueue.waiting, MSG_OK);
+}
+
+static void __ptty_input_reset_i(hal_posix_tty_sio_c *self) {
+  size_t i;
+
+  self->iqueue.read      = 0U;
+  self->iqueue.write     = 0U;
+  self->iqueue.committed = 0U;
+  self->iqueue.editing   = 0U;
+  for (i = 0U; i < PTTY_INPUT_BOUNDARY_MAP_SIZE; i++) {
+    self->iqueue.boundaries[i] = 0U;
+  }
+  chThdDequeueAllI(&self->iqueue.waiting, MSG_RESET);
+}
+
+static bool __ptty_input_append_i(hal_posix_tty_sio_c *self,
+                                  uint8_t b,
+                                  bool boundary,
+                                  bool committed) {
+  ptty_input_queue_t *iqp;
+
+  iqp = &self->iqueue;
+  if (__ptty_input_used_i(self) >= PTTY_INPUT_BUFFER_SIZE) {
+    return false;
+  }
+
+  iqp->buffer[iqp->write] = b;
+  __ptty_input_clear_boundary_i(iqp, iqp->write);
+  if (boundary) {
+    __ptty_input_set_boundary_i(iqp, iqp->write);
+  }
+  iqp->write = __ptty_input_advance(iqp->write);
+  if (committed) {
+    iqp->committed++;
+    __ptty_input_wakeup_i(self);
+  }
+  else {
+    iqp->editing++;
+  }
+
+  return true;
+}
+
+static void __ptty_input_commit_i(hal_posix_tty_sio_c *self) {
+
+  if (self->iqueue.editing > 0U) {
+    self->iqueue.committed += self->iqueue.editing;
+    self->iqueue.editing = 0U;
+    __ptty_input_wakeup_i(self);
+  }
+}
+
+static void __ptty_echo_raw_i(hal_posix_tty_sio_c *self, uint8_t b) {
+
+  (void)oqPutI(&self->equeue, b);
+}
+
+static void __ptty_echo_output_i(hal_posix_tty_sio_c *self, uint8_t b) {
+
+  if (((self->attributes.c_oflag & (OPOST | ONLCR)) ==
+       (OPOST | ONLCR)) && (b == (uint8_t)'\n')) {
+    __ptty_echo_raw_i(self, (uint8_t)'\r');
+  }
+  __ptty_echo_raw_i(self, b);
+}
+
+static void __ptty_echo_char_i(hal_posix_tty_sio_c *self, uint8_t b) {
+
+  if ((self->attributes.c_lflag & ECHO) == 0U) {
+    if (((self->attributes.c_lflag & (ECHONL | ICANON)) ==
+         (ECHONL | ICANON)) && (b == (uint8_t)'\n')) {
+      __ptty_echo_output_i(self, b);
+    }
+    return;
+  }
+
+  if (((self->attributes.c_lflag & ECHOCTL) != 0U) &&
+      (((b < 0x20U) && (b != (uint8_t)'\n') &&
+        (b != (uint8_t)'\r') && (b != (uint8_t)'\t')) ||
+       (b == 0x7FU))) {
+    __ptty_echo_raw_i(self, (uint8_t)'^');
+    if (b == 0x7FU) {
+      b = (uint8_t)'?';
+    }
+    else {
+      b = (uint8_t)(b + (uint8_t)'@');
+    }
+  }
+  __ptty_echo_output_i(self, b);
+}
+
+static void __ptty_echo_erase_i(hal_posix_tty_sio_c *self, uint8_t b) {
+  unsigned columns;
+
+  if ((self->attributes.c_lflag & ECHO) == 0U) {
+    return;
+  }
+  if ((self->attributes.c_lflag & ECHOE) == 0U) {
+    __ptty_echo_char_i(self, self->attributes.c_cc[VERASE]);
+    return;
+  }
+
+  columns = 1U;
+  if (((self->attributes.c_lflag & ECHOCTL) != 0U) &&
+      (((b < 0x20U) && (b != (uint8_t)'\t')) || (b == 0x7FU))) {
+    columns = 2U;
+  }
+  while (columns > 0U) {
+    __ptty_echo_raw_i(self, (uint8_t)'\b');
+    __ptty_echo_raw_i(self, (uint8_t)' ');
+    __ptty_echo_raw_i(self, (uint8_t)'\b');
+    columns--;
+  }
+}
+
+static void __ptty_input_full_i(hal_posix_tty_sio_c *self) {
+
+  if ((self->attributes.c_iflag & IMAXBEL) != 0U) {
+    __ptty_echo_raw_i(self, (uint8_t)'\a');
+  }
+}
+
+static void __ptty_input_erase_i(hal_posix_tty_sio_c *self) {
+  ptty_input_queue_t *iqp;
+  uint8_t b;
+
+  iqp = &self->iqueue;
+  if (iqp->editing == 0U) {
+    return;
+  }
+
+  iqp->write = __ptty_input_retreat(iqp->write);
+  iqp->editing--;
+  b = iqp->buffer[iqp->write];
+  __ptty_input_clear_boundary_i(iqp, iqp->write);
+  __ptty_echo_erase_i(self, b);
+}
+
+static void __ptty_input_kill_i(hal_posix_tty_sio_c *self) {
+  ptty_input_queue_t *iqp;
+
+  iqp = &self->iqueue;
+  while (iqp->editing > 0U) {
+    iqp->write = __ptty_input_retreat(iqp->write);
+    iqp->editing--;
+    __ptty_input_clear_boundary_i(iqp, iqp->write);
+  }
+  if (((self->attributes.c_lflag & ECHO) != 0U) &&
+      ((self->attributes.c_lflag & ECHOK) != 0U)) {
+    __ptty_echo_output_i(self, (uint8_t)'\n');
+  }
+}
+
+static void __ptty_input_eof_i(hal_posix_tty_sio_c *self) {
+
+  if (!__ptty_input_append_i(self, 0U, true, false)) {
+    __ptty_input_full_i(self);
+    return;
+  }
+  __ptty_input_commit_i(self);
+}
+
+static void __ptty_flush_signal_i(hal_posix_tty_sio_c *self) {
+
+  if ((self->attributes.c_lflag & NOFLSH) == 0U) {
+    __ptty_input_reset_i(self);
+    oqResetI(&self->oqueue);
+    oqResetI(&self->equeue);
+    self->output_stopped = false;
+  }
+}
+
+static pttysignals_t __ptty_process_input_i(hal_posix_tty_sio_c *self,
+                                            uint8_t b) {
+  tcflag_t iflag;
+  tcflag_t lflag;
+
+  iflag = self->attributes.c_iflag;
+  lflag = self->attributes.c_lflag;
+
+  if ((iflag & ISTRIP) != 0U) {
+    b &= 0x7FU;
+  }
+  if (b == (uint8_t)'\r') {
+    if ((iflag & IGNCR) != 0U) {
+      return PTTY_SIGNAL_NONE;
+    }
+    if ((iflag & ICRNL) != 0U) {
+      b = (uint8_t)'\n';
+    }
+  }
+  else if ((b == (uint8_t)'\n') && ((iflag & INLCR) != 0U)) {
+    b = (uint8_t)'\r';
+  }
+
+  if ((iflag & IXON) != 0U) {
+    if (__ptty_cc_equal_i(self, VSTOP, b)) {
+      self->output_stopped = true;
+      __ptty_update_tx_i(self);
+      return PTTY_SIGNAL_NONE;
+    }
+    if (__ptty_cc_equal_i(self, VSTART, b)) {
+      self->output_stopped = false;
+      __ptty_push_output_i(self);
+      return PTTY_SIGNAL_NONE;
+    }
+  }
+
+  if ((lflag & ISIG) != 0U) {
+    if (__ptty_cc_equal_i(self, VINTR, b)) {
+      __ptty_flush_signal_i(self);
+      __ptty_echo_char_i(self, b);
+      if ((lflag & ECHO) != 0U) {
+        __ptty_echo_output_i(self, (uint8_t)'\n');
+      }
+      return PTTY_SIGNAL_INTR;
+    }
+    if (__ptty_cc_equal_i(self, VQUIT, b)) {
+      __ptty_flush_signal_i(self);
+      __ptty_echo_char_i(self, b);
+      if ((lflag & ECHO) != 0U) {
+        __ptty_echo_output_i(self, (uint8_t)'\n');
+      }
+      return PTTY_SIGNAL_QUIT;
+    }
+    if (__ptty_cc_equal_i(self, VSUSP, b)) {
+      __ptty_flush_signal_i(self);
+      __ptty_echo_char_i(self, b);
+      if ((lflag & ECHO) != 0U) {
+        __ptty_echo_output_i(self, (uint8_t)'\n');
+      }
+      return PTTY_SIGNAL_SUSP;
+    }
+  }
+
+  if ((lflag & ICANON) == 0U) {
+    if (!__ptty_input_append_i(self, b, false, true)) {
+      __ptty_input_full_i(self);
+      return PTTY_SIGNAL_NONE;
+    }
+    __ptty_echo_char_i(self, b);
+    return PTTY_SIGNAL_NONE;
+  }
+
+  if (__ptty_cc_equal_i(self, VERASE, b)) {
+    __ptty_input_erase_i(self);
+    return PTTY_SIGNAL_NONE;
+  }
+  if (__ptty_cc_equal_i(self, VKILL, b)) {
+    __ptty_input_kill_i(self);
+    return PTTY_SIGNAL_NONE;
+  }
+  if (__ptty_cc_equal_i(self, VEOF, b)) {
+    __ptty_input_eof_i(self);
+    return PTTY_SIGNAL_NONE;
+  }
+
+  if ((b == (uint8_t)'\n') || __ptty_cc_equal_i(self, VEOL, b)) {
+    if (!__ptty_input_append_i(self, b, true, false)) {
+      __ptty_input_full_i(self);
+      return PTTY_SIGNAL_NONE;
+    }
+    __ptty_input_commit_i(self);
+    __ptty_echo_char_i(self, b);
+    return PTTY_SIGNAL_NONE;
+  }
+
+  if ((__ptty_input_used_i(self) >= (PTTY_INPUT_BUFFER_SIZE - 1U)) ||
+      !__ptty_input_append_i(self, b, false, false)) {
+    __ptty_input_full_i(self);
+    return PTTY_SIGNAL_NONE;
+  }
+  __ptty_echo_char_i(self, b);
+
+  return PTTY_SIGNAL_NONE;
+}
+
+static bool __ptty_output_pending_i(const hal_posix_tty_sio_c *self) {
+
+  if (self->flow_pending) {
+    return true;
+  }
+  if (!self->output_stopped &&
+      (!oqIsEmptyI(&self->equeue) || !oqIsEmptyI(&self->oqueue))) {
+    return true;
+  }
+
+  return false;
+}
+
+static void __ptty_update_tx_i(hal_posix_tty_sio_c *self) {
+  sioevents_t current;
+  sioevents_t mask;
+
+  current = sioGetEnableFlagsX(self->siop);
+  mask = current & ~(SIO_EV_TX_NOTFULL | SIO_EV_TX_END);
+  if (__ptty_output_pending_i(self)) {
+    mask |= SIO_EV_TX_NOTFULL;
+  }
+  if (self->drain_waiting) {
+    mask |= SIO_EV_TX_END;
+  }
+  if (mask != current) {
+    sioWriteEnableFlagsX(self->siop, mask);
+  }
+}
+
+static void __ptty_resume_drain_i(hal_posix_tty_sio_c *self) {
+
+  if (self->drain_waiting &&
+      !self->flow_pending &&
+      oqIsEmptyI(&self->equeue) &&
+      oqIsEmptyI(&self->oqueue) &&
+      !sioIsTXOngoingX(self->siop)) {
+    self->drain_waiting = false;
+    chThdResumeI(&self->drainsync, MSG_OK);
+  }
+}
+
+static void __ptty_push_output_i(hal_posix_tty_sio_c *self) {
+  msg_t msg;
+
+  /* Late writers could reach this point through the queues callback
+     after the driver has been stopped, the transport must not be
+     touched in that case.*/
+  if (self->state != HAL_DRV_STATE_READY) {
+    return;
+  }
+
+  while (!sioIsTXFullX(self->siop)) {
+    if (self->flow_pending) {
+      sioPutX(self->siop, (uint_fast16_t)self->flow_char);
+      self->flow_pending = false;
+      continue;
+    }
+    if (self->output_stopped) {
+      break;
+    }
+    msg = oqGetI(&self->equeue);
+    if (msg < MSG_OK) {
+      msg = oqGetI(&self->oqueue);
+    }
+    if (msg < MSG_OK) {
+      break;
+    }
+    sioPutX(self->siop, (uint_fast16_t)msg);
+  }
+
+  __ptty_resume_drain_i(self);
+  __ptty_update_tx_i(self);
+}
+
+static void __ptty_onotify(io_queue_t *qp) {
+  hal_posix_tty_sio_c *self;
+
+  self = (hal_posix_tty_sio_c *)qGetLink(qp);
+  __ptty_push_output_i(self);
+}
+
+static void __ptty_sio_cb(void *ip) {
+  hal_sio_driver_c *siop;
+  hal_posix_tty_sio_c *self;
+  pttysignals_t signals;
+
+  siop = (hal_sio_driver_c *)ip;
+  self = (hal_posix_tty_sio_c *)drvGetArgumentX(siop);
+  if (self == NULL) {
+    return;
+  }
+
+  chSysLockFromISR();
+
+  while (!sioIsRXEmptyX(siop)) {
+    signals = __ptty_process_input_i(self, (uint8_t)sioGetX(siop));
+    if (signals != PTTY_SIGNAL_NONE) {
+      self->signals |= signals;
+      chSysUnlockFromISR();
+      __cbdrv_invoke_cb(self);
+      chSysLockFromISR();
+    }
+  }
+
+  __ptty_push_output_i(self);
+  (void)sioGetAndClearEventsX(siop, SIO_EV_ALL_EVENTS);
+  __ptty_resume_drain_i(self);
+  __ptty_update_tx_i(self);
+
+  chSysUnlockFromISR();
+}
+
+static size_t __ptty_write(hal_posix_tty_sio_c *self,
+                           const uint8_t *bp,
+                           size_t n) {
+  tcflag_t oflag;
+  size_t done;
+
+  chDbgCheck((bp != NULL) || (n == 0U));
+  if (n == 0U) {
+    return 0U;
+  }
+
+  chSysLock();
+  if (self->state != HAL_DRV_STATE_READY) {
+    chSysUnlock();
+    return 0U;
+  }
+  oflag = self->attributes.c_oflag;
+  chSysUnlock();
+
+  for (done = 0U; done < n; done++) {
+    uint8_t b;
+
+    b = bp[done];
+    if (((oflag & (OPOST | ONLCR)) == (OPOST | ONLCR)) &&
+        (b == (uint8_t)'\n')) {
+      if (oqPutTimeout(&self->oqueue,
+                       (uint8_t)'\r',
+                       TIME_INFINITE) != MSG_OK) {
+        break;
+      }
+    }
+    if (oqPutTimeout(&self->oqueue, b, TIME_INFINITE) != MSG_OK) {
+      break;
+    }
+  }
+
+  return done;
+}
+
+static size_t __ptty_read(hal_posix_tty_sio_c *self,
+                          uint8_t *bp,
+                          size_t n) {
+  ptty_input_queue_t *iqp;
+  bool record_ended;
+  size_t done;
+
+  chDbgCheck((bp != NULL) || (n == 0U));
+  if (n == 0U) {
+    return 0U;
+  }
+
+  iqp = &self->iqueue;
+  chSysLock();
+  while (iqp->committed == 0U) {
+    msg_t msg;
+
+    if (self->state != HAL_DRV_STATE_READY) {
+      chSysUnlock();
+      return 0U;
+    }
+    msg = chThdEnqueueTimeoutS(&iqp->waiting, TIME_INFINITE);
+    if (msg != MSG_OK) {
+      chSysUnlock();
+      return 0U;
+    }
+  }
+
+  done = 0U;
+  record_ended = false;
+  while ((done < n) && (iqp->committed > 0U)) {
+    bool boundary;
+    uint8_t b;
+
+    boundary = __ptty_input_is_boundary_i(iqp, iqp->read);
+    b = iqp->buffer[iqp->read];
+    __ptty_input_clear_boundary_i(iqp, iqp->read);
+    iqp->read = __ptty_input_advance(iqp->read);
+    iqp->committed--;
+
+    if (boundary && (b == 0U)) {
+      record_ended = true;
+      break;
+    }
+    bp[done++] = b;
+    if (boundary) {
+      record_ended = true;
+      break;
+    }
+  }
+  if (!record_ended && (done == n) && (iqp->committed > 0U) &&
+      __ptty_input_is_boundary_i(iqp, iqp->read) &&
+      (iqp->buffer[iqp->read] == 0U)) {
+    __ptty_input_clear_boundary_i(iqp, iqp->read);
+    iqp->read = __ptty_input_advance(iqp->read);
+    iqp->committed--;
+  }
+  if (iqp->committed > 0U) {
+    __ptty_input_wakeup_i(self);
+  }
+  chSchRescheduleS();
+  chSysUnlock();
+
+  return done;
+}
+
+static msg_t __ptty_drain(hal_posix_tty_sio_c *self) {
+  msg_t msg;
+
+  chSysLock();
+  if (self->state != HAL_DRV_STATE_READY) {
+    chSysUnlock();
+    return HAL_RET_INV_STATE;
+  }
+  chDbgAssert(!self->drain_waiting, "another drain operation is active");
+
+  while (self->flow_pending ||
+         !oqIsEmptyI(&self->equeue) ||
+         !oqIsEmptyI(&self->oqueue) ||
+         sioIsTXOngoingX(self->siop)) {
+    self->drain_waiting = true;
+    __ptty_push_output_i(self);
+    if (!self->drain_waiting) {
+      continue;
+    }
+    msg = chThdSuspendS(&self->drainsync);
+    self->drain_waiting = false;
+    if (msg != MSG_OK) {
+      chSysUnlock();
+      return HAL_RET_INV_STATE;
+    }
+    if (self->state != HAL_DRV_STATE_READY) {
+      chSysUnlock();
+      return HAL_RET_INV_STATE;
+    }
+  }
+
+  __ptty_update_tx_i(self);
+  chSchRescheduleS();
+  chSysUnlock();
+
+  return HAL_RET_SUCCESS;
+}
+
+static void __ptty_apply_attributes_i(hal_posix_tty_sio_c *self,
+                                      const struct termios *attrp) {
+  bool was_canonical;
+
+  was_canonical = (self->attributes.c_lflag & ICANON) != 0U;
+  self->attributes = *attrp;
+
+  if (was_canonical && ((attrp->c_lflag & ICANON) == 0U)) {
+    __ptty_input_commit_i(self);
+  }
+  __ptty_input_wakeup_i(self);
+}
+]]></verbatim>
+    </types>
   </private>
 </module>
