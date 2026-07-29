@@ -30,8 +30,6 @@
 
 #include "hal_mmc_spi.h"
 
-#if (MMC_SPI_USE_MODULE == TRUE) || defined(__DOXYGEN__)
-
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
@@ -994,7 +992,5 @@ done:
 
   return result;
 }
-
-#endif /* MMC_SPI_USE_MODULE == TRUE */
 
 /** @} */
