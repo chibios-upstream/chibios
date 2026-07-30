@@ -53,9 +53,9 @@
 
 #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
 
-/****************************************************************************
- * Shared code.
- ****************************************************************************/
+/*===========================================================================*/
+/* Shared code.                                                              */
+/*===========================================================================*/
 
 static MUTEX_DECL(m1);
 static MUTEX_DECL(m2);
@@ -252,9 +252,9 @@ static THD_FUNCTION(thread12S, p) {
 #endif /* CH_CFG_USE_CONDVARS_TIMEOUT */
 #endif /* CH_CFG_USE_CONDVARS */
 
-/****************************************************************************
- * Test cases.
- ****************************************************************************/
+/*===========================================================================*/
+/* Test cases.                                                               */
+/*===========================================================================*/
 
 /**
  * @page rt_test_008_001 [8.1] Priority enqueuing test
@@ -1274,18 +1274,19 @@ static const testcase_t rt_test_008_010 = {
  * @page rt_test_008_011 [8.11] Base priority change with active donation
  *
  * <h2>Description</h2>
- * A mutex owner lowers its base priority below an already queued donor.
- * The effective priority must remain at the donor priority so that an
- * intermediate-priority thread cannot preempt the mutex owner.
+ * A mutex owner lowers its base priority below an already queued
+ * donor. The effective priority must remain at the donor priority so
+ * that an intermediate-priority thread cannot preempt the mutex owner.
  *
  * <h2>Test Steps</h2>
  * - [8.11.1] The current priority is saved and the mutex is locked.
  * - [8.11.2] A lower-priority donor is queued on the mutex without
  *   initially boosting the owner.
- * - [8.11.3] The owner lowers its base priority below the donor and the
- *   effective priority is verified.
- * - [8.11.4] An intermediate-priority thread is started, then the mutex
- *   is released. The donor must run before the intermediate thread.
+ * - [8.11.3] The owner lowers its base priority below the donor and
+ *   the effective priority is verified.
+ * - [8.11.4] An intermediate-priority thread is started, then the
+ *   mutex is released. The donor must run before the intermediate
+ *   thread.
  * - [8.11.5] The original base priority is restored.
  * .
  */
@@ -1325,8 +1326,8 @@ static void rt_test_008_011_execute(void) {
   }
   test_end_step(2);
 
-  /* [8.11.3] The owner lowers its base priority below the donor and the
-     effective priority is verified.*/
+  /* [8.11.3] The owner lowers its base priority below the donor and
+     the effective priority is verified.*/
   test_set_step(3);
   {
     oldprio = chThdSetPriority(prio - 3);
@@ -1336,8 +1337,9 @@ static void rt_test_008_011_execute(void) {
   }
   test_end_step(3);
 
-  /* [8.11.4] An intermediate-priority thread is started, then the mutex
-     is released. The donor must run before the intermediate thread.*/
+  /* [8.11.4] An intermediate-priority thread is started, then the
+     mutex is released. The donor must run before the intermediate
+     thread.*/
   test_set_step(4);
   {
     threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio - 2,
@@ -1365,31 +1367,30 @@ static const testcase_t rt_test_008_011 = {
   rt_test_008_011_execute
 };
 
-#if ((CH_CFG_USE_CONDVARS == TRUE) &&                                    \
-     (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE)) || defined(__DOXYGEN__)
+#if ((CH_CFG_USE_CONDVARS == TRUE) && (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE)) || defined(__DOXYGEN__)
 /**
  * @page rt_test_008_012 [8.12] Atomic condition-variable release and wait
  *
  * <h2>Description</h2>
- * A signaller is queued on the mutex before the owner starts a condition
- * wait. Releasing the mutex and enqueueing on the condition variable must
- * remain atomic; otherwise the signaller can run too early and the signal
- * is lost.
+ * A signaller is queued on the mutex before the owner starts a
+ * condition wait. Releasing the mutex and enqueueing on the condition
+ * variable must remain atomic; otherwise the signaller can run too
+ * early and the signal is lost.
  *
  * <h2>Conditions</h2>
- * This test is only executed if both of the following preprocessor
- * conditions evaluate to true:
- * - CH_CFG_USE_CONDVARS == TRUE
- * - CH_CFG_USE_CONDVARS_TIMEOUT == TRUE
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - (CH_CFG_USE_CONDVARS == TRUE) && (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE)
  * .
  *
  * <h2>Test Steps</h2>
- * - [8.12.1] The mutex is locked and a higher-priority signaller is queued
- *   on it.
+ * - [8.12.1] The mutex is locked and a higher-priority signaller is
+ *   queued on it.
  * - [8.12.2] A timed condition wait atomically releases the mutex and
- *   enters the wait queue. The queued thread acquires the mutex and signals.
- * - [8.12.3] The wait must return because of the signal, with the mutex
- *   reacquired.
+ *   enters the wait queue. The queued thread acquires the mutex and
+ *   signals.
+ * - [8.12.3] The wait must return because of the signal, with the
+ *   mutex reacquired.
  * .
  */
 
@@ -1408,8 +1409,8 @@ static void rt_test_008_012_execute(void) {
   msg_t msg;
   tprio_t prio;
 
-  /* [8.12.1] The mutex is locked and a higher-priority signaller is queued
-     on it.*/
+  /* [8.12.1] The mutex is locked and a higher-priority signaller is
+     queued on it.*/
   test_set_step(1);
   {
     prio = chThdGetPriorityX();
@@ -1420,15 +1421,16 @@ static void rt_test_008_012_execute(void) {
   test_end_step(1);
 
   /* [8.12.2] A timed condition wait atomically releases the mutex and
-     enters the wait queue. The queued thread acquires the mutex and signals.*/
+     enters the wait queue. The queued thread acquires the mutex and
+     signals.*/
   test_set_step(2);
   {
     msg = chCondWaitTimeout(&c1, TIME_MS2I(100));
   }
   test_end_step(2);
 
-  /* [8.12.3] The wait must return because of the signal, with the mutex
-     reacquired.*/
+  /* [8.12.3] The wait must return because of the signal, with the
+     mutex reacquired.*/
   test_set_step(3);
   {
     test_assert(msg == MSG_OK, "condition signal lost");
@@ -1445,11 +1447,11 @@ static const testcase_t rt_test_008_012 = {
   rt_test_008_012_teardown,
   rt_test_008_012_execute
 };
-#endif /* CH_CFG_USE_CONDVARS && CH_CFG_USE_CONDVARS_TIMEOUT */
+#endif /* (CH_CFG_USE_CONDVARS == TRUE) && (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE) */
 
-/****************************************************************************
- * Exported data.
- ****************************************************************************/
+/*===========================================================================*/
+/* Exported data.                                                            */
+/*===========================================================================*/
 
 /**
  * @brief   Array of test cases.
@@ -1480,8 +1482,7 @@ const testcase_t * const rt_test_sequence_008_array[] = {
   &rt_test_008_010,
 #endif
   &rt_test_008_011,
-#if ((CH_CFG_USE_CONDVARS == TRUE) &&                                    \
-     (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE)) || defined(__DOXYGEN__)
+#if ((CH_CFG_USE_CONDVARS == TRUE) && (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE)) || defined(__DOXYGEN__)
   &rt_test_008_012,
 #endif
   NULL
