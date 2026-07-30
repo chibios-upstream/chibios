@@ -176,6 +176,8 @@ void chMtxObjectDispose(mutex_t *mp) {
 
 /**
  * @brief   Locks the specified mutex.
+ * @pre     In recursive mode, a mutex already owned by the invoking thread
+ *          must have a lock depth lower than @p MUTEX_MAX_RECURSION.
  * @post    The mutex is locked and inserted in the per-thread stack of owned
  *          mutexes.
  *
@@ -192,6 +194,8 @@ void chMtxLock(mutex_t *mp) {
 
 /**
  * @brief   Locks the specified mutex.
+ * @pre     In recursive mode, a mutex already owned by the invoking thread
+ *          must have a lock depth lower than @p MUTEX_MAX_RECURSION.
  * @post    The mutex is locked and inserted in the per-thread stack of owned
  *          mutexes.
  *
@@ -214,6 +218,7 @@ void chMtxLockS(mutex_t *mp) {
     /* If the mutex is already owned by this thread, the counter is increased
        and there is no need of more actions.*/
     if (mp->owner == currtp) {
+      chDbgAssert(mp->cnt < MUTEX_MAX_RECURSION, "counter overflow");
       mp->cnt++;
     }
     else {
@@ -294,7 +299,7 @@ void chMtxLockS(mutex_t *mp) {
 #if CH_CFG_USE_MUTEXES_RECURSIVE == TRUE
     chDbgAssert(mp->cnt == (cnt_t)0, "counter is not zero");
 
-    mp->cnt++;
+    mp->cnt = (cnt_t)1;
 #endif
     /* It was not owned, inserted in the owned mutexes list.*/
     mp->owner = currtp;
@@ -307,6 +312,8 @@ void chMtxLockS(mutex_t *mp) {
  * @brief   Tries to lock a mutex.
  * @details This function attempts to lock a mutex, if the mutex is already
  *          locked by another thread then the function exits without waiting.
+ * @pre     In recursive mode, a mutex already owned by the invoking thread
+ *          must have a lock depth lower than @p MUTEX_MAX_RECURSION.
  * @post    The mutex is locked and inserted in the per-thread stack of owned
  *          mutexes.
  * @note    This function does not have any overhead related to the
@@ -334,6 +341,8 @@ bool chMtxTryLock(mutex_t *mp) {
  * @brief   Tries to lock a mutex.
  * @details This function attempts to lock a mutex, if the mutex is already
  *          taken by another thread then the function exits without waiting.
+ * @pre     In recursive mode, a mutex already owned by the invoking thread
+ *          must have a lock depth lower than @p MUTEX_MAX_RECURSION.
  * @post    The mutex is locked and inserted in the per-thread stack of owned
  *          mutexes.
  * @note    This function does not have any overhead related to the
@@ -359,6 +368,7 @@ bool chMtxTryLockS(mutex_t *mp) {
     chDbgAssert(mp->cnt >= (cnt_t)1, "counter is not positive");
 
     if (mp->owner == currtp) {
+      chDbgAssert(mp->cnt < MUTEX_MAX_RECURSION, "counter overflow");
       mp->cnt++;
       return true;
     }
@@ -369,7 +379,7 @@ bool chMtxTryLockS(mutex_t *mp) {
 
   chDbgAssert(mp->cnt == (cnt_t)0, "counter is not zero");
 
-  mp->cnt++;
+  mp->cnt = (cnt_t)1;
 #endif
   mp->owner = currtp;
   mp->next = currtp->mtxlist;
@@ -382,6 +392,7 @@ bool chMtxTryLockS(mutex_t *mp) {
  * @details This internal operation exists in order to support atomic
  *          release-and-wait sequences. Public S-class APIs must reschedule
  *          before returning.
+ * @pre     The invoking thread <b>must</b> own the specified mutex.
  *
  * @param[in] mp        pointer to a @p mutex_t object
  * @return              The wakeup status.
@@ -398,7 +409,7 @@ bool __mtx_unlock_no_reschedule(mutex_t *mp) {
   chDbgCheck(mp != NULL);
 
   chDbgAssert(currtp->mtxlist != NULL, "owned mutexes list empty");
-  chDbgAssert(currtp->mtxlist->owner == currtp, "ownership failure");
+  chDbgAssert(mp->owner == currtp, "ownership failure");
 #if CH_CFG_USE_MUTEXES_RECURSIVE == TRUE
   chDbgAssert(mp->cnt >= (cnt_t)1, "counter is not positive");
 
@@ -451,7 +462,7 @@ bool __mtx_unlock_no_reschedule(mutex_t *mp) {
  * @brief   Unlocks the specified mutex.
  * @note    Mutexes must be unlocked in reverse lock order. Violating this
  *          rules will result in a panic if assertions are enabled.
- * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+ * @pre     The invoking thread <b>must</b> own the specified mutex.
  * @post    The mutex is unlocked and removed from the per-thread stack of
  *          owned mutexes.
  *
@@ -474,7 +485,7 @@ void chMtxUnlock(mutex_t *mp) {
  * @brief   Unlocks the specified mutex.
  * @note    Mutexes must be unlocked in reverse lock order. Violating this
  *          rules will result in a panic if assertions are enabled.
- * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+ * @pre     The invoking thread <b>must</b> own the specified mutex.
  * @post    The mutex is unlocked and removed from the per-thread stack of
  *          owned mutexes.
  * @post    The function reschedules internally if required.

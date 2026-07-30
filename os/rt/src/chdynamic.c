@@ -82,7 +82,8 @@ static void thd_poolfree(thread_t *tp) {
  *                      default heap
  * @param[in] size      size of the working area to be allocated
  * @param[in] name      thread name
- * @param[in] prio      the priority level for the new thread
+ * @param[in] prio      the priority level for the new thread, from
+ *                      @p LOWPRIO through @p HIGHPRIO
  * @param[in] pf        the thread function
  * @param[in] arg       an argument to be passed to the thread function. It
  *                      can be @p NULL.
@@ -145,7 +146,8 @@ thread_t *chThdCreateFromHeap(memory_heap_t *heapp, size_t size,
  *
  * @param[in] mp        pointer to the memory pool object
  * @param[in] name      thread name
- * @param[in] prio      the priority level for the new thread
+ * @param[in] prio      the priority level for the new thread, from
+ *                      @p LOWPRIO through @p HIGHPRIO
  * @param[in] pf        the thread function
  * @param[in] arg       an argument to be passed to the thread function. It
  *                      can be @p NULL.

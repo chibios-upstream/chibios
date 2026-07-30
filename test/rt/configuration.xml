@@ -6664,5 +6664,192 @@ test_println(" bytes");
         </case>
       </cases>
     </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>Kernel invariant boundaries.</value>
+      </brief>
+      <description>
+        <value>This sequence tests the valid boundaries of kernel
+          invariants.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[static THD_FUNCTION(test_thread, arg) {
+
+  (void)arg;
+}
+
+#if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
+static mutex_t m1;
+#endif]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>User thread priority boundaries.</value>
+          </brief>
+          <description>
+            <value>The lowest and highest user priorities are exercised
+              through the priority setter and all three thread creation
+              implementations.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[thread_descriptor_t td;
+tprio_t oldprio, prio;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The current thread priority is changed to @p
+                  LOWPRIO and then restored.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[prio = chThdGetPriorityX();
+oldprio = chThdSetPriority(LOWPRIO);
+test_assert(oldprio == prio, "wrong old priority");
+test_assert(chThdGetPriorityX() == LOWPRIO, "wrong low priority");
+oldprio = chThdSetPriority(prio);
+test_assert(oldprio == LOWPRIO, "wrong restored priority");
+test_assert(chThdGetPriorityX() == prio, "priority not restored");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A static thread is created at @p LOWPRIO.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[threads[0] = chThdCreateStatic(wa[0], WA_SIZE, LOWPRIO,
+                               test_thread, NULL);
+test_wait_threads();]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A thread is created from a descriptor at @p
+                  LOWPRIO.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[td.name   = "priority-low";
+td.wbase  = TEST_THREAD_WA_BASE(0);
+td.wend   = TEST_THREAD_WA_END(0);
+td.prio   = LOWPRIO;
+td.funcp  = test_thread;
+td.arg    = NULL;
+td.owner  = NULL;
+threads[0] = chThdCreate(&td);
+test_wait_threads();]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A thread object is spawned from a descriptor at
+                  @p HIGHPRIO.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[td.name   = "priority-high";
+td.wbase  = TEST_THREAD_STACK_BASE(0);
+td.wend   = TEST_THREAD_STACK_END(0);
+td.prio   = HIGHPRIO;
+td.funcp  = test_thread;
+td.arg    = NULL;
+td.owner  = NULL;
+threads[0] = chThdSpawnRunning(TEST_THREAD_OBJECT(0), &td);
+test_wait_threads();
+chThdObjectDispose(TEST_THREAD_OBJECT(0));]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Recursive mutex depth boundary.</value>
+          </brief>
+          <description>
+            <value>The last valid recursive acquisition is tested
+              through both lock paths.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_MUTEXES_RECURSIVE == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chMtxObjectInit(&m1);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chMtxObjectDispose(&m1);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[bool b;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>@p chMtxLock() reaches @p MUTEX_MAX_RECURSION
+                  without overflowing the counter.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chMtxLock(&m1);
+m1.cnt = MUTEX_MAX_RECURSION - (cnt_t)1;
+chMtxLock(&m1);
+test_assert(m1.cnt == MUTEX_MAX_RECURSION,
+            "wrong recursion counter");
+chMtxUnlockAll();]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>@p chMtxTryLock() reaches @p MUTEX_MAX_RECURSION
+                  without overflowing the counter.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[b = chMtxTryLock(&m1);
+test_assert(b, "already locked");
+m1.cnt = MUTEX_MAX_RECURSION - (cnt_t)1;
+b = chMtxTryLock(&m1);
+test_assert(b, "recursive lock failed");
+test_assert(m1.cnt == MUTEX_MAX_RECURSION,
+            "wrong recursion counter");
+chMtxUnlockAll();]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
   </sequences>
 </instance>

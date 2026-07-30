@@ -231,6 +231,39 @@ void chThdObjectDispose(thread_t *tp) {
 }
 
 /**
+ * @brief   Spawns a suspended thread without parameter validation.
+ * @details This internal operation also supports creation of the idle thread
+ *          at the reserved @p IDLEPRIO priority.
+ *
+ * @param[out] tp       pointer to a @p thread_t object
+ * @param[in] tdp       pointer to a @p thread_descriptor_t object
+ * @return              Reference to the @p thread_t object.
+ *
+ * @notapi
+ */
+thread_t *__thd_spawn_suspended(thread_t *tp,
+                                const thread_descriptor_t *tdp) {
+
+#if CH_CFG_USE_REGISTRY == TRUE
+  chDbgAssert(!chRegIsWorkingAreaInUseI(tdp->wbase),
+              "working area in use");
+#endif
+
+  /* Thread object initialization.*/
+  tp = chThdObjectInit(tp, tdp);
+
+  /* Setting up the port-dependent part of the working area.*/
+  port_setup_context(&tp->ctx, tp->wabase, tp->waend, tdp->funcp, tdp->arg);
+
+  /* Registry-related fields.*/
+#if CH_CFG_USE_REGISTRY == TRUE
+  REG_INSERT(tp->owner, tp);
+#endif
+
+  return tp;
+}
+
+/**
  * @brief   Spawns a suspended thread.
  * @details The spawned thread is in the @p CH_STATE_WTSTART state and can
  *          be subsequently started using @p chThdStart(), @p chThdStartI() or
@@ -262,23 +295,12 @@ thread_t *chThdSpawnSuspendedI(thread_t *tp,
              (tdp->wend > tdp->wbase) &&
              (((size_t)tdp->wend - (size_t)tdp->wbase) >= THD_STACK_SIZE(0)));
 
-#if CH_CFG_USE_REGISTRY == TRUE
-  chDbgAssert(!chRegIsWorkingAreaInUseI(tdp->wbase),
-              "working area in use");
-#endif
+  /* Other checks.*/
+  chDbgCheck((tdp->prio >= LOWPRIO) &&
+             (tdp->prio <= HIGHPRIO) &&
+             (tdp->funcp != NULL));
 
-  /* Thread object initialization.*/
-  tp = chThdObjectInit(tp, tdp);
-
-  /* Setting up the port-dependent part of the working area.*/
-  port_setup_context(&tp->ctx, tp->wabase, tp->waend, tdp->funcp, tdp->arg);
-
-  /* Registry-related fields.*/
-#if CH_CFG_USE_REGISTRY == TRUE
-  REG_INSERT(tp->owner, tp);
-#endif
-
-  return tp;
+  return __thd_spawn_suspended(tp, tdp);
 }
 
 /**
@@ -389,7 +411,9 @@ thread_t *chThdCreateSuspendedI(const thread_descriptor_t *tdp) {
              (((size_t)tdp->wend - (size_t)tdp->wbase) >= THD_WORKING_AREA_SIZE(0)));
 
   /* Other checks.*/
-  chDbgCheck((tdp->prio <= HIGHPRIO) && (tdp->funcp != NULL));
+  chDbgCheck((tdp->prio >= LOWPRIO) &&
+             (tdp->prio <= HIGHPRIO) &&
+             (tdp->funcp != NULL));
 
   /* Stack area addresses.
      The thread structure is laid out in the upper part of the thread
@@ -512,7 +536,8 @@ thread_t *chThdCreate(const thread_descriptor_t *tdp) {
  *
  * @param[out] wbase    working area base address
  * @param[in] wsize     working area size
- * @param[in] prio      priority level for the new thread
+ * @param[in] prio      priority level for the new thread, from @p LOWPRIO
+ *                      through @p HIGHPRIO
  * @param[in] func      thread function
  * @param[in] arg       an argument passed to the thread function. It can be
  *                      @p NULL.
@@ -531,7 +556,9 @@ thread_t *chThdCreateStatic(stkline_t *wbase, size_t wsize,
              (wsize >= THD_WORKING_AREA_SIZE(0)));
 
   /* Other checks.*/
-  chDbgCheck((prio <= HIGHPRIO) && (func != NULL));
+  chDbgCheck((prio >= LOWPRIO) &&
+             (prio <= HIGHPRIO) &&
+             (func != NULL));
 
   /* Working area end address.*/
   wend = (uint8_t *)wbase + wsize;
@@ -670,6 +697,8 @@ void chThdRelease(thread_t *tp) {
  *          this function never returns. The compiler has no way to
  *          know this so do not assume that the compiler would remove
  *          the dead code.
+ * @pre     If mutexes are enabled then the invoking thread must not own
+ *          any mutex.
  *
  * @param[in] msg       thread exit code
  *
@@ -694,6 +723,8 @@ void chThdExit(msg_t msg) {
  *          this function never returns. The compiler has no way to
  *          know this so do not assume that the compiler would remove
  *          the dead code.
+ * @pre     If mutexes are enabled then the invoking thread must not own
+ *          any mutex.
  *
  * @param[in] msg       thread exit code
  *
@@ -701,6 +732,10 @@ void chThdExit(msg_t msg) {
  */
 void chThdExitS(msg_t msg) {
   thread_t *currtp = chThdGetSelfX();
+
+#if CH_CFG_USE_MUTEXES == TRUE
+  chDbgAssert(currtp->mtxlist == NULL, "owning mutexes");
+#endif
 
   /* Storing exit message.*/
   currtp->u.exitcode = msg;
@@ -836,7 +871,8 @@ msg_t chThdWait(thread_t *tp) {
  *          current priority that could be higher than the real priority
  *          because the priority inheritance mechanism.
  *
- * @param[in] newprio   the new priority level of the running thread
+ * @param[in] newprio   the new priority level of the running thread, from
+ *                      @p LOWPRIO through @p HIGHPRIO
  * @return              The old priority level.
  *
  * @api
@@ -845,7 +881,7 @@ tprio_t chThdSetPriority(tprio_t newprio) {
   thread_t *currtp = chThdGetSelfX();
   tprio_t oldprio;
 
-  chDbgCheck(newprio <= HIGHPRIO);
+  chDbgCheck((newprio >= LOWPRIO) && (newprio <= HIGHPRIO));
 
   chSysLock();
 #if CH_CFG_USE_MUTEXES == TRUE
