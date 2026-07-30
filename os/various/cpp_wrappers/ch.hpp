@@ -2081,8 +2081,7 @@ namespace chibios_rt {
      * @pre     The invoking thread <b>must</b> have at least one owned mutex.
      * @post    The mutex is unlocked and removed from the per-thread stack of
      *          owned mutexes.
-     * @post    This function does not reschedule so a call to a rescheduling
-     *          function must be performed before unlocking the kernel.
+     * @post    The function reschedules internally if required.
      *
      * @sclass
      */
@@ -2111,8 +2110,7 @@ namespace chibios_rt {
      * @pre     The invoking thread <b>must</b> have at least one owned mutex.
      * @post    The mutex is unlocked and removed from the per-thread stack of
      *          owned mutexes.
-     * @post    This function does not reschedule so a call to a rescheduling
-     *          function must be performed before unlocking the kernel.
+     * @post    The function reschedules internally if required.
      *
      * @return              A pointer to the unlocked mutex.
      *

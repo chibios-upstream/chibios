@@ -49,6 +49,17 @@ static THD_FUNCTION(thread, p) {
   test_emit_token(*(char *)p);
 }
 
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
+static MUTEX_DECL(priority_mtx);
+
+static THD_FUNCTION(priority_thread, p) {
+
+  (void)p;
+  chMtxLock(&priority_mtx);
+  chMtxUnlock(&priority_mtx);
+}
+#endif /* CH_CFG_USE_MUTEXES == TRUE */
+
 static void setup_thread_descriptor(thread_descriptor_t *tdp,
                                     const char *name,
                                     stkline_t *wbase,
@@ -312,22 +323,34 @@ static const testcase_t rt_test_005_003 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [5.4.1] Simulating a priority boost situation (prio > realprio).
+ * - [5.4.1] Creating a priority boost situation (prio > realprio).
  * - [5.4.2] Raising thread priority above original priority but below
  *   the boosted level.
  * - [5.4.3] Raising thread priority above the boosted level.
- * - [5.4.4] Restoring original conditions.
+ * - [5.4.4] Restoring the original base priority while the donation is
+ *   active, then releasing the mutex.
  * .
  */
+
+static void rt_test_005_004_setup(void) {
+  chMtxObjectInit(&priority_mtx);
+}
+
+static void rt_test_005_004_teardown(void) {
+  test_wait_threads();
+  chMtxObjectDispose(&priority_mtx);
+}
 
 static void rt_test_005_004_execute(void) {
   tprio_t prio, p1;
 
-  /* [5.4.1] Simulating a priority boost situation (prio > realprio).*/
+  /* [5.4.1] Creating a priority boost situation (prio > realprio).*/
   test_set_step(1);
   {
     prio = chThdGetPriorityX();
-    chThdGetSelfX()->hdr.pqueue.prio += 2;
+    chMtxLock(&priority_mtx);
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 2,
+                                   priority_thread, NULL);
     test_assert(chThdGetPriorityX() == prio + 2, "unexpected priority level");
   }
   test_end_step(1);
@@ -353,21 +376,27 @@ static void rt_test_005_004_execute(void) {
   }
   test_end_step(3);
 
-  /* [5.4.4] Restoring original conditions.*/
+  /* [5.4.4] Restoring the original base priority while the donation is
+     active, then releasing the mutex.*/
   test_set_step(4);
   {
-    chSysLock();
-    chThdGetSelfX()->hdr.pqueue.prio = prio;
-    chThdGetSelfX()->realprio = prio;
-    chSysUnlock();
+    p1 = chThdSetPriority(prio);
+    test_assert(p1 == prio + 3, "unexpected returned priority level");
+    test_assert(chThdGetSelfX()->hdr.pqueue.prio == prio + 2,
+                "unexpected priority level");
+    test_assert(chThdGetSelfX()->realprio == prio,
+                "unexpected real priority level");
+    chMtxUnlock(&priority_mtx);
+    test_wait_threads();
+    test_assert(chThdGetPriorityX() == prio, "priority not restored");
   }
   test_end_step(4);
 }
 
 static const testcase_t rt_test_005_004 = {
   "Priority change test with Priority Inheritance",
-  NULL,
-  NULL,
+  rt_test_005_004_setup,
+  rt_test_005_004_teardown,
   rt_test_005_004_execute
 };
 #endif /* CH_CFG_USE_MUTEXES == TRUE */

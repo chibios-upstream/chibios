@@ -95,6 +95,36 @@
 /*===========================================================================*/
 
 /**
+ * @brief   Computes the effective priority of a thread.
+ * @details The effective priority is the maximum among the real priority and
+ *          the priorities inherited from waiters on all owned mutexes.
+ *
+ * @param[in] tp        pointer to the thread
+ * @return              The effective priority.
+ *
+ * @notapi
+ */
+tprio_t __mtx_get_effective_priority(thread_t *tp) {
+  mutex_t *mp;
+  tprio_t prio;
+
+  chDbgCheckClassS();
+  chDbgCheck(tp != NULL);
+
+  prio = tp->realprio;
+  mp = tp->mtxlist;
+  while (mp != NULL) {
+    if (ch_queue_notempty(&mp->queue) &&
+        (threadref(mp->queue.next)->hdr.pqueue.prio > prio)) {
+      prio = threadref(mp->queue.next)->hdr.pqueue.prio;
+    }
+    mp = mp->next;
+  }
+
+  return prio;
+}
+
+/**
  * @brief   Initializes a @p mutex_t object.
  *
  * @param[out] mp       pointer to a @p mutex_t object
@@ -348,107 +378,21 @@ bool chMtxTryLockS(mutex_t *mp) {
 }
 
 /**
- * @brief   Unlocks the specified mutex.
- * @note    Mutexes must be unlocked in reverse lock order. Violating this
- *          rules will result in a panic if assertions are enabled.
- * @pre     The invoking thread <b>must</b> have at least one owned mutex.
- * @post    The mutex is unlocked and removed from the per-thread stack of
- *          owned mutexes.
+ * @brief   Unlocks the specified mutex without rescheduling.
+ * @details This internal operation exists in order to support atomic
+ *          release-and-wait sequences. Public S-class APIs must reschedule
+ *          before returning.
  *
  * @param[in] mp        pointer to a @p mutex_t object
+ * @return              The wakeup status.
+ * @retval true         if a thread has been made ready
+ * @retval false        if no thread has been made ready
  *
- * @api
+ * @notapi
  */
-void chMtxUnlock(mutex_t *mp) {
+bool __mtx_unlock_no_reschedule(mutex_t *mp) {
   thread_t *currtp = chThdGetSelfX();
-  mutex_t *lmp;
-
-  chDbgCheck(mp != NULL);
-
-  chSysLock();
-
-  chDbgAssert(currtp->mtxlist != NULL, "owned mutexes list empty");
-  chDbgAssert(currtp->mtxlist->owner == currtp, "ownership failure");
-#if CH_CFG_USE_MUTEXES_RECURSIVE == TRUE
-  chDbgAssert(mp->cnt >= (cnt_t)1, "counter is not positive");
-
-  if (--mp->cnt == (cnt_t)0) {
-#endif
-
-    chDbgAssert(currtp->mtxlist == mp, "not next in list");
-
-    /* Removes the top mutex from the thread's owned mutexes list and marks
-       it as not owned. Note, it is assumed to be the same mutex passed as
-       parameter of this function.*/
-    currtp->mtxlist = mp->next;
-
-    /* If a thread is waiting on the mutex then the fun part begins.*/
-    if (chMtxQueueNotEmptyS(mp)) {
-      thread_t *tp;
-
-      /* Recalculates the optimal thread priority by scanning the owned
-         mutexes list.*/
-      tprio_t newprio = currtp->realprio;
-      lmp = currtp->mtxlist;
-      while (lmp != NULL) {
-        /* If the highest priority thread waiting in the mutexes list has a
-           greater priority than the current thread base priority then the
-           final priority will have at least that priority.*/
-        if (chMtxQueueNotEmptyS(lmp) &&
-            ((threadref(lmp->queue.next))->hdr.pqueue.prio > newprio)) {
-          newprio = (threadref(lmp->queue.next))->hdr.pqueue.prio;
-        }
-        lmp = lmp->next;
-      }
-
-      /* Assigns to the current thread the highest priority among all the
-         waiting threads.*/
-      currtp->hdr.pqueue.prio = newprio;
-
-      /* Awakens the highest priority thread waiting for the unlocked mutex and
-         assigns the mutex to it.*/
-#if CH_CFG_USE_MUTEXES_RECURSIVE == TRUE
-      mp->cnt = (cnt_t)1;
-#endif
-      tp = threadref(ch_queue_fifo_remove(&mp->queue));
-      mp->owner = tp;
-      mp->next = tp->mtxlist;
-      tp->mtxlist = mp;
-
-      /* Note, not using chSchWakeupS() because that function expects the
-         current thread to have the higher or equal priority than the ones
-         in the ready list. This is not necessarily true here because we
-         just changed priority.*/
-      (void) chSchReadyI(tp);
-      chSchRescheduleS();
-    }
-    else {
-      mp->owner = NULL;
-    }
-#if CH_CFG_USE_MUTEXES_RECURSIVE == TRUE
-  }
-#endif
-
-  chSysUnlock();
-}
-
-/**
- * @brief   Unlocks the specified mutex.
- * @note    Mutexes must be unlocked in reverse lock order. Violating this
- *          rules will result in a panic if assertions are enabled.
- * @pre     The invoking thread <b>must</b> have at least one owned mutex.
- * @post    The mutex is unlocked and removed from the per-thread stack of
- *          owned mutexes.
- * @post    This function does not reschedule so a call to a rescheduling
- *          function must be performed before unlocking the kernel.
- *
- * @param[in] mp        pointer to a @p mutex_t object
- *
- * @sclass
- */
-void chMtxUnlockS(mutex_t *mp) {
-  thread_t *currtp = chThdGetSelfX();
-  mutex_t *lmp;
+  bool woke = false;
 
   chDbgCheckClassS();
   chDbgCheck(mp != NULL);
@@ -474,22 +418,7 @@ void chMtxUnlockS(mutex_t *mp) {
 
       /* Recalculates the optimal thread priority by scanning the owned
          mutexes list.*/
-      tprio_t newprio = currtp->realprio;
-      lmp = currtp->mtxlist;
-      while (lmp != NULL) {
-        /* If the highest priority thread waiting in the mutexes list has a
-           greater priority than the current thread base priority then the
-           final priority will have at least that priority.*/
-        if (chMtxQueueNotEmptyS(lmp) &&
-            ((threadref(lmp->queue.next))->hdr.pqueue.prio > newprio)) {
-          newprio = threadref(lmp->queue.next)->hdr.pqueue.prio;
-        }
-        lmp = lmp->next;
-      }
-
-      /* Assigns to the current thread the highest priority among all the
-         waiting threads.*/
-      currtp->hdr.pqueue.prio = newprio;
+      currtp->hdr.pqueue.prio = __mtx_get_effective_priority(currtp);
 
       /* Awakens the highest priority thread waiting for the unlocked mutex and
          assigns the mutex to it.*/
@@ -500,7 +429,13 @@ void chMtxUnlockS(mutex_t *mp) {
       mp->owner = tp;
       mp->next = tp->mtxlist;
       tp->mtxlist = mp;
+
+      /* Note, not using chSchWakeupS() because that function expects the
+         current thread to have the higher or equal priority than the ones
+         in the ready list. This is not necessarily true here because we
+         just changed priority.*/
       (void) chSchReadyI(tp);
+      woke = true;
     }
     else {
       mp->owner = NULL;
@@ -508,6 +443,54 @@ void chMtxUnlockS(mutex_t *mp) {
 #if CH_CFG_USE_MUTEXES_RECURSIVE == TRUE
   }
 #endif
+
+  return woke;
+}
+
+/**
+ * @brief   Unlocks the specified mutex.
+ * @note    Mutexes must be unlocked in reverse lock order. Violating this
+ *          rules will result in a panic if assertions are enabled.
+ * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+ * @post    The mutex is unlocked and removed from the per-thread stack of
+ *          owned mutexes.
+ *
+ * @param[in] mp        pointer to a @p mutex_t object
+ *
+ * @api
+ */
+void chMtxUnlock(mutex_t *mp) {
+
+  chDbgCheck(mp != NULL);
+
+  chSysLock();
+  if (__mtx_unlock_no_reschedule(mp)) {
+    chSchRescheduleS();
+  }
+  chSysUnlock();
+}
+
+/**
+ * @brief   Unlocks the specified mutex.
+ * @note    Mutexes must be unlocked in reverse lock order. Violating this
+ *          rules will result in a panic if assertions are enabled.
+ * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+ * @post    The mutex is unlocked and removed from the per-thread stack of
+ *          owned mutexes.
+ * @post    The function reschedules internally if required.
+ *
+ * @param[in] mp        pointer to a @p mutex_t object
+ *
+ * @sclass
+ */
+void chMtxUnlockS(mutex_t *mp) {
+
+  chDbgCheckClassS();
+  chDbgCheck(mp != NULL);
+
+  if (__mtx_unlock_no_reschedule(mp)) {
+    chSchRescheduleS();
+  }
 }
 
 /**

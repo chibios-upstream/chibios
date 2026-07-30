@@ -1646,7 +1646,6 @@ int32 OS_MutSemGive(uint32 sem_id) {
   }
 
   chMtxUnlockS(mp);
-  chSchRescheduleS();
 
   chSysUnlock();
 

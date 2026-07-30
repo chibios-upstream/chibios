@@ -242,7 +242,7 @@ msg_t chCondWaitS(condition_variable_t *cp) {
   chDbgAssert(mp != NULL, "not owning a mutex");
 
   /* Releasing "current" mutex.*/
-  chMtxUnlockS(mp);
+  (void) __mtx_unlock_no_reschedule(mp);
 
   /* Start waiting on the condition variable, on exit the mutex is taken
      again.*/
@@ -330,7 +330,7 @@ msg_t chCondWaitTimeoutS(condition_variable_t *cp, sysinterval_t timeout) {
   chDbgAssert(mp != NULL, "not owning a mutex");
 
   /* Releasing "current" mutex.*/
-  chMtxUnlockS(mp);
+  (void) __mtx_unlock_no_reschedule(mp);
 
   /* Start waiting on the condition variable, on exit the mutex is taken
      again.*/

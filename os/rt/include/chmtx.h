@@ -98,6 +98,8 @@ struct ch_mutex {
 #ifdef __cplusplus
 extern "C" {
 #endif
+  tprio_t __mtx_get_effective_priority(thread_t *tp);
+  bool __mtx_unlock_no_reschedule(mutex_t *mp);
   void chMtxObjectInit(mutex_t *mp);
   void chMtxObjectDispose(mutex_t *mp);
   void chMtxLock(mutex_t *mp);

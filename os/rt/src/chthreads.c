@@ -850,11 +850,8 @@ tprio_t chThdSetPriority(tprio_t newprio) {
   chSysLock();
 #if CH_CFG_USE_MUTEXES == TRUE
   oldprio = currtp->realprio;
-  if ((currtp->hdr.pqueue.prio == currtp->realprio) ||
-      (newprio > currtp->hdr.pqueue.prio)) {
-    currtp->hdr.pqueue.prio = newprio;
-  }
   currtp->realprio = newprio;
+  currtp->hdr.pqueue.prio = __mtx_get_effective_priority(currtp);
 #else
   oldprio = currtp->hdr.pqueue.prio;
   currtp->hdr.pqueue.prio = newprio;
