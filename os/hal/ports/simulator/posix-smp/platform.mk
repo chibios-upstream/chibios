@@ -1,8 +1,9 @@
 # List of all the POSIX SMP simulator platform files.
 #
-# Phase 2 deliberately reuses the existing POSIX low-level drivers. Per-core
-# HAL state is split into dedicated sources during the POSIX-SMP HAL phase.
-PLATFORMSRC = ${CHIBIOS}/os/hal/ports/simulator/posix/hal_lld.c \
+# Most POSIX low-level drivers are reused initially. The local HAL source uses
+# the real SMP kernel lock for post-interrupt rescheduling; remaining per-core
+# state is split during the POSIX-SMP HAL phase.
+PLATFORMSRC = ${CHIBIOS}/os/hal/ports/simulator/posix-smp/hal_lld.c \
               ${CHIBIOS}/os/hal/ports/simulator/posix/hal_serial_lld.c \
               ${CHIBIOS}/os/hal/ports/simulator/console.c \
               ${CHIBIOS}/os/hal/ports/simulator/hal_pal_lld.c \

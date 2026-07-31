@@ -25,6 +25,7 @@
 #include "console.h"
 
 extern bool simSmpCore1IsReady(void);
+extern bool simSmpRunLockStress(void);
 
 /*
  * SMP simulator main.
@@ -47,6 +48,14 @@ int main(int argc, char *argv[]) {
   }
 
   if ((argc == 2) && (strcmp(argv[1], "--startup-only") == 0)) {
+    exit(0);
+  }
+
+  if (!simSmpRunLockStress()) {
+    exit(1);
+  }
+
+  if ((argc == 2) && (strcmp(argv[1], "--lock-stress-only") == 0)) {
     exit(0);
   }
 

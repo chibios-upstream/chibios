@@ -26,6 +26,7 @@
 
 #include <pthread.h>
 #include <sched.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <sys/time.h>
 
@@ -47,6 +48,14 @@
 #define PORT_STARTUP_PRIMARY_RELEASED    1U
 #define PORT_STARTUP_SECONDARY_READY     2U
 
+#if !defined(PORT_SMP_IPI_SIGNAL)
+#define PORT_SMP_IPI_SIGNAL             SIGUSR1
+#endif
+
+#if (__GCC_ATOMIC_CHAR_LOCK_FREE != 2)
+#error "the SMP simulator requires lock-free character atomics"
+#endif
+
 /*===========================================================================*/
 /* Module exported variables.                                                */
 /*===========================================================================*/
@@ -54,7 +63,6 @@
 __thread core_id_t port_core_id;
 __thread bool port_isr_context_flag;
 __thread syssts_t port_irq_sts = (syssts_t)1;
-__thread bool port_startup_unlock_pending;
 
 /*===========================================================================*/
 /* Module local types.                                                       */
@@ -66,7 +74,11 @@ __thread bool port_startup_unlock_pending;
 
 #if CH_CFG_SMP_MODE == TRUE
 static pthread_t port_core_threads[PORT_CORES_NUMBER];
+static sigset_t port_ipi_sigset;
+static unsigned char port_kernel_spinlock;
 static unsigned port_startup_state;
+static __thread bool port_kernel_lock_held;
+static __thread bool port_startup_unlock_pending;
 #endif
 
 /*===========================================================================*/
@@ -82,6 +94,60 @@ static void port_wait_startup_state(unsigned state) {
   }
 }
 
+static void port_mask_ipi(void) {
+
+  if (pthread_sigmask(SIG_BLOCK, &port_ipi_sigset, NULL) != 0) {
+    abort();
+  }
+}
+
+static void port_unmask_ipi(void) {
+
+  if (pthread_sigmask(SIG_UNBLOCK, &port_ipi_sigset, NULL) != 0) {
+    abort();
+  }
+}
+
+static void port_spinlock_take(void) {
+
+  if (port_kernel_lock_held) {
+    abort();
+  }
+
+  while (__atomic_exchange_n(&port_kernel_spinlock, (unsigned char)1,
+                             __ATOMIC_ACQUIRE) != (unsigned char)0) {
+    while (__atomic_load_n(&port_kernel_spinlock,
+                           __ATOMIC_RELAXED) != (unsigned char)0) {
+      __asm__ volatile ("pause");
+    }
+  }
+  port_kernel_lock_held = true;
+}
+
+static void port_spinlock_release(void) {
+
+  if (!port_kernel_lock_held) {
+    abort();
+  }
+
+  port_kernel_lock_held = false;
+  __atomic_store_n(&port_kernel_spinlock, (unsigned char)0,
+                   __ATOMIC_RELEASE);
+}
+
+static void port_startup_unlock(void) {
+
+  if (port_core_id == (core_id_t)0) {
+    __atomic_store_n(&port_startup_state, PORT_STARTUP_PRIMARY_RELEASED,
+                     __ATOMIC_RELEASE);
+    port_wait_startup_state(PORT_STARTUP_SECONDARY_READY);
+  }
+  else {
+    __atomic_store_n(&port_startup_state, PORT_STARTUP_SECONDARY_READY,
+                     __ATOMIC_RELEASE);
+  }
+}
+
 static void *port_core1_start(void *p) {
   extern void c1_main(void);
 
@@ -91,6 +157,7 @@ static void *port_core1_start(void *p) {
   port_irq_sts = (syssts_t)1;
   port_isr_context_flag = false;
   port_startup_unlock_pending = false;
+  port_kernel_lock_held = false;
 
   port_wait_startup_state(PORT_STARTUP_PRIMARY_RELEASED);
   c1_main();
@@ -120,6 +187,12 @@ void port_init(os_instance_t *oip) {
   if (port_core_id == (core_id_t)0) {
     int err;
 
+    if ((sigemptyset(&port_ipi_sigset) != 0) ||
+        (sigaddset(&port_ipi_sigset, PORT_SMP_IPI_SIGNAL) != 0)) {
+      abort();
+    }
+    port_mask_ipi();
+
     port_core_threads[0] = pthread_self();
     err = pthread_create(&port_core_threads[1], NULL,
                          port_core1_start, NULL);
@@ -127,27 +200,91 @@ void port_init(os_instance_t *oip) {
       abort();
     }
   }
+  else {
+    port_mask_ipi();
+  }
 #else
-  port_startup_unlock_pending = false;
+  port_irq_sts = (syssts_t)1;
 #endif
 }
 
 /**
- * @brief   Performs the one-time host-core startup handshake.
- * @note    Called on each core by its first kernel unlock.
+ * @brief   Kernel-lock action.
+ * @details Masks the virtual IPI source and takes the shared kernel spinlock.
  */
-void port_startup_unlock(void) {
+void port_lock(void) {
 
 #if CH_CFG_SMP_MODE == TRUE
-  if (port_core_id == (core_id_t)0) {
-    __atomic_store_n(&port_startup_state, PORT_STARTUP_PRIMARY_RELEASED,
-                     __ATOMIC_RELEASE);
-    port_wait_startup_state(PORT_STARTUP_SECONDARY_READY);
+  port_mask_ipi();
+  port_spinlock_take();
+#endif
+  port_irq_sts = (syssts_t)1;
+}
+
+/**
+ * @brief   Kernel-unlock action.
+ * @details Releases the shared kernel spinlock and unmasks virtual IPIs.
+ */
+void port_unlock(void) {
+
+#if CH_CFG_SMP_MODE == TRUE
+  if (port_startup_unlock_pending) {
+    port_startup_unlock_pending = false;
+    port_startup_unlock();
   }
   else {
-    __atomic_store_n(&port_startup_state, PORT_STARTUP_SECONDARY_READY,
-                     __ATOMIC_RELEASE);
+    port_spinlock_release();
   }
+#endif
+  port_irq_sts = (syssts_t)0;
+#if CH_CFG_SMP_MODE == TRUE
+  port_unmask_ipi();
+#endif
+}
+
+/**
+ * @brief   Kernel-lock action from an interrupt handler.
+ */
+void port_lock_from_isr(void) {
+
+  port_lock();
+}
+
+/**
+ * @brief   Kernel-unlock action from an interrupt handler.
+ */
+void port_unlock_from_isr(void) {
+
+  port_unlock();
+}
+
+/**
+ * @brief   Disables all interrupt sources.
+ */
+void port_disable(void) {
+
+#if CH_CFG_SMP_MODE == TRUE
+  port_mask_ipi();
+#endif
+  port_irq_sts = (syssts_t)1;
+}
+
+/**
+ * @brief   Disables interrupt sources at kernel level.
+ */
+void port_suspend(void) {
+
+  port_disable();
+}
+
+/**
+ * @brief   Enables all interrupt sources.
+ */
+void port_enable(void) {
+
+  port_irq_sts = (syssts_t)0;
+#if CH_CFG_SMP_MODE == TRUE
+  port_unmask_ipi();
 #endif
 }
 

@@ -281,7 +281,6 @@ struct port_context {
 extern __thread core_id_t port_core_id;
 extern __thread bool port_isr_context_flag;
 extern __thread syssts_t port_irq_sts;
-extern __thread bool port_startup_unlock_pending;
 
 #ifdef __cplusplus
 extern "C" {
@@ -293,7 +292,13 @@ extern "C" {
   /*lint -restore*/
   rtcnt_t port_rt_get_counter_value(void);
   void port_init(os_instance_t *oip);
-  void port_startup_unlock(void);
+  void port_lock(void);
+  void port_unlock(void);
+  void port_lock_from_isr(void);
+  void port_unlock_from_isr(void);
+  void port_disable(void);
+  void port_suspend(void);
+  void port_enable(void);
   void _sim_check_for_interrupts(void);
 #ifdef __cplusplus
 }
@@ -353,72 +358,6 @@ static inline bool port_irq_enabled(syssts_t sts) {
 static inline bool port_is_isr_context(void) {
 
   return port_isr_context_flag;
-}
-
-/**
- * @brief   Kernel-lock action.
- * @details In this port this function disables interrupts globally.
- */
-static inline void port_lock(void) {
-
-  port_irq_sts = (syssts_t)1;
-}
-
-/**
- * @brief   Kernel-unlock action.
- * @details In this port this function enables interrupts globally.
- */
-static inline void port_unlock(void) {
-
-  port_irq_sts = (syssts_t)0;
-  if (port_startup_unlock_pending) {
-    port_startup_unlock_pending = false;
-    port_startup_unlock();
-  }
-}
-
-/**
- * @brief   Kernel-lock action from an interrupt handler.
- * @details In this port this function disables interrupts globally.
- * @note    Same as @p port_lock() in this port.
- */
-static inline void port_lock_from_isr(void) {
-
-  port_irq_sts = (syssts_t)1;
-}
-
-/**
- * @brief   Kernel-unlock action from an interrupt handler.
- * @details In this port this function enables interrupts globally.
- * @note    Same as @p port_lock() in this port.
- */
-static inline void port_unlock_from_isr(void) {
-
-  port_irq_sts = (syssts_t)0;
-}
-
-/**
- * @brief   Disables all the interrupt sources.
- */
-static inline void port_disable(void) {
-
-  port_irq_sts = (syssts_t)1;
-}
-
-/**
- * @brief   Disables the interrupt sources below kernel-level priority.
- */
-static inline void port_suspend(void) {
-
-  port_irq_sts = (syssts_t)1;
-}
-
-/**
- * @brief   Enables all the interrupt sources.
- */
-static inline void port_enable(void) {
-
-  port_irq_sts = (syssts_t)0;
 }
 
 #if (CH_CFG_SMP_MODE == TRUE) || defined(__DOXYGEN__)
