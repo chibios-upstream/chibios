@@ -2177,6 +2177,8 @@ namespace chibios_rt {
   protected:
     /**
      * @brief   Waits on the condition variable releasing the mutex lock.
+     * @pre     In recursive mode, the controlling mutex must have a lock
+     *          depth of one.
      *
      * @param[in] var       the condition variable index
      * @return              A message specifying how the invoking thread has
@@ -2197,6 +2199,8 @@ namespace chibios_rt {
 
     /**
      * @brief   Waits on the condition variable releasing the mutex lock.
+     * @pre     In recursive mode, the controlling mutex must have a lock
+     *          depth of one.
      *
      * @param[in] var       the condition variable index
      * @return              A message specifying how the invoking thread has
@@ -2218,6 +2222,8 @@ namespace chibios_rt {
 #if (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE) || defined(__DOXYGEN__)
     /**
      * @brief   Waits on the CondVar while releasing the controlling mutex.
+     * @pre     In recursive mode, the controlling mutex must have a lock
+     *          depth of one.
      *
      * @param[in] var       the condition variable index
      * @param[in] timeout   the number of ticks before the operation fails
@@ -2240,6 +2246,8 @@ namespace chibios_rt {
 
     /**
      * @brief   Waits on the CondVar while releasing the controlling mutex.
+     * @pre     In recursive mode, the controlling mutex must have a lock
+     *          depth of one.
      *
      * @param[in] var       the condition variable index
      * @param[in] timeout   the number of ticks before the operation fails

@@ -39,11 +39,10 @@
  *          .
  *          <h2>Constraints</h2>
  *          In ChibiOS/RT the Unlock operations must always be performed
- *          in lock-reverse order. This restriction both improves the
- *          performance and is required for an efficient implementation
- *          of the priority inheritance mechanism.<br>
- *          Operating under this restriction also ensures that deadlocks
- *          are no possible.
+ *          in lock-reverse order. This restriction supports the owned-mutex
+ *          stack and efficient priority inheritance recomputation.<br>
+ *          Applications must also use a consistent global lock-acquisition
+ *          order in order to prevent lock-order deadlocks.
  *
  *          <h2>Recursive mode</h2>
  *          By default mutexes are not recursive, this mean that it is not
@@ -508,8 +507,7 @@ void chMtxUnlockS(mutex_t *mp) {
  * @brief   Unlocks all mutexes owned by the invoking thread.
  * @post    The stack of owned mutexes is emptied and all the found
  *          mutexes are unlocked.
- * @post    This function does not reschedule so a call to a rescheduling
- *          function must be performed before unlocking the kernel.
+ * @post    The function reschedules internally if required.
  * @note    This function is <b>MUCH MORE</b> efficient than releasing the
  *          mutexes one by one and not just because the call overhead,
  *          this function does not have any overhead related to the priority
@@ -519,6 +517,8 @@ void chMtxUnlockS(mutex_t *mp) {
  */
 void chMtxUnlockAllS(void) {
   thread_t *currtp = chThdGetSelfX();
+
+  chDbgCheckClassS();
 
   if (currtp->mtxlist != NULL) {
     do {
