@@ -2499,7 +2499,7 @@ test_assert(err == OS_ERR_INVALID_ID, "wrong semaphore id not detected");]]></va
               </tags>
               <code>
                 <value><![CDATA[int32 err;
-uint32 msid1; /*, msid2;*/
+uint32 msid1;
 
 err = OS_MutSemCreate(&msid1, "my semaphore", 0);
 test_assert(err == OS_SUCCESS, "semaphore creation failed");
@@ -2661,6 +2661,111 @@ test_assert(err == OS_INVALID_POINTER, "NULL not detected");]]></value>
 
 err = OS_MutSemGetIdByName(&msid, "very very long semaphore name");
 test_assert(err == OS_ERR_NAME_TOO_LONG, "name limit not detected");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>OS_MutSemDelete() lifecycle</value>
+          </brief>
+          <description>
+            <value>Mutex deletion is restricted to the specified idle
+              mutex and preserves unrelated mutex ownership.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value />
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Deleting an idle mutex leaves an unrelated owned
+                  mutex locked by the invoking task.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+uint32 guard, target;
+
+err = OS_MutSemCreate(&guard, "guard", 0);
+test_assert(err == OS_SUCCESS, "guard creation failed");
+err = OS_MutSemCreate(&target, "target", 0);
+test_assert(err == OS_SUCCESS, "target creation failed");
+err = OS_MutSemTake(guard);
+test_assert(err == OS_SUCCESS, "guard take failed");
+
+err = OS_MutSemDelete(target);
+test_assert(err == OS_SUCCESS, "idle target deletion failed");
+err = OS_MutSemGive(guard);
+test_assert(err == OS_SUCCESS, "unrelated mutex was released");
+err = OS_MutSemDelete(guard);
+test_assert(err == OS_SUCCESS, "guard deletion failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Deleting an owned mutex fails without changing
+                  the ownership of it or other mutexes.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+uint32 guard, target;
+
+err = OS_MutSemCreate(&guard, "guard", 0);
+test_assert(err == OS_SUCCESS, "guard creation failed");
+err = OS_MutSemCreate(&target, "target", 0);
+test_assert(err == OS_SUCCESS, "target creation failed");
+err = OS_MutSemTake(guard);
+test_assert(err == OS_SUCCESS, "guard take failed");
+err = OS_MutSemTake(target);
+test_assert(err == OS_SUCCESS, "target take failed");
+
+err = OS_MutSemDelete(target);
+test_assert(err == OS_SEM_FAILURE, "owned target deletion accepted");
+err = OS_MutSemGive(target);
+test_assert(err == OS_SUCCESS, "target ownership changed");
+err = OS_MutSemGive(guard);
+test_assert(err == OS_SUCCESS, "guard ownership changed");
+err = OS_MutSemDelete(target);
+test_assert(err == OS_SUCCESS, "target deletion failed");
+err = OS_MutSemDelete(guard);
+test_assert(err == OS_SUCCESS, "guard deletion failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Deleting an already deleted mutex reports an
+                  invalid identifier.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+uint32 target;
+
+err = OS_MutSemCreate(&target, "target", 0);
+test_assert(err == OS_SUCCESS, "target creation failed");
+err = OS_MutSemDelete(target);
+test_assert(err == OS_SUCCESS, "target deletion failed");
+err = OS_MutSemDelete(target);
+test_assert(err == OS_ERR_INVALID_ID, "deleted target accepted");]]></value>
               </code>
             </step>
           </steps>

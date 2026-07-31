@@ -1591,6 +1591,9 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options) {
  *
  * @param[in] sem_id            mutex id variable
  * @return                      An error code.
+ * @retval OS_SUCCESS           if the mutex has been deleted
+ * @retval OS_ERR_INVALID_ID    if @p sem_id is not a valid mutex
+ * @retval OS_SEM_FAILURE       if the mutex is owned or contended
  *
  * @api
  */
@@ -1605,15 +1608,24 @@ int32 OS_MutSemDelete(uint32 sem_id) {
 
   chSysLock();
 
-  /* Resetting the mutex, no threads in queue.*/
-  chMtxUnlockAllS();
+  /* If the mutex is not in use then error.*/
+  if (mp->queue.prev == NULL) {
+    chSysUnlock();
+    return OS_ERR_INVALID_ID;
+  }
+
+  /* An owned or contended mutex cannot be deleted.*/
+  if ((chMtxGetOwnerI(mp) != NULL) || chMtxQueueNotEmptyS(mp)) {
+    chSysUnlock();
+    return OS_SEM_FAILURE;
+  }
+
+  /* Disposing the target mutex.*/
+  chMtxObjectDispose(mp);
 
   /* Flagging it as unused and returning it to the pool.*/
   mp->queue.prev = NULL;
   chPoolFreeI(&osal.mutexes_pool, (void *)mp);
-
-  /* Required because some thread could have been made ready.*/
-  chSchRescheduleS();
 
   chSysUnlock();
 
