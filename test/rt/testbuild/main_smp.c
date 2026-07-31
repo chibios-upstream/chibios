@@ -26,6 +26,7 @@
 
 extern bool simSmpCore1IsReady(void);
 extern bool simSmpRunLockStress(void);
+extern bool simSmpRunIpiStress(void);
 
 /*
  * SMP simulator main.
@@ -56,6 +57,14 @@ int main(int argc, char *argv[]) {
   }
 
   if ((argc == 2) && (strcmp(argv[1], "--lock-stress-only") == 0)) {
+    exit(0);
+  }
+
+  if (!simSmpRunIpiStress()) {
+    exit(1);
+  }
+
+  if ((argc == 2) && (strcmp(argv[1], "--ipi-stress-only") == 0)) {
     exit(0);
   }
 

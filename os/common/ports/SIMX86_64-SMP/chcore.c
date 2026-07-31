@@ -28,6 +28,7 @@
 #include <sched.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/time.h>
 
 #include "ch.h"
@@ -76,7 +77,9 @@ __thread syssts_t port_irq_sts = (syssts_t)1;
 static pthread_t port_core_threads[PORT_CORES_NUMBER];
 static sigset_t port_ipi_sigset;
 static unsigned char port_kernel_spinlock;
+static unsigned char port_preemption_pending[PORT_CORES_NUMBER];
 static unsigned port_startup_state;
+static __thread bool port_isr_ipi_blocked;
 static __thread bool port_kernel_lock_held;
 static __thread bool port_startup_unlock_pending;
 #endif
@@ -108,6 +111,20 @@ static void port_unmask_ipi(void) {
   }
 }
 
+static void port_mask_ipi_from_isr(void) {
+  sigset_t oldset;
+  int status;
+
+  if (pthread_sigmask(SIG_BLOCK, &port_ipi_sigset, &oldset) != 0) {
+    abort();
+  }
+  status = sigismember(&oldset, PORT_SMP_IPI_SIGNAL);
+  if (status < 0) {
+    abort();
+  }
+  port_isr_ipi_blocked = status != 0;
+}
+
 static void port_spinlock_take(void) {
 
   if (port_kernel_lock_held) {
@@ -135,6 +152,42 @@ static void port_spinlock_release(void) {
                    __ATOMIC_RELEASE);
 }
 
+static void port_service_preemption(void) {
+
+  if (__atomic_exchange_n(&port_preemption_pending[port_core_id],
+                          (unsigned char)0,
+                          __ATOMIC_ACQ_REL) != (unsigned char)0) {
+    if (chSchIsPreemptionRequired()) {
+      __stats_start_measure_crit_thd();
+      __dbg_check_lock();
+      chSchDoPreemption();
+      __dbg_check_unlock();
+      __stats_stop_measure_crit_thd();
+    }
+  }
+}
+
+static void port_ipi_handler(int signo) {
+  bool interrupted_isr;
+
+  (void)signo;
+
+  interrupted_isr = port_isr_context_flag;
+  CH_IRQ_PROLOGUE();
+  CH_IRQ_EPILOGUE();
+
+  if (interrupted_isr) {
+    port_isr_context_flag = true;
+    return;
+  }
+
+  port_irq_sts = (syssts_t)1;
+  port_spinlock_take();
+  port_service_preemption();
+  port_spinlock_release();
+  port_irq_sts = (syssts_t)0;
+}
+
 static void port_startup_unlock(void) {
 
   if (port_core_id == (core_id_t)0) {
@@ -156,6 +209,7 @@ static void *port_core1_start(void *p) {
   port_core_id = (core_id_t)1;
   port_irq_sts = (syssts_t)1;
   port_isr_context_flag = false;
+  port_isr_ipi_blocked = false;
   port_startup_unlock_pending = false;
   port_kernel_lock_held = false;
 
@@ -184,11 +238,22 @@ void port_init(os_instance_t *oip) {
 
 #if CH_CFG_SMP_MODE == TRUE
   port_startup_unlock_pending = true;
+  port_isr_ipi_blocked = false;
+  __atomic_store_n(&port_preemption_pending[port_core_id],
+                   (unsigned char)0, __ATOMIC_RELAXED);
   if (port_core_id == (core_id_t)0) {
+    struct sigaction sa;
     int err;
 
     if ((sigemptyset(&port_ipi_sigset) != 0) ||
         (sigaddset(&port_ipi_sigset, PORT_SMP_IPI_SIGNAL) != 0)) {
+      abort();
+    }
+    memset(&sa, 0, sizeof sa);
+    sa.sa_handler = port_ipi_handler;
+    sa.sa_flags = SA_RESTART;
+    if ((sigemptyset(&sa.sa_mask) != 0) ||
+        (sigaction(PORT_SMP_IPI_SIGNAL, &sa, NULL) != 0)) {
       abort();
     }
     port_mask_ipi();
@@ -219,6 +284,9 @@ void port_lock(void) {
   port_spinlock_take();
 #endif
   port_irq_sts = (syssts_t)1;
+#if CH_CFG_SMP_MODE == TRUE
+  port_service_preemption();
+#endif
 }
 
 /**
@@ -247,7 +315,11 @@ void port_unlock(void) {
  */
 void port_lock_from_isr(void) {
 
-  port_lock();
+#if CH_CFG_SMP_MODE == TRUE
+  port_mask_ipi_from_isr();
+  port_spinlock_take();
+#endif
+  port_irq_sts = (syssts_t)1;
 }
 
 /**
@@ -255,7 +327,15 @@ void port_lock_from_isr(void) {
  */
 void port_unlock_from_isr(void) {
 
-  port_unlock();
+#if CH_CFG_SMP_MODE == TRUE
+  port_spinlock_release();
+#endif
+  port_irq_sts = (syssts_t)0;
+#if CH_CFG_SMP_MODE == TRUE
+  if (!port_isr_ipi_blocked) {
+    port_unmask_ipi();
+  }
+#endif
 }
 
 /**
@@ -287,6 +367,30 @@ void port_enable(void) {
   port_unmask_ipi();
 #endif
 }
+
+#if CH_CFG_SMP_MODE == TRUE
+/**
+ * @brief   Notifies another instance of a scheduling change.
+ *
+ * @param[in] oip       target OS instance
+ */
+void port_notify_instance(os_instance_t *oip) {
+  core_id_t core_id;
+  int err;
+
+  core_id = oip->core_id;
+  if (core_id >= (core_id_t)PORT_CORES_NUMBER) {
+    abort();
+  }
+
+  __atomic_store_n(&port_preemption_pending[core_id],
+                   (unsigned char)1, __ATOMIC_RELEASE);
+  err = pthread_kill(port_core_threads[core_id], PORT_SMP_IPI_SIGNAL);
+  if (err != 0) {
+    abort();
+  }
+}
+#endif
 
 /**
  * Performs a context switch between two threads.

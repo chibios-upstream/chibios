@@ -299,6 +299,14 @@ extern "C" {
   void port_disable(void);
   void port_suspend(void);
   void port_enable(void);
+#if (CH_CFG_SMP_MODE == TRUE) || defined(__DOXYGEN__)
+  /**
+   * @brief   Notifies another instance of a scheduling change.
+   *
+   * @param[in] oip     target OS instance
+   */
+  void port_notify_instance(os_instance_t *oip);
+#endif
   void _sim_check_for_interrupts(void);
 #ifdef __cplusplus
 }
@@ -359,19 +367,6 @@ static inline bool port_is_isr_context(void) {
 
   return port_isr_context_flag;
 }
-
-#if (CH_CFG_SMP_MODE == TRUE) || defined(__DOXYGEN__)
-/**
- * @brief   Notifies another instance of a scheduling change.
- * @note    Asynchronous notification is introduced in phase 5.
- *
- * @param[in] oip       target OS instance
- */
-static inline void port_notify_instance(os_instance_t *oip) {
-
-  (void)oip;
-}
-#endif
 
 /**
  * @brief   Enters an architecture-dependent IRQ-waiting mode.
