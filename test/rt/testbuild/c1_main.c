@@ -29,6 +29,7 @@
 static THD_WORKING_AREA(core1_worker_wa, 128);
 static SEMAPHORE_DECL(ipi_sem, 0);
 static SEMAPHORE_DECL(masked_sem, 0);
+static SEMAPHORE_DECL(contended_sem, 0);
 
 static bool core1_ready;
 static bool core1_worker_ran;
@@ -39,6 +40,10 @@ static bool ipi_stress_done;
 static bool masked_ready;
 static bool masked_sent;
 static bool masked_worker_ran;
+static bool contention_locked;
+static bool contention_attempt;
+static bool contention_worker_ran;
+static bool contention_done;
 static bool priority_ready;
 static bool priority_sent;
 static bool priority_worker_ran;
@@ -177,6 +182,16 @@ static THD_FUNCTION(core1_priority_worker, p) {
   __atomic_store_n(&priority_worker_ran, true, __ATOMIC_RELEASE);
 }
 
+static THD_FUNCTION(core1_contended_worker, p) {
+
+  (void)p;
+
+  if (chSemWait(&contended_sem) != MSG_OK) {
+    abort();
+  }
+  __atomic_store_n(&contention_worker_ran, true, __ATOMIC_RELEASE);
+}
+
 /**
  * Core 1 entry point.
  */
@@ -192,6 +207,9 @@ void c1_main(void) {
   static const THD_DECL_STATIC(masked_desc, "c1-masked", core1_worker_wa,
                                NORMALPRIO + 1, core1_masked_worker,
                                NULL, &ch1);
+  static const THD_DECL_STATIC(contended_desc, "c1-contended",
+                               core1_worker_wa, NORMALPRIO + 1,
+                               core1_contended_worker, NULL, &ch1);
   static const THD_DECL_STATIC(priority_desc, "c1-priority", core1_worker_wa,
                                NORMALPRIO - 1, core1_priority_worker,
                                NULL, &ch1);
@@ -251,6 +269,19 @@ void c1_main(void) {
   if (!__atomic_load_n(&masked_worker_ran, __ATOMIC_ACQUIRE)) {
     abort();
   }
+
+  tp = chThdCreate(&contended_desc);
+  chSysLock();
+  __atomic_store_n(&contention_locked, true, __ATOMIC_RELEASE);
+  while (!__atomic_load_n(&contention_attempt, __ATOMIC_ACQUIRE)) {
+    cpu_relax();
+  }
+  chSysUnlock();
+  while (!__atomic_load_n(&contention_worker_ran, __ATOMIC_ACQUIRE)) {
+    cpu_relax();
+  }
+  (void)chThdWait(tp);
+  __atomic_store_n(&contention_done, true, __ATOMIC_RELEASE);
 
   tp = chThdCreate(&priority_desc);
   __atomic_store_n(&priority_ready, true, __ATOMIC_RELEASE);
@@ -332,6 +363,15 @@ bool simSmpRunIpiStress(void) {
   chSemSignal(&masked_sem);
   __atomic_store_n(&masked_sent, true, __ATOMIC_RELEASE);
 
+  if (!wait_for_bool(&contention_locked, &deadline)) {
+    return false;
+  }
+  __atomic_store_n(&contention_attempt, true, __ATOMIC_RELEASE);
+  chSemSignal(&contended_sem);
+  if (!wait_for_bool(&contention_done, &deadline)) {
+    return false;
+  }
+
   if (!wait_for_bool(&priority_ready, &deadline)) {
     return false;
   }
@@ -347,7 +387,8 @@ bool simSmpRunIpiStress(void) {
   }
 
   return (__atomic_load_n(&ipi_ack, __ATOMIC_RELAXED) ==
-          IPI_STRESS_ITERATIONS) &&
+         IPI_STRESS_ITERATIONS) &&
          __atomic_load_n(&masked_worker_ran, __ATOMIC_RELAXED) &&
+         __atomic_load_n(&contention_worker_ran, __ATOMIC_RELAXED) &&
          __atomic_load_n(&priority_worker_ran, __ATOMIC_RELAXED);
 }
