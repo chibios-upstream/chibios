@@ -96,8 +96,20 @@
 /**
  * @brief   Port-specific information string.
  */
-#define PORT_INFO                       "Two-core SMP skeleton"
+#define PORT_INFO                       "Two-core pthread simulation"
 /** @} */
+
+/**
+ * @brief   Publishes initialization preceding the system state change.
+ */
+#define PORT_SYSTEM_STATE_RELEASE()                                        \
+  __atomic_thread_fence(__ATOMIC_RELEASE)
+
+/**
+ * @brief   Acquires initialization after observing the system state.
+ */
+#define PORT_SYSTEM_STATE_ACQUIRE()                                        \
+  __atomic_thread_fence(__ATOMIC_ACQUIRE)
 
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
@@ -266,8 +278,10 @@ struct port_context {
    asm module.*/
 #if !defined(_FROM_ASM_)
 
-extern bool port_isr_context_flag;
-extern syssts_t port_irq_sts;
+extern __thread core_id_t port_core_id;
+extern __thread bool port_isr_context_flag;
+extern __thread syssts_t port_irq_sts;
+extern __thread bool port_startup_unlock_pending;
 
 #ifdef __cplusplus
 extern "C" {
@@ -278,6 +292,8 @@ extern "C" {
                                                     void *p);
   /*lint -restore*/
   rtcnt_t port_rt_get_counter_value(void);
+  void port_init(os_instance_t *oip);
+  void port_startup_unlock(void);
   void _sim_check_for_interrupts(void);
 #ifdef __cplusplus
 }
@@ -295,25 +311,12 @@ extern "C" {
 
 /**
  * @brief   Returns the current simulated core identifier.
- * @note    Host-core startup and per-core state are introduced in phase 3.
- *          Until then this skeleton executes exclusively as core zero.
  *
  * @return              The current simulated core identifier.
  */
 static inline core_id_t port_get_core_id(void) {
 
-  return (core_id_t)0;
-}
-
-/**
- * @brief   Port-related initialization code.
- */
-static inline void port_init(os_instance_t *oip) {
-
-  (void)oip;
-
-  port_irq_sts = (syssts_t)0;
-  port_isr_context_flag = false;
+  return port_core_id;
 }
 
 /**
@@ -368,6 +371,10 @@ static inline void port_lock(void) {
 static inline void port_unlock(void) {
 
   port_irq_sts = (syssts_t)0;
+  if (port_startup_unlock_pending) {
+    port_startup_unlock_pending = false;
+    port_startup_unlock();
+  }
 }
 
 /**
@@ -413,6 +420,19 @@ static inline void port_enable(void) {
 
   port_irq_sts = (syssts_t)0;
 }
+
+#if (CH_CFG_SMP_MODE == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Notifies another instance of a scheduling change.
+ * @note    Asynchronous notification is introduced in phase 5.
+ *
+ * @param[in] oip       target OS instance
+ */
+static inline void port_notify_instance(os_instance_t *oip) {
+
+  (void)oip;
+}
+#endif
 
 /**
  * @brief   Enters an architecture-dependent IRQ-waiting mode.

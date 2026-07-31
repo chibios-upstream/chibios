@@ -94,7 +94,8 @@ include $(CHIBIOS)/test/oslib/oslib_test.mk
 # C sources here.
 CSRC = $(ALLCSRC) \
        $(TESTSRC) \
-       main.c
+       main_smp.c \
+       c1_main.c
 
 # C++ sources here.
 CPPSRC = $(ALLCPPSRC)
@@ -117,7 +118,8 @@ GCOVSRC = $(KERNSRC)
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS = -DSIMULATOR -DSIMULATOR_SMP -DTEST_CFG_SIZE_REPORT=0 $(XDEFS)
+UDEFS = -DSIMULATOR -DSIMULATOR_SMP -DCH_CFG_SMP_MODE=TRUE \
+        -DTEST_CFG_SIZE_REPORT=0 $(XDEFS)
 
 # Define ASM defines here
 UADEFS =

@@ -24,6 +24,9 @@
  * @{
  */
 
+#include <pthread.h>
+#include <sched.h>
+#include <stdlib.h>
 #include <sys/time.h>
 
 #include "ch.h"
@@ -41,12 +44,17 @@
 #error "invalid chconf.h"
 #endif
 
+#define PORT_STARTUP_PRIMARY_RELEASED    1U
+#define PORT_STARTUP_SECONDARY_READY     2U
+
 /*===========================================================================*/
 /* Module exported variables.                                                */
 /*===========================================================================*/
 
-bool port_isr_context_flag;
-syssts_t port_irq_sts;
+__thread core_id_t port_core_id;
+__thread bool port_isr_context_flag;
+__thread syssts_t port_irq_sts = (syssts_t)1;
+__thread bool port_startup_unlock_pending;
 
 /*===========================================================================*/
 /* Module local types.                                                       */
@@ -56,13 +64,92 @@ syssts_t port_irq_sts;
 /* Module local variables.                                                   */
 /*===========================================================================*/
 
+#if CH_CFG_SMP_MODE == TRUE
+static pthread_t port_core_threads[PORT_CORES_NUMBER];
+static unsigned port_startup_state;
+#endif
+
 /*===========================================================================*/
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+#if CH_CFG_SMP_MODE == TRUE
+static void port_wait_startup_state(unsigned state) {
+
+  while (__atomic_load_n(&port_startup_state,
+                         __ATOMIC_ACQUIRE) < state) {
+    sched_yield();
+  }
+}
+
+static void *port_core1_start(void *p) {
+  extern void c1_main(void);
+
+  (void)p;
+
+  port_core_id = (core_id_t)1;
+  port_irq_sts = (syssts_t)1;
+  port_isr_context_flag = false;
+  port_startup_unlock_pending = false;
+
+  port_wait_startup_state(PORT_STARTUP_PRIMARY_RELEASED);
+  c1_main();
+
+  abort();
+}
+#endif
+
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
+
+/**
+ * @brief   Port-related initialization code.
+ *
+ * @param[in, out] oip  pointer to the OS instance
+ */
+void port_init(os_instance_t *oip) {
+
+  (void)oip;
+
+  port_irq_sts = (syssts_t)1;
+  port_isr_context_flag = false;
+
+#if CH_CFG_SMP_MODE == TRUE
+  port_startup_unlock_pending = true;
+  if (port_core_id == (core_id_t)0) {
+    int err;
+
+    port_core_threads[0] = pthread_self();
+    err = pthread_create(&port_core_threads[1], NULL,
+                         port_core1_start, NULL);
+    if (err != 0) {
+      abort();
+    }
+  }
+#else
+  port_startup_unlock_pending = false;
+#endif
+}
+
+/**
+ * @brief   Performs the one-time host-core startup handshake.
+ * @note    Called on each core by its first kernel unlock.
+ */
+void port_startup_unlock(void) {
+
+#if CH_CFG_SMP_MODE == TRUE
+  if (port_core_id == (core_id_t)0) {
+    __atomic_store_n(&port_startup_state, PORT_STARTUP_PRIMARY_RELEASED,
+                     __ATOMIC_RELEASE);
+    port_wait_startup_state(PORT_STARTUP_SECONDARY_READY);
+  }
+  else {
+    __atomic_store_n(&port_startup_state, PORT_STARTUP_SECONDARY_READY,
+                     __ATOMIC_RELEASE);
+  }
+#endif
+}
 
 /**
  * Performs a context switch between two threads.
