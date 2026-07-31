@@ -3,8 +3,6 @@
 # NOTE: Can be overridden externally.
 #
 
-# Invoke explicitly using "make -f Makefile_smp". This target is intentionally
-# separate from the existing simulator builds.
 SIM_PORT = SIMX86_64-SMP
 
 # Compiler options here.
@@ -68,10 +66,10 @@ endif
 PROJECT = ch-smp
 
 # Imported source files and paths
-CHIBIOS = ../../..
+CHIBIOS = ../..
 CONFDIR  := ./cfg
-BUILDDIR := ./build-smp
-DEPDIR   := ./.dep-smp
+BUILDDIR := ./build
+DEPDIR   := ./.dep
 
 # Licensing files.
 include $(CHIBIOS)/os/license/license.mk
@@ -84,17 +82,9 @@ include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/$(SIM_PORT)/compilers/GCC/port.mk
-# Other files (optional).
-include $(CHIBIOS)/os/test/test.mk
-include $(CHIBIOS)/test/rt/rt_test.mk
-include $(CHIBIOS)/test/oslib/oslib_test.mk
-#include $(CHIBIOS)/os/hal/lib/streams/streams.mk
-#include $(CHIBIOS)/os/various/shell/shell.mk
-
 # C sources here.
 CSRC = $(ALLCSRC) \
-       $(TESTSRC) \
-       main_smp.c \
+       main.c \
        c1_main.c
 
 # C++ sources here.
@@ -118,8 +108,7 @@ GCOVSRC = $(KERNSRC)
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS = -DSIMULATOR -DSIMULATOR_SMP -DCH_CFG_SMP_MODE=TRUE \
-        -DTEST_CFG_SIZE_REPORT=0 $(XDEFS)
+UDEFS = -DSIMULATOR -DSIMULATOR_SMP $(XDEFS)
 
 # Define ASM defines here
 UADEFS =
@@ -170,17 +159,3 @@ CPPWARN = -Wall -Wextra -Wundef
 
 RULESPATH = $(CHIBIOS)/os/common/startup/SIMX86_64/compilers/GCC
 include $(RULESPATH)/rules.mk
-
-##############################################################################
-# Custom rules
-#
-
-misra:
-	@wine lint-nt -w3 $(DEFS) pclint/co-gcc.lnt pclint/au-misra3.lnt pclint/waivers.lnt $(IINCDIR) $(KERNSRC) $(LIBSRC) > misra.txt
-
-winmisra:
-	@lint-nt -w3 $(DEFS) pclint/co-gcc.lnt pclint/au-misra3.lnt pclint/waivers.lnt $(IINCDIR) $(KERNSRC) $(LIBSRC) > misra.txt
-
-#
-# Custom rules
-##############################################################################

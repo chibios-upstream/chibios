@@ -14,6 +14,11 @@
     limitations under the License.
 */
 
+/**
+ * @file
+ * @brief   Secondary-core SMP simulator tests.
+ */
+
 #include <sched.h>
 #include <stdlib.h>
 #include <time.h>

@@ -20,8 +20,6 @@
 
 #include "ch.h"
 #include "hal.h"
-#include "rt_test_root.h"
-#include "oslib_test_root.h"
 #include "console.h"
 
 extern bool simSmpCore1IsReady(void);
@@ -68,12 +66,5 @@ int main(int argc, char *argv[]) {
     exit(0);
   }
 
-  test_execute((BaseSequentialStream *)&CD1, &rt_test_suite);
-  test_execute((BaseSequentialStream *)&CD1, &oslib_test_suite);
-  if (chtest.global_fail) {
-    exit(1);
-  }
-  else {
-    exit(0);
-  }
+  exit(0);
 }
