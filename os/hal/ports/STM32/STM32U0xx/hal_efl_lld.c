@@ -167,8 +167,10 @@ static inline void stm32_flash_lock(EFlashDriver *eflp) {
 
 static inline void stm32_flash_unlock(EFlashDriver *eflp) {
 
-  eflp->flash->KEYR |= FLASH_KEY1;
-  eflp->flash->KEYR |= FLASH_KEY2;
+  /* KEYR is write only, a read-modify-write could send a corrupted key
+     and lock the flash until the next reset.*/
+  eflp->flash->KEYR = FLASH_KEY1;
+  eflp->flash->KEYR = FLASH_KEY2;
 }
 
 static inline void stm32_flash_enable_pgm(EFlashDriver *eflp) {
@@ -259,7 +261,11 @@ void efl_lld_init(void) {
       return;
     }
   }
+  /* Halt deterministically also in release builds where the assertion
+     compiles out, a NULL descriptor would be dereferenced on the first
+     flash access otherwise.*/
   osalDbgAssert(false, "invalid flash configuration");
+  osalSysHalt("invalid flash configuration");
 }
 
 /**
@@ -417,7 +423,7 @@ flash_error_t efl_lld_program(void *instance, flash_offset_t offset,
       n--;
       pp++;
     }
-    while ((n > 0U) & ((offset & STM32_FLASH_LINE_MASK) != 0U));
+    while ((n > 0U) && ((offset & STM32_FLASH_LINE_MASK) != 0U));
 
     /* Programming line.*/
     address[0] = line.w[0];
@@ -512,7 +518,7 @@ flash_error_t efl_lld_start_erase_sector(void *instance,
     return FLASH_BUSY_ERASING;
   }
 
-  /* FLASH_PGM state while the operation is performed.*/
+  /* FLASH_ERASE state while the operation is performed.*/
   devp->state = FLASH_ERASE;
 
   /* Clearing error status bits.*/
