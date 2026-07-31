@@ -2009,10 +2009,6 @@ int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority) {
     rt_newprio = 2;
   }
 
-  if (chThdGetPriorityX() == rt_newprio) {
-    return OS_SUCCESS;
-  }
-
   /* Check for thread validity.*/
   tp = chRegFindThreadByPointer(tp);
   if (tp == NULL) {
@@ -2021,41 +2017,11 @@ int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority) {
 
   chSysLock();
 
-  /* Changing priority.*/
-  if ((tp->hdr.pqueue.prio == tp->realprio) ||
-      (rt_newprio > tp->hdr.pqueue.prio)) {
-    tp->hdr.pqueue.prio = rt_newprio;
-  }
-  tp->realprio = rt_newprio;
-
-  /* The following states need priority queues reordering.*/
-  switch (tp->state) {
-  case CH_STATE_WTMTX:
-#if CH_CFG_USE_CONDVARS
-  case CH_STATE_WTCOND:
-#endif
-#if CH_CFG_USE_SEMAPHORES_PRIORITY
-  case CH_STATE_WTSEM:
-#endif
-#if CH_CFG_USE_MESSAGES && CH_CFG_USE_MESSAGES_PRIORITY
-  case CH_STATE_SNDMSGQ:
-#endif
-    /* Re-enqueues tp with its new priority on the queue.*/
-    ch_sch_prio_insert((ch_queue_t *)tp->u.wtobjp,
-                       ch_queue_dequeue(&tp->hdr.queue));
-    break;
-  case CH_STATE_READY:
-#if CH_DBG_ENABLE_ASSERTS
-    /* Prevents an assertion in chSchReadyI().*/
-    tp->state = CH_STATE_CURRENT;
-#endif
-    /* Re-enqueues tp with its new priority on the ready list.*/
-    chSchReadyI((thread_t *)ch_queue_dequeue(&tp->hdr.queue));
-    break;
+  /* Changing the target priority if required.*/
+  if (tp->realprio != rt_newprio) {
+    (void) __thd_set_priority(tp, rt_newprio);
   }
 
-  /* Rescheduling.*/
-  chSchRescheduleS();
   chSysUnlock();
 
   /* Releasing the thread reference.*/

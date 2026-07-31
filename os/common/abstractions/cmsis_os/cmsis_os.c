@@ -66,6 +66,44 @@ __STATIC_INLINE sysinterval_t tmo(uint32_t millisec) {
 }
 
 /**
+ * @brief   Converts a CMSIS priority into an RT priority.
+ *
+ * @param[in] priority      CMSIS priority
+ * @param[out] rtprio       pointer to the RT priority result
+ * @retval true             conversion successful
+ * @retval false            invalid CMSIS priority
+ */
+static bool cmsis_priority_to_rt(osPriority priority, tprio_t *rtprio) {
+
+  if ((priority < osPriorityIdle) || (priority > osPriorityRealtime)) {
+    return false;
+  }
+
+  *rtprio = (tprio_t)((int)NORMALPRIO + (int)priority);
+
+  return true;
+}
+
+/**
+ * @brief   Converts an RT priority into a CMSIS priority.
+ *
+ * @param[in] rtprio        RT priority
+ * @return                  The CMSIS priority.
+ * @retval osPriorityError  the RT priority is outside the CMSIS range
+ */
+static osPriority cmsis_priority_from_rt(tprio_t rtprio) {
+  int priority;
+
+  priority = (int)rtprio - (int)NORMALPRIO;
+  if ((priority < (int)osPriorityIdle) ||
+      (priority > (int)osPriorityRealtime)) {
+    return osPriorityError;
+  }
+
+  return (osPriority)priority;
+}
+
+/**
  * @brief   Virtual timers common callback.
  */
 static void timer_cb(virtual_timer_t *vtp, void const *arg) {
@@ -133,13 +171,19 @@ osStatus osKernelStart(void) {
  */
 osThreadId osThreadCreate(const osThreadDef_t *thread_def, void *argument) {
   size_t size;
+  tprio_t priority;
+
+  if ((thread_def == NULL) ||
+      !cmsis_priority_to_rt(thread_def->tpriority, &priority)) {
+    return NULL;
+  }
 
   size = thread_def->stacksize == 0 ? CMSIS_CFG_DEFAULT_STACK :
                                       thread_def->stacksize;
   return (osThreadId)chThdCreateFromHeap(0,
                                          THD_WORKING_AREA_SIZE(size),
                                          thread_def->name,
-                                         NORMALPRIO+thread_def->tpriority,
+                                         priority,
                                          (tfunc_t)thread_def->pthread,
                                          argument);
 }
@@ -168,67 +212,51 @@ osStatus osThreadTerminate(osThreadId thread_id) {
 
 /**
  * @brief   Changes a thread priority.
- * @note    This can interfere with the priority inheritance mechanism.
  *
  * @param[in] thread_id             a thread identifier
  * @param[in] newprio               new priority level
  * @return                          The function execution status.
  * @retval osOK                     if the function succeeded.
+ * @retval osErrorParameter         if @p thread_id is @p NULL.
+ * @retval osErrorPriority          if @p newprio is invalid.
  */
 osStatus osThreadSetPriority(osThreadId thread_id, osPriority newprio) {
-  thread_t * tp = (thread_t *)thread_id;
+  tprio_t priority;
 
-  chSysLock();
-
-  /* Changing priority.*/
-#if CH_CFG_USE_MUTEXES
-  if ((tp->hdr.pqueue.prio == tp->realprio) ||
-      ((tprio_t)newprio > tp->hdr.pqueue.prio))
-    tp->hdr.pqueue.prio = (tprio_t)newprio;
-  tp->realprio = (tprio_t)newprio;
-#else
-  tp->hdr.pqueue.prio = (tprio_t)newprio;
-#endif
-
-  /* The following states need priority queues reordering.*/
-  switch (tp->state) {
-#if CH_CFG_USE_MUTEXES |                                                    \
-    CH_CFG_USE_CONDVARS |                                                   \
-    (CH_CFG_USE_SEMAPHORES && CH_CFG_USE_SEMAPHORES_PRIORITY) |             \
-    (CH_CFG_USE_MESSAGES && CH_CFG_USE_MESSAGES_PRIORITY)
-#if CH_CFG_USE_MUTEXES
-  case CH_STATE_WTMTX:
-#endif
-#if CH_CFG_USE_CONDVARS
-  case CH_STATE_WTCOND:
-#endif
-#if CH_CFG_USE_SEMAPHORES && CH_CFG_USE_SEMAPHORES_PRIORITY
-  case CH_STATE_WTSEM:
-#endif
-#if CH_CFG_USE_MESSAGES && CH_CFG_USE_MESSAGES_PRIORITY
-  case CH_STATE_SNDMSGQ:
-#endif
-    /* Re-enqueues tp with its new priority on the queue.*/
-    ch_sch_prio_insert((ch_queue_t *)tp->u.wtobjp,
-                       ch_queue_dequeue(&tp->hdr.queue));
-    break;
-#endif
-  case CH_STATE_READY:
-#if CH_DBG_ENABLE_ASSERTS
-    /* Prevents an assertion in chSchReadyI().*/
-    tp->state = CH_STATE_CURRENT;
-#endif
-    /* Re-enqueues tp with its new priority on the ready list.*/
-    chSchReadyI((thread_t *)ch_queue_dequeue(&tp->hdr.queue));
-    break;
+  if (thread_id == NULL) {
+    return osErrorParameter;
+  }
+  if (!cmsis_priority_to_rt(newprio, &priority)) {
+    return osErrorPriority;
   }
 
-  /* Rescheduling.*/
-  chSchRescheduleS();
-
+  chSysLock();
+  (void) __thd_set_priority((thread_t *)thread_id, priority);
   chSysUnlock();
 
   return osOK;
+}
+
+/**
+ * @brief   Returns the current priority of a thread.
+ *
+ * @param[in] thread_id             a thread identifier
+ * @return                          The current thread priority.
+ * @retval osPriorityError          if @p thread_id is @p NULL or its current
+ *                                  priority is outside the CMSIS range.
+ */
+osPriority osThreadGetPriority(osThreadId thread_id) {
+  osPriority priority;
+
+  if (thread_id == NULL) {
+    return osPriorityError;
+  }
+
+  chSysLock();
+  priority = cmsis_priority_from_rt(thread_id->hdr.pqueue.prio);
+  chSysUnlock();
+
+  return priority;
 }
 
 /**
