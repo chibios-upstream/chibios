@@ -54,8 +54,9 @@
 #if defined(STM32U031xx) || defined(STM32U073xx) ||                         \
     defined(STM32U083xx) || defined(__DOXYGEN__)
 
-/* Flash size register. */
-#define STM32_FLASH_SIZE_REGISTER           0x1FFF6EA0
+/* Flash size register, the CMSIS headers place it at 0x1FFF6EA0 on the
+   U073/U083 and at 0x1FFF3EA0 on the U031. */
+#define STM32_FLASH_SIZE_REGISTER           FLASHSIZE_BASE
 #define STM32_FLASH_SIZE_SCALE              1024U
 
 /*
