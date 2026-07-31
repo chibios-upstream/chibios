@@ -266,12 +266,8 @@ void chMtxLockS(mutex_t *mp) {
           break;
 #endif
         case CH_STATE_READY:
-#if CH_DBG_ENABLE_ASSERTS == TRUE
-          /* Prevents an assertion in chSchReadyI().*/
-          tp->state = CH_STATE_CURRENT;
-#endif
           /* Re-enqueues tp with its new priority on the ready list.*/
-          (void) chSchReadyI(threadref(ch_queue_dequeue(&tp->hdr.queue)));
+          __sch_requeue_behind(tp);
           break;
         default:
           /* Nothing to do for other states.*/

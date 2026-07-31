@@ -1713,6 +1713,69 @@ test_assert_sequence("R", "invalid sequence");]]></value>
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Arbitrary ready thread priority change.</value>
+          </brief>
+          <description>
+            <value>A ready thread priority is raised above the current
+              thread. The ready list must be reordered without a state
+              transition and the operation must reschedule internally.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[bool switched;
+tprio_t oldprio, prio;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Two lower-priority threads are placed in the ready
+                  list.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[prio = chThdGetPriorityX();
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio - 1, thread, "A");
+threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio - 2, thread, "B");
+test_assert(threads[0]->state == CH_STATE_READY, "thread A not ready");
+test_assert(threads[1]->state == CH_STATE_READY, "thread B not ready");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Thread B is raised above the current thread. It must
+                  run before the locked operation returns.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+oldprio = __thd_set_priority(threads[1], prio + 1);
+switched = threads[1]->state == CH_STATE_FINAL;
+chSysUnlock();
+
+test_assert(oldprio == prio - 2, "wrong old priority");
+test_assert(switched, "thread B not scheduled internally");
+test_wait_threads();
+test_assert_sequence("BA", "ready list not reordered");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
     <sequence>
@@ -2660,6 +2723,34 @@ static THD_FUNCTION(thread5, p) {
 static THD_FUNCTION(thread11M, p) {
 
   test_emit_token(*(char *)p);
+}
+
+static thread_reference_t priority_chain_ref;
+
+static THD_FUNCTION(thread13L, p) {
+
+  (void)p;
+  chMtxLock(&m2);
+  chSysLock();
+  (void) chThdSuspendS(&priority_chain_ref);
+  chSysUnlock();
+  chMtxUnlock(&m2);
+}
+
+static THD_FUNCTION(thread13M, p) {
+
+  (void)p;
+  chMtxLock(&m1);
+  chMtxLock(&m2);
+  chMtxUnlock(&m2);
+  chMtxUnlock(&m1);
+}
+
+static THD_FUNCTION(thread13H, p) {
+
+  (void)p;
+  chMtxLock(&m1);
+  chMtxUnlock(&m1);
 }
 
 #if CH_CFG_USE_CONDVARS || defined(__DOXYGEN__)
@@ -3939,6 +4030,145 @@ test_assert(chThdGetPriorityX() == prio + 1, "signaller not queued");]]></value>
                 <value><![CDATA[test_assert(msg == MSG_OK, "condition signal lost");
 test_assert(m1.owner == chThdGetSelfX(), "mutex not reacquired");
 chMtxUnlock(&m1);
+test_wait_threads();]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Transitive arbitrary priority change.</value>
+          </brief>
+          <description>
+            <value>The base priority of a thread waiting at the end of a
+              two-mutex dependency chain is changed. Both increases and
+              decreases must propagate through all owners while preserving
+              another waiter's donation.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[priority_chain_ref = NULL;
+chMtxObjectInit(&m1);
+chMtxObjectInit(&m2);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chThdResume(&priority_chain_ref, MSG_RESET);
+test_wait_threads();
+chMtxObjectDispose(&m1);
+chMtxObjectDispose(&m2);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[tprio_t oldprio, prio;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Four threads form the chain H and C wait on M, M waits
+                  on L, and L is suspended while owning the final mutex.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[prio = chThdGetPriorityX();
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1,
+                               thread13L, NULL);
+test_assert(priority_chain_ref == threads[0], "thread L not suspended");
+threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2,
+                               thread13M, NULL);
+test_assert(threads[1]->state == CH_STATE_WTMTX, "thread M not waiting");
+threads[2] = chThdCreateStatic(wa[2], WA_SIZE, prio + 3,
+                               thread13H, NULL);
+test_assert(threads[2]->state == CH_STATE_WTMTX, "thread H not waiting");
+threads[3] = chThdCreateStatic(wa[3], WA_SIZE, prio + 4,
+                               thread13H, NULL);
+test_assert(threads[3]->state == CH_STATE_WTMTX, "thread C not waiting");
+test_assert(threads[0]->hdr.pqueue.prio == prio + 4,
+            "thread L not initially boosted");
+test_assert(threads[1]->hdr.pqueue.prio == prio + 4,
+            "thread M not initially boosted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Raising H propagates the new effective priority through
+                  M to L.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+oldprio = __thd_set_priority(threads[2], prio + 5);
+chSysUnlock();
+
+test_assert(oldprio == prio + 3, "wrong old raised priority");
+test_assert(threads[2]->hdr.pqueue.prio == prio + 5,
+            "thread H not raised");
+test_assert(threads[1]->hdr.pqueue.prio == prio + 5,
+            "raise not propagated to M");
+test_assert(threads[0]->hdr.pqueue.prio == prio + 5,
+            "raise not propagated to L");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Lowering H below C reorders M1's wait queue and
+                  preserves C's donation throughout the chain.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+oldprio = __thd_set_priority(threads[2], prio + 1);
+chSysUnlock();
+
+test_assert(oldprio == prio + 5, "wrong old lowered priority");
+test_assert(threads[2]->hdr.pqueue.prio == prio + 1,
+            "thread H not lowered");
+test_assert(threads[1]->hdr.pqueue.prio == prio + 4,
+            "competing donation lost at M");
+test_assert(threads[0]->hdr.pqueue.prio == prio + 4,
+            "competing donation lost at L");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Lowering C below M's base priority removes the final
+                  donation throughout the chain.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+oldprio = __thd_set_priority(threads[3], prio + 1);
+chSysUnlock();
+
+test_assert(oldprio == prio + 4, "wrong old competing priority");
+test_assert(threads[3]->hdr.pqueue.prio == prio + 1,
+            "thread C not lowered");
+test_assert(threads[1]->hdr.pqueue.prio == prio + 2,
+            "drop not propagated to M");
+test_assert(threads[0]->hdr.pqueue.prio == prio + 2,
+            "drop not propagated to L");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>L is resumed and the complete chain is allowed to
+                  unwind.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chThdResume(&priority_chain_ref, MSG_OK);
 test_wait_threads();]]></value>
               </code>
             </step>

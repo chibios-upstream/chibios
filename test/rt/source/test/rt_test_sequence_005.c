@@ -37,6 +37,7 @@
  * - @subpage rt_test_005_005
  * - @subpage rt_test_005_006
  * - @subpage rt_test_005_007
+ * - @subpage rt_test_005_008
  * .
  */
 
@@ -698,6 +699,64 @@ static const testcase_t rt_test_005_007 = {
 };
 #endif /* CH_CFG_USE_REGISTRY == TRUE */
 
+/**
+ * @page rt_test_005_008 [5.8] Arbitrary ready thread priority change
+ *
+ * <h2>Description</h2>
+ * A ready thread priority is raised above the current thread. The
+ * ready list must be reordered without a state transition and the
+ * operation must reschedule internally.
+ *
+ * <h2>Test Steps</h2>
+ * - [5.8.1] Two lower-priority threads are placed in the ready list.
+ * - [5.8.2] Thread B is raised above the current thread. It must run
+ *   before the locked operation returns.
+ * .
+ */
+
+static void rt_test_005_008_teardown(void) {
+  test_wait_threads();
+}
+
+static void rt_test_005_008_execute(void) {
+  bool switched;
+  tprio_t oldprio, prio;
+
+  /* [5.8.1] Two lower-priority threads are placed in the ready list.*/
+  test_set_step(1);
+  {
+    prio = chThdGetPriorityX();
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio - 1, thread, "A");
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio - 2, thread, "B");
+    test_assert(threads[0]->state == CH_STATE_READY, "thread A not ready");
+    test_assert(threads[1]->state == CH_STATE_READY, "thread B not ready");
+  }
+  test_end_step(1);
+
+  /* [5.8.2] Thread B is raised above the current thread. It must run
+     before the locked operation returns.*/
+  test_set_step(2);
+  {
+    chSysLock();
+    oldprio = __thd_set_priority(threads[1], prio + 1);
+    switched = threads[1]->state == CH_STATE_FINAL;
+    chSysUnlock();
+
+    test_assert(oldprio == prio - 2, "wrong old priority");
+    test_assert(switched, "thread B not scheduled internally");
+    test_wait_threads();
+    test_assert_sequence("BA", "ready list not reordered");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t rt_test_005_008 = {
+  "Arbitrary ready thread priority change",
+  NULL,
+  rt_test_005_008_teardown,
+  rt_test_005_008_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -717,6 +776,7 @@ const testcase_t * const rt_test_sequence_005_array[] = {
 #if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
   &rt_test_005_007,
 #endif
+  &rt_test_005_008,
   NULL
 };
 

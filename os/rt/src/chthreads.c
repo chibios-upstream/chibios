@@ -865,6 +865,112 @@ msg_t chThdWait(thread_t *tp) {
 #endif /* CH_CFG_USE_WAITEXIT */
 
 /**
+ * @brief   Changes the base priority of a thread.
+ * @details The effective priority is recomputed and the thread is repositioned
+ *          in its current priority queue. If the thread is waiting on a mutex
+ *          then priority changes are propagated through the owner chain.
+ * @post    A local reschedule is performed before returning. Remote instances
+ *          affected by a ready or current thread priority change are notified.
+ *
+ * @param[in] tp        pointer to the thread
+ * @param[in] newprio   the new base priority level, from @p LOWPRIO through
+ *                      @p HIGHPRIO
+ * @return              The old base priority level.
+ *
+ * @notapi
+ * @sclass
+ */
+tprio_t __thd_set_priority(thread_t *tp, tprio_t newprio) {
+  thread_t *nexttp;
+  ch_queue_t *qp;
+  tprio_t neweffective;
+  tprio_t oldeffective;
+  tprio_t oldprio;
+
+  chDbgCheckClassS();
+  chDbgCheck((tp != NULL) &&
+             (newprio >= LOWPRIO) && (newprio <= HIGHPRIO));
+
+#if CH_CFG_USE_MUTEXES == TRUE
+  oldprio = tp->realprio;
+  tp->realprio = newprio;
+#else
+  oldprio = tp->hdr.pqueue.prio;
+#endif
+
+  while (true) {
+    oldeffective = tp->hdr.pqueue.prio;
+#if CH_CFG_USE_MUTEXES == TRUE
+    neweffective = __mtx_get_effective_priority(tp);
+#else
+    neweffective = newprio;
+#endif
+    if (neweffective == oldeffective) {
+      break;
+    }
+
+    tp->hdr.pqueue.prio = neweffective;
+    nexttp = NULL;
+    qp = NULL;
+
+    /* The following states need priority queues reordering.*/
+    switch (tp->state) {
+#if CH_CFG_USE_MUTEXES == TRUE
+    case CH_STATE_WTMTX:
+      chDbgAssert((tp->u.wtmtxp != NULL) &&
+                  (tp->u.wtmtxp->owner != NULL),
+                  "mutex not owned");
+      qp = &tp->u.wtmtxp->queue;
+      nexttp = tp->u.wtmtxp->owner;
+      break;
+#endif
+#if CH_CFG_USE_CONDVARS == TRUE
+    case CH_STATE_WTCOND:
+      qp = &((condition_variable_t *)tp->u.wtobjp)->queue;
+      break;
+#endif
+#if (CH_CFG_USE_SEMAPHORES == TRUE) &&                                     \
+    (CH_CFG_USE_SEMAPHORES_PRIORITY == TRUE)
+    case CH_STATE_WTSEM:
+      qp = &tp->u.wtsemp->queue;
+      break;
+#endif
+#if (CH_CFG_USE_MESSAGES == TRUE) &&                                       \
+    (CH_CFG_USE_MESSAGES_PRIORITY == TRUE)
+    case CH_STATE_SNDMSGQ:
+      qp = (ch_queue_t *)tp->u.wtobjp;
+      break;
+#endif
+    case CH_STATE_READY:
+      __sch_requeue_behind(tp);
+      break;
+    case CH_STATE_CURRENT:
+#if CH_CFG_SMP_MODE == TRUE
+      if (tp->owner != currcore) {
+        chSysNotifyInstance(tp->owner);
+      }
+#endif
+      break;
+    default:
+      /* Nothing to do for other states.*/
+      break;
+    }
+
+    if (qp != NULL) {
+      ch_sch_prio_insert(qp, ch_queue_dequeue(&tp->hdr.queue));
+    }
+    if (nexttp == NULL) {
+      break;
+    }
+    tp = nexttp;
+  }
+
+  chSchRescheduleS();
+
+  return oldprio;
+}
+
+/**
  * @brief   Changes the running thread priority level then reschedules if
  *          necessary.
  * @note    The function returns the real thread priority regardless of the
@@ -884,15 +990,7 @@ tprio_t chThdSetPriority(tprio_t newprio) {
   chDbgCheck((newprio >= LOWPRIO) && (newprio <= HIGHPRIO));
 
   chSysLock();
-#if CH_CFG_USE_MUTEXES == TRUE
-  oldprio = currtp->realprio;
-  currtp->realprio = newprio;
-  currtp->hdr.pqueue.prio = __mtx_get_effective_priority(currtp);
-#else
-  oldprio = currtp->hdr.pqueue.prio;
-  currtp->hdr.pqueue.prio = newprio;
-#endif
-  chSchRescheduleS();
+  oldprio = __thd_set_priority(currtp, newprio);
   chSysUnlock();
 
   return oldprio;

@@ -464,6 +464,7 @@ extern "C" {
   msg_t chThdSync(thread_t *tp);
   msg_t chThdWait(thread_t *tp);
 #endif
+  tprio_t __thd_set_priority(thread_t *tp, tprio_t newprio);
   tprio_t chThdSetPriority(tprio_t newprio);
   void chThdTerminate(thread_t *tp);
   msg_t chThdSuspendS(thread_reference_t *trp);

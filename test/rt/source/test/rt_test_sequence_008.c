@@ -48,6 +48,7 @@
  * - @subpage rt_test_008_010
  * - @subpage rt_test_008_011
  * - @subpage rt_test_008_012
+ * - @subpage rt_test_008_013
  * .
  */
 
@@ -209,6 +210,34 @@ static THD_FUNCTION(thread5, p) {
 static THD_FUNCTION(thread11M, p) {
 
   test_emit_token(*(char *)p);
+}
+
+static thread_reference_t priority_chain_ref;
+
+static THD_FUNCTION(thread13L, p) {
+
+  (void)p;
+  chMtxLock(&m2);
+  chSysLock();
+  (void) chThdSuspendS(&priority_chain_ref);
+  chSysUnlock();
+  chMtxUnlock(&m2);
+}
+
+static THD_FUNCTION(thread13M, p) {
+
+  (void)p;
+  chMtxLock(&m1);
+  chMtxLock(&m2);
+  chMtxUnlock(&m2);
+  chMtxUnlock(&m1);
+}
+
+static THD_FUNCTION(thread13H, p) {
+
+  (void)p;
+  chMtxLock(&m1);
+  chMtxUnlock(&m1);
 }
 
 #if CH_CFG_USE_CONDVARS || defined(__DOXYGEN__)
@@ -1449,6 +1478,139 @@ static const testcase_t rt_test_008_012 = {
 };
 #endif /* (CH_CFG_USE_CONDVARS == TRUE) && (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE) */
 
+/**
+ * @page rt_test_008_013 [8.13] Transitive arbitrary priority change
+ *
+ * <h2>Description</h2>
+ * The base priority of a thread waiting at the end of a two-mutex
+ * dependency chain is changed. Both increases and decreases must
+ * propagate through all owners while preserving another waiter's
+ * donation.
+ *
+ * <h2>Test Steps</h2>
+ * - [8.13.1] Four threads form the chain H and C wait on M, M waits on
+ *   L, and L is suspended while owning the final mutex.
+ * - [8.13.2] Raising H propagates the new effective priority through M
+ *   to L.
+ * - [8.13.3] Lowering H below C reorders M1's wait queue and preserves
+ *   C's donation throughout the chain.
+ * - [8.13.4] Lowering C below M's base priority removes the final
+ *   donation throughout the chain.
+ * - [8.13.5] L is resumed and the complete chain is allowed to unwind.
+ * .
+ */
+
+static void rt_test_008_013_setup(void) {
+  priority_chain_ref = NULL;
+  chMtxObjectInit(&m1);
+  chMtxObjectInit(&m2);
+}
+
+static void rt_test_008_013_teardown(void) {
+  chThdResume(&priority_chain_ref, MSG_RESET);
+  test_wait_threads();
+  chMtxObjectDispose(&m1);
+  chMtxObjectDispose(&m2);
+}
+
+static void rt_test_008_013_execute(void) {
+  tprio_t oldprio, prio;
+
+  /* [8.13.1] Four threads form the chain H and C wait on M, M waits on
+     L, and L is suspended while owning the final mutex.*/
+  test_set_step(1);
+  {
+    prio = chThdGetPriorityX();
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1,
+                                   thread13L, NULL);
+    test_assert(priority_chain_ref == threads[0], "thread L not suspended");
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2,
+                                   thread13M, NULL);
+    test_assert(threads[1]->state == CH_STATE_WTMTX, "thread M not waiting");
+    threads[2] = chThdCreateStatic(wa[2], WA_SIZE, prio + 3,
+                                   thread13H, NULL);
+    test_assert(threads[2]->state == CH_STATE_WTMTX, "thread H not waiting");
+    threads[3] = chThdCreateStatic(wa[3], WA_SIZE, prio + 4,
+                                   thread13H, NULL);
+    test_assert(threads[3]->state == CH_STATE_WTMTX, "thread C not waiting");
+    test_assert(threads[0]->hdr.pqueue.prio == prio + 4,
+                "thread L not initially boosted");
+    test_assert(threads[1]->hdr.pqueue.prio == prio + 4,
+                "thread M not initially boosted");
+  }
+  test_end_step(1);
+
+  /* [8.13.2] Raising H propagates the new effective priority through M
+     to L.*/
+  test_set_step(2);
+  {
+    chSysLock();
+    oldprio = __thd_set_priority(threads[2], prio + 5);
+    chSysUnlock();
+
+    test_assert(oldprio == prio + 3, "wrong old raised priority");
+    test_assert(threads[2]->hdr.pqueue.prio == prio + 5,
+                "thread H not raised");
+    test_assert(threads[1]->hdr.pqueue.prio == prio + 5,
+                "raise not propagated to M");
+    test_assert(threads[0]->hdr.pqueue.prio == prio + 5,
+                "raise not propagated to L");
+  }
+  test_end_step(2);
+
+  /* [8.13.3] Lowering H below C reorders M1's wait queue and preserves
+     C's donation throughout the chain.*/
+  test_set_step(3);
+  {
+    chSysLock();
+    oldprio = __thd_set_priority(threads[2], prio + 1);
+    chSysUnlock();
+
+    test_assert(oldprio == prio + 5, "wrong old lowered priority");
+    test_assert(threads[2]->hdr.pqueue.prio == prio + 1,
+                "thread H not lowered");
+    test_assert(threads[1]->hdr.pqueue.prio == prio + 4,
+                "competing donation lost at M");
+    test_assert(threads[0]->hdr.pqueue.prio == prio + 4,
+                "competing donation lost at L");
+  }
+  test_end_step(3);
+
+  /* [8.13.4] Lowering C below M's base priority removes the final
+     donation throughout the chain.*/
+  test_set_step(4);
+  {
+    chSysLock();
+    oldprio = __thd_set_priority(threads[3], prio + 1);
+    chSysUnlock();
+
+    test_assert(oldprio == prio + 4, "wrong old competing priority");
+    test_assert(threads[3]->hdr.pqueue.prio == prio + 1,
+                "thread C not lowered");
+    test_assert(threads[1]->hdr.pqueue.prio == prio + 2,
+                "drop not propagated to M");
+    test_assert(threads[0]->hdr.pqueue.prio == prio + 2,
+                "drop not propagated to L");
+  }
+  test_end_step(4);
+
+  /* [8.13.5] L is resumed and the complete chain is allowed to
+     unwind.*/
+  test_set_step(5);
+  {
+    chThdResume(&priority_chain_ref, MSG_OK);
+    test_wait_threads();
+  }
+  test_end_step(5);
+}
+
+static const testcase_t rt_test_008_013 = {
+  "Transitive arbitrary priority change",
+  rt_test_008_013_setup,
+  rt_test_008_013_teardown,
+  rt_test_008_013_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -1485,6 +1647,7 @@ const testcase_t * const rt_test_sequence_008_array[] = {
 #if ((CH_CFG_USE_CONDVARS == TRUE) && (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE)) || defined(__DOXYGEN__)
   &rt_test_008_012,
 #endif
+  &rt_test_008_013,
   NULL
 };
 
