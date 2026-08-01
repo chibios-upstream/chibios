@@ -17,10 +17,10 @@
 */
 
 /**
- * @file    ARMv6-M/chcore.h
- * @brief   ARMv6-M port macros and structures.
+ * @file    ARMv6-M-ALT/chcore.h
+ * @brief   ARMv6-M (alternate) port macros and structures.
  *
- * @addtogroup ARMV6M_CORE
+ * @addtogroup ARMV6M_ALT_CORE
  * @{
  */
 
@@ -232,7 +232,7 @@
 /**
  * @brief   Name of the implemented architecture.
  */
-#define PORT_ARCHITECTURE_NAME          "ARMv6-M"
+#define PORT_ARCHITECTURE_NAME          "ARMv6-M (alt)"
 
 #if ((CORTEX_MODEL == 0) && !defined(__CORE_CM0PLUS_H_DEPENDANT)) ||        \
     defined(__DOXYGEN__)
@@ -382,94 +382,50 @@ struct port_context {
  * @brief   IRQ prologue code.
  * @details This macro must be inserted at the start of all IRQ handlers
  *          enabled to invoke system APIs.
- * @note    On GCC/Clang/armclang the @p EXC_RETURN value (entry @p LR) is no
- *          longer captured here: it is delivered as the @p _saved_lr argument
- *          of the handler body by the trampoline emitted in
- *          @p PORT_IRQ_HANDLER(). See that macro for the rationale.
+ * @note    The @p EXC_RETURN value is not handled here: it is captured in
+ *          the common dispatcher @p __port_irq_common, in code the compiler
+ *          never processes, before the handler is invoked through the
+ *          @p __port_vectors table. This makes the outermost-ISR test
+ *          structurally immune to compiler transformations of the handlers
+ *          (identical-code folding, LTO) and independent of the toolchain
+ *          in use.
  */
-#if defined(__GNUC__) || defined(__DOXYGEN__)
-  #define PORT_IRQ_PROLOGUE()                                               \
-    PORT_CHECK_IRQ_PRIORITY()
-#elif defined(__ICCARM__)
-  #define PORT_IRQ_PROLOGUE()                                               \
-    uint32_t _saved_lr = (uint32_t)__get_LR();                              \
-    PORT_CHECK_IRQ_PRIORITY()
-#elif defined(__CC_ARM)
-  #define PORT_IRQ_PROLOGUE()                                               \
-    uint32_t _saved_lr = (uint32_t)__return_address();                      \
-    PORT_CHECK_IRQ_PRIORITY()
-#endif
+#define PORT_IRQ_PROLOGUE()                                                 \
+  PORT_CHECK_IRQ_PRIORITY()
 
 /**
  * @brief   IRQ epilogue code.
  * @details This macro must be inserted at the end of all IRQ handlers
  *          enabled to invoke system APIs.
+ * @note    The reschedule evaluation is performed by the common dispatcher
+ *          @p __port_irq_common after the handler returns, nothing is
+ *          required here.
  */
-#define PORT_IRQ_EPILOGUE() __port_irq_epilogue(_saved_lr)
+#define PORT_IRQ_EPILOGUE()
 
 /**
  * @brief   IRQ handler function declaration.
  * @note    @p id can be a function name or a vector number depending on the
  *          port implementation.
- * @details On GCC/Clang/armclang the vector is emitted as a tiny @p naked
- *          trampoline that captures the @p EXC_RETURN value from @p LR into
- *          the first argument and tail-branches (via @p BX, which leaves
- *          @p LR untouched) to the actual handler body. The body receives
- *          @p EXC_RETURN as the @p _saved_lr argument used by
- *          @p PORT_IRQ_EPILOGUE().
- *          @n@n
- *          Capturing @p LR in the very first instruction of the vector, in a
- *          dedicated non-foldable trampoline, makes the @p EXC_RETURN value
- *          immune to @p -fipa-icf (identical-code folding, on at @p -O2 /
- *          @p -Os). ICF can fold two byte-identical handler bodies and turn
- *          one vector into a @p "push @p {lr}; @p bl @p body; @p pop @p {pc}"
- *          thunk; the previous @p __builtin_return_address(0) capture then
- *          read an @p LR already clobbered by that @p bl, corrupting the
- *          outermost-ISR test in @p __port_irq_epilogue() and dropping a
- *          required reschedule on nested interrupts. The trampoline never
- *          uses @p bl and reads @p LR before anything can clobber it, so the
- *          captured value is correct even if the body (or the trampoline
- *          itself) is folded.
- *          @n@n
- *          The body is reached with @p "ldr/bx" rather than a plain @p b
- *          because the linker may place the body outside the @p +/-2KB range
- *          of the only unconditional Thumb branch available on ARMv6-M. The
- *          address literal is emitted immediately after the trampoline so the
- *          Thumb-1 literal load is independent of assembler pool placement.
+ * @details Handlers are plain C functions reached through the
+ *          @p __port_vectors dispatch table, all hardware interrupt vectors
+ *          point to the common dispatcher @p __port_irq_common (see
+ *          @p vectors_alt.S and @p chcoreasm.S).
  */
-#if defined(__GNUC__) || defined(__DOXYGEN__)
-  #ifdef __cplusplus
-    #define PORT_IRQ_HANDLER_LINKAGE extern "C"
-  #else
-    #define PORT_IRQ_HANDLER_LINKAGE
-  #endif
-  #define PORT_IRQ_HANDLER(id)                                              \
-    static __attribute__((used)) void id##_isr(uint32_t _saved_lr);        \
-    PORT_IRQ_HANDLER_LINKAGE __attribute__((naked, used))                  \
-    void id(void) {                                                        \
-      __asm volatile ("mov   r0, lr            \n\t"                       \
-                      "ldr   r1, 1f            \n\t"                       \
-                      "bx    r1                \n\t"                       \
-                      ".balign 4               \n\t"                       \
-                      "1: .word " #id "_isr    \n\t");                     \
-    }                                                                      \
-    static __attribute__((used)) void id##_isr(uint32_t _saved_lr)
-#else /* IAR (__ICCARM__) / ARMCC5 (__CC_ARM): EXC_RETURN captured in the
-         prologue via a compiler intrinsic; no trampoline.
-         TODO: verify whether these toolchains' duplicate-function merging
-         can produce the same EXC_RETURN hazard and, if so, add an
-         equivalent trampoline. */
-  #ifdef __cplusplus
-    #define PORT_IRQ_HANDLER(id) extern "C" void id(void)
-  #else
-    #define PORT_IRQ_HANDLER(id) void id(void)
-  #endif
+#ifdef __cplusplus
+  #define PORT_IRQ_HANDLER(id) extern "C" void id(void)
+#else
+  #define PORT_IRQ_HANDLER(id) void id(void)
 #endif
 
 /**
  * @brief   Fast IRQ handler function declaration.
  * @note    @p id can be a function name or a vector number depending on the
  *          port implementation.
+ * @note    This architecture has no interrupt sources excluded from the
+ *          kernel masking, fast handlers are reached through the common
+ *          dispatcher like regular handlers and only differ in not being
+ *          allowed to invoke OS APIs.
  */
 #ifdef __cplusplus
   #define PORT_FAST_IRQ_HANDLER(id) extern "C" void id(void)
@@ -527,7 +483,6 @@ struct port_context {
 extern "C" {
 #endif
   void port_init(os_instance_t *oip);
-  void __port_irq_epilogue(uint32_t lr);
   void __port_switch(thread_t *ntp, thread_t *otp);
   void __port_thread_start(void);
   void __port_switch_from_isr(void);

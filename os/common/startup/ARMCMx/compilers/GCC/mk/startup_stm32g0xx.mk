@@ -2,7 +2,7 @@
 STARTUPSRC = $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/crt1.c
           
 STARTUPASM = $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/crt0_v6m.S \
-             $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/vectors_alt.S
+             $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/vectors.S
 
 STARTUPINC = $(CHIBIOS)/os/common/portability/GCC \
              $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC \

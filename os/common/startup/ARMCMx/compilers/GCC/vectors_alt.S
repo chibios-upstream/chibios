@@ -261,9 +261,12 @@ _vectors:
 
         .align      2
         .thumb_func
-        .weak       __Reset_Handler
-__Reset_Handler:
+        .weak       Reset_Handler
+Reset_Handler:
          b          _crt0_entry
+
+        .weak       __Reset_Handler
+        .thumb_set  __Reset_Handler, Reset_Handler
 
         .thumb_func
         .weak       __NMI_Handler
