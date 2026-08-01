@@ -195,6 +195,8 @@ void chCondBroadcastI(condition_variable_t *cp) {
  *          variable, and finally acquires the mutex again. All the sequence
  *          is performed atomically.
  * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+ * @pre     In recursive mode, the mutex being released must have a lock
+ *          depth of one.
  *
  * @param[in] cp        pointer to a @p condition_variable_t object
  * @return              A message specifying how the invoking thread has been
@@ -221,6 +223,8 @@ msg_t chCondWait(condition_variable_t *cp) {
  *          variable, and finally acquires the mutex again. All the sequence
  *          is performed atomically.
  * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+ * @pre     In recursive mode, the mutex being released must have a lock
+ *          depth of one.
  *
  * @param[in] cp        pointer to a @p condition_variable_t object
  * @return              A message specifying how the invoking thread has been
@@ -240,9 +244,12 @@ msg_t chCondWaitS(condition_variable_t *cp) {
   chDbgCheckClassS();
   chDbgCheck(cp != NULL);
   chDbgAssert(mp != NULL, "not owning a mutex");
+#if CH_CFG_USE_MUTEXES_RECURSIVE == TRUE
+  chDbgAssert(mp->cnt == (cnt_t)1, "recursively locked mutex");
+#endif
 
   /* Releasing "current" mutex.*/
-  chMtxUnlockS(mp);
+  (void) __mtx_unlock_no_reschedule(mp);
 
   /* Start waiting on the condition variable, on exit the mutex is taken
      again.*/
@@ -262,6 +269,8 @@ msg_t chCondWaitS(condition_variable_t *cp) {
  *          variable, and finally acquires the mutex again. All the sequence
  *          is performed atomically.
  * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+ * @pre     In recursive mode, the mutex being released must have a lock
+ *          depth of one.
  * @pre     The configuration option @p CH_CFG_USE_CONDVARS_TIMEOUT must be enabled
  *          in order to use this function.
  * @post    Exiting the function because a timeout does not re-acquire the
@@ -299,6 +308,8 @@ msg_t chCondWaitTimeout(condition_variable_t *cp, sysinterval_t timeout) {
  *          variable, and finally acquires the mutex again. All the sequence
  *          is performed atomically.
  * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+ * @pre     In recursive mode, the mutex being released must have a lock
+ *          depth of one.
  * @pre     The configuration option @p CH_CFG_USE_CONDVARS_TIMEOUT must be enabled
  *          in order to use this function.
  * @post    Exiting the function because a timeout does not re-acquire the
@@ -328,9 +339,12 @@ msg_t chCondWaitTimeoutS(condition_variable_t *cp, sysinterval_t timeout) {
   chDbgCheckClassS();
   chDbgCheck((cp != NULL) && (timeout != TIME_IMMEDIATE));
   chDbgAssert(mp != NULL, "not owning a mutex");
+#if CH_CFG_USE_MUTEXES_RECURSIVE == TRUE
+  chDbgAssert(mp->cnt == (cnt_t)1, "recursively locked mutex");
+#endif
 
   /* Releasing "current" mutex.*/
-  chMtxUnlockS(mp);
+  (void) __mtx_unlock_no_reschedule(mp);
 
   /* Start waiting on the condition variable, on exit the mutex is taken
      again.*/

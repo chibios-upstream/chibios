@@ -233,10 +233,10 @@ msg_t adcStartConversionLinearI(void *ip, unsigned grpnum,
   hal_adc_driver_c *self = (hal_adc_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (samples != NULL) &&
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (samples != NULL) &&
                (depth > 0U) && ((depth == 1U) || ((depth & 1U) == 0U)));
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == HAL_DRV_STATE_ERROR),
                 "not ready");
 
@@ -273,9 +273,9 @@ msg_t adcStartConversionLinear(void *ip, unsigned grpnum, adcsample_t *samples,
   hal_adc_driver_c *self = (hal_adc_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = adcStartConversionLinearI(self, grpnum, samples, depth);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -296,10 +296,10 @@ msg_t adcStartConversionCircularI(void *ip, unsigned grpnum,
   hal_adc_driver_c *self = (hal_adc_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (samples != NULL) &&
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (samples != NULL) &&
                (depth > 0U) && ((depth == 1U) || ((depth & 1U) == 0U)));
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == HAL_DRV_STATE_ERROR),
                 "not ready");
 
@@ -336,9 +336,9 @@ msg_t adcStartConversionCircular(void *ip, unsigned grpnum,
   hal_adc_driver_c *self = (hal_adc_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = adcStartConversionCircularI(self, grpnum, samples, depth);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -352,9 +352,9 @@ msg_t adcStartConversionCircular(void *ip, unsigned grpnum,
  */
 void adcStopConversionI(void *ip) {
   hal_adc_driver_c *self = (hal_adc_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == ADC_ACTIVE_LINEAR) ||
                 (self->state == ADC_ACTIVE_CIRCULAR) ||
                 (self->state == HAL_DRV_STATE_HALF) ||
@@ -382,10 +382,10 @@ void adcStopConversionI(void *ip) {
  */
 void adcStopConversion(void *ip) {
   hal_adc_driver_c *self = (hal_adc_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chSysLock();
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == ADC_ACTIVE_LINEAR) ||
                 (self->state == ADC_ACTIVE_CIRCULAR) ||
                 (self->state == HAL_DRV_STATE_HALF) ||
@@ -401,7 +401,7 @@ void adcStopConversion(void *ip) {
     self->state   = HAL_DRV_STATE_READY;
     _adc_reset_s(self);
   }
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 #if (ADC_USE_SYNCHRONIZATION == TRUE) || defined (__DOXYGEN__)
@@ -420,15 +420,15 @@ msg_t adcConvert(void *ip, unsigned grpnum, adcsample_t *samples, size_t depth) 
   hal_adc_driver_c *self = (hal_adc_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert(self->thread == NULL, "already waiting");
+  chSysLock();
+  chDbgAssert(self->thread == NULL, "already waiting");
   msg = adcStartConversionLinearI(self, grpnum, samples, depth);
   if (msg == HAL_RET_SUCCESS) {
     msg = adcSynchronizeStateS(self, HAL_DRV_STATE_COMPLETE, TIME_INFINITE);
   }
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -455,18 +455,18 @@ msg_t adcSynchronizeStateS(void *ip, driver_state_t state,
   hal_adc_driver_c *self = (hal_adc_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
-  osalDbgCheckClassS();
-  osalDbgCheck((state == HAL_DRV_STATE_HALF) ||
+  chDbgCheck(self != NULL);
+  chDbgCheckClassS();
+  chDbgCheck((state == HAL_DRV_STATE_HALF) ||
                (state == HAL_DRV_STATE_FULL) ||
                (state == HAL_DRV_STATE_COMPLETE));
-  osalDbgAssert((self->state == ADC_ACTIVE_LINEAR) ||
+  chDbgAssert((self->state == ADC_ACTIVE_LINEAR) ||
                 (self->state == ADC_ACTIVE_CIRCULAR),
                 "invalid state");
-  osalDbgAssert(self->thread == NULL, "already waiting");
+  chDbgAssert(self->thread == NULL, "already waiting");
 
   self->sync_state = state;
-  msg = osalThreadSuspendTimeoutS(&self->thread, timeout);
+  msg = chThdSuspendTimeoutS(&self->thread, timeout);
   self->sync_state = HAL_DRV_STATE_STOP;
 
   return msg;
@@ -494,11 +494,11 @@ msg_t adcSynchronizeState(void *ip, driver_state_t state,
   hal_adc_driver_c *self = (hal_adc_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   msg = adcSynchronizeStateS(self, state, timeout);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }

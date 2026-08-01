@@ -208,10 +208,10 @@ msg_t i2sStartExchangeI(void *ip) {
   hal_i2s_driver_c *self = (hal_i2s_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
-  osalDbgAssert(self->config != NULL, "config missing");
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(self->config != NULL, "config missing");
 
   self->events = 0U;
   self->errors = I2S_NO_ERROR;
@@ -236,9 +236,9 @@ msg_t i2sStartExchange(void *ip) {
   hal_i2s_driver_c *self = (hal_i2s_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = i2sStartExchangeI(self);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -252,9 +252,9 @@ msg_t i2sStartExchange(void *ip) {
  */
 void i2sStopExchangeI(void *ip) {
   hal_i2s_driver_c *self = (hal_i2s_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
+  chDbgCheckClassI();
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
                 (self->state == HAL_DRV_STATE_ACTIVE) ||
                 (self->state == HAL_DRV_STATE_HALF)   ||
                 (self->state == HAL_DRV_STATE_FULL)   ||
@@ -277,10 +277,10 @@ void i2sStopExchangeI(void *ip) {
  */
 void i2sStopExchange(void *ip) {
   hal_i2s_driver_c *self = (hal_i2s_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
+  chSysLock();
+  chDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
                 (self->state == HAL_DRV_STATE_ACTIVE) ||
                 (self->state == HAL_DRV_STATE_HALF)   ||
                 (self->state == HAL_DRV_STATE_FULL)   ||
@@ -291,7 +291,7 @@ void i2sStopExchange(void *ip) {
     self->state = HAL_DRV_STATE_READY;
     _i2s_reset_s(self);
   }
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 #if (I2S_USE_SYNCHRONIZATION == TRUE) || defined (__DOXYGEN__)
@@ -317,15 +317,15 @@ msg_t i2sSynchronizeStateS(void *ip, driver_state_t state,
   hal_i2s_driver_c *self = (hal_i2s_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
-  osalDbgCheckClassS();
-  osalDbgCheck((state == HAL_DRV_STATE_HALF) ||
+  chDbgCheck(self != NULL);
+  chDbgCheckClassS();
+  chDbgCheck((state == HAL_DRV_STATE_HALF) ||
                (state == HAL_DRV_STATE_FULL));
-  osalDbgAssert(self->state == HAL_DRV_STATE_ACTIVE, "invalid state");
-  osalDbgAssert(self->thread == NULL, "already waiting");
+  chDbgAssert(self->state == HAL_DRV_STATE_ACTIVE, "invalid state");
+  chDbgAssert(self->thread == NULL, "already waiting");
 
   self->sync_state = state;
-  msg = osalThreadSuspendTimeoutS(&self->thread, timeout);
+  msg = chThdSuspendTimeoutS(&self->thread, timeout);
   self->sync_state = HAL_DRV_STATE_STOP;
 
   return msg;
@@ -353,11 +353,11 @@ msg_t i2sSynchronizeState(void *ip, driver_state_t state,
   hal_i2s_driver_c *self = (hal_i2s_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   msg = i2sSynchronizeStateS(self, state, timeout);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }

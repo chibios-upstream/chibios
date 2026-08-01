@@ -269,7 +269,7 @@
  * @brief   OCTOSPI DMA error hook.
  */
 #if !defined(STM32_WSPI_DMA_ERROR_HOOK) || defined(__DOXYGEN__)
-#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    osalSysHalt("DMA failure")
+#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    chSysHalt("DMA failure")
 #endif
 
 /**
@@ -338,22 +338,22 @@
 
 /* Check on IRQ priorities.*/
 #if STM32_WSPI_USE_OCTOSPI1 &&                                              \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_OCTOSPI1_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_OCTOSPI1_PRIORITY)
 #error "Invalid IRQ priority assigned to OCTOSPI1"
 #endif
 
 #if STM32_WSPI_USE_OCTOSPI2 &&                                              \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_OCTOSPI2_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_OCTOSPI2_PRIORITY)
 #error "Invalid IRQ priority assigned to OCTOSPI2"
 #endif
 
 #if STM32_WSPI_USE_OCTOSPI1 &&                                              \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to OCTOSPI1 DMA"
 #endif
 
 #if STM32_WSPI_USE_OCTOSPI2 &&                                              \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI2_DMA_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI2_DMA_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to OCTOSPI2 DMA"
 #endif
 

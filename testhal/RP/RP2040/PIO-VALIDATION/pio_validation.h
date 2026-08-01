@@ -27,9 +27,15 @@
  */
 #define pio_validation_barrier()    __sync_synchronize()
 
+/* IRQ priority shared by the allocations on both cores.*/
+#define TEST_IRQ_PRIORITY           3U
+
 extern volatile uint32_t c1_ready;
 extern volatile uint32_t c1_do_free;
 extern volatile uint32_t c1_free_done;
+extern volatile uint32_t c1_do_alloc;
+extern volatile uint32_t c1_alloc_done;
 extern const rp_pio_sm_t * volatile xcore_smp;
+extern const rp_pio_sm_t * volatile xcore_alloc_smp;
 
 #endif /* PIO_VALIDATION_H */

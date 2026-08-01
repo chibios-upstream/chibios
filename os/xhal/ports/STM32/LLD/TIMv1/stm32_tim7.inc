@@ -57,7 +57,7 @@
 #error "STM32_IRQ_TIM7_PRIORITY not defined in mcuconf.h"
 #endif
 
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_TIM7_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_TIM7_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_TIM7_PRIORITY"
 #endif
 
@@ -97,9 +97,9 @@ static inline void tim7_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_TIM7_HANDLER) {
+CH_IRQ_HANDLER(STM32_TIM7_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
 #if HAL_USE_GPT
 #if STM32_GPT_USE_TIM7
@@ -122,7 +122,7 @@ OSAL_IRQ_HANDLER(STM32_TIM7_HANDLER) {
 #endif
 #endif
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 

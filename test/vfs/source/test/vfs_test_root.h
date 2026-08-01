@@ -27,6 +27,9 @@
 #include "vfs_test_sequence_001.h"
 #include "vfs_test_sequence_002.h"
 #include "vfs_test_sequence_003.h"
+#include "vfs_test_sequence_004.h"
+#include "vfs_test_sequence_005.h"
+#include "vfs_test_sequence_006.h"
 
 #if !defined(__DOXYGEN__)
 
@@ -70,11 +73,13 @@ typedef struct {
   char                    newpath[VFS_CFG_PATHLEN_MAX + 1];
   int                     flags;
   vfs_mode_t              mode;
+  vfs_stat_t              stat;
   msg_t                   opendir_result;
   msg_t                   openfile_result;
 } vfs_test_fs_c;
 
 extern vfs_test_fs_c vfs_test_fs;
+extern const vfs_stat_t vfs_test_full_stat;
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 extern vfs_root_c vfs_test_root;
 #endif
@@ -86,6 +91,9 @@ bool vfs_test_path_normalizes_in_place(const char *input,
                                        const char *expected);
 bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
                                     const char *expected);
+bool vfs_test_stat_equal(const vfs_stat_t *actual,
+                         const vfs_stat_t *expected);
+bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
 void vfs_test_fs_reset(void);
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);

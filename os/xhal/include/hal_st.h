@@ -71,7 +71,7 @@ extern "C" {
 #if defined(ST_LLD_MULTICORE_SUPPORT)
   void stBind(void);
 #endif
-#if OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING
+#if CH_CFG_ST_TIMEDELTA > 0
   systime_t stGetCounter(void);
   void stStartAlarm(systime_t abstime);
   void stStopAlarm(void);
@@ -89,7 +89,7 @@ extern "C" {
   systime_t stGetAlarmN(unsigned alarm);
   bool stIsAlarmActiveN(unsigned alarm);
 #endif /* ST_LLD_NUM_ALARMS > 1 */
-#endif /* OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING */
+#endif /* CH_CFG_ST_TIMEDELTA > 0 */
 #ifdef __cplusplus
 }
 #endif

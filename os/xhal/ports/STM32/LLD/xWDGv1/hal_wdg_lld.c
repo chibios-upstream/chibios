@@ -98,10 +98,10 @@ void wdg_lld_init(void) {
 msg_t wdg_lld_start(WDGDriver *wdgp) {
   const WDGConfig *config;
 
-  osalDbgCheck(wdgp != NULL);
+  chDbgCheck(wdgp != NULL);
 
   config = (const WDGConfig *)wdgp->config;
-  osalDbgAssert(config != NULL, "config missing");
+  chDbgAssert(config != NULL, "config missing");
 
   /* Enable IWDG and unlock for write.*/
   wdgp->wdg->KR  = KR_KEY_ENABLE;
@@ -134,8 +134,8 @@ msg_t wdg_lld_start(WDGDriver *wdgp) {
  */
 void wdg_lld_stop(WDGDriver *wdgp) {
 
-  osalDbgCheck(wdgp != NULL);
-  osalDbgAssert(wdgp->state == HAL_DRV_STATE_STOP,
+  chDbgCheck(wdgp != NULL);
+  chDbgAssert(wdgp->state == HAL_DRV_STATE_STOP,
                 "IWDG cannot be stopped once activated");
 }
 
@@ -150,9 +150,9 @@ void wdg_lld_stop(WDGDriver *wdgp) {
  */
 const WDGConfig *wdg_lld_setcfg(WDGDriver *wdgp, const WDGConfig *config) {
 
-  osalDbgCheck(wdgp != NULL);
+  chDbgCheck(wdgp != NULL);
 
-  if (wdgp->state != HAL_DRV_STATE_STOP) {
+  if (wdgp->state != HAL_DRV_STATE_STARTING) {
     return NULL;
   }
 
@@ -170,7 +170,7 @@ const WDGConfig *wdg_lld_setcfg(WDGDriver *wdgp, const WDGConfig *config) {
  */
 const WDGConfig *wdg_lld_selcfg(WDGDriver *wdgp, unsigned cfgnum) {
 
-  osalDbgCheck(wdgp != NULL);
+  chDbgCheck(wdgp != NULL);
   (void)cfgnum;
 
   return NULL;
@@ -185,7 +185,7 @@ const WDGConfig *wdg_lld_selcfg(WDGDriver *wdgp, unsigned cfgnum) {
  */
 void wdg_lld_reset(WDGDriver *wdgp) {
 
-  osalDbgCheck(wdgp != NULL);
+  chDbgCheck(wdgp != NULL);
 
   wdgp->wdg->KR = KR_KEY_RELOAD;
 }

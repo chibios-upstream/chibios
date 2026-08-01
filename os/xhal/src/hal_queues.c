@@ -60,7 +60,7 @@
 static size_t iq_read(input_queue_t *iqp, uint8_t *bp, size_t n) {
   size_t s1, s2;
 
-  osalDbgCheck(n > 0U);
+  chDbgCheck(n > 0U);
 
   /* Number of bytes that can be read in a single atomic operation.*/
   if (n > iqGetFullI(iqp)) {
@@ -108,7 +108,7 @@ static size_t iq_read(input_queue_t *iqp, uint8_t *bp, size_t n) {
 static size_t oq_write(output_queue_t *oqp, const uint8_t *bp, size_t n) {
   size_t s1, s2;
 
-  osalDbgCheck(n > 0U);
+  chDbgCheck(n > 0U);
 
   /* Number of bytes that can be written in a single atomic operation.*/
   if (n > oqGetEmptyI(oqp)) {
@@ -177,7 +177,7 @@ static size_t oq_write(output_queue_t *oqp, const uint8_t *bp, size_t n) {
 void iqObjectInit(input_queue_t *iqp, uint8_t *bp, size_t size,
                   qnotify_t infy, void *link) {
 
-  osalThreadQueueObjectInit(&iqp->q_waiting);
+  chThdQueueObjectInit(&iqp->q_waiting);
   iqp->q_counter = 0;
   iqp->q_buffer  = bp;
   iqp->q_rdptr   = bp;
@@ -200,12 +200,12 @@ void iqObjectInit(input_queue_t *iqp, uint8_t *bp, size_t size,
  */
 void iqResetI(input_queue_t *iqp) {
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   iqp->q_rdptr = iqp->q_buffer;
   iqp->q_wrptr = iqp->q_buffer;
   iqp->q_counter = 0;
-  osalThreadDequeueAllI(&iqp->q_waiting, MSG_RESET);
+  chThdDequeueAllI(&iqp->q_waiting, MSG_RESET);
 }
 
 /**
@@ -223,7 +223,7 @@ void iqResetI(input_queue_t *iqp) {
  */
 msg_t iqPutI(input_queue_t *iqp, uint8_t b) {
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   /* Queue space check.*/
   if (!iqIsFullI(iqp)) {
@@ -233,7 +233,7 @@ msg_t iqPutI(input_queue_t *iqp, uint8_t b) {
       iqp->q_wrptr = iqp->q_buffer;
     }
 
-    osalThreadDequeueNextI(&iqp->q_waiting, MSG_OK);
+    chThdDequeueNextI(&iqp->q_waiting, MSG_OK);
 
     return MSG_OK;
   }
@@ -257,7 +257,7 @@ msg_t iqPutI(input_queue_t *iqp, uint8_t b) {
  */
 msg_t iqGetI(input_queue_t *iqp) {
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   /* Queue data check.*/
   if (!iqIsEmptyI(iqp)) {
@@ -304,13 +304,13 @@ msg_t iqGetI(input_queue_t *iqp) {
 msg_t iqGetTimeout(input_queue_t *iqp, sysinterval_t timeout) {
   uint8_t b;
 
-  osalSysLock();
+  chSysLock();
 
   /* Waiting until there is a character available or a timeout occurs.*/
   while (iqIsEmptyI(iqp)) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&iqp->q_waiting, timeout);
+    msg_t msg = chThdEnqueueTimeoutS(&iqp->q_waiting, timeout);
     if (msg < MSG_OK) {
-      osalSysUnlock();
+      chSysUnlock();
       return msg;
     }
   }
@@ -327,7 +327,7 @@ msg_t iqGetTimeout(input_queue_t *iqp, sysinterval_t timeout) {
     iqp->q_notify(iqp);
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return (msg_t)b;
 }
@@ -349,7 +349,7 @@ size_t iqReadI(input_queue_t *iqp, uint8_t *bp, size_t n) {
   qnotify_t nfy = iqp->q_notify;
   size_t rd;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   rd = iq_read(iqp, bp, n);
 
@@ -392,13 +392,13 @@ size_t iqReadTimeout(input_queue_t *iqp, uint8_t *bp,
   qnotify_t nfy = iqp->q_notify;
   size_t done;
 
-  osalDbgCheck(n > 0U);
+  chDbgCheck(n > 0U);
 
-  osalSysLock();
+  chSysLock();
 
   done = iq_read(iqp, bp, n);
   if (done == (size_t)0) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&iqp->q_waiting, timeout);
+    msg_t msg = chThdEnqueueTimeoutS(&iqp->q_waiting, timeout);
 
     if (msg == MSG_OK) {
       done = iq_read(iqp, bp, n);
@@ -411,7 +411,7 @@ size_t iqReadTimeout(input_queue_t *iqp, uint8_t *bp,
     nfy(iqp);
   }
 
-  osalSysUnlock();
+  chSysUnlock();
   return done;
 }
 
@@ -433,7 +433,7 @@ size_t iqReadTimeout(input_queue_t *iqp, uint8_t *bp,
 void oqObjectInit(output_queue_t *oqp, uint8_t *bp, size_t size,
                   qnotify_t onfy, void *link) {
 
-  osalThreadQueueObjectInit(&oqp->q_waiting);
+  chThdQueueObjectInit(&oqp->q_waiting);
   oqp->q_counter = size;
   oqp->q_buffer  = bp;
   oqp->q_rdptr   = bp;
@@ -456,12 +456,12 @@ void oqObjectInit(output_queue_t *oqp, uint8_t *bp, size_t size,
  */
 void oqResetI(output_queue_t *oqp) {
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   oqp->q_rdptr = oqp->q_buffer;
   oqp->q_wrptr = oqp->q_buffer;
   oqp->q_counter = qSizeX(oqp);
-  osalThreadDequeueAllI(&oqp->q_waiting, MSG_RESET);
+  chThdDequeueAllI(&oqp->q_waiting, MSG_RESET);
 }
 
 /**
@@ -480,7 +480,7 @@ void oqResetI(output_queue_t *oqp) {
  */
 msg_t oqPutI(output_queue_t *oqp, uint8_t b) {
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   /* Queue space check.*/
   while (!oqIsFullI(oqp)) {
@@ -526,13 +526,13 @@ msg_t oqPutI(output_queue_t *oqp, uint8_t b) {
  */
 msg_t oqPutTimeout(output_queue_t *oqp, uint8_t b, sysinterval_t timeout) {
 
-  osalSysLock();
+  chSysLock();
 
   /* Waiting until there is a slot available or a timeout occurs.*/
   while (oqIsFullI(oqp)) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&oqp->q_waiting, timeout);
+    msg_t msg = chThdEnqueueTimeoutS(&oqp->q_waiting, timeout);
     if (msg < MSG_OK) {
-      osalSysUnlock();
+      chSysUnlock();
       return msg;
     }
   }
@@ -549,7 +549,7 @@ msg_t oqPutTimeout(output_queue_t *oqp, uint8_t b, sysinterval_t timeout) {
     oqp->q_notify(oqp);
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return MSG_OK;
 }
@@ -567,7 +567,7 @@ msg_t oqPutTimeout(output_queue_t *oqp, uint8_t b, sysinterval_t timeout) {
  */
 msg_t oqGetI(output_queue_t *oqp) {
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   /* Queue data check.*/
   if (!oqIsEmptyI(oqp)) {
@@ -579,7 +579,7 @@ msg_t oqGetI(output_queue_t *oqp) {
       oqp->q_rdptr = oqp->q_buffer;
     }
 
-    osalThreadDequeueNextI(&oqp->q_waiting, MSG_OK);
+    chThdDequeueNextI(&oqp->q_waiting, MSG_OK);
 
     return (msg_t)b;
   }
@@ -604,7 +604,7 @@ size_t oqWriteI(output_queue_t *oqp, const uint8_t *bp, size_t n) {
   qnotify_t nfy = oqp->q_notify;
   size_t wr;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   wr = oq_write(oqp, bp, n);
 
@@ -647,13 +647,13 @@ size_t oqWriteTimeout(output_queue_t *oqp, const uint8_t *bp,
   qnotify_t nfy = oqp->q_notify;
   size_t done;
 
-  osalDbgCheck(n > 0U);
+  chDbgCheck(n > 0U);
 
-  osalSysLock();
+  chSysLock();
 
   done = oq_write(oqp, bp, n);
   if (done == (size_t)0) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&oqp->q_waiting, timeout);
+    msg_t msg = chThdEnqueueTimeoutS(&oqp->q_waiting, timeout);
 
     if (msg == MSG_OK) {
       done = oq_write(oqp, bp, n);
@@ -666,7 +666,7 @@ size_t oqWriteTimeout(output_queue_t *oqp, const uint8_t *bp,
     nfy(oqp);
   }
 
-  osalSysUnlock();
+  chSysUnlock();
   return done;
 }
 

@@ -71,7 +71,7 @@
 #endif
 
 /* Priority settings checks.*/
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_I2C4_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_I2C4_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_I2C4_PRIORITY"
 #endif
 
@@ -127,32 +127,32 @@ static inline void i2c4_irq_deinit(void) {
  *
  * @notapi
  */
-OSAL_IRQ_HANDLER(STM32_I2C4_GLOBAL_HANDLER) {
+CH_IRQ_HANDLER(STM32_I2C4_GLOBAL_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   i2c_lld_serve_global_interrupt(&I2CD4);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 #else
-OSAL_IRQ_HANDLER(STM32_I2C4_EV_HANDLER) {
+CH_IRQ_HANDLER(STM32_I2C4_EV_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   i2c_lld_serve_ev_interrupt(&I2CD4);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
-OSAL_IRQ_HANDLER(STM32_I2C4_ER_HANDLER) {
+CH_IRQ_HANDLER(STM32_I2C4_ER_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   i2c_lld_serve_er_interrupt(&I2CD4);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif /* defined(STM32_I2C4_IS_USED) */

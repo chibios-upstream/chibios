@@ -94,13 +94,13 @@ void trng_lld_init(void) {
 msg_t trng_lld_start(TRNGDriver *trngp) {
   const TRNGConfig *config;
 
-  osalDbgCheck(trngp != NULL);
+  chDbgCheck(trngp != NULL);
 
   config = (const TRNGConfig *)trngp->config;
-  osalDbgAssert(config != NULL, "config missing");
+  chDbgAssert(config != NULL, "config missing");
 
 #if !defined(STM32_DISABLE_RNG_CLOCK_CHECK)
-  osalDbgAssert(((STM32_RNGCLK >= 47000000U) && (STM32_RNGCLK <= 49000000U)) ||
+  chDbgAssert(((STM32_RNGCLK >= 47000000U) && (STM32_RNGCLK <= 49000000U)) ||
                 ((STM32_RNGCLK >=  3500000U) && (STM32_RNGCLK <=  4500000U)),
                 "invalid RNG frequency");
 #endif
@@ -125,7 +125,7 @@ msg_t trng_lld_start(TRNGDriver *trngp) {
  */
 void trng_lld_stop(TRNGDriver *trngp) {
 
-  osalDbgCheck(trngp != NULL);
+  chDbgCheck(trngp != NULL);
 
   if (trngp->state != HAL_DRV_STATE_STOP) {
     trngp->rng->CR = 0U;
@@ -150,7 +150,7 @@ void trng_lld_stop(TRNGDriver *trngp) {
 const TRNGConfig *trng_lld_setcfg(TRNGDriver *trngp,
                                   const TRNGConfig *config) {
 
-  osalDbgCheck(trngp != NULL);
+  chDbgCheck(trngp != NULL);
 
   config = trng_validate_config(config);
   if (config == NULL) {
@@ -175,7 +175,7 @@ const TRNGConfig *trng_lld_setcfg(TRNGDriver *trngp,
  */
 const TRNGConfig *trng_lld_selcfg(TRNGDriver *trngp, unsigned cfgnum) {
 
-  osalDbgCheck(trngp != NULL);
+  chDbgCheck(trngp != NULL);
   (void)trngp;
 
   if (cfgnum == 0U) {
@@ -199,7 +199,7 @@ const TRNGConfig *trng_lld_selcfg(TRNGDriver *trngp, unsigned cfgnum) {
  */
 msg_t trng_lld_generate(TRNGDriver *trngp, size_t size, uint8_t *out) {
 
-  osalDbgCheck((trngp != NULL) && (size > 0U) && (out != NULL));
+  chDbgCheck((trngp != NULL) && (size > 0U) && (out != NULL));
 
   while (true) {
     uint32_t r, tmo;

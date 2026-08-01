@@ -140,6 +140,7 @@ extern "C" {
 #endif
   void chSchObjectInit(os_instance_t *oip,
                        const os_instance_config_t *oicp);
+  void __sch_requeue_behind(thread_t *tp);
   thread_t *chSchReadyI(thread_t *tp);
   void chSchGoSleepS(tstate_t newstate);
   msg_t chSchGoSleepTimeoutS(tstate_t newstate, sysinterval_t timeout);

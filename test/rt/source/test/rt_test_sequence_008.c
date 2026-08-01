@@ -46,14 +46,17 @@
  * - @subpage rt_test_008_008
  * - @subpage rt_test_008_009
  * - @subpage rt_test_008_010
+ * - @subpage rt_test_008_011
+ * - @subpage rt_test_008_012
+ * - @subpage rt_test_008_013
  * .
  */
 
 #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
 
-/****************************************************************************
- * Shared code.
- ****************************************************************************/
+/*===========================================================================*/
+/* Shared code.                                                              */
+/*===========================================================================*/
 
 static MUTEX_DECL(m1);
 static MUTEX_DECL(m2);
@@ -194,7 +197,6 @@ static THD_FUNCTION(thread4B, p) {
   chSysLock();
   chMtxLockS(&m2);   /* For coverage of the chMtxLockS() function variant.*/
   chMtxUnlockS(&m2); /* For coverage of the chMtxUnlockS() function variant.*/
-  chSchRescheduleS();
   chSysUnlock();
 }
 
@@ -203,6 +205,39 @@ static THD_FUNCTION(thread5, p) {
   chMtxLock(&m2);
   test_emit_token(*(char *)p);
   chMtxUnlock(&m2);
+}
+
+static THD_FUNCTION(thread11M, p) {
+
+  test_emit_token(*(char *)p);
+}
+
+static thread_reference_t priority_chain_ref;
+
+static THD_FUNCTION(thread13L, p) {
+
+  (void)p;
+  chMtxLock(&m2);
+  chSysLock();
+  (void) chThdSuspendS(&priority_chain_ref);
+  chSysUnlock();
+  chMtxUnlock(&m2);
+}
+
+static THD_FUNCTION(thread13M, p) {
+
+  (void)p;
+  chMtxLock(&m1);
+  chMtxLock(&m2);
+  chMtxUnlock(&m2);
+  chMtxUnlock(&m1);
+}
+
+static THD_FUNCTION(thread13H, p) {
+
+  (void)p;
+  chMtxLock(&m1);
+  chMtxUnlock(&m1);
 }
 
 #if CH_CFG_USE_CONDVARS || defined(__DOXYGEN__)
@@ -234,11 +269,21 @@ static THD_FUNCTION(thread9, p) {
   test_emit_token(*(char *)p);
   chMtxUnlock(&m2);
 }
+
+#if CH_CFG_USE_CONDVARS_TIMEOUT || defined(__DOXYGEN__)
+static THD_FUNCTION(thread12S, p) {
+
+  (void)p;
+  chMtxLock(&m1);
+  chCondSignal(&c1);
+  chMtxUnlock(&m1);
+}
+#endif /* CH_CFG_USE_CONDVARS_TIMEOUT */
 #endif /* CH_CFG_USE_CONDVARS */
 
-/****************************************************************************
- * Test cases.
- ****************************************************************************/
+/*===========================================================================*/
+/* Test cases.                                                               */
+/*===========================================================================*/
 
 /**
  * @page rt_test_008_001 [8.1] Priority enqueuing test
@@ -617,11 +662,12 @@ static const testcase_t rt_test_008_004 = {
  * - [8.5.2] A same-priority waiter is queued on the mutex, verifying
  *   that no priority boost is performed.
  * - [8.5.3] A higher-priority waiter is handed the mutex by
- *   chMtxUnlockS().
+ *   chMtxUnlockS() and must run before the function returns.
  * - [8.5.4] A higher-priority waiter is handed the mutex by
  *   chMtxUnlockAllS().
  * - [8.5.5] Priority is recomputed while chMtxUnlockS() hands off a
- *   mutex and another owned mutex still has a waiter.
+ *   mutex and another owned mutex still has a waiter. The handed-off
+ *   higher-priority waiter must run before the function returns.
  * .
  */
 
@@ -637,6 +683,7 @@ static void rt_test_008_005_teardown(void) {
 }
 
 static void rt_test_008_005_execute(void) {
+  bool switched;
   tprio_t prio;
 
   /* [8.5.1] Getting current thread priority for later checks.*/
@@ -661,7 +708,7 @@ static void rt_test_008_005_execute(void) {
   test_end_step(2);
 
   /* [8.5.3] A higher-priority waiter is handed the mutex by
-     chMtxUnlockS().*/
+     chMtxUnlockS() and must run before the function returns.*/
   test_set_step(3);
   {
     chMtxLock(&m1);
@@ -670,9 +717,10 @@ static void rt_test_008_005_execute(void) {
 
     chSysLock();
     chMtxUnlockS(&m1);
-    chSchRescheduleS();
+    switched = threads[0]->state == CH_STATE_FINAL;
     chSysUnlock();
 
+    test_assert(switched, "waiter not scheduled internally");
     test_wait_threads();
     test_assert(chThdGetPriorityX() == prio, "wrong priority level");
     test_assert_sequence("B", "invalid sequence");
@@ -698,7 +746,8 @@ static void rt_test_008_005_execute(void) {
   test_end_step(4);
 
   /* [8.5.5] Priority is recomputed while chMtxUnlockS() hands off a
-     mutex and another owned mutex still has a waiter.*/
+     mutex and another owned mutex still has a waiter. The handed-off
+     higher-priority waiter must run before the function returns.*/
   test_set_step(5);
   {
     chMtxLock(&m2);
@@ -709,9 +758,10 @@ static void rt_test_008_005_execute(void) {
 
     chSysLock();
     chMtxUnlockS(&m1);
-    chSchRescheduleS();
+    switched = threads[1]->state == CH_STATE_FINAL;
     chSysUnlock();
 
+    test_assert(switched, "waiter not scheduled internally");
     test_assert(chThdGetPriorityX() == prio + 1, "wrong priority level");
     chMtxUnlock(&m2);
     test_wait_threads();
@@ -1249,9 +1299,321 @@ static const testcase_t rt_test_008_010 = {
 };
 #endif /* CH_CFG_USE_CONDVARS == TRUE */
 
-/****************************************************************************
- * Exported data.
- ****************************************************************************/
+/**
+ * @page rt_test_008_011 [8.11] Base priority change with active donation
+ *
+ * <h2>Description</h2>
+ * A mutex owner lowers its base priority below an already queued
+ * donor. The effective priority must remain at the donor priority so
+ * that an intermediate-priority thread cannot preempt the mutex owner.
+ *
+ * <h2>Test Steps</h2>
+ * - [8.11.1] The current priority is saved and the mutex is locked.
+ * - [8.11.2] A lower-priority donor is queued on the mutex without
+ *   initially boosting the owner.
+ * - [8.11.3] The owner lowers its base priority below the donor and
+ *   the effective priority is verified.
+ * - [8.11.4] An intermediate-priority thread is started, then the
+ *   mutex is released. The donor must run before the intermediate
+ *   thread.
+ * - [8.11.5] The original base priority is restored.
+ * .
+ */
+
+static void rt_test_008_011_setup(void) {
+  chMtxObjectInit(&m1);
+}
+
+static void rt_test_008_011_teardown(void) {
+  test_wait_threads();
+  chMtxObjectDispose(&m1);
+}
+
+static void rt_test_008_011_execute(void) {
+  bool queued;
+  tprio_t oldprio, prio;
+
+  /* [8.11.1] The current priority is saved and the mutex is locked.*/
+  test_set_step(1);
+  {
+    prio = chThdGetPriorityX();
+    chMtxLock(&m1);
+  }
+  test_end_step(1);
+
+  /* [8.11.2] A lower-priority donor is queued on the mutex without
+     initially boosting the owner.*/
+  test_set_step(2);
+  {
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio - 1, thread1, "A");
+    chThdSleep(1);
+    chSysLock();
+    queued = chMtxQueueNotEmptyS(&m1);
+    chSysUnlock();
+    test_assert(queued, "donor not queued");
+    test_assert(chThdGetPriorityX() == prio, "unexpected priority boost");
+  }
+  test_end_step(2);
+
+  /* [8.11.3] The owner lowers its base priority below the donor and
+     the effective priority is verified.*/
+  test_set_step(3);
+  {
+    oldprio = chThdSetPriority(prio - 3);
+    test_assert(oldprio == prio, "wrong old priority");
+    test_assert(chThdGetPriorityX() == prio - 1,
+                "active donation discarded");
+  }
+  test_end_step(3);
+
+  /* [8.11.4] An intermediate-priority thread is started, then the
+     mutex is released. The donor must run before the intermediate
+     thread.*/
+  test_set_step(4);
+  {
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio - 2,
+                                   thread11M, "B");
+    chMtxUnlock(&m1);
+    test_wait_threads();
+    test_assert_sequence("AB", "priority inversion");
+  }
+  test_end_step(4);
+
+  /* [8.11.5] The original base priority is restored.*/
+  test_set_step(5);
+  {
+    oldprio = chThdSetPriority(prio);
+    test_assert(oldprio == prio - 3, "wrong lowered base priority");
+    test_assert(chThdGetPriorityX() == prio, "priority not restored");
+  }
+  test_end_step(5);
+}
+
+static const testcase_t rt_test_008_011 = {
+  "Base priority change with active donation",
+  rt_test_008_011_setup,
+  rt_test_008_011_teardown,
+  rt_test_008_011_execute
+};
+
+#if ((CH_CFG_USE_CONDVARS == TRUE) && (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_008_012 [8.12] Atomic condition-variable release and wait
+ *
+ * <h2>Description</h2>
+ * A signaller is queued on the mutex before the owner starts a
+ * condition wait. Releasing the mutex and enqueueing on the condition
+ * variable must remain atomic; otherwise the signaller can run too
+ * early and the signal is lost.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - (CH_CFG_USE_CONDVARS == TRUE) && (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE)
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [8.12.1] The mutex is locked and a higher-priority signaller is
+ *   queued on it.
+ * - [8.12.2] A timed condition wait atomically releases the mutex and
+ *   enters the wait queue. The queued thread acquires the mutex and
+ *   signals.
+ * - [8.12.3] The wait must return because of the signal, with the
+ *   mutex reacquired.
+ * .
+ */
+
+static void rt_test_008_012_setup(void) {
+  chCondObjectInit(&c1);
+  chMtxObjectInit(&m1);
+}
+
+static void rt_test_008_012_teardown(void) {
+  test_wait_threads();
+  chCondObjectDispose(&c1);
+  chMtxObjectDispose(&m1);
+}
+
+static void rt_test_008_012_execute(void) {
+  msg_t msg;
+  tprio_t prio;
+
+  /* [8.12.1] The mutex is locked and a higher-priority signaller is
+     queued on it.*/
+  test_set_step(1);
+  {
+    prio = chThdGetPriorityX();
+    chMtxLock(&m1);
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1, thread12S, NULL);
+    test_assert(chThdGetPriorityX() == prio + 1, "signaller not queued");
+  }
+  test_end_step(1);
+
+  /* [8.12.2] A timed condition wait atomically releases the mutex and
+     enters the wait queue. The queued thread acquires the mutex and
+     signals.*/
+  test_set_step(2);
+  {
+    msg = chCondWaitTimeout(&c1, TIME_MS2I(100));
+  }
+  test_end_step(2);
+
+  /* [8.12.3] The wait must return because of the signal, with the
+     mutex reacquired.*/
+  test_set_step(3);
+  {
+    test_assert(msg == MSG_OK, "condition signal lost");
+    test_assert(m1.owner == chThdGetSelfX(), "mutex not reacquired");
+    chMtxUnlock(&m1);
+    test_wait_threads();
+  }
+  test_end_step(3);
+}
+
+static const testcase_t rt_test_008_012 = {
+  "Atomic condition-variable release and wait",
+  rt_test_008_012_setup,
+  rt_test_008_012_teardown,
+  rt_test_008_012_execute
+};
+#endif /* (CH_CFG_USE_CONDVARS == TRUE) && (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE) */
+
+/**
+ * @page rt_test_008_013 [8.13] Transitive arbitrary priority change
+ *
+ * <h2>Description</h2>
+ * The base priority of a thread waiting at the end of a two-mutex
+ * dependency chain is changed. Both increases and decreases must
+ * propagate through all owners while preserving another waiter's
+ * donation.
+ *
+ * <h2>Test Steps</h2>
+ * - [8.13.1] Four threads form the chain H and C wait on M, M waits on
+ *   L, and L is suspended while owning the final mutex.
+ * - [8.13.2] Raising H propagates the new effective priority through M
+ *   to L.
+ * - [8.13.3] Lowering H below C reorders M1's wait queue and preserves
+ *   C's donation throughout the chain.
+ * - [8.13.4] Lowering C below M's base priority removes the final
+ *   donation throughout the chain.
+ * - [8.13.5] L is resumed and the complete chain is allowed to unwind.
+ * .
+ */
+
+static void rt_test_008_013_setup(void) {
+  priority_chain_ref = NULL;
+  chMtxObjectInit(&m1);
+  chMtxObjectInit(&m2);
+}
+
+static void rt_test_008_013_teardown(void) {
+  chThdResume(&priority_chain_ref, MSG_RESET);
+  test_wait_threads();
+  chMtxObjectDispose(&m1);
+  chMtxObjectDispose(&m2);
+}
+
+static void rt_test_008_013_execute(void) {
+  tprio_t oldprio, prio;
+
+  /* [8.13.1] Four threads form the chain H and C wait on M, M waits on
+     L, and L is suspended while owning the final mutex.*/
+  test_set_step(1);
+  {
+    prio = chThdGetPriorityX();
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1,
+                                   thread13L, NULL);
+    test_assert(priority_chain_ref == threads[0], "thread L not suspended");
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2,
+                                   thread13M, NULL);
+    test_assert(threads[1]->state == CH_STATE_WTMTX, "thread M not waiting");
+    threads[2] = chThdCreateStatic(wa[2], WA_SIZE, prio + 3,
+                                   thread13H, NULL);
+    test_assert(threads[2]->state == CH_STATE_WTMTX, "thread H not waiting");
+    threads[3] = chThdCreateStatic(wa[3], WA_SIZE, prio + 4,
+                                   thread13H, NULL);
+    test_assert(threads[3]->state == CH_STATE_WTMTX, "thread C not waiting");
+    test_assert(threads[0]->hdr.pqueue.prio == prio + 4,
+                "thread L not initially boosted");
+    test_assert(threads[1]->hdr.pqueue.prio == prio + 4,
+                "thread M not initially boosted");
+  }
+  test_end_step(1);
+
+  /* [8.13.2] Raising H propagates the new effective priority through M
+     to L.*/
+  test_set_step(2);
+  {
+    chSysLock();
+    oldprio = __thd_set_priority(threads[2], prio + 5);
+    chSysUnlock();
+
+    test_assert(oldprio == prio + 3, "wrong old raised priority");
+    test_assert(threads[2]->hdr.pqueue.prio == prio + 5,
+                "thread H not raised");
+    test_assert(threads[1]->hdr.pqueue.prio == prio + 5,
+                "raise not propagated to M");
+    test_assert(threads[0]->hdr.pqueue.prio == prio + 5,
+                "raise not propagated to L");
+  }
+  test_end_step(2);
+
+  /* [8.13.3] Lowering H below C reorders M1's wait queue and preserves
+     C's donation throughout the chain.*/
+  test_set_step(3);
+  {
+    chSysLock();
+    oldprio = __thd_set_priority(threads[2], prio + 1);
+    chSysUnlock();
+
+    test_assert(oldprio == prio + 5, "wrong old lowered priority");
+    test_assert(threads[2]->hdr.pqueue.prio == prio + 1,
+                "thread H not lowered");
+    test_assert(threads[1]->hdr.pqueue.prio == prio + 4,
+                "competing donation lost at M");
+    test_assert(threads[0]->hdr.pqueue.prio == prio + 4,
+                "competing donation lost at L");
+  }
+  test_end_step(3);
+
+  /* [8.13.4] Lowering C below M's base priority removes the final
+     donation throughout the chain.*/
+  test_set_step(4);
+  {
+    chSysLock();
+    oldprio = __thd_set_priority(threads[3], prio + 1);
+    chSysUnlock();
+
+    test_assert(oldprio == prio + 4, "wrong old competing priority");
+    test_assert(threads[3]->hdr.pqueue.prio == prio + 1,
+                "thread C not lowered");
+    test_assert(threads[1]->hdr.pqueue.prio == prio + 2,
+                "drop not propagated to M");
+    test_assert(threads[0]->hdr.pqueue.prio == prio + 2,
+                "drop not propagated to L");
+  }
+  test_end_step(4);
+
+  /* [8.13.5] L is resumed and the complete chain is allowed to
+     unwind.*/
+  test_set_step(5);
+  {
+    chThdResume(&priority_chain_ref, MSG_OK);
+    test_wait_threads();
+  }
+  test_end_step(5);
+}
+
+static const testcase_t rt_test_008_013 = {
+  "Transitive arbitrary priority change",
+  rt_test_008_013_setup,
+  rt_test_008_013_teardown,
+  rt_test_008_013_execute
+};
+
+/*===========================================================================*/
+/* Exported data.                                                            */
+/*===========================================================================*/
 
 /**
  * @brief   Array of test cases.
@@ -1281,6 +1643,11 @@ const testcase_t * const rt_test_sequence_008_array[] = {
 #if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
   &rt_test_008_010,
 #endif
+  &rt_test_008_011,
+#if ((CH_CFG_USE_CONDVARS == TRUE) && (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE)) || defined(__DOXYGEN__)
+  &rt_test_008_012,
+#endif
+  &rt_test_008_013,
   NULL
 };
 

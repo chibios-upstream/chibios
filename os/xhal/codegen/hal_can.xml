@@ -111,9 +111,9 @@ do {
   (canp)->tx_mailbox_mask |= (canmbxmask_t)((flags) & 0xFFFFU);
   (canp)->tx_error_mask   |= (canmbxmask_t)(((flags) >> 16U) & 0xFFFFU);
   (canp)->events          |= CAN_EVENT_TX;
-  osalSysLockFromISR();
-  osalThreadDequeueAllI(&(canp)->txqueue, MSG_OK);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdDequeueAllI(&(canp)->txqueue, MSG_OK);
+  chSysUnlockFromISR();
   __cbdrv_invoke_cb(canp);
 } while (false)]]></implementation>
           </macro>
@@ -126,9 +126,9 @@ do {
 do {
   (canp)->rx_mailbox_mask |= (canmbxmask_t)(flags);
   (canp)->events          |= CAN_EVENT_RX;
-  osalSysLockFromISR();
-  osalThreadDequeueAllI(&(canp)->rxqueue, MSG_OK);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdDequeueAllI(&(canp)->rxqueue, MSG_OK);
+  chSysUnlockFromISR();
   __cbdrv_invoke_cb(canp);
 } while (false)]]></implementation>
           </macro>
@@ -297,8 +297,8 @@ self->tx_mailbox_mask = 0U;
 self->tx_error_mask   = 0U;
 self->errors          = 0U;
 #if CAN_USE_SYNCHRONIZATION == TRUE
-osalThreadQueueObjectInit(&self->txqueue);
-osalThreadQueueObjectInit(&self->rxqueue);
+chThdQueueObjectInit(&self->txqueue);
+chThdQueueObjectInit(&self->rxqueue);
 #endif
 
 #if defined(CAN_DRIVER_EXT_INIT_HOOK)
@@ -323,10 +323,10 @@ CAN_DRIVER_EXT_INIT_HOOK(self);
               <retval value="true">If the mailbox is full.</retval>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (ctfp != NULL) &&
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (ctfp != NULL) &&
              (mailbox <= (canmbx_t)CAN_TX_MAILBOXES));
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == CAN_SLEEP),
               "invalid state");
 
@@ -351,10 +351,10 @@ return false;]]></implementation>
               <retval value="true">If the mailbox is empty.</retval>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (crfp != NULL) &&
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (crfp != NULL) &&
              (mailbox <= (canmbx_t)CAN_RX_MAILBOXES));
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == CAN_SLEEP),
               "invalid state");
 
@@ -373,7 +373,7 @@ return false;]]></implementation>
               </param>
               <xclass />
               <implementation><![CDATA[
-osalDbgCheck((self != NULL) &&
+chDbgCheck((self != NULL) &&
              (mailbox != CAN_ANY_MAILBOX) &&
              (mailbox <= (canmbx_t)CAN_TX_MAILBOXES));
 
@@ -394,24 +394,24 @@ can_lld_abort(self, mailbox);]]></implementation>
                 <return>The operation status.</return>
                 <api />
                 <implementation><![CDATA[
-osalDbgCheck((self != NULL) && (ctfp != NULL) &&
+chDbgCheck((self != NULL) && (ctfp != NULL) &&
              (mailbox <= (canmbx_t)CAN_TX_MAILBOXES));
 
-osalSysLock();
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chSysLock();
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == CAN_SLEEP),
               "invalid state");
 
 while ((self->state == CAN_SLEEP) || !can_lld_is_tx_empty(self, mailbox)) {
-  msg_t msg = osalThreadEnqueueTimeoutS(&self->txqueue, timeout);
+  msg_t msg = chThdEnqueueTimeoutS(&self->txqueue, timeout);
   if (msg != MSG_OK) {
-    osalSysUnlock();
+    chSysUnlock();
     return msg;
   }
 }
 
 can_lld_transmit(self, mailbox, ctfp);
-osalSysUnlock();
+chSysUnlock();
 
 return MSG_OK;]]></implementation>
               </method>
@@ -429,24 +429,24 @@ return MSG_OK;]]></implementation>
                 <return>The operation status.</return>
                 <api />
                 <implementation><![CDATA[
-osalDbgCheck((self != NULL) && (crfp != NULL) &&
+chDbgCheck((self != NULL) && (crfp != NULL) &&
              (mailbox <= (canmbx_t)CAN_RX_MAILBOXES));
 
-osalSysLock();
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chSysLock();
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == CAN_SLEEP),
               "invalid state");
 
 while ((self->state == CAN_SLEEP) || !can_lld_is_rx_nonempty(self, mailbox)) {
-  msg_t msg = osalThreadEnqueueTimeoutS(&self->rxqueue, timeout);
+  msg_t msg = chThdEnqueueTimeoutS(&self->rxqueue, timeout);
   if (msg != MSG_OK) {
-    osalSysUnlock();
+    chSysUnlock();
     return msg;
   }
 }
 
 can_lld_receive(self, mailbox, crfp);
-osalSysUnlock();
+chSysUnlock();
 
 return MSG_OK;]]></implementation>
               </method>
@@ -456,10 +456,10 @@ return MSG_OK;]]></implementation>
                 <brief>Enters CAN sleep mode.</brief>
                 <api />
                 <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chSysLock();
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == CAN_SLEEP),
               "invalid state");
 if (self->state == HAL_DRV_STATE_READY) {
@@ -467,16 +467,16 @@ if (self->state == HAL_DRV_STATE_READY) {
   self->state = CAN_SLEEP;
   self->events |= CAN_EVENT_SLEEP;
 }
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
               </method>
               <method name="canWakeup" ctype="void">
                 <brief>Forces CAN wakeup from sleep mode.</brief>
                 <api />
                 <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chSysLock();
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == CAN_SLEEP),
               "invalid state");
 if (self->state == CAN_SLEEP) {
@@ -484,7 +484,7 @@ if (self->state == CAN_SLEEP) {
   self->state = HAL_DRV_STATE_READY;
   self->events |= CAN_EVENT_WAKEUP;
 }
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
               </method>
             </condition>
           </regular>
@@ -507,10 +507,10 @@ return self->events;]]></implementation>
 can_events_t events;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 events = self->events & mask;
 self->events &= ~mask;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return events;]]></implementation>
             </method>
@@ -522,10 +522,10 @@ return events;]]></implementation>
 canmbxmask_t mask;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 mask = self->rx_mailbox_mask;
 self->rx_mailbox_mask = 0U;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return mask;]]></implementation>
             </method>
@@ -537,10 +537,10 @@ return mask;]]></implementation>
 canmbxmask_t mask;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 mask = self->tx_mailbox_mask;
 self->tx_mailbox_mask = 0U;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return mask;]]></implementation>
             </method>
@@ -552,10 +552,10 @@ return mask;]]></implementation>
 canmbxmask_t mask;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 mask = self->tx_error_mask;
 self->tx_error_mask = 0U;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return mask;]]></implementation>
             </method>
@@ -567,10 +567,10 @@ return mask;]]></implementation>
 canerror_t errors;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 errors = self->errors;
 self->errors = 0U;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return errors;]]></implementation>
             </method>
@@ -604,11 +604,11 @@ return msg;]]></implementation>
 can_lld_stop(self);
 can_lld_reset(self);
 #if CAN_USE_SYNCHRONIZATION == TRUE
-osalSysLock();
-osalThreadDequeueAllI(&self->rxqueue, MSG_RESET);
-osalThreadDequeueAllI(&self->txqueue, MSG_RESET);
-osalOsRescheduleS();
-osalSysUnlock();
+chSysLock();
+chThdDequeueAllI(&self->rxqueue, MSG_RESET);
+chThdDequeueAllI(&self->txqueue, MSG_RESET);
+chSchRescheduleS();
+chSysUnlock();
 #endif]]></implementation>
             </method>
             <method shortname="setcfg">

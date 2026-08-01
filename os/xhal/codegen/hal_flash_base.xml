@@ -46,8 +46,8 @@ return &self->descriptor;]]></implementation>
               <implementation><![CDATA[
 flash_error_t err;
 
-osalDbgCheck((self != NULL) && (rp != NULL) && (n > 0U));
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+chDbgCheck((self != NULL) && (rp != NULL) && (n > 0U));
+chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
               "invalid state");
 
 if (self->state == FLASH_ERASE) {
@@ -64,8 +64,8 @@ return err;]]></implementation>
               <implementation><![CDATA[
 flash_error_t err;
 
-osalDbgCheck((self != NULL) && (pp != NULL) && (n > 0U));
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+chDbgCheck((self != NULL) && (pp != NULL) && (n > 0U));
+chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
               "invalid state");
 
 if (self->state == FLASH_ERASE) {
@@ -82,8 +82,8 @@ return err;]]></implementation>
               <implementation><![CDATA[
 flash_error_t err;
 
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
               "invalid state");
 
 if (self->state == FLASH_ERASE) {
@@ -102,8 +102,8 @@ return err;]]></implementation>
               <implementation><![CDATA[
 flash_error_t err;
 
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
               "invalid state");
 
 if (self->state == FLASH_ERASE) {
@@ -122,8 +122,8 @@ return err;]]></implementation>
               <implementation><![CDATA[
 flash_error_t err;
 
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
               "invalid state");
 
 if (self->state == FLASH_ERASE) {
@@ -142,8 +142,8 @@ return err;]]></implementation>
               <implementation><![CDATA[
 flash_error_t err;
 
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
               "invalid state");
 
 if (self->state == FLASH_ERASE) {
@@ -159,7 +159,7 @@ return err;]]></implementation>
             <method shortname="acquire_exclusive">
               <implementation><![CDATA[
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 #if HAL_USE_MUTUAL_EXCLUSION == TRUE
 drvLock(self);
 #endif
@@ -169,7 +169,7 @@ return FLASH_NO_ERROR;]]></implementation>
             <method shortname="release_exclusive">
               <implementation><![CDATA[
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 #if HAL_USE_MUTUAL_EXCLUSION == TRUE
 drvUnlock(self);
 #endif
@@ -259,7 +259,7 @@ while (true) {
     return err;
   }
 
-  osalThreadSleepMilliseconds(msec);
+  chThdSleepMilliseconds(msec);
 }]]></implementation>
             </method>
             <method name="flashGetSectorOffset" ctype="flash_offset_t">
@@ -270,7 +270,7 @@ while (true) {
 flash_offset_t offset;
 const flash_descriptor_t *descriptor = &self->descriptor;
 
-osalDbgAssert(sector < descriptor->sectors_count, "invalid sector");
+chDbgAssert(sector < descriptor->sectors_count, "invalid sector");
 
 if (descriptor->sectors != NULL) {
   offset = descriptor->sectors[sector].offset;
@@ -289,7 +289,7 @@ return offset;]]></implementation>
 uint32_t size;
 const flash_descriptor_t *descriptor = &self->descriptor;
 
-osalDbgAssert(sector < descriptor->sectors_count, "invalid sector");
+chDbgAssert(sector < descriptor->sectors_count, "invalid sector");
 
 if (descriptor->sectors != NULL) {
   size = descriptor->sectors[sector].size;
@@ -308,7 +308,7 @@ return size;]]></implementation>
 flash_sector_t sector, i;
 const flash_descriptor_t *descriptor = &self->descriptor;
 
-osalDbgAssert(offset < descriptor->size, "invalid offset");
+chDbgAssert(offset < descriptor->size, "invalid offset");
 
 if (descriptor->sectors != NULL) {
   flash_offset_t sector_start;
@@ -327,7 +327,7 @@ else {
   return sector;
 }
 
-osalDbgAssert(false, "invalid offset");
+chDbgAssert(false, "invalid offset");
 
 return 0U;]]></implementation>
             </method>
@@ -339,7 +339,7 @@ return 0U;]]></implementation>
               <implementation><![CDATA[
 const flash_descriptor_t *descriptor = &self->descriptor;
 
-osalDbgAssert(offset < descriptor->size, "invalid offset");
+chDbgAssert(offset < descriptor->size, "invalid offset");
 
 return (void *)(descriptor->address + offset);]]></implementation>
             </method>
@@ -353,7 +353,7 @@ const flash_descriptor_t *descriptor = &self->descriptor;
 uintptr_t addr_value = (uintptr_t)addr;
 uintptr_t base_value = (uintptr_t)descriptor->address;
 
-osalDbgAssert((addr_value >= base_value) &&
+chDbgAssert((addr_value >= base_value) &&
               (addr_value < (base_value + (uintptr_t)descriptor->size)),
               "invalid address");
 

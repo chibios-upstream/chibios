@@ -318,7 +318,7 @@ static flash_error_t n25q_poll_status(hal_xsnor_micron_n25q_c *self) {
 
   do {
     if ((xsnorcfg->options & N25Q_OPT_NICE_WAITING) != 0U) {
-      osalThreadSleepMilliseconds(1);
+      chThdSleepMilliseconds(1);
     }
 
     /* Read status command.*/
@@ -445,7 +445,7 @@ static flash_error_t n25q_read_unlocked(hal_xsnor_micron_n25q_c *self,
                                        n, rp);
     break;
   default:
-    osalDbgAssert(false, "invalid bus type");
+    chDbgAssert(false, "invalid bus type");
     err = FLASH_ERROR_HW_FAILURE;
     break;
   }
@@ -605,7 +605,7 @@ flash_error_t __n25q_init_impl(void *ip) {
     self->commands = &cmd4l;
     break;
   default:
-    osalDbgAssert(false, "invalid bus type");
+    chDbgAssert(false, "invalid bus type");
     self->commands = NULL;
     return FLASH_ERROR_HW_FAILURE;
   }
@@ -696,7 +696,7 @@ flash_error_t __n25q_init_impl(void *ip) {
         config->buffers->databuf[0] = 0x4FU;
         break;
       default:
-        osalDbgAssert(false, "invalid bus type");
+        chDbgAssert(false, "invalid bus type");
       }
       wspiSend(config->bus.wspi.drv, &cmd,
                1, &config->buffers->databuf[0]);
@@ -788,7 +788,7 @@ flash_error_t __n25q_read_impl(void *ip, flash_offset_t offset, size_t n,
   hal_xsnor_micron_n25q_c *self = (hal_xsnor_micron_n25q_c *)ip;
   flash_error_t err;
 
-  osalDbgAssert(self->state == FLASH_READ, "invalid state");
+  chDbgAssert(self->state == FLASH_READ, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -818,7 +818,7 @@ flash_error_t __n25q_program_impl(void *ip, flash_offset_t offset, size_t n,
   hal_xsnor_micron_n25q_c *self = (hal_xsnor_micron_n25q_c *)ip;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgAssert(self->state == FLASH_PGM, "invalid state");
+  chDbgAssert(self->state == FLASH_PGM, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -870,7 +870,7 @@ flash_error_t __n25q_program_impl(void *ip, flash_offset_t offset, size_t n,
 flash_error_t __n25q_start_erase_all_impl(void *ip) {
   hal_xsnor_micron_n25q_c *self = (hal_xsnor_micron_n25q_c *)ip;
 
-  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
+  chDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -901,7 +901,7 @@ flash_error_t __n25q_start_erase_sector_impl(void *ip, flash_sector_t sector) {
   hal_xsnor_micron_n25q_c *self = (hal_xsnor_micron_n25q_c *)ip;
   flash_offset_t offset = (flash_offset_t)(sector * self->descriptor.sectors_size);
 
-  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
+  chDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -945,7 +945,7 @@ flash_error_t __n25q_query_erase_impl(void *ip, unsigned *msec) {
   hal_xsnor_micron_n25q_c *self = (hal_xsnor_micron_n25q_c *)ip;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgAssert(self->state == FLASH_ERASE, "invalid state");
+  chDbgAssert(self->state == FLASH_ERASE, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -1001,7 +1001,7 @@ flash_error_t __n25q_verify_erase_impl(void *ip, flash_sector_t sector) {
   size_t n;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgAssert(self->state == FLASH_READ, "invalid state");
+  chDbgAssert(self->state == FLASH_READ, "invalid state");
 
   /* Read command.*/
   offset = (flash_offset_t)(sector * self->descriptor.sectors_size);
@@ -1104,7 +1104,7 @@ flash_error_t __n25q_mmap_on_impl(void *ip, uint8_t **addrp) {
                  WSPI_CFG_DATA_MODE_FOUR_LINES;
       break;
     default:
-      osalDbgAssert(false, "invalid bus type");
+      chDbgAssert(false, "invalid bus type");
       return FLASH_ERROR_HW_FAILURE;
     }
     wspiMapFlash(xsnorcfg->bus.wspi.drv, &cmd, addrp);

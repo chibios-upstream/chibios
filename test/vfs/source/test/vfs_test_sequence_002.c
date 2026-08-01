@@ -31,6 +31,7 @@
  *
  * <h2>Test Cases</h2>
  * - @subpage vfs_test_002_001
+ * - @subpage vfs_test_002_002
  * .
  */
 
@@ -41,6 +42,13 @@
 #include <string.h>
 
 #include "vfs.h"
+
+static const struct vfs_node_vmt vfs_test_node_vmt = {
+  .dispose = __vfsnode_dispose_impl,
+  .addref  = __ro_addref_impl,
+  .release = __ro_release_impl,
+  .stat    = __vfsnode_stat_impl
+};
 
 /*===========================================================================*/
 /* Test cases.                                                               */
@@ -54,7 +62,8 @@
  * has no process-aware driver interface.
  *
  * <h2>Test Steps</h2>
- * - [2.1.1] Stat dispatches through the file system VMT.
+ * - [2.1.1] Stat initializes the output and dispatches through the
+ *   file system VMT.
  * - [2.1.2] Directory open dispatches through the file system VMT.
  * - [2.1.3] File open dispatches its path and flags through the file
  *   system VMT.
@@ -77,16 +86,22 @@ static void vfs_test_002_001_execute(void) {
   vfs_file_node_c *fnp;
   msg_t ret;
 
-  /* [2.1.1] Stat dispatches through the file system VMT.*/
+  /* [2.1.1] Stat initializes the output and dispatches through the
+     file system VMT.*/
   test_set_step(1);
   {
     vfs_test_fs_reset();
+    memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&vfs_test_fs, "/stat", &stat);
     test_assert(ret == CH_RET_SUCCESS, "stat failed");
     test_assert(vfs_test_fs.operation == VFS_TEST_FS_OP_STAT,
                 "stat dispatch failed");
     test_assert(strcmp(vfs_test_fs.path, "/stat") == 0,
                 "stat path changed");
+    test_assert(stat.mode == VFS_MODE_S_IFREG, "stat mode changed");
+    test_assert(stat.size == (vfs_offset_t)1234, "stat size changed");
+    test_assert(vfs_test_stat_optional_is_clear(&stat),
+                "optional stat metadata not initialized");
   }
   test_end_step(1);
 
@@ -216,6 +231,48 @@ static const testcase_t vfs_test_002_001 = {
   vfs_test_002_001_execute
 };
 
+/**
+ * @page vfs_test_002_002 [2.2] Node information initialization
+ *
+ * <h2>Description</h2>
+ * Node information is initialized before dispatching through the node
+ * VMT.
+ *
+ * <h2>Test Steps</h2>
+ * - [2.2.1] Optional node information is cleared before the provider
+ *   runs.
+ * .
+ */
+
+static void vfs_test_002_002_execute(void) {
+  vfs_node_c node;
+  vfs_stat_t stat;
+  msg_t ret;
+
+  /* [2.2.1] Optional node information is cleared before the provider
+     runs.*/
+  test_set_step(1);
+  {
+    (void)__vfsnode_objinit_impl(
+        &node, &vfs_test_node_vmt, NULL, VFS_MODE_S_IFDIR);
+    memset(&stat, 0xA5, sizeof stat);
+    ret = vfsNodeStat(&node, &stat);
+    test_assert(ret == CH_RET_SUCCESS, "node stat failed");
+    test_assert(stat.mode == VFS_MODE_S_IFDIR, "node mode changed");
+    test_assert(stat.size == (vfs_offset_t)0, "node size changed");
+    test_assert(vfs_test_stat_optional_is_clear(&stat),
+                "optional node metadata not initialized");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_002_002 = {
+  "Node information initialization",
+  NULL,
+  NULL,
+  vfs_test_002_002_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -225,6 +282,7 @@ static const testcase_t vfs_test_002_001 = {
  */
 const testcase_t * const vfs_test_sequence_002_array[] = {
   &vfs_test_002_001,
+  &vfs_test_002_002,
   NULL
 };
 

@@ -24,19 +24,17 @@
 
 #include "hal.h"
 
-#if (OSAL_ST_MODE != OSAL_ST_MODE_NONE) || defined(__DOXYGEN__)
-
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
 
-#if OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING
+#if CH_CFG_ST_TIMEDELTA > 0
 
-#if (OSAL_ST_RESOLUTION != 16) && (OSAL_ST_RESOLUTION != 32)
+#if (CH_CFG_ST_RESOLUTION != 16) && (CH_CFG_ST_RESOLUTION != 32)
 #error "unsupported ST resolution"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32)
+#if (CH_CFG_ST_RESOLUTION == 32)
 #define ST_ARR_INIT                         0xFFFFFFFFU
 #else
 #define ST_ARR_INIT                         0x0000FFFFU
@@ -48,7 +46,7 @@
 #error "TIM1 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM1_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM1_IS_32BITS
 #error "TIM1 is not a 32bits timer"
 #endif
 
@@ -64,7 +62,7 @@
 #error "TIM2 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM2_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM2_IS_32BITS
 #error "TIM2 is not a 32bits timer"
 #endif
 
@@ -80,7 +78,7 @@
 #error "TIM3 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM3_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM3_IS_32BITS
 #error "TIM3 is not a 32bits timer"
 #endif
 
@@ -96,7 +94,7 @@
 #error "TIM4 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM4_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM4_IS_32BITS
 #error "TIM4 is not a 32bits timer"
 #endif
 
@@ -112,7 +110,7 @@
 #error "TIM5 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM5_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM5_IS_32BITS
 #error "TIM5 is not a 32bits timer"
 #endif
 
@@ -128,7 +126,7 @@
 #error "TIM8 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM2_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM2_IS_32BITS
 #error "TIM8 is not a 32bits timer"
 #endif
 
@@ -144,7 +142,7 @@
 #error "TIM9 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM9_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM9_IS_32BITS
 #error "TIM9 is not a 32bits timer"
 #endif
 
@@ -160,7 +158,7 @@
 #error "TIM10 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM10_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM10_IS_32BITS
 #error "TIM10 is not a 32bits timer"
 #endif
 
@@ -176,7 +174,7 @@
 #error "TIM11 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM11_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM11_IS_32BITS
 #error "TIM11 is not a 32bits timer"
 #endif
 
@@ -192,7 +190,7 @@
 #error "TIM12 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM12_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM12_IS_32BITS
 #error "TIM12 is not a 32bits timer"
 #endif
 
@@ -208,7 +206,7 @@
 #error "TIM13 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM13_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM13_IS_32BITS
 #error "TIM13 is not a 32bits timer"
 #endif
 
@@ -224,7 +222,7 @@
 #error "TIM14 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM14_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM14_IS_32BITS
 #error "TIM14 is not a 32bits timer"
 #endif
 
@@ -240,7 +238,7 @@
 #error "TIM15 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM15_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM15_IS_32BITS
 #error "TIM15 is not a 32bits timer"
 #endif
 
@@ -256,7 +254,7 @@
 #error "TIM16 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM16_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM16_IS_32BITS
 #error "TIM16 is not a 32bits timer"
 #endif
 
@@ -272,7 +270,7 @@
 #error "TIM17 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM17_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM17_IS_32BITS
 #error "TIM17 is not a 32bits timer"
 #endif
 
@@ -288,7 +286,7 @@
 #error "TIM21 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM21_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM21_IS_32BITS
 #error "TIM21 is not a 32bits timer"
 #endif
 
@@ -304,7 +302,7 @@
 #error "TIM22 not present in the selected device"
 #endif
 
-#if (OSAL_ST_RESOLUTION == 32) && !STM32_TIM22_IS_32BITS
+#if (CH_CFG_ST_RESOLUTION == 32) && !STM32_TIM22_IS_32BITS
 #error "TIM21 is not a 32bits timer"
 #endif
 
@@ -319,18 +317,18 @@
 #endif
 
 #if 0 /* TODO remove */
-#if ST_CLOCK_SRC % OSAL_ST_FREQUENCY != 0
+#if ST_CLOCK_SRC % CH_CFG_ST_FREQUENCY != 0
 #error "the selected ST frequency is not obtainable because integer rounding"
 #endif
 
-#if (ST_CLOCK_SRC / OSAL_ST_FREQUENCY) - 1 > 0xFFFF
+#if (ST_CLOCK_SRC / CH_CFG_ST_FREQUENCY) - 1 > 0xFFFF
 #error "the selected ST frequency is not obtainable because TIM timer prescaler limits"
 #endif
 #endif
 
-#endif /* OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING */
+#endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
-#if OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC
+#if CH_CFG_ST_TIMEDELTA == 0
 
 #define ST_HANDLER                          SysTick_Handler
 
@@ -340,15 +338,15 @@
 #define SYSTICK_CK                          STM32_HCLK
 #endif
 
-#if SYSTICK_CK % OSAL_ST_FREQUENCY != 0
+#if SYSTICK_CK % CH_CFG_ST_FREQUENCY != 0
 #error "the selected ST frequency is not obtainable because integer rounding"
 #endif
 
-#if (SYSTICK_CK / OSAL_ST_FREQUENCY) - 1 > 0xFFFFFF
+#if (SYSTICK_CK / CH_CFG_ST_FREQUENCY) - 1 > 0xFFFFFF
 #error "the selected ST frequency is not obtainable because SysTick timer counter limits"
 #endif
 
-#endif /* OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC */
+#endif /* CH_CFG_ST_TIMEDELTA == 0 */
 
 /*===========================================================================*/
 /* Driver exported variables.                                                */
@@ -376,13 +374,13 @@
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(ST_HANDLER) {
+CH_IRQ_HANDLER(ST_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   st_lld_serve_interrupt();
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -397,11 +395,11 @@ OSAL_IRQ_HANDLER(ST_HANDLER) {
  */
 void st_lld_init(void) {
 
-#if OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING
+#if CH_CFG_ST_TIMEDELTA > 0
   /* Free running counter mode.*/
-  osalDbgAssert((ST_CLOCK_SRC % OSAL_ST_FREQUENCY) == 0U,
+  chDbgAssert((ST_CLOCK_SRC % CH_CFG_ST_FREQUENCY) == 0U,
                 "clock rounding error");
-  osalDbgAssert(((ST_CLOCK_SRC / OSAL_ST_FREQUENCY) - 1U) < 0x10000,
+  chDbgAssert(((ST_CLOCK_SRC / CH_CFG_ST_FREQUENCY) - 1U) < 0x10000,
                 "clock prescaler overflow");
 
   /* Enabling timer clock.*/
@@ -411,7 +409,7 @@ void st_lld_init(void) {
   ST_ENABLE_STOP();
 
   /* Initializing the counter in free running mode.*/
-  STM32_ST_TIM->PSC    = (ST_CLOCK_SRC / OSAL_ST_FREQUENCY) - 1;
+  STM32_ST_TIM->PSC    = (ST_CLOCK_SRC / CH_CFG_ST_FREQUENCY) - 1;
   STM32_ST_TIM->ARR    = ST_ARR_INIT;
   STM32_ST_TIM->CCMR1  = 0;
   STM32_ST_TIM->CCR[0] = 0;
@@ -433,12 +431,12 @@ void st_lld_init(void) {
   /* IRQ enabled.*/
   nvicEnableVector(ST_NUMBER, STM32_ST_IRQ_PRIORITY);
 #endif
-#endif /* OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING */
+#endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
-#if OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC
+#if CH_CFG_ST_TIMEDELTA == 0
   /* Periodic systick mode, the Cortex-Mx internal systick timer is used
      in this mode.*/
-  SysTick->LOAD = (SYSTICK_CK / OSAL_ST_FREQUENCY) - 1;
+  SysTick->LOAD = (SYSTICK_CK / CH_CFG_ST_FREQUENCY) - 1;
   SysTick->VAL = 0;
   SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk |
                   SysTick_CTRL_ENABLE_Msk |
@@ -446,14 +444,14 @@ void st_lld_init(void) {
 
   /* IRQ enabled.*/
   nvicSetSystemHandlerPriority(HANDLER_SYSTICK, STM32_ST_IRQ_PRIORITY);
-#endif /* OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC */
+#endif /* CH_CFG_ST_TIMEDELTA == 0 */
 }
 
 /**
  * @brief   IRQ handling code.
  */
 void st_lld_serve_interrupt(void) {
-#if OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING
+#if CH_CFG_ST_TIMEDELTA > 0
   uint32_t sr;
   stm32_tim_t *timp = STM32_ST_TIM;
 
@@ -464,11 +462,11 @@ void st_lld_serve_interrupt(void) {
   if ((sr & TIM_SR_CC1IF) != 0U)
 #endif
   {
-    osalSysLockFromISR();
-    osalOsTimerHandlerI();
-    osalSysUnlockFromISR();
+    chSysLockFromISR();
+    chSysTimerHandlerI();
+    chSysUnlockFromISR();
   }
-#if OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING
+#if CH_CFG_ST_TIMEDELTA > 0
 #if ST_LLD_NUM_ALARMS > 1
   if ((sr & TIM_SR_CC2IF) != 0U) {
     if (st_callbacks[1] != NULL) {
@@ -492,7 +490,5 @@ void st_lld_serve_interrupt(void) {
 #endif
 #endif
 }
-
-#endif /* OSAL_ST_MODE != OSAL_ST_MODE_NONE */
 
 /** @} */

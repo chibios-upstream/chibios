@@ -321,42 +321,42 @@
 
 /* Check on the validity of the assigned GPDMA channels.*/
 #if STM32_DAC_USE_DAC1_CH1 &&                                               \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC1_CH1_DMA_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC1_CH1_DMA_PRIORITY)
 #error "Invalid DMA priority assigned to DAC1 CH1"
 #endif
 
 #if STM32_DAC_USE_DAC1_CH2 &&                                               \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC1_CH2_DMA_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC1_CH2_DMA_PRIORITY)
 #error "Invalid DMA priority assigned to DAC1 CH2"
 #endif
 
 #if STM32_DAC_USE_DAC2_CH1 &&                                               \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC2_CH1_DMA_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC2_CH1_DMA_PRIORITY)
 #error "Invalid DMA priority assigned to DAC2 CH1"
 #endif
 
 #if STM32_DAC_USE_DAC2_CH2 &&                                               \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC2_CH2_DMA_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC2_CH2_DMA_PRIORITY)
 #error "Invalid DMA priority assigned to DAC2 CH2"
 #endif
 
 #if STM32_DAC_USE_DAC3_CH1 &&                                               \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC3_CH1_DMA_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC3_CH1_DMA_PRIORITY)
 #error "Invalid DMA priority assigned to DAC3 CH1"
 #endif
 
 #if STM32_DAC_USE_DAC3_CH2 &&                                               \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC3_CH2_DMA_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC3_CH2_DMA_PRIORITY)
 #error "Invalid DMA priority assigned to DAC3 CH2"
 #endif
 
 #if STM32_DAC_USE_DAC4_CH1 &&                                               \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC4_CH1_DMA_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC4_CH1_DMA_PRIORITY)
 #error "Invalid DMA priority assigned to DAC4 CH1"
 #endif
 
 #if STM32_DAC_USE_DAC4_CH2 &&                                               \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC4_CH2_DMA_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_DAC_DAC4_CH2_DMA_PRIORITY)
 #error "Invalid DMA priority assigned to DAC4 CH2"
 #endif
 

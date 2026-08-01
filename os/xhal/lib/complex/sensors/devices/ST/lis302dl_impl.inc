@@ -118,7 +118,7 @@ static msg_t lis302dlSPIReadRegister(const lis302dl_config_t *config,
   uint8_t cmd;
   msg_t msg;
 
-  osalDbgCheck((config != NULL) && (n > 0U) && (bp != NULL));
+  chDbgCheck((config != NULL) && (n > 0U) && (bp != NULL));
 
   cmd = (n == 1U) ? (reg | LIS302DL_RW) :
                     (reg | LIS302DL_RW | LIS302DL_MS);
@@ -139,7 +139,7 @@ static msg_t lis302dlSPIWriteRegister(const lis302dl_config_t *config,
   uint8_t cmd;
   msg_t msg;
 
-  osalDbgCheck((config != NULL) && (n > 0U) && (bp != NULL));
+  chDbgCheck((config != NULL) && (n > 0U) && (bp != NULL));
 
   cmd = (n == 1U) ? reg : (reg | LIS302DL_MS);
 
@@ -230,7 +230,7 @@ static msg_t lis302dlApplyConfig(lis302dl_driver_c *self,
 static size_t __lis302dl_accl_get_channels_number_impl(void *ip) {
   lis302dl_driver_c *self = oopIfGetOwner(lis302dl_driver_c, ip);
 
-  osalDbgCheck(ip != NULL);
+  chDbgCheck(ip != NULL);
 
   return self->accaxes;
 }
@@ -250,9 +250,9 @@ static msg_t __lis302dl_accl_read_raw_impl(void *ip, int32_t *data) {
   size_t i;
   msg_t msg;
 
-  osalDbgCheck((ip != NULL) && (data != NULL));
+  chDbgCheck((ip != NULL) && (data != NULL));
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   if (self->state != HAL_DRV_STATE_READY) {
     return HAL_RET_INV_STATE;
   }
@@ -289,9 +289,9 @@ static msg_t __lis302dl_accl_read_cooked_impl(void *ip, float *data) {
   size_t i;
   msg_t msg;
 
-  osalDbgCheck((ip != NULL) && (data != NULL));
+  chDbgCheck((ip != NULL) && (data != NULL));
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   if (self->state != HAL_DRV_STATE_READY) {
     return HAL_RET_INV_STATE;
   }
@@ -321,9 +321,9 @@ static msg_t __lis302dl_accl_set_bias_impl(void *ip,
   lis302dl_driver_c *self = oopIfGetOwner(lis302dl_driver_c, ip);
   size_t i;
 
-  osalDbgCheck((ip != NULL) && (biases != NULL));
+  chDbgCheck((ip != NULL) && (biases != NULL));
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   if (self->state != HAL_DRV_STATE_READY) {
     return HAL_RET_INV_STATE;
   }
@@ -347,9 +347,9 @@ static msg_t __lis302dl_accl_reset_bias_impl(void *ip) {
   lis302dl_driver_c *self = oopIfGetOwner(lis302dl_driver_c, ip);
   size_t i;
 
-  osalDbgCheck(ip != NULL);
+  chDbgCheck(ip != NULL);
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   if (self->state != HAL_DRV_STATE_READY) {
     return HAL_RET_INV_STATE;
   }
@@ -375,9 +375,9 @@ static msg_t __lis302dl_accl_set_sensitivity_impl(void *ip,
   lis302dl_driver_c *self = oopIfGetOwner(lis302dl_driver_c, ip);
   size_t i;
 
-  osalDbgCheck((ip != NULL) && (sensitivities != NULL));
+  chDbgCheck((ip != NULL) && (sensitivities != NULL));
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   if (self->state != HAL_DRV_STATE_READY) {
     return HAL_RET_INV_STATE;
   }
@@ -402,9 +402,9 @@ static msg_t __lis302dl_accl_reset_sensitivity_impl(void *ip) {
   float sensitivity;
   size_t i;
 
-  osalDbgCheck(ip != NULL);
+  chDbgCheck(ip != NULL);
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   if (self->state != HAL_DRV_STATE_READY) {
     return HAL_RET_INV_STATE;
   }
@@ -495,7 +495,7 @@ msg_t __lis302dl_start_impl(void *ip, const void *config) {
   msg = lis302dlApplyConfig(self, (const lis302dl_config_t *)config);
   if (msg == HAL_RET_SUCCESS) {
     self->config = config;
-    osalThreadSleepMilliseconds(10);
+    chThdSleepMilliseconds(10);
   }
 
   return msg;
@@ -589,9 +589,9 @@ msg_t lis302dlSetFullScale(void *ip, lis302dl_acc_fs_t fs) {
   size_t i;
   msg_t msg;
 
-  osalDbgCheck(ip != NULL);
+  chDbgCheck(ip != NULL);
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
   if (self->state != HAL_DRV_STATE_READY) {
     return HAL_RET_INV_STATE;
   }

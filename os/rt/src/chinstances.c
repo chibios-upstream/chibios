@@ -186,7 +186,8 @@ void chInstanceObjectInit(os_instance_t *oip,
     /* This thread has the lowest priority in the system, its role is just to
        serve interrupts in its context while keeping the lowest energy saving
        mode compatible with the system status.*/
-    (void) chThdSpawnRunningI(&oip->idlethread, &idle_thd_desc);
+    (void) chSchReadyI(__thd_spawn_suspended(&oip->idlethread,
+                                             &idle_thd_desc));
   }
 #endif /* CH_CFG_NO_IDLE_THREAD == FALSE */
 }

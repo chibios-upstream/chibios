@@ -150,10 +150,10 @@ extern "C" {
  * @param[out]    sp            Pointer to a @p vfs_stat_t structure.
  * @return                      The operation result.
  *
- * @api
+ * @notapi
  */
 CC_FORCE_INLINE
-static inline msg_t vfsFSStat(void *ip, const char *path, vfs_stat_t *sp) {
+static inline msg_t __vfsfs_stat(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_fs_c *self = (vfs_fs_c *)ip;
 
   return self->vmt->stat(ip, path, sp);
@@ -263,6 +263,33 @@ static inline msg_t vfsFSRmdir(void *ip, const char *path) {
   vfs_fs_c *self = (vfs_fs_c *)ip;
 
   return self->vmt->rmdir(ip, path);
+}
+/** @} */
+
+/**
+ * @name        Inline methods of vfs_fs_c
+ * @{
+ */
+/**
+ * @brief       Returns file or directory information.
+ * @details     The output structure is initialized before invoking the file
+ *              system implementation. Optional fields are reported only when
+ *              the corresponding validity flags are set.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_fs_c instance.
+ * @param[in]     path          Absolute path of the node to be examined.
+ * @param[out]    sp            Pointer to a @p vfs_stat_t structure.
+ * @return                      The operation result.
+ *
+ * @api
+ */
+CC_FORCE_INLINE
+static inline msg_t vfsFSStat(void *ip, const char *path, vfs_stat_t *sp) {
+  vfs_fs_c *self = (vfs_fs_c *)ip;
+
+  *sp = (vfs_stat_t) {0};
+
+  return __vfsfs_stat(self, path, sp);
 }
 /** @} */
 

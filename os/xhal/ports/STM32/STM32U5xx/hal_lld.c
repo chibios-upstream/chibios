@@ -1212,9 +1212,9 @@ void stm32_otg2_phy_start(void) {
 
   /* The digital and analog PHY blocks require separate startup delays.*/
   SYSCFG->OTGHSPHYCR |= SYSCFG_OTGHSPHYCR_EN;
-  osalSysPolledDelayX(OSAL_MS2RTC(STM32_HCLK, 2U));
+  chSysPolledDelayX(MS2RTC(STM32_HCLK, 2U));
   SYSCFG->OTGHSPHYCR |= SYSCFG_OTGHSPHYCR_PDCTRL;
-  osalSysPolledDelayX(OSAL_MS2RTC(STM32_HCLK, 2U));
+  chSysPolledDelayX(MS2RTC(STM32_HCLK, 2U));
 }
 
 /**
@@ -1310,7 +1310,7 @@ bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
  */
 halfreq_t hal_lld_get_clock_point(halclkpt_t clkpt) {
 
-  osalDbgAssert(clkpt < CLK_ARRAY_SIZE, "invalid clock point");
+  chDbgAssert(clkpt < CLK_ARRAY_SIZE, "invalid clock point");
 
   return clock_points[clkpt];
 }

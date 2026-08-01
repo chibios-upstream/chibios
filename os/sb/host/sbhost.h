@@ -211,6 +211,9 @@ static inline void sbSetRoot(sb_class_t *sbp, vfs_root_c *rootp) {
 /**
  * @brief   Registers a file descriptor on a sandbox.
  * @pre     The sandbox must be in @p SB_STATE_STOPPED state.
+ * @note    Ownership of the node reference is transferred to the sandbox.
+ *          The reference is released on sandbox termination or if the next
+ *          start operation fails.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] fd        file descriptor to be assigned

@@ -67,7 +67,8 @@ typedef struct {
    */
   stkline_t                     *wend;
   /**
-   * @brief   Thread priority.
+   * @brief   Thread priority, from @p LOWPRIO through @p HIGHPRIO for
+   *          user threads.
    */
   tprio_t                       prio;
   /**
@@ -435,6 +436,8 @@ extern "C" {
 #if CH_DBG_FILL_THREADS == TRUE
   void __thd_stackfill(uint8_t *startp, uint8_t *endp);
 #endif
+  thread_t *__thd_spawn_suspended(thread_t *tp,
+                                  const thread_descriptor_t *tdp);
   thread_t *chThdObjectInit(thread_t *tp, const thread_descriptor_t *tdp);
   void chThdObjectDispose(thread_t *tp);
   thread_t *chThdSpawnSuspendedI(thread_t *tp,
@@ -461,6 +464,7 @@ extern "C" {
   msg_t chThdSync(thread_t *tp);
   msg_t chThdWait(thread_t *tp);
 #endif
+  tprio_t __thd_set_priority(thread_t *tp, tprio_t newprio);
   tprio_t chThdSetPriority(tprio_t newprio);
   void chThdTerminate(thread_t *tp);
   msg_t chThdSuspendS(thread_reference_t *trp);

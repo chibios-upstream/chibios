@@ -1591,6 +1591,9 @@ int32 OS_MutSemCreate(uint32 *sem_id, const char *sem_name, uint32 options) {
  *
  * @param[in] sem_id            mutex id variable
  * @return                      An error code.
+ * @retval OS_SUCCESS           if the mutex has been deleted
+ * @retval OS_ERR_INVALID_ID    if @p sem_id is not a valid mutex
+ * @retval OS_SEM_FAILURE       if the mutex is owned or contended
  *
  * @api
  */
@@ -1605,15 +1608,24 @@ int32 OS_MutSemDelete(uint32 sem_id) {
 
   chSysLock();
 
-  /* Resetting the mutex, no threads in queue.*/
-  chMtxUnlockAllS();
+  /* If the mutex is not in use then error.*/
+  if (mp->queue.prev == NULL) {
+    chSysUnlock();
+    return OS_ERR_INVALID_ID;
+  }
+
+  /* An owned or contended mutex cannot be deleted.*/
+  if ((chMtxGetOwnerI(mp) != NULL) || chMtxQueueNotEmptyS(mp)) {
+    chSysUnlock();
+    return OS_SEM_FAILURE;
+  }
+
+  /* Disposing the target mutex.*/
+  chMtxObjectDispose(mp);
 
   /* Flagging it as unused and returning it to the pool.*/
   mp->queue.prev = NULL;
   chPoolFreeI(&osal.mutexes_pool, (void *)mp);
-
-  /* Required because some thread could have been made ready.*/
-  chSchRescheduleS();
 
   chSysUnlock();
 
@@ -1646,7 +1658,6 @@ int32 OS_MutSemGive(uint32 sem_id) {
   }
 
   chMtxUnlockS(mp);
-  chSchRescheduleS();
 
   chSysUnlock();
 
@@ -1998,10 +2009,6 @@ int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority) {
     rt_newprio = 2;
   }
 
-  if (chThdGetPriorityX() == rt_newprio) {
-    return OS_SUCCESS;
-  }
-
   /* Check for thread validity.*/
   tp = chRegFindThreadByPointer(tp);
   if (tp == NULL) {
@@ -2010,41 +2017,11 @@ int32 OS_TaskSetPriority(uint32 task_id, uint32 new_priority) {
 
   chSysLock();
 
-  /* Changing priority.*/
-  if ((tp->hdr.pqueue.prio == tp->realprio) ||
-      (rt_newprio > tp->hdr.pqueue.prio)) {
-    tp->hdr.pqueue.prio = rt_newprio;
-  }
-  tp->realprio = rt_newprio;
-
-  /* The following states need priority queues reordering.*/
-  switch (tp->state) {
-  case CH_STATE_WTMTX:
-#if CH_CFG_USE_CONDVARS
-  case CH_STATE_WTCOND:
-#endif
-#if CH_CFG_USE_SEMAPHORES_PRIORITY
-  case CH_STATE_WTSEM:
-#endif
-#if CH_CFG_USE_MESSAGES && CH_CFG_USE_MESSAGES_PRIORITY
-  case CH_STATE_SNDMSGQ:
-#endif
-    /* Re-enqueues tp with its new priority on the queue.*/
-    ch_sch_prio_insert((ch_queue_t *)tp->u.wtobjp,
-                       ch_queue_dequeue(&tp->hdr.queue));
-    break;
-  case CH_STATE_READY:
-#if CH_DBG_ENABLE_ASSERTS
-    /* Prevents an assertion in chSchReadyI().*/
-    tp->state = CH_STATE_CURRENT;
-#endif
-    /* Re-enqueues tp with its new priority on the ready list.*/
-    chSchReadyI((thread_t *)ch_queue_dequeue(&tp->hdr.queue));
-    break;
+  /* Changing the target priority if required.*/
+  if (tp->realprio != rt_newprio) {
+    (void) __thd_set_priority(tp, rt_newprio);
   }
 
-  /* Rescheduling.*/
-  chSchRescheduleS();
   chSysUnlock();
 
   /* Releasing the thread reference.*/

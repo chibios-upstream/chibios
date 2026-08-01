@@ -93,9 +93,9 @@ static inline void tim1_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_TIM1_SHARED_HANDLER) {
+CH_IRQ_HANDLER(STM32_TIM1_SHARED_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
 #if HAL_USE_GPT
 #if STM32_GPT_USE_TIM1
@@ -120,7 +120,7 @@ OSAL_IRQ_HANDLER(STM32_TIM1_SHARED_HANDLER) {
 #endif
 #endif
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 #endif

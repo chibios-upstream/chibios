@@ -89,8 +89,8 @@ static flash_error_t __flash_fls_read_impl(void *ip, flash_offset_t offset,
   hal_flash_base_c *self = oopIfGetOwner(hal_flash_base_c, ip);
   flash_error_t err;
 
-  osalDbgCheck((self != NULL) && (rp != NULL) && (n > 0U));
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+  chDbgCheck((self != NULL) && (rp != NULL) && (n > 0U));
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
                 "invalid state");
 
   if (self->state == FLASH_ERASE) {
@@ -119,8 +119,8 @@ static flash_error_t __flash_fls_program_impl(void *ip, flash_offset_t offset,
   hal_flash_base_c *self = oopIfGetOwner(hal_flash_base_c, ip);
   flash_error_t err;
 
-  osalDbgCheck((self != NULL) && (pp != NULL) && (n > 0U));
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+  chDbgCheck((self != NULL) && (pp != NULL) && (n > 0U));
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
                 "invalid state");
 
   if (self->state == FLASH_ERASE) {
@@ -145,8 +145,8 @@ static flash_error_t __flash_fls_start_erase_all_impl(void *ip) {
   hal_flash_base_c *self = oopIfGetOwner(hal_flash_base_c, ip);
   flash_error_t err;
 
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
                 "invalid state");
 
   if (self->state == FLASH_ERASE) {
@@ -175,8 +175,8 @@ static flash_error_t __flash_fls_start_erase_sector_impl(void *ip,
   hal_flash_base_c *self = oopIfGetOwner(hal_flash_base_c, ip);
   flash_error_t err;
 
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
                 "invalid state");
 
   if (self->state == FLASH_ERASE) {
@@ -205,8 +205,8 @@ static flash_error_t __flash_fls_query_erase_impl(void *ip, unsigned *msec) {
   hal_flash_base_c *self = oopIfGetOwner(hal_flash_base_c, ip);
   flash_error_t err;
 
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
                 "invalid state");
 
   if (self->state == FLASH_ERASE) {
@@ -235,8 +235,8 @@ static flash_error_t __flash_fls_verify_erase_impl(void *ip,
   hal_flash_base_c *self = oopIfGetOwner(hal_flash_base_c, ip);
   flash_error_t err;
 
-  osalDbgCheck(self != NULL);
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
+  chDbgCheck(self != NULL);
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) || (self->state == FLASH_ERASE),
                 "invalid state");
 
   if (self->state == FLASH_ERASE) {
@@ -260,7 +260,7 @@ static flash_error_t __flash_fls_verify_erase_impl(void *ip,
 static flash_error_t __flash_fls_acquire_exclusive_impl(void *ip) {
   hal_flash_base_c *self = oopIfGetOwner(hal_flash_base_c, ip);
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 #if HAL_USE_MUTUAL_EXCLUSION == TRUE
   drvLock(self);
 #endif
@@ -278,7 +278,7 @@ static flash_error_t __flash_fls_acquire_exclusive_impl(void *ip) {
 static flash_error_t __flash_fls_release_exclusive_impl(void *ip) {
   hal_flash_base_c *self = oopIfGetOwner(hal_flash_base_c, ip);
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 #if HAL_USE_MUTUAL_EXCLUSION == TRUE
   drvUnlock(self);
 #endif
@@ -374,7 +374,7 @@ flash_error_t flashWaitErase(void *ip) {
       return err;
     }
 
-    osalThreadSleepMilliseconds(msec);
+    chThdSleepMilliseconds(msec);
   }
 }
 
@@ -390,7 +390,7 @@ flash_offset_t flashGetSectorOffset(void *ip, flash_sector_t sector) {
   flash_offset_t offset;
   const flash_descriptor_t *descriptor = &self->descriptor;
 
-  osalDbgAssert(sector < descriptor->sectors_count, "invalid sector");
+  chDbgAssert(sector < descriptor->sectors_count, "invalid sector");
 
   if (descriptor->sectors != NULL) {
     offset = descriptor->sectors[sector].offset;
@@ -414,7 +414,7 @@ uint32_t flashGetSectorSize(void *ip, flash_sector_t sector) {
   uint32_t size;
   const flash_descriptor_t *descriptor = &self->descriptor;
 
-  osalDbgAssert(sector < descriptor->sectors_count, "invalid sector");
+  chDbgAssert(sector < descriptor->sectors_count, "invalid sector");
 
   if (descriptor->sectors != NULL) {
     size = descriptor->sectors[sector].size;
@@ -438,7 +438,7 @@ flash_sector_t flashGetOffsetSector(void *ip, flash_offset_t offset) {
   flash_sector_t sector, i;
   const flash_descriptor_t *descriptor = &self->descriptor;
 
-  osalDbgAssert(offset < descriptor->size, "invalid offset");
+  chDbgAssert(offset < descriptor->size, "invalid offset");
 
   if (descriptor->sectors != NULL) {
     flash_offset_t sector_start;
@@ -457,7 +457,7 @@ flash_sector_t flashGetOffsetSector(void *ip, flash_offset_t offset) {
     return sector;
   }
 
-  osalDbgAssert(false, "invalid offset");
+  chDbgAssert(false, "invalid offset");
 
   return 0U;
 }
@@ -474,7 +474,7 @@ void *flashGetOffsetAddress(void *ip, flash_offset_t offset) {
   hal_flash_base_c *self = (hal_flash_base_c *)ip;
   const flash_descriptor_t *descriptor = &self->descriptor;
 
-  osalDbgAssert(offset < descriptor->size, "invalid offset");
+  chDbgAssert(offset < descriptor->size, "invalid offset");
 
   return (void *)(descriptor->address + offset);
 }
@@ -493,7 +493,7 @@ flash_offset_t flashGetAddressOffset(void *ip, void *addr) {
   uintptr_t addr_value = (uintptr_t)addr;
   uintptr_t base_value = (uintptr_t)descriptor->address;
 
-  osalDbgAssert((addr_value >= base_value) &&
+  chDbgAssert((addr_value >= base_value) &&
                 (addr_value < (base_value + (uintptr_t)descriptor->size)),
                 "invalid address");
 

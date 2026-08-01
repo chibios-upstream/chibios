@@ -7,6 +7,8 @@ sandbox.
 Related: [note_sb_isolation_security.md](note_sb_isolation_security.md)
 (margin 1, TOCTOU — the worker introduced here is a software instance of
 the DMA case described there).
+Implementation status and remaining work are tracked only in
+[open_points.md](open_points.md).
 
 ## Background: the guest threading model
 
@@ -157,18 +159,8 @@ SB saturating the pool with slow operations). With few SBs per system:
 The worker inherits the SB thread's priority (avoids inversion against
 other SBs' workers and host threads).
 
-## Open items
+## Implementation tracking
 
-- Define the submission-slot ABI (slot table layout, status codes,
-  cancellation semantics) and which VFS operations get async variants
-  first (`read`/`write` on block-backed files are the offenders;
-  `open` involves path resolution and can also be slow).
-- Decide the one-in-flight-per-FD question (simplest: yes, reject
-  overlapping ops on the same descriptor).
-- Define the operation-specific cancellation and drain mechanics. The generic
-  lifecycle ordering is fixed: after `sbSync()`, in-flight slots must be
-  cancelled, or detached without retaining any sandbox reference, before
-  `sbFinalize()` releases dynamic sandbox memory and permits the new instance
-  to start.
-- Guest runtime: green-thread wait/wake integration with the completion
-  VRQ, and the idle policy (`vrq_wait`).
+This note defines the design and constraints. The authoritative list of
+remaining implementation decisions and validation work is the Async VFS
+section in [open_points.md](open_points.md).

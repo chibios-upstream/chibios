@@ -94,8 +94,8 @@ void *__can_objinit_impl(void *ip, const void *vmt) {
   self->tx_error_mask   = 0U;
   self->errors          = 0U;
 #if CAN_USE_SYNCHRONIZATION == TRUE
-  osalThreadQueueObjectInit(&self->txqueue);
-  osalThreadQueueObjectInit(&self->rxqueue);
+  chThdQueueObjectInit(&self->txqueue);
+  chThdQueueObjectInit(&self->rxqueue);
 #endif
 
 #if defined(CAN_DRIVER_EXT_INIT_HOOK)
@@ -163,11 +163,11 @@ void __can_stop_impl(void *ip) {
   can_lld_stop(self);
   can_lld_reset(self);
 #if CAN_USE_SYNCHRONIZATION == TRUE
-  osalSysLock();
-  osalThreadDequeueAllI(&self->rxqueue, MSG_RESET);
-  osalThreadDequeueAllI(&self->txqueue, MSG_RESET);
-  osalOsRescheduleS();
-  osalSysUnlock();
+  chSysLock();
+  chThdDequeueAllI(&self->rxqueue, MSG_RESET);
+  chThdDequeueAllI(&self->txqueue, MSG_RESET);
+  chSchRescheduleS();
+  chSysUnlock();
 #endif
 }
 
@@ -240,10 +240,10 @@ const struct hal_can_driver_vmt __hal_can_driver_vmt = {
  */
 bool canTryTransmitI(void *ip, canmbx_t mailbox, const CANTxFrame *ctfp) {
   hal_can_driver_c *self = (hal_can_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (ctfp != NULL) &&
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (ctfp != NULL) &&
                (mailbox <= (canmbx_t)CAN_TX_MAILBOXES));
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == CAN_SLEEP),
                 "invalid state");
 
@@ -270,10 +270,10 @@ bool canTryTransmitI(void *ip, canmbx_t mailbox, const CANTxFrame *ctfp) {
  */
 bool canTryReceiveI(void *ip, canmbx_t mailbox, CANRxFrame *crfp) {
   hal_can_driver_c *self = (hal_can_driver_c *)ip;
-  osalDbgCheckClassI();
-  osalDbgCheck((self != NULL) && (crfp != NULL) &&
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (crfp != NULL) &&
                (mailbox <= (canmbx_t)CAN_RX_MAILBOXES));
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == CAN_SLEEP),
                 "invalid state");
 
@@ -296,7 +296,7 @@ bool canTryReceiveI(void *ip, canmbx_t mailbox, CANRxFrame *crfp) {
  */
 void canTryAbortX(void *ip, canmbx_t mailbox) {
   hal_can_driver_c *self = (hal_can_driver_c *)ip;
-  osalDbgCheck((self != NULL) &&
+  chDbgCheck((self != NULL) &&
                (mailbox != CAN_ANY_MAILBOX) &&
                (mailbox <= (canmbx_t)CAN_TX_MAILBOXES));
 
@@ -318,24 +318,24 @@ void canTryAbortX(void *ip, canmbx_t mailbox) {
 msg_t canTransmitTimeout(void *ip, canmbx_t mailbox, const CANTxFrame *ctfp,
                          sysinterval_t timeout) {
   hal_can_driver_c *self = (hal_can_driver_c *)ip;
-  osalDbgCheck((self != NULL) && (ctfp != NULL) &&
+  chDbgCheck((self != NULL) && (ctfp != NULL) &&
                (mailbox <= (canmbx_t)CAN_TX_MAILBOXES));
 
-  osalSysLock();
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chSysLock();
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == CAN_SLEEP),
                 "invalid state");
 
   while ((self->state == CAN_SLEEP) || !can_lld_is_tx_empty(self, mailbox)) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&self->txqueue, timeout);
+    msg_t msg = chThdEnqueueTimeoutS(&self->txqueue, timeout);
     if (msg != MSG_OK) {
-      osalSysUnlock();
+      chSysUnlock();
       return msg;
     }
   }
 
   can_lld_transmit(self, mailbox, ctfp);
-  osalSysUnlock();
+  chSysUnlock();
 
   return MSG_OK;
 }
@@ -354,24 +354,24 @@ msg_t canTransmitTimeout(void *ip, canmbx_t mailbox, const CANTxFrame *ctfp,
 msg_t canReceiveTimeout(void *ip, canmbx_t mailbox, CANRxFrame *crfp,
                         sysinterval_t timeout) {
   hal_can_driver_c *self = (hal_can_driver_c *)ip;
-  osalDbgCheck((self != NULL) && (crfp != NULL) &&
+  chDbgCheck((self != NULL) && (crfp != NULL) &&
                (mailbox <= (canmbx_t)CAN_RX_MAILBOXES));
 
-  osalSysLock();
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chSysLock();
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == CAN_SLEEP),
                 "invalid state");
 
   while ((self->state == CAN_SLEEP) || !can_lld_is_rx_nonempty(self, mailbox)) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&self->rxqueue, timeout);
+    msg_t msg = chThdEnqueueTimeoutS(&self->rxqueue, timeout);
     if (msg != MSG_OK) {
-      osalSysUnlock();
+      chSysUnlock();
       return msg;
     }
   }
 
   can_lld_receive(self, mailbox, crfp);
-  osalSysUnlock();
+  chSysUnlock();
 
   return MSG_OK;
 }
@@ -387,10 +387,10 @@ msg_t canReceiveTimeout(void *ip, canmbx_t mailbox, CANRxFrame *crfp,
  */
 void canSleep(void *ip) {
   hal_can_driver_c *self = (hal_can_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chSysLock();
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == CAN_SLEEP),
                 "invalid state");
   if (self->state == HAL_DRV_STATE_READY) {
@@ -398,7 +398,7 @@ void canSleep(void *ip) {
     self->state = CAN_SLEEP;
     self->events |= CAN_EVENT_SLEEP;
   }
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -410,10 +410,10 @@ void canSleep(void *ip) {
  */
 void canWakeup(void *ip) {
   hal_can_driver_c *self = (hal_can_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chSysLock();
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == CAN_SLEEP),
                 "invalid state");
   if (self->state == CAN_SLEEP) {
@@ -421,7 +421,7 @@ void canWakeup(void *ip) {
     self->state = HAL_DRV_STATE_READY;
     self->events |= CAN_EVENT_WAKEUP;
   }
-  osalSysUnlock();
+  chSysUnlock();
 }
 #endif /* CAN_USE_SLEEP_MODE == TRUE */
 /** @} */

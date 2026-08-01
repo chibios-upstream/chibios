@@ -120,7 +120,7 @@
 #endif
 
 #if !defined(STM32_I2S_DMA_ERROR_HOOK) || defined(__DOXYGEN__)
-#define STM32_I2S_DMA_ERROR_HOOK(i2sp)      osalSysHalt("DMA failure")
+#define STM32_I2S_DMA_ERROR_HOOK(i2sp)      chSysHalt("DMA failure")
 #endif
 /** @} */
 
@@ -186,15 +186,15 @@
 #error "I2S3 RX and TX mode not supported in this driver implementation"
 #endif
 
-#if STM32_I2S_USE_SPI1 && !OSAL_IRQ_IS_VALID_PRIORITY(STM32_I2S_SPI1_IRQ_PRIORITY)
+#if STM32_I2S_USE_SPI1 && !CH_IRQ_IS_VALID_PRIORITY(STM32_I2S_SPI1_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI1"
 #endif
 
-#if STM32_I2S_USE_SPI2 && !OSAL_IRQ_IS_VALID_PRIORITY(STM32_I2S_SPI2_IRQ_PRIORITY)
+#if STM32_I2S_USE_SPI2 && !CH_IRQ_IS_VALID_PRIORITY(STM32_I2S_SPI2_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI2"
 #endif
 
-#if STM32_I2S_USE_SPI3 && !OSAL_IRQ_IS_VALID_PRIORITY(STM32_I2S_SPI3_IRQ_PRIORITY)
+#if STM32_I2S_USE_SPI3 && !CH_IRQ_IS_VALID_PRIORITY(STM32_I2S_SPI3_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI3"
 #endif
 

@@ -323,7 +323,7 @@ void __ovldir_dispose_impl(void *ip) {
 msg_t __ovldir_stat_impl(void *ip, vfs_stat_t *sp) {
   vfs_overlay_dir_node_c *self = (vfs_overlay_dir_node_c *)ip;
 
-  return __vfsnode_stat_impl(self, sp); /* TODO */
+  return __vfsnode_stat_impl(self, sp);
 }
 
 /**
@@ -491,8 +491,14 @@ msg_t __ovldrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
     /* Skipping the root separator.*/
     scanpath = self->buf + 1;
 
-    /* If it is not root checking among mounted drivers.*/
-    if (*scanpath != '\0') {
+    /* The root is a synthetic directory representing the merged view.*/
+    if (*scanpath == '\0') {
+      sp->mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR;
+      sp->size = (vfs_offset_t)0;
+      ret = CH_RET_SUCCESS;
+      break;
+    }
+    else {
       vfs_fs_c *fsp;
 
       /* Searching for a match among registered overlays.*/
@@ -520,12 +526,6 @@ msg_t __ovldrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
 
       /* Passing the combined path to the overlaid driver.*/
       ret = vfsFSStat((void *)self->overlaid_drv, self->buf, sp);
-    }
-    else {
-      /* This is the root directory.*/
-      sp->size = 0;
-      sp->mode = VFS_MODE_S_IFDIR;
-      ret = CH_RET_SUCCESS;
     }
   } while (false);
 

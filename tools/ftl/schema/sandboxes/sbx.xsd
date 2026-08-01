@@ -1,0 +1,490 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema elementFormDefault="qualified"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!--
+    This schema describes the host-side objects and bindings needed to
+    initialize one or more ChibiOS sandboxes. C object names referenced by
+    the XML are declared by the application; the generator emits the SB,
+    VFS, and VIO association code around those objects.
+  -->
+
+  <xs:element name="sandboxes" type="sandboxesType">
+    <xs:key name="sandboxNameKey">
+      <xs:selector xpath="sandbox"></xs:selector>
+      <xs:field xpath="@name"></xs:field>
+    </xs:key>
+    <xs:unique name="nativeVioDriverUnique">
+      <xs:selector xpath="sandbox/vio/ADC/unit |
+                          sandbox/vio/ETH/unit |
+                          sandbox/vio/GPT/unit |
+                          sandbox/vio/I2C/unit |
+                          sandbox/vio/SPI/unit |
+                          sandbox/vio/UART/unit"></xs:selector>
+      <xs:field xpath="@driver"></xs:field>
+    </xs:unique>
+  </xs:element>
+
+  <xs:complexType name="sandboxesType">
+    <xs:sequence>
+      <xs:element name="sandbox" type="sandboxType"
+        minOccurs="1" maxOccurs="unbounded">
+        <xs:unique name="sandboxDescriptorNumberUnique">
+          <xs:selector xpath="vfs/descriptors/descriptor"></xs:selector>
+          <xs:field xpath="@fd"></xs:field>
+        </xs:unique>
+        <xs:unique name="sandboxMountNameUnique">
+          <xs:selector xpath="vfs/root/mount"></xs:selector>
+          <xs:field xpath="@name"></xs:field>
+        </xs:unique>
+        <xs:unique name="sandboxVrqNumberUnique">
+          <xs:selector xpath="vio/ADC/unit |
+                              vio/ETH/unit |
+                              vio/GPT/unit |
+                              vio/I2C/unit |
+                              vio/SPI/unit |
+                              vio/UART/unit"></xs:selector>
+          <xs:field xpath="@vrq"></xs:field>
+        </xs:unique>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="sandboxType">
+    <xs:all>
+      <xs:element name="arch" type="archType"
+        minOccurs="1" maxOccurs="1"></xs:element>
+      <xs:element name="regions" type="regionsType"
+        minOccurs="1" maxOccurs="1"></xs:element>
+      <xs:element name="vfs" type="vfsType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+      <xs:element name="vio" type="vioType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+    </xs:all>
+    <xs:attribute name="name" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          Name of the sb_class_t object generated for this sandbox.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <!-- Common scalar types. -->
+
+  <xs:simpleType name="cIdentifierType">
+    <xs:restriction base="xs:string">
+      <xs:whiteSpace value="collapse"></xs:whiteSpace>
+      <xs:pattern value="[A-Za-z_][A-Za-z0-9_]*"></xs:pattern>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="cExpressionType">
+    <xs:restriction base="xs:string">
+      <xs:whiteSpace value="collapse"></xs:whiteSpace>
+      <xs:minLength value="1"></xs:minLength>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="absolutePathType">
+    <xs:restriction base="xs:string">
+      <xs:whiteSpace value="collapse"></xs:whiteSpace>
+      <xs:pattern value="/|/[^/]+(/[^/]+)*"></xs:pattern>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="pathElementType">
+    <xs:restriction base="xs:string">
+      <xs:whiteSpace value="collapse"></xs:whiteSpace>
+      <xs:minLength value="1"></xs:minLength>
+      <xs:pattern value="[^/]+"></xs:pattern>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="vrqNumberType">
+    <xs:restriction base="xs:nonNegativeInteger">
+      <xs:maxInclusive value="31"></xs:maxInclusive>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Architecture and sandbox memory regions. -->
+
+  <xs:complexType name="archType">
+    <xs:attribute name="family" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="ARMv7-M"></xs:enumeration>
+          <xs:enumeration value="ARMv7E-M"></xs:enumeration>
+          <xs:enumeration value="ARMv8-M-ML"></xs:enumeration>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <xs:attribute name="core" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          Valid family/core pairs are ARMv7-M/Cortex-M3,
+          ARMv7E-M/Cortex-M4, ARMv7E-M/Cortex-M7,
+          ARMv8-M-ML/Cortex-M33, and ARMv8-M-ML/Cortex-M55.
+        </xs:documentation>
+      </xs:annotation>
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="Cortex-M3"></xs:enumeration>
+          <xs:enumeration value="Cortex-M4"></xs:enumeration>
+          <xs:enumeration value="Cortex-M7"></xs:enumeration>
+          <xs:enumeration value="Cortex-M33"></xs:enumeration>
+          <xs:enumeration value="Cortex-M55"></xs:enumeration>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="regionsType">
+    <xs:annotation>
+      <xs:documentation>
+        Regions are emitted in document order. The first entry is MPU region
+        zero and must be executable. Omitted trailing regions retain the
+        unused state established by sbObjectInit().
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="region" type="executableRegionType"
+        minOccurs="1" maxOccurs="1"></xs:element>
+      <xs:choice minOccurs="0" maxOccurs="3">
+        <xs:element name="region" type="regionType"></xs:element>
+        <xs:element name="unused" type="unusedRegionType"></xs:element>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="executableRegionType">
+    <xs:attribute name="base" type="cExpressionType" use="required">
+    </xs:attribute>
+    <xs:attribute name="size" type="cExpressionType" use="required">
+    </xs:attribute>
+    <xs:attribute name="type" type="executableRegionAttributesType"
+      use="required"></xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="regionType">
+    <xs:attribute name="base" type="cExpressionType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          C constant expression used as the memory region base.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="size" type="cExpressionType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          C constant expression used as the memory region size.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="type" type="regionAttributesType" use="required">
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="unusedRegionType">
+    <xs:annotation>
+      <xs:documentation>
+        Placeholder that leaves the corresponding region unused, allowing a
+        later region index to be configured.
+      </xs:documentation>
+    </xs:annotation>
+  </xs:complexType>
+
+  <xs:simpleType name="regionAttributesType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="code"></xs:enumeration>
+      <xs:enumeration value="data"></xs:enumeration>
+      <xs:enumeration value="nocache_data"></xs:enumeration>
+      <xs:enumeration value="code_and_data"></xs:enumeration>
+      <xs:enumeration value="device"></xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="executableRegionAttributesType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="code"></xs:enumeration>
+      <xs:enumeration value="code_and_data"></xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- VFS root, overlay, and initial descriptor bindings. -->
+
+  <xs:complexType name="vfsType">
+    <xs:sequence>
+      <xs:element name="root" type="vfsRootType"
+        minOccurs="1" maxOccurs="1"></xs:element>
+      <xs:element name="descriptors" type="vfsDescriptorsType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="vfsRootType">
+    <xs:sequence>
+      <xs:element name="backing" type="vfsBackingType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+      <xs:element name="mount" type="vfsMountType"
+        minOccurs="0" maxOccurs="unbounded"></xs:element>
+    </xs:sequence>
+    <xs:attribute name="object" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          vfs_root_c object associated with the sandbox. If backing or mount
+          children are present then the generator also initializes it.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="vfsBackingType">
+    <xs:attribute name="driver" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          Existing vfs_fs_c-compatible object overlaid by the private root.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="prefix" type="absolutePathType" use="optional">
+      <xs:annotation>
+        <xs:documentation>
+          Absolute path prefix restricting the sandbox view of the backing
+          file system. Absence means no prefix.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="vfsMountType">
+    <xs:attribute name="name" type="pathElementType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          Single path element at which the driver is registered.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="driver" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          Existing vfs_fs_c-compatible object mounted below the root.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="vfsDescriptorsType">
+    <xs:sequence>
+      <xs:element name="descriptor" type="vfsDescriptorType"
+        minOccurs="1" maxOccurs="unbounded"></xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="vfsDescriptorType">
+    <xs:attribute name="fd" type="xs:nonNegativeInteger" use="required">
+    </xs:attribute>
+    <xs:attribute name="path" type="absolutePathType" use="required">
+    </xs:attribute>
+    <xs:attribute name="access" type="vfsAccessType" use="required">
+    </xs:attribute>
+    <xs:attribute name="append" type="xs:boolean"
+      use="optional" default="false"></xs:attribute>
+    <xs:attribute name="create" type="xs:boolean"
+      use="optional" default="false"></xs:attribute>
+    <xs:attribute name="truncate" type="xs:boolean"
+      use="optional" default="false"></xs:attribute>
+    <xs:attribute name="exclusive" type="xs:boolean"
+      use="optional" default="false"></xs:attribute>
+  </xs:complexType>
+
+  <xs:simpleType name="vfsAccessType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="read-only"></xs:enumeration>
+      <xs:enumeration value="write-only"></xs:enumeration>
+      <xs:enumeration value="read-write"></xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- XHAL VIO bindings. Unit numbers are their zero-based XML positions. -->
+
+  <xs:complexType name="vioType">
+    <xs:all>
+      <xs:element name="ADC" type="vioAdcType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+      <xs:element name="ETH" type="vioEthType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+      <xs:element name="GPT" type="vioGptType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+      <xs:element name="GPIO" type="vioGpioType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+      <xs:element name="I2C" type="vioI2cType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+      <xs:element name="SPI" type="vioSpiType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+      <xs:element name="UART" type="vioUartType"
+        minOccurs="0" maxOccurs="1"></xs:element>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="vioAdcType">
+    <xs:sequence>
+      <xs:element name="unit" type="vioAdcUnitType"
+        minOccurs="1" maxOccurs="unbounded"></xs:element>
+    </xs:sequence>
+    <xs:attribute name="configurations" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          adc_configurations_t object exposed to all virtual ADC units.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="vioAdcUnitType">
+    <xs:complexContent>
+      <xs:extension base="vioInterruptUnitType">
+        <xs:attribute name="configuration" type="cIdentifierType"
+          use="optional">
+          <xs:annotation>
+            <xs:documentation>
+              Optional hal_adc_config_t object for the native unit binding.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="vioEthType">
+    <xs:sequence>
+      <xs:element name="unit" type="vioInterruptUnitType"
+        minOccurs="1" maxOccurs="unbounded"></xs:element>
+    </xs:sequence>
+    <xs:attribute name="configurations" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          eth_configurations_t object exposed to all virtual ETH units.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="vioGptType">
+    <xs:sequence>
+      <xs:element name="unit" type="vioInterruptUnitType"
+        minOccurs="1" maxOccurs="unbounded"></xs:element>
+    </xs:sequence>
+    <xs:attribute name="configurations" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          gpt_configurations_t object exposed to all virtual GPT units.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="vioGpioType">
+    <xs:sequence>
+      <xs:element name="unit" type="vioGpioUnitType"
+        minOccurs="1" maxOccurs="unbounded"></xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="vioGpioUnitType">
+    <xs:attribute name="port" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>Native ioportid_t object.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="mask" type="cExpressionType" use="required">
+    </xs:attribute>
+    <xs:attribute name="offset" type="cExpressionType" use="required">
+    </xs:attribute>
+    <xs:attribute name="permissions" type="gpioPermissionsType"
+      use="required"></xs:attribute>
+  </xs:complexType>
+
+  <xs:simpleType name="gpioPermissionsType">
+    <xs:restriction base="xs:string">
+      <xs:whiteSpace value="collapse"></xs:whiteSpace>
+      <xs:enumeration value="read"></xs:enumeration>
+      <xs:enumeration value="write"></xs:enumeration>
+      <xs:enumeration value="set-mode"></xs:enumeration>
+      <xs:enumeration value="read write"></xs:enumeration>
+      <xs:enumeration value="read set-mode"></xs:enumeration>
+      <xs:enumeration value="write set-mode"></xs:enumeration>
+      <xs:enumeration value="read write set-mode"></xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="vioI2cType">
+    <xs:sequence>
+      <xs:element name="unit" type="vioI2cUnitType"
+        minOccurs="1" maxOccurs="unbounded"></xs:element>
+    </xs:sequence>
+    <xs:attribute name="configurations" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          i2c_configurations_t object exposed to all virtual I2C units.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="vioI2cUnitType">
+    <xs:complexContent>
+      <xs:extension base="vioInterruptUnitType">
+        <xs:attribute name="configuration" type="cIdentifierType"
+          use="optional">
+          <xs:annotation>
+            <xs:documentation>
+              Optional hal_i2c_config_t object for the native unit binding.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:attribute>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="vioSpiType">
+    <xs:sequence>
+      <xs:element name="unit" type="vioInterruptUnitType"
+        minOccurs="1" maxOccurs="unbounded"></xs:element>
+    </xs:sequence>
+    <xs:attribute name="configurations" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          spi_configurations_t object exposed to all virtual SPI units.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="vioUartType">
+    <xs:sequence>
+      <xs:element name="unit" type="vioInterruptUnitType"
+        minOccurs="1" maxOccurs="unbounded"></xs:element>
+    </xs:sequence>
+    <xs:attribute name="configurations" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          sio_configurations_t object exposed to all virtual UART units.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="vioInterruptUnitType">
+    <xs:attribute name="driver" type="cIdentifierType" use="required">
+      <xs:annotation>
+        <xs:documentation>
+          Native XHAL driver object. The generator takes its address.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="vrq" type="vrqNumberType" use="required">
+    </xs:attribute>
+  </xs:complexType>
+
+</xs:schema>

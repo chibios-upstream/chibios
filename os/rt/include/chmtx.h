@@ -33,6 +33,14 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+#if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Maximum recursive mutex lock depth.
+ */
+#define MUTEX_MAX_RECURSION                                                 \
+  ((cnt_t)(((ucnt_t)-1) / (ucnt_t)2))
+#endif
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -61,7 +69,8 @@ struct ch_mutex {
   mutex_t               *next;      /**< @brief Next @p mutex_t into an
                                                 owner-list or @p NULL.      */
 #if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
-  cnt_t                 cnt;        /**< @brief Mutex recursion counter.    */
+  cnt_t                 cnt;        /**< @brief Mutex recursion counter, up
+                                                to @p MUTEX_MAX_RECURSION.  */
 #endif
 };
 
@@ -98,6 +107,8 @@ struct ch_mutex {
 #ifdef __cplusplus
 extern "C" {
 #endif
+  tprio_t __mtx_get_effective_priority(thread_t *tp);
+  bool __mtx_unlock_no_reschedule(mutex_t *mp);
   void chMtxObjectInit(mutex_t *mp);
   void chMtxObjectDispose(mutex_t *mp);
   void chMtxLock(mutex_t *mp);

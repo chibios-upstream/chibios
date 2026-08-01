@@ -14,10 +14,10 @@ It also serves as the review-guidance file for any automated reviewer.
 
 ## 0. Intake
 - Capture: repo, PR number, author, **base branch**, size (files, +/-), description, linked issue.
-- **Targeting rule (upstream-first):** ALL changes land on `main` first. The `stable-*`
-  branches only receive **backports of commits already merged on `main`**, selected by the
+- **Targeting rule (upstream-first):** ALL changes land on `master` first. The `stable-*`
+  branches only receive **backports of commits already merged on `master`**, selected by the
   maintainer (typically bugfixes/regressions). PRs targeting `stable-*` directly are
-  redirected to `main`; the stable backport is decided after the `main` merge.
+  redirected to `master`; the stable backport is decided after the `master` merge.
 - Scope sanity: reasonable size, on-topic, not bundling unrelated changes.
 
 ## 1. Fetch
@@ -52,7 +52,7 @@ whether it changed code; carried findings are restated, not silently dropped.
   of §3. Only reached when A and B are clean.
 - **Stage D — style (final polish):** `tools/style/stylecheck.py` on the changed
   `.c`/`.h` files, checked **last**, once the content is settled — otherwise every
-  fix round would re-trigger it. On `main` PRs the CI style job re-runs on every
+  fix round would re-trigger it. On `master` PRs the CI style job re-runs on every
   push anyway, so the author sees findings continuously; the sheriff only verifies
   it is clean before an advisory-LGTM.
 
@@ -147,16 +147,16 @@ Stage C dimensions (deep):
 - Summarize to the maintainer; **the human decides the merge.**
 
 ## 6. Backports (stable-*)
-Backports are **manual by design** — the stable branches have diverged from `main`
+Backports are **manual by design** — the stable branches have diverged from `master`
 (different port layouts, no XHAL, different test trees), so cherry-picks need adaptation
 and judgment; there is no automatic mechanism.
-- **Selection:** the maintainer picks which merged `main` commits get backported and to
+- **Selection:** the maintainer picks which merged `master` commits get backported and to
   which `stable-*` branches.
 - **Execution:** cherry-pick onto the target branch, adapt to that branch's layout, then
   run the mechanical gates **locally** (stylecheck on touched `.c/.h` + a representative
   build for the touched port) — the stable branches have no CI.
-- The backport commit message references the original `main` commit hash.
-- **Changelog is the visible record:** the change's entry in `readme.txt` on `main` gains a
+- The backport commit message references the original `master` commit hash.
+- **Changelog is the visible record:** the change's entry in `readme.txt` on `master` gains a
   `(backported to <release>)` annotation — one per stable release that received it, e.g.
   `(backported to 21.11.6).` An entry without annotations has not been backported anywhere.
 - Landing: via PR (review rules apply) or direct maintainer push.

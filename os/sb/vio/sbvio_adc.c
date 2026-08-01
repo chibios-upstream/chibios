@@ -277,16 +277,16 @@ void sb_fastc_vio_adc(sb_class_t *sbp, struct port_extctx *ectxp) {
 
         /* IRQ-like fastcall: the conversion start is an I-class async kick,
            completion is delivered later via VRQ from vadc_cb().*/
-        OSAL_IRQ_PROLOGUE();
-        osalSysLockFromISR();
+        CH_IRQ_PROLOGUE();
+        chSysLockFromISR();
         if (sub == SB_VADC_START_LINEAR) {
           msg = adcStartConversionLinearI(unitp->adcp, grpnum, samples, depth);
         }
         else {
           msg = adcStartConversionCircularI(unitp->adcp, grpnum, samples, depth);
         }
-        osalSysUnlockFromISR();
-        OSAL_IRQ_EPILOGUE();
+        chSysUnlockFromISR();
+        CH_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;
@@ -298,13 +298,13 @@ void sb_fastc_vio_adc(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        OSAL_IRQ_PROLOGUE();
-        osalSysLockFromISR();
+        CH_IRQ_PROLOGUE();
+        chSysLockFromISR();
         if (drvGetStateX(unitp->adcp) != HAL_DRV_STATE_READY) {
           adcStopConversionI(unitp->adcp);
         }
-        osalSysUnlockFromISR();
-        OSAL_IRQ_EPILOGUE();
+        chSysUnlockFromISR();
+        CH_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)HAL_RET_SUCCESS;
         break;

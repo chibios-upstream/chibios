@@ -355,7 +355,7 @@ static msg_t put_channel(DACDriver *dacp,
 #endif
       break;
     default:
-      osalDbgAssert(false, "unknown DAC mode");
+      chDbgAssert(false, "unknown DAC mode");
       return HAL_RET_CONFIG_ERROR;
   }
   return HAL_RET_SUCCESS;
@@ -567,7 +567,7 @@ msg_t dac_lld_start(DACDriver *dacp) {
 #endif
 
     else {
-      osalDbgAssert(false, "unknown DAC instance");
+      chDbgAssert(false, "unknown DAC instance");
       return HAL_RET_NO_RESOURCE;
     }
 
@@ -757,7 +757,7 @@ msg_t dac_lld_put_channel(DACDriver *dacp,
   if ((dacp->state == HAL_DRV_STATE_ACTIVE ||
        dacp->state == HAL_DRV_STATE_FULL) &&
        dacp->grpp->num_channels == 2 && channel == 0) {
-    osalDbgCheck(false);
+    chDbgCheck(false);
     return HAL_RET_HW_BUSY;
   }
 #endif /* STM32_DAC_DUAL_MODE */
@@ -802,7 +802,7 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
   bool dacddma = false;
 
   if (dacp->grpp->num_channels < 1) {
-    osalDbgAssert(false, "invalid number of channels");
+    chDbgAssert(false, "invalid number of channels");
     return HAL_RET_CONFIG_ERROR;
   }
 
@@ -905,19 +905,19 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
 
 #endif /* STM32_DAC_DUAL_MODE == TRUE */
     default:
-      osalDbgAssert(false, "dual mode not enabled or invalid register identity");
+      chDbgAssert(false, "dual mode not enabled or invalid register identity");
       return HAL_RET_CONFIG_ERROR;
   } /* End switch.*/
 
   /* Check configuration and setup DMA.*/
   if (dacp->grpp->num_channels != nch) {
-    osalDbgAssert(false, "invalid number of channels");
+    chDbgAssert(false, "invalid number of channels");
     return HAL_RET_CONFIG_ERROR;
   }
 
   /* Double DMA is supported on single channel only in dual mode.*/
   if (dacddma && nch == 2) {
-    osalDbgAssert(false, "double DMA mode not supported in 2 channel dual mode");
+    chDbgAssert(false, "double DMA mode not supported in 2 channel dual mode");
     return HAL_RET_CONFIG_ERROR;
   }
 
@@ -939,7 +939,7 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
   }
 
   if (n > STM32_DMA3_MAX_TRANSFER) {
-    osalDbgAssert(false, "unsupported GPDMA transfer size");
+    chDbgAssert(false, "unsupported GPDMA transfer size");
     return HAL_RET_CONFIG_ERROR;
   }
 

@@ -105,11 +105,10 @@ include $(CHIBIOS)/os/common/startup/ARMCMx-SB/compilers/GCC/mk/startup.mk
 # Common files.
 include $(CHIBIOS)/os/common/oop/oop.mk
 include $(CHIBIOS)/os/common/utils/utils.mk
-# HAL-OSAL files (optional).
+# XHAL files.
 include $(CHIBIOS)/os/xhal/xhal.mk
 include $(CHIBIOS)/os/xhal/ports/vio/platform.mk
 include $(CHIBIOS)/os/hal/boards/SB_GENERIC/board.mk
-include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 #include $(CHIBIOS)/os/hal/lib/complex/buffered_sio/hal_buffered_sio.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk

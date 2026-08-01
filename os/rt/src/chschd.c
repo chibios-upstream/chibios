@@ -267,6 +267,38 @@ void ch_sch_prio_insert(ch_queue_t *qp, ch_queue_t *tp) {
 #endif /* CH_CFG_OPTIMIZE_SPEED */
 
 /**
+ * @brief   Requeues a ready thread behind its new peers.
+ * @details The thread is removed from its ready list and reinserted behind
+ *          all threads with higher or equal priority.
+ * @pre     The thread must be in the @p CH_STATE_READY state.
+ * @post    This function does not reschedule so a call to a rescheduling
+ *          function must be performed before unlocking the kernel.
+ *
+ * @param[in] tp        the thread to be requeued
+ *
+ * @notapi
+ * @iclass
+ */
+void __sch_requeue_behind(thread_t *tp) {
+
+  chDbgCheckClassI();
+  chDbgCheck(tp != NULL);
+  chDbgAssert(tp->state == CH_STATE_READY, "invalid state");
+
+#if CH_CFG_SMP_MODE == TRUE
+  if (tp->owner != currcore) {
+    /* Triggering a reschedule on the owning core.*/
+    chSysNotifyInstance(tp->owner);
+  }
+#endif
+
+  /* Re-insertion in the priority queue, no state change or trace event.*/
+  (void) ch_queue_dequeue(&tp->hdr.queue);
+  (void) ch_pqueue_insert_behind(&tp->owner->rlist.pqueue,
+                                 &tp->hdr.pqueue);
+}
+
+/**
  * @brief   Inserts a thread in the Ready List placing it behind its peers.
  * @details The thread is positioned behind all threads with higher or equal
  *          priority.

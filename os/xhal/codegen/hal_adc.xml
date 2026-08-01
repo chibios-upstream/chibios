@@ -60,13 +60,13 @@
             <brief>Resumes a thread waiting for conversion completion.</brief>
             <param name="adcp" dir="in">Pointer to the ADC driver instance.</param>
             <notapi />
-            <implementation><![CDATA[osalThreadResumeI(&(adcp)->thread, MSG_RESET)]]></implementation>
+            <implementation><![CDATA[chThdResumeI(&(adcp)->thread, MSG_RESET)]]></implementation>
           </macro>
           <macro name="_adc_reset_s">
             <brief>Resumes a thread waiting for conversion completion.</brief>
             <param name="adcp" dir="in">Pointer to the ADC driver instance.</param>
             <notapi />
-            <implementation><![CDATA[osalThreadResumeS(&(adcp)->thread, MSG_RESET)]]></implementation>
+            <implementation><![CDATA[chThdResumeS(&(adcp)->thread, MSG_RESET)]]></implementation>
           </macro>
           <macro name="_adc_wakeup_isr">
             <brief>Wakes up a thread waiting for a conversion state.</brief>
@@ -75,11 +75,11 @@
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
+  chSysLockFromISR();
   if ((adcp)->sync_state == (state)) {
-    osalThreadResumeI(&(adcp)->thread, MSG_OK);
+    chThdResumeI(&(adcp)->thread, MSG_OK);
   }
-  osalSysUnlockFromISR();
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <macro name="_adc_error_wakeup_isr">
@@ -88,9 +88,9 @@ do {
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
-  osalThreadResumeI(&(adcp)->thread, MSG_RESET);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&(adcp)->thread, MSG_RESET);
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <elseif />
@@ -317,10 +317,10 @@ self->sync_state = HAL_DRV_STATE_STOP;
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (samples != NULL) &&
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (samples != NULL) &&
              (depth > 0U) && ((depth == 1U) || ((depth & 1U) == 0U)));
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == HAL_DRV_STATE_ERROR),
               "not ready");
 
@@ -356,9 +356,9 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = adcStartConversionLinearI(self, grpnum, samples, depth);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
             </method>
@@ -378,10 +378,10 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (samples != NULL) &&
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (samples != NULL) &&
              (depth > 0U) && ((depth == 1U) || ((depth & 1U) == 0U)));
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == HAL_DRV_STATE_ERROR),
               "not ready");
 
@@ -417,9 +417,9 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = adcStartConversionCircularI(self, grpnum, samples, depth);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
             </method>
@@ -427,9 +427,9 @@ return msg;]]></implementation>
               <brief>Stops an ongoing conversion.</brief>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == ADC_ACTIVE_LINEAR) ||
               (self->state == ADC_ACTIVE_CIRCULAR) ||
               (self->state == HAL_DRV_STATE_HALF) ||
@@ -451,10 +451,10 @@ if (self->state != HAL_DRV_STATE_READY) {
               <brief>Stops an ongoing conversion.</brief>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+chSysLock();
+chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
               (self->state == ADC_ACTIVE_LINEAR) ||
               (self->state == ADC_ACTIVE_CIRCULAR) ||
               (self->state == HAL_DRV_STATE_HALF) ||
@@ -470,7 +470,7 @@ if (self->state != HAL_DRV_STATE_READY) {
   self->state   = HAL_DRV_STATE_READY;
   _adc_reset_s(self);
 }
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <condition check="ADC_USE_SYNCHRONIZATION == TRUE">
               <method name="adcConvert" ctype="msg_t">
@@ -489,15 +489,15 @@ osalSysUnlock();]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert(self->thread == NULL, "already waiting");
+chSysLock();
+chDbgAssert(self->thread == NULL, "already waiting");
 msg = adcStartConversionLinearI(self, grpnum, samples, depth);
 if (msg == HAL_RET_SUCCESS) {
   msg = adcSynchronizeStateS(self, HAL_DRV_STATE_COMPLETE, TIME_INFINITE);
 }
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -521,18 +521,18 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
-osalDbgCheckClassS();
-osalDbgCheck((state == HAL_DRV_STATE_HALF) ||
+chDbgCheck(self != NULL);
+chDbgCheckClassS();
+chDbgCheck((state == HAL_DRV_STATE_HALF) ||
              (state == HAL_DRV_STATE_FULL) ||
              (state == HAL_DRV_STATE_COMPLETE));
-osalDbgAssert((self->state == ADC_ACTIVE_LINEAR) ||
+chDbgAssert((self->state == ADC_ACTIVE_LINEAR) ||
               (self->state == ADC_ACTIVE_CIRCULAR),
               "invalid state");
-osalDbgAssert(self->thread == NULL, "already waiting");
+chDbgAssert(self->thread == NULL, "already waiting");
 
 self->sync_state = state;
-msg = osalThreadSuspendTimeoutS(&self->thread, timeout);
+msg = chThdSuspendTimeoutS(&self->thread, timeout);
 self->sync_state = HAL_DRV_STATE_STOP;
 
 return msg;]]></implementation>
@@ -557,11 +557,11 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 msg = adcSynchronizeStateS(self, state, timeout);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -586,10 +586,10 @@ return self->events;]]></implementation>
 adceventflags_t flags;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 flags = self->events & mask;
 self->events &= ~mask;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return flags;]]></implementation>
             </method>
@@ -611,10 +611,10 @@ return self->errors;]]></implementation>
 adcerror_t errors;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 errors = self->errors & mask;
 self->errors &= ~mask;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return errors;]]></implementation>
             </method>

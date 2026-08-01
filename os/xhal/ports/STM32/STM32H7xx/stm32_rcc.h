@@ -176,7 +176,7 @@ __STATIC_INLINE void rccDisableAPB1L(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C1->APB1LENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->APB1LENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -187,7 +187,7 @@ __STATIC_INLINE void rccDisableAPB1L(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C2->APB1LENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->APB1LENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -210,9 +210,9 @@ __STATIC_INLINE void rccResetAPB1L(uint32_t mask) {
   /* When there are two cores then this check is required for peripheral
      allocation.*/
 #if STM32_TARGET_CORE == 1
-  osalDbgAssert((RCC_C1->APB1LENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->APB1LENR & mask) == mask, "peripherals not allocated");
 #else
-  osalDbgAssert((RCC_C2->APB1LENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->APB1LENR & mask) == mask, "peripherals not allocated");
 #endif
 #endif
 
@@ -265,7 +265,7 @@ __STATIC_INLINE void rccDisableAPB1H(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C1->APB1HENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->APB1HENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -276,7 +276,7 @@ __STATIC_INLINE void rccDisableAPB1H(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C2->APB1HENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->APB1HENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -299,9 +299,9 @@ __STATIC_INLINE void rccResetAPB1H(uint32_t mask) {
   /* When there are two cores then this check is required for peripheral
      allocation.*/
 #if STM32_TARGET_CORE == 1
-  osalDbgAssert((RCC_C1->APB1HENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->APB1HENR & mask) == mask, "peripherals not allocated");
 #else
-  osalDbgAssert((RCC_C2->APB1HENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->APB1HENR & mask) == mask, "peripherals not allocated");
 #endif
 #endif
 
@@ -354,7 +354,7 @@ __STATIC_INLINE void rccDisableAPB2(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C1->APB2ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->APB2ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -365,7 +365,7 @@ __STATIC_INLINE void rccDisableAPB2(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C2->APB2ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->APB2ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -388,9 +388,9 @@ __STATIC_INLINE void rccResetAPB2(uint32_t mask) {
   /* When there are two cores then this check is required for peripheral
      allocation.*/
 #if STM32_TARGET_CORE == 1
-  osalDbgAssert((RCC_C1->APB2ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->APB2ENR & mask) == mask, "peripherals not allocated");
 #else
-  osalDbgAssert((RCC_C2->APB2ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->APB2ENR & mask) == mask, "peripherals not allocated");
 #endif
 #endif
 
@@ -443,7 +443,7 @@ __STATIC_INLINE void rccDisableAPB3(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C1->APB3ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->APB3ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -454,7 +454,7 @@ __STATIC_INLINE void rccDisableAPB3(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C2->APB3ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->APB3ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -477,9 +477,9 @@ __STATIC_INLINE void rccResetAPB3(uint32_t mask) {
   /* When there are two cores then this check is required for peripheral
      allocation.*/
 #if STM32_TARGET_CORE == 1
-  osalDbgAssert((RCC_C1->APB3ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->APB3ENR & mask) == mask, "peripherals not allocated");
 #else
-  osalDbgAssert((RCC_C2->APB3ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->APB3ENR & mask) == mask, "peripherals not allocated");
 #endif
 #endif
 
@@ -532,7 +532,7 @@ __STATIC_INLINE void rccDisableAPB4(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C1->APB4ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->APB4ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -543,7 +543,7 @@ __STATIC_INLINE void rccDisableAPB4(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C2->APB4ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->APB4ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -566,9 +566,9 @@ __STATIC_INLINE void rccResetAPB4(uint32_t mask) {
   /* When there are two cores then this check is required for peripheral
      allocation.*/
 #if STM32_TARGET_CORE == 1
-  osalDbgAssert((RCC_C1->APB4ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->APB4ENR & mask) == mask, "peripherals not allocated");
 #else
-  osalDbgAssert((RCC_C2->APB4ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->APB4ENR & mask) == mask, "peripherals not allocated");
 #endif
 #endif
 
@@ -621,7 +621,7 @@ __STATIC_INLINE void rccDisableAHB1(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C1->AHB1ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->AHB1ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -632,7 +632,7 @@ __STATIC_INLINE void rccDisableAHB1(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C2->AHB1ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->AHB1ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -655,9 +655,9 @@ __STATIC_INLINE void rccResetAHB1(uint32_t mask) {
   /* When there are two cores then this check is required for peripheral
      allocation.*/
 #if STM32_TARGET_CORE == 1
-  osalDbgAssert((RCC_C1->AHB1ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->AHB1ENR & mask) == mask, "peripherals not allocated");
 #else
-  osalDbgAssert((RCC_C2->AHB1ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->AHB1ENR & mask) == mask, "peripherals not allocated");
 #endif
 #endif
 
@@ -710,7 +710,7 @@ __STATIC_INLINE void rccDisableAHB2(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C1->AHB2ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->AHB2ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -721,7 +721,7 @@ __STATIC_INLINE void rccDisableAHB2(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C2->AHB2ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->AHB2ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -744,9 +744,9 @@ __STATIC_INLINE void rccResetAHB2(uint32_t mask) {
   /* When there are two cores then this check is required for peripheral
      allocation.*/
 #if STM32_TARGET_CORE == 1
-  osalDbgAssert((RCC_C1->AHB2ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->AHB2ENR & mask) == mask, "peripherals not allocated");
 #else
-  osalDbgAssert((RCC_C2->AHB2ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->AHB2ENR & mask) == mask, "peripherals not allocated");
 #endif
 #endif
 
@@ -799,7 +799,7 @@ __STATIC_INLINE void rccDisableAHB3(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C1->AHB3ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->AHB3ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -810,7 +810,7 @@ __STATIC_INLINE void rccDisableAHB3(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C2->AHB3ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->AHB3ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -833,9 +833,9 @@ __STATIC_INLINE void rccResetAHB3(uint32_t mask) {
   /* When there are two cores then this check is required for peripheral
      allocation.*/
 #if STM32_TARGET_CORE == 1
-  osalDbgAssert((RCC_C1->AHB3ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->AHB3ENR & mask) == mask, "peripherals not allocated");
 #else
-  osalDbgAssert((RCC_C2->AHB3ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->AHB3ENR & mask) == mask, "peripherals not allocated");
 #endif
 #endif
 
@@ -888,7 +888,7 @@ __STATIC_INLINE void rccDisableAHB4(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C1->AHB4ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->AHB4ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -899,7 +899,7 @@ __STATIC_INLINE void rccDisableAHB4(uint32_t mask) {
 #if STM32_HAS_M4 && STM32_HAS_M7
   /* When there are two cores then this check is required for peripheral
      allocation.*/
-  osalDbgAssert((RCC_C2->AHB4ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->AHB4ENR & mask) == mask, "peripherals not allocated");
 #endif
 
   /* Disabling the peripherals.*/
@@ -922,9 +922,9 @@ __STATIC_INLINE void rccResetAHB4(uint32_t mask) {
   /* When there are two cores then this check is required for peripheral
      allocation.*/
 #if STM32_TARGET_CORE == 1
-  osalDbgAssert((RCC_C1->AHB4ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C1->AHB4ENR & mask) == mask, "peripherals not allocated");
 #else
-  osalDbgAssert((RCC_C2->AHB4ENR & mask) == mask, "peripherals not allocated");
+  chDbgAssert((RCC_C2->AHB4ENR & mask) == mask, "peripherals not allocated");
 #endif
 #endif
 

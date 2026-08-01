@@ -126,13 +126,13 @@ static bool fdcan_clock_stop(hal_can_driver_c *canp) {
 
   /* Requesting clock stop then waiting for it to happen.*/
   canp->fdcan->CCCR |= FDCAN_CCCR_CSR;
-  start = osalOsGetSystemTimeX();
-  end = osalTimeAddX(start, TIME_MS2I(TIMEOUT_INIT_MS));
+  start = chVTGetSystemTimeX();
+  end = chTimeAddX(start, TIME_MS2I(TIMEOUT_INIT_MS));
   while ((canp->fdcan->CCCR & FDCAN_CCCR_CSA) == 0U) {
-    if (!osalTimeIsInRangeX(osalOsGetSystemTimeX(), start, end)) {
+    if (!chTimeIsInRangeX(chVTGetSystemTimeX(), start, end)) {
       return true;
     }
-    osalThreadSleep(1);
+    chThdSleep(1);
   }
 
   return false;
@@ -143,13 +143,13 @@ static bool fdcan_init_mode(hal_can_driver_c *canp) {
 
   /* Going in initialization mode then waiting for it to happen.*/
   canp->fdcan->CCCR |= FDCAN_CCCR_INIT;
-  start = osalOsGetSystemTimeX();
-  end = osalTimeAddX(start, TIME_MS2I(TIMEOUT_INIT_MS));
+  start = chVTGetSystemTimeX();
+  end = chTimeAddX(start, TIME_MS2I(TIMEOUT_INIT_MS));
   while ((canp->fdcan->CCCR & FDCAN_CCCR_INIT) == 0U) {
-    if (!osalTimeIsInRangeX(osalOsGetSystemTimeX(), start, end)) {
+    if (!chTimeIsInRangeX(chVTGetSystemTimeX(), start, end)) {
       return true;
     }
-    osalThreadSleep(1);
+    chThdSleep(1);
   }
 
   return false;
@@ -160,13 +160,13 @@ static bool fdcan_active_mode(hal_can_driver_c *canp) {
 
   /* Going in active mode then waiting for it to happen.*/
   canp->fdcan->CCCR &= ~FDCAN_CCCR_INIT;
-  start = osalOsGetSystemTimeX();
-  end = osalTimeAddX(start, TIME_MS2I(TIMEOUT_INIT_MS));
+  start = chVTGetSystemTimeX();
+  end = chTimeAddX(start, TIME_MS2I(TIMEOUT_INIT_MS));
   while ((canp->fdcan->CCCR & FDCAN_CCCR_INIT) != 0U) {
-    if (!osalTimeIsInRangeX(osalOsGetSystemTimeX(), start, end)) {
+    if (!chTimeIsInRangeX(chVTGetSystemTimeX(), start, end)) {
       return true;
     }
-    osalThreadSleep(1);
+    chThdSleep(1);
   }
 
   return false;
@@ -200,11 +200,11 @@ void can_lld_init(void) {
 
   /* Check configuration is enabled */
   if (fdcan_clock_stop(&CAND1)) {
-    osalDbgAssert(false, "CAN clock stop failed, check clocks and pin config");
+    chDbgAssert(false, "CAN clock stop failed, check clocks and pin config");
     return;
   }
   if (fdcan_init_mode(&CAND1)) {
-    osalDbgAssert(false, "CAN initialization failed, check clocks and pin config");
+    chDbgAssert(false, "CAN initialization failed, check clocks and pin config");
     return;
   }
 
@@ -271,13 +271,13 @@ msg_t can_lld_start(hal_can_driver_c *canp) {
 
   /* Requesting clock stop.*/
   if (fdcan_clock_stop(canp)) {
-    osalDbgAssert(false, "CAN clock stop failed, check clocks and pin config");
+    chDbgAssert(false, "CAN clock stop failed, check clocks and pin config");
     return HAL_RET_HW_FAILURE;
   }
 
   /* Going in initialization mode.*/
   if (fdcan_init_mode(canp)) {
-    osalDbgAssert(false, "CAN initialization failed, check clocks and pin config");
+    chDbgAssert(false, "CAN initialization failed, check clocks and pin config");
     return HAL_RET_HW_FAILURE;
   }
 
@@ -289,7 +289,7 @@ msg_t can_lld_start(hal_can_driver_c *canp) {
     canp->word_size = CAN_SIZE_RAM_WORDS;
   }
   else {
-    osalDbgAssert(false, "CAN initialization failed, invalid FDCAN operation mode");
+    chDbgAssert(false, "CAN initialization failed, invalid FDCAN operation mode");
     return HAL_RET_CONFIG_ERROR;
   }
 
@@ -331,7 +331,7 @@ msg_t can_lld_start(hal_can_driver_c *canp) {
 
   /* Going in active mode.*/
   if (fdcan_active_mode(canp)) {
-    osalDbgAssert(false, "CAN initialization failed, check clocks and pin config");
+    chDbgAssert(false, "CAN initialization failed, check clocks and pin config");
     return HAL_RET_HW_FAILURE;
   }
 
@@ -481,7 +481,7 @@ void can_lld_transmit(hal_can_driver_c *canp,
 
   (void)mailbox;
 
-  osalDbgCheck(dlc_to_bytes[ctfp->DLC] <= CAN_MAX_DLC_BYTES);
+  chDbgCheck(dlc_to_bytes[ctfp->DLC] <= CAN_MAX_DLC_BYTES);
 
   /* Retrieve the TX FIFO put index.*/
   put_index = ((canp->fdcan->TXFQS & FDCAN_TXFQS_TFQPI) >> FDCAN_TXFQS_TFQPI_Pos);
@@ -716,7 +716,7 @@ void can_lld_set_filters(hal_can_driver_c *canp,
     }
   }
 
-  osalDbgAssert(((num_std_filter <= STM32_FDCAN_FLS_NBR) &&
+  chDbgAssert(((num_std_filter <= STM32_FDCAN_FLS_NBR) &&
                  (num_ext_filter <= STM32_FDCAN_FLE_NBR)),
                 "out of range of filters supported");
 
@@ -762,7 +762,7 @@ void canSTM32SetFilters(hal_can_driver_c *canp,
                         uint8_t num,
                         const CANFilter *cfp) {
 
-  osalDbgAssert(canp->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(canp->state == HAL_DRV_STATE_READY, "invalid state");
 
   can_lld_set_filters(canp, num, cfp);
 }

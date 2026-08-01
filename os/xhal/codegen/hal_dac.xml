@@ -43,13 +43,13 @@
             <brief>Resumes a thread waiting for DAC streaming completion.</brief>
             <param name="dacp" dir="in">Pointer to the DAC driver instance.</param>
             <notapi />
-            <implementation><![CDATA[osalThreadResumeI(&(dacp)->thread, MSG_RESET)]]></implementation>
+            <implementation><![CDATA[chThdResumeI(&(dacp)->thread, MSG_RESET)]]></implementation>
           </macro>
           <macro name="_dac_reset_s">
             <brief>Resumes a thread waiting for DAC streaming completion.</brief>
             <param name="dacp" dir="in">Pointer to the DAC driver instance.</param>
             <notapi />
-            <implementation><![CDATA[osalThreadResumeS(&(dacp)->thread, MSG_RESET)]]></implementation>
+            <implementation><![CDATA[chThdResumeS(&(dacp)->thread, MSG_RESET)]]></implementation>
           </macro>
           <macro name="_dac_wakeup_isr">
             <brief>Wakes up a thread waiting for a DAC streaming state.</brief>
@@ -58,11 +58,11 @@
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
+  chSysLockFromISR();
   if ((dacp)->sync_state == (state)) {
-    osalThreadResumeI(&(dacp)->thread, MSG_OK);
+    chThdResumeI(&(dacp)->thread, MSG_OK);
   }
-  osalSysUnlockFromISR();
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <macro name="_dac_error_wakeup_isr">
@@ -71,9 +71,9 @@ do {
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
-  osalThreadResumeI(&(dacp)->thread, MSG_RESET);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&(dacp)->thread, MSG_RESET);
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <elseif />
@@ -249,8 +249,8 @@ self->sync_state = HAL_DRV_STATE_STOP;
               </param>
               <xclass />
               <implementation><![CDATA[
-osalDbgCheck(channel < (dacchannel_t)DAC_MAX_CHANNELS);
-osalDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
+chDbgCheck(channel < (dacchannel_t)DAC_MAX_CHANNELS);
+chDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
               (self->state == HAL_DRV_STATE_ACTIVE) ||
               (self->state == HAL_DRV_STATE_HALF)   ||
               (self->state == HAL_DRV_STATE_FULL),
@@ -274,10 +274,10 @@ return dac_lld_put_channel(self, channel, sample);]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
-osalDbgCheck((self != NULL) && (grpp != NULL) && (samples != NULL) &&
+chDbgCheckClassI();
+chDbgCheck((self != NULL) && (grpp != NULL) && (samples != NULL) &&
              (depth > 0U) && ((depth == 1U) || ((depth & 1U) == 0U)));
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->samples = samples;
 self->depth   = depth;
@@ -311,9 +311,9 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = dacStartConversionI(self, grpp, samples, depth);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
             </method>
@@ -321,9 +321,9 @@ return msg;]]></implementation>
               <brief>Stops an ongoing DAC conversion.</brief>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
               (self->state == HAL_DRV_STATE_ACTIVE) ||
               (self->state == HAL_DRV_STATE_HALF)   ||
               (self->state == HAL_DRV_STATE_FULL)   ||
@@ -343,10 +343,10 @@ if (self->state != HAL_DRV_STATE_READY) {
               <brief>Stops an ongoing DAC conversion.</brief>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
+chSysLock();
+chDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
               (self->state == HAL_DRV_STATE_ACTIVE) ||
               (self->state == HAL_DRV_STATE_HALF)   ||
               (self->state == HAL_DRV_STATE_FULL)   ||
@@ -360,7 +360,7 @@ if (self->state != HAL_DRV_STATE_READY) {
   self->state   = HAL_DRV_STATE_READY;
   _dac_reset_s(self);
 }
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <condition check="DAC_USE_SYNCHRONIZATION == TRUE">
               <method name="dacConvert" ctype="msg_t">
@@ -379,15 +379,15 @@ osalSysUnlock();]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert(self->thread == NULL, "already waiting");
+chSysLock();
+chDbgAssert(self->thread == NULL, "already waiting");
 msg = dacStartConversionI(self, grpp, samples, depth);
 if (msg == HAL_RET_SUCCESS) {
   msg = dacSynchronizeStateS(self, HAL_DRV_STATE_FULL, TIME_INFINITE);
 }
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -411,15 +411,15 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
-osalDbgCheckClassS();
-osalDbgCheck((state == HAL_DRV_STATE_HALF) ||
+chDbgCheck(self != NULL);
+chDbgCheckClassS();
+chDbgCheck((state == HAL_DRV_STATE_HALF) ||
              (state == HAL_DRV_STATE_FULL));
-osalDbgAssert(self->state == HAL_DRV_STATE_ACTIVE, "invalid state");
-osalDbgAssert(self->thread == NULL, "already waiting");
+chDbgAssert(self->state == HAL_DRV_STATE_ACTIVE, "invalid state");
+chDbgAssert(self->thread == NULL, "already waiting");
 
 self->sync_state = state;
-msg = osalThreadSuspendTimeoutS(&self->thread, timeout);
+msg = chThdSuspendTimeoutS(&self->thread, timeout);
 self->sync_state = HAL_DRV_STATE_STOP;
 
 return msg;]]></implementation>
@@ -444,11 +444,11 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 msg = dacSynchronizeStateS(self, state, timeout);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -473,10 +473,10 @@ return self->events;]]></implementation>
 daceventflags_t flags;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 flags = self->events & mask;
 self->events &= ~mask;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return flags;]]></implementation>
             </method>
@@ -498,10 +498,10 @@ return self->errors;]]></implementation>
 dacerror_t errors;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 errors = self->errors & mask;
 self->errors &= ~mask;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return errors;]]></implementation>
             </method>

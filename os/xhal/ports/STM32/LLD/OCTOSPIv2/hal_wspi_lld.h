@@ -291,7 +291,7 @@
 #if defined(STM32_WSPI_DMA_ERROR_HOOK)
 #define STM32_WSPI_MDMA_ERROR_HOOK(wspip)   STM32_WSPI_DMA_ERROR_HOOK(wspip)
 #else
-#define STM32_WSPI_MDMA_ERROR_HOOK(wspip)   osalSysHalt("MDMA failure")
+#define STM32_WSPI_MDMA_ERROR_HOOK(wspip)   chSysHalt("MDMA failure")
 #endif
 #endif
 /** @} */
@@ -336,12 +336,12 @@
 #endif
 
 #if STM32_WSPI_USE_OCTOSPI1 &&                                              \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI1_MDMA_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI1_MDMA_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to OCTOSPI1 MDMA"
 #endif
 
 #if STM32_WSPI_USE_OCTOSPI2 &&                                              \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI2_MDMA_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI2_MDMA_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to OCTOSPI2 MDMA"
 #endif
 

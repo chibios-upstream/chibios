@@ -55,7 +55,7 @@
 #error "STM32_IRQ_USART3_4_5_6_PRIORITY not defined in mcuconf.h"
 #endif
 
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_USART3_4_5_6_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_USART3_4_5_6_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_USART3_4_5_6_PRIORITY"
 #endif
 
@@ -101,9 +101,9 @@ static inline void usart3_usart4_usart5_usart6_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_USART3_4_5_6_HANDLER) {
+CH_IRQ_HANDLER(STM32_USART3_4_5_6_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
 #if HAL_USE_SERIAL
 #if STM32_SERIAL_USE_USART3
@@ -150,7 +150,7 @@ OSAL_IRQ_HANDLER(STM32_USART3_4_5_6_HANDLER) {
 #endif
 #endif
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 

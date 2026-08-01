@@ -345,6 +345,8 @@ typedef enum {
 
 #if !defined(__DOXYGEN__)
 extern const rp_pio_block_t __rp_pio_blocks[RP_PIO_NUM_BLOCKS];
+extern const rp_pio_sm_t __rp_pio_sms[RP_PIO_NUM_BLOCKS]
+                                     [RP_PIO_NUM_STATE_MACHINES];
 #endif
 
 #ifdef __cplusplus
@@ -371,6 +373,8 @@ extern "C" {
                          int32_t offset, uint32_t length);
   void pioSmInit(const rp_pio_sm_t *smp, uint32_t initial_pc,
                  const rp_pio_sm_config_t *cfgp);
+  uint32_t pioGetSmAllocatedMask(const rp_pio_block_t *block);
+  uint32_t pioGetImemAllocatedMask(const rp_pio_block_t *block);
 #if (RP_PIO_HAS_GPIOBASE == TRUE) || defined(__DOXYGEN__)
   void pioSetGpioBase(const rp_pio_block_t *block, uint32_t base);
 #endif
@@ -381,6 +385,30 @@ extern "C" {
 /*===========================================================================*/
 /* Driver inline functions.                                                  */
 /*===========================================================================*/
+
+/**
+ * @brief   Returns the descriptor of a PIO state machine.
+ * @details The returned pointer is the same one @p pioSmAllocI() returns
+ *          for the state machine, so a handle can be recovered without
+ *          tracking the allocation-time pointer externally.
+ * @note    Holding a descriptor does not imply ownership: the state
+ *          machine must have been allocated with @p pioSmAlloc() or
+ *          @p pioSmAllocI() before it is operated on.
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @param[in] smidx     index of the state machine
+ *                      (0..RP_PIO_NUM_STATE_MACHINES-1)
+ * @return              Pointer to the @p rp_pio_sm_t structure.
+ *
+ * @xclass
+ */
+__STATIC_INLINE const rp_pio_sm_t *pioGetSmHandleX(const rp_pio_block_t *block,
+                                                   uint32_t smidx) {
+
+  osalDbgCheck((block != NULL) && (smidx < RP_PIO_NUM_STATE_MACHINES));
+
+  return &__rp_pio_sms[block->pioidx][smidx];
+}
 
 /**
  * @name    State machine configuration builders

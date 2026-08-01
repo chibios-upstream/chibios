@@ -30,8 +30,6 @@
 
 #include "hal_mmc_spi.h"
 
-#if (MMC_SPI_USE_MODULE == TRUE) || defined(__DOXYGEN__)
-
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
@@ -107,7 +105,7 @@ static uint32_t mmc_spi_get_slice(const uint32_t *data, uint32_t end,
   unsigned startidx, endidx, startoff;
   uint32_t endmask;
 
-  osalDbgCheck((data != NULL) && (end >= start) && ((end - start) < 32U));
+  chDbgCheck((data != NULL) && (end >= start) && ((end - start) < 32U));
 
   startidx = start / 32U;
   startoff = start % 32U;
@@ -125,7 +123,7 @@ static uint32_t mmc_spi_get_slice(const uint32_t *data, uint32_t end,
 static uint32_t mmc_spi_get_capacity(const uint32_t *csd) {
   uint32_t a, b, c;
 
-  osalDbgCheck(csd != NULL);
+  chDbgCheck(csd != NULL);
 
   switch (mmc_spi_get_slice(csd, MMC_SPI_CSD_10_CSD_STRUCTURE_END,
                             MMC_SPI_CSD_10_CSD_STRUCTURE_START)) {
@@ -216,7 +214,7 @@ static bool mmc_spi_wait_idle(MMCSPIDriver *mmcp) {
       return HAL_SUCCESS;
     }
 
-    osalThreadSleepMilliseconds(1);
+    chThdSleepMilliseconds(1);
   } while (++i < (unsigned)MMC_SPI_IDLE_TIMEOUT_MS);
 
   return HAL_FAILED;
@@ -686,7 +684,7 @@ bool mmcSpiConnect(MMCSPIDriver *mmcp) {
   uint8_t r1;
   bool success = HAL_FAILED;
 
-  osalDbgCheck(mmcp != NULL);
+  chDbgCheck(mmcp != NULL);
 
   if ((drvGetStateX(mmcp) != HAL_DRV_STATE_READY) ||
       ((mmcp->media_state != MMC_SPI_MEDIA_ACTIVE) &&
@@ -717,7 +715,7 @@ bool mmcSpiConnect(MMCSPIDriver *mmcp) {
       goto done;
     }
 
-    osalThreadSleepMilliseconds(10);
+    chThdSleepMilliseconds(10);
   }
 
   if (mmc_spi_send_command_r3(mmcp, MMC_SPI_CMD_SEND_IF_COND,
@@ -739,7 +737,7 @@ bool mmcSpiConnect(MMCSPIDriver *mmcp) {
         goto done;
       }
 
-      osalThreadSleepMilliseconds(10);
+      chThdSleepMilliseconds(10);
     }
 
     if (mmc_spi_send_command_r3(mmcp, MMC_SPI_CMD_READ_OCR, 0U, &r1) ==
@@ -761,7 +759,7 @@ bool mmcSpiConnect(MMCSPIDriver *mmcp) {
     if ((r1 != 0x01U) || (++i >= MMC_SPI_CMD1_RETRY)) {
       goto done;
     }
-    osalThreadSleepMilliseconds(10);
+    chThdSleepMilliseconds(10);
   }
 
   if ((mmc_spi_apply_cfg(mmcp, mmcSpiGetConfigX(mmcp)->hscfg) != HAL_SUCCESS) ||
@@ -793,7 +791,7 @@ done:
 bool mmcSpiDisconnect(MMCSPIDriver *mmcp) {
   bool result;
 
-  osalDbgCheck(mmcp != NULL);
+  chDbgCheck(mmcp != NULL);
 
   if (drvGetStateX(mmcp) != HAL_DRV_STATE_READY) {
     return HAL_FAILED;
@@ -830,7 +828,7 @@ bool mmcSpiRead(MMCSPIDriver *mmcp, uint32_t startblk, uint8_t *buffer,
                 uint32_t n) {
   bool err = HAL_FAILED;
 
-  osalDbgCheck((mmcp != NULL) && (buffer != NULL));
+  chDbgCheck((mmcp != NULL) && (buffer != NULL));
 
   if ((drvGetStateX(mmcp) != HAL_DRV_STATE_READY) ||
       (mmcp->media_state != MMC_SPI_MEDIA_READY)) {
@@ -872,7 +870,7 @@ bool mmcSpiWrite(MMCSPIDriver *mmcp, uint32_t startblk, const uint8_t *buffer,
                  uint32_t n) {
   bool err = HAL_FAILED;
 
-  osalDbgCheck((mmcp != NULL) && (buffer != NULL));
+  chDbgCheck((mmcp != NULL) && (buffer != NULL));
 
   if ((drvGetStateX(mmcp) != HAL_DRV_STATE_READY) ||
       (mmcp->media_state != MMC_SPI_MEDIA_READY)) {
@@ -913,7 +911,7 @@ bool mmcSpiWrite(MMCSPIDriver *mmcp, uint32_t startblk, const uint8_t *buffer,
 bool mmcSpiSync(MMCSPIDriver *mmcp) {
   bool result;
 
-  osalDbgCheck(mmcp != NULL);
+  chDbgCheck(mmcp != NULL);
 
   if ((drvGetStateX(mmcp) != HAL_DRV_STATE_READY) ||
       (mmcp->media_state != MMC_SPI_MEDIA_READY)) {
@@ -941,7 +939,7 @@ bool mmcSpiSync(MMCSPIDriver *mmcp) {
 
 bool mmcSpiGetInfo(MMCSPIDriver *mmcp, hal_blk_info_t *bdip) {
 
-  osalDbgCheck((mmcp != NULL) && (bdip != NULL));
+  chDbgCheck((mmcp != NULL) && (bdip != NULL));
 
   if ((drvGetStateX(mmcp) != HAL_DRV_STATE_READY) ||
       (mmcp->media_state != MMC_SPI_MEDIA_READY)) {
@@ -958,7 +956,7 @@ bool mmcSpiErase(MMCSPIDriver *mmcp, uint32_t startblk, uint32_t endblk) {
   uint8_t r1;
   bool result = HAL_FAILED;
 
-  osalDbgCheck(mmcp != NULL);
+  chDbgCheck(mmcp != NULL);
 
   if ((drvGetStateX(mmcp) != HAL_DRV_STATE_READY) ||
       (mmcp->media_state != MMC_SPI_MEDIA_READY)) {
@@ -994,7 +992,5 @@ done:
 
   return result;
 }
-
-#endif /* MMC_SPI_USE_MODULE == TRUE */
 
 /** @} */

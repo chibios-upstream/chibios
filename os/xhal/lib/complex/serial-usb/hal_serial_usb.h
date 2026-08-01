@@ -105,6 +105,10 @@
 #error "invalid SERIAL_USB_RX_PACKET_MODE value"
 #endif
 
+#if (SERIAL_USB_USE_MODULE == TRUE) && (CH_CFG_USE_EVENTS != TRUE)
+#error "Serial USB requires CH_CFG_USE_EVENTS"
+#endif
+
 /*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/

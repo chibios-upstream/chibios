@@ -140,6 +140,13 @@ static msg_t translate_error(enum lfs_error res) {
   return msg;
 }
 
+static void stat_set_block_size(const vfs_littlefs_driver_c *drvp,
+                                vfs_stat_t *sp) {
+
+  sp->valid   |= VFS_STAT_VALID_BLKSIZE;
+  sp->blksize  = (vfs_blksize_t)drvp->cfgp->block_size;
+}
+
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
@@ -239,8 +246,18 @@ static void __lfsdir_dispose_impl(void *ip) {
  * @return                      The operation result.
  */
 static msg_t __lfsdir_stat_impl(void *ip, vfs_stat_t *sp) {
+  vfs_littlefs_dir_node_c *self = (vfs_littlefs_dir_node_c *)ip;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
 
-  return __vfsnode_stat_impl(ip, sp);
+  /* FS mount check.*/
+  if (!drvp->mounted) {
+    return CH_RET_EIO;
+  }
+
+  (void)__vfsnode_stat_impl(ip, sp);
+  stat_set_block_size(drvp, sp);
+
+  return CH_RET_SUCCESS;
 }
 
 /**
@@ -454,8 +471,25 @@ static void __lfsfile_dispose_impl(void *ip) {
  * @return                      The operation result.
  */
 static msg_t __lfsfile_stat_impl(void *ip, vfs_stat_t *sp) {
+  vfs_littlefs_file_node_c *self = (vfs_littlefs_file_node_c *)ip;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
+  lfs_soff_t size;
 
-  return __vfsnode_stat_impl(ip, sp);
+  /* FS mount check.*/
+  if (!drvp->mounted) {
+    return CH_RET_EIO;
+  }
+
+  size = lfs_file_size(&drvp->lfs, &self->file);
+  if (size < 0) {
+    return translate_error(size);
+  }
+
+  sp->mode = self->mode;
+  sp->size = (vfs_offset_t)size;
+  stat_set_block_size(drvp, sp);
+
+  return CH_RET_SUCCESS;
 }
 
 /**
@@ -725,6 +759,7 @@ msg_t __lfsdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
         else {
           sp->mode = VFS_MODE_S_IFDIR;
         }
+        stat_set_block_size(self, sp);
         ret = CH_RET_SUCCESS;
       }
       else {

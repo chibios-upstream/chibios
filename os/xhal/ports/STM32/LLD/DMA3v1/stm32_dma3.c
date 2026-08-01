@@ -210,13 +210,13 @@ static struct {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA31_CH0_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA31_CH0_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA31_CHANNEL0);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -226,13 +226,13 @@ OSAL_IRQ_HANDLER(STM32_DMA31_CH0_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA31_CH1_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA31_CH1_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA31_CHANNEL1);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -242,13 +242,13 @@ OSAL_IRQ_HANDLER(STM32_DMA31_CH1_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA31_CH2_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA31_CH2_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA31_CHANNEL2);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -258,13 +258,13 @@ OSAL_IRQ_HANDLER(STM32_DMA31_CH2_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA31_CH3_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA31_CH3_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA31_CHANNEL3);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -274,13 +274,13 @@ OSAL_IRQ_HANDLER(STM32_DMA31_CH3_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA31_CH4_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA31_CH4_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA31_CHANNEL4);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -290,13 +290,13 @@ OSAL_IRQ_HANDLER(STM32_DMA31_CH4_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA31_CH5_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA31_CH5_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA31_CHANNEL5);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -306,13 +306,13 @@ OSAL_IRQ_HANDLER(STM32_DMA31_CH5_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA31_CH6_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA31_CH6_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA31_CHANNEL6);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -322,13 +322,13 @@ OSAL_IRQ_HANDLER(STM32_DMA31_CH6_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA31_CH7_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA31_CH7_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA31_CHANNEL7);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -338,13 +338,13 @@ OSAL_IRQ_HANDLER(STM32_DMA31_CH7_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA32_CH0_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA32_CH0_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA32_CHANNEL0);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -354,13 +354,13 @@ OSAL_IRQ_HANDLER(STM32_DMA32_CH0_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA32_CH1_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA32_CH1_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA32_CHANNEL1);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -370,13 +370,13 @@ OSAL_IRQ_HANDLER(STM32_DMA32_CH1_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA32_CH2_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA32_CH2_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA32_CHANNEL2);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -386,13 +386,13 @@ OSAL_IRQ_HANDLER(STM32_DMA32_CH2_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA32_CH3_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA32_CH3_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA32_CHANNEL3);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -402,13 +402,13 @@ OSAL_IRQ_HANDLER(STM32_DMA32_CH3_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA32_CH4_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA32_CH4_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA32_CHANNEL4);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -418,13 +418,13 @@ OSAL_IRQ_HANDLER(STM32_DMA32_CH4_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA32_CH5_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA32_CH5_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA32_CHANNEL5);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -434,13 +434,13 @@ OSAL_IRQ_HANDLER(STM32_DMA32_CH5_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA32_CH6_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA32_CH6_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA32_CHANNEL6);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -450,13 +450,13 @@ OSAL_IRQ_HANDLER(STM32_DMA32_CH6_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA32_CH7_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA32_CH7_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dma3ServeInterrupt(STM32_DMA32_CHANNEL7);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 
@@ -504,7 +504,7 @@ const stm32_dma3_channel_t *dma3ChannelAllocI(uint32_t cmask,
   unsigned i;
   uint32_t available;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   /* Mask of the available channels within the specified channels.*/
   available = ~dma3.allocated_mask & cmask;
@@ -581,9 +581,9 @@ const stm32_dma3_channel_t *dma3ChannelAlloc(uint32_t cmask,
                                              void *param) {
   const stm32_dma3_channel_t *dmachp;
 
-  osalSysLock();
+  chSysLock();
   dmachp = dma3ChannelAllocI(cmask, irqprio, func, param);
-  osalSysUnlock();
+  chSysUnlock();
 
   return dmachp;
 }
@@ -601,10 +601,10 @@ const stm32_dma3_channel_t *dma3ChannelAlloc(uint32_t cmask,
 void dma3ChannelFreeI(const stm32_dma3_channel_t *dmachp) {
   uint32_t selfindex = (uint32_t)(dmachp - __stm32_dma3_channels);
 
-  osalDbgCheck(dmachp != NULL);
+  chDbgCheck(dmachp != NULL);
 
   /* Check if the channels is not taken.*/
-  osalDbgAssert((dma3.allocated_mask & (1U << selfindex)) != 0U,
+  chDbgAssert((dma3.allocated_mask & (1U << selfindex)) != 0U,
                 "not allocated");
 
   /* Putting the channel in a known state.*/
@@ -655,9 +655,9 @@ void dma3ChannelFreeI(const stm32_dma3_channel_t *dmachp) {
  */
 void dma3ChannelFree(const stm32_dma3_channel_t *dmachp) {
 
-  osalSysLock();
+  chSysLock();
   dma3ChannelFreeI(dmachp);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**

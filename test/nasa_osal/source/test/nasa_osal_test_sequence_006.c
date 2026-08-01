@@ -20,20 +20,21 @@
  * - @subpage nasa_osal_test_006_002
  * - @subpage nasa_osal_test_006_003
  * - @subpage nasa_osal_test_006_004
+ * - @subpage nasa_osal_test_006_005
  * .
  */
 
-/****************************************************************************
- * Shared code.
- ****************************************************************************/
+/*===========================================================================*/
+/* Shared code.                                                              */
+/*===========================================================================*/
 
 #include "osapi.h"
 
 uint32 msid;
 
-/****************************************************************************
- * Test cases.
- ****************************************************************************/
+/*===========================================================================*/
+/* Test cases.                                                               */
+/*===========================================================================*/
 
 /**
  * @page nasa_osal_test_006_001 [6.1] OS_MutSemCreate() and OS_MutSemDelete() errors
@@ -117,7 +118,7 @@ static void nasa_osal_test_006_001_execute(void) {
   test_set_step(5);
   {
     int32 err;
-    uint32 msid1; /*, msid2;*/
+    uint32 msid1;
 
     err = OS_MutSemCreate(&msid1, "my semaphore", 0);
     test_assert(err == OS_SUCCESS, "semaphore creation failed");
@@ -265,9 +266,104 @@ static const testcase_t nasa_osal_test_006_004 = {
   nasa_osal_test_006_004_execute
 };
 
-/****************************************************************************
- * Exported data.
- ****************************************************************************/
+/**
+ * @page nasa_osal_test_006_005 [6.5] OS_MutSemDelete() lifecycle
+ *
+ * <h2>Description</h2>
+ * Mutex deletion is restricted to the specified idle mutex and
+ * preserves unrelated mutex ownership.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.5.1] Deleting an idle mutex leaves an unrelated owned mutex
+ *   locked by the invoking task.
+ * - [6.5.2] Deleting an owned mutex fails without changing the
+ *   ownership of it or other mutexes.
+ * - [6.5.3] Deleting an already deleted mutex reports an invalid
+ *   identifier.
+ * .
+ */
+
+static void nasa_osal_test_006_005_execute(void) {
+
+  /* [6.5.1] Deleting an idle mutex leaves an unrelated owned mutex
+     locked by the invoking task.*/
+  test_set_step(1);
+  {
+    int32 err;
+    uint32 guard, target;
+
+    err = OS_MutSemCreate(&guard, "guard", 0);
+    test_assert(err == OS_SUCCESS, "guard creation failed");
+    err = OS_MutSemCreate(&target, "target", 0);
+    test_assert(err == OS_SUCCESS, "target creation failed");
+    err = OS_MutSemTake(guard);
+    test_assert(err == OS_SUCCESS, "guard take failed");
+
+    err = OS_MutSemDelete(target);
+    test_assert(err == OS_SUCCESS, "idle target deletion failed");
+    err = OS_MutSemGive(guard);
+    test_assert(err == OS_SUCCESS, "unrelated mutex was released");
+    err = OS_MutSemDelete(guard);
+    test_assert(err == OS_SUCCESS, "guard deletion failed");
+  }
+  test_end_step(1);
+
+  /* [6.5.2] Deleting an owned mutex fails without changing the
+     ownership of it or other mutexes.*/
+  test_set_step(2);
+  {
+    int32 err;
+    uint32 guard, target;
+
+    err = OS_MutSemCreate(&guard, "guard", 0);
+    test_assert(err == OS_SUCCESS, "guard creation failed");
+    err = OS_MutSemCreate(&target, "target", 0);
+    test_assert(err == OS_SUCCESS, "target creation failed");
+    err = OS_MutSemTake(guard);
+    test_assert(err == OS_SUCCESS, "guard take failed");
+    err = OS_MutSemTake(target);
+    test_assert(err == OS_SUCCESS, "target take failed");
+
+    err = OS_MutSemDelete(target);
+    test_assert(err == OS_SEM_FAILURE, "owned target deletion accepted");
+    err = OS_MutSemGive(target);
+    test_assert(err == OS_SUCCESS, "target ownership changed");
+    err = OS_MutSemGive(guard);
+    test_assert(err == OS_SUCCESS, "guard ownership changed");
+    err = OS_MutSemDelete(target);
+    test_assert(err == OS_SUCCESS, "target deletion failed");
+    err = OS_MutSemDelete(guard);
+    test_assert(err == OS_SUCCESS, "guard deletion failed");
+  }
+  test_end_step(2);
+
+  /* [6.5.3] Deleting an already deleted mutex reports an invalid
+     identifier.*/
+  test_set_step(3);
+  {
+    int32 err;
+    uint32 target;
+
+    err = OS_MutSemCreate(&target, "target", 0);
+    test_assert(err == OS_SUCCESS, "target creation failed");
+    err = OS_MutSemDelete(target);
+    test_assert(err == OS_SUCCESS, "target deletion failed");
+    err = OS_MutSemDelete(target);
+    test_assert(err == OS_ERR_INVALID_ID, "deleted target accepted");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t nasa_osal_test_006_005 = {
+  "OS_MutSemDelete() lifecycle",
+  NULL,
+  NULL,
+  nasa_osal_test_006_005_execute
+};
+
+/*===========================================================================*/
+/* Exported data.                                                            */
+/*===========================================================================*/
 
 /**
  * @brief   Array of test cases.
@@ -277,6 +373,7 @@ const testcase_t * const nasa_osal_test_sequence_006_array[] = {
   &nasa_osal_test_006_002,
   &nasa_osal_test_006_003,
   &nasa_osal_test_006_004,
+  &nasa_osal_test_006_005,
   NULL
 };
 

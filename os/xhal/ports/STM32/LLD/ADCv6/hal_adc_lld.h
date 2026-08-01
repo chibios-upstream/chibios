@@ -361,22 +361,22 @@
 
 /* ADC IRQ priority tests.*/
 #if STM32_ADC_USE_ADC1 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC1_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC1_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC1"
 #endif
 
 #if STM32_ADC_USE_ADC2 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC2_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC2_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC2"
 #endif
 
 #if STM32_ADC_USE_ADC3 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC3_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC3_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC3"
 #endif
 
 #if STM32_ADC_USE_ADC4 &&                                                   \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC4_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC4_IRQ_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC4"
 #endif
 

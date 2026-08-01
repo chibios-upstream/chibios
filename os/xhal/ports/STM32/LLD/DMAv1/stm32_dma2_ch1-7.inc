@@ -57,9 +57,9 @@
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DMA2_CH1_7_HANDLER) {
+CH_IRQ_HANDLER(STM32_DMA2_CH1_7_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   /* Check on channel 1.*/
   dmaServeInterrupt(STM32_DMA2_STREAM3);
@@ -82,7 +82,7 @@ OSAL_IRQ_HANDLER(STM32_DMA2_CH1_7_HANDLER) {
   /* Check on channel 7.*/
   dmaServeInterrupt(STM32_DMA2_STREAM7);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 

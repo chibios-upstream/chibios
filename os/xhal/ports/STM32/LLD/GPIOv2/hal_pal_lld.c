@@ -160,7 +160,7 @@ void _pal_lld_enablepadevent(ioportid_t port,
   /* Multiple channel setting of the same channel not allowed, first disable
      it. This is done because on STM32 the same channel cannot be mapped on
      multiple ports.*/
-  osalDbgAssert(((EXTI->RTSR1 & padmask) == 0U) &&
+  chDbgAssert(((EXTI->RTSR1 & padmask) == 0U) &&
                 ((EXTI->FTSR1 & padmask) == 0U), "channel already in use");
 
   /* Port index is obtained assuming that GPIO ports are placed at regular
@@ -235,7 +235,7 @@ void _pal_lld_disablepadevent(ioportid_t port, iopadid_t pad) {
     crport = (EXTI->EXTICR[cridx] >> croff) & 0xFFU;
 #endif
 
-    osalDbgAssert(crport == portidx, "channel mapped on different port");
+    chDbgAssert(crport == portidx, "channel mapped on different port");
 
 #if defined(STM32_EXTI_ENHANCED)
     /* Disabling channel.*/

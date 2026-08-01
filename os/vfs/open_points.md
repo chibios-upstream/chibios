@@ -24,11 +24,6 @@ remaining technical points across the VFS subsystems.
   the indirection is awkward (the original TODO comments call it a "dirty
   trick"). Consider inlining the null check + prefix prepend + call at each
   site, or having the helper take an operation enum.
-- `stat("/")` with an overlaid driver delegates to the underlying driver's
-  stat, while `opendir("/")` creates a synthetic overlay root node. This
-  is inconsistent — stat reports underlying FS metadata while opendir shows
-  the overlay's merged view. May be intentional to preserve underlying root
-  metadata, but should be explicitly documented or made consistent.
 - Several `strcpy` calls operate on buffers that are guaranteed to fit under
   current invariants (for example `__ovldir_next_impl`) but
   have no explicit bounds checks. Not current bugs but could become issues if
@@ -43,6 +38,14 @@ remaining technical points across the VFS subsystems.
 - Every file/directory operation individually checks `drvp->mounted` at
   entry. This is consistent but produces a lot of repetitive boilerplate.
   A centralized check pattern might be cleaner.
+
+## ChibiFS Driver
+
+- The CHFS driver is still a skeleton: mount, lookup, node creation, I/O, and
+  directory iteration do not yet operate on an on-media format. Its
+  `vfs_stat_t` storage and time metadata must be defined together with that
+  format; reporting the backing block-device geometry alone would not describe
+  per-node allocation.
 
 ## Streams Driver
 

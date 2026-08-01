@@ -47,7 +47,7 @@
 #error "STM32_IRQ_OCTOSPI2_PRIORITY not defined in xmcuconf.h"
 #endif
 
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_OCTOSPI2_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_OCTOSPI2_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_OCTOSPI2_PRIORITY"
 #endif
 
@@ -85,13 +85,13 @@ static inline void octospi2_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_OCTOSPI2_HANDLER) {
+CH_IRQ_HANDLER(STM32_OCTOSPI2_HANDLER) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   wspi_lld_serve_interrupt(&WSPID2);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 

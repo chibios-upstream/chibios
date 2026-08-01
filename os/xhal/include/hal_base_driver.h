@@ -84,6 +84,11 @@
 #error "invalid HAL_USE_REGISTRY value"
 #endif
 
+#if (HAL_USE_MUTUAL_EXCLUSION == TRUE) &&                              \
+    (CH_CFG_USE_MUTEXES != TRUE) && (CH_CFG_USE_SEMAPHORES != TRUE)
+#error "HAL_USE_MUTUAL_EXCLUSION requires mutexes or semaphores"
+#endif
+
 /*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/
@@ -98,6 +103,16 @@ typedef struct hal_base_driver hal_base_driver_c;
  * @brief       Type of a driver state variable.
  */
 typedef unsigned int driver_state_t;
+
+#if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
+typedef mutex_t driver_mutex_t;
+#elif CH_CFG_USE_SEMAPHORES == TRUE
+typedef semaphore_t driver_mutex_t;
+#else
+typedef unsigned driver_mutex_t;
+#endif
+#endif
 
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
 /**
@@ -170,9 +185,9 @@ struct hal_base_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -419,7 +434,13 @@ CC_FORCE_INLINE
 static inline void drvLock(void *ip) {
   hal_base_driver_c *self = (hal_base_driver_c *)ip;
 
-  osalMutexLock(&self->mutex);
+#if CH_CFG_USE_MUTEXES == TRUE
+  chMtxLock(&self->mutex);
+#elif CH_CFG_USE_SEMAPHORES == TRUE
+  (void)chSemWait(&self->mutex);
+#else
+  (void)self;
+#endif
 }
 
 /**
@@ -433,7 +454,13 @@ CC_FORCE_INLINE
 static inline void drvUnlock(void *ip) {
   hal_base_driver_c *self = (hal_base_driver_c *)ip;
 
-  osalMutexUnlock(&self->mutex);
+#if CH_CFG_USE_MUTEXES == TRUE
+  chMtxUnlock(&self->mutex);
+#elif CH_CFG_USE_SEMAPHORES == TRUE
+  chSemSignal(&self->mutex);
+#else
+  (void)self;
+#endif
 }
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 /** @} */

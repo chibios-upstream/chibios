@@ -115,26 +115,26 @@ static void spi_lld_serve_interrupt(hal_spi_driver_c *spip, uint32_t nvrq) {
 
 #if VIO_SPI_USE_VSPI1 || defined(__DOXYGEN__)
 #if !defined(VIO_VSPI1_SUPPRESS_ISR)
-OSAL_IRQ_HANDLER(MK_VECTOR(VIO_VSPI1_IRQ)) {
+CH_IRQ_HANDLER(MK_VECTOR(VIO_VSPI1_IRQ)) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   spi_lld_serve_interrupt(&SPID1, VIO_VSPI1_IRQ);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif
 
 #if VIO_SPI_USE_VSPI2 || defined(__DOXYGEN__)
 #if !defined(VIO_VSPI2_SUPPRESS_ISR)
-OSAL_IRQ_HANDLER(MK_VECTOR(VIO_VSPI2_IRQ)) {
+CH_IRQ_HANDLER(MK_VECTOR(VIO_VSPI2_IRQ)) {
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   spi_lld_serve_interrupt(&SPID2, VIO_VSPI2_IRQ);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif
@@ -192,7 +192,7 @@ msg_t spi_lld_start(hal_spi_driver_c *spip) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid SPI instance");
+    chDbgAssert(false, "invalid SPI instance");
   }
 
   if (msg == HAL_RET_SUCCESS) {
@@ -226,10 +226,10 @@ void spi_lld_stop(hal_spi_driver_c *spip) {
   }
 #endif
   else {
-    osalDbgAssert(false, "invalid SIO instance");
+    chDbgAssert(false, "invalid SIO instance");
   }
 
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
 }
 
 /**
@@ -424,11 +424,11 @@ uint16_t spi_lld_polled_exchange(hal_spi_driver_c *spip, uint16_t frame) {
   msg_t msg;
 
   msg = spiExchange(spip, 1U, &frame, &rxframe);
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "unexpected failure");
 #else
   (void)spip;
   (void)frame;
-  osalDbgAssert(false, "SPI_USE_SYNCHRONIZATION required");
+  chDbgAssert(false, "SPI_USE_SYNCHRONIZATION required");
 #endif
 
   return rxframe;

@@ -75,7 +75,7 @@
 #endif
 
 /* Priority settings checks.*/
-#if !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_DAC1_PRIORITY)
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_DAC1_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_DAC1_PRIORITY"
 #endif
 
@@ -116,10 +116,10 @@ static inline void dac1_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_DAC1_HANDLER) {
+CH_IRQ_HANDLER(STM32_DAC1_HANDLER) {
   uint32_t isr;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   isr  = DAC1->SR;
   DAC1->SR = isr;
@@ -140,7 +140,7 @@ OSAL_IRQ_HANDLER(STM32_DAC1_HANDLER) {
   }
 #endif
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 

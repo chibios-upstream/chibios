@@ -714,7 +714,7 @@ void stm32_clock_init(void) {
 
   /* Selecting the default clock/power/flash configuration.*/
   if (hal_lld_clock_raw_config(&hal_clkcfg_default)) {
-    osalSysHalt("clkswc");
+    chSysHalt("clkswc");
   }
 
   /* Backup domain initializations.*/
@@ -805,7 +805,7 @@ bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
  */
 halfreq_t hal_lld_get_clock_point(halclkpt_t clkpt) {
 
-  osalDbgAssert(clkpt < CLK_ARRAY_SIZE, "invalid clock point");
+  chDbgAssert(clkpt < CLK_ARRAY_SIZE, "invalid clock point");
 
   return clock_points[clkpt];
 }

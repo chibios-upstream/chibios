@@ -106,7 +106,7 @@
  * @notapi
  */
 #define _dac_reset_i(dacp)                                                  \
-  osalThreadResumeI(&(dacp)->thread, MSG_RESET)
+  chThdResumeI(&(dacp)->thread, MSG_RESET)
 
 /**
  * @brief       Resumes a thread waiting for DAC streaming completion.
@@ -116,7 +116,7 @@
  * @notapi
  */
 #define _dac_reset_s(dacp)                                                  \
-  osalThreadResumeS(&(dacp)->thread, MSG_RESET)
+  chThdResumeS(&(dacp)->thread, MSG_RESET)
 
 /**
  * @brief       Wakes up a thread waiting for a DAC streaming state.
@@ -128,11 +128,11 @@
  */
 #define _dac_wakeup_isr(dacp, state)                                        \
   do {                                                                      \
-    osalSysLockFromISR();                                                   \
+    chSysLockFromISR();                                                     \
     if ((dacp)->sync_state == (state)) {                                    \
-      osalThreadResumeI(&(dacp)->thread, MSG_OK);                           \
+      chThdResumeI(&(dacp)->thread, MSG_OK);                                \
     }                                                                       \
-    osalSysUnlockFromISR();                                                 \
+    chSysUnlockFromISR();                                                   \
   } while (false)
 
 /**
@@ -145,9 +145,9 @@
  */
 #define _dac_error_wakeup_isr(dacp)                                         \
   do {                                                                      \
-    osalSysLockFromISR();                                                   \
-    osalThreadResumeI(&(dacp)->thread, MSG_RESET);                          \
-    osalSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                     \
+    chThdResumeI(&(dacp)->thread, MSG_RESET);                               \
+    chSysUnlockFromISR();                                                   \
   } while (false)
 
 #else
@@ -315,9 +315,9 @@ struct hal_dac_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -471,10 +471,10 @@ static inline daceventflags_t dacGetAndClearEventsX(void *ip,
   daceventflags_t flags;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   flags = self->events & mask;
   self->events &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return flags;
 }
@@ -508,10 +508,10 @@ static inline dacerror_t dacGetAndClearErrorsX(void *ip, dacerror_t mask) {
   dacerror_t errors;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   errors = self->errors & mask;
   self->errors &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return errors;
 }

@@ -99,6 +99,10 @@
 #error "invalid ETH_USE_CONFIGURATIONS value"
 #endif
 
+#if (ETH_USE_EVENTS == TRUE) && (CH_CFG_USE_EVENTS != TRUE)
+#error "ETH_USE_EVENTS requires CH_CFG_USE_EVENTS"
+#endif
+
 /*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/
@@ -250,9 +254,9 @@ struct hal_eth_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**

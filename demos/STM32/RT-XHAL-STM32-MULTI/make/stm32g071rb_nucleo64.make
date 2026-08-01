@@ -98,11 +98,10 @@ DEPDIR   := ./.dep/stm32g071rb_nucleo64
 include $(CHIBIOS)/os/license/license.mk
 # Startup files.
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32g0xx.mk
-# HAL-OSAL files (optional).
+# XHAL files.
 include $(CHIBIOS)/os/xhal/xhal.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/STM32G0xx/platform.mk
 include $(CHIBIOS)/os/hal/boards/ST_NUCLEO64_G071RB/board.mk
-include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMv6-M/compilers/GCC/mk/port.mk

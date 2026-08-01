@@ -39,14 +39,14 @@
             <implementation><![CDATA[ ]]></implementation>
           </dispose>
           <virtual>
-            <method name="vfsFSStat" shortname="stat" ctype="msg_t">
+            <method name="__vfsfs_stat" shortname="stat" ctype="msg_t">
               <brief>Returns file or directory information.</brief>
               <param name="path" ctype="const char *" dir="in">Absolute path of
                 the node to be examined.</param>
               <param name="sp" ctype="vfs_stat_t *" dir="out">Pointer to a @p
                 vfs_stat_t structure.</param>
               <return>The operation result.</return>
-              <api />
+              <notapi />
               <implementation>
 
 (void)self;
@@ -155,6 +155,25 @@ return CH_RET_ENOSYS;<![CDATA[]]></implementation>
 return CH_RET_ENOSYS;<![CDATA[]]></implementation>
             </method>
           </virtual>
+          <inline>
+            <method name="vfsFSStat" ctype="msg_t">
+              <brief>Returns file or directory information.</brief>
+              <details>The output structure is initialized before invoking
+                the file system implementation. Optional fields are reported
+                only when the corresponding validity flags are set.</details>
+              <param name="path" ctype="const char *" dir="in">Absolute path of
+                the node to be examined.</param>
+              <param name="sp" ctype="vfs_stat_t *" dir="out">Pointer to a @p
+                vfs_stat_t structure.</param>
+              <return>The operation result.</return>
+              <api />
+              <implementation><![CDATA[
+
+*sp = (vfs_stat_t) {0};
+
+return __vfsfs_stat(self, path, sp);]]></implementation>
+            </method>
+          </inline>
         </methods>
       </class>
     </types>

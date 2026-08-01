@@ -46,14 +46,35 @@ const rp_pio_block_t __rp_pio_blocks[RP_PIO_NUM_BLOCKS] = {
 #endif
 };
 
-/*===========================================================================*/
-/* Driver local variables and types.                                         */
-/*===========================================================================*/
-
 /**
  * @brief   PIO state machine descriptors.
  */
-static rp_pio_sm_t pio_sms[RP_PIO_NUM_BLOCKS][RP_PIO_NUM_STATE_MACHINES];
+const rp_pio_sm_t __rp_pio_sms[RP_PIO_NUM_BLOCKS][RP_PIO_NUM_STATE_MACHINES] = {
+  {
+    {&__rp_pio_blocks[0], 0U, 1U << 0},
+    {&__rp_pio_blocks[0], 1U, 1U << 1},
+    {&__rp_pio_blocks[0], 2U, 1U << 2},
+    {&__rp_pio_blocks[0], 3U, 1U << 3}
+  },
+  {
+    {&__rp_pio_blocks[1], 0U, 1U << 0},
+    {&__rp_pio_blocks[1], 1U, 1U << 1},
+    {&__rp_pio_blocks[1], 2U, 1U << 2},
+    {&__rp_pio_blocks[1], 3U, 1U << 3}
+  },
+#if RP_HAS_PIO2 == TRUE
+  {
+    {&__rp_pio_blocks[2], 0U, 1U << 0},
+    {&__rp_pio_blocks[2], 1U, 1U << 1},
+    {&__rp_pio_blocks[2], 2U, 1U << 2},
+    {&__rp_pio_blocks[2], 3U, 1U << 3}
+  },
+#endif
+};
+
+/*===========================================================================*/
+/* Driver local variables and types.                                         */
+/*===========================================================================*/
 
 /**
  * @brief   Global PIO-related data structures.
@@ -221,11 +242,6 @@ void pioInit(void) {
     pio.blocks[b].imem_allocated    = 0U;
     for (s = 0U; s < RP_PIO_NUM_STATE_MACHINES; s++) {
       pio.blocks[b].sm[s].func = NULL;
-
-      /* Initialize state machine descriptors.*/
-      pio_sms[b][s].block  = &__rp_pio_blocks[b];
-      pio_sms[b][s].smidx  = s;
-      pio_sms[b][s].smmask = 1U << s;
     }
   }
 }
@@ -328,7 +344,7 @@ const rp_pio_sm_t *pioSmAllocI(const rp_pio_block_t *block,
         pio.blocks[b].c1_allocated_mask |= smmask;
       }
 
-      return &pio_sms[b][i];
+      return &__rp_pio_sms[b][i];
     }
   }
 
@@ -686,6 +702,55 @@ void pioSmInit(const rp_pio_sm_t *smp, uint32_t initial_pc,
   pioSmRestartX(smp);
   pioSmClkdivRestartX(smp);
   pioSmSetPCX(smp, initial_pc);
+}
+
+/**
+ * @brief   Returns the allocation mask of the state machines in a block.
+ * @details The returned mask is the union of the core 0 and core 1
+ *          allocations, bit N representing state machine N.
+ * @note    The mask is a snapshot and is advisory only: another core can
+ *          allocate or free state machines right after the mask is taken.
+ *          @p pioSmAllocI() re-checks availability under the system lock,
+ *          so allocation remains safe regardless.
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @return              A bitmask where bit N represents state machine N.
+ *
+ * @api
+ */
+uint32_t pioGetSmAllocatedMask(const rp_pio_block_t *block) {
+  uint32_t mask;
+
+  osalDbgCheck(block != NULL);
+
+  osalSysLock();
+  mask = pio.blocks[block->pioidx].c0_allocated_mask |
+         pio.blocks[block->pioidx].c1_allocated_mask;
+  osalSysUnlock();
+
+  return mask;
+}
+
+/**
+ * @brief   Returns the allocation mask of the instruction memory in a block.
+ * @note    The mask is a snapshot and is advisory only, see
+ *          @p pioGetSmAllocatedMask().
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @return              A 32-bit mask representing the used instruction slots.
+ *
+ * @api
+ */
+uint32_t pioGetImemAllocatedMask(const rp_pio_block_t *block) {
+  uint32_t mask;
+
+  osalDbgCheck(block != NULL);
+
+  osalSysLock();
+  mask = pio.blocks[block->pioidx].imem_allocated;
+  osalSysUnlock();
+
+  return mask;
 }
 
 #if (RP_PIO_HAS_GPIOBASE == TRUE) || defined(__DOXYGEN__)

@@ -192,12 +192,12 @@ const struct hal_wdg_driver_vmt __hal_wdg_driver_vmt = {
  */
 void wdgReset(void *ip) {
   hal_wdg_driver_c *self = (hal_wdg_driver_c *)ip;
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chSysLock();
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
   wdgResetI(self);
-  osalSysUnlock();
+  chSysUnlock();
 }
 /** @} */
 

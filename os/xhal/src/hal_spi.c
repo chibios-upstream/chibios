@@ -217,21 +217,21 @@ msg_t spiStartIgnoreI(void *ip, size_t n) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
-  osalDbgCheck((self != NULL) && (n > 0U));
+  chDbgCheck((self != NULL) && (n > 0U));
 #if SPI_SUPPORTS_CIRCULAR
-  osalDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
+  chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
                ((n & 1U) == 0U));
 #endif
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->state = HAL_DRV_STATE_ACTIVE;
   msg = spi_lld_ignore(self, n);
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
 #endif
 
   return msg;
@@ -255,9 +255,9 @@ msg_t spiStartIgnore(void *ip, size_t n) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = spiStartIgnoreI(self, n);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -284,22 +284,22 @@ msg_t spiStartExchangeI(void *ip, size_t n, const void *txbuf, void *rxbuf) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
-  osalDbgCheck((self != NULL) && (n > 0U) &&
+  chDbgCheck((self != NULL) && (n > 0U) &&
                (rxbuf != NULL) && (txbuf != NULL));
 #if SPI_SUPPORTS_CIRCULAR
-  osalDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
+  chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
                ((n & 1U) == 0U));
 #endif
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->state = HAL_DRV_STATE_ACTIVE;
   msg = spi_lld_exchange(self, n, txbuf, rxbuf);
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
 #endif
 
   return msg;
@@ -327,9 +327,9 @@ msg_t spiStartExchange(void *ip, size_t n, const void *txbuf, void *rxbuf) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = spiStartExchangeI(self, n, txbuf, rxbuf);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -354,21 +354,21 @@ msg_t spiStartSendI(void *ip, size_t n, const void *txbuf) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
-  osalDbgCheck((self != NULL) && (n > 0U) && (txbuf != NULL));
+  chDbgCheck((self != NULL) && (n > 0U) && (txbuf != NULL));
 #if SPI_SUPPORTS_CIRCULAR
-  osalDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
+  chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
                ((n & 1U) == 0U));
 #endif
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->state = HAL_DRV_STATE_ACTIVE;
   msg = spi_lld_send(self, n, txbuf);
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
 #endif
 
   return msg;
@@ -394,9 +394,9 @@ msg_t spiStartSend(void *ip, size_t n, const void *txbuf) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = spiStartSendI(self, n, txbuf);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -421,21 +421,21 @@ msg_t spiStartReceiveI(void *ip, size_t n, void *rxbuf) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
-  osalDbgCheck((self != NULL) && (n > 0U) && (rxbuf != NULL));
+  chDbgCheck((self != NULL) && (n > 0U) && (rxbuf != NULL));
 #if SPI_SUPPORTS_CIRCULAR
-  osalDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
+  chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
                ((n & 1U) == 0U));
 #endif
 
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
   self->state = HAL_DRV_STATE_ACTIVE;
   msg = spi_lld_receive(self, n, rxbuf);
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
-  osalDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
+  chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
 #endif
 
   return msg;
@@ -461,9 +461,9 @@ msg_t spiStartReceive(void *ip, size_t n, void *rxbuf) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
   msg = spiStartReceiveI(self, n, rxbuf);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -482,11 +482,11 @@ msg_t spiStopTransferI(void *ip, size_t *np) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalDbgAssert((self->state == HAL_DRV_STATE_READY) ||
+  chDbgAssert((self->state == HAL_DRV_STATE_READY) ||
                 (self->state == HAL_DRV_STATE_ACTIVE) ||
                 (self->state == HAL_DRV_STATE_HALF) ||
                 (self->state == HAL_DRV_STATE_FULL) ||
@@ -500,7 +500,7 @@ msg_t spiStopTransferI(void *ip, size_t *np) {
     self->state = HAL_DRV_STATE_READY;
 
 #if SPI_USE_SYNCHRONIZATION == TRUE
-    osalThreadResumeI(&self->sync_transfer, MSG_RESET);
+    chThdResumeI(&self->sync_transfer, MSG_RESET);
 #endif
   }
   else {
@@ -524,12 +524,12 @@ msg_t spiStopTransfer(void *ip, size_t *np) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
 
   msg = spiStopTransferI(self, np);
-  osalOsRescheduleS();
+  chSchRescheduleS();
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -558,22 +558,22 @@ msg_t spiSynchronizeStateS(void *ip, driver_state_t state,
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
-  osalDbgCheckClassS();
-  osalDbgCheck((state == HAL_DRV_STATE_HALF) ||
+  chDbgCheck(self != NULL);
+  chDbgCheckClassS();
+  chDbgCheck((state == HAL_DRV_STATE_HALF) ||
                (state == HAL_DRV_STATE_FULL) ||
                (state == HAL_DRV_STATE_COMPLETE));
-  osalDbgAssert((self->state == HAL_DRV_STATE_ACTIVE) ||
+  chDbgAssert((self->state == HAL_DRV_STATE_ACTIVE) ||
                 ((self->state == HAL_DRV_STATE_READY) &&
                  (state == HAL_DRV_STATE_COMPLETE)),
                 "invalid state");
-  osalDbgCheck((state == HAL_DRV_STATE_COMPLETE) ||
+  chDbgCheck((state == HAL_DRV_STATE_COMPLETE) ||
                ((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) != 0U));
-  osalDbgAssert(self->sync_transfer == NULL, "already waiting");
+  chDbgAssert(self->sync_transfer == NULL, "already waiting");
 
   if (self->state == HAL_DRV_STATE_ACTIVE) {
     self->sync_state = state;
-    msg = osalThreadSuspendTimeoutS(&self->sync_transfer, timeout);
+    msg = chThdSuspendTimeoutS(&self->sync_transfer, timeout);
     self->sync_state = HAL_DRV_STATE_STOP;
   }
   else {
@@ -606,11 +606,11 @@ msg_t spiSynchronizeState(void *ip, driver_state_t state,
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalDbgCheck(self != NULL);
+  chDbgCheck(self != NULL);
 
-  osalSysLock();
+  chSysLock();
   msg = spiSynchronizeStateS(self, state, timeout);
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -634,14 +634,14 @@ msg_t spiIgnore(void *ip, size_t n) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
 
   msg = spiStartIgnoreI(self, n);
   if (msg == MSG_OK) {
     msg = spiSynchronizeStateS(self, HAL_DRV_STATE_COMPLETE, TIME_INFINITE);
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -669,14 +669,14 @@ msg_t spiExchange(void *ip, size_t n, const void *txbuf, void *rxbuf) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
 
   msg = spiStartExchangeI(self, n, txbuf, rxbuf);
   if (msg == MSG_OK) {
     msg = spiSynchronizeStateS(self, HAL_DRV_STATE_COMPLETE, TIME_INFINITE);
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -702,14 +702,14 @@ msg_t spiSend(void *ip, size_t n, const void *txbuf) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
 
   msg = spiStartSendI(self, n, txbuf);
   if (msg == MSG_OK) {
     msg = spiSynchronizeStateS(self, HAL_DRV_STATE_COMPLETE, TIME_INFINITE);
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }
@@ -735,14 +735,14 @@ msg_t spiReceive(void *ip, size_t n, void *rxbuf) {
   hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
   msg_t msg;
 
-  osalSysLock();
+  chSysLock();
 
   msg = spiStartReceiveI(self, n, rxbuf);
   if (msg == MSG_OK) {
     msg = spiSynchronizeStateS(self, HAL_DRV_STATE_COMPLETE, TIME_INFINITE);
   }
 
-  osalSysUnlock();
+  chSysUnlock();
 
   return msg;
 }

@@ -119,7 +119,7 @@ static bool sdc_lld_wait_for_transfer_state(hal_sdc_driver_c *sdcp) {
       return HAL_SUCCESS;
     }
 #if SDC_NICE_WAITING == TRUE
-    osalThreadSleepMilliseconds(1);
+    chThdSleepMilliseconds(1);
 #endif
   }
 }
@@ -163,7 +163,7 @@ static void sdc_lld_end_data_path(hal_sdc_driver_c *sdcp) {
 
 static bool sdc_lld_prepare_read_bytes(hal_sdc_driver_c *sdcp,
                                        uint8_t *buf, uint32_t bytes) {
-  osalDbgCheck(bytes < 0x1000000U);
+  chDbgCheck(bytes < 0x1000000U);
 
   sdcp->sdmmc->DTIMER = sdc_lld_get_timeout(sdcp, STM32_SDC_SDMMC_READ_TIMEOUT);
 
@@ -287,7 +287,7 @@ static msg_t sdc_lld_start_transfer(hal_sdc_driver_c *sdcp, uint32_t startblk,
     return HAL_RET_CONFIG_ERROR;
   }
 
-  osalDbgCheck(blocks < 0x1000000U / MMCSD_BLOCK_SIZE);
+  chDbgCheck(blocks < 0x1000000U / MMCSD_BLOCK_SIZE);
 
   sdcp->sdmmc->DTIMER = sdc_lld_get_timeout(sdcp,
                                             readop ?
@@ -493,7 +493,7 @@ void sdc_lld_set_callback(hal_sdc_driver_c *sdcp, drv_cb_t cb) {
 void sdc_lld_start_clk(hal_sdc_driver_c *sdcp) {
   sdcp->sdmmc->CLKCR  = sdc_lld_clkdiv(sdcp, 400000U);
   sdcp->sdmmc->POWER |= SDMMC_POWER_PWRCTRL_0 | SDMMC_POWER_PWRCTRL_1;
-  osalThreadSleep(OSAL_MS2I(STM32_SDC_SDMMC_CLOCK_DELAY));
+  chThdSleep(TIME_MS2I(STM32_SDC_SDMMC_CLOCK_DELAY));
 }
 
 void sdc_lld_set_data_clk(hal_sdc_driver_c *sdcp, sdcbusclk_t clk) {
@@ -667,7 +667,7 @@ bool sdc_lld_sync(hal_sdc_driver_c *sdcp) {
 void sdc_lld_serve_interrupt(hal_sdc_driver_c *sdcp) {
   msg_t msg;
 
-  osalSysLockFromISR();
+  chSysLockFromISR();
   msg = sdc_lld_finish_transfer(sdcp);
   if (msg == HAL_RET_SUCCESS) {
     _sdc_isr_complete_code(sdcp);
@@ -675,7 +675,7 @@ void sdc_lld_serve_interrupt(hal_sdc_driver_c *sdcp) {
   else {
     _sdc_isr_error_code(sdcp);
   }
-  osalSysUnlockFromISR();
+  chSysUnlockFromISR();
 }
 
 #endif /* HAL_USE_SDC */

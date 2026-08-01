@@ -213,7 +213,7 @@ static void mii_find_phy(hal_eth_driver_c *ethp) {
   } while (n > 0U);
 #endif
   /* Wrong or defective board.*/
-  osalSysHalt("ETH failure");
+  chSysHalt("ETH failure");
 }
 #endif
 
@@ -265,11 +265,11 @@ static void eth_set_address(const uint8_t *p) {
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
-OSAL_IRQ_HANDLER(STM32_ETH_HANDLER) {
+CH_IRQ_HANDLER(STM32_ETH_HANDLER) {
   hal_eth_driver_c *ethp = &ETHD1;
   uint32_t dmacsr;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   dmacsr = ETH->DMACSR;
   ETH->DMACSR = dmacsr;
@@ -284,25 +284,25 @@ OSAL_IRQ_HANDLER(STM32_ETH_HANDLER) {
       flags |= ETH_FLAGS_RX;
     }
 
-    osalSysLockFromISR();
+    chSysLockFromISR();
 #if ETH_USE_SYNCHRONIZATION == TRUE
     if ((dmacsr & ETH_DMACSR_TI) != 0U) {
-      osalThreadDequeueAllI(&ethp->txqueue, MSG_OK);
+      chThdDequeueAllI(&ethp->txqueue, MSG_OK);
     }
     if ((dmacsr & ETH_DMACSR_RI) != 0U) {
-      osalThreadDequeueAllI(&ethp->rxqueue, MSG_OK);
+      chThdDequeueAllI(&ethp->rxqueue, MSG_OK);
     }
 #endif
     ethp->lastflags = flags;
 #if ETH_USE_EVENTS == TRUE
-    osalEventBroadcastFlagsI(&ethp->es, flags);
+    chEvtBroadcastFlagsI(&ethp->es, flags);
 #endif
-    osalSysUnlockFromISR();
+    chSysUnlockFromISR();
 
     __cbdrv_invoke_cb(ethp);
   }
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /*===========================================================================*/
@@ -361,7 +361,7 @@ void eth_lld_init(void) {
   /* PHY soft reset procedure.*/
   mii_write(ethp, MII_BMCR, BMCR_RESET);
 #if defined(BOARD_PHY_RESET_DELAY)
-  osalSysPolledDelayX(BOARD_PHY_RESET_DELAY);
+  chSysPolledDelayX(BOARD_PHY_RESET_DELAY);
 #endif
   while (mii_read(ethp, MII_BMCR) & BMCR_RESET)
     ;
@@ -410,7 +410,7 @@ msg_t eth_lld_start(hal_eth_driver_c *ethp) {
 
   /* Applies the selected configuration or falls back to the default one.*/
   config = eth_lld_setcfg(ethp, (const hal_eth_config_t *)ethp->config);
-  osalDbgAssert(config != NULL, "default configuration failed");
+  chDbgAssert(config != NULL, "default configuration failed");
 
   /* MAC configuration.*/
   ETH->MACCR   = ETH_MACCR_DO;

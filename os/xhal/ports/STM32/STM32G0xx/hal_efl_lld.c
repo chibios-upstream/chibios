@@ -156,7 +156,7 @@ static inline flash_error_t stm32_flash_check_errors(EFlashDriver *eflp) {
   eflp->flash->SR = sr & 0x0000FFFFU;
 
   /* Some errors are only caught by assertion.*/
-  osalDbgAssert((sr & (FLASH_SR_FASTERR |
+  chDbgAssert((sr & (FLASH_SR_FASTERR |
                        FLASH_SR_MISERR |
                        FLASH_SR_SIZERR)) == 0U, "unexpected flash error");
 
@@ -202,7 +202,7 @@ void efl_lld_init(void) {
       return;
     }
   }
-  osalDbgAssert(false, "invalid flash configuration");
+  chDbgAssert(false, "invalid flash configuration");
 }
 
 /**
@@ -264,11 +264,11 @@ flash_error_t efl_lld_read(void *instance, flash_offset_t offset,
   EFlashDriver *devp = (EFlashDriver *)instance;
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgCheck((instance != NULL) && (rp != NULL) && (n > 0U));
+  chDbgCheck((instance != NULL) && (rp != NULL) && (n > 0U));
 
   const flash_descriptor_t *bank = efl_lld_get_descriptor(instance);
-  osalDbgCheck((size_t)offset + n <= (size_t)bank->size);
-  osalDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
+  chDbgCheck((size_t)offset + n <= (size_t)bank->size);
+  chDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
                 "invalid state");
 
   /* No reading while erasing.*/
@@ -321,9 +321,9 @@ flash_error_t efl_lld_program(void *instance, flash_offset_t offset,
   const flash_descriptor_t *bank = efl_lld_get_descriptor(instance);
   flash_error_t err = FLASH_NO_ERROR;
 
-  osalDbgCheck((instance != NULL) && (pp != NULL) && (n > 0U));
-  osalDbgCheck((size_t)offset + n <= (size_t)bank->size);
-  osalDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
+  chDbgCheck((instance != NULL) && (pp != NULL) && (n > 0U));
+  chDbgCheck((size_t)offset + n <= (size_t)bank->size);
+  chDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
                 "invalid state");
 
   /* No programming while erasing.*/
@@ -402,8 +402,8 @@ flash_error_t efl_lld_program(void *instance, flash_offset_t offset,
 flash_error_t efl_lld_start_erase_all(void *instance) {
   EFlashDriver *devp = (EFlashDriver *)instance;
 
-  osalDbgCheck(instance != NULL);
-  osalDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
+  chDbgCheck(instance != NULL);
+  chDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
                 "invalid state");
 
   /* No erasing while erasing.*/
@@ -449,9 +449,9 @@ flash_error_t efl_lld_start_erase_sector(void *instance,
                                          flash_sector_t sector) {
   EFlashDriver *devp = (EFlashDriver *)instance;
   const flash_descriptor_t *bank = efl_lld_get_descriptor(instance);
-  osalDbgCheck(instance != NULL);
-  osalDbgCheck(sector < bank->sectors_count);
-  osalDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
+  chDbgCheck(instance != NULL);
+  chDbgCheck(sector < bank->sectors_count);
+  chDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
                 "invalid state");
 
   /* No erasing while erasing.*/
@@ -570,9 +570,9 @@ flash_error_t efl_lld_verify_erase(void *instance, flash_sector_t sector) {
   flash_error_t err = FLASH_NO_ERROR;
   unsigned i;
 
-  osalDbgCheck(instance != NULL);
-  osalDbgCheck(sector < bank->sectors_count);
-  osalDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
+  chDbgCheck(instance != NULL);
+  chDbgCheck(sector < bank->sectors_count);
+  chDbgAssert((devp->state == FLASH_READY) || (devp->state == FLASH_ERASE),
                 "invalid state");
 
   /* No verifying while erasing.*/

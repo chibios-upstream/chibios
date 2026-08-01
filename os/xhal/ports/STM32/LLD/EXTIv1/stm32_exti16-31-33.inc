@@ -36,7 +36,7 @@
 #endif
 
 #if !defined(STM32_DISABLE_EXTI16_31_33_HANDLER) &&                         \
-    !OSAL_IRQ_IS_VALID_PRIORITY(STM32_IRQ_EXTI16_31_33_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_EXTI16_31_33_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_EXTI16_31_33_PRIORITY"
 #endif
 
@@ -78,10 +78,10 @@ static inline void exti16_exti31_exti33_irq_deinit(void) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_EXTI16_31_33_HANDLER) {
+CH_IRQ_HANDLER(STM32_EXTI16_31_33_HANDLER) {
   uint32_t pr;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
 #if defined(STM32_EXTI16_IS_USED) || defined(STM32_EXTI31_IS_USED)
   extiGetAndClearGroup1((1U << 16) | (1U << 31), pr);
@@ -108,7 +108,7 @@ OSAL_IRQ_HANDLER(STM32_EXTI16_31_33_HANDLER) {
 #endif
 #endif
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 #endif
 #endif

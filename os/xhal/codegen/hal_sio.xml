@@ -81,6 +81,12 @@
         <assert invalid="($N != FALSE) &amp;&amp; ($N != TRUE)" />
       </config>
     </configs>
+    <definitions_late>
+      <verbatim><![CDATA[
+#if (SIO_USE_BUFFERING == TRUE) && (CH_CFG_USE_EVENTS != TRUE)
+#error "SIO_USE_BUFFERING requires CH_CFG_USE_EVENTS"
+#endif]]></verbatim>
+    </definitions_late>
     <macros>
       <macro name="sioIsRXEmptyX">
         <brief>Determines the state of the RX FIFO.</brief>
@@ -318,10 +324,10 @@ do {
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
-  osalThreadResumeI(&(siop)->sync_rx, SIO_MSG_ERRORS);
-  osalThreadResumeI(&(siop)->sync_rxidle, SIO_MSG_ERRORS);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&(siop)->sync_rx, SIO_MSG_ERRORS);
+  chThdResumeI(&(siop)->sync_rxidle, SIO_MSG_ERRORS);
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <macro name="__sio_wakeup_rx">
@@ -333,9 +339,9 @@ do {
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
-  osalThreadResumeI(&(siop)->sync_rx, MSG_OK);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&(siop)->sync_rx, MSG_OK);
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <macro name="__sio_wakeup_rxidle">
@@ -347,9 +353,9 @@ do {
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
-  osalThreadResumeI(&(siop)->sync_rxidle, MSG_OK);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&(siop)->sync_rxidle, MSG_OK);
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <macro name="__sio_wakeup_tx">
@@ -361,9 +367,9 @@ do {
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
-  osalThreadResumeI(&(siop)->sync_tx, MSG_OK);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&(siop)->sync_tx, MSG_OK);
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <macro name="__sio_wakeup_txend">
@@ -375,9 +381,9 @@ do {
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
-  osalThreadResumeI(&(siop)->sync_txend, MSG_OK);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&(siop)->sync_txend, MSG_OK);
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <elseif />
@@ -565,7 +571,7 @@ return (chnflags_t)sioGetAndClearEventsX(self, (sioevents_t)mask);]]></implement
 
 switch (operation) {
 case CHN_CTL_NOP:
-  osalDbgCheck(arg == NULL);
+  chDbgCheck(arg == NULL);
   break;
 case CHN_CTL_INVALID:
   return HAL_RET_UNKNOWN_CTL;
@@ -632,12 +638,12 @@ SIO_DRIVER_EXT_INIT_HOOK(self);
               <api />
               <implementation><![CDATA[
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chSysLock();
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 sioWriteEnableFlagsX(self, mask);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="sioSetEnableFlags" ctype="void">
               <brief>Sets flags into the enabled events flags mask.</brief>
@@ -647,12 +653,12 @@ osalSysUnlock();]]></implementation>
               <api />
               <implementation><![CDATA[
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chSysLock();
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 sioSetEnableFlagsX(self, mask);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="sioClearEnableFlags" ctype="void">
               <brief>Clears flags from the enabled events flags mask.</brief>
@@ -662,12 +668,12 @@ osalSysUnlock();]]></implementation>
               <api />
               <implementation><![CDATA[
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chSysLock();
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 sioClearEnableFlagsX(self, mask);
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method name="sioGetAndClearErrors" ctype="sioevents_t">
               <brief>Get and clears SIO error event flags.</brief>
@@ -676,12 +682,12 @@ osalSysUnlock();]]></implementation>
               <implementation><![CDATA[
 sioevents_t errors;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chSysLock();
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 errors = sioGetAndClearErrorsX(self);
-osalSysUnlock();
+chSysUnlock();
 
 return errors;]]></implementation>
             </method>
@@ -696,12 +702,12 @@ return errors;]]></implementation>
               <implementation><![CDATA[
 sioevents_t events;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chSysLock();
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 events = sioGetAndClearEventsX(self, mask);
-osalSysUnlock();
+chSysUnlock();
 
 return events;]]></implementation>
             </method>
@@ -712,12 +718,12 @@ return events;]]></implementation>
               <implementation><![CDATA[
 sioevents_t events;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chSysLock();
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 events = sioGetEventsX(self);
-osalSysUnlock();
+chSysUnlock();
 
 return events;]]></implementation>
             </method>
@@ -751,15 +757,15 @@ return events;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 
 /* Checking for errors before going to sleep.*/
 if (sioHasRXErrorsX(self)) {
-  osalSysUnlock();
+  chSysUnlock();
   return SIO_MSG_ERRORS;
 }
 
@@ -769,13 +775,13 @@ msg = MSG_OK;
   is constant.*/
 while (sioIsRXEmptyX(self)) {
 /*lint -restore*/
-  msg = osalThreadSuspendTimeoutS(&self->sync_rx, timeout);
+  msg = chThdSuspendTimeoutS(&self->sync_rx, timeout);
   if (msg != MSG_OK) {
     break;
   }
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -804,15 +810,15 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 
 /* Checking for errors before going to sleep.*/
 if (sioHasRXErrorsX(self)) {
-  osalSysUnlock();
+  chSysUnlock();
   return SIO_MSG_ERRORS;
 }
 
@@ -822,13 +828,13 @@ msg = MSG_OK;
   is constant.*/
 while (!sioIsRXIdleX(self)) {
 /*lint -restore*/
-  msg = osalThreadSuspendTimeoutS(&self->sync_rxidle, timeout);
+  msg = chThdSuspendTimeoutS(&self->sync_rxidle, timeout);
   if (msg != MSG_OK) {
     break;
   }
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -858,11 +864,11 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 
 msg = MSG_OK;
 /*lint -save -e506 -e681 [2.1] Silencing this error because it is
@@ -870,13 +876,13 @@ msg = MSG_OK;
   is constant.*/
 while (sioIsTXFullX(self)) {
 /*lint -restore*/
-  msg = osalThreadSuspendTimeoutS(&self->sync_tx, timeout);
+  msg = chThdSuspendTimeoutS(&self->sync_tx, timeout);
   if (msg != MSG_OK) {
     break;
   }
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -902,24 +908,24 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 
 /*lint -save -e506 -e774 [2.1, 14.3] Silencing this error because
   it is tested with a template implementation of sio_lld_is_tx_ongoing()
   which is constant.*/
 if (sioIsTXOngoingX(self)) {
 /*lint -restore*/
-  msg = osalThreadSuspendTimeoutS(&self->sync_txend, timeout);
+  msg = chThdSuspendTimeoutS(&self->sync_txend, timeout);
 }
 else {
   msg = MSG_OK;
 }
 
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -959,13 +965,13 @@ self->enabled = (sioevents_t)0;
 
 #if SIO_USE_SYNCHRONIZATION == TRUE
 /* Informing waiting threads, if any.*/
-osalSysLock();
-osalThreadResumeI(&self->sync_rx, MSG_RESET);
-osalThreadResumeI(&self->sync_rxidle, MSG_RESET);
-osalThreadResumeI(&self->sync_tx, MSG_RESET);
-osalThreadResumeI(&self->sync_txend, MSG_RESET);
-osalOsRescheduleS();
-osalSysUnlock();
+chSysLock();
+chThdResumeI(&self->sync_rx, MSG_RESET);
+chThdResumeI(&self->sync_rxidle, MSG_RESET);
+chThdResumeI(&self->sync_tx, MSG_RESET);
+chThdResumeI(&self->sync_txend, MSG_RESET);
+chSchRescheduleS();
+chSysUnlock();
 #endif]]></implementation>
             </method>
             <method shortname="setcfg">
@@ -1097,7 +1103,7 @@ __drv_objinit_impl(self, vmt);
   oopIfObjectInit(&self->chn, &bsio_chn_vmt);
 }
 
-osalEventObjectInit(&self->event);
+chEvtObjectInit(&self->event);
 iqObjectInit(&self->iqueue, ib, ibsize, NULL, NULL);
 oqObjectInit(&self->oqueue, ob, obsize, __bsio_onotify, (void *)self);
 drvSetArgumentX(siop, self);
@@ -1120,8 +1126,8 @@ __drv_dispose_impl(self);]]></implementation>
               </param>
               <implementation><![CDATA[
 
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
 
 if (iqIsEmptyI(&self->iqueue)) {
   bsAddFlagsI(self, CHN_FL_RX_NOTEMPTY);
@@ -1142,8 +1148,8 @@ if (iqPutI(&self->iqueue, b) < MSG_OK) {
               <implementation><![CDATA[
 msg_t b;
 
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
 
 b = oqGetI(&self->oqueue);
 if (b < MSG_OK) {
@@ -1166,7 +1172,7 @@ return b;]]></implementation>
               </param>
               <implementation><![CDATA[
 
-osalEventBroadcastFlagsI(&self->event, flags);]]></implementation>
+chEvtBroadcastFlagsI(&self->event, flags);]]></implementation>
             </method>
           </inline>
           <override>
@@ -1319,7 +1325,7 @@ if (bsiop == NULL) {
   return;
 }
 
-osalSysLockFromISR();
+chSysLockFromISR();
 
 /* Drain/fill FIFOs before re-enabling data interrupts in the LLD.
    NOTE: this assumes status/error flags are not cleared by data reads,
@@ -1336,7 +1342,7 @@ if (!sioIsTXFullX(siop)) {
 events = sioGetAndClearEventsX(siop, SIO_EV_ALL_EVENTS);
 bsAddFlagsI(bsiop, (eventflags_t)(events & ~SIO_EV_ALL_DATA));
 
-osalSysUnlockFromISR();]]></implementation>
+chSysUnlockFromISR();]]></implementation>
         </function>
         <function name="__bsio_onotify" ctype="void">
           <param name="qp" ctype="io_queue_t *"></param>

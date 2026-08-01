@@ -33,6 +33,7 @@
  * - @subpage rt_test_sequence_010
  * - @subpage rt_test_sequence_011
  * - @subpage rt_test_sequence_012
+ * - @subpage rt_test_sequence_013
  * .
  */
 
@@ -78,6 +79,7 @@ const testsequence_t * const rt_test_suite_array[] = {
   &rt_test_sequence_011,
 #endif
   &rt_test_sequence_012,
+  &rt_test_sequence_013,
   NULL
 };
 

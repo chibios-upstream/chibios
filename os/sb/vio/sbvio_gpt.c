@@ -261,8 +261,8 @@ void sb_fastc_vio_gpt(sb_class_t *sbp, struct port_extctx *ectxp) {
         /* IRQ-like fastcall: timer start is a non-blocking I-class kick;
            completion (one-shot/continuous period) arrives via VRQ from
            vgpt_cb().*/
-        OSAL_IRQ_PROLOGUE();
-        osalSysLockFromISR();
+        CH_IRQ_PROLOGUE();
+        chSysLockFromISR();
         if (drvGetStateX(unitp->gptp) != HAL_DRV_STATE_READY) {
           msg = HAL_RET_INV_STATE;
         }
@@ -277,8 +277,8 @@ void sb_fastc_vio_gpt(sb_class_t *sbp, struct port_extctx *ectxp) {
         else {
           msg = CH_RET_EINVAL;
         }
-        osalSysUnlockFromISR();
-        OSAL_IRQ_EPILOGUE();
+        chSysUnlockFromISR();
+        CH_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;
@@ -288,8 +288,8 @@ void sb_fastc_vio_gpt(sb_class_t *sbp, struct port_extctx *ectxp) {
         driver_state_t state;
         msg_t msg;
 
-        OSAL_IRQ_PROLOGUE();
-        osalSysLockFromISR();
+        CH_IRQ_PROLOGUE();
+        chSysLockFromISR();
         state = drvGetStateX(unitp->gptp);
         if ((state != HAL_DRV_STATE_READY) &&
             (state != GPT_CONTINUOUS) &&
@@ -301,8 +301,8 @@ void sb_fastc_vio_gpt(sb_class_t *sbp, struct port_extctx *ectxp) {
           gptStopTimerI(unitp->gptp);
           msg = HAL_RET_SUCCESS;
         }
-        osalSysUnlockFromISR();
-        OSAL_IRQ_EPILOGUE();
+        chSysUnlockFromISR();
+        CH_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;
@@ -317,8 +317,8 @@ void sb_fastc_vio_gpt(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        OSAL_IRQ_PROLOGUE();
-        osalSysLockFromISR();
+        CH_IRQ_PROLOGUE();
+        chSysLockFromISR();
         if (drvGetStateX(unitp->gptp) != GPT_CONTINUOUS) {
           msg = HAL_RET_INV_STATE;
         }
@@ -326,8 +326,8 @@ void sb_fastc_vio_gpt(sb_class_t *sbp, struct port_extctx *ectxp) {
           gptChangeIntervalI(unitp->gptp, interval);
           msg = HAL_RET_SUCCESS;
         }
-        osalSysUnlockFromISR();
-        OSAL_IRQ_EPILOGUE();
+        chSysUnlockFromISR();
+        CH_IRQ_EPILOGUE();
 
         ectxp->r0 = (uint32_t)msg;
         break;

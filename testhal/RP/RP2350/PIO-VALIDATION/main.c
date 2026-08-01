@@ -52,6 +52,10 @@
  *    clear the pad isolation latch left set by the pad reset state.
  * 9. (RP2350) GPIOBASE window: the builder flow must work with the
  *    GPIO16..47 window through pioGpioToRel.
+ * 10. Allocation masks and handles: pioGetSmAllocatedMask must report
+ *    the union of both cores' allocations, pioGetImemAllocatedMask
+ *    must track program load and unload, and pioGetSmHandleX must
+ *    return the same descriptor pointer pioSmAlloc returned.
  *
  * The square wave is emitted on GPIO2 and read back through SIO GPIO_IN.
  * The report is emitted on UART0 (GPIO0/GPIO1) at the SIO default
@@ -72,14 +76,16 @@
 volatile uint32_t c1_ready;
 volatile uint32_t c1_do_free;
 volatile uint32_t c1_free_done;
+volatile uint32_t c1_do_alloc;
+volatile uint32_t c1_alloc_done;
 const rp_pio_sm_t * volatile xcore_smp;
+const rp_pio_sm_t * volatile xcore_alloc_smp;
 
 /*===========================================================================*/
 /* Test parameters.                                                          */
 /*===========================================================================*/
 
 #define TEST_GPIO           2U
-#define TEST_IRQ_PRIORITY   3U
 
 /* State machine clock and measurement window.*/
 #define SM_TEST_FREQ        10000U      /* SM clock in Hz.                  */
@@ -308,7 +314,7 @@ int main(void) {
   const rp_dma_channel_t *dmachp;
   rp_pio_sm_config_t cfg;
   int32_t park_off, sq_off, off32, off1, out_off;
-  uint32_t edges, rel, lvl, div_fp8, pinctrl_before, pinctrl_after;
+  uint32_t edges, rel, lvl, div_fp8, pinctrl_before, pinctrl_after, mask;
   unsigned i;
   bool ok;
 
@@ -758,6 +764,68 @@ int main(void) {
   pioSmFree(smp);
   pioProgramUnload(RP_PIO1_BLOCK, sq_off, sqwave_program.length);
 #endif /* RP_PIO_HAS_GPIOBASE == TRUE */
+
+  /*
+   * Test 10: allocation masks and state machine handle access.
+   */
+  chprintf(chp, "--- Test 10: allocation masks and handles\r\n");
+
+  report("SM mask empty on idle block", pioGetSmAllocatedMask(block) == 0U);
+
+  smp = pioSmAlloc(block, 0U, TEST_IRQ_PRIORITY, NULL, NULL);
+  report("SM0 allocated", smp != NULL);
+  if (smp == NULL) {
+    goto summary;
+  }
+
+  report("SM mask reports the core 0 allocation",
+         pioGetSmAllocatedMask(block) == 1U);
+  report("handle equals the allocation-time pointer",
+         pioGetSmHandleX(block, 0U) == smp);
+
+  /* Core 1 allocates SM1, the mask query must return the union of both
+     cores' allocations.*/
+  pio_validation_barrier();
+  c1_do_alloc = 1U;
+
+  for (i = 0U; (c1_alloc_done == 0U) && (i < 1000U); i++) {
+    chThdSleepMilliseconds(1);
+  }
+  report("core 1 allocation completed",
+         (c1_alloc_done != 0U) && (xcore_alloc_smp != NULL));
+  if ((c1_alloc_done == 0U) || (xcore_alloc_smp == NULL)) {
+    goto summary;
+  }
+
+  report("SM mask is the cross-core union",
+         pioGetSmAllocatedMask(block) == 3U);
+  report("handle equals the core 1 allocation-time pointer",
+         pioGetSmHandleX(block, 1U) == xcore_alloc_smp);
+
+  /* Instruction memory mask bookkeeping across load and unload.*/
+  mask = pioGetImemAllocatedMask(block);
+  sq_off = pioProgramLoad(block, &sqwave_program);
+  report("program loaded for the imem mask check", sq_off >= 0);
+  if (sq_off >= 0) {
+    report("imem mask covers the loaded program",
+           pioGetImemAllocatedMask(block) ==
+           (mask | (uint32_t)(((1ULL << sqwave_program.length) - 1ULL) <<
+                              (uint32_t)sq_off)));
+
+    pioProgramUnload(block, sq_off, sqwave_program.length);
+    report("imem mask restored on unload",
+           pioGetImemAllocatedMask(block) == mask);
+  }
+  else {
+    report("imem mask covers the loaded program", false);
+    report("imem mask restored on unload", false);
+  }
+
+  /* The core 1 allocation is freed from this core, cross-core frees are
+     covered by test 4.*/
+  pioSmFree(xcore_alloc_smp);
+  pioSmFree(smp);
+  report("SM mask empty after the frees", pioGetSmAllocatedMask(block) == 0U);
 
   /*
    * Summary.

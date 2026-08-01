@@ -759,7 +759,7 @@ void __xsnor_bus_cmd_dummy_receive(void *ip, uint32_t cmd, uint32_t dummy,
   else {
 #endif
 #if XSNOR_USE_SPI == TRUE
-    osalDbgAssert((dummy & 7) == 0U, "multiple of 8 dummy cycles");
+    chDbgAssert((dummy & 7) == 0U, "multiple of 8 dummy cycles");
 
     spiSelectX(config->bus.spi.drv);
     config->buffers->spibuf[0] = cmd;
@@ -809,7 +809,7 @@ void __xsnor_bus_cmd_addr_dummy_receive(void *ip, uint32_t cmd,
   else {
 #endif
 #if XSNOR_USE_SPI == TRUE
-    osalDbgAssert((dummy & 7) == 0U, "multiple of 8 dummy cycles");
+    chDbgAssert((dummy & 7) == 0U, "multiple of 8 dummy cycles");
 
     spiSelectX(config->bus.spi.drv);
     __xsnor_spi_cmd_addr(self, cmd, offset);
@@ -840,8 +840,8 @@ flash_error_t xsnorMemoryMap(void *ip, uint8_t **addrp) {
   hal_xsnor_base_c *self = (hal_xsnor_base_c *)ip;
   flash_error_t err;
 
-  osalDbgCheck((self != NULL) && (addrp != NULL));
-  osalDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgCheck((self != NULL) && (addrp != NULL));
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "invalid state");
 
   __xsnor_bus_acquire(self);
   if (__xsnor_bus_select(self) != HAL_RET_SUCCESS) {
@@ -870,8 +870,8 @@ flash_error_t xsnorMemoryMap(void *ip, uint8_t **addrp) {
  */
 void xsnorMemoryUnmap(void *ip) {
   hal_xsnor_base_c *self = (hal_xsnor_base_c *)ip;
-  osalDbgCheck(self != NULL);
-  osalDbgAssert(self->state == FLASH_MMAP, "invalid state");
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == FLASH_MMAP, "invalid state");
 
   xsnor_device_mmap_off(self);
 

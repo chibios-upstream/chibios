@@ -128,7 +128,7 @@ void __vfsfs_dispose_impl(void *ip) {
 }
 
 /**
- * @brief       Implementation of method @p vfsFSStat().
+ * @brief       Implementation of method @p __vfsfs_stat().
  * @note        This function is meant to be used by derived classes.
  *
  * @param[in,out] ip            Pointer to a @p vfs_fs_c instance.

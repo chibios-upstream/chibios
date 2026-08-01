@@ -114,17 +114,17 @@ static struct {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_BDMA1_CH0_HANDLER) {
+CH_IRQ_HANDLER(STM32_BDMA1_CH0_HANDLER) {
   uint32_t flags;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 0U) & STM32_BDMA_ISR_MASK;
   BDMA->IFCR = flags << 0U;
   if (bdma.streams[0].func)
     bdma.streams[0].func(bdma.streams[0].param, flags);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /**
@@ -132,17 +132,17 @@ OSAL_IRQ_HANDLER(STM32_BDMA1_CH0_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_BDMA1_CH1_HANDLER) {
+CH_IRQ_HANDLER(STM32_BDMA1_CH1_HANDLER) {
   uint32_t flags;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 4U) & STM32_BDMA_ISR_MASK;
   BDMA->IFCR = flags << 4U;
   if (bdma.streams[1].func)
     bdma.streams[1].func(bdma.streams[1].param, flags);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /**
@@ -150,17 +150,17 @@ OSAL_IRQ_HANDLER(STM32_BDMA1_CH1_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_BDMA1_CH2_HANDLER) {
+CH_IRQ_HANDLER(STM32_BDMA1_CH2_HANDLER) {
   uint32_t flags;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 8U) & STM32_BDMA_ISR_MASK;
   BDMA->IFCR = flags << 8U;
   if (bdma.streams[2].func)
     bdma.streams[2].func(bdma.streams[2].param, flags);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /**
@@ -168,17 +168,17 @@ OSAL_IRQ_HANDLER(STM32_BDMA1_CH2_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_BDMA1_CH3_HANDLER) {
+CH_IRQ_HANDLER(STM32_BDMA1_CH3_HANDLER) {
   uint32_t flags;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 12U) & STM32_BDMA_ISR_MASK;
   BDMA->IFCR = flags << 12U;
   if (bdma.streams[3].func)
     bdma.streams[3].func(bdma.streams[3].param, flags);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /**
@@ -186,17 +186,17 @@ OSAL_IRQ_HANDLER(STM32_BDMA1_CH3_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_BDMA1_CH4_HANDLER) {
+CH_IRQ_HANDLER(STM32_BDMA1_CH4_HANDLER) {
   uint32_t flags;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 16U) & STM32_BDMA_ISR_MASK;
   BDMA->IFCR = flags << 16U;
   if (bdma.streams[4].func)
     bdma.streams[4].func(bdma.streams[4].param, flags);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /**
@@ -204,17 +204,17 @@ OSAL_IRQ_HANDLER(STM32_BDMA1_CH4_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_BDMA1_CH5_HANDLER) {
+CH_IRQ_HANDLER(STM32_BDMA1_CH5_HANDLER) {
   uint32_t flags;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 20U) & STM32_BDMA_ISR_MASK;
   BDMA->IFCR = flags << 20U;
   if (bdma.streams[5].func)
     bdma.streams[5].func(bdma.streams[5].param, flags);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /**
@@ -222,17 +222,17 @@ OSAL_IRQ_HANDLER(STM32_BDMA1_CH5_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_BDMA1_CH6_HANDLER) {
+CH_IRQ_HANDLER(STM32_BDMA1_CH6_HANDLER) {
   uint32_t flags;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 24U) & STM32_BDMA_ISR_MASK;
   BDMA->IFCR = flags << 24U;
   if (bdma.streams[6].func)
     bdma.streams[6].func(bdma.streams[6].param, flags);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /**
@@ -240,17 +240,17 @@ OSAL_IRQ_HANDLER(STM32_BDMA1_CH6_HANDLER) {
  *
  * @isr
  */
-OSAL_IRQ_HANDLER(STM32_BDMA1_CH7_HANDLER) {
+CH_IRQ_HANDLER(STM32_BDMA1_CH7_HANDLER) {
   uint32_t flags;
 
-  OSAL_IRQ_PROLOGUE();
+  CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 28U) & STM32_BDMA_ISR_MASK;
   BDMA->IFCR = flags << 28U;
   if (bdma.streams[7].func)
     bdma.streams[7].func(bdma.streams[7].param, flags);
 
-  OSAL_IRQ_EPILOGUE();
+  CH_IRQ_EPILOGUE();
 }
 
 /*===========================================================================*/
@@ -298,7 +298,7 @@ const stm32_bdma_stream_t *bdmaStreamAllocI(uint32_t id,
                                             void *param) {
   uint32_t i, startid, endid;
 
-  osalDbgCheckClassI();
+  chDbgCheckClassI();
 
   if (id < STM32_BDMA_STREAMS) {
     startid = id;
@@ -309,7 +309,7 @@ const stm32_bdma_stream_t *bdmaStreamAllocI(uint32_t id,
     endid   = STM32_BDMA_STREAMS - 1U;
   }
   else {
-    osalDbgCheck(false);
+    chDbgCheck(false);
     return NULL;
   }
 
@@ -376,9 +376,9 @@ const stm32_bdma_stream_t *bdmaStreamAlloc(uint32_t id,
                                            void *param) {
   const stm32_bdma_stream_t *stp;
 
-  osalSysLock();
+  chSysLock();
   stp = bdmaStreamAllocI(id, priority, func, param);
-  osalSysUnlock();
+  chSysUnlock();
 
   return stp;
 }
@@ -395,10 +395,10 @@ const stm32_bdma_stream_t *bdmaStreamAlloc(uint32_t id,
  */
 void bdmaStreamFreeI(const stm32_bdma_stream_t *stp) {
 
-  osalDbgCheck(stp != NULL);
+  chDbgCheck(stp != NULL);
 
   /* Check if the streams is not taken.*/
-  osalDbgAssert((bdma.allocated_mask & (1U << stp->selfindex)) != 0U,
+  chDbgAssert((bdma.allocated_mask & (1U << stp->selfindex)) != 0U,
                 "not allocated");
 
   /* Disables the associated IRQ vector.*/
@@ -429,9 +429,9 @@ void bdmaStreamFreeI(const stm32_bdma_stream_t *stp) {
  */
 void bdmaStreamFree(const stm32_bdma_stream_t *stp) {
 
-  osalSysLock();
+  chSysLock();
   bdmaStreamFreeI(stp);
-  osalSysUnlock();
+  chSysUnlock();
 }
 
 /**
@@ -445,7 +445,7 @@ void bdmaStreamFree(const stm32_bdma_stream_t *stp) {
  */
 void bdmaSetRequestSource(const stm32_bdma_stream_t *stp, uint32_t per) {
 
-  osalDbgCheck(per < 256U);
+  chDbgCheck(per < 256U);
 
   stp->mux->CCR = per;
 }

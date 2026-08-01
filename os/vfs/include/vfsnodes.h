@@ -75,6 +75,36 @@
 #define VFS_SEEK_END                        SEEK_END
 /** @} */
 
+/**
+ * @name    Node information constants
+ * @{
+ */
+/**
+ * @brief       Unit in bytes used by the allocated blocks count.
+ */
+#define VFS_STAT_BLOCKS_UNIT                512U
+/** @} */
+
+/**
+ * @name    Node information validity flags
+ * @{
+ */
+/**
+ * @brief       The preferred I/O block size is valid.
+ */
+#define VFS_STAT_VALID_BLKSIZE              (1U << 0)
+
+/**
+ * @brief       The allocated blocks count is valid.
+ */
+#define VFS_STAT_VALID_BLOCKS               (1U << 1)
+
+/**
+ * @brief       The last modification timestamp is valid.
+ */
+#define VFS_STAT_VALID_MTIME                (1U << 2)
+/** @} */
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -109,15 +139,51 @@ typedef int32_t vfs_mode_t;
 typedef int vfs_seekmode_t;
 
 /**
+ * @brief       Type of node information validity flags.
+ */
+typedef uint32_t vfs_stat_flags_t;
+
+/**
+ * @brief       Type of a preferred I/O block size.
+ */
+typedef uint32_t vfs_blksize_t;
+
+/**
+ * @brief       Type of an allocated blocks count.
+ */
+typedef uint64_t vfs_blkcnt_t;
+
+/**
+ * @brief       Type of an absolute UTC timestamp.
+ */
+typedef struct vfs_timestamp vfs_timestamp_t;
+
+/**
  * @brief       Type of a directory entry structure.
  */
 typedef struct vfs_direntry_info vfs_direntry_info_t;
 
 /**
  * @brief       Type of a node information structure.
- * @note        Add time, permissions etc.
  */
 typedef struct vfs_stat vfs_stat_t;
+
+/**
+ * @brief       Structure representing an absolute UTC timestamp.
+ * @details     Time is represented as an offset from 1970-01-01 00:00:00 UTC
+ *              without leap seconds.
+ */
+struct vfs_timestamp {
+  /**
+   * @brief       Whole seconds from the UTC epoch.
+   */
+  int64_t                   tv_sec;
+  /**
+   * @brief       Nanoseconds within the second, in the range 0 through
+   *              999999999.
+   */
+  uint32_t                  tv_nsec;
+};
 
 /**
  * @brief       Structure representing a directory entry.
@@ -149,6 +215,22 @@ struct vfs_stat {
    * @brief       Size of the node.
    */
   vfs_offset_t              size;
+  /**
+   * @brief       Validity mask for the optional fields.
+   */
+  vfs_stat_flags_t          valid;
+  /**
+   * @brief       Preferred size in bytes for efficient I/O.
+   */
+  vfs_blksize_t             blksize;
+  /**
+   * @brief       Allocated storage in @p VFS_STAT_BLOCKS_UNIT byte units.
+   */
+  vfs_blkcnt_t              blocks;
+  /**
+   * @brief       Time of the last data modification.
+   */
+  vfs_timestamp_t           mtime;
 };
 
 /**
@@ -365,13 +447,39 @@ extern "C" {
  * @param[out]    sp            Pointer to a @p vfs_stat_t structure.
  * @return                      The operation result.
  *
+ * @notapi
+ */
+CC_FORCE_INLINE
+static inline msg_t __vfsnode_stat(void *ip, vfs_stat_t *sp) {
+  vfs_node_c *self = (vfs_node_c *)ip;
+
+  return self->vmt->stat(ip, sp);
+}
+/** @} */
+
+/**
+ * @name        Inline methods of vfs_node_c
+ * @{
+ */
+/**
+ * @brief       Returns information about the node.
+ * @details     The output structure is initialized before invoking the node
+ *              implementation. Optional fields are reported only when the
+ *              corresponding validity flags are set.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_node_c instance.
+ * @param[out]    sp            Pointer to a @p vfs_stat_t structure.
+ * @return                      The operation result.
+ *
  * @api
  */
 CC_FORCE_INLINE
 static inline msg_t vfsNodeStat(void *ip, vfs_stat_t *sp) {
   vfs_node_c *self = (vfs_node_c *)ip;
 
-  return self->vmt->stat(ip, sp);
+  *sp = (vfs_stat_t) {0};
+
+  return __vfsnode_stat(self, sp);
 }
 /** @} */
 

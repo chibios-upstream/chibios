@@ -147,7 +147,7 @@ static void adc_lld_vreg_on(hal_adc_driver_c *adcp) {
 #if STM32_ADC_DUAL_MODE
   adcp->adcs->CR = STM32_ADC_CR_ADVREGEN;
 #endif
-  osalSysPolledDelayX(OSAL_US2RTC(STM32_HCLK, 20));
+  chSysPolledDelayX(US2RTC(STM32_HCLK, 20));
 }
 
 /**
@@ -172,7 +172,7 @@ static void adc_lld_vreg_off(hal_adc_driver_c *adcp) {
  */
 static void adc_lld_calibrate(hal_adc_driver_c *adcp) {
 
-  osalDbgAssert(adcp->adcm->CR == STM32_ADC_CR_ADVREGEN,
+  chDbgAssert(adcp->adcm->CR == STM32_ADC_CR_ADVREGEN,
                 "invalid register state");
 
   /* Differential calibration for master ADC.*/
@@ -181,7 +181,7 @@ static void adc_lld_calibrate(hal_adc_driver_c *adcp) {
   while ((adcp->adcm->CR & ADC_CR_ADCAL) != 0)
     ;
 
-  osalSysPolledDelayX(OSAL_US2RTC(STM32_HCLK, 20));
+  chSysPolledDelayX(US2RTC(STM32_HCLK, 20));
 
   /* Single-ended calibration for master ADC.*/
   adcp->adcm->CR = STM32_ADC_CR_ADVREGEN;
@@ -189,10 +189,10 @@ static void adc_lld_calibrate(hal_adc_driver_c *adcp) {
   while ((adcp->adcm->CR & ADC_CR_ADCAL) != 0)
     ;
 
-  osalSysPolledDelayX(OSAL_US2RTC(STM32_HCLK, 20));
+  chSysPolledDelayX(US2RTC(STM32_HCLK, 20));
 
 #if STM32_ADC_DUAL_MODE
-  osalDbgAssert(adcp->adcs->CR == STM32_ADC_CR_ADVREGEN,
+  chDbgAssert(adcp->adcs->CR == STM32_ADC_CR_ADVREGEN,
                 "invalid register state");
 
   /* Differential calibration for slave ADC.*/
@@ -201,7 +201,7 @@ static void adc_lld_calibrate(hal_adc_driver_c *adcp) {
   while ((adcp->adcs->CR & ADC_CR_ADCAL) != 0)
     ;
 
-  osalSysPolledDelayX(OSAL_US2RTC(STM32_HCLK, 20));
+  chSysPolledDelayX(US2RTC(STM32_HCLK, 20));
 
   /* Single-ended calibration for slave ADC.*/
   adcp->adcs->CR = STM32_ADC_CR_ADVREGEN;
@@ -209,7 +209,7 @@ static void adc_lld_calibrate(hal_adc_driver_c *adcp) {
   while ((adcp->adcs->CR & ADC_CR_ADCAL) != 0)
     ;
 
-  osalSysPolledDelayX(OSAL_US2RTC(STM32_HCLK, 20));
+  chSysPolledDelayX(US2RTC(STM32_HCLK, 20));
 #endif
 }
 
@@ -542,14 +542,14 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
 #if STM32_ADC_USE_ADC1
     if (&ADCD1 == adcp) {
 
-      osalDbgAssert(STM32_ADC1_CLOCK <= STM32_ADCCLK_MAX,
+      chDbgAssert(STM32_ADC1_CLOCK <= STM32_ADCCLK_MAX,
                     "invalid clock frequency");
 
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC1_DMA_STREAM,
                                     STM32_ADCV3_ADC1_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
-      osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
+      chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
 
       clkmask |= ADC1_CLKMASK;
 #if defined(STM32F3XX) || defined(STM32G4XX)
@@ -570,14 +570,14 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
 #if STM32_ADC_USE_ADC2
     if (&ADCD2 == adcp) {
 
-      osalDbgAssert(STM32_ADC2_CLOCK <= STM32_ADCCLK_MAX,
+      chDbgAssert(STM32_ADC2_CLOCK <= STM32_ADCCLK_MAX,
                     "invalid clock frequency");
 
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC2_DMA_STREAM,
                                     STM32_ADCV3_ADC2_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
-      osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
+      chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
 
       clkmask |= ADC2_CLKMASK;
 #if defined(STM32F3XX) || defined(STM32G4XX)
@@ -595,14 +595,14 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
 #if STM32_ADC_USE_ADC3
     if (&ADCD3 == adcp) {
 
-      osalDbgAssert(STM32_ADC3_CLOCK <= STM32_ADCCLK_MAX,
+      chDbgAssert(STM32_ADC3_CLOCK <= STM32_ADCCLK_MAX,
                     "invalid clock frequency");
 
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC3_DMA_STREAM,
                                     STM32_ADCV3_ADC3_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
-      osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
+      chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
 
       clkmask |= ADC3_CLKMASK;
 #if defined(STM32F3XX)
@@ -623,14 +623,14 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
 #if STM32_ADC_USE_ADC4
     if (&ADCD4 == adcp) {
 
-      osalDbgAssert(STM32_ADC4_CLOCK <= STM32_ADCCLK_MAX,
+      chDbgAssert(STM32_ADC4_CLOCK <= STM32_ADCCLK_MAX,
                     "invalid clock frequency");
 
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC4_DMA_STREAM,
                                     STM32_ADCV3_ADC4_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
-      osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
+      chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
 
       clkmask |= ADC4_CLKMASK;
 #if defined(STM32F3XX)
@@ -650,14 +650,14 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
 
 #if STM32_ADC_USE_ADC5
     if (&ADCD5 == adcp) {
-      osalDbgAssert(STM32_ADC5_CLOCK <= STM32_ADCCLK_MAX,
+      chDbgAssert(STM32_ADC5_CLOCK <= STM32_ADCCLK_MAX,
                     "invalid clock frequency");
 
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC5_DMA_STREAM,
                                     STM32_ADCV3_ADC5_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
-      osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
+      chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
 
       clkmask |= ADC5_CLKMASK;
 #if defined(STM32G4XX)
@@ -859,7 +859,7 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
   ccr = grpp->ccr & ~(ADC_CCR_CKMODE_MASK | ADC_CCR_MDMA_MASK);
 #endif
 
-  osalDbgAssert(!STM32_ADC_DUAL_MODE || ((grpp->num_channels & 1) == 0),
+  chDbgAssert(!STM32_ADC_DUAL_MODE || ((grpp->num_channels & 1) == 0),
                 "odd number of channels in dual mode");
 
   /* Calculating control registers values.*/

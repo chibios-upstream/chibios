@@ -43,13 +43,13 @@
             <brief>Resumes a thread waiting for I2S exchange completion.</brief>
             <param name="i2sp" dir="in">Pointer to the I2S driver instance.</param>
             <notapi />
-            <implementation><![CDATA[osalThreadResumeI(&(i2sp)->thread, MSG_RESET)]]></implementation>
+            <implementation><![CDATA[chThdResumeI(&(i2sp)->thread, MSG_RESET)]]></implementation>
           </macro>
           <macro name="_i2s_reset_s">
             <brief>Resumes a thread waiting for I2S exchange completion.</brief>
             <param name="i2sp" dir="in">Pointer to the I2S driver instance.</param>
             <notapi />
-            <implementation><![CDATA[osalThreadResumeS(&(i2sp)->thread, MSG_RESET)]]></implementation>
+            <implementation><![CDATA[chThdResumeS(&(i2sp)->thread, MSG_RESET)]]></implementation>
           </macro>
           <macro name="_i2s_wakeup_isr">
             <brief>Wakes up a thread waiting for an I2S exchange state.</brief>
@@ -58,11 +58,11 @@
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
+  chSysLockFromISR();
   if ((i2sp)->sync_state == (state)) {
-    osalThreadResumeI(&(i2sp)->thread, MSG_OK);
+    chThdResumeI(&(i2sp)->thread, MSG_OK);
   }
-  osalSysUnlockFromISR();
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <macro name="_i2s_error_wakeup_isr">
@@ -71,9 +71,9 @@ do {
             <notapi />
             <implementation><![CDATA[
 do {
-  osalSysLockFromISR();
-  osalThreadResumeI(&(i2sp)->thread, MSG_RESET);
-  osalSysUnlockFromISR();
+  chSysLockFromISR();
+  chThdResumeI(&(i2sp)->thread, MSG_RESET);
+  chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
           <elseif />
@@ -222,10 +222,10 @@ self->sync_state = HAL_DRV_STATE_STOP;
               <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
-osalDbgAssert(self->config != NULL, "config missing");
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgAssert(self->config != NULL, "config missing");
 
 self->events = 0U;
 self->errors = I2S_NO_ERROR;
@@ -244,9 +244,9 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 msg_t msg;
 
-osalSysLock();
+chSysLock();
 msg = i2sStartExchangeI(self);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
             </method>
@@ -254,9 +254,9 @@ return msg;]]></implementation>
               <brief>Stops the ongoing I2S data exchange.</brief>
               <iclass />
               <implementation><![CDATA[
-osalDbgCheckClassI();
-osalDbgCheck(self != NULL);
-osalDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
+chDbgCheckClassI();
+chDbgCheck(self != NULL);
+chDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
               (self->state == HAL_DRV_STATE_ACTIVE) ||
               (self->state == HAL_DRV_STATE_HALF)   ||
               (self->state == HAL_DRV_STATE_FULL)   ||
@@ -273,10 +273,10 @@ if (self->state != HAL_DRV_STATE_READY) {
               <brief>Stops the ongoing I2S data exchange.</brief>
               <api />
               <implementation><![CDATA[
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
-osalDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
+chSysLock();
+chDbgAssert((self->state == HAL_DRV_STATE_READY)  ||
               (self->state == HAL_DRV_STATE_ACTIVE) ||
               (self->state == HAL_DRV_STATE_HALF)   ||
               (self->state == HAL_DRV_STATE_FULL)   ||
@@ -287,7 +287,7 @@ if (self->state != HAL_DRV_STATE_READY) {
   self->state = HAL_DRV_STATE_READY;
   _i2s_reset_s(self);
 }
-osalSysUnlock();]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <condition check="I2S_USE_SYNCHRONIZATION == TRUE">
               <method name="i2sSynchronizeStateS" ctype="msg_t">
@@ -310,15 +310,15 @@ osalSysUnlock();]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
-osalDbgCheckClassS();
-osalDbgCheck((state == HAL_DRV_STATE_HALF) ||
+chDbgCheck(self != NULL);
+chDbgCheckClassS();
+chDbgCheck((state == HAL_DRV_STATE_HALF) ||
              (state == HAL_DRV_STATE_FULL));
-osalDbgAssert(self->state == HAL_DRV_STATE_ACTIVE, "invalid state");
-osalDbgAssert(self->thread == NULL, "already waiting");
+chDbgAssert(self->state == HAL_DRV_STATE_ACTIVE, "invalid state");
+chDbgAssert(self->thread == NULL, "already waiting");
 
 self->sync_state = state;
-msg = osalThreadSuspendTimeoutS(&self->thread, timeout);
+msg = chThdSuspendTimeoutS(&self->thread, timeout);
 self->sync_state = HAL_DRV_STATE_STOP;
 
 return msg;]]></implementation>
@@ -343,11 +343,11 @@ return msg;]]></implementation>
                 <implementation><![CDATA[
 msg_t msg;
 
-osalDbgCheck(self != NULL);
+chDbgCheck(self != NULL);
 
-osalSysLock();
+chSysLock();
 msg = i2sSynchronizeStateS(self, state, timeout);
-osalSysUnlock();
+chSysUnlock();
 
 return msg;]]></implementation>
               </method>
@@ -372,10 +372,10 @@ return self->events;]]></implementation>
 i2seventflags_t flags;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 flags = self->events & mask;
 self->events &= ~mask;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return flags;]]></implementation>
             </method>
@@ -397,10 +397,10 @@ return self->errors;]]></implementation>
 i2serror_t errors;
 syssts_t sts;
 
-sts = osalSysGetStatusAndLockX();
+sts = chSysGetStatusAndLockX();
 errors = self->errors & mask;
 self->errors &= ~mask;
-osalSysRestoreStatusX(sts);
+chSysRestoreStatusX(sts);
 
 return errors;]]></implementation>
             </method>

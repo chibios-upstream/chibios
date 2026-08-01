@@ -162,7 +162,7 @@ static void adc_lld_vreg_off(hal_adc_driver_c *adcp) {
  */
 static void adc_lld_calibrate(hal_adc_driver_c *adcp) {
 
-  osalDbgAssert(adcp->adcm->CR == ADC_CR_ADVREGEN, "invalid register state");
+  chDbgAssert(adcp->adcm->CR == ADC_CR_ADVREGEN, "invalid register state");
 
   /* Offset and linearity calibration for master ADC.*/
   adcp->adcm->CALFACT = 0U;
@@ -173,7 +173,7 @@ static void adc_lld_calibrate(hal_adc_driver_c *adcp) {
   }
 
 #if STM32_ADC_DUAL_MODE
-  osalDbgAssert(adcp->adcs->CR == ADC_CR_ADVREGEN, "invalid register state");
+  chDbgAssert(adcp->adcs->CR == ADC_CR_ADVREGEN, "invalid register state");
 
   /* Offset and linearity calibration for slave ADC.*/
   adcp->adcs->CALFACT = 0U;
@@ -255,15 +255,15 @@ static void adc_lld_set_internal_channels(hal_adc_driver_c *adcp,
                                           uint32_t mask,
                                           bool enabled) {
 
-  osalDbgAssert(adcp->state == HAL_DRV_STATE_READY, "invalid state");
+  chDbgAssert(adcp->state == HAL_DRV_STATE_READY, "invalid state");
 
 #if STM32_ADC_USE_ADC1
-  osalDbgAssert(((clkmask & 1U) == 0U) ||
+  chDbgAssert(((clkmask & 1U) == 0U) ||
                 (ADCD1.state == HAL_DRV_STATE_READY),
                 "ADC1 active");
 #endif
 #if STM32_ADC_USE_ADC2 && !STM32_ADC_DUAL_MODE
-  osalDbgAssert(((clkmask & 2U) == 0U) ||
+  chDbgAssert(((clkmask & 2U) == 0U) ||
                 (ADCD2.state == HAL_DRV_STATE_READY),
                 "ADC2 active");
 #endif
@@ -415,11 +415,11 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
   uint32_t mask;
 
   cfg = (const hal_adc_config_t *)adcp->config;
-  osalDbgAssert(cfg != NULL, "no configuration");
+  chDbgAssert(cfg != NULL, "no configuration");
 
   mask = 0U;
 
-  osalDbgAssert(STM32_ADC12_CLOCK <= STM32_ADCCLK_MAX,
+  chDbgAssert(STM32_ADC12_CLOCK <= STM32_ADCCLK_MAX,
                 "invalid clock frequency");
 
 #if STM32_ADC_USE_ADC1
@@ -428,7 +428,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                                     STM32_ADCV8_ADC1_IRQ_PRIORITY,
                                     adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
-    osalDbgAssert(adcp->dmachp != NULL, "unable to allocate DMA channel");
+    chDbgAssert(adcp->dmachp != NULL, "unable to allocate DMA channel");
     mask = 1U;
   }
 #endif
@@ -439,12 +439,12 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                                     STM32_ADCV8_ADC2_IRQ_PRIORITY,
                                     adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
-    osalDbgAssert(adcp->dmachp != NULL, "unable to allocate DMA channel");
+    chDbgAssert(adcp->dmachp != NULL, "unable to allocate DMA channel");
     mask = 2U;
   }
 #endif
 
-  osalDbgAssert(mask != 0U, "invalid ADC instance");
+  chDbgAssert(mask != 0U, "invalid ADC instance");
 
   if (clkmask == 0U) {
     rccEnableADC12(true);
@@ -601,23 +601,23 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
   circular = adcp->state == ADC_ACTIVE_CIRCULAR;
 
 #if STM32_ADC_DUAL_MODE
-  osalDbgAssert((grpp->num_channels >= 2U) &&
+  chDbgAssert((grpp->num_channels >= 2U) &&
                 (grpp->num_channels <= 32U) &&
                 ((grpp->num_channels & 1U) == 0U),
                 "invalid number of channels");
-  osalDbgAssert(adc_lld_is_valid_dual_mode(grpp->ccr),
+  chDbgAssert(adc_lld_is_valid_dual_mode(grpp->ccr),
                 "invalid dual mode");
 #else
-  osalDbgAssert((grpp->num_channels >= 1U) &&
+  chDbgAssert((grpp->num_channels >= 1U) &&
                 (grpp->num_channels <= 16U),
                 "invalid number of channels");
 #endif
 
 #if STM32_ADC_COMPACT_SAMPLES
-  osalDbgAssert((grpp->cfgr & ADC_CFGR1_RES_MASK) == ADC_CFGR1_RES_8BITS,
+  chDbgAssert((grpp->cfgr & ADC_CFGR1_RES_MASK) == ADC_CFGR1_RES_8BITS,
                 "compact samples require 8-bit resolution");
 #elif STM32_ADC_DUAL_MODE
-  osalDbgAssert((grpp->cfgr & ADC_CFGR1_RES_MASK) != ADC_CFGR1_RES_8BITS,
+  chDbgAssert((grpp->cfgr & ADC_CFGR1_RES_MASK) != ADC_CFGR1_RES_8BITS,
                 "8-bit dual mode requires compact samples");
 #endif
 

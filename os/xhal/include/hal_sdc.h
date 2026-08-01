@@ -255,7 +255,7 @@
  */
 #define _sdc_wakeup_isr(sdcp, msg)                                          \
   do {                                                                      \
-    osalThreadResumeI(&(sdcp)->sync_transfer, msg);                         \
+    chThdResumeI(&(sdcp)->sync_transfer, msg);                              \
   } while (false)
 #endif /* SDC_USE_SYNCHRONIZATION == TRUE */
 
@@ -463,9 +463,9 @@ struct hal_sdc_driver {
   void                      *arg;
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver mutex.
+   * @brief       Driver mutual exclusion object.
    */
-  mutex_t                   mutex;
+  driver_mutex_t            mutex;
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
@@ -632,10 +632,10 @@ static inline sdcflags_t sdcGetAndClearErrorsX(void *ip, sdcflags_t mask) {
   sdcflags_t flags;
   syssts_t sts;
 
-  sts = osalSysGetStatusAndLockX();
+  sts = chSysGetStatusAndLockX();
   flags = self->errors & mask;
   self->errors &= ~mask;
-  osalSysRestoreStatusX(sts);
+  chSysRestoreStatusX(sts);
 
   return flags;
 }
