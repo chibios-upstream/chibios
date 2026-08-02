@@ -60,8 +60,8 @@
 /*===========================================================================*/
 
 /* Devices without SMBus support (STM32U0xx) do not define the SMBus
-   related flags, defining them as zero makes the related error paths
-   compile out.*/
+   related flags; defining them as zero allows the related error paths
+   to be compiled out.*/
 #if !defined(I2C_ISR_PECERR)
 #define I2C_ISR_PECERR      0U
 #endif
