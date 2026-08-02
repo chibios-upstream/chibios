@@ -59,6 +59,21 @@
 /* Driver constants.                                                         */
 /*===========================================================================*/
 
+/* Devices without SMBus support (STM32U0xx) do not define the SMBus
+   related flags; defining them as zero allows the related error paths
+   to be compiled out.*/
+#if !defined(I2C_ISR_PECERR)
+#define I2C_ISR_PECERR      0U
+#endif
+
+#if !defined(I2C_ISR_TIMEOUT)
+#define I2C_ISR_TIMEOUT     0U
+#endif
+
+#if !defined(I2C_ISR_ALERT)
+#define I2C_ISR_ALERT       0U
+#endif
+
 #define I2C_ERROR_MASK                                                      \
   ((uint32_t)(I2C_ISR_BERR | I2C_ISR_ARLO | I2C_ISR_OVR | I2C_ISR_PECERR |  \
               I2C_ISR_TIMEOUT | I2C_ISR_ALERT))

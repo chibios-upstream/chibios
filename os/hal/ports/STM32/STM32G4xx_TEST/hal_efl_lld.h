@@ -64,7 +64,7 @@
 #endif
 
 /* Flash size register. */
-#define STM32_FLASH_SIZE_REGISTER           0x1FFF75E0
+#define STM32_FLASH_SIZE_REGISTER           FLASHSIZE_BASE
 #define STM32_FLASH_SIZE_SCALE              1024U
 
 /*===========================================================================*/
