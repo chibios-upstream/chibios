@@ -81,6 +81,11 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: STM32 I2Cv4 did not build on devices without SMBus support
+       (STM32U0xx), whose headers do not define the I2C_ISR_PECERR/TIMEOUT/
+       ALERT flags referenced by the error mask. These flags now default to
+       zero when undefined, compiling out the SMBus error paths (github
+       PR #172).
 - FIX: STM32H7xx HAL initialization reset the SYSCFG block, clearing the
        overdrive enable (SYSCFG_PWRCR ODEN) set during clock initialization
        and dropping the core out of overdrive while the PLL kept running above
