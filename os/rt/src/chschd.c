@@ -651,8 +651,9 @@ void chSchDoYieldS(void) {
 /**
  * @brief   Makes runnable the fist thread in the ready list, does not
  *          reschedule internally.
- * @details The current thread is positioned in the ready list ahead of all
- *          threads having the same priority.
+ * @details The current thread is positioned in the ready list behind or
+ *          ahead of all threads having the same priority depending on
+ *          if it used its whole time slice.
  * @note    Not a user function, it is meant to be invoked by the scheduler
  *          itself.
  *
@@ -675,8 +676,28 @@ thread_t *chSchSelectFirst(void) {
     CH_CFG_IDLE_LEAVE_HOOK();
   }
 
-  /* Placing in ready list ahead of peers.*/
+#if CH_CFG_TIME_QUANTUM > 0
+  /* If CH_CFG_TIME_QUANTUM is enabled then there are two different scenarios
+     to handle on preemption: time quantum elapsed or not.*/
+  if (otp->ticks == (tslices_t)0) {
+
+    /* The thread consumed its time quantum so it is enqueued behind threads
+       with same priority level, however, it acquires a new time quantum.*/
+    (void) __sch_ready_behind(otp);
+
+    /* The thread being swapped out receives a new time quantum.*/
+    otp->ticks = (tslices_t)CH_CFG_TIME_QUANTUM;
+  }
+  else {
+    /* The thread didn't consume all its time quantum so it is put ahead of
+       threads with equal priority and does not acquire a new time quantum.*/
+    (void) __sch_ready_ahead(otp);
+  }
+#else /* !(CH_CFG_TIME_QUANTUM > 0) */
+  /* If the round-robin mechanism is disabled then the thread goes always
+     ahead of its peers.*/
   (void) __sch_ready_ahead(otp);
+#endif /* !(CH_CFG_TIME_QUANTUM > 0) */
 
   return ntp;
 }
