@@ -58,6 +58,51 @@
 /* Module local types.                                                       */
 /*===========================================================================*/
 
+/* The debugger layout record uses eight-bit sizes and offsets. */
+typedef char chdebug_layout_fits_uint8_t[
+  ((sizeof (chdebug_t) <= (size_t)UINT8_MAX) &&
+    (sizeof (void *) <= (size_t)UINT8_MAX) &&
+    (sizeof (systime_t) <= (size_t)UINT8_MAX) &&
+    (sizeof (sysinterval_t) <= (size_t)UINT8_MAX) &&
+    (sizeof (thread_t) <= (size_t)UINT8_MAX) &&
+    (sizeof (struct port_intctx) <= (size_t)UINT8_MAX) &&
+    (PORT_CORES_NUMBER <= (unsigned)UINT8_MAX) &&
+    (offsetof(thread_t, hdr.pqueue.prio) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, ctx) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, rqueue.next) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, rqueue.prev) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, name) <= (size_t)UINT8_MAX) &&
+#if (CH_DBG_ENABLE_STACK_CHECK == TRUE) || (CH_CFG_USE_DYNAMIC == TRUE)
+    (offsetof(thread_t, wabase) <= (size_t)UINT8_MAX) &&
+#endif
+    (offsetof(thread_t, state) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, flags) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, refs) <= (size_t)UINT8_MAX) &&
+#if CH_CFG_TIME_QUANTUM > 0
+    (offsetof(thread_t, ticks) <= (size_t)UINT8_MAX) &&
+#endif
+#if CH_DBG_THREADS_PROFILING == TRUE
+    (offsetof(thread_t, time) <= (size_t)UINT8_MAX) &&
+#endif
+    (offsetof(ch_system_t, state) <= (size_t)UINT8_MAX) &&
+    (offsetof(ch_system_t, instances[0]) <= (size_t)UINT8_MAX) &&
+#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == TRUE)
+    (offsetof(ch_system_t, reglist) <= (size_t)UINT8_MAX) &&
+#endif
+#if CH_CFG_SMP_MODE == TRUE
+    (offsetof(ch_system_t, rfcu) <= (size_t)UINT8_MAX) &&
+#endif
+    (offsetof(os_instance_t, rlist.current) <= (size_t)UINT8_MAX) &&
+    (offsetof(os_instance_t, rlist) <= (size_t)UINT8_MAX) &&
+    (offsetof(os_instance_t, vtlist) <= (size_t)UINT8_MAX) &&
+#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == FALSE)
+    (offsetof(os_instance_t, reglist) <= (size_t)UINT8_MAX) &&
+#endif
+#if CH_CFG_SMP_MODE == FALSE
+    (offsetof(os_instance_t, rfcu) <= (size_t)UINT8_MAX) &&
+#endif
+    (offsetof(os_instance_t, core_id) <= (size_t)UINT8_MAX)) ? 1 : -1];
+
 /*===========================================================================*/
 /* Module local variables.                                                   */
 /*===========================================================================*/

@@ -47,6 +47,9 @@
 
 /**
  * @brief   ChibiOS/RT memory signature record.
+ * @note    The legacy names @p off_newer, @p off_older and @p off_stklimit
+ *          are retained for debugger compatibility. They contain the offsets
+ *          of @p rqueue.next, @p rqueue.prev and @p wabase respectively.
  */
 typedef struct {
   char      identifier[4];          /**< @brief Always set to "main".       */
