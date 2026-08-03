@@ -460,11 +460,15 @@ struct ch_os_instance {
   const os_instance_config_t    *config;
   /**
    * @brief   Idle thread descriptor.
+   * @note    When @p CH_CFG_NO_IDLE_THREAD is @p TRUE, the calling flow
+   *          becomes the idle thread and this descriptor is used for it.
    */
   thread_t                      idlethread;
 #if CH_CFG_NO_IDLE_THREAD == FALSE
   /**
    * @brief   Main thread descriptor.
+   * @note    This descriptor is required only when a separate idle thread is
+   *          spawned.
    */
   thread_t                      mainthread;
 #endif

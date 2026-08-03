@@ -84,6 +84,8 @@
 /* Kernel parameters and options checks.*/
 #if !defined(CH_CFG_TIME_QUANTUM)
 #error "CH_CFG_TIME_QUANTUM not defined in chconf.h"
+#elif CH_CFG_TIME_QUANTUM > 255
+#error "CH_CFG_TIME_QUANTUM exceeds the range of tslices_t"
 #endif
 
 #if !defined(CH_CFG_MEMCORE_SIZE)

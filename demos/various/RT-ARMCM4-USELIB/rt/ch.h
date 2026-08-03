@@ -351,12 +351,6 @@ static inline bool chTimeStampIsInRangeX(systimestamp_t stamp,
                 (systimestamp_t)((systimestamp_t)end - (systimestamp_t)start));
 }
 #define CHALIGN_H 
-typedef struct {
-  uint8_t *base;
-  size_t size;
-} memory_area_new_t;
-#define __MEM_AREA_DATA(name,mb,ms) { .base = (void *)(mb), .size = (size_t)(ms) }
-#define MEM_AREA_DECL(name,mb,ms) memory_area_new_t name = __MEM_AREA_DATA(name, mb, ms)
 #define MEM_NATURAL_ALIGN PORT_NATURAL_ALIGN
 #define MEM_IS_VALID_FUNCTION(p) true
 #define MEM_ALIGN_MASK(a) ((size_t)(a) - 1U)
