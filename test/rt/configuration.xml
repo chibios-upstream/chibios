@@ -1657,7 +1657,8 @@ test_assert(chRegGetThreadNameX(tp) == oldname, "name not restored");]]></value>
             <step>
               <description>
                 <value>A static thread is created then retrieved by name,
-                  pointer and working area.</value>
+                  pointer and working area while an unnamed thread is in the
+                  registry.</value>
               </description>
               <tags>
                 <value />
@@ -1666,6 +1667,14 @@ test_assert(chRegGetThreadNameX(tp) == oldname, "name not restored");]]></value>
                 <value><![CDATA[threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()-1, thread, "R");
 test_assert(threads[0] != NULL, "thread creation failed");
 chRegSetThreadNameX(threads[0], "registry-worker");
+
+chRegSetThreadName(NULL);
+tp = chRegFindThreadByName("registry-worker");
+test_assert(tp == threads[0], "unnamed thread stopped name lookup");
+chThdRelease(tp);
+tp = chRegFindThreadByName("registry-missing");
+test_assert(tp == NULL, "unexpected thread found");
+chRegSetThreadName(oldname);
 
 tp = chThdAddRef(threads[0]);
 test_assert(tp == threads[0], "wrong referenced thread");
@@ -7075,6 +7084,59 @@ test_assert(b, "recursive lock failed");
 test_assert(m1.cnt == MUTEX_MAX_RECURSION,
             "wrong recursion counter");
 chMtxUnlockAll();]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Thread reference boundary.</value>
+          </brief>
+          <description>
+            <value>The last valid thread reference is added without
+              overflowing the reference counter.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_REGISTRY == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[thread_descriptor_t td;
+thread_t *tp;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>@p chThdAddRef() reaches @p
+                  THREAD_MAX_REFERENCES without overflowing the counter,
+                  then the final object is disposed.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[td.name   = "reference-boundary";
+td.wbase  = TEST_THREAD_STACK_BASE(0);
+td.wend   = TEST_THREAD_STACK_END(0);
+td.prio   = LOWPRIO;
+td.funcp  = test_thread;
+td.arg    = NULL;
+td.owner  = NULL;
+tp = chThdObjectInit(TEST_THREAD_OBJECT(0), &td);
+tp->refs = THREAD_MAX_REFERENCES - (trefs_t)1;
+test_assert(chThdAddRef(tp) == tp, "wrong thread reference");
+test_assert(tp->refs == THREAD_MAX_REFERENCES,
+            "wrong reference counter");
+tp->refs = (trefs_t)0;
+tp->state = CH_STATE_FINAL;
+chThdObjectDispose(tp);]]></value>
               </code>
             </step>
           </steps>

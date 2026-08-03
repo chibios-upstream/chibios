@@ -612,7 +612,7 @@ static const testcase_t rt_test_005_006 = {
  * - [5.7.1] The current thread registry name is changed and then
  *   restored.
  * - [5.7.2] A static thread is created then retrieved by name, pointer
- *   and working area.
+ *   and working area while an unnamed thread is in the registry.
  * - [5.7.3] The registry is scanned forward until the end and the
  *   created thread is found in the scan.
  * .
@@ -642,12 +642,20 @@ static void rt_test_005_007_execute(void) {
   test_end_step(1);
 
   /* [5.7.2] A static thread is created then retrieved by name, pointer
-     and working area.*/
+     and working area while an unnamed thread is in the registry.*/
   test_set_step(2);
   {
     threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()-1, thread, "R");
     test_assert(threads[0] != NULL, "thread creation failed");
     chRegSetThreadNameX(threads[0], "registry-worker");
+
+    chRegSetThreadName(NULL);
+    tp = chRegFindThreadByName("registry-worker");
+    test_assert(tp == threads[0], "unnamed thread stopped name lookup");
+    chThdRelease(tp);
+    tp = chRegFindThreadByName("registry-missing");
+    test_assert(tp == NULL, "unexpected thread found");
+    chRegSetThreadName(oldname);
 
     tp = chThdAddRef(threads[0]);
     test_assert(tp == threads[0], "wrong referenced thread");

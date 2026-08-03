@@ -188,6 +188,7 @@ thread_t *chThdObjectInit(thread_t *tp,
 
 /**
  * @brief   Disposes a thread.
+ * @pre     The thread must be in the @p CH_STATE_FINAL state.
  * @note    Objects disposing does not involve freeing memory but just
  *          performing checks that make sure that the object is in a
  *          state compatible with operations stop.
@@ -204,6 +205,7 @@ thread_t *chThdObjectInit(thread_t *tp,
 void chThdObjectDispose(thread_t *tp) {
 
   chDbgCheck(tp != NULL);
+  chSftAssert(1, tp->state == CH_STATE_FINAL, "not terminated");
 
 #if CH_CFG_USE_WAITEXIT == TRUE
   chSftCheckListX(&tp->waiting);
@@ -625,6 +627,8 @@ thread_t *chThdStart(thread_t *tp) {
  * @brief   Adds a reference to a thread object.
  * @pre     The configuration option @p CH_CFG_USE_REGISTRY must be enabled in
  *          order to use this function.
+ * @pre     The thread must have fewer than @p THREAD_MAX_REFERENCES
+ *          references.
  *
  * @param[in] tp        pointer to the thread
  * @return              The same thread pointer passed as parameter
@@ -635,7 +639,7 @@ thread_t *chThdStart(thread_t *tp) {
 thread_t *chThdAddRef(thread_t *tp) {
 
   chSysLock();
-  chDbgAssert(tp->refs < (trefs_t)255, "too many references");
+  chDbgAssert(tp->refs < THREAD_MAX_REFERENCES, "too many references");
   tp->refs++;
   chSysUnlock();
 

@@ -33,6 +33,14 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+#if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Maximum number of references to a thread.
+ */
+#define THREAD_MAX_REFERENCES                                               \
+  ((trefs_t)-1)
+#endif
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/

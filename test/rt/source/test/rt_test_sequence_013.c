@@ -31,6 +31,7 @@
  * <h2>Test Cases</h2>
  * - @subpage rt_test_013_001
  * - @subpage rt_test_013_002
+ * - @subpage rt_test_013_003
  * .
  */
 
@@ -209,6 +210,61 @@ static const testcase_t rt_test_013_002 = {
 };
 #endif /* CH_CFG_USE_MUTEXES_RECURSIVE == TRUE */
 
+#if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_013_003 [13.3] Thread reference boundary
+ *
+ * <h2>Description</h2>
+ * The last valid thread reference is added without overflowing the
+ * reference counter.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_USE_REGISTRY == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [13.3.1] @p chThdAddRef() reaches @p THREAD_MAX_REFERENCES without
+ *   overflowing the counter, then the final object is disposed.
+ * .
+ */
+
+static void rt_test_013_003_execute(void) {
+  thread_descriptor_t td;
+  thread_t *tp;
+
+  /* [13.3.1] @p chThdAddRef() reaches @p THREAD_MAX_REFERENCES without
+     overflowing the counter, then the final object is disposed.*/
+  test_set_step(1);
+  {
+    td.name   = "reference-boundary";
+    td.wbase  = TEST_THREAD_STACK_BASE(0);
+    td.wend   = TEST_THREAD_STACK_END(0);
+    td.prio   = LOWPRIO;
+    td.funcp  = test_thread;
+    td.arg    = NULL;
+    td.owner  = NULL;
+    tp = chThdObjectInit(TEST_THREAD_OBJECT(0), &td);
+    tp->refs = THREAD_MAX_REFERENCES - (trefs_t)1;
+    test_assert(chThdAddRef(tp) == tp, "wrong thread reference");
+    test_assert(tp->refs == THREAD_MAX_REFERENCES,
+                "wrong reference counter");
+    tp->refs = (trefs_t)0;
+    tp->state = CH_STATE_FINAL;
+    chThdObjectDispose(tp);
+  }
+  test_end_step(1);
+}
+
+static const testcase_t rt_test_013_003 = {
+  "Thread reference boundary",
+  NULL,
+  NULL,
+  rt_test_013_003_execute
+};
+#endif /* CH_CFG_USE_REGISTRY == TRUE */
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -220,6 +276,9 @@ const testcase_t * const rt_test_sequence_013_array[] = {
   &rt_test_013_001,
 #if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
   &rt_test_013_002,
+#endif
+#if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
+  &rt_test_013_003,
 #endif
   NULL
 };

@@ -211,6 +211,7 @@ struct ch_thread {
 #if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
   /**
    * @brief   References to this thread.
+   * @note    The maximum value is @p THREAD_MAX_REFERENCES.
    */
   trefs_t                       refs;
   /**

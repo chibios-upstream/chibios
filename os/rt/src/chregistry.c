@@ -144,6 +144,8 @@ ROMCONST chdebug_t ch_debug = {
  * @details Returns the most ancient thread in the system, usually this is
  *          the main thread unless it terminated. A reference is added to the
  *          returned thread in order to make sure its status is not lost.
+ * @pre     The returned thread must have fewer than
+ *          @p THREAD_MAX_REFERENCES references.
  * @note    This function cannot return @p NULL because there is always at
  *          least one thread in the system.
  *
@@ -158,7 +160,7 @@ thread_t *chRegFirstThread(void) {
   chSysLock();
   p = (uint8_t *)REG_HEADER(currcore)->next;
   tp = __CH_OWNEROF(p, thread_t, rqueue);
-  chDbgAssert(tp->refs < (trefs_t)255, "too many references");
+  chDbgAssert(tp->refs < THREAD_MAX_REFERENCES, "too many references");
 
   tp->refs++;
   chSysUnlock();
@@ -170,6 +172,8 @@ thread_t *chRegFirstThread(void) {
  * @brief   Returns the thread next to the specified one.
  * @details The reference counter of the specified thread is decremented and
  *          the reference counter of the returned thread is incremented.
+ * @pre     If there is a next thread then it must have fewer than
+ *          @p THREAD_MAX_REFERENCES references.
  *
  * @param[in] tp        pointer to the thread
  * @return              A reference to the next thread.
@@ -192,7 +196,7 @@ thread_t *chRegNextThread(thread_t *tp) {
     uint8_t *p = (uint8_t *)nqp;
     ntp = __CH_OWNEROF(p, thread_t, rqueue);
 
-    chDbgAssert(ntp->refs < (trefs_t)255, "too many references");
+    chDbgAssert(ntp->refs < THREAD_MAX_REFERENCES, "too many references");
 
     ntp->refs++;
   }
@@ -207,6 +211,9 @@ thread_t *chRegNextThread(thread_t *tp) {
  * @note    The reference counter of the found thread is increased by one so
  *          it cannot be disposed incidentally after the pointer has been
  *          returned.
+ * @pre     The name must not be @p NULL.
+ * @pre     Each thread inspected by the registry scan must have fewer than
+ *          @p THREAD_MAX_REFERENCES references.
  *
  * @param[in] name      the thread name
  * @return              A pointer to the found thread.
@@ -215,12 +222,16 @@ thread_t *chRegNextThread(thread_t *tp) {
  * @api
  */
 thread_t *chRegFindThreadByName(const char *name) {
+  const char *tname;
   thread_t *ctp;
+
+  chDbgCheck(name != NULL);
 
   /* Scanning registry.*/
   ctp = chRegFirstThread();
   do {
-    if (strcmp(chRegGetThreadNameX(ctp), name) == 0) {
+    tname = chRegGetThreadNameX(ctp);
+    if ((tname != NULL) && (strcmp(tname, name) == 0)) {
       return ctp;
     }
     ctp = chRegNextThread(ctp);
@@ -234,6 +245,8 @@ thread_t *chRegFindThreadByName(const char *name) {
  * @note    The reference counter of the found thread is increased by one so
  *          it cannot be disposed incidentally after the pointer has been
  *          returned.
+ * @pre     Each thread inspected by the registry scan must have fewer than
+ *          @p THREAD_MAX_REFERENCES references.
  *
  * @param[in] tp        pointer to the thread
  * @return              A pointer to the found thread.
@@ -261,6 +274,8 @@ thread_t *chRegFindThreadByPointer(thread_t *tp) {
  * @note    The reference counter of the found thread is increased by one so
  *          it cannot be disposed incidentally after the pointer has been
  *          returned.
+ * @pre     Each thread inspected by the registry scan must have fewer than
+ *          @p THREAD_MAX_REFERENCES references.
  *
  * @param[in] wa        pointer to a static working area
  * @return              A pointer to the found thread.
