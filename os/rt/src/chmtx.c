@@ -245,9 +245,8 @@ void chMtxLockS(mutex_t *mp) {
 #if CH_CFG_USE_CONDVARS == TRUE
         case CH_STATE_WTCOND:
           /* Re-enqueues tp on the condition variable queue.*/
-          ch_sch_prio_insert(
-              &((condition_variable_t *)tp->u.wtobjp)->queue,
-              ch_queue_dequeue(&tp->hdr.queue));
+          ch_sch_prio_insert(&tp->u.wtcondp->queue,
+                             ch_queue_dequeue(&tp->hdr.queue));
           break;
 #endif
 #if (CH_CFG_USE_SEMAPHORES == TRUE) &&                                      \

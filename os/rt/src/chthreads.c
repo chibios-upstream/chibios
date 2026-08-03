@@ -953,7 +953,7 @@ tprio_t __thd_set_priority(thread_t *tp, tprio_t newprio) {
 #endif
 #if CH_CFG_USE_CONDVARS == TRUE
     case CH_STATE_WTCOND:
-      qp = &((condition_variable_t *)tp->u.wtobjp)->queue;
+      qp = &tp->u.wtcondp->queue;
       break;
 #endif
 #if (CH_CFG_USE_SEMAPHORES == TRUE) &&                                     \
