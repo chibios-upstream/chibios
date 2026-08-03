@@ -283,6 +283,7 @@ void chVTObjectInit(virtual_timer_t *vtp) {
 
 /**
  * @brief   Disposes a virtual timer.
+ * @pre     The timer must not be armed.
  * @note    Objects disposing does not involve freeing memory but just
  *          performing checks that make sure that the object is in a
  *          state compatible with operations stop.
@@ -300,9 +301,7 @@ void chVTObjectDispose(virtual_timer_t *vtp) {
 
   chDbgCheck(vtp != NULL);
 
-  chSftCheckQueueX(&vtp->dlist);
-
-  /* The timer must not be armed when disposed.*/
+  /* A disarmed timer uses a null sentinel, it is not a circular queue.*/
   chDbgAssert(vtp->dlist.next == NULL, "object in use");
 
 #if CH_CFG_HARDENING_LEVEL > 0
