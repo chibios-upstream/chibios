@@ -72,6 +72,29 @@
 /* Module local types.                                                       */
 /*===========================================================================*/
 
+/* Layout invariants required by generic queue owner conversions. */
+typedef char ch_kernel_layout_is_valid_t[
+  ((offsetof(thread_t, hdr) == (size_t)0) &&
+    (offsetof(virtual_timer_t, dlist) == (size_t)0) &&
+    (offsetof(virtual_timers_list_t, dlist) == (size_t)0) &&
+#if CH_CFG_USE_MUTEXES == TRUE
+    (offsetof(mutex_t, queue) == (size_t)0) &&
+#endif
+#if CH_CFG_USE_SEMAPHORES == TRUE
+    (offsetof(semaphore_t, queue) == (size_t)0) &&
+#endif
+#if CH_CFG_USE_CONDVARS == TRUE
+    (offsetof(condition_variable_t, queue) == (size_t)0) &&
+#endif
+    (offsetof(threads_queue_t, queue) == (size_t)0) &&
+    (offsetof(registry_t, queue) == (size_t)0) &&
+    (offsetof(ready_list_t, pqueue) == (size_t)0) &&
+    (offsetof(ch_priority_queue_t, next) ==
+     offsetof(ch_queue_t, next)) &&
+    (offsetof(ch_priority_queue_t, prev) ==
+     offsetof(ch_queue_t, prev)) &&
+    (offsetof(ch_priority_queue_t, prio) >= sizeof (ch_queue_t))) ? 1 : -1];
+
 /*===========================================================================*/
 /* Module local variables.                                                   */
 /*===========================================================================*/

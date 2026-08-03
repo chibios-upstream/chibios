@@ -242,18 +242,19 @@ void chMtxLockS(mutex_t *mp) {
           tp = tp->u.wtmtxp->owner;
           /*lint -e{9042} [16.1] Continues the while.*/
           continue;
-#if (CH_CFG_USE_CONDVARS == TRUE) ||                                        \
-    ((CH_CFG_USE_SEMAPHORES == TRUE) &&                                     \
-     (CH_CFG_USE_SEMAPHORES_PRIORITY == TRUE))
 #if CH_CFG_USE_CONDVARS == TRUE
         case CH_STATE_WTCOND:
+          /* Re-enqueues tp on the condition variable queue.*/
+          ch_sch_prio_insert(
+              &((condition_variable_t *)tp->u.wtobjp)->queue,
+              ch_queue_dequeue(&tp->hdr.queue));
+          break;
 #endif
 #if (CH_CFG_USE_SEMAPHORES == TRUE) &&                                      \
     (CH_CFG_USE_SEMAPHORES_PRIORITY == TRUE)
         case CH_STATE_WTSEM:
-#endif
-          /* Re-enqueues tp with its new priority on the queue.*/
-          ch_sch_prio_insert(&tp->u.wtmtxp->queue,
+          /* Re-enqueues tp on the semaphore queue.*/
+          ch_sch_prio_insert(&tp->u.wtsemp->queue,
                              ch_queue_dequeue(&tp->hdr.queue));
           break;
 #endif

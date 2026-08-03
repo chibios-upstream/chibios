@@ -154,11 +154,7 @@ typedef struct ch_os_instance os_instance_t;
  * @param[in] m         field name in the structured type
  * @return              The offset of the field in the structured type.
  */
-#define __CH_OFFSETOF(st, m)                                                \
-  /*lint -save -e9005 -e9033 -e413 [11.8, 10.8, 1.3] Normal pointers
-    arithmetic, it is safe.*/                                               \
-  ((size_t)((char *)(void *)&((st *)0)->m - (char *)0))                     \
-  /*lint -restore*/
+#define __CH_OFFSETOF(st, m) offsetof(st, m)
 
 /**
  * @brief Get the address of structured type from a member

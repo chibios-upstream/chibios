@@ -166,6 +166,10 @@ typedef void (*thread_dispose_t)(thread_t *tp);
 struct ch_thread {
   /**
    * @brief   Shared list headers.
+   * @note    This union must remain the first field in @p thread_t because
+   *          queue and list pointers are converted by @p threadref().
+   * @note    The @p pqueue priority field must not overlap the @p queue link
+   *          fields because the priority remains valid in all queued states.
    */
   union {
     /**

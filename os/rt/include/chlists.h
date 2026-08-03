@@ -79,7 +79,10 @@ typedef struct ch_priority_queue ch_priority_queue_t;
 /**
  * @brief   Structure representing a generic priority-ordered bidirectional
  *          linked list header and element.
- * @note    Link fields are void pointers in order to avoid aliasing issues.
+ * @note    The link fields must have the same layout as those in
+ *          @p ch_queue_t and @p prio must follow them. Thread queue elements
+ *          overlay the two structures and priority inheritance reads
+ *          @p prio while an element is linked through @p ch_queue_t.
  */
 struct ch_priority_queue {
   ch_priority_queue_t   *next;      /**< @brief Next in the queue.          */
