@@ -71,7 +71,7 @@ change with a focused regression test.
    invariant without changing timer insertion, removal, reload, or alarm
    programming.
 
-3. **VT-1 — suppress duplicate automatic insertion (implemented)**
+3. **VT-1 — honor callback replacement and reset (implemented)**
 
    After the callback, enter the automatic reload path only when `reload` is
    nonzero and the timer is still disarmed. This is the narrow corruption fix:
@@ -79,9 +79,9 @@ change with a focused regression test.
    inserted again. Test normal continuous reload, continuous-to-one-shot rearm,
    and continuous-to-continuous rearm in periodic and tickless modes.
 
-   Do not yet change reset's treatment of `reload`. The continuous-rearm-then-
-   reset override case remains open until its API semantics are fixed together
-   with the rest of the callback/reload state machine.
+   An explicit reset of an armed timer also clears `reload`, so a continuous
+   replacement that is reset in the same callback cannot be automatically
+   restarted by the original expiration.
 
 4. **VT-10 — lock the no-suffix current-delta getter (implemented)**
 
@@ -102,26 +102,25 @@ change with a focused regression test.
    unchanged. Land this after the query fixes because it deliberately changes
    exceptional-path behavior and can invoke an application runtime-fault hook.
 
-VT-3 and VT-4 are now implemented together with deterministic tickless
-scheduling tests. Defer the remaining VT-1 reset semantics and the VT-7
-diagnostic owner lifetime until the callback state transitions are specified
-and tested as a whole. VT-11 is now bounded by the existing physical-alarm
-maximum, which reserves the low half of the counter range for alarm retry
-increments.
+VT-1, VT-3, and VT-4 are now implemented together with periodic and
+deterministic tickless callback-state tests. VT-7 now provides assertion-only
+same-instance detection without enabling remote timer operations. VT-11 is
+bounded by the existing physical-alarm maximum, which reserves the low half of
+the counter range for alarm retry increments.
 
 ## Findings summary
 
 | ID | Classification | Modes | Summary |
 |---|---|---|---|
-| VT-1 | Partially fixed, high | periodic and tickless | Continuous callback-side rearming inserts the same timer twice |
-| VT-2 | Confirmed concurrency defect | periodic and tickless, especially SMP | Callback function and argument are loaded after the kernel lock is dropped |
+| VT-1 | Fixed callback-state defect | periodic and tickless | Continuous callback-side replacement could duplicate insertion or survive a final reset |
+| VT-2 | Fixed concurrency defect | periodic and tickless, especially SMP | Callback function and argument were loaded after the kernel lock was dropped |
 | VT-3 | Fixed scheduling defect | tickless | A callback-created list base made automatic reload late |
 | VT-4 | Fixed boundedness defect | tickless | Continuous timers with no future reload margin could keep the timer ISR from returning |
 | VT-5 | Fixed arithmetic defect | tickless | `chVTGetTimersStateI()` can wrap instead of reporting a bounded interval |
 | VT-6 | Fixed contract defect | tickless | Near-full-range delays could expire early when the list was nonempty |
-| VT-7 | Confirmed, high | SMP | Timer operations use the caller's instance without recording the timer's owner |
-| VT-8 | Confirmed documentation defect | all | `chVTObjectInit()` incorrectly says `chVTSetI()` needs no initialization |
-| VT-9 | Confirmed documentation defect | all | Continuous callback and reload-setter documentation contradicts behavior |
+| VT-7 | Fixed ownership-contract defect | SMP | Timer operations used the caller's instance without recording the timer's owner |
+| VT-8 | Fixed documentation defect | all | `chVTObjectInit()` incorrectly said `chVTSetI()` needs no initialization |
+| VT-9 | Fixed documentation defect | all | Continuous callback and reload-setter documentation contradicted behavior |
 | VT-10 | Fixed API atomicity defect | tickless | `chVTGetCurrentDelta()` read mutable state without locking |
 | VT-11 | Fixed configuration defect | tickless | `CH_CFG_ST_TIMEDELTA` could narrow to an invalid runtime value |
 
@@ -161,11 +160,12 @@ if `reload` is nonzero **and the timer is still disarmed**. An armed timer
 represents an explicit callback-side replacement and is left untouched. This
 prevents duplicate insertion in both periodic and tickless operation.
 
-**Remaining VT-1 decision:** explicit reset must also cancel a pending
-automatic reload. The small representation-compatible solution is to clear
-`reload` when an armed timer is reset. If preserving the reload value across
-reset is an intended contract, add a callback-generation or override marker
-instead. The relevant state transitions are:
+**Implemented reset semantics:** explicit reset now cancels a pending automatic
+reload by clearing `reload` when an armed timer is reset. In particular, a
+continuous callback can continuously rearm its timer and then reset that
+replacement; the final reset wins and the original expiration cannot restart
+the object. No additional state or representation change is required. The
+relevant state transitions are:
 
 - one-shot callback to one-shot rearm;
 - continuous callback to one-shot rearm with a variable delay;
@@ -174,7 +174,10 @@ instead. The relevant state transitions are:
 - one-shot callback converted to continuous with
   `chVTSetReloadIntervalX()`.
 
-Run the same state-transition tests in periodic and tickless configurations.
+The generated RT test covers continuous replacement, one-shot replacement,
+continuous replacement followed by reset, and one-shot conversion to continuous
+operation. The deterministic tickless harness additionally covers one-shot
+self-rearm and verifies exact replacement alarm deadlines.
 
 ### VT-2 — callback function and argument are fetched after unlocking
 
@@ -335,9 +338,10 @@ compiled.
 ### VT-7 — SMP timer operations have no owner but manipulate the current list
 
 Each `os_instance_t` owns a separate `vtlist`, and the SMP RP2 tickless port
-binds a separate hardware alarm to each core. `virtual_timer_t` contains no
-instance owner (`chobjects.h:72-89`). Set, reset, remaining-time query, and tick
-all select `currcore->vtlist`; alarm operations likewise select
+binds a separate hardware alarm to each core. Before this fix,
+`virtual_timer_t` contained no instance owner (`chobjects.h:72-89`). Set, reset,
+remaining-time query, and tick all select `currcore->vtlist`; alarm operations
+likewise select
 `currcore->core_id` (`chvt.c:333-394`, `chvt.c:479-520`, and
 `chcoresmp_timer.h:54-95`). No public timer API documents same-instance
 affinity.
@@ -356,28 +360,39 @@ alarm. `chVTGetRemainingIntervalI()` simply scans the wrong list and reaches
 its "timer not in list" assertion. Re-setting an armed timer on another core
 first performs the wrong reset and then migrates the damaged object.
 
-**Preferred solution:** define timer affinity as same-instance-only and add an
-`os_instance_t *owner` field to `virtual_timer_t` only when
-`CH_DBG_ENABLE_ASSERTS` is enabled. The field is diagnostic state only: no
-functional decision may depend on it. This gives constant-time detection with
-no timer-size or execution overhead when assertions are disabled.
+**Implemented solution:** timer affinity is defined as same-instance-only, with
+an `os_instance_t *owner` field in `virtual_timer_t` only when assertions are
+enabled on a port with more than one core. The field is diagnostic state only:
+no functional decision may depend on it. This gives constant-time detection
+with no timer-size or execution overhead when assertions are disabled or the
+port is single-core.
 
-Initialize the diagnostic owner to null, set it to `currcore` when arming, and
-assert `owner == currcore` before reset, replacement, remaining-time query, or
-other owner-sensitive mutation. Clear it after an explicit reset. Keep it set
-while the expiration callback is executing so that another core cannot claim
-the temporarily disarmed object; after the callback, clear it if the timer
-remains disarmed and retain or restore it if the timer is explicitly or
-automatically rearmed. All owner-field accesses must be under the same
-`CH_DBG_ENABLE_ASSERTS` conditional as the field itself.
+Initialization and static initialization set the diagnostic owner to null.
+Arming claims it for `currcore`; reset, replacement, remaining-time query,
+callback-only reload mutation, disposal, and ticker dispatch verify the owner
+before proceeding. Explicit reset releases ownership. Expiration retains it
+while the callback is executing so that another core cannot claim the
+temporarily disarmed object; after the callback, a fully disarmed timer releases
+ownership while explicit or automatic rearming retains it. All owner-field
+accesses are under the same assertions-enabled, multicore conditional as the
+field itself.
+
+The low-level `chVTDoSetI()` and `chVTDoSetContinuousI()` forms deliberately
+support never-initialized storage, so they establish the diagnostic owner
+without first reading it. The replacing `chVTSet*()` forms validate existing
+ownership before reaching those low-level initializers. This preserves the
+established no-initialization contract while detecting supported callback-side
+replacement through the replacing APIs.
 
 Do not operate on the owning instance's list or alarm from a foreign core.
-Document that an armed or callback-active timer may only be manipulated from
-its owner instance; a fully disarmed timer has no affinity and may subsequently
-be armed on another instance. Add assertion-enabled SMP tests that arm on core
-zero and attempt query, reset, re-set, and callback-window rearm from core one,
-plus a test that resets on the owner before safely arming the disarmed object on
-the other core.
+The APIs now document that an armed or callback-active timer may only be
+manipulated from its owner instance; a fully disarmed timer has no affinity and
+may subsequently be armed on another instance. The assertion-enabled
+two-instance harness arms on instance zero and verifies that query, reset,
+replacement, disposal, and callback-window rearm from instance one are
+detected before list or alarm manipulation. It also verifies owner lifetime
+through one-shot and continuous callbacks, then resets on the owner and safely
+arms the fully disarmed object on the other instance.
 
 ### VT-10 — `chVTGetCurrentDelta()` does not implement no-suffix locking
 
@@ -475,7 +490,7 @@ their incidental implementation effect must not be documented as API behavior.
 **Selected solution:** documentation changes only. Document the actual
 continuous restart behavior and the supported callback overrides: zero reload
 stops, one-shot rearm replaces the automatic reload, continuous rearm replaces
-it once VT-1 is fixed, and changing `reload` changes the next phase interval.
+it, and changing `reload` changes the next phase interval.
 State clearly that `chVTSetReloadIntervalX()` may only be called from the
 callback of `vtp`. Within that callback, zero suppresses automatic reload and a
 nonzero value selects the next reload interval, including turning a one-shot
@@ -493,9 +508,10 @@ context enforcement or otherwise change behavior for VT-9.
 - Equal-deadline timers are represented by a zero delta following the first
   timer and are consumed in the same ticker invocation. No FIFO ordering is
   promised for equal deadlines.
-- Normal reset preserves the delta-list cumulative deadline by transferring the
-  removed node's delta to its successor. Restoring the header after removing the
-  last timer is intentional in same-instance operation.
+- Normal reset clears the timer reload interval and preserves the delta-list
+  cumulative deadline by transferring the removed node's delta to its
+  successor. Restoring the header after removing the last timer is intentional
+  in same-instance operation.
 - `chVTGetRemainingIntervalI()` saturates an overdue tickless timer at zero.
 - Hardware-alarm chunking through `VT_MAX_DELAY` prevents a wide interval from
   being passed directly to a narrower `systime_t` alarm. This is distinct from
@@ -506,15 +522,14 @@ context enforcement or otherwise change behavior for VT-9.
 
 ## Test gaps exposed by the review
 
-The standard continuous-timer test only increments a counter. The VT storm test
-has extensive one-shot self-rearming and a continuous timer, but its continuous
-callback does not mutate timer state and its long-range wrapper deadline is not
-checked. Neither suite covers:
+The focused continuous-timer tests now cover callback-side one-shot and
+continuous replacement, final reset, reload-setter conversion, and tickless
+alarm deadlines. The VT storm test has extensive one-shot self-rearming and a
+continuous timer, but its continuous callback does not mutate timer state.
+Remaining coverage gaps are:
 
-- continuous rearm followed by reset in the same callback;
 - runtime execution of VT-6's RFCU-disabled assertion fallback;
 - callback-target replacement during the unlocked dispatch window;
-- timer operations from a different SMP instance;
 - runtime execution of the 64-bit current-delta getter test on a 32-bit
   tickless target.
 
@@ -551,12 +566,17 @@ the long-duration VT storm.
    RT and OSLIB test suites, and an STM32G474 tickless VT storm build. All checks
    passed and generated build artifacts were cleaned.
 
-4. **VT-1 — duplicate automatic reload insertion guard**
+4. **VT-1 — callback replacement and reset handling**
 
    In both ticker paths, automatic reload now requires a nonzero reload value
    and a timer that is still disarmed after its callback. An explicit
    callback-side replacement is therefore left in place and is not inserted a
    second time.
+
+   Explicit reset of an armed timer now also clears `reload`. A continuous
+   replacement that is reset in the same callback therefore remains disarmed
+   after the callback returns instead of being restarted by the original
+   expiration.
 
    Added generated RT tests for continuous-to-continuous self-rearm and
    continuous-to-one-shot replacement, updating both `configuration.xml` and
@@ -564,6 +584,15 @@ the long-duration VT storm.
    `git diff --check` passed. The full periodic simulator RT and OSLIB suites
    passed, including the new cases, and the STM32F407 tickless test-suite demo
    built successfully. Generated build artifacts were cleaned.
+
+   The generated RT test now also covers continuous replacement followed by
+   reset and one-shot conversion to continuous operation. The deterministic
+   tickless harness covers the complete callback-transition set, including the
+   reset override, and verifies that reset leaves both the timer and its alarm
+   inactive. XML validation and regeneration, the tickless harness, the VT
+   configuration boundary matrix, the full periodic simulator RT and OSLIB
+   suites, the ARMv7-M smoke build, C/H style checks, and `git diff --check`
+   all passed. Generated build artifacts were cleaned.
 
 5. **VT-5 — saturating tickless timer-state query**
 
@@ -671,3 +700,28 @@ the long-duration VT storm.
    `git diff --check` passed, the full periodic simulator RT and OSLIB suites
    passed, and normal plus RFCU-disabled/assertions-enabled STM32F407 tickless
    images built without warnings. Generated build artifacts were cleaned.
+
+11. **VT-7 — assertion-only multicore timer affinity**
+
+   Added an `os_instance_t *owner` field to `virtual_timer_t` only on multicore
+   ports when assertions are enabled. Arming claims the timer for `currcore`;
+   reset, replacement, remaining-time query, callback-only reload mutation,
+   disposal, and ticker dispatch assert same-instance access. Ownership
+   remains valid throughout the unlocked callback window and is released only
+   when the timer becomes fully disarmed. No functional decision depends on
+   the field, and foreign-core list or alarm manipulation is never attempted.
+
+   The public APIs now document same-instance affinity and the transfer rule
+   for fully disarmed timers. The assertion-enabled deterministic harness uses
+   two OS instances to verify foreign query, reset, replacement, disposal,
+   callback-window reset, rearm, and reload mutation; it also verifies one-shot
+   and continuous owner lifetime plus safe transfer after owner-side reset.
+   Generated periodic tests verify owner assignment and release.
+
+   XML validation and regeneration, release and assertions-enabled periodic RT
+   and OSLIB suites, the tickless scheduling and ownership harness, normal and
+   assertions-enabled ARMv7-M smoke builds, and an assertions-enabled RP2040
+   SMP/tickless build passed. On 32-bit ARM, `virtual_timer_t` remains 24 bytes
+   on single-core ports even with assertions enabled and grows to 28 bytes only
+   when the multicore diagnostic is enabled. C/H style checks and
+   `git diff --check` passed. Generated build artifacts were cleaned.

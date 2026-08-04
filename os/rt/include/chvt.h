@@ -75,6 +75,14 @@
 /* Module macros.                                                            */
 /*===========================================================================*/
 
+#if ((CH_DBG_ENABLE_ASSERTS != FALSE) && (PORT_CORES_NUMBER > 1)) ||          \
+    defined(__DOXYGEN__)
+#define __VIRTUAL_TIMER_OWNER_DATA()                                        \
+  .owner    = NULL,
+#else
+#define __VIRTUAL_TIMER_OWNER_DATA()
+#endif
+
 /**
  * @brief   Data part of a static virtual timer initializer.
  * @details This macro should be used when statically initializing a virtual
@@ -89,6 +97,7 @@
   },                                                                        \
   .func     = NULL,                                                         \
   .par      = NULL,                                                         \
+  __VIRTUAL_TIMER_OWNER_DATA()                                              \
   .reload   = (sysinterval_t)0                                              \
 }
 
@@ -321,6 +330,9 @@ static inline bool chVTIsArmed(const virtual_timer_t *vtp) {
 /**
  * @brief   Disables a Virtual Timer.
  * @note    The timer is first checked and disabled only if armed.
+ * @note    Resetting an armed timer also clears its reload interval.
+ * @note    An armed or callback-active timer may only be reset from its
+ *          owning OS instance.
  * @pre     The timer must have been initialized using @p chVTObjectInit()
  *          or @p chVTDoSetI().
  *
@@ -330,6 +342,11 @@ static inline bool chVTIsArmed(const virtual_timer_t *vtp) {
  */
 static inline void chVTResetI(virtual_timer_t *vtp) {
 
+#if (CH_DBG_ENABLE_ASSERTS != FALSE) && (PORT_CORES_NUMBER > 1)
+  chDbgAssert((vtp->owner == NULL) || (vtp->owner == currcore),
+              "invalid core");
+#endif
+
   if (chVTIsArmedI(vtp)) {
     chVTDoResetI(vtp);
   }
@@ -338,6 +355,9 @@ static inline void chVTResetI(virtual_timer_t *vtp) {
 /**
  * @brief   Disables a Virtual Timer.
  * @note    The timer is first checked and disabled only if armed.
+ * @note    Resetting an armed timer also clears its reload interval.
+ * @note    An armed or callback-active timer may only be reset from its
+ *          owning OS instance.
  * @pre     The timer must have been initialized using @p chVTObjectInit()
  *          or @p chVTDoSetI().
  *
@@ -356,6 +376,9 @@ static inline void chVTReset(virtual_timer_t *vtp) {
  * @brief   Enables a one-shot virtual timer.
  * @details If the virtual timer was already enabled then it is re-enabled
  *          using the new parameters.
+ * @note    An armed or callback-active timer may only be replaced from its
+ *          owning OS instance. A fully disarmed timer may be armed on any
+ *          instance.
  * @pre     The timer must have been initialized using @p chVTObjectInit()
  *          or @p chVTDoSetI().
  * @note    In tickless mode, a delay that cannot be represented relative to
@@ -390,6 +413,9 @@ static inline void chVTSetI(virtual_timer_t *vtp, sysinterval_t delay,
  * @brief   Enables a one-shot virtual timer.
  * @details If the virtual timer was already enabled then it is re-enabled
  *          using the new parameters.
+ * @note    An armed or callback-active timer may only be replaced from its
+ *          owning OS instance. A fully disarmed timer may be armed on any
+ *          instance.
  * @pre     The timer must have been initialized using @p chVTObjectInit()
  *          or @p chVTDoSetI().
  * @note    In tickless mode, a delay that cannot be represented relative to
@@ -425,6 +451,9 @@ static inline void chVTSet(virtual_timer_t *vtp, sysinterval_t delay,
  * @brief   Enables a continuous virtual timer.
  * @details If the virtual timer was already enabled then it is re-enabled
  *          using the new parameters.
+ * @note    An armed or callback-active timer may only be replaced from its
+ *          owning OS instance. A fully disarmed timer may be armed on any
+ *          instance.
  * @pre     The timer must have been initialized using @p chVTObjectInit()
  *          or @p chVTDoSetI().
  * @note    In tickless mode, a delay that cannot be represented relative to
@@ -458,6 +487,9 @@ static inline void chVTSetContinuousI(virtual_timer_t *vtp, sysinterval_t delay,
  * @brief   Enables a continuous virtual timer.
  * @details If the virtual timer was already enabled then it is re-enabled
  *          using the new parameters.
+ * @note    An armed or callback-active timer may only be replaced from its
+ *          owning OS instance. A fully disarmed timer may be armed on any
+ *          instance.
  * @pre     The timer must have been initialized using @p chVTObjectInit()
  *          or @p chVTDoSetI().
  * @note    In tickless mode, a delay that cannot be represented relative to
@@ -505,6 +537,8 @@ static inline sysinterval_t chVTGetReloadIntervalX(virtual_timer_t *vtp) {
  * @brief   Changes a timer reload time interval.
  * @pre     This function must only be called from the callback invoked for
  *          @p vtp.
+ * @note    The callback executes on the timer's owning OS instance; access
+ *          from another instance is invalid.
  * @note    A zero reload value suppresses automatic reload when the callback
  *          returns.
  * @note    Calling this function from a one-shot timer callback turns it
@@ -517,6 +551,10 @@ static inline sysinterval_t chVTGetReloadIntervalX(virtual_timer_t *vtp) {
  */
 static inline void chVTSetReloadIntervalX(virtual_timer_t *vtp,
                                           sysinterval_t reload) {
+
+#if (CH_DBG_ENABLE_ASSERTS != FALSE) && (PORT_CORES_NUMBER > 1)
+  chDbgAssert(vtp->owner == currcore, "invalid core");
+#endif
 
   vtp->reload = reload;
 }

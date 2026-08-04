@@ -82,6 +82,16 @@ struct ch_virtual_timer {
    * @brief   Timer callback function parameter.
    */
   void                          *par;
+#if ((CH_DBG_ENABLE_ASSERTS != FALSE) && (PORT_CORES_NUMBER > 1)) ||          \
+    defined(__DOXYGEN__)
+  /**
+   * @brief   Owning OS instance.
+   * @note    This field is present only on multicore ports when assertions
+   *          are enabled and is used exclusively for detecting invalid
+   *          cross-instance access.
+   */
+  os_instance_t                 *owner;
+#endif
   /**
    * @brief   Current reload interval.
    */

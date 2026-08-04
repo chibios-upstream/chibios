@@ -30,6 +30,8 @@
 #define CH_CFG_ST_RESOLUTION                    32
 #define CH_CFG_ST_TIMEDELTA                     2
 #define CH_CFG_USE_TIMESTAMP                    FALSE
+#define CH_DBG_ENABLE_ASSERTS                   TRUE
+#define PORT_CORES_NUMBER                       2
 
 #define CH_RFCU_VT_INSUFFICIENT_DELTA           1U
 #define CH_RFCU_VT_SKIPPED_DEADLINE             2U
@@ -38,7 +40,9 @@
 #define likely(c)                               __builtin_expect(!!(c), 1)
 #define unlikely(c)                             __builtin_expect(!!(c), 0)
 
-#define chDbgAssert(c, msg)                     ((void)0)
+void testDbgAssert(bool condition, const char *reason);
+
+#define chDbgAssert(c, msg)                     testDbgAssert((bool)(c), (msg))
 #define chDbgCheck(c)                           assert(c)
 #define chDbgCheckClassI()                      ((void)0)
 #define chSftAssert(level, c, msg)               ((void)0)
@@ -54,12 +58,14 @@ typedef int32_t tprio_t;
 #include "chlists.h"
 
 typedef struct ch_virtual_timer virtual_timer_t;
+typedef struct ch_os_instance os_instance_t;
 typedef void (*vtfunc_t)(virtual_timer_t *vtp, void *par);
 
 struct ch_virtual_timer {
   ch_delta_list_t dlist;
   vtfunc_t func;
   void *par;
+  os_instance_t *owner;
   sysinterval_t reload;
 };
 
@@ -69,11 +75,13 @@ typedef struct {
   sysinterval_t lastdelta;
 } virtual_timers_list_t;
 
-typedef struct {
+struct ch_os_instance {
   virtual_timers_list_t vtlist;
-} os_instance_t;
+};
 
 extern os_instance_t test_instance;
+extern os_instance_t test_foreign_instance;
+extern os_instance_t *test_currcore;
 extern systime_t test_time;
 extern systime_t test_alarm;
 extern bool test_alarm_active;
@@ -81,7 +89,7 @@ extern unsigned test_alarm_programs;
 extern unsigned test_alarm_starts;
 extern unsigned test_alarm_sets;
 
-#define currcore                                (&test_instance)
+#define currcore                                test_currcore
 
 static inline systime_t chTimeAddX(systime_t systime,
                                    sysinterval_t interval) {
@@ -107,6 +115,7 @@ static inline bool chVTIsArmedI(const virtual_timer_t *vtp) {
 static inline void chVTSetReloadIntervalX(virtual_timer_t *vtp,
                                           sysinterval_t reload) {
 
+  chDbgAssert(vtp->owner == currcore, "invalid core");
   vtp->reload = reload;
 }
 
@@ -139,10 +148,37 @@ static inline void port_timer_set_alarm(systime_t time) {
 
 void chRFCUCollectFaultsI(uint32_t mask);
 void chVTObjectInit(virtual_timer_t *vtp);
+void chVTObjectDispose(virtual_timer_t *vtp);
 void chVTDoSetI(virtual_timer_t *vtp, sysinterval_t delay,
                 vtfunc_t vtfunc, void *par);
 void chVTDoSetContinuousI(virtual_timer_t *vtp, sysinterval_t delay,
                           vtfunc_t vtfunc, void *par);
+void chVTDoResetI(virtual_timer_t *vtp);
+sysinterval_t chVTGetRemainingIntervalI(virtual_timer_t *vtp);
 void chVTDoTickI(void);
+
+static inline void chVTResetI(virtual_timer_t *vtp) {
+
+  chDbgAssert((vtp->owner == NULL) || (vtp->owner == currcore),
+              "invalid core");
+  if (chVTIsArmedI(vtp)) {
+    chVTDoResetI(vtp);
+  }
+}
+
+static inline void chVTSetI(virtual_timer_t *vtp, sysinterval_t delay,
+                            vtfunc_t vtfunc, void *par) {
+
+  chVTResetI(vtp);
+  chVTDoSetI(vtp, delay, vtfunc, par);
+}
+
+static inline void chVTSetContinuousI(virtual_timer_t *vtp,
+                                      sysinterval_t delay,
+                                      vtfunc_t vtfunc, void *par) {
+
+  chVTResetI(vtp);
+  chVTDoSetContinuousI(vtp, delay, vtfunc, par);
+}
 
 #endif /* CH_H */
