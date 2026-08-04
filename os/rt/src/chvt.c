@@ -634,35 +634,38 @@ void chVTDoTickI(void) {
     /* If a reload is defined and the callback left the timer disarmed then
        it needs to be restarted.*/
     if (unlikely((vtp->reload > (sysinterval_t)0) && !chVTIsArmedI(vtp))) {
-      sysinterval_t delta, delay;
+      sysinterval_t basedelta, delay, delta, elapsed;
+      bool postponed;
 
-      /* Refreshing the now delta after spending time in the callback for
+      /* Refreshing the elapsed time after spending time in the callback for
          a more accurate detection of too fast reloads.*/
       now = chVTGetSystemTimeX();
-      nowdelta = chTimeDiffX(lasttime, now);
+      elapsed = chTimeDiffX(lasttime, now);
 
 #if !defined(CH_VT_RFCU_DISABLED)
       /* Checking if the required reload is feasible.*/
-      if (nowdelta > vtp->reload) {
+      if (elapsed > vtp->reload) {
         /* System time is already past the deadline, logging the fault and
            proceeding with a minimum delay.*/
 
         chDbgAssert(false, "skipped deadline");
         chRFCUCollectFaultsI(CH_RFCU_VT_SKIPPED_DEADLINE);
+      }
+#else /* defined(CH_VT_RFCU_DISABLED) */
+      /* Assertions as fallback.*/
+      chDbgAssert(elapsed <= vtp->reload, "skipped deadline");
+#endif /* defined(CH_VT_RFCU_DISABLED) */
 
-        delay = (sysinterval_t)0;
+      /* A reached or skipped phase deadline is deferred by the physical
+         minimum delta. The ticker returns after insertion so the callback
+         cannot be invoked repeatedly from the same interrupt.*/
+      postponed = elapsed >= vtp->reload;
+      if (postponed) {
+        delay = vtlp->lastdelta;
       }
       else {
-        /* Enqueuing the timer again using the calculated delta.*/
-        delay = vtp->reload - nowdelta;
+        delay = vtp->reload - elapsed;
       }
-#else
-      /* Assertions as fallback.*/
-      chDbgAssert(nowdelta <= vtp->reload, "skipped deadline");
-
-      /* Enqueuing the timer again using the calculated delta.*/
-      delay = vtp->reload - nowdelta;
-#endif
 
       /* Special case where the timers list is empty.*/
       if (ch_dlist_isempty(&vtlp->dlist)) {
@@ -672,11 +675,20 @@ void chVTDoTickI(void) {
         return;
       }
 
-      /* Delay as delta from 'lasttime'.*/
-      delta = vt_add_delta(nowdelta, delay);
+      /* Delay as delta from the current list base, which could have been
+         replaced by timer operations performed within the callback.*/
+      basedelta = chTimeDiffX(vtlp->lasttime, now);
+      delta = vt_add_delta(basedelta, delay);
 
       /* Insert into delta list. */
       ch_dlist_insert(&vtlp->dlist, &vtp->dlist, delta);
+
+      /* Deferred reloads give all due timers another interrupt opportunity.*/
+      if (postponed) {
+        vt_set_alarm(vtlp, now, delay);
+
+        return;
+      }
     }
   }
 
