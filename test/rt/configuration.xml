@@ -5622,6 +5622,36 @@ static void vt_continuous_cb(virtual_timer_t *vtp, void *param) {
   vt_counter++;
 }
 
+static void vt_continuous_rearm_cb(virtual_timer_t *vtp, void *param) {
+
+  (void)param;
+
+  vt_counter++;
+  if (vt_counter == 1U) {
+    chSysLockFromISR();
+    chVTSetContinuousI(vtp, TIME_MS2I(10), vt_continuous_rearm_cb, NULL);
+    chSysUnlockFromISR();
+  }
+}
+
+static void vt_oneshot_count_cb(virtual_timer_t *vtp, void *param) {
+
+  (void)vtp;
+  (void)param;
+
+  vt_counter++;
+}
+
+static void vt_continuous_to_oneshot_cb(virtual_timer_t *vtp, void *param) {
+
+  (void)param;
+
+  vt_counter++;
+  chSysLockFromISR();
+  chVTSetI(vtp, TIME_MS2I(10), vt_oneshot_count_cb, NULL);
+  chSysUnlockFromISR();
+}
+
 #if CH_CFG_USE_MESSAGES
 static THD_FUNCTION(bmk_thread1, p) {
   thread_t *tp;
@@ -6396,7 +6426,9 @@ test_assert(chVTIsArmed(&vt2) == false, "timer still armed");]]></value>
           </brief>
           <description>
             <value>A continuous virtual timer is armed, allowed to fire
-              multiple times, then reset and checked for inactivity.</value>
+              multiple times, then reset and checked for inactivity. Callback
+              replacement with continuous and one-shot timers is also
+              verified.</value>
           </description>
           <condition>
             <value />
@@ -6468,6 +6500,51 @@ test_assert(!armed, "timer still armed");
 count = vt_counter;
 chThdSleepMilliseconds(30);
 test_assert(vt_counter == count, "timer still running");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The callback continuously rearms its own timer once.
+                  The explicit replacement is verified to remain armed and to
+                  fire repeatedly without duplicate insertion.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vt_counter = 0;
+chVTSetContinuous(&vt2, TIME_MS2I(10), vt_continuous_rearm_cb, NULL);
+chThdSleepMilliseconds(50);
+chSysLock();
+armed = chVTIsArmedI(&vt2);
+chVTResetI(&vt2);
+chSysUnlock();
+count = vt_counter;
+
+test_assert(armed, "replacement timer not armed");
+test_assert(count >= 2U, "replacement timer not reloaded");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The continuous callback replaces its timer with a
+                  one-shot timer. The one-shot is verified to fire exactly
+                  once and remain disarmed.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vt_counter = 0;
+chVTSetContinuous(&vt2, TIME_MS2I(10), vt_continuous_to_oneshot_cb, NULL);
+chThdSleepMilliseconds(50);
+chSysLock();
+armed = chVTIsArmedI(&vt2);
+chSysUnlock();
+count = vt_counter;
+
+test_assert(!armed, "one-shot replacement still armed");
+test_assert(count == 2U, "one-shot replacement count");]]></value>
               </code>
             </step>
           </steps>

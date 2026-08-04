@@ -548,8 +548,9 @@ void chVTDoTickI(void) {
       func(vtp, par);
       chSysLockFromISR();
 
-      /* If a reload is defined the timer needs to be restarted.*/
-      if (vtp->reload > (sysinterval_t)0) {
+      /* If a reload is defined and the callback left the timer disarmed then
+         it needs to be restarted.*/
+      if ((vtp->reload > (sysinterval_t)0) && !chVTIsArmedI(vtp)) {
         ch_dlist_insert(&vtlp->dlist, &vtp->dlist, vtp->reload);
       }
     }
@@ -607,8 +608,9 @@ void chVTDoTickI(void) {
 
     chSysLockFromISR();
 
-    /* If a reload is defined the timer needs to be restarted.*/
-    if (unlikely(vtp->reload > (sysinterval_t)0)) {
+    /* If a reload is defined and the callback left the timer disarmed then
+       it needs to be restarted.*/
+    if (unlikely((vtp->reload > (sysinterval_t)0) && !chVTIsArmedI(vtp))) {
       sysinterval_t delta, delay;
 
       /* Refreshing the now delta after spending time in the callback for

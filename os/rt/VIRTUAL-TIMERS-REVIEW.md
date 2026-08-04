@@ -71,7 +71,7 @@ change with a focused regression test.
    invariant without changing timer insertion, removal, reload, or alarm
    programming.
 
-3. **VT-1 — suppress duplicate automatic insertion**
+3. **VT-1 — suppress duplicate automatic insertion (implemented)**
 
    After the callback, enter the automatic reload path only when `reload` is
    nonzero and the timer is still disarmed. This is the narrow corruption fix:
@@ -112,7 +112,7 @@ alarm retry increment boundary, is stated explicitly.
 
 | ID | Classification | Modes | Summary |
 |---|---|---|---|
-| VT-1 | Confirmed, high | periodic and tickless | Continuous callback-side rearming inserts the same timer twice |
+| VT-1 | Partially fixed, high | periodic and tickless | Continuous callback-side rearming inserts the same timer twice |
 | VT-2 | Confirmed concurrency defect | periodic and tickless, especially SMP | Callback function and argument are loaded after the kernel lock is dropped |
 | VT-3 | Confirmed | tickless | A callback-created list base makes automatic reload late |
 | VT-4 | Confirmed, high | tickless | Continuous timers with no future reload margin can keep the timer ISR from returning |
@@ -155,14 +155,16 @@ rearm the object and then reset that newly armed timer. Reset unlinks it but
 leaves `reload` nonzero, so the original expiration's automatic path starts it
 yet again. The explicit final reset does not win.
 
-**Proposed fix:** after the callback, automatically reload only if `reload` is
-nonzero **and the timer is still disarmed**. An armed timer represents an
-explicit callback-side replacement and must be left untouched. Explicit reset
-must also cancel a pending automatic reload: the small
-representation-compatible solution is to clear `reload` when an armed timer is
-reset. If preserving the reload value across reset is an intended contract,
-add a callback-generation or override marker instead. Add tests for the
-relevant transitions:
+**Implemented corruption fix:** after the callback, automatically reload only
+if `reload` is nonzero **and the timer is still disarmed**. An armed timer
+represents an explicit callback-side replacement and is left untouched. This
+prevents duplicate insertion in both periodic and tickless operation.
+
+**Remaining VT-1 decision:** explicit reset must also cancel a pending
+automatic reload. The small representation-compatible solution is to clear
+`reload` when an armed timer is reset. If preserving the reload value across
+reset is an intended contract, add a callback-generation or override marker
+instead. The relevant state transitions are:
 
 - one-shot callback to one-shot rearm;
 - continuous callback to one-shot rearm with a variable delay;
@@ -482,7 +484,7 @@ has extensive one-shot self-rearming and a continuous timer, but its continuous
 callback does not mutate timer state and its full-range wrapper deadline is not
 checked. Neither suite covers:
 
-- continuous self-rearm from a callback;
+- continuous rearm followed by reset in the same callback;
 - a sole continuous callback that starts another timer;
 - two continuous callbacks that overrun their periods;
 - `chVTGetTimersStateI()` boundary arithmetic;
@@ -525,3 +527,17 @@ the long-duration VT storm.
    Verification completed with `git diff --check`, the full periodic simulator
    RT and OSLIB test suites, and an STM32G474 tickless VT storm build. All checks
    passed and generated build artifacts were cleaned.
+
+4. **VT-1 — duplicate automatic reload insertion guard**
+
+   In both ticker paths, automatic reload now requires a nonzero reload value
+   and a timer that is still disarmed after its callback. An explicit
+   callback-side replacement is therefore left in place and is not inserted a
+   second time.
+
+   Added generated RT tests for continuous-to-continuous self-rearm and
+   continuous-to-one-shot replacement, updating both `configuration.xml` and
+   its checked-in generated source. XML validation, regeneration, and
+   `git diff --check` passed. The full periodic simulator RT and OSLIB suites
+   passed, including the new cases, and the STM32F407 tickless test-suite demo
+   built successfully. Generated build artifacts were cleaned.

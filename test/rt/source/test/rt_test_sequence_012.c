@@ -80,6 +80,36 @@ static void vt_continuous_cb(virtual_timer_t *vtp, void *param) {
   vt_counter++;
 }
 
+static void vt_continuous_rearm_cb(virtual_timer_t *vtp, void *param) {
+
+  (void)param;
+
+  vt_counter++;
+  if (vt_counter == 1U) {
+    chSysLockFromISR();
+    chVTSetContinuousI(vtp, TIME_MS2I(10), vt_continuous_rearm_cb, NULL);
+    chSysUnlockFromISR();
+  }
+}
+
+static void vt_oneshot_count_cb(virtual_timer_t *vtp, void *param) {
+
+  (void)vtp;
+  (void)param;
+
+  vt_counter++;
+}
+
+static void vt_continuous_to_oneshot_cb(virtual_timer_t *vtp, void *param) {
+
+  (void)param;
+
+  vt_counter++;
+  chSysLockFromISR();
+  chVTSetI(vtp, TIME_MS2I(10), vt_oneshot_count_cb, NULL);
+  chSysUnlockFromISR();
+}
+
 #if CH_CFG_USE_MESSAGES
 static THD_FUNCTION(bmk_thread1, p) {
   thread_t *tp;
@@ -790,13 +820,20 @@ static const testcase_t rt_test_012_009 = {
  *
  * <h2>Description</h2>
  * A continuous virtual timer is armed, allowed to fire multiple times,
- * then reset and checked for inactivity.
+ * then reset and checked for inactivity. Callback replacement with
+ * continuous and one-shot timers is also verified.
  *
  * <h2>Test Steps</h2>
  * - [12.10.1] The continuous timer is armed and its remaining interval
  *   is queried.
  * - [12.10.2] The timer is allowed to reload and fire multiple times.
  * - [12.10.3] The timer is reset and verified not to fire again.
+ * - [12.10.4] The callback continuously rearms its own timer once. The
+ *   explicit replacement is verified to remain armed and to fire
+ *   repeatedly without duplicate insertion.
+ * - [12.10.5] The continuous callback replaces its timer with a
+ *   one-shot timer. The one-shot is verified to fire exactly once and
+ *   remain disarmed.
  * .
  */
 
@@ -854,6 +891,43 @@ static void rt_test_012_010_execute(void) {
     test_assert(vt_counter == count, "timer still running");
   }
   test_end_step(3);
+
+  /* [12.10.4] The callback continuously rearms its own timer once. The
+     explicit replacement is verified to remain armed and to fire
+     repeatedly without duplicate insertion.*/
+  test_set_step(4);
+  {
+    vt_counter = 0;
+    chVTSetContinuous(&vt2, TIME_MS2I(10), vt_continuous_rearm_cb, NULL);
+    chThdSleepMilliseconds(50);
+    chSysLock();
+    armed = chVTIsArmedI(&vt2);
+    chVTResetI(&vt2);
+    chSysUnlock();
+    count = vt_counter;
+
+    test_assert(armed, "replacement timer not armed");
+    test_assert(count >= 2U, "replacement timer not reloaded");
+  }
+  test_end_step(4);
+
+  /* [12.10.5] The continuous callback replaces its timer with a
+     one-shot timer. The one-shot is verified to fire exactly once and
+     remain disarmed.*/
+  test_set_step(5);
+  {
+    vt_counter = 0;
+    chVTSetContinuous(&vt2, TIME_MS2I(10), vt_continuous_to_oneshot_cb, NULL);
+    chThdSleepMilliseconds(50);
+    chSysLock();
+    armed = chVTIsArmedI(&vt2);
+    chSysUnlock();
+    count = vt_counter;
+
+    test_assert(!armed, "one-shot replacement still armed");
+    test_assert(count == 2U, "one-shot replacement count");
+  }
+  test_end_step(5);
 }
 
 static const testcase_t rt_test_012_010 = {
