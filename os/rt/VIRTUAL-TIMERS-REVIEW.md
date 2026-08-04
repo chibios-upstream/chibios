@@ -89,7 +89,7 @@ change with a focused regression test.
    periodic constant-return path remains unchanged. The tree currently has only
    two call sites and both use the no-suffix API from thread context.
 
-5. **VT-5 — make the read-only timer-state query saturating**
+5. **VT-5 — make the read-only timer-state query saturating (implemented)**
 
    Use `lastdelta`, saturate deadline addition at `TIME_INFINITE`, and saturate
    elapsed-time subtraction at zero. This changes only a query result and does
@@ -116,7 +116,7 @@ alarm retry increment boundary, is stated explicitly.
 | VT-2 | Confirmed concurrency defect | periodic and tickless, especially SMP | Callback function and argument are loaded after the kernel lock is dropped |
 | VT-3 | Confirmed | tickless | A callback-created list base makes automatic reload late |
 | VT-4 | Confirmed, high | tickless | Continuous timers with no future reload margin can keep the timer ISR from returning |
-| VT-5 | Confirmed arithmetic defect | tickless | `chVTGetTimersStateI()` can wrap instead of reporting a bounded interval |
+| VT-5 | Fixed arithmetic defect | tickless | `chVTGetTimersStateI()` can wrap instead of reporting a bounded interval |
 | VT-6 | Confirmed contract defect | tickless | Near-full-range delays can expire early when the list is nonempty |
 | VT-7 | Confirmed, high | SMP | Timer operations use the caller's instance without recording the timer's owner |
 | VT-8 | Confirmed documentation defect | all | `chVTObjectInit()` incorrectly says `chVTSetI()` needs no initialization |
@@ -279,11 +279,11 @@ The expression also uses the static `CH_CFG_ST_TIMEDELTA`. Since commit
 runtime. The query can therefore disagree with the alarm policy even when no
 arithmetic wraps.
 
-**Proposed fix:** calculate the tolerated deadline with saturating addition,
-subtract elapsed with saturation at zero, and use `vtlp->lastdelta`. Preserve
-the documented tolerance by saturating at `TIME_INFINITE` rather than wrapping.
-Add boundary tests at zero, just before and after the logical deadline, and with
-first deltas near and equal to `TIME_INFINITE`.
+**Implemented fix:** calculate the tolerated deadline with saturating addition,
+subtract elapsed with saturation at zero, and use `vtlp->lastdelta`. The
+documented tolerance saturates at `TIME_INFINITE` rather than wrapping. Added
+focused tickless tests for a first delta equal to `TIME_INFINITE` and for a
+query held past the tolerated deadline.
 
 ### VT-6 — near-full-range tickless timers can expire early
 
@@ -487,7 +487,6 @@ checked. Neither suite covers:
 - continuous rearm followed by reset in the same callback;
 - a sole continuous callback that starts another timer;
 - two continuous callbacks that overrun their periods;
-- `chVTGetTimersStateI()` boundary arithmetic;
 - near-full-range tickless overflow reporting and saturation on an aged,
   nonempty list;
 - callback-target replacement during the unlocked dispatch window;
@@ -541,3 +540,17 @@ the long-duration VT storm.
    `git diff --check` passed. The full periodic simulator RT and OSLIB suites
    passed, including the new cases, and the STM32F407 tickless test-suite demo
    built successfully. Generated build artifacts were cleaned.
+
+5. **VT-5 — saturating tickless timer-state query**
+
+   `chVTGetTimersStateI()` now uses the adaptive `lastdelta` value, saturates
+   tolerated-deadline addition at `TIME_INFINITE`, and saturates elapsed-time
+   subtraction at zero. Normal representable query results are unchanged.
+
+   Added generated tickless tests for maximum-interval addition and an overdue
+   query, updating both `configuration.xml` and its checked-in generated source.
+   XML validation, regeneration, and `git diff --check` passed. The full
+   periodic simulator RT and OSLIB suites passed, and the STM32F407 tickless
+   test-suite demo containing the new conditional test built successfully.
+   Generated build artifacts were cleaned; execution of the new tickless-only
+   test still requires a supported tickless hardware target.

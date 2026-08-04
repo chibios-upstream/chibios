@@ -696,6 +696,16 @@ chSysEnable();]]></value>
 
 #if CH_CFG_USE_TM || defined(__DOXYGEN__)
 static time_measurement_t tm1, tm2;
+#endif
+
+#if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
+static virtual_timer_t timers_state_vt;
+
+static void timers_state_cb(virtual_timer_t *vtp, void *param) {
+
+  (void)vtp;
+  (void)param;
+}
 #endif]]></value>
       </shared_code>
       <cases>
@@ -915,6 +925,79 @@ test_assert(tm2.n == (ucnt_t)1, "invalid counter");
 test_assert(tm2.last > (rtcnt_t)0, "invalid last");
 test_assert(tm2.best == tm2.last, "invalid best");
 test_assert(tm2.worst == tm2.last, "invalid worst");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Tickless timers state boundaries.</value>
+          </brief>
+          <description>
+            <value>The saturating boundary behavior of @p
+              chVTGetTimersStateI() is tested.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_ST_TIMEDELTA > 0]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chVTObjectInit(&timers_state_vt);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chVTReset(&timers_state_vt);
+chVTObjectDispose(&timers_state_vt);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[sysinterval_t interval;
+bool pending;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A maximum-interval timer is queried. Addition of the
+                  current tickless delta must saturate instead of wrapping to
+                  a short interval.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+chVTDoSetI(&timers_state_vt, TIME_INFINITE, timers_state_cb, NULL);
+pending = chVTGetTimersStateI(&interval);
+chVTDoResetI(&timers_state_vt);
+chSysUnlock();
+
+test_assert(pending, "timer not reported");
+test_assert(interval > (TIME_MAX_INTERVAL / (sysinterval_t)2),
+            "interval addition wrapped");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Timer processing is held past the tolerated deadline.
+                  The reported remaining interval must saturate at zero
+                  instead of wrapping.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+chVTDoSetI(&timers_state_vt, currcore->vtlist.lastdelta,
+           timers_state_cb, NULL);
+do {
+  interval = chTimeDiffX(currcore->vtlist.lasttime, chVTGetSystemTimeX());
+} while (interval <= (timers_state_vt.dlist.delta +
+                      currcore->vtlist.lastdelta));
+pending = chVTGetTimersStateI(&interval);
+chVTDoResetI(&timers_state_vt);
+chSysUnlock();
+
+test_assert(pending, "timer not reported");
+test_assert(interval == (sysinterval_t)0, "interval subtraction wrapped");]]></value>
               </code>
             </step>
           </steps>

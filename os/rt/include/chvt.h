@@ -212,7 +212,7 @@ static inline bool chVTIsSystemTimeWithin(systime_t start, systime_t end) {
 /**
  * @brief   Returns the time interval until the next timer event.
  * @note    The return value is not perfectly accurate and can report values
- *          in excess of @p CH_CFG_ST_TIMEDELTA ticks.
+ *          in excess of the current tickless delta setting.
  * @note    The interval returned by this function is only meaningful if
  *          more timers are not added to the list until the returned time.
  *
@@ -239,8 +239,27 @@ static inline bool chVTGetTimersStateI(sysinterval_t *timep) {
 #if CH_CFG_ST_TIMEDELTA == 0
     *timep = dlp->next->delta;
 #else
-    *timep = (dlp->next->delta + (sysinterval_t)CH_CFG_ST_TIMEDELTA) -
-             chTimeDiffX(vtlp->lasttime, chVTGetSystemTimeX());
+    sysinterval_t delta;
+    sysinterval_t nowdelta;
+
+    /* Tolerated deadline with saturation at the maximum interval.*/
+    if (dlp->next->delta > TIME_INFINITE - vtlp->lastdelta) {
+      delta = TIME_INFINITE;
+    }
+    else {
+      delta = dlp->next->delta + vtlp->lastdelta;
+    }
+
+    /* Remaining interval with saturation at zero.*/
+    nowdelta = chTimeDiffX(vtlp->lasttime, chVTGetSystemTimeX());
+    if (nowdelta >= delta) {
+      delta = (sysinterval_t)0;
+    }
+    else {
+      delta -= nowdelta;
+    }
+
+    *timep = delta;
 #endif
   }
 
