@@ -81,6 +81,12 @@ See .devcontainer/README.md for included tools and usage.
 *****************************************************************************
 
 *** Next ***
+- FIX: Serial over USB input remained inactive after an USB suspend/wakeup
+       cycle on STM32 OTG devices. The generic USB driver terminates all
+       pending transactions on suspend and the OTG LLD also disables the
+       endpoints in hardware, so the bulk OUT receive armed before suspend
+       was lost. Now sduWakeupHookI() restarts the receive operation, as
+       the XHAL driver already did (github PR #180).
 - FIX: STM32 I2Cv4 did not build on devices without SMBus support
        (STM32U0xx), whose headers do not define the I2C_ISR_PECERR/TIMEOUT/
        ALERT flags referenced by the error mask. These flags now default to
