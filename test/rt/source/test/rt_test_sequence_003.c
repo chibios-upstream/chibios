@@ -35,6 +35,7 @@
  * - @subpage rt_test_003_003
  * - @subpage rt_test_003_004
  * - @subpage rt_test_003_005
+ * - @subpage rt_test_003_006
  * .
  */
 
@@ -421,6 +422,47 @@ static const testcase_t rt_test_003_005 = {
 };
 #endif /* (CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED) */
 
+#if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_003_006 [3.6] Current tickless delta getter
+ *
+ * <h2>Description</h2>
+ * The thread-context current-delta API is exercised.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_ST_TIMEDELTA > 0
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [3.6.1] The current adaptive delta is read from thread context and
+ *   checked against its configured minimum.
+ * .
+ */
+
+static void rt_test_003_006_execute(void) {
+  sysinterval_t delta;
+
+  /* [3.6.1] The current adaptive delta is read from thread context and
+     checked against its configured minimum.*/
+  test_set_step(1);
+  {
+    delta = chVTGetCurrentDelta();
+    test_assert(delta >= (sysinterval_t)CH_CFG_ST_TIMEDELTA,
+                "invalid current delta");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t rt_test_003_006 = {
+  "Current tickless delta getter",
+  NULL,
+  NULL,
+  rt_test_003_006_execute
+};
+#endif /* CH_CFG_ST_TIMEDELTA > 0 */
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -439,6 +481,9 @@ const testcase_t * const rt_test_sequence_003_array[] = {
 #endif
 #if ((CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED)) || defined(__DOXYGEN__)
   &rt_test_003_005,
+#endif
+#if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
+  &rt_test_003_006,
 #endif
   NULL
 };

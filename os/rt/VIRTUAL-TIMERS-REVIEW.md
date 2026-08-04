@@ -83,7 +83,7 @@ change with a focused regression test.
    reset override case remains open until its API semantics are fixed together
    with the rest of the callback/reload state machine.
 
-4. **VT-10 — lock the no-suffix current-delta getter**
+4. **VT-10 — lock the no-suffix current-delta getter (implemented)**
 
    Acquire the system lock around the mutable tickless `lastdelta` read. The
    periodic constant-return path remains unchanged. The tree currently has only
@@ -121,7 +121,7 @@ alarm retry increment boundary, is stated explicitly.
 | VT-7 | Confirmed, high | SMP | Timer operations use the caller's instance without recording the timer's owner |
 | VT-8 | Confirmed documentation defect | all | `chVTObjectInit()` incorrectly says `chVTSetI()` needs no initialization |
 | VT-9 | Confirmed documentation defect | all | Continuous callback and reload-setter documentation contradicts behavior |
-| VT-10 | Confirmed API atomicity defect | tickless | `chVTGetCurrentDelta()` reads mutable state without locking |
+| VT-10 | Fixed API atomicity defect | tickless | `chVTGetCurrentDelta()` read mutable state without locking |
 | VT-11 | Confirmed configuration defect | tickless | `CH_CFG_ST_TIMEDELTA` can narrow to an invalid runtime value |
 
 ## Confirmed behavioral defects
@@ -383,11 +383,15 @@ unlocked writer/read interleaving. The nearby `chVTGetSystemTime()` and
 `chVTGetTimeStamp()` no-suffix APIs acquire the lock; only their X/I-class
 forms assume the caller supplies the required context.
 
-**Proposed fix:** make `chVTGetCurrentDelta()` acquire and release the system
-lock around the mutable tickless read. If a locked-context form is needed, add
-an explicitly named I- or X-class helper and document its atomicity contract.
-The periodic constant-return path requires no lock. Add a compile/run test with
-64-bit intervals on a 32-bit port configuration.
+**Implemented fix:** `chVTGetCurrentDelta()` now acquires and releases the
+system lock around the mutable tickless `lastdelta` read. The periodic
+constant-return path remains lock-free. The tree has no locked-context caller,
+so no additional I- or X-class API was introduced.
+
+A generated tickless test exercises the thread-context getter and verifies the
+adaptive delta is not below its configured minimum. The test is also compiled
+with 64-bit intervals for a 32-bit Cortex-M4 target, covering the data model in
+which the original unlocked read could tear.
 
 ### VT-11 — `CH_CFG_ST_TIMEDELTA` can narrow to zero or one
 
@@ -491,7 +495,8 @@ checked. Neither suite covers:
 - runtime execution of VT-6's RFCU-disabled assertion fallback;
 - callback-target replacement during the unlocked dispatch window;
 - timer operations from a different SMP instance;
-- 64-bit `chVTGetCurrentDelta()` reads on a 32-bit target;
+- runtime execution of the 64-bit current-delta getter test on a 32-bit
+  tickless target;
 - rejected `CH_CFG_ST_TIMEDELTA` narrowing configurations.
 
 These should become focused regression tests rather than being folded only into
@@ -572,3 +577,19 @@ the long-duration VT storm.
    warnings. Runtime execution of the focused tickless-only test still
    requires a supported hardware target. Generated build artifacts were
    cleaned.
+
+7. **VT-10 — atomic current-delta getter**
+
+   `chVTGetCurrentDelta()` now locks around the mutable tickless `lastdelta`
+   read, preventing interrupt or SMP interleaving and torn wide reads. The
+   periodic compile-time-constant branch remains unchanged and lock-free. No
+   locked-context form was added because both tree call sites are ordinary
+   thread-context calls.
+
+   Added a generated tickless getter test, updating both `configuration.xml`
+   and its checked-in generated source. XML validation, regeneration, and
+   `git diff --check` passed. The full periodic simulator RT and OSLIB suites
+   passed, the STM32G474 tickless VT storm built, and the STM32F407 tickless
+   test-suite image built with 64-bit intervals on its 32-bit Cortex-M4 target.
+   Runtime execution of the new tickless-only test still requires a supported
+   hardware target. Generated build artifacts were cleaned.

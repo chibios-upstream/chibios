@@ -1069,6 +1069,44 @@ test_assert(listdelta == TIME_INFINITE,
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Current tickless delta getter.</value>
+          </brief>
+          <description>
+            <value>The thread-context current-delta API is exercised.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_ST_TIMEDELTA > 0]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[sysinterval_t delta;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The current adaptive delta is read from thread context
+                  and checked against its configured minimum.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[delta = chVTGetCurrentDelta();
+test_assert(delta >= (sysinterval_t)CH_CFG_ST_TIMEDELTA,
+            "invalid current delta");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
     <sequence>

@@ -556,15 +556,21 @@ static inline void chVTResetTimeStamp(void) {
  *          condition is also reported in the RFCU.
  *
  * @return              The current delta setting.
+ *
+ * @api
  */
 static inline sysinterval_t chVTGetCurrentDelta(void) {
 
 #if CH_CFG_ST_TIMEDELTA == 0
   return (sysinterval_t)CH_CFG_ST_TIMEDELTA;
 #else
-  virtual_timers_list_t *vtlp = &currcore->vtlist;
+  sysinterval_t delta;
 
-  return vtlp->lastdelta;
+  chSysLock();
+  delta = currcore->vtlist.lastdelta;
+  chSysUnlock();
+
+  return delta;
 #endif
 }
 
