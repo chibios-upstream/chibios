@@ -389,8 +389,7 @@ static inline void chVTSet(virtual_timer_t *vtp, sysinterval_t delay,
  *                        normal time specification.
  *                      - @a TIME_IMMEDIATE this value is not allowed.
  * @param[in] vtfunc    the timer callback function. After invoking the
- *                      callback the timer is disabled and the structure can
- *                      be disposed or reused.
+ *                      callback the timer is restarted.
  * @param[in] par       a parameter that will be passed to the callback
  *                      function
  *
@@ -417,8 +416,7 @@ static inline void chVTSetContinuousI(virtual_timer_t *vtp, sysinterval_t delay,
  *                        normal time specification.
  *                      - @a TIME_IMMEDIATE this value is not allowed.
  * @param[in] vtfunc    the timer callback function. After invoking the
- *                      callback the timer is disabled and the structure can
- *                      be disposed or reused.
+ *                      callback the timer is restarted.
  * @param[in] par       a parameter that will be passed to the callback
  *                      function
  *
@@ -447,8 +445,10 @@ static inline sysinterval_t chVTGetReloadIntervalX(virtual_timer_t *vtp) {
 
 /**
  * @brief   Changes a timer reload time interval.
- * @note    This function is meant to be called from a timer callback, it
- *          does nothing in any other context.
+ * @pre     This function must only be called from the callback invoked for
+ *          @p vtp.
+ * @note    A zero reload value suppresses automatic reload when the callback
+ *          returns.
  * @note    Calling this function from a one-shot timer callback turns it
  *          into a continuous timer.
  *

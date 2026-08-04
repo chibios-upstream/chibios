@@ -267,10 +267,12 @@ static void vt_enqueue(virtual_timers_list_t *vtlp,
 
 /**
  * @brief   Initializes a @p virtual_timer_t object.
- * @note    Initializing a timer object is not strictly required because
- *          the function @p chVTSetI() initializes the object too. This
- *          function is only useful if you need to perform a @p chVTIsArmed()
- *          check before calling @p chVTSetI().
+ * @note    Explicit initialization is not required before calling
+ *          @p chVTDoSetI() or @p chVTDoSetContinuousI() because those
+ *          functions initialize a disarmed object before inserting it.
+ * @note    The replacing forms @p chVTSetI(), @p chVTSet(),
+ *          @p chVTSetContinuousI(), and @p chVTSetContinuous() require an
+ *          initialized object because they first check and reset it if armed.
  *
  * @param[out] vtp      pointer to a @p virtual_timer_t object
  *
@@ -528,16 +530,22 @@ void chVTDoTickI(void) {
     --vtlp->dlist.next->delta;
     while (vtlp->dlist.next->delta == (sysinterval_t)0) {
       virtual_timer_t *vtp;
+      vtfunc_t func;
+      void *par;
 
       /* Triggered timer.*/
       vtp = (virtual_timer_t *)vtlp->dlist.next;
+
+      /* Preserving callback information while still protected.*/
+      func = vtp->func;
+      par  = vtp->par;
 
       /* Removing the element from the delta list, marking it as not armed.*/
       (void) ch_dlist_dequeue(&vtp->dlist);
       vtp->dlist.next = NULL;
 
       chSysUnlockFromISR();
-      vtp->func(vtp, vtp->par);
+      func(vtp, par);
       chSysLockFromISR();
 
       /* If a reload is defined the timer needs to be restarted.*/
@@ -548,6 +556,8 @@ void chVTDoTickI(void) {
   }
 #else /* CH_CFG_ST_TIMEDELTA > 0 */
   virtual_timer_t *vtp;
+  vtfunc_t func;
+  void *par;
   sysinterval_t nowdelta;
   systime_t now;
 
@@ -575,6 +585,10 @@ void chVTDoTickI(void) {
     lasttime = chTimeAddX(vtlp->lasttime, vtp->dlist.delta);
     vtlp->lasttime = lasttime;
 
+    /* Preserving callback information while still protected.*/
+    func = vtp->func;
+    par  = vtp->par;
+
     /* Removing the timer from the list, marking it as not armed.*/
     (void) ch_dlist_dequeue(&vtp->dlist);
     vtp->dlist.next = NULL;
@@ -589,7 +603,7 @@ void chVTDoTickI(void) {
        modified within the callback if some timer function is called.*/
     chSysUnlockFromISR();
 
-    vtp->func(vtp, vtp->par);
+    func(vtp, par);
 
     chSysLockFromISR();
 
