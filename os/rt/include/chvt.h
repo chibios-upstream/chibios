@@ -343,6 +343,12 @@ static inline void chVTReset(virtual_timer_t *vtp) {
  *          using the new parameters.
  * @pre     The timer must have been initialized using @p chVTObjectInit()
  *          or @p chVTDoSetI().
+ * @note    In tickless mode, a delay that cannot be represented relative to
+ *          the current timer-list base reports
+ *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
+ *          @p TIME_INFINITE from that base.
+ *          If VT RFCU collection is disabled, a debug assertion is used
+ *          instead.
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
  * @param[in] delay     the number of ticks before the operation times out, the
@@ -371,6 +377,12 @@ static inline void chVTSetI(virtual_timer_t *vtp, sysinterval_t delay,
  *          using the new parameters.
  * @pre     The timer must have been initialized using @p chVTObjectInit()
  *          or @p chVTDoSetI().
+ * @note    In tickless mode, a delay that cannot be represented relative to
+ *          the current timer-list base reports
+ *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
+ *          @p TIME_INFINITE from that base.
+ *          If VT RFCU collection is disabled, a debug assertion is used
+ *          instead.
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
  * @param[in] delay     the number of ticks before the operation times out, the
@@ -400,6 +412,12 @@ static inline void chVTSet(virtual_timer_t *vtp, sysinterval_t delay,
  *          using the new parameters.
  * @pre     The timer must have been initialized using @p chVTObjectInit()
  *          or @p chVTDoSetI().
+ * @note    In tickless mode, a delay that cannot be represented relative to
+ *          the current timer-list base reports
+ *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
+ *          @p TIME_INFINITE from that base.
+ *          If VT RFCU collection is disabled, a debug assertion is used
+ *          instead.
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
  * @param[in] delay     the number of ticks before the operation times out, the
@@ -427,6 +445,12 @@ static inline void chVTSetContinuousI(virtual_timer_t *vtp, sysinterval_t delay,
  *          using the new parameters.
  * @pre     The timer must have been initialized using @p chVTObjectInit()
  *          or @p chVTDoSetI().
+ * @note    In tickless mode, a delay that cannot be represented relative to
+ *          the current timer-list base reports
+ *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
+ *          @p TIME_INFINITE from that base.
+ *          If VT RFCU collection is disabled, a debug assertion is used
+ *          instead.
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
  * @param[in] delay     the number of ticks before the operation times out, the

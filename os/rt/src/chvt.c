@@ -206,6 +206,31 @@ static void vt_insert_first(virtual_timers_list_t *vtlp,
   chDbgAssert(currdelta <= CH_CFG_ST_TIMEDELTA, "insufficient delta");
 #endif
 }
+
+/**
+ * @brief   Converts a delay to a delta-list coordinate.
+ * @note    An RFCU fault is registered if the addition is not representable,
+ *          the result is saturated to the furthest representable deadline.
+ *
+ * @param[in] nowdelta  delta between the list base and current time
+ * @param[in] delay     delay over current time
+ * @return              The delta from the list base.
+ */
+static sysinterval_t vt_add_delta(sysinterval_t nowdelta,
+                                  sysinterval_t delay) {
+
+  if (unlikely(delay > (TIME_INFINITE - nowdelta))) {
+#if !defined(CH_VT_RFCU_DISABLED)
+    chRFCUCollectFaultsI(CH_RFCU_VT_INTERVAL_OVERFLOW);
+#else
+    chDbgAssert(false, "interval overflow");
+#endif
+
+    return TIME_INFINITE;
+  }
+
+  return nowdelta + delay;
+}
 #endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
 /**
@@ -233,17 +258,9 @@ static void vt_enqueue(virtual_timers_list_t *vtlp,
       return;
     }
 
-    /* Delay as delta from 'lasttime'. Note, it can overflow and the value
-       becomes lower than 'deltanow'.*/
+    /* Delay as delta from 'lasttime'.*/
     nowdelta = chTimeDiffX(vtlp->lasttime, now);
-    delta    = nowdelta + delay;
-
-    /* Scenario where a very large delay exceeded the numeric range, the
-       delta is shortened to make it fit the numeric range, the timer
-       will be triggered "deltanow" cycles earlier.*/
-    if (delta < nowdelta) {
-      delta = delay;
-    }
+    delta    = vt_add_delta(nowdelta, delay);
 
     /* Checking if this timer would become the first in the delta list, this
        requires changing the current alarm setting.*/
@@ -317,6 +334,12 @@ void chVTObjectDispose(virtual_timer_t *vtp) {
  *          specified as parameter.
  * @pre     The timer must not be already armed before calling this function.
  * @note    The callback function is invoked from interrupt context.
+ * @note    In tickless mode, a delay that cannot be represented relative to
+ *          the current timer-list base reports
+ *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
+ *          @p TIME_INFINITE from that base.
+ *          If VT RFCU collection is disabled, a debug assertion is used
+ *          instead.
  *
  * @param[out] vtp      pointer to a @p virtual_timer_t object
  * @param[in] delay     the number of ticks before the operation times out, the
@@ -354,6 +377,12 @@ void chVTDoSetI(virtual_timer_t *vtp, sysinterval_t delay,
  *          specified as parameter.
  * @pre     The timer must not be already armed before calling this function.
  * @note    The callback function is invoked from interrupt context.
+ * @note    In tickless mode, a delay that cannot be represented relative to
+ *          the current timer-list base reports
+ *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
+ *          @p TIME_INFINITE from that base.
+ *          If VT RFCU collection is disabled, a debug assertion is used
+ *          instead.
  *
  * @param[out] vtp      pointer to a @p virtual_timer_t object
  * @param[in] delay     the number of ticks before the operation times out, the
@@ -649,14 +678,8 @@ void chVTDoTickI(void) {
         return;
       }
 
-      /* Delay as delta from 'lasttime'. Note, it can overflow and the value
-         becomes lower than 'nowdelta'. In that case the delta is shortened
-         to make it fit the numeric range and the timer will be triggered
-         "nowdelta" cycles earlier.*/
-      delta = nowdelta + delay;
-      if (delta < nowdelta) {
-        delta = delay;
-      }
+      /* Delay as delta from 'lasttime'.*/
+      delta = vt_add_delta(nowdelta, delay);
 
       /* Insert into delta list. */
       ch_dlist_insert(&vtlp->dlist, &vtp->dlist, delta);

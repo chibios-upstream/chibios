@@ -95,7 +95,7 @@ change with a focused regression test.
    elapsed-time subtraction at zero. This changes only a query result and does
    not modify the timer list or alarm.
 
-6. **VT-6 — report and saturate unrepresentable enqueue intervals**
+6. **VT-6 — report and saturate unrepresentable enqueue intervals (implemented)**
 
    As a second-stage bounded change, add the selected RFCU overflow event and
    saturate to `TIME_INFINITE` in both insertion paths. Representable delays are
@@ -117,7 +117,7 @@ alarm retry increment boundary, is stated explicitly.
 | VT-3 | Confirmed | tickless | A callback-created list base makes automatic reload late |
 | VT-4 | Confirmed, high | tickless | Continuous timers with no future reload margin can keep the timer ISR from returning |
 | VT-5 | Fixed arithmetic defect | tickless | `chVTGetTimersStateI()` can wrap instead of reporting a bounded interval |
-| VT-6 | Confirmed contract defect | tickless | Near-full-range delays can expire early when the list is nonempty |
+| VT-6 | Fixed contract defect | tickless | Near-full-range delays could expire early when the list was nonempty |
 | VT-7 | Confirmed, high | SMP | Timer operations use the caller's instance without recording the timer's owner |
 | VT-8 | Confirmed documentation defect | all | `chVTObjectInit()` incorrectly says `chVTSetI()` needs no initialization |
 | VT-9 | Confirmed documentation defect | all | Continuous callback and reload-setter documentation contradicts behavior |
@@ -303,21 +303,22 @@ This is not the physical-timer chunking case. `VT_MAX_DELAY` correctly limits a
 single hardware alarm when `sysinterval_t` is wider than `systime_t`; VT-6 is
 the logical list-coordinate overflow before alarm programming.
 
-**Selected solution:** detect the unsigned addition overflow, report it through
-a dedicated RFCU fault such as `CH_RFCU_VT_INTERVAL_OVERFLOW`, and saturate the
+**Implemented fix:** detect the unsigned addition overflow, report it through
+the dedicated `CH_RFCU_VT_INTERVAL_OVERFLOW` fault, and saturate the
 list-relative delta to `TIME_INFINITE`, the furthest deadline representable
 from the current list base. If the application runtime-fault hook returns, this
 provides the least-early representable fallback; strict applications can halt
-from the hook. When VT RFCU collection is disabled, use a debug assertion as
-the fallback, consistently with the other VT runtime-fault paths.
+from the hook. When VT RFCU collection is disabled, a debug assertion is used
+as the fallback, consistently with the other VT runtime-fault paths.
 
-Apply the same detection to both ordinary enqueue and automatic continuous
-reload insertion. Document that a tickless delay is exact only while adding
-the age of the current list base is representable; otherwise the RFCU event is
-raised and the deadline is saturated. Tests must insert the boundary timer
-after the list base has aged, not only into an empty list, and verify the fault
-mask, hook invocation, saturated fallback deadline, and disabled-RFCU assertion
-path.
+The shared checked-add helper is used by both ordinary enqueue and automatic
+continuous reload insertion. The timer APIs now document that a tickless delay
+is exact only while adding the age of the current list base is representable;
+otherwise the RFCU event is raised and the deadline is saturated. A focused
+generated test inserts the boundary timer after the list base has aged and
+checks both the fault mask and saturated fallback coordinate. An
+RFCU-disabled, assertions-enabled build verifies the diagnostic fallback is
+compiled.
 
 ### VT-7 — SMP timer operations have no owner but manipulate the current list
 
@@ -471,8 +472,8 @@ context enforcement or otherwise change behavior for VT-9.
   last timer is intentional in same-instance operation.
 - `chVTGetRemainingIntervalI()` saturates an overdue tickless timer at zero.
 - Hardware-alarm chunking through `VT_MAX_DELAY` prevents a wide interval from
-  being passed directly to a narrower `systime_t` alarm. It does not solve VT-6,
-  which occurs in the logical list coordinates.
+  being passed directly to a narrower `systime_t` alarm. This is distinct from
+  VT-6's now-handled logical list-coordinate overflow.
 - A sole continuous timer that misses its deadline takes the empty-list path,
   programs a physical minimum delay, and returns. VT-4 requires another timer
   to keep the list nonempty.
@@ -487,8 +488,7 @@ checked. Neither suite covers:
 - continuous rearm followed by reset in the same callback;
 - a sole continuous callback that starts another timer;
 - two continuous callbacks that overrun their periods;
-- near-full-range tickless overflow reporting and saturation on an aged,
-  nonempty list;
+- runtime execution of VT-6's RFCU-disabled assertion fallback;
 - callback-target replacement during the unlocked dispatch window;
 - timer operations from a different SMP instance;
 - 64-bit `chVTGetCurrentDelta()` reads on a 32-bit target;
@@ -554,3 +554,21 @@ the long-duration VT storm.
    test-suite demo containing the new conditional test built successfully.
    Generated build artifacts were cleaned; execution of the new tickless-only
    test still requires a supported tickless hardware target.
+
+6. **VT-6 — reported and saturated tickless interval overflow**
+
+   Added `CH_RFCU_VT_INTERVAL_OVERFLOW` and a shared checked-add helper for
+   conversion from a current-time delay to a tickless delta-list coordinate.
+   Both ordinary insertion and automatic continuous reload use the helper.
+   Overflow invokes the RFCU path and saturates at `TIME_INFINITE`; when VT
+   RFCU collection is disabled, the same condition uses a debug assertion.
+
+   Added API documentation for the exceptional tickless range contract, a
+   generated RT test using an aged nonempty list, and VT storm recognition of
+   the new fault bit. XML validation, regeneration, and `git diff --check`
+   passed. The full periodic simulator RT and OSLIB suites passed, the normal
+   STM32F407 tickless test-suite image and STM32G474 VT storm image built, and
+   an RFCU-disabled/assertions-enabled STM32F407 variant built without
+   warnings. Runtime execution of the focused tickless-only test still
+   requires a supported hardware target. Generated build artifacts were
+   cleaned.

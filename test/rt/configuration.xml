@@ -700,6 +700,10 @@ static time_measurement_t tm1, tm2;
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
 static virtual_timer_t timers_state_vt;
+#if !defined(CH_VT_RFCU_DISABLED) || defined(__DOXYGEN__)
+static virtual_timer_t timers_overflow_anchor;
+static virtual_timer_t timers_overflow_vt;
+#endif
 
 static void timers_state_cb(virtual_timer_t *vtp, void *param) {
 
@@ -998,6 +1002,69 @@ chSysUnlock();
 
 test_assert(pending, "timer not reported");
 test_assert(interval == (sysinterval_t)0, "interval subtraction wrapped");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Tickless timer interval overflow.</value>
+          </brief>
+          <description>
+            <value>Overflow while converting a delay to an aged timer-list
+              coordinate is reported and saturated.</value>
+          </description>
+          <condition>
+            <value><![CDATA[(CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED)]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chVTObjectInit(&timers_overflow_anchor);
+chVTObjectInit(&timers_overflow_vt);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chVTReset(&timers_overflow_vt);
+chVTReset(&timers_overflow_anchor);
+chVTObjectDispose(&timers_overflow_vt);
+chVTObjectDispose(&timers_overflow_anchor);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[rfcu_mask_t mask;
+sysinterval_t delay, listdelta, nowdelta;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A timer is inserted after a nonempty list base has
+                  aged enough to make its requested delay unrepresentable.
+                  The overflow fault and saturated list coordinate are
+                  verified.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSysLock();
+(void) chRFCUGetAndClearFaultsI(CH_RFCU_ALL_FAULTS);
+chVTDoSetI(&timers_overflow_anchor, TIME_INFINITE,
+           timers_state_cb, NULL);
+do {
+  nowdelta = chTimeDiffX(currcore->vtlist.lasttime,
+                         chVTGetSystemTimeX());
+} while (nowdelta < (sysinterval_t)2);
+delay = TIME_INFINITE - nowdelta + (sysinterval_t)1;
+chVTDoSetI(&timers_overflow_vt, delay, timers_state_cb, NULL);
+mask = chRFCUGetAndClearFaultsI(CH_RFCU_ALL_FAULTS);
+listdelta = timers_overflow_vt.dlist.delta;
+chVTDoResetI(&timers_overflow_vt);
+chVTDoResetI(&timers_overflow_anchor);
+chSysUnlock();
+
+test_assert((mask & CH_RFCU_VT_INTERVAL_OVERFLOW) != (rfcu_mask_t)0,
+            "overflow fault not reported");
+test_assert(listdelta == TIME_INFINITE,
+            "list coordinate not saturated");]]></value>
               </code>
             </step>
           </steps>

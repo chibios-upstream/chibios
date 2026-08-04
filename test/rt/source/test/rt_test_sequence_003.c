@@ -34,6 +34,7 @@
  * - @subpage rt_test_003_002
  * - @subpage rt_test_003_003
  * - @subpage rt_test_003_004
+ * - @subpage rt_test_003_005
  * .
  */
 
@@ -49,6 +50,10 @@ static time_measurement_t tm1, tm2;
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
 static virtual_timer_t timers_state_vt;
+#if !defined(CH_VT_RFCU_DISABLED) || defined(__DOXYGEN__)
+static virtual_timer_t timers_overflow_anchor;
+static virtual_timer_t timers_overflow_vt;
+#endif
 
 static void timers_state_cb(virtual_timer_t *vtp, void *param) {
 
@@ -342,6 +347,80 @@ static const testcase_t rt_test_003_004 = {
 };
 #endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
+#if ((CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED)) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_003_005 [3.5] Tickless timer interval overflow
+ *
+ * <h2>Description</h2>
+ * Overflow while converting a delay to an aged timer-list coordinate
+ * is reported and saturated.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - (CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED)
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [3.5.1] A timer is inserted after a nonempty list base has aged
+ *   enough to make its requested delay unrepresentable. The overflow
+ *   fault and saturated list coordinate are verified.
+ * .
+ */
+
+static void rt_test_003_005_setup(void) {
+  chVTObjectInit(&timers_overflow_anchor);
+  chVTObjectInit(&timers_overflow_vt);
+}
+
+static void rt_test_003_005_teardown(void) {
+  chVTReset(&timers_overflow_vt);
+  chVTReset(&timers_overflow_anchor);
+  chVTObjectDispose(&timers_overflow_vt);
+  chVTObjectDispose(&timers_overflow_anchor);
+}
+
+static void rt_test_003_005_execute(void) {
+  rfcu_mask_t mask;
+  sysinterval_t delay, listdelta, nowdelta;
+
+  /* [3.5.1] A timer is inserted after a nonempty list base has aged
+     enough to make its requested delay unrepresentable. The overflow
+     fault and saturated list coordinate are verified.*/
+  test_set_step(1);
+  {
+    chSysLock();
+    (void) chRFCUGetAndClearFaultsI(CH_RFCU_ALL_FAULTS);
+    chVTDoSetI(&timers_overflow_anchor, TIME_INFINITE,
+               timers_state_cb, NULL);
+    do {
+      nowdelta = chTimeDiffX(currcore->vtlist.lasttime,
+                             chVTGetSystemTimeX());
+    } while (nowdelta < (sysinterval_t)2);
+    delay = TIME_INFINITE - nowdelta + (sysinterval_t)1;
+    chVTDoSetI(&timers_overflow_vt, delay, timers_state_cb, NULL);
+    mask = chRFCUGetAndClearFaultsI(CH_RFCU_ALL_FAULTS);
+    listdelta = timers_overflow_vt.dlist.delta;
+    chVTDoResetI(&timers_overflow_vt);
+    chVTDoResetI(&timers_overflow_anchor);
+    chSysUnlock();
+
+    test_assert((mask & CH_RFCU_VT_INTERVAL_OVERFLOW) != (rfcu_mask_t)0,
+                "overflow fault not reported");
+    test_assert(listdelta == TIME_INFINITE,
+                "list coordinate not saturated");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t rt_test_003_005 = {
+  "Tickless timer interval overflow",
+  rt_test_003_005_setup,
+  rt_test_003_005_teardown,
+  rt_test_003_005_execute
+};
+#endif /* (CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED) */
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -357,6 +436,9 @@ const testcase_t * const rt_test_sequence_003_array[] = {
 #endif
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
   &rt_test_003_004,
+#endif
+#if ((CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED)) || defined(__DOXYGEN__)
+  &rt_test_003_005,
 #endif
   NULL
 };

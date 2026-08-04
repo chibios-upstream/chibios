@@ -37,6 +37,7 @@
  */
 #define CH_RFCU_VT_INSUFFICIENT_DELTA       1U
 #define CH_RFCU_VT_SKIPPED_DEADLINE         2U
+#define CH_RFCU_VT_INTERVAL_OVERFLOW        4U
 /** @} */
 
 /**

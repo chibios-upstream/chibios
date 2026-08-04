@@ -284,12 +284,18 @@ void vt_storm_execute(const vt_storm_config_t *cfg) {
 
       /* Check for relevant RFCU events.*/
       mask = chRFCUGetAndClearFaultsI(CH_RFCU_VT_INSUFFICIENT_DELTA |
-                                      CH_RFCU_VT_SKIPPED_DEADLINE);
+                                      CH_RFCU_VT_SKIPPED_DEADLINE |
+                                      CH_RFCU_VT_INTERVAL_OVERFLOW);
       chSysUnlock();
 
       if (saturated) {
         chprintf(cfg->out, "#");
         break;
+      }
+      else if ((mask & CH_RFCU_VT_INTERVAL_OVERFLOW) != (rfcu_mask_t)0) {
+        palToggleLine(config->line);
+        chprintf(cfg->out, "o");
+        warning = true;
       }
       else if (mask == CH_RFCU_VT_INSUFFICIENT_DELTA) {
         palToggleLine(config->line);
