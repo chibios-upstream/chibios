@@ -102,11 +102,12 @@ change with a focused regression test.
    unchanged. Land this after the query fixes because it deliberately changes
    exceptional-path behavior and can invoke an application runtime-fault hook.
 
-Defer VT-3 and VT-4 because they change tickless reload scheduling and ISR exit
-behavior. Defer the remaining VT-1 reset semantics and the VT-7 diagnostic owner
-lifetime until the callback state transitions are specified and tested as a
-whole. VT-11 is now bounded by the existing physical-alarm maximum, which
-reserves the low half of the counter range for alarm retry increments.
+VT-3 and VT-4 are now implemented together with deterministic tickless
+scheduling tests. Defer the remaining VT-1 reset semantics and the VT-7
+diagnostic owner lifetime until the callback state transitions are specified
+and tested as a whole. VT-11 is now bounded by the existing physical-alarm
+maximum, which reserves the low half of the counter range for alarm retry
+increments.
 
 ## Findings summary
 
@@ -114,8 +115,8 @@ reserves the low half of the counter range for alarm retry increments.
 |---|---|---|---|
 | VT-1 | Partially fixed, high | periodic and tickless | Continuous callback-side rearming inserts the same timer twice |
 | VT-2 | Confirmed concurrency defect | periodic and tickless, especially SMP | Callback function and argument are loaded after the kernel lock is dropped |
-| VT-3 | Confirmed | tickless | A callback-created list base makes automatic reload late |
-| VT-4 | Confirmed, high | tickless | Continuous timers with no future reload margin can keep the timer ISR from returning |
+| VT-3 | Fixed scheduling defect | tickless | A callback-created list base made automatic reload late |
+| VT-4 | Fixed boundedness defect | tickless | Continuous timers with no future reload margin could keep the timer ISR from returning |
 | VT-5 | Fixed arithmetic defect | tickless | `chVTGetTimersStateI()` can wrap instead of reporting a bounded interval |
 | VT-6 | Fixed contract defect | tickless | Near-full-range delays could expire early when the list was nonempty |
 | VT-7 | Confirmed, high | SMP | Timer operations use the caller's instance without recording the timer's owner |
@@ -217,12 +218,13 @@ The error is the distance between the old expiration base and the base created
 inside the callback. The same issue occurs if a callback empties a previously
 nonempty list and then starts it again.
 
-**Proposed fix:** use elapsed time from the expired deadline only to calculate
-the phase-preserving remaining `delay`. Immediately before insertion, calculate
-a separate base delta from the **current** `vtlp->lasttime` to the captured
-`now`. Alternatively, factor an enqueue helper that accepts the already-read
-`now` and always translates a delay relative to that time into the current
-list's coordinate system.
+**Implemented fix:** elapsed time from the expired deadline is now used only to
+calculate the phase-preserving remaining `delay`. Immediately before insertion,
+a separate `basedelta` is calculated from the current `vtlp->lasttime` to the
+captured `now` (`chvt.c:637-684`). Timer operations performed during the
+unlocked callback window, either by the callback or by a preempting ISR, can
+therefore replace the list base without shifting the automatic reload's
+absolute phase deadline.
 
 ### VT-4 — zero remaining reload time can make the tickless ISR unbounded
 
@@ -248,13 +250,23 @@ The comment says recovery proceeds with a minimum delay, but zero is only
 raised to the physical minimum in the empty-list special case. It is not a
 minimum delay in the nonempty case.
 
-**Proposed fix:** when `nowdelta >= reload`, schedule the timer no earlier than
-`now + vtlp->lastdelta`, reprogram the alarm, and leave the current timer
-handler invocation. This gives due timers another interrupt opportunity without
-repeatedly invoking the same callback in one ISR. Add tests with two continuous
-timers whose callbacks advance simulated time exactly to and then past their
-reload; verify bounded callbacks per interrupt and the RFCU record for the
-strictly skipped case.
+**Implemented fix:** when elapsed callback time reaches or exceeds `reload`, the
+timer is scheduled at `now + vtlp->lastdelta`, the physical alarm is
+reprogrammed, and the current timer handler invocation returns
+(`chvt.c:645-690`). Exact equality is deferred without reporting a fault;
+strictly skipped deadlines retain the existing RFCU or assertion reporting.
+This gives all due timers another interrupt opportunity without invoking a
+continuous callback repeatedly in one ISR.
+
+A deterministic host-side tickless harness compiles the real `chvt.c` against a
+controlled clock and alarm. Two equal-deadline continuous timers advance the
+clock exactly to and then past their reload boundary. Both cases verify one
+callback in the initial handler and a minimum-delta alarm, then advance to that
+alarm and verify the deferred timer is dispatched in the next handler. Only the
+strictly skipped case verifies `CH_RFCU_VT_SKIPPED_DEADLINE`. A sole-timer
+overrun also verifies empty-list rearming through `port_timer_start_alarm()`.
+The same harness verifies that a sole continuous timer whose callback creates a
+new list base retains its original absolute phase deadline.
 
 ### VT-5 — `chVTGetTimersStateI()` wraps at both ends of its arithmetic
 
@@ -496,12 +508,10 @@ context enforcement or otherwise change behavior for VT-9.
 
 The standard continuous-timer test only increments a counter. The VT storm test
 has extensive one-shot self-rearming and a continuous timer, but its continuous
-callback does not mutate timer state and its full-range wrapper deadline is not
+callback does not mutate timer state and its long-range wrapper deadline is not
 checked. Neither suite covers:
 
 - continuous rearm followed by reset in the same callback;
-- a sole continuous callback that starts another timer;
-- two continuous callbacks that overrun their periods;
 - runtime execution of VT-6's RFCU-disabled assertion fallback;
 - callback-target replacement during the unlocked dispatch window;
 - timer operations from a different SMP instance;
@@ -587,6 +597,22 @@ the long-duration VT storm.
    requires a supported hardware target. Generated build artifacts were
    cleaned.
 
+   An STM32H563 hardware run showed that repeatedly rearming the VT storm
+   wrapper at `TIME_INFINITE` on an aged list intentionally raised this fault
+   on every sweep, masking other storm markers. The wrapper now uses half the
+   interval range and is initially armed on the empty list. A hardware rerun
+   exposed the expected adaptive-delta startup events and then settled to dots
+   without further interval-overflow markers.
+
+   VT storm reporting now accumulates all relevant RFCU bits before handling
+   watchdog saturation, records the lowest tested delay for each fault class,
+   and reports each accumulated class by name. Combined per-sweep masks use a
+   distinct marker instead of being reported as interval overflow alone. On
+   STM32H563, the first iteration attributed the expected adaptive-delta event
+   to 160297 ticks while separately reporting saturation at 233 ticks; the next
+   complete iteration reported no warnings. The copied IRQ storm Doxygen
+   identity in `vt_storm.c` was also corrected.
+
 7. **VT-10 — atomic current-delta getter**
 
    `chVTGetCurrentDelta()` now locks around the mutable tickless `lastdelta`
@@ -616,3 +642,32 @@ the long-duration VT storm.
    the full periodic simulator RT and OSLIB suites, and a 32-bit system-time,
    64-bit interval tickless build at the maximum accepted delta all passed.
    Generated build artifacts were cleaned.
+
+9. **VT-3 — callback-safe automatic reload coordinates**
+
+   Split the tickless reload arithmetic into elapsed time from the expired
+   phase deadline and a separately calculated offset from the current list
+   base. A callback that starts or rebuilds the timer list no longer shifts the
+   continuous timer's automatic reload deadline.
+
+   A deterministic mock-clock test makes a sole continuous callback advance
+   time, create a new timer-list base, advance time again, and return. It checks
+   the resulting delta-list coordinate and exact physical alarm deadline.
+
+10. **VT-4 — bounded reached and skipped continuous reloads**
+
+   Automatic reloads whose phase deadline has been reached or skipped are now
+   deferred by the adaptive minimum delta. After inserting the timer, the
+   ticker reprograms the alarm and returns, bounding callback dispatch in the
+   current interrupt. Strict skips still report
+   `CH_RFCU_VT_SKIPPED_DEADLINE`; equality remains non-faulting.
+
+   The deterministic harness uses two equal-deadline continuous timers and
+   advances its clock to exact equality and then strict overrun. It verifies a
+   single callback in the initial handler, minimum-delta alarm programming,
+   deferred dispatch in the next handler, and RFCU reporting only for the
+   strict case. A sole-timer overrun verifies the empty-list alarm-start path.
+   The harness is wired into the mechanical CI workflow. C/H style checks and
+   `git diff --check` passed, the full periodic simulator RT and OSLIB suites
+   passed, and normal plus RFCU-disabled/assertions-enabled STM32F407 tickless
+   images built without warnings. Generated build artifacts were cleaned.

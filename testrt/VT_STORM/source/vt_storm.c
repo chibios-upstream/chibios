@@ -15,10 +15,10 @@
 */
 
 /**
- * @file    irq_storm.c
- * @brief   IRQ Storm stress test code.
+ * @file    vt_storm.c
+ * @brief   VT Storm stress test code.
  *
- * @addtogroup IRQ_STORM
+ * @addtogroup VT_STORM
  * @{
  */
 
@@ -34,6 +34,9 @@
 /*===========================================================================*/
 /* Module local definitions.                                                 */
 /*===========================================================================*/
+
+/* Long interval leaving headroom for the age of the timer-list base.*/
+#define VT_STORM_WRAPPER_INTERVAL           (TIME_INFINITE / 2U)
 
 /*===========================================================================*/
 /* Module exported variables.                                                */
@@ -106,7 +109,7 @@ static void sweeper0_cb(virtual_timer_t *vtp, void *p) {
 
   chSysLockFromISR();
   rnddly();
-  chVTSetI(&wrapper, (sysinterval_t)-1, wrapper_cb, NULL);
+  chVTSetI(&wrapper, VT_STORM_WRAPPER_INTERVAL, wrapper_cb, NULL);
   chVTSetI(vtp, delay, sweeper0_cb, NULL);
   chSysUnlockFromISR();
 }
@@ -232,7 +235,10 @@ void vt_storm_execute(const vt_storm_config_t *cfg) {
   }
 
   for (i = 1; i <= VT_STORM_CFG_ITERATIONS; i++) {
-    bool warning;
+    rfcu_mask_t faults;
+    sysinterval_t insufficient_delay;
+    sysinterval_t skipped_delay;
+    sysinterval_t overflow_delay;
 
     chprintf(cfg->out, "Iteration %d\r\n", i);
     chThdSleep(TIME_MS2I(10));
@@ -245,20 +251,23 @@ void vt_storm_execute(const vt_storm_config_t *cfg) {
       delay = (sysinterval_t)VT_STORM_CFG_MIN_DELAY;
     }
     saturated = false;
-    warning   = false;
+    faults = (rfcu_mask_t)0;
+    insufficient_delay = (sysinterval_t)0;
+    skipped_delay = (sysinterval_t)0;
+    overflow_delay = (sysinterval_t)0;
     do {
       rfcu_mask_t mask;
       sysinterval_t decrease;
 
-      /* Starting sweepers.*/
+      /* Starting the long-range wrapper first on an empty list.*/
       chSysLock();
+      chVTSetI(&wrapper, VT_STORM_WRAPPER_INTERVAL, wrapper_cb, NULL);
       chVTSetI(&watchdog, TIME_MS2I(501), watchdog_cb, NULL);
       chVTSetI(&sweeper0, delay, sweeper0_cb, NULL);
       chVTSetI(&sweeperm1, delay - 1, sweeperm1_cb, NULL);
       chVTSetI(&sweeperp1, delay + 1, sweeperp1_cb, NULL);
       chVTSetI(&sweeperm3, delay - 3, sweeperm3_cb, NULL);
       chVTSetI(&sweeperp3, delay + 3, sweeperp3_cb, NULL);
-      chVTSetI(&wrapper, (sysinterval_t)-1, wrapper_cb, NULL);
       chVTSetContinuousI(&continuous, periodic, continuous_cb, NULL);
       chVTSetI(&guard0, TIME_MS2I(250) + (CH_CFG_TIME_QUANTUM / 2), guard_cb, NULL);
       chVTSetI(&guard1, TIME_MS2I(250) + (CH_CFG_TIME_QUANTUM - 1), guard_cb, NULL);
@@ -288,29 +297,36 @@ void vt_storm_execute(const vt_storm_config_t *cfg) {
                                       CH_RFCU_VT_INTERVAL_OVERFLOW);
       chSysUnlock();
 
+      faults |= mask;
+      if ((mask & CH_RFCU_VT_INSUFFICIENT_DELTA) != (rfcu_mask_t)0) {
+        insufficient_delay = delay;
+      }
+      if ((mask & CH_RFCU_VT_SKIPPED_DEADLINE) != (rfcu_mask_t)0) {
+        skipped_delay = delay;
+      }
+      if ((mask & CH_RFCU_VT_INTERVAL_OVERFLOW) != (rfcu_mask_t)0) {
+        overflow_delay = delay;
+      }
+
       if (saturated) {
         chprintf(cfg->out, "#");
         break;
       }
-      else if ((mask & CH_RFCU_VT_INTERVAL_OVERFLOW) != (rfcu_mask_t)0) {
-        palToggleLine(config->line);
-        chprintf(cfg->out, "o");
-        warning = true;
-      }
       else if (mask == CH_RFCU_VT_INSUFFICIENT_DELTA) {
         palToggleLine(config->line);
         chprintf(cfg->out, "x");
-        warning = true;
       }
       else if (mask == CH_RFCU_VT_SKIPPED_DEADLINE) {
         palToggleLine(config->line);
         chprintf(cfg->out, "+");
-        warning = true;
       }
-      else if (mask == (CH_RFCU_VT_INSUFFICIENT_DELTA | CH_RFCU_VT_SKIPPED_DEADLINE)) {
+      else if (mask == CH_RFCU_VT_INTERVAL_OVERFLOW) {
+        palToggleLine(config->line);
+        chprintf(cfg->out, "o");
+      }
+      else if (mask != (rfcu_mask_t)0) {
         palToggleLine(config->line);
         chprintf(cfg->out, "*");
-        warning = true;
       }
       else {
         palToggleLine(config->line);
@@ -326,9 +342,20 @@ void vt_storm_execute(const vt_storm_config_t *cfg) {
       delay = delay - decrease;
     } while (delay >= (sysinterval_t)VT_STORM_CFG_MIN_DELAY);
 
-    if (warning) {
-      chprintf(cfg->out, "\r\nRFCU warning detected at %u uS %u ticks",
-               TIME_I2US(delay), delay);
+    if (faults != (rfcu_mask_t)0) {
+      chprintf(cfg->out, "\r\nRFCU warnings:");
+      if ((faults & CH_RFCU_VT_INSUFFICIENT_DELTA) != (rfcu_mask_t)0) {
+        chprintf(cfg->out, "\r\n  Insufficient delta at %u uS %u ticks",
+                 TIME_I2US(insufficient_delay), insufficient_delay);
+      }
+      if ((faults & CH_RFCU_VT_SKIPPED_DEADLINE) != (rfcu_mask_t)0) {
+        chprintf(cfg->out, "\r\n  Skipped deadline at %u uS %u ticks",
+                 TIME_I2US(skipped_delay), skipped_delay);
+      }
+      if ((faults & CH_RFCU_VT_INTERVAL_OVERFLOW) != (rfcu_mask_t)0) {
+        chprintf(cfg->out, "\r\n  Interval overflow at %u uS %u ticks",
+                 TIME_I2US(overflow_delay), overflow_delay);
+      }
       chprintf(cfg->out, "\r\nRecalculated delta is %u ticks", chVTGetCurrentDelta());
     }
     else {
