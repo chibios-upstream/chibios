@@ -74,6 +74,12 @@
 *****************************************************************************
 
 *** 21.11.6 ***
+- FIX: Serial over USB input remained inactive after an USB suspend/wakeup
+       cycle on STM32 OTG devices. The generic USB driver terminates all
+       pending transactions on suspend and the OTG LLD also disables the
+       endpoints in hardware, so the bulk OUT receive armed before suspend
+       was lost. Now sduWakeupHookI() restarts the receive operation
+       (backport of github PR #180).
 - FIX: STM32H7xx HAL initialization reset the SYSCFG block, clearing the
        overdrive enable (SYSCFG_PWRCR ODEN) set during clock initialization
        and dropping the core out of overdrive while the PLL kept running above
