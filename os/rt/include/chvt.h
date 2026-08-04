@@ -31,6 +31,19 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   Maximum delay directly programmable in tickless mode.
+ * @details The unused low half of the physical counter range provides
+ *          headroom for alarm setup retries to increase the minimum delta.
+ */
+#if (CH_CFG_ST_RESOLUTION == 64) || defined(__DOXYGEN__)
+#define VT_MAX_DELAY                        0xFFFFFFFF00000000ULL
+#elif CH_CFG_ST_RESOLUTION == 32
+#define VT_MAX_DELAY                        0xFFFF0000U
+#elif CH_CFG_ST_RESOLUTION == 16
+#define VT_MAX_DELAY                        0xFF00U
+#endif
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -42,6 +55,8 @@
 #if (CH_CFG_ST_TIMEDELTA < 0) || (CH_CFG_ST_TIMEDELTA == 1)
 #error "invalid CH_CFG_ST_TIMEDELTA specified, must "                       \
        "be zero or greater than one"
+#elif CH_CFG_ST_TIMEDELTA > VT_MAX_DELAY
+#error "invalid CH_CFG_ST_TIMEDELTA specified, exceeds VT_MAX_DELAY"
 #endif
 
 #if (CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_TIME_QUANTUM > 0)

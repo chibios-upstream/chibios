@@ -33,12 +33,6 @@
 /* Module local definitions.                                                 */
 /*===========================================================================*/
 
-#if CH_CFG_INTERVALS_SIZE > CH_CFG_ST_RESOLUTION
-#define VT_MAX_DELAY                                                        \
-  (((sysinterval_t)TIME_MAX_SYSTIME) &                                      \
-   ~(sysinterval_t)(((sysinterval_t)1 << (CH_CFG_ST_RESOLUTION / 2)) - (sysinterval_t)1))
-#endif
-
 /*===========================================================================*/
 /* Module exported variables.                                                */
 /*===========================================================================*/

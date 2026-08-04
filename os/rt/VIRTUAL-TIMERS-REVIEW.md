@@ -105,8 +105,8 @@ change with a focused regression test.
 Defer VT-3 and VT-4 because they change tickless reload scheduling and ISR exit
 behavior. Defer the remaining VT-1 reset semantics and the VT-7 diagnostic owner
 lifetime until the callback state transitions are specified and tested as a
-whole. Defer VT-11 until the exact maximum legal static delta, including the
-alarm retry increment boundary, is stated explicitly.
+whole. VT-11 is now bounded by the existing physical-alarm maximum, which
+reserves the low half of the counter range for alarm retry increments.
 
 ## Findings summary
 
@@ -122,7 +122,7 @@ alarm retry increment boundary, is stated explicitly.
 | VT-8 | Confirmed documentation defect | all | `chVTObjectInit()` incorrectly says `chVTSetI()` needs no initialization |
 | VT-9 | Confirmed documentation defect | all | Continuous callback and reload-setter documentation contradicts behavior |
 | VT-10 | Fixed API atomicity defect | tickless | `chVTGetCurrentDelta()` read mutable state without locking |
-| VT-11 | Confirmed configuration defect | tickless | `CH_CFG_ST_TIMEDELTA` can narrow to an invalid runtime value |
+| VT-11 | Fixed configuration defect | tickless | `CH_CFG_ST_TIMEDELTA` could narrow to an invalid runtime value |
 
 ## Confirmed behavioral defects
 
@@ -393,12 +393,12 @@ adaptive delta is not below its configured minimum. The test is also compiled
 with 64-bit intervals for a 32-bit Cortex-M4 target, covering the data model in
 which the original unlocked read could tear.
 
-### VT-11 — `CH_CFG_ST_TIMEDELTA` can narrow to zero or one
+### VT-11 — `CH_CFG_ST_TIMEDELTA` could narrow to zero or one
 
-The configuration check rejects negative values and the literal value one, but
-does not verify that `CH_CFG_ST_TIMEDELTA` fits the configured system-time and
-interval types (`chvt.h:42-44`). Initialization then explicitly casts the
-option to `sysinterval_t` (`chvt.h:541-543`).
+The former configuration check rejected negative values and the literal value
+one, but did not verify that `CH_CFG_ST_TIMEDELTA` fit the configured
+system-time and interval types. Initialization explicitly casts the option to
+`sysinterval_t` (`chvt.h:600-607`).
 
 For example, with 16-bit intervals, a configured value of 65536 passes the
 preprocessor check and becomes zero at runtime. A value of 65537 becomes one,
@@ -408,11 +408,21 @@ mode and the runtime minimum delta disagree. When intervals are wider than
 `systime_t`, a value that fits only the interval type can also reach
 `chTimeAddX()` as a physical alarm delay that does not fit system time.
 
-**Proposed fix:** reject any nonzero delta that is not representable as both a
-runtime `sysinterval_t` margin and a physical `systime_t` alarm distance, and
-exclude reserved or sentinel boundary values needed by the retry increment.
-Add accepted tests at zero, two, and the chosen maximum plus rejected tests at
-one and immediately above each representable boundary.
+**Implemented fix:** `VT_MAX_DELAY`, previously local to the wide-interval
+alarm-chunking code, is now a shared derived constant and the configuration
+check rejects larger deltas. Its exact values are `0xFF00`, `0xFFFF0000`, and
+`0xFFFFFFFF00000000` for 16-, 32-, and 64-bit system time respectively. These
+values fit every supported `sysinterval_t` because interval width cannot be
+narrower than system time, while the cleared low half leaves respectively 255,
+65535, or 4294967295 increments before the adaptive retry delta reaches the
+physical counter maximum. This is why the same-width limit is deliberately
+lower than `TIME_MAX_INTERVAL` as well.
+
+A focused preprocessing matrix accepts periodic zero, tickless two, and the
+maximum for same-width and wider-interval configurations. It rejects negative
+and one, the value immediately above each maximum, 16- and 32-bit values that
+would narrow to zero or one, and wider-interval values that fit
+`sysinterval_t` but exceed the physical alarm limit.
 
 ## Documentation defects
 
@@ -496,8 +506,7 @@ checked. Neither suite covers:
 - callback-target replacement during the unlocked dispatch window;
 - timer operations from a different SMP instance;
 - runtime execution of the 64-bit current-delta getter test on a 32-bit
-  tickless target;
-- rejected `CH_CFG_ST_TIMEDELTA` narrowing configurations.
+  tickless target.
 
 These should become focused regression tests rather than being folded only into
 the long-duration VT storm.
@@ -593,3 +602,17 @@ the long-duration VT storm.
    test-suite image built with 64-bit intervals on its 32-bit Cortex-M4 target.
    Runtime execution of the new tickless-only test still requires a supported
    hardware target. Generated build artifacts were cleaned.
+
+8. **VT-11 — bounded static tickless delta**
+
+   Moved the established physical alarm cap into the shared VT header and
+   rejected `CH_CFG_ST_TIMEDELTA` values above it before they can narrow during
+   initialization or bypass wide-interval alarm chunking. The same cap applies
+   when interval and system-time widths match, preserving the retry increment
+   headroom instead of accepting a value adjacent to the type sentinel.
+
+   Added a focused accepted/rejected preprocessing matrix and wired it into the
+   mechanical CI workflow. The matrix, `git diff --check`, C/H style checks,
+   the full periodic simulator RT and OSLIB suites, and a 32-bit system-time,
+   64-bit interval tickless build at the maximum accepted delta all passed.
+   Generated build artifacts were cleaned.
