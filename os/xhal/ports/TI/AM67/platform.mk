@@ -23,6 +23,7 @@ endif
 
 # Drivers compatible with the platform.
 include $(CHIBIOS)/os/xhal/ports/TI/LLD/DMTIMERv1/driver.mk
+include $(CHIBIOS)/os/xhal/ports/TI/LLD/UARTv1/driver.mk
 
 # Shared variables
 ALLCSRC += $(PLATFORMSRC)
