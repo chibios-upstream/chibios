@@ -63,7 +63,7 @@ static THD_FUNCTION(heartbeat, arg) {
   chRegSetThreadName("heartbeat");
 
   while (true) {
-    trace_printf("heartbeat %u t=%u ms", n, (unsigned)chVTGetSystemTimeX());
+    trace_printf("heartbeat %u t=%u ms\n", n, (unsigned)chVTGetSystemTimeX());
     console_write("heartbeat\r\n");
     n++;
     chThdSleepMilliseconds(1000);
@@ -98,7 +98,7 @@ int main(void) {
   chSysInit();
 
   trace_init();
-  trace_printf("RT-XHAL-T3-GEM-O1 starting");
+  trace_printf("RT-XHAL-T3-GEM-O1 starting\n");
 
   /* Console up.*/
   drvStart(&SIOD1, &sio_config);

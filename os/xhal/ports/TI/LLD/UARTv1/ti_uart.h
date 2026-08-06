@@ -102,6 +102,15 @@ typedef struct {
 /** @} */
 
 /**
+ * @name    MCR bits
+ * @{
+ */
+#define TI_UART_MCR_DTR                     (1U << 0)
+#define TI_UART_MCR_RTS                     (1U << 1)
+#define TI_UART_MCR_LPBK                    (1U << 4)
+/** @} */
+
+/**
  * @name    LSR bits
  * @{
  */
