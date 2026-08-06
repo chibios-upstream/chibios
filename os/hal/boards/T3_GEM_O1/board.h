@@ -154,6 +154,17 @@
 #define AM67_ECAP1_BASE         0x23110000U
 #define AM67_ECAP2_BASE         0x23120000U
 
+/*
+ * Peripheral input clocks the XHAL drivers need from the board.
+ *
+ * These are board-level rather than SoC-level because the device tree owns
+ * the clock muxes: the same peripheral on another carrier can be parented
+ * differently. A wrong value shows up as a rate off by a clean integer
+ * ratio, not as a boot failure.
+ */
+#define AM67_ST_TIMER_CLOCK     AM67_TIMER0_CLK_HZ
+#define AM67_MAIN_UART1_CLOCK   48000000U
+
 #if !defined(_FROM_ASM_)
 #ifdef __cplusplus
 extern "C" {
