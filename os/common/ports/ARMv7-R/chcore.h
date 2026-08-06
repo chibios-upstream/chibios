@@ -848,8 +848,8 @@ static inline void port_setup_context(struct port_context *ctxp,
 
   (void)wbase;
 
-  ctxp->sp = (struct port_intctx *)((uint8_t *)wtop -
-                                    sizeof (struct port_intctx));
+  ctxp->sp = (struct port_intctx *)(void *)((uint8_t *)wtop -
+                                            sizeof (struct port_intctx));
 #if CORTEX_USE_FPU == TRUE
   ctxp->sp->fpscr = 0U;
 #endif
