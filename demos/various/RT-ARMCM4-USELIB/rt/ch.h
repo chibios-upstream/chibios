@@ -1235,10 +1235,6 @@ typedef struct {
 #define chThdSleepSeconds(sec) chThdSleep(TIME_S2I(sec))
 #define chThdSleepMilliseconds(msec) chThdSleep(TIME_MS2I(msec))
 #define chThdSleepMicroseconds(usec) chThdSleep(TIME_US2I(usec))
-   thread_t *__thd_object_init(os_instance_t *oip,
-                               thread_t *tp,
-                               const char *name,
-                               tprio_t prio);
   thread_t *__thd_spawn_suspended(thread_t *tp,
                                   const thread_descriptor_t *tdp);
   thread_t *chThdObjectInit(thread_t *tp, const thread_descriptor_t *tdp);

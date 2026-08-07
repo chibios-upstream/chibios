@@ -111,7 +111,7 @@ static void __dummy(thread_t *ntp, thread_t *otp) {
  *          invoked.
  */
 __attribute__((cdecl, noreturn))
-void _port_thread_start(msg_t (*pf)(void *), void *p) {
+void _port_thread_start(void (*pf)(void *), void *p) {
 
   chSysUnlock();
   pf(p);

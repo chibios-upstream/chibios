@@ -262,7 +262,7 @@ void chThdObjectDispose(thread_t *tp) {
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @notapi
  */
@@ -293,17 +293,18 @@ thread_t *__thd_spawn_suspended(thread_t *tp,
  * @details The spawned thread is in the @p CH_STATE_WTSTART state and can
  *          be subsequently started using @p chThdStart(), @p chThdStartI() or
  *           @p chSchWakeupS() depending on the execution context.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @note    Threads created using this function do not honor the
  *          @p CH_DBG_FILL_THREADS debug option because it would stay
  *          in a critical section for too long while filling.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @api
  */
@@ -333,14 +334,15 @@ thread_t *chThdSpawnSuspendedI(thread_t *tp,
  * @details The spawned thread is in the @p CH_STATE_WTSTART state and can
  *          be subsequently started using @p chThdStart(), @p chThdStartI() or
  *           @p chSchWakeupS() depending on the execution context.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @api
  */
@@ -359,17 +361,18 @@ thread_t *chThdSpawnSuspended(thread_t *tp,
 /**
  * @brief   Spawns a running thread.
  * @details The spawned thread is run immediately.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @note    Threads created using this function do not honor the
  *          @p CH_DBG_FILL_THREADS debug option because it would keep
  *          the kernel locked for too much time.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @iclass
  */
@@ -381,14 +384,15 @@ thread_t *chThdSpawnRunningI(thread_t *tp, const thread_descriptor_t *tdp) {
 /**
  * @brief   Spawns a running thread.
  * @details The spawned thread is run immediately.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @iclass
  */
@@ -408,10 +412,11 @@ thread_t *chThdSpawnRunning(thread_t *tp, const thread_descriptor_t *tdp) {
  * @brief   Creates a non-running thread.
  * @details The created thread is in the @p CH_STATE_WTSTART state and can
  *          be subsequently started.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @post    The initialized thread can be subsequently started by invoking
  *          @p chThdStart(), @p chThdStartI() or @p chSchWakeupS()
  *          depending on the execution context.
@@ -420,7 +425,7 @@ thread_t *chThdSpawnRunning(thread_t *tp, const thread_descriptor_t *tdp) {
  *          in a critical section for too long while filling.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @iclass
  */
@@ -472,16 +477,17 @@ thread_t *chThdCreateSuspendedI(const thread_descriptor_t *tdp) {
  * @brief   Creates a non-running thread.
  * @details The new thread is initialized but not inserted in the ready list,
  *          the initial state is @p CH_STATE_WTSTART.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @post    The initialized thread can be subsequently started by invoking
  *          @p chThdStart(), @p chThdStartI() or @p chSchWakeupS()
  *          depending on the execution context.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @api
  */
@@ -502,10 +508,11 @@ thread_t *chThdCreateSuspended(const thread_descriptor_t *tdp) {
 /**
  * @brief   Creates a new thread.
  * @details The new thread is initialized and made ready to execute.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @note    A thread can terminate by calling @p chThdExit() or by simply
  *          returning from its main function.
  * @note    Threads created using this function do not honor the
@@ -513,7 +520,7 @@ thread_t *chThdCreateSuspended(const thread_descriptor_t *tdp) {
  *          the kernel locked for too much time.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @iclass
  */
@@ -525,13 +532,14 @@ thread_t *chThdCreateI(const thread_descriptor_t *tdp) {
 /**
  * @brief   Creates a new thread.
  * @details The new thread is initialized and made ready to execute.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @iclass
  */
@@ -552,10 +560,11 @@ thread_t *chThdCreate(const thread_descriptor_t *tdp) {
 
 /**
  * @brief   Creates a new thread.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @note    A thread can terminate by calling @p chThdExit() or by simply
  *          returning from its main function.
  *
@@ -809,8 +818,9 @@ void chThdExitS(msg_t msg) {
 /**
  * @brief   Blocks the execution of the invoking thread until the specified
  *          thread terminates then the exit code is returned.
- * @details The thread reference counter is not affected by this function,
- *          the caller is responsible for eventually releasing its reference.
+ * @details This function does not modify thread reference ownership. If
+ *          @p CH_CFG_USE_REGISTRY is @p TRUE then the caller remains
+ *          responsible for eventually releasing its reference.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
  * @post    Enabling @p chThdSyncS() requires 2-4 (depending on the
@@ -843,8 +853,9 @@ msg_t chThdSyncS(thread_t *tp) {
 /**
  * @brief   Blocks the execution of the invoking thread until the specified
  *          thread terminates then the exit code is returned.
- * @details The thread reference counter is not affected by this function,
- *          the caller is responsible for eventually releasing its reference.
+ * @details This function does not modify thread reference ownership. If
+ *          @p CH_CFG_USE_REGISTRY is @p TRUE then the caller remains
+ *          responsible for eventually releasing its reference.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
  * @post    Enabling @p chThdSync() requires 2-4 (depending on the
@@ -868,16 +879,19 @@ msg_t chThdSync(thread_t *tp) {
 /**
  * @brief   Blocks the execution of the invoking thread until the specified
  *          thread terminates then the exit code is returned.
- * @details This function synchronizes with the specified thread then
- *          decrements its reference counter, if the counter reaches zero then
- *          the thread working area is returned to the proper allocator and
- *          the thread is removed from the registry.
+ * @details This function synchronizes with the specified thread. If
+ *          @p CH_CFG_USE_REGISTRY is @p TRUE then it also decrements the
+ *          thread reference counter. If the counter reaches zero then the
+ *          thread working area is returned to the proper allocator and the
+ *          thread is removed from the registry.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
  * @post    Enabling @p chThdWait() requires 2-4 (depending on the
  *          architecture) extra bytes in the @p thread_t structure.
- * @note    If @p CH_CFG_USE_DYNAMIC is not specified this function just waits
- *          for the thread termination, no memory allocators are involved.
+ * @note    If @p CH_CFG_USE_REGISTRY is @p FALSE then this function only
+ *          waits for thread termination, there is no reference to release.
+ * @note    If @p CH_CFG_USE_DYNAMIC is @p FALSE then no memory allocators are
+ *          involved.
  *
  * @param[in] tp        pointer to the thread
  * @return              The exit code from the terminated thread.

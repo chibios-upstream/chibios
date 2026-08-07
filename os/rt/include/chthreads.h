@@ -437,10 +437,6 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-   thread_t *__thd_object_init(os_instance_t *oip,
-                               thread_t *tp,
-                               const char *name,
-                               tprio_t prio);
 #if CH_DBG_FILL_THREADS == TRUE
   void __thd_stackfill(uint8_t *startp, uint8_t *endp);
 #endif
