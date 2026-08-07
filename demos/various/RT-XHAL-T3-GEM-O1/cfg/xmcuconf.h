@@ -60,6 +60,7 @@
  * PWM driver system settings.
  */
 #define AM67_PWM_USE_EPWM0                  TRUE
+#define AM67_PWM_USE_ECAP0                  TRUE
 
 #endif /* XMCUCONF_H */
 

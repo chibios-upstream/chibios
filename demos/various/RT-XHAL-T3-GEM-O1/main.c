@@ -74,6 +74,23 @@ static const PWMConfig pwm0_config = {
 };
 
 /*
+ * PWM configuration for ECAP0 (PWMD3), same 1 MHz / 50 Hz timing as
+ * EPWM0. Unused by ArduPilot today (see hal_pwm_lld.c's file header) --
+ * this only exercises the eCAP APWM code path, which is otherwise
+ * dead code in this build.
+ * TEMP-DIAG / REMOVE-AFTER: same caveat as the EPWM0 probe above.
+ */
+static const PWMConfig pwm_ecap0_config = {
+  .frequency            = 1000000U,
+  .period               = 20000U,
+  .enabled_events       = 0U,
+  .channels             = {
+    {.mode = PWM_OUTPUT_ACTIVE_HIGH},
+    {.mode = PWM_OUTPUT_DISABLED}
+  }
+};
+
+/*
  * Writes a string to the console, blocking until the last character has
  * left the transmitter.
  */
@@ -869,6 +886,11 @@ static void pwm_probe_servo(void) {
   drvStart(&PWMD1, &pwm0_config);
   pwmEnableChannel(&PWMD1, 0U, 1500U);
   trace_printf("PWM: EPWM0 ch A started, 1500 us @ 50 Hz\n");
+
+  drvStart(&PWMD3, &pwm_ecap0_config);
+  pwmEnableChannel(&PWMD3, 0U, 1500U);
+  trace_printf("PWM: ECAP0 started, 1500 us @ 50 Hz\n");
+
   console_write("PWM probe done\r\n");
 }
 
@@ -890,6 +912,7 @@ static THD_FUNCTION(heartbeat, arg) {
        every tick, same as an RCOutput driver's per-frame output write
        would -- see hal_pwm_lld.c's file header.*/
     pwmEnableChannel(&PWMD1, 0U, 1500U);
+    pwmEnableChannel(&PWMD3, 0U, 1500U);
     n++;
     chThdSleepMilliseconds(1000);
   }

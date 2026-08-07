@@ -15,23 +15,34 @@
 */
 
 /**
- * @file    EPWMv1/hal_pwm_lld.h
- * @brief   AM67 (J722S) eHRPWM subsystem low level driver header.
- * @details Classic eHRPWM (ti,am3352-ehrpwm) 16-bit register map, confirmed
- *          against the J722S register spreadsheet and the Linux
- *          pwm-tiehrpwm driver. Up-count PWM only: an output is set HIGH at
- *          counter zero and cleared LOW at its compare, so high time =
- *          CMPx / TBCLK and frame period = TBPRD / TBCLK. Each instance has
- *          two outputs (A, B) sharing one time base but independent
- *          compares -- @p PWM_CHANNELS is 2, from @p AM67_EPWM_CHANNELS.
+ * @file    PWMv1/hal_pwm_lld.h
+ * @brief   AM67 (J722S) PWM-output subsystem low level driver header.
+ * @details Covers two structurally different IP blocks under one XHAL PWM
+ *          class, because only one hal_pwm_lld.h can exist per build:
  *
- *          Unlike STM32's flexible prescaler, eHRPWM's is a coarse two-stage
- *          tree (HSPCLKDIV in {1,2,4,6,8,10,12,14}, CLKDIV a power of two up
- *          to 128), so an arbitrary @p hal_pwm_config_t::frequency is
- *          approximated by the closest achievable combination rather than
- *          hit exactly. @p hal_pwm_driver_c::period and the @p width passed
- *          to @p pwmEnableChannel() are real ticks at that achieved rate,
- *          same contract as every other PWM LLD.
+ *          - eHRPWM (EPWM0/EPWM1 -> PWMD1/PWMD2): classic ti,am3352-ehrpwm,
+ *            16-bit registers, up-count PWM (HIGH at counter zero, LOW at
+ *            its compare), two outputs (A, B) per instance sharing one time
+ *            base but independent compares. Its prescaler is a coarse
+ *            two-stage tree (HSPCLKDIV in {1,2,4,6,8,10,12,14}, CLKDIV a
+ *            power of two up to 128, unlike STM32's flexible single
+ *            divider), so an arbitrary @p hal_pwm_config_t::frequency is
+ *            approximated by the closest achievable combination rather
+ *            than hit exactly.
+ *          - eCAP (ECAP0/1/2 -> PWMD3/4/5) run in APWM mode: a different
+ *            IP entirely (32-bit TSCTR/CAP1-4, no prescaler -- fck is
+ *            fixed at @p AM67_ECAP_CLOCK), one output per instance, no A/B
+ *            pair. Per ArduPilot's RCOutput.h this hardware is currently
+ *            unused (a quad only needs the four eHRPWM outputs), kept for
+ *            when a fifth/sixth output is needed.
+ *
+ *          Both were confirmed against the J722S register spreadsheet and
+ *          their respective Linux drivers (pwm-tiehrpwm, pwm-tiecap).
+ *          @p hal_pwm_driver_c::period and the @p width passed to
+ *          @p pwmEnableChannel() are always real hardware ticks at
+ *          whichever rate the instance actually runs at, same contract as
+ *          every other PWM LLD. @p PWM_CHANNELS is 2 (the eHRPWM maximum);
+ *          eCAP instances only ever populate channel 0.
  *
  * @addtogroup PWM
  * @{
@@ -48,10 +59,12 @@
 
 /**
  * @brief   Number of PWM channels per instance (outputs A and B).
+ * @note    Only meaningful for eHRPWM instances; eCAP instances only ever
+ *          populate channel 0.
  */
 #define PWM_CHANNELS                        AM67_EPWM_CHANNELS
 
-/* Register offsets (16-bit registers) ***************************************/
+/* Register offsets, eHRPWM (16-bit registers) *******************************/
 
 #define EPWM_TBCTL              0x00U  /* Time-base control.                  */
 #define EPWM_TBCTR              0x08U  /* Time-base counter.                  */
@@ -90,6 +103,20 @@
 #define AQCSFRC_CSFB_MASK        0x000CU
 #define AQCSFRC_CSFB_LOW         0x0004U
 
+/* Register offsets and fields, eCAP ******************************************/
+
+#define ECAP_TSCTR               0x00U  /* Time-stamp counter (32-bit).       */
+#define ECAP_CAP1                0x08U  /* APWM active period  (32-bit).      */
+#define ECAP_CAP2                0x0CU  /* APWM active compare (32-bit).      */
+#define ECAP_CAP3                0x10U  /* APWM shadow period  (32-bit).      */
+#define ECAP_CAP4                0x14U  /* APWM shadow compare (32-bit).      */
+#define ECAP_ECCTL2              0x2AU  /* Capture control 2 (16-bit).        */
+
+#define ECCTL2_TSCTR_FREERUN     (1U << 4)
+#define ECCTL2_SYNC_SEL_DISA     ((1U << 6) | (1U << 7))
+#define ECCTL2_APWM_MODE         (1U << 9)
+#define ECCTL2_APWM_POL_LOW      (1U << 10)
+
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -110,6 +137,33 @@
 #define AM67_PWM_USE_EPWM1    FALSE
 #endif
 
+/**
+ * @brief   PWMD3 driver enable switch.
+ * @details If set to @p TRUE the support for ECAP0 (in APWM mode) is
+ *          included. Unused by ArduPilot today, see the file header.
+ */
+#if !defined(AM67_PWM_USE_ECAP0) || defined(__DOXYGEN__)
+#define AM67_PWM_USE_ECAP0    FALSE
+#endif
+
+/**
+ * @brief   PWMD4 driver enable switch.
+ * @details If set to @p TRUE the support for ECAP1 (in APWM mode) is
+ *          included.
+ */
+#if !defined(AM67_PWM_USE_ECAP1) || defined(__DOXYGEN__)
+#define AM67_PWM_USE_ECAP1    FALSE
+#endif
+
+/**
+ * @brief   PWMD5 driver enable switch.
+ * @details If set to @p TRUE the support for ECAP2 (in APWM mode) is
+ *          included.
+ */
+#if !defined(AM67_PWM_USE_ECAP2) || defined(__DOXYGEN__)
+#define AM67_PWM_USE_ECAP2    FALSE
+#endif
+
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
@@ -122,8 +176,22 @@
 #error "EPWM1 not present in the selected device"
 #endif
 
-#if (AM67_PWM_USE_EPWM0 == FALSE) && (AM67_PWM_USE_EPWM1 == FALSE)
-#error "PWM driver activated but no EPWM peripheral assigned"
+#if (AM67_PWM_USE_ECAP0 == TRUE) && (AM67_HAS_ECAP0 == FALSE)
+#error "ECAP0 not present in the selected device"
+#endif
+
+#if (AM67_PWM_USE_ECAP1 == TRUE) && (AM67_HAS_ECAP1 == FALSE)
+#error "ECAP1 not present in the selected device"
+#endif
+
+#if (AM67_PWM_USE_ECAP2 == TRUE) && (AM67_HAS_ECAP2 == FALSE)
+#error "ECAP2 not present in the selected device"
+#endif
+
+#if (AM67_PWM_USE_EPWM0 == FALSE) && (AM67_PWM_USE_EPWM1 == FALSE) &&      \
+    (AM67_PWM_USE_ECAP0 == FALSE) && (AM67_PWM_USE_ECAP1 == FALSE) &&      \
+    (AM67_PWM_USE_ECAP2 == FALSE)
+#error "PWM driver activated but no EPWM/ECAP peripheral assigned"
 #endif
 
 /*===========================================================================*/
@@ -134,10 +202,14 @@
  * @brief   Low level fields of the PWM driver structure.
  */
 #define pwm_lld_driver_fields                                               \
-  /* EPWM registers base address.*/                                         \
+  /* Registers base address (EPWMx or ECAPx).*/                             \
   uint32_t                  base;                                           \
+  /* True for an ECAP instance, false for an eHRPWM instance -- the two     \
+     have unrelated register maps, see the file header.*/                   \
+  bool                      is_ecap;                                        \
   /* Resolved TBCTL HSPCLKDIV/CLKDIV prescale field bits, from the          \
-     closest-match search in pwm_lld_start().*/                             \
+     closest-match search in pwm_lld_start(). Meaningless (left zero) for   \
+     an ECAP instance, which has no prescaler.*/                            \
   uint16_t                  tbctl_presc
 
 /**
@@ -161,6 +233,18 @@ extern hal_pwm_driver_c PWMD1;
 
 #if (AM67_PWM_USE_EPWM1 == TRUE) && !defined(__DOXYGEN__)
 extern hal_pwm_driver_c PWMD2;
+#endif
+
+#if (AM67_PWM_USE_ECAP0 == TRUE) && !defined(__DOXYGEN__)
+extern hal_pwm_driver_c PWMD3;
+#endif
+
+#if (AM67_PWM_USE_ECAP1 == TRUE) && !defined(__DOXYGEN__)
+extern hal_pwm_driver_c PWMD4;
+#endif
+
+#if (AM67_PWM_USE_ECAP2 == TRUE) && !defined(__DOXYGEN__)
+extern hal_pwm_driver_c PWMD5;
 #endif
 
 #ifdef __cplusplus
