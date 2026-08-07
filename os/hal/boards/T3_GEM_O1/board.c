@@ -30,6 +30,7 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "am67_padcfg.h"
 
 /* DRSR is (size_exponent - 1) << 1 | enable, region size is 2^exponent.*/
 #define MPU_SIZE_32K            ((14U << 1) | 1U)
@@ -365,4 +366,31 @@ void __late_init(void) {
  * nothing is left to do here.
  */
 void boardInit(void) {
+}
+
+/*
+ * Drives the onboard IMU enable line (MCU_GPIO0_12) active.
+ *
+ * The line is active low per the board design, so the ICM-20948 on MCSPI0
+ * chip select 3 is only released once this pin is driven low. Linux normally
+ * holds it, but the R5F cannot depend on that: nothing orders the two, and a
+ * part held disabled answers 0x00 to every register, which is
+ * indistinguishable from a wiring fault.
+ *
+ * Not called from boardInit(): it touches MCU_GPIO0, whose clock and power
+ * state nothing in this firmware manages, so the application decides whether
+ * and when to risk that access, and can trace around it.
+ */
+void board_imu_enable(void) {
+  const uint32_t bank = AM67_MCU_GPIO0_BASE +
+                        AM67_GPIO_BANK_OFFSET(AM67_IMU_EN_PIN >> 5);
+  const uint32_t mask = 1U << (AM67_IMU_EN_PIN & 31U);
+
+  am67_mcu_padcfg_unlock();
+  am67_mcu_pad_config(AM67_PAD_IMU_EN,
+            AM67_PIN_MODE(7) | AM67_PIN_PULL_DISABLE);
+
+  /* Output direction is 0 on this controller.*/
+  *(volatile uint32_t *)(bank + AM67_GPIO_DIR_OFFSET) &= ~mask;
+  *(volatile uint32_t *)(bank + AM67_GPIO_CLR_DATA_OFFSET) = mask;
 }

@@ -168,11 +168,30 @@
 #define AM67_ST_TIMER_CLOCK     AM67_TIMER0_CLK_HZ
 #define AM67_MAIN_UART1_CLOCK   48000000U
 
+/*
+ * Onboard IMU (ICM-20948, MCU_MCSPI0 chip select 3) enable line.
+ *
+ * The part is gated by MCU_GPIO0 pin 12, active low, on the pad named for
+ * the wakeup-domain UART0 RTS. Which device sits behind which chip select,
+ * and which GPIO releases it, is board wiring: it lives here rather than in
+ * the MCSPI driver, which owns the SPI IP block and nothing else.
+ *
+ * Mapping and polarity from the NuttX AM67 port
+ * (arch/arm/src/am67/am67_gpio.c, AM67_GPIO_ID_IMU_EN).
+ */
+#define AM67_MCU_GPIO0_BASE     0x04201000U
+#define AM67_GPIO_BANK_OFFSET(n) (0x10U + ((uint32_t)(n) * 0x28U))
+#define AM67_GPIO_DIR_OFFSET    0x00U
+#define AM67_GPIO_CLR_DATA_OFFSET 0x0CU
+#define AM67_IMU_EN_PIN         12U
+#define AM67_PAD_IMU_EN         0x0030U   /* WKUP_UART0_RTSN, mux mode 7.  */
+
 #if !defined(_FROM_ASM_)
 #ifdef __cplusplus
 extern "C" {
 #endif
   void boardInit(void);
+  void board_imu_enable(void);
 #ifdef __cplusplus
 }
 #endif

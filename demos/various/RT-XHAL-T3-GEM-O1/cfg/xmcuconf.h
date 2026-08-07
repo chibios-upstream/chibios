@@ -44,6 +44,12 @@
 #define AM67_SIO_USE_UART1                  TRUE
 #define AM67_SIO_UART1_IRQ_PRIORITY         8U
 
+/*
+ * SPI driver system settings.
+ */
+#define AM67_SPI_USE_MCSPI0                 TRUE
+#define AM67_SPI_MCSPI0_IRQ_PRIORITY        8U
+
 #endif /* XMCUCONF_H */
 
 /** @} */
