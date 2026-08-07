@@ -73,8 +73,8 @@
 #define CH_STATE_WTANDEVT   (tstate_t)11     /**< @brief Several events.    */
 #define CH_STATE_SNDMSGQ    (tstate_t)12     /**< @brief Sending a message,
                                                   in queue.                 */
-#define CH_STATE_SNDMSG     (tstate_t)13     /**< @brief Sent a message,
-                                                  waiting answer.           */
+#define CH_STATE_SNDMSG     (tstate_t)13     /**< @brief Legacy message
+                                                  state, currently unused.  */
 #define CH_STATE_WTMSG      (tstate_t)14     /**< @brief Waiting for a
                                                   message.                  */
 #define CH_STATE_FINAL      (tstate_t)15     /**< @brief Thread terminated. */

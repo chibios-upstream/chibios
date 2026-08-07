@@ -66,6 +66,7 @@ extern "C" {
   thread_t *chMsgWaitS(void);
   thread_t *chMsgWaitTimeoutS(sysinterval_t timeout);
   thread_t *chMsgPollS(void);
+  void chMsgReleaseAllI(void);
   void chMsgRelease(thread_t *tp, msg_t msg);
 #ifdef __cplusplus
 }
@@ -86,6 +87,8 @@ extern "C" {
  *          because the sending thread is suspended until then.
  * @note    The reference counter of the sender thread is not increased, the
  *          returned pointer is a temporary reference.
+ * @note    The sender remains linked in the receiver's messages queue until
+ *          @p chMsgRelease() or @p chMsgReleaseAllI() is invoked.
  *
  * @return              A pointer to the thread carrying the message.
  *
@@ -113,6 +116,8 @@ static inline thread_t *chMsgWait(void) {
  *          because the sending thread is suspended until then.
  * @note    The reference counter of the sender thread is not increased, the
  *          returned pointer is a temporary reference.
+ * @note    The sender remains linked in the receiver's messages queue until
+ *          @p chMsgRelease() or @p chMsgReleaseAllI() is invoked.
  *
  * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are handled:
@@ -144,6 +149,8 @@ static inline thread_t *chMsgWaitTimeout(sysinterval_t timeout) {
  *          because the sending thread is suspended until then.
  * @note    The reference counter of the sender thread is not increased, the
  *          returned pointer is a temporary reference.
+ * @note    The sender remains linked in the receiver's messages queue until
+ *          @p chMsgRelease() or @p chMsgReleaseAllI() is invoked.
  *
  * @return              A pointer to the thread carrying the message.
  * @retval  NULL        if no incoming message waiting.
@@ -162,6 +169,9 @@ static inline thread_t *chMsgPoll(void) {
 
 /**
  * @brief   Evaluates to @p true if the thread has pending messages.
+ * @note    A message remains pending until its sender is released using
+ *          @p chMsgRelease() or @p chMsgReleaseAllI(), including while the
+ *          receiver is processing it.
  *
  * @param[in] tp        pointer to the thread
  * @return              The pending messages status.
@@ -177,8 +187,8 @@ static inline bool chMsgIsPendingI(thread_t *tp) {
 
 /**
  * @brief   Returns the message carried by the specified thread.
- * @pre     This function must be invoked immediately after exiting a call
- *          to @p chMsgWait().
+ * @pre     The sender must have been returned by a receive or poll operation
+ *          and must not have been released yet.
  *
  * @param[in] tp        pointer to the thread
  * @return              The message carried by the sender.
@@ -187,15 +197,15 @@ static inline bool chMsgIsPendingI(thread_t *tp) {
  */
 static inline msg_t chMsgGet(thread_t *tp) {
 
-  chDbgAssert(tp->state == CH_STATE_SNDMSG, "invalid state");
+  chDbgAssert(tp->state == CH_STATE_SNDMSGQ, "invalid state");
 
   return tp->sentmsg;
 }
 
 /**
- * @brief   Releases the thread waiting on top of the messages queue.
- * @pre     Invoke this function only after a message has been received
- *          using @p chMsgWait().
+ * @brief   Releases a sender from the current thread's messages queue.
+ * @pre     The sender must have been returned by a receive or poll operation
+ *          on the current thread and must not have been released yet.
  *
  * @param[in] tp        pointer to the thread
  * @param[in] msg       message to be returned to the sender
@@ -203,8 +213,16 @@ static inline msg_t chMsgGet(thread_t *tp) {
  * @sclass
  */
 static inline void chMsgReleaseS(thread_t *tp, msg_t msg) {
+  thread_t *currtp = chThdGetSelfX();
 
   chDbgCheckClassS();
+  chDbgCheck(tp != NULL);
+
+  chDbgAssert(tp->state == CH_STATE_SNDMSGQ, "invalid state");
+  chDbgAssert(tp->u.wtobjp == (void *)&currtp->msgqueue,
+              "invalid receiver");
+
+  (void) ch_queue_dequeue(&tp->hdr.queue);
 
   chSchWakeupS(tp, msg);
 }

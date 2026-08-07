@@ -67,9 +67,8 @@ static thread_t *sb_msg_wait_timeout_s(sysinterval_t timeout) {
     }
   } while (ch_queue_isempty(&currtp->msgqueue));
 
-  /* Dequeuing the sender thread and returning it.*/
-  tp = threadref(ch_queue_fifo_remove(&currtp->msgqueue));
-  tp->state = CH_STATE_SNDMSG;
+  /* Returning the first sender, it remains queued until release.*/
+  tp = threadref(currtp->msgqueue.next);
 
   return tp;
 }
@@ -113,6 +112,10 @@ void sb_sysc_exit(sb_class_t *sbp, struct port_extctx *ectxp) {
 #if CH_CFG_USE_EVENTS == TRUE
   chEvtBroadcastI(&sb.termination_es);
 #endif
+#if CH_CFG_USE_MESSAGES == TRUE
+  sbp->base.msg_tp = NULL;
+  chMsgReleaseAllI();
+#endif
   chThdExitS((msg_t)ectxp->r0);
   chSysUnlock();
 
@@ -153,7 +156,10 @@ void sb_sysc_wait_message(sb_class_t *sbp, struct port_extctx *ectxp) {
   else {
     thread_t *tp = sbp->base.msg_tp;
     sbp->base.msg_tp = NULL;
-    chMsgReleaseS(tp, MSG_RESET);
+    if ((tp->state == CH_STATE_SNDMSGQ) &&
+        (tp->u.wtobjp == (void *)&chThdGetSelfX()->msgqueue)) {
+      chMsgReleaseS(tp, MSG_RESET);
+    }
     ectxp->r0 = MSG_RESET;
   }
 
@@ -173,8 +179,14 @@ void sb_sysc_reply_message(sb_class_t *sbp, struct port_extctx *ectxp) {
   if (sbp->base.msg_tp != NULL) {
     thread_t *tp = sbp->base.msg_tp;
     sbp->base.msg_tp = NULL;
-    chMsgReleaseS(tp, (msg_t)ectxp->r0);
-    ectxp->r0 = CH_RET_SUCCESS;
+    if ((tp->state == CH_STATE_SNDMSGQ) &&
+        (tp->u.wtobjp == (void *)&chThdGetSelfX()->msgqueue)) {
+      chMsgReleaseS(tp, (msg_t)ectxp->r0);
+      ectxp->r0 = CH_RET_SUCCESS;
+    }
+    else {
+      ectxp->r0 = MSG_RESET;
+    }
   }
   else {
     ectxp->r0 = MSG_RESET;

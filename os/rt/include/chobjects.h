@@ -346,7 +346,7 @@ struct ch_thread {
    * @brief   Sent message.
    * @note    This field is intentionally placed outside the @p u union even
    *          though it is only valid while the thread is in the
-   *          @p CH_STATE_SNDMSG or @p CH_STATE_SNDMSGQ states.
+   *          @p CH_STATE_SNDMSGQ state.
    * @note    The reason for keeping it out of the union is that, when
    *          @p CH_CFG_USE_MESSAGES_PRIORITY is enabled, a thread blocked in
    *          @p CH_STATE_SNDMSGQ can be subject to priority inheritance: the

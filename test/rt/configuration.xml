@@ -4409,6 +4409,52 @@ static THD_FUNCTION(msg_thread3, p) {
   chThdSleepMilliseconds(50);
   msg = chMsgSend(p, 'F');
   test_emit_token(msg);
+}
+
+typedef struct {
+  thread_t *receiver;
+  msg_t request;
+  msg_t response;
+  char token;
+} msg_sender_args_t;
+
+static msg_sender_args_t msg_sender_args[2];
+
+static THD_FUNCTION(msg_lifecycle_sender, p) {
+  msg_sender_args_t *ap = (msg_sender_args_t *)p;
+  msg_t msg;
+
+  msg = chMsgSend(ap->receiver, ap->request);
+  if (msg == ap->response) {
+    test_emit_token(ap->token);
+  }
+  else {
+    test_emit_token('X');
+  }
+}
+
+static THD_FUNCTION(msg_exit_thread, p) {
+
+  (void)p;
+}
+
+static THD_FUNCTION(msg_release_all_thread, p) {
+
+  (void)p;
+  chSysLock();
+  chMsgReleaseAllI();
+  chThdExitS(MSG_OK);
+}
+
+static THD_FUNCTION(msg_release_all_after_wait, p) {
+  thread_t *tp;
+
+  (void)p;
+  tp = chMsgWait();
+  test_emit_token((char)chMsgGet(tp));
+  chSysLock();
+  chMsgReleaseAllI();
+  chThdExitS(MSG_OK);
 }]]></value>
       </shared_code>
       <cases>
@@ -4656,6 +4702,174 @@ test_assert(msg == 'E', "wrong message");
 chMsgRelease(tp, 'e');
 test_wait_threads();
 test_assert_sequence("e", "invalid sequence");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Messages lifecycle closure.</value>
+          </brief>
+          <description>
+            <value>Message senders remain linked to their receiver until
+              release. Explicit receiver cleanup rejects selected and queued
+              senders before termination, and sending to an already terminated
+              receiver is rejected immediately.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[thread_t *receiver;
+thread_t *tp;
+msg_t msg;
+tprio_t prio;
+bool linked;
+bool pending;
+#if CH_CFG_USE_MESSAGES_PRIORITY == TRUE
+bool reordered;
+#endif]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A selected sender remains queued and can be released
+                  by identity after a higher-priority sender is inserted ahead
+                  of it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[prio = chThdGetPriorityX();
+receiver = chThdGetSelfX();
+msg_sender_args[0].receiver = receiver;
+msg_sender_args[0].request  = 'A';
+msg_sender_args[0].response = 'a';
+msg_sender_args[0].token    = 'a';
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1,
+                               msg_lifecycle_sender,
+                               &msg_sender_args[0]);
+
+tp = chMsgWait();
+test_assert(tp == threads[0], "wrong first sender");
+chSysLock();
+pending = chMsgIsPendingI(receiver);
+linked = (tp->state == CH_STATE_SNDMSGQ) &&
+         (tp->u.wtobjp == (void *)&receiver->msgqueue);
+chSysUnlock();
+test_assert(pending, "selected message not pending");
+test_assert(linked, "selected sender not linked");
+
+msg_sender_args[1].receiver = receiver;
+msg_sender_args[1].request  = 'B';
+msg_sender_args[1].response = 'b';
+msg_sender_args[1].token    = 'b';
+threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2,
+                               msg_lifecycle_sender,
+                               &msg_sender_args[1]);
+
+#if CH_CFG_USE_MESSAGES_PRIORITY == TRUE
+chSysLock();
+reordered = receiver->msgqueue.next == &threads[1]->hdr.queue;
+chSysUnlock();
+test_assert(reordered, "higher-priority sender not first");
+#endif
+
+chMsgRelease(tp, 'a');
+tp = chMsgWait();
+test_assert(tp == threads[1], "wrong second sender");
+chMsgRelease(tp, 'b');
+test_wait_threads();
+test_assert_sequence("ab", "invalid release sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Sending to a final thread returns MSG_RESET
+                  immediately.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1,
+                               msg_exit_thread, NULL);
+(void) chThdSync(threads[0]);
+msg = chMsgSend(threads[0], 'C');
+test_assert(msg == MSG_RESET, "final receiver not rejected");
+(void) chThdWait(threads[0]);
+threads[0] = NULL;]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A receiver rejects a selected sender using
+                  chMsgReleaseAllI() before exiting.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1,
+                               msg_release_all_after_wait, NULL);
+receiver = threads[0];
+msg_sender_args[0].receiver = receiver;
+msg_sender_args[0].request  = 'Q';
+msg_sender_args[0].response = MSG_RESET;
+msg_sender_args[0].token    = 'R';
+threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2,
+                               msg_lifecycle_sender,
+                               &msg_sender_args[0]);
+test_wait_threads();
+test_assert_sequence("QR", "selected sender not rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A receiver rejects multiple queued senders using
+                  chMsgReleaseAllI() before exiting.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[#if (CH_CFG_USE_DYNAMIC == TRUE) && (CH_CFG_USE_HEAP == TRUE)
+threads[0] = chThdCreateFromHeap(NULL,
+                                 THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE),
+                                 "msg-exit", prio - 2,
+                                 msg_release_all_thread, NULL);
+test_assert(threads[0] != NULL, "dynamic receiver creation failed");
+#else
+threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio - 2,
+                               msg_release_all_thread, NULL);
+#endif
+receiver = threads[0];
+msg_sender_args[0].receiver = receiver;
+msg_sender_args[0].request  = 'D';
+msg_sender_args[0].response = MSG_RESET;
+msg_sender_args[0].token    = 'A';
+threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2,
+                               msg_lifecycle_sender,
+                               &msg_sender_args[0]);
+msg_sender_args[1].receiver = receiver;
+msg_sender_args[1].request  = 'E';
+msg_sender_args[1].response = MSG_RESET;
+msg_sender_args[1].token    = 'B';
+threads[2] = chThdCreateStatic(wa[2], WA_SIZE, prio + 1,
+                               msg_lifecycle_sender,
+                               &msg_sender_args[1]);
+chThdSleep(1);
+test_wait_threads();
+test_assert_sequence("AB", "queued senders not rejected");]]></value>
               </code>
             </step>
           </steps>

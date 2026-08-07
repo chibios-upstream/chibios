@@ -726,6 +726,8 @@ void chThdRelease(thread_t *tp) {
  *          the dead code.
  * @pre     If mutexes are enabled then the invoking thread must not own
  *          any mutex.
+ * @pre     If messages are enabled then the invoking thread must not have
+ *          pending messages.
  *
  * @param[in] msg       thread exit code
  *
@@ -752,6 +754,8 @@ void chThdExit(msg_t msg) {
  *          the dead code.
  * @pre     If mutexes are enabled then the invoking thread must not own
  *          any mutex.
+ * @pre     If messages are enabled then the invoking thread must not have
+ *          pending messages.
  *
  * @param[in] msg       thread exit code
  *
@@ -762,6 +766,9 @@ void chThdExitS(msg_t msg) {
 
 #if CH_CFG_USE_MUTEXES == TRUE
   chDbgAssert(currtp->mtxlist == NULL, "owning mutexes");
+#endif
+#if CH_CFG_USE_MESSAGES == TRUE
+  chDbgAssert(ch_queue_isempty(&currtp->msgqueue), "pending messages");
 #endif
 
   /* Storing exit message.*/

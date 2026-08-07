@@ -73,11 +73,14 @@
 /**
  * @brief   Sends a message to the specified thread.
  * @details The sender is stopped until the receiver executes a
- *          @p chMsgRelease()after receiving the message.
+ *          @p chMsgRelease() after receiving the message or rejects it using
+ *          @p chMsgReleaseAllI().
  *
  * @param[in] tp        the pointer to the thread
  * @param[in] msg       the message
  * @return              The answer message from @p chMsgRelease().
+ * @retval MSG_RESET    if the receiver is already terminated or rejects the
+ *                      message.
  *
  * @api
  */
@@ -87,6 +90,10 @@ msg_t chMsgSend(thread_t *tp, msg_t msg) {
   chDbgCheck(tp != NULL);
 
   chSysLock();
+  if (unlikely(tp->state == CH_STATE_FINAL)) {
+    chSysUnlock();
+    return MSG_RESET;
+  }
   currtp->sentmsg = msg;
   currtp->u.wtobjp = (void *)&tp->msgqueue;
   __ch_msg_insert(&tp->msgqueue, currtp);
@@ -112,6 +119,8 @@ msg_t chMsgSend(thread_t *tp, msg_t msg) {
  *          because the sending thread is suspended until then.
  * @note    The reference counter of the sender thread is not increased, the
  *          returned pointer is a temporary reference.
+ * @note    The sender remains linked in the receiver's messages queue until
+ *          @p chMsgRelease() or @p chMsgReleaseAllI() is invoked.
  *
  * @return              A pointer to the thread carrying the message.
  *
@@ -126,8 +135,7 @@ thread_t *chMsgWaitS(void) {
   if (!chMsgIsPendingI(currtp)) {
     chSchGoSleepS(CH_STATE_WTMSG);
   }
-  tp = threadref(ch_queue_fifo_remove(&currtp->msgqueue));
-  tp->state = CH_STATE_SNDMSG;
+  tp = threadref(currtp->msgqueue.next);
 
   return tp;
 }
@@ -144,6 +152,8 @@ thread_t *chMsgWaitS(void) {
  *          because the sending thread is suspended until then.
  * @note    The reference counter of the sender thread is not increased, the
  *          returned pointer is a temporary reference.
+ * @note    The sender remains linked in the receiver's messages queue until
+ *          @p chMsgRelease() or @p chMsgReleaseAllI() is invoked.
  *
  * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are handled:
@@ -166,8 +176,7 @@ thread_t *chMsgWaitTimeoutS(sysinterval_t timeout) {
       return NULL;
     }
   }
-  tp = threadref(ch_queue_fifo_remove(&currtp->msgqueue));
-  tp->state = CH_STATE_SNDMSG;
+  tp = threadref(currtp->msgqueue.next);
 
   return tp;
 }
@@ -183,6 +192,8 @@ thread_t *chMsgWaitTimeoutS(sysinterval_t timeout) {
  *          because the sending thread is suspended until then.
  * @note    The reference counter of the sender thread is not increased, the
  *          returned pointer is a temporary reference.
+ * @note    The sender remains linked in the receiver's messages queue until
+ *          @p chMsgRelease() or @p chMsgReleaseAllI() is invoked.
  *
  * @return              Result of the poll.
  * @retval  NULL        if no incoming message waiting.
@@ -194,17 +205,43 @@ thread_t *chMsgPollS(void) {
   thread_t *tp = NULL;
 
   if (chMsgIsPendingI(currtp)) {
-    tp = threadref(ch_queue_fifo_remove(&currtp->msgqueue));
-    tp->state = CH_STATE_SNDMSG;
+    tp = threadref(currtp->msgqueue.next);
   }
 
   return tp;
 }
 
 /**
+ * @brief   Releases all senders queued on the current thread.
+ * @details All senders are made ready with @p MSG_RESET as response message.
+ * @post    The current thread's messages queue is empty.
+ * @post    This function does not reschedule internally.
+ * @note    When called from S-class code, @p chSchRescheduleS() must be
+ *          invoked before unlocking the kernel. Interrupt handlers reschedule
+ *          automatically on exit.
+ *
+ * @iclass
+ */
+void chMsgReleaseAllI(void) {
+  thread_t *currtp = chThdGetSelfX();
+
+  chDbgCheckClassI();
+
+  while (ch_queue_notempty(&currtp->msgqueue)) {
+    thread_t *tp = threadref(ch_queue_fifo_remove(&currtp->msgqueue));
+
+    chDbgAssert(tp->state == CH_STATE_SNDMSGQ, "invalid state");
+    chDbgAssert(tp->u.wtobjp == (void *)&currtp->msgqueue,
+                "invalid receiver");
+    tp->u.rdymsg = MSG_RESET;
+    (void) chSchReadyI(tp);
+  }
+}
+
+/**
  * @brief   Releases a sender thread specifying a response message.
- * @pre     Invoke this function only after a message has been received
- *          using @p chMsgWait().
+ * @pre     The sender must have been returned by a receive or poll operation
+ *          on the current thread and must not have been released yet.
  *
  * @param[in] tp        pointer to the thread
  * @param[in] msg       message to be returned to the sender
@@ -214,7 +251,6 @@ thread_t *chMsgPollS(void) {
 void chMsgRelease(thread_t *tp, msg_t msg) {
 
   chSysLock();
-  chDbgAssert(tp->state == CH_STATE_SNDMSG, "invalid state");
   chMsgReleaseS(tp, msg);
   chSysUnlock();
 }

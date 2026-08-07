@@ -72,6 +72,7 @@
 #define CH_CUSTOMER_LIC_PORT_CM4 TRUE
 #define CH_CUSTOMER_LIC_PORT_CM7 TRUE
 #define CH_CUSTOMER_LIC_PORT_CM33 TRUE
+#define CH_CUSTOMER_LIC_PORT_CM55 TRUE
 #define CH_CUSTOMER_LIC_PORT_ARM79 TRUE
 #define CH_CUSTOMER_LIC_PORT_E200Z0 TRUE
 #define CH_CUSTOMER_LIC_PORT_E200Z2 TRUE
@@ -210,7 +211,7 @@ typedef unsigned core_id_t;
 typedef struct ch_thread thread_t;
 typedef struct ch_os_instance os_instance_t;
 #define __CH_STRINGIFY(a) #a
-#define __CH_OFFSETOF(st,m) ((size_t)((char *)(void *)&((st *)0)->m - (char *)0))
+#define __CH_OFFSETOF(st,m) offsetof(st, m)
 #define __CH_OWNEROF(p,st,m) (st *)(void *)((char *)(void *)p - __CH_OFFSETOF(st, m))
 #define __CH_USED(x) (void)(x)
 #define likely(x) PORT_LIKELY(x)
@@ -220,6 +221,7 @@ typedef struct ch_os_instance os_instance_t;
 #define CHRFCU_H 
 #define CH_RFCU_VT_INSUFFICIENT_DELTA 1U
 #define CH_RFCU_VT_SKIPPED_DEADLINE 2U
+#define CH_RFCU_VT_INTERVAL_OVERFLOW 4U
 #define CH_RFCU_ALL_FAULTS ((rfcu_mask_t)-1)
 typedef uint32_t rfcu_mask_t;
 typedef struct ch_rfcu {
@@ -546,7 +548,6 @@ struct port_context {
 #define PORT_IRQ_IS_VALID_PRIORITY(n) (((n) >= 0U) && ((n) < CORTEX_PRIORITY_LEVELS))
 #define PORT_IRQ_IS_VALID_KERNEL_PRIORITY(n) (((n) >= CORTEX_MAX_KERNEL_PRIORITY) && ((n) <= CORTEX_MIN_KERNEL_PRIORITY))
 #define PORT_THD_FUNCTION(tname,arg) void tname(void *arg)
-#define PORT_SETUP_CONTEXT(tp,wbase,wtop,pf,arg) do { (tp)->ctx.sp = (struct port_intctx *)(void *) ((uint8_t *)(wtop) - sizeof (struct port_intctx)); (tp)->ctx.sp->r4 = (uint32_t)(pf); (tp)->ctx.sp->r5 = (uint32_t)(arg); (tp)->ctx.sp->lr = (uint32_t)__port_thread_start; } while (false)
 #define PORT_WA_CTX_SIZE (sizeof (struct port_intctx) + sizeof (struct port_extctx) + sizeof (struct port_extctx))
 #define PORT_WA_SIZE(n) ((size_t)PORT_GUARD_PAGE_SIZE + (size_t)PORT_WA_CTX_SIZE + (size_t)(n) + (size_t)PORT_INT_REQUIRED_STACK)
 #define PORT_IRQ_PROLOGUE() 
@@ -597,6 +598,20 @@ __STATIC_FORCEINLINE void port_enable(void) {
   __enable_irq();
 }
 __STATIC_FORCEINLINE void port_wait_for_interrupt(void) {
+}
+static inline void port_setup_context_base(struct port_context *ctxp) {
+  (void)ctxp;
+}
+static inline void port_setup_context(struct port_context *ctxp,
+                                      void *wbase, void *wtop,
+                                      void (*pf)(void *), void *arg) {
+  port_setup_context_base(ctxp);
+  (void)wbase;
+  ctxp->sp = (struct port_intctx *)(void *)((uint8_t *)wtop -
+                                            sizeof (struct port_intctx));
+  ctxp->sp->r4 = (uint32_t)pf;
+  ctxp->sp->r5 = (uint32_t)arg;
+  ctxp->sp->lr = (uint32_t)__port_thread_start;
 }
 __STATIC_FORCEINLINE rtcnt_t port_rt_get_counter_value(void) {
   return DWT->CYCCNT;
@@ -659,6 +674,7 @@ static inline void ch_list_link(ch_list_t *lp, ch_list_t *p) {
   lp->next = p;
 }
 static inline ch_list_t *ch_list_unlink(ch_list_t *lp) {
+  chDbgAssert(ch_list_notempty(lp), "empty list");
   ch_list_t *p = lp->next;
   lp->next = p->next;
   return p;
@@ -680,6 +696,7 @@ static inline void ch_queue_insert(ch_queue_t *qp, ch_queue_t *p) {
   qp->prev = p;
 }
 static inline ch_queue_t *ch_queue_fifo_remove(ch_queue_t *qp) {
+  chDbgAssert(ch_queue_notempty(qp), "empty queue");
   ch_queue_t *p = qp->next;
   qp->next = p->next;
   qp->next->prev = qp;
@@ -886,6 +903,7 @@ struct ch_thread {
     void *wtobjp;
     thread_reference_t *wttrp;
     struct ch_semaphore *wtsemp;
+    struct condition_variable *wtcondp;
     struct ch_mutex *wtmtxp;
     eventmask_t ewmask;
   } u;
@@ -1011,7 +1029,9 @@ static inline void chSysUnconditionalUnlock(void) {
   void chInstanceObjectInit(os_instance_t *oip,
                             const os_instance_config_t *oicp);
 #define CHVT_H 
-#define __VIRTUAL_TIMER_DATA() { .dlist = { .next = NULL, .prev = NULL, .delta = (sysinterval_t)0 }, .func = NULL, .par = NULL, .reload = (sysinterval_t)0 }
+#define VT_MAX_DELAY 0xFFFF0000U
+#define __VIRTUAL_TIMER_OWNER_DATA()
+#define __VIRTUAL_TIMER_DATA() { .dlist = { .next = NULL, .prev = NULL, .delta = (sysinterval_t)0 }, .func = NULL, .par = NULL, __VIRTUAL_TIMER_OWNER_DATA() .reload = (sysinterval_t)0 }
 #define VIRTUAL_TIMER_DECL(name) virtual_timer_t name = __VIRTUAL_TIMER_DATA()
   void chVTObjectInit(virtual_timer_t *vtp);
   void chVTObjectDispose(virtual_timer_t *vtp);
@@ -1157,6 +1177,7 @@ static inline void __vt_object_init(virtual_timers_list_t *vtlp) {
 #define __sch_get_currthread() __instance_get_currthread(currcore)
   void chSchObjectInit(os_instance_t *oip,
                        const os_instance_config_t *oicp);
+  void __sch_requeue_behind(thread_t *tp);
   thread_t *chSchReadyI(thread_t *tp);
   void chSchGoSleepS(tstate_t newstate);
   msg_t chSchGoSleepTimeoutS(tstate_t newstate, sysinterval_t timeout);
@@ -1170,7 +1191,10 @@ static inline void __vt_object_init(virtual_timers_list_t *vtlp) {
 static inline void ch_sch_prio_insert(ch_queue_t *qp, ch_queue_t *tp) {
   ch_queue_t *cp = qp;
   do {
-    cp = cp->next;
+    ch_queue_t *next = cp->next;
+    chSftValidateDataPointerX(3, next);
+    chSftAssert(2, next->prev == cp, "link back");
+    cp = next;
   } while ((cp != qp) &&
            (threadref(cp)->hdr.pqueue.prio >= threadref(tp)->hdr.pqueue.prio));
   tp->next = cp;
@@ -1179,6 +1203,7 @@ static inline void ch_sch_prio_insert(ch_queue_t *qp, ch_queue_t *tp) {
   cp->prev = tp;
 }
 #define CHTHREADS_H 
+#define THREAD_MAX_REFERENCES ((trefs_t)-1)
 typedef void (*tfunc_t)(void *p);
 typedef struct {
   const char *name;
@@ -1214,6 +1239,8 @@ typedef struct {
                                thread_t *tp,
                                const char *name,
                                tprio_t prio);
+  thread_t *__thd_spawn_suspended(thread_t *tp,
+                                  const thread_descriptor_t *tdp);
   thread_t *chThdObjectInit(thread_t *tp, const thread_descriptor_t *tdp);
   void chThdObjectDispose(thread_t *tp);
   thread_t *chThdSpawnSuspendedI(thread_t *tp,
@@ -1233,7 +1260,10 @@ typedef struct {
   void chThdRelease(thread_t *tp);
   void chThdExit(msg_t msg);
   void chThdExitS(msg_t msg);
+  msg_t chThdSyncS(thread_t *tp);
+  msg_t chThdSync(thread_t *tp);
   msg_t chThdWait(thread_t *tp);
+  tprio_t __thd_set_priority(thread_t *tp, tprio_t newprio);
   tprio_t chThdSetPriority(tprio_t newprio);
   void chThdTerminate(thread_t *tp);
   msg_t chThdSuspendS(thread_reference_t *trp);
@@ -1338,6 +1368,7 @@ typedef struct {
   thread_t *chRegNextThread(thread_t *tp);
   thread_t *chRegFindThreadByName(const char *name);
   thread_t *chRegFindThreadByPointer(thread_t *tp);
+  bool chRegIsWorkingAreaInUseI(stkline_t *wa);
   thread_t *chRegFindThreadByWorkingArea(stkline_t *wa);
 static inline void __reg_object_init(registry_t *rp) {
   ch_queue_init(&rp->queue);
@@ -1397,6 +1428,8 @@ struct ch_mutex {
 };
 #define __MUTEX_DATA(name) {__CH_QUEUE_DATA(name.queue), NULL, NULL}
 #define MUTEX_DECL(name) mutex_t name = __MUTEX_DATA(name)
+  tprio_t __mtx_get_effective_priority(thread_t *tp);
+  bool __mtx_unlock_no_reschedule(mutex_t *mp);
   void chMtxObjectInit(mutex_t *mp);
   void chMtxObjectDispose(mutex_t *mp);
   void chMtxLock(mutex_t *mp);
@@ -1509,6 +1542,7 @@ static inline eventmask_t chEvtGetEventsX(void) {
   thread_t *chMsgWaitS(void);
   thread_t *chMsgWaitTimeoutS(sysinterval_t timeout);
   thread_t *chMsgPollS(void);
+  void chMsgReleaseAllI(void);
   void chMsgRelease(thread_t *tp, msg_t msg);
 static inline thread_t *chMsgWait(void) {
   thread_t *tp;
@@ -1536,11 +1570,17 @@ static inline bool chMsgIsPendingI(thread_t *tp) {
   return (bool)(tp->msgqueue.next != &tp->msgqueue);
 }
 static inline msg_t chMsgGet(thread_t *tp) {
-  chDbgAssert(tp->state == CH_STATE_SNDMSG, "invalid state");
+  chDbgAssert(tp->state == CH_STATE_SNDMSGQ, "invalid state");
   return tp->sentmsg;
 }
 static inline void chMsgReleaseS(thread_t *tp, msg_t msg) {
+  thread_t *currtp = chThdGetSelfX();
   chDbgCheckClassS();
+  chDbgCheck(tp != NULL);
+  chDbgAssert(tp->state == CH_STATE_SNDMSGQ, "invalid state");
+  chDbgAssert(tp->u.wtobjp == (void *)&currtp->msgqueue,
+              "invalid receiver");
+  (void) ch_queue_dequeue(&tp->hdr.queue);
   chSchWakeupS(tp, msg);
 }
 #define CHLIB_H 

@@ -40,6 +40,7 @@
  * - @subpage rt_test_009_002
  * - @subpage rt_test_009_003
  * - @subpage rt_test_009_004
+ * - @subpage rt_test_009_005
  * .
  */
 
@@ -70,6 +71,52 @@ static THD_FUNCTION(msg_thread3, p) {
   chThdSleepMilliseconds(50);
   msg = chMsgSend(p, 'F');
   test_emit_token(msg);
+}
+
+typedef struct {
+  thread_t *receiver;
+  msg_t request;
+  msg_t response;
+  char token;
+} msg_sender_args_t;
+
+static msg_sender_args_t msg_sender_args[2];
+
+static THD_FUNCTION(msg_lifecycle_sender, p) {
+  msg_sender_args_t *ap = (msg_sender_args_t *)p;
+  msg_t msg;
+
+  msg = chMsgSend(ap->receiver, ap->request);
+  if (msg == ap->response) {
+    test_emit_token(ap->token);
+  }
+  else {
+    test_emit_token('X');
+  }
+}
+
+static THD_FUNCTION(msg_exit_thread, p) {
+
+  (void)p;
+}
+
+static THD_FUNCTION(msg_release_all_thread, p) {
+
+  (void)p;
+  chSysLock();
+  chMsgReleaseAllI();
+  chThdExitS(MSG_OK);
+}
+
+static THD_FUNCTION(msg_release_all_after_wait, p) {
+  thread_t *tp;
+
+  (void)p;
+  tp = chMsgWait();
+  test_emit_token((char)chMsgGet(tp));
+  chSysLock();
+  chMsgReleaseAllI();
+  chThdExitS(MSG_OK);
 }
 
 /*===========================================================================*/
@@ -300,6 +347,163 @@ static const testcase_t rt_test_009_004 = {
   rt_test_009_004_execute
 };
 
+/**
+ * @page rt_test_009_005 [9.5] Messages lifecycle closure
+ *
+ * <h2>Description</h2>
+ * Message senders remain linked to their receiver until release. Explicit
+ * receiver cleanup rejects selected and queued senders before termination,
+ * and sending to an already terminated receiver is rejected immediately.
+ *
+ * <h2>Test Steps</h2>
+ * - [9.5.1] A selected sender remains queued and can be released by identity
+ *   after a higher-priority sender is inserted ahead of it.
+ * - [9.5.2] Sending to a final thread returns MSG_RESET immediately.
+ * - [9.5.3] A receiver rejects a selected sender using chMsgReleaseAllI()
+ *   before exiting.
+ * - [9.5.4] A receiver rejects multiple queued senders using
+ *   chMsgReleaseAllI() before exiting.
+ * .
+ */
+
+static void rt_test_009_005_teardown(void) {
+  test_wait_threads();
+}
+
+static void rt_test_009_005_execute(void) {
+  thread_t *receiver;
+  thread_t *tp;
+  msg_t msg;
+  tprio_t prio;
+  bool linked;
+  bool pending;
+#if CH_CFG_USE_MESSAGES_PRIORITY == TRUE
+  bool reordered;
+#endif
+
+  /* [9.5.1] A selected sender remains queued and can be released by
+     identity after a higher-priority sender is inserted ahead of it.*/
+  test_set_step(1);
+  {
+    prio = chThdGetPriorityX();
+    receiver = chThdGetSelfX();
+    msg_sender_args[0].receiver = receiver;
+    msg_sender_args[0].request  = 'A';
+    msg_sender_args[0].response = 'a';
+    msg_sender_args[0].token    = 'a';
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1,
+                                   msg_lifecycle_sender,
+                                   &msg_sender_args[0]);
+
+    tp = chMsgWait();
+    test_assert(tp == threads[0], "wrong first sender");
+    chSysLock();
+    pending = chMsgIsPendingI(receiver);
+    linked = (tp->state == CH_STATE_SNDMSGQ) &&
+             (tp->u.wtobjp == (void *)&receiver->msgqueue);
+    chSysUnlock();
+    test_assert(pending, "selected message not pending");
+    test_assert(linked, "selected sender not linked");
+
+    msg_sender_args[1].receiver = receiver;
+    msg_sender_args[1].request  = 'B';
+    msg_sender_args[1].response = 'b';
+    msg_sender_args[1].token    = 'b';
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2,
+                                   msg_lifecycle_sender,
+                                   &msg_sender_args[1]);
+
+#if CH_CFG_USE_MESSAGES_PRIORITY == TRUE
+    chSysLock();
+    reordered = receiver->msgqueue.next == &threads[1]->hdr.queue;
+    chSysUnlock();
+    test_assert(reordered, "higher-priority sender not first");
+#endif
+
+    chMsgRelease(tp, 'a');
+    tp = chMsgWait();
+    test_assert(tp == threads[1], "wrong second sender");
+    chMsgRelease(tp, 'b');
+    test_wait_threads();
+    test_assert_sequence("ab", "invalid release sequence");
+  }
+  test_end_step(1);
+
+  /* [9.5.2] Sending to a final thread returns MSG_RESET immediately.*/
+  test_set_step(2);
+  {
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1,
+                                   msg_exit_thread, NULL);
+    (void) chThdSync(threads[0]);
+    msg = chMsgSend(threads[0], 'C');
+    test_assert(msg == MSG_RESET, "final receiver not rejected");
+    (void) chThdWait(threads[0]);
+    threads[0] = NULL;
+  }
+  test_end_step(2);
+
+  /* [9.5.3] A receiver rejects a selected sender using chMsgReleaseAllI()
+     before exiting.*/
+  test_set_step(3);
+  {
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1,
+                                   msg_release_all_after_wait, NULL);
+    receiver = threads[0];
+    msg_sender_args[0].receiver = receiver;
+    msg_sender_args[0].request  = 'Q';
+    msg_sender_args[0].response = MSG_RESET;
+    msg_sender_args[0].token    = 'R';
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2,
+                                   msg_lifecycle_sender,
+                                   &msg_sender_args[0]);
+    test_wait_threads();
+    test_assert_sequence("QR", "selected sender not rejected");
+  }
+  test_end_step(3);
+
+  /* [9.5.4] A receiver rejects multiple queued senders using
+     chMsgReleaseAllI() before exiting.*/
+  test_set_step(4);
+  {
+#if (CH_CFG_USE_DYNAMIC == TRUE) && (CH_CFG_USE_HEAP == TRUE)
+    threads[0] = chThdCreateFromHeap(NULL,
+                                     THD_WORKING_AREA_SIZE(THREADS_STACK_SIZE),
+                                     "msg-exit", prio - 2,
+                                     msg_release_all_thread, NULL);
+    test_assert(threads[0] != NULL, "dynamic receiver creation failed");
+#else
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio - 2,
+                                   msg_release_all_thread, NULL);
+#endif
+    receiver = threads[0];
+    msg_sender_args[0].receiver = receiver;
+    msg_sender_args[0].request  = 'D';
+    msg_sender_args[0].response = MSG_RESET;
+    msg_sender_args[0].token    = 'A';
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio + 2,
+                                   msg_lifecycle_sender,
+                                   &msg_sender_args[0]);
+    msg_sender_args[1].receiver = receiver;
+    msg_sender_args[1].request  = 'E';
+    msg_sender_args[1].response = MSG_RESET;
+    msg_sender_args[1].token    = 'B';
+    threads[2] = chThdCreateStatic(wa[2], WA_SIZE, prio + 1,
+                                   msg_lifecycle_sender,
+                                   &msg_sender_args[1]);
+    chThdSleep(1);
+    test_wait_threads();
+    test_assert_sequence("AB", "queued senders not rejected");
+  }
+  test_end_step(4);
+}
+
+static const testcase_t rt_test_009_005 = {
+  "Messages lifecycle closure",
+  NULL,
+  rt_test_009_005_teardown,
+  rt_test_009_005_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -312,6 +516,7 @@ const testcase_t * const rt_test_sequence_009_array[] = {
   &rt_test_009_002,
   &rt_test_009_003,
   &rt_test_009_004,
+  &rt_test_009_005,
   NULL
 };
 
