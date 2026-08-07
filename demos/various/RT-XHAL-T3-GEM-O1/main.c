@@ -55,6 +55,25 @@ static const I2CConfig i2c0_config = {
 };
 
 /*
+ * PWM configuration for EPWM0. 1 MHz tick (1 tick = 1 us), 20 ms / 50 Hz
+ * frame -- standard RC servo/ESC timing. Only channel A (output 0) is
+ * used by this demo.
+ * TEMP-DIAG: no scope or servo is attached to this XHAL port yet (PWM
+ * conversion is compile-verified only, see the vault's hardware
+ * validation backlog).
+ * REMOVE-AFTER: a scope trace on EPWM0 output A confirms 1500 us @ 50 Hz.
+ */
+static const PWMConfig pwm0_config = {
+  .frequency            = 1000000U,
+  .period               = 20000U,
+  .enabled_events       = 0U,
+  .channels             = {
+    {.mode = PWM_OUTPUT_ACTIVE_HIGH},
+    {.mode = PWM_OUTPUT_DISABLED}
+  }
+};
+
+/*
  * Writes a string to the console, blocking until the last character has
  * left the transmitter.
  */
@@ -840,6 +859,20 @@ static void i2c_probe_bus(void) {
 }
 
 /*
+ * Starts EPWM0 channel A at a 1500 us pulse (servo center) and 50 Hz.
+ * pwmEnableChannel() is called again every heartbeat tick from the
+ * heartbeat thread below -- not redundant, see hal_pwm_lld.c's file
+ * header on why this driver reasserts on every write.
+ */
+static void pwm_probe_servo(void) {
+
+  drvStart(&PWMD1, &pwm0_config);
+  pwmEnableChannel(&PWMD1, 0U, 1500U);
+  trace_printf("PWM: EPWM0 ch A started, 1500 us @ 50 Hz\n");
+  console_write("PWM probe done\r\n");
+}
+
+/*
  * Blinker thread, proves the scheduler preempts and the tick advances.
  */
 static THD_WORKING_AREA(waHeartbeat, 512);
@@ -853,6 +886,10 @@ static THD_FUNCTION(heartbeat, arg) {
   while (true) {
     trace_printf("heartbeat %u t=%u ms\n", n, (unsigned)chVTGetSystemTimeX());
     console_write("heartbeat\r\n");
+    /* Reasserts EPWM0's shared time base and channel A's action qualifier
+       every tick, same as an RCOutput driver's per-frame output write
+       would -- see hal_pwm_lld.c's file header.*/
+    pwmEnableChannel(&PWMD1, 0U, 1500U);
     n++;
     chThdSleepMilliseconds(1000);
   }
@@ -931,6 +968,7 @@ int main(void) {
 
   spi_probe_icm20948();
   i2c_probe_bus();
+  pwm_probe_servo();
 
   chThdCreateStatic(waHeartbeat, sizeof (waHeartbeat),
                     NORMALPRIO + 1, heartbeat, NULL);
