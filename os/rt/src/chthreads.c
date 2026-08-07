@@ -306,11 +306,12 @@ thread_t *__thd_spawn_suspended(thread_t *tp,
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
  * @return              Pointer to the @p thread_t object.
  *
- * @api
+ * @iclass
  */
 thread_t *chThdSpawnSuspendedI(thread_t *tp,
                                const thread_descriptor_t *tdp) {
 
+  chDbgCheckClassI();
   chDbgCheck(tp != NULL);
   chDbgCheck(tdp != NULL);
 
@@ -378,6 +379,8 @@ thread_t *chThdSpawnSuspended(thread_t *tp,
  */
 thread_t *chThdSpawnRunningI(thread_t *tp, const thread_descriptor_t *tdp) {
 
+  chDbgCheckClassI();
+
   return chSchReadyI(chThdSpawnSuspendedI(tp, tdp));
 }
 
@@ -394,7 +397,7 @@ thread_t *chThdSpawnRunningI(thread_t *tp, const thread_descriptor_t *tdp) {
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
  * @return              Pointer to the @p thread_t object.
  *
- * @iclass
+ * @api
  */
 thread_t *chThdSpawnRunning(thread_t *tp, const thread_descriptor_t *tdp) {
 
@@ -526,6 +529,8 @@ thread_t *chThdCreateSuspended(const thread_descriptor_t *tdp) {
  */
 thread_t *chThdCreateI(const thread_descriptor_t *tdp) {
 
+  chDbgCheckClassI();
+
   return chSchReadyI(chThdCreateSuspendedI(tdp));
 }
 
@@ -541,7 +546,7 @@ thread_t *chThdCreateI(const thread_descriptor_t *tdp) {
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
  * @return              Pointer to the @p thread_t object.
  *
- * @iclass
+ * @api
  */
 thread_t *chThdCreate(const thread_descriptor_t *tdp) {
   thread_t *tp;
@@ -771,7 +776,11 @@ void chThdExit(msg_t msg) {
  * @sclass
  */
 void chThdExitS(msg_t msg) {
-  thread_t *currtp = chThdGetSelfX();
+  thread_t *currtp;
+
+  chDbgCheckClassS();
+
+  currtp = chThdGetSelfX();
 
 #if CH_CFG_USE_MUTEXES == TRUE
   chDbgAssert(currtp->mtxlist == NULL, "owning mutexes");
@@ -832,10 +841,12 @@ void chThdExitS(msg_t msg) {
  * @sclass
  */
 msg_t chThdSyncS(thread_t *tp) {
-  thread_t *currtp = chThdGetSelfX();
+  thread_t *currtp;
 
   chDbgCheckClassS();
   chDbgCheck(tp != NULL);
+
+  currtp = chThdGetSelfX();
 
   chDbgAssert(tp != currtp, "waiting self");
 #if CH_CFG_USE_REGISTRY == TRUE
@@ -1157,7 +1168,11 @@ void chThdYield(void) {
  * @sclass
  */
 msg_t chThdSuspendS(thread_reference_t *trp) {
-  thread_t *tp = chThdGetSelfX();
+  thread_t *tp;
+
+  chDbgCheckClassS();
+
+  tp = chThdGetSelfX();
 
   chDbgAssert(*trp == NULL, "not NULL");
 
@@ -1187,7 +1202,11 @@ msg_t chThdSuspendS(thread_reference_t *trp) {
  * @sclass
  */
 msg_t chThdSuspendTimeoutS(thread_reference_t *trp, sysinterval_t timeout) {
-  thread_t *tp = chThdGetSelfX();
+  thread_t *tp;
+
+  chDbgCheckClassS();
+
+  tp = chThdGetSelfX();
 
   chDbgAssert(*trp == NULL, "not NULL");
 
@@ -1213,6 +1232,8 @@ msg_t chThdSuspendTimeoutS(thread_reference_t *trp, sysinterval_t timeout) {
  */
 void chThdResumeI(thread_reference_t *trp, msg_t msg) {
 
+  chDbgCheckClassI();
+
   if (*trp != NULL) {
     thread_t *tp = *trp;
 
@@ -1232,9 +1253,11 @@ void chThdResumeI(thread_reference_t *trp, msg_t msg) {
  * @param[in] trp       a pointer to a thread reference object
  * @param[in] msg       the message code
  *
- * @iclass
+ * @sclass
  */
 void chThdResumeS(thread_reference_t *trp, msg_t msg) {
+
+  chDbgCheckClassS();
 
   if (*trp != NULL) {
     thread_t *tp = *trp;
@@ -1329,12 +1352,15 @@ void chThdQueueObjectDispose(threads_queue_t *tqp) {
  * @sclass
  */
 msg_t chThdEnqueueTimeoutS(threads_queue_t *tqp, sysinterval_t timeout) {
-  thread_t *currtp = chThdGetSelfX();
+  thread_t *currtp;
+
+  chDbgCheckClassS();
 
   if (unlikely(TIME_IMMEDIATE == timeout)) {
     return MSG_TIMEOUT;
   }
 
+  currtp = chThdGetSelfX();
   ch_queue_insert(&tqp->queue, (ch_queue_t *)currtp);
 
   return chSchGoSleepTimeoutS(CH_STATE_QUEUED, timeout);
@@ -1351,6 +1377,8 @@ msg_t chThdEnqueueTimeoutS(threads_queue_t *tqp, sysinterval_t timeout) {
  */
 void chThdDequeueNextI(threads_queue_t *tqp, msg_t msg) {
 
+  chDbgCheckClassI();
+
   if (ch_queue_notempty(&tqp->queue)) {
     chThdDoDequeueNextI(tqp, msg);
   }
@@ -1365,6 +1393,8 @@ void chThdDequeueNextI(threads_queue_t *tqp, msg_t msg) {
  * @iclass
  */
 void chThdDequeueAllI(threads_queue_t *tqp, msg_t msg) {
+
+  chDbgCheckClassI();
 
   while (ch_queue_notempty(&tqp->queue)) {
     chThdDoDequeueNextI(tqp, msg);

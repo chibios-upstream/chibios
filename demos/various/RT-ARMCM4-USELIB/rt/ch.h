@@ -1303,10 +1303,12 @@ static inline bool chThdShouldTerminateX(void) {
   return (bool)((*flagsp & CH_FLAGS_TERMINATE) != (tmode_t)0);
 }
 static inline thread_t *chThdStartI(thread_t *tp) {
+  chDbgCheckClassI();
   chDbgAssert(tp->state == CH_STATE_WTSTART, "wrong state");
   return chSchReadyI(tp);
 }
 static inline void chThdSleepS(sysinterval_t ticks) {
+  chDbgCheckClassS();
   chDbgCheck(ticks != TIME_IMMEDIATE);
   (void) chSchGoSleepTimeoutS(CH_STATE_SLEEPING, ticks);
 }
@@ -1316,6 +1318,7 @@ static inline bool chThdQueueIsEmptyI(threads_queue_t *tqp) {
 }
 static inline void chThdDoDequeueNextI(threads_queue_t *tqp, msg_t msg) {
   thread_t *tp;
+  chDbgCheckClassI();
   chDbgAssert(ch_queue_notempty(&tqp->queue), "empty queue");
   tp = threadref(ch_queue_fifo_remove(&tqp->queue));
   chDbgAssert(tp->state == CH_STATE_QUEUED, "invalid state");

@@ -614,7 +614,9 @@ static inline bool chThdShouldTerminateX(void) {
 }
 
 /**
- * @brief   Resumes a thread created with @p chThdCreateI().
+ * @brief   Starts a thread created in the suspended state.
+ * @details The thread must have been created using one of the suspended
+ *          create or spawn functions.
  *
  * @param[in] tp        pointer to the thread
  * @return              The pointer to the @p thread_t structure allocated for
@@ -623,6 +625,8 @@ static inline bool chThdShouldTerminateX(void) {
  * @iclass
  */
 static inline thread_t *chThdStartI(thread_t *tp) {
+
+  chDbgCheckClassI();
 
   chDbgAssert(tp->state == CH_STATE_WTSTART, "wrong state");
 
@@ -641,6 +645,8 @@ static inline thread_t *chThdStartI(thread_t *tp) {
  * @sclass
  */
 static inline void chThdSleepS(sysinterval_t ticks) {
+
+  chDbgCheckClassS();
 
   chDbgCheck(ticks != TIME_IMMEDIATE);
 
@@ -677,6 +683,8 @@ static inline bool chThdQueueIsEmptyI(threads_queue_t *tqp) {
  */
 static inline void chThdDoDequeueNextI(threads_queue_t *tqp, msg_t msg) {
   thread_t *tp;
+
+  chDbgCheckClassI();
 
   chDbgAssert(ch_queue_notempty(&tqp->queue), "empty queue");
 
