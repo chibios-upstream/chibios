@@ -38,6 +38,7 @@
  * - @subpage rt_test_005_006
  * - @subpage rt_test_005_007
  * - @subpage rt_test_005_008
+ * - @subpage rt_test_005_009
  * .
  */
 
@@ -76,6 +77,31 @@ static void setup_thread_descriptor(thread_descriptor_t *tdp,
   tdp->arg   = arg;
   tdp->owner = NULL;
 }
+
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&             \
+     (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
+static bool find_ready_trace(thread_t *tp, tstate_t state, msg_t *msgp) {
+  trace_buffer_t *tbp = &currcore->trace_buffer;
+  trace_event_t *tep = tbp->ptr;
+  unsigned i;
+
+  for (i = 0U; i < (unsigned)CH_DBG_TRACE_BUFFER_SIZE; i++) {
+    if (tep == &tbp->buffer[0]) {
+      tep = &tbp->buffer[CH_DBG_TRACE_BUFFER_SIZE];
+    }
+    tep--;
+    if ((tep->type == CH_TRACE_TYPE_READY) &&
+        (tep->state == (uint8_t)state) &&
+        (tep->u.rdy.tp == tp)) {
+      *msgp = tep->u.rdy.msg;
+      return true;
+    }
+  }
+
+  return false;
+}
+#endif
 
 /*===========================================================================*/
 /* Test cases.                                                               */
@@ -765,6 +791,132 @@ static const testcase_t rt_test_005_008 = {
   rt_test_005_008_execute
 };
 
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&             \
+     (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_005_009 [5.9] Lifecycle ready trace messages
+ *
+ * <h2>Description</h2>
+ * Lifecycle transitions into the ready state are verified to trace a defined
+ * @p MSG_OK ready message.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if ready tracing and thread-wait support are
+ * enabled.
+ *
+ * <h2>Test Steps</h2>
+ * - [5.9.1] A suspended external thread object is initialized and started
+ *   through I-class APIs. Its initialized and traced messages are checked.
+ * - [5.9.2] A running external thread is spawned through an I-class API and
+ *   its ready trace is checked.
+ * - [5.9.3] A running embedded thread is created through an I-class API and
+ *   its ready trace is checked.
+ * - [5.9.4] A thread exit wakes its waiter and the waiter's ready trace is
+ *   checked.
+ * .
+ */
+
+static void rt_test_005_009_teardown(void) {
+  test_wait_threads();
+}
+
+static void rt_test_005_009_execute(void) {
+  thread_descriptor_t td;
+  thread_t *self;
+  msg_t initmsg, tracemsg = MSG_RESET;
+  bool found;
+
+  /* [5.9.1] A suspended external thread object is initialized and started
+     through I-class APIs. Its initialized and traced messages are checked.*/
+  test_set_step(1);
+  {
+    setup_thread_descriptor(&td, "trace-start-i",
+                            TEST_THREAD_STACK_BASE(0), TEST_THREAD_STACK_END(0),
+                            chThdGetPriorityX() - 1, "A");
+    TEST_THREAD_OBJECT(0)->u.rdymsg = MSG_RESET;
+    chSysLock();
+    threads[0] = chThdSpawnSuspendedI(TEST_THREAD_OBJECT(0), &td);
+    initmsg = threads[0]->u.rdymsg;
+    chThdStartI(threads[0]);
+    found = find_ready_trace(threads[0], CH_STATE_WTSTART, &tracemsg);
+    chSysUnlock();
+    test_assert(initmsg == MSG_OK, "ready message not initialized");
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+    test_wait_threads();
+    test_assert_sequence("A", "invalid sequence");
+    chThdObjectDispose(TEST_THREAD_OBJECT(0));
+  }
+  test_end_step(1);
+
+  /* [5.9.2] A running external thread is spawned through an I-class API and
+     its ready trace is checked.*/
+  test_set_step(2);
+  {
+    setup_thread_descriptor(&td, "trace-spawn-i",
+                            TEST_THREAD_STACK_BASE(1), TEST_THREAD_STACK_END(1),
+                            chThdGetPriorityX() - 1, "B");
+    TEST_THREAD_OBJECT(1)->u.rdymsg = MSG_RESET;
+    chSysLock();
+    threads[1] = chThdSpawnRunningI(TEST_THREAD_OBJECT(1), &td);
+    found = find_ready_trace(threads[1], CH_STATE_WTSTART, &tracemsg);
+    chSysUnlock();
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+    test_wait_threads();
+    test_assert_sequence("B", "invalid sequence");
+    chThdObjectDispose(TEST_THREAD_OBJECT(1));
+  }
+  test_end_step(2);
+
+  /* [5.9.3] A running embedded thread is created through an I-class API and
+     its ready trace is checked.*/
+  test_set_step(3);
+  {
+    setup_thread_descriptor(&td, "trace-create-i",
+                            TEST_THREAD_WA_BASE(2), TEST_THREAD_WA_END(2),
+                            chThdGetPriorityX() - 1, "C");
+    TEST_THREAD_OBJECT(2)->u.rdymsg = MSG_RESET;
+    chSysLock();
+    threads[2] = chThdCreateI(&td);
+    found = find_ready_trace(threads[2], CH_STATE_WTSTART, &tracemsg);
+    chSysUnlock();
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+    test_wait_threads();
+    test_assert_sequence("C", "invalid sequence");
+  }
+  test_end_step(3);
+
+  /* [5.9.4] A thread exit wakes its waiter and the waiter's ready trace is
+     checked.*/
+  test_set_step(4);
+  {
+    self = chThdGetSelfX();
+    threads[3] = chThdCreateStatic(wa[3], WA_SIZE,
+                                   chThdGetPriorityX() - 1, thread, "D");
+    self->u.rdymsg = MSG_RESET;
+    (void) chThdWait(threads[3]);
+    threads[3] = NULL;
+    chSysLock();
+    found = find_ready_trace(self, CH_STATE_WTEXIT, &tracemsg);
+    chSysUnlock();
+    test_assert(found, "waiter ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid waiter trace message");
+    test_assert_sequence("D", "invalid sequence");
+  }
+  test_end_step(4);
+}
+
+static const testcase_t rt_test_005_009 = {
+  "Lifecycle ready trace messages",
+  NULL,
+  rt_test_005_009_teardown,
+  rt_test_005_009_execute
+};
+#endif
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -785,6 +937,11 @@ const testcase_t * const rt_test_sequence_005_array[] = {
   &rt_test_005_007,
 #endif
   &rt_test_005_008,
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&             \
+     (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
+  &rt_test_005_009,
+#endif
   NULL
 };
 

@@ -1305,6 +1305,7 @@ static inline bool chThdShouldTerminateX(void) {
 static inline thread_t *chThdStartI(thread_t *tp) {
   chDbgCheckClassI();
   chDbgAssert(tp->state == CH_STATE_WTSTART, "wrong state");
+  tp->u.rdymsg = MSG_OK;
   return chSchReadyI(tp);
 }
 static inline void chThdSleepS(sysinterval_t ticks) {

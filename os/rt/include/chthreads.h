@@ -630,6 +630,8 @@ static inline thread_t *chThdStartI(thread_t *tp) {
 
   chDbgAssert(tp->state == CH_STATE_WTSTART, "wrong state");
 
+  tp->u.rdymsg = MSG_OK;
+
   return chSchReadyI(tp);
 }
 

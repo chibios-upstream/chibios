@@ -1230,7 +1230,32 @@ static void setup_thread_descriptor(thread_descriptor_t *tdp,
   tdp->funcp = thread;
   tdp->arg   = arg;
   tdp->owner = NULL;
-}]]></value>
+}
+
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&             \
+     (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
+static bool find_ready_trace(thread_t *tp, tstate_t state, msg_t *msgp) {
+  trace_buffer_t *tbp = &currcore->trace_buffer;
+  trace_event_t *tep = tbp->ptr;
+  unsigned i;
+
+  for (i = 0U; i < (unsigned)CH_DBG_TRACE_BUFFER_SIZE; i++) {
+    if (tep == &tbp->buffer[0]) {
+      tep = &tbp->buffer[CH_DBG_TRACE_BUFFER_SIZE];
+    }
+    tep--;
+    if ((tep->type == CH_TRACE_TYPE_READY) &&
+        (tep->state == (uint8_t)state) &&
+        (tep->u.rdy.tp == tp)) {
+      *msgp = tep->u.rdy.msg;
+      return true;
+    }
+  }
+
+  return false;
+}
+#endif]]></value>
       </shared_code>
       <cases>
         <case>
@@ -1969,6 +1994,134 @@ test_assert(oldprio == prio - 2, "wrong old priority");
 test_assert(switched, "thread B not scheduled internally");
 test_wait_threads();
 test_assert_sequence("BA", "ready list not reordered");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Lifecycle ready trace messages.</value>
+          </brief>
+          <description>
+            <value>Lifecycle transitions into the ready state are verified to
+              trace a defined MSG_OK ready message.</value>
+          </description>
+          <condition>
+            <value><![CDATA[(CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&
+((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&
+(CH_CFG_USE_WAITEXIT == TRUE)]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[test_wait_threads();]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[thread_descriptor_t td;
+thread_t *self;
+msg_t initmsg, tracemsg = MSG_RESET;
+bool found;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A suspended external thread object is initialized and
+                  started through I-class APIs. Its initialized and traced
+                  messages are checked.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "trace-start-i",
+                        TEST_THREAD_STACK_BASE(0), TEST_THREAD_STACK_END(0),
+                        chThdGetPriorityX() - 1, "A");
+TEST_THREAD_OBJECT(0)->u.rdymsg = MSG_RESET;
+chSysLock();
+threads[0] = chThdSpawnSuspendedI(TEST_THREAD_OBJECT(0), &td);
+initmsg = threads[0]->u.rdymsg;
+chThdStartI(threads[0]);
+found = find_ready_trace(threads[0], CH_STATE_WTSTART, &tracemsg);
+chSysUnlock();
+test_assert(initmsg == MSG_OK, "ready message not initialized");
+test_assert(found, "ready trace not found");
+test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+test_wait_threads();
+test_assert_sequence("A", "invalid sequence");
+chThdObjectDispose(TEST_THREAD_OBJECT(0));]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A running external thread is spawned through an I-class
+                  API and its ready trace is checked.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "trace-spawn-i",
+                        TEST_THREAD_STACK_BASE(1), TEST_THREAD_STACK_END(1),
+                        chThdGetPriorityX() - 1, "B");
+TEST_THREAD_OBJECT(1)->u.rdymsg = MSG_RESET;
+chSysLock();
+threads[1] = chThdSpawnRunningI(TEST_THREAD_OBJECT(1), &td);
+found = find_ready_trace(threads[1], CH_STATE_WTSTART, &tracemsg);
+chSysUnlock();
+test_assert(found, "ready trace not found");
+test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+test_wait_threads();
+test_assert_sequence("B", "invalid sequence");
+chThdObjectDispose(TEST_THREAD_OBJECT(1));]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A running embedded thread is created through an I-class
+                  API and its ready trace is checked.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[setup_thread_descriptor(&td, "trace-create-i",
+                        TEST_THREAD_WA_BASE(2), TEST_THREAD_WA_END(2),
+                        chThdGetPriorityX() - 1, "C");
+TEST_THREAD_OBJECT(2)->u.rdymsg = MSG_RESET;
+chSysLock();
+threads[2] = chThdCreateI(&td);
+found = find_ready_trace(threads[2], CH_STATE_WTSTART, &tracemsg);
+chSysUnlock();
+test_assert(found, "ready trace not found");
+test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+test_wait_threads();
+test_assert_sequence("C", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A thread exit wakes its waiter and the waiter's ready
+                  trace is checked.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[self = chThdGetSelfX();
+threads[3] = chThdCreateStatic(wa[3], WA_SIZE,
+                               chThdGetPriorityX() - 1, thread, "D");
+self->u.rdymsg = MSG_RESET;
+(void) chThdWait(threads[3]);
+threads[3] = NULL;
+chSysLock();
+found = find_ready_trace(self, CH_STATE_WTEXIT, &tracemsg);
+chSysUnlock();
+test_assert(found, "waiter ready trace not found");
+test_assert(tracemsg == MSG_OK, "invalid waiter trace message");
+test_assert_sequence("D", "invalid sequence");]]></value>
               </code>
             </step>
           </steps>

@@ -154,6 +154,7 @@ thread_t *chThdObjectInit(thread_t *tp,
   tp->hdr.pqueue.prio   = tdp->prio;
   tp->state             = CH_STATE_WTSTART;
   tp->flags             = (tmode_t)0;
+  tp->u.rdymsg          = MSG_OK;
   if (tdp->owner != NULL) {
     tp->owner           = tdp->owner;
   }
@@ -381,7 +382,10 @@ thread_t *chThdSpawnRunningI(thread_t *tp, const thread_descriptor_t *tdp) {
 
   chDbgCheckClassI();
 
-  return chSchReadyI(chThdSpawnSuspendedI(tp, tdp));
+  tp = chThdSpawnSuspendedI(tp, tdp);
+  tp->u.rdymsg = MSG_OK;
+
+  return chSchReadyI(tp);
 }
 
 /**
@@ -528,10 +532,14 @@ thread_t *chThdCreateSuspended(const thread_descriptor_t *tdp) {
  * @iclass
  */
 thread_t *chThdCreateI(const thread_descriptor_t *tdp) {
+  thread_t *tp;
 
   chDbgCheckClassI();
 
-  return chSchReadyI(chThdCreateSuspendedI(tdp));
+  tp = chThdCreateSuspendedI(tdp);
+  tp->u.rdymsg = MSG_OK;
+
+  return chSchReadyI(tp);
 }
 
 /**
@@ -798,7 +806,10 @@ void chThdExitS(msg_t msg) {
 #if CH_CFG_USE_WAITEXIT == TRUE
   /* Waking up any waiting thread.*/
   while (unlikely(ch_list_notempty(&currtp->waiting))) {
-    (void) chSchReadyI(threadref(ch_list_unlink(&currtp->waiting)));
+    thread_t *tp = threadref(ch_list_unlink(&currtp->waiting));
+
+    tp->u.rdymsg = MSG_OK;
+    (void) chSchReadyI(tp);
   }
 #endif
 
