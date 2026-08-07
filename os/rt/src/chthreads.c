@@ -669,21 +669,25 @@ thread_t *chThdStart(thread_t *tp) {
 
 #if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
 /**
- * @brief   Adds a reference to a thread object.
+ * @brief   Duplicates an owned reference to a thread object.
+ * @details A non-owning thread identity must be reacquired using
+ *          @p chRegFindThreadByPointer() instead.
  * @pre     The configuration option @p CH_CFG_USE_REGISTRY must be enabled in
  *          order to use this function.
+ * @pre     The caller must own a valid reference to the thread.
  * @pre     The thread must have fewer than @p THREAD_MAX_REFERENCES
  *          references.
  *
  * @param[in] tp        pointer to the thread
- * @return              The same thread pointer passed as parameter
- *                      representing the new reference.
+ * @return              The same thread pointer passed as parameter,
+ *                      representing the duplicated reference.
  *
  * @api
  */
 thread_t *chThdAddRef(thread_t *tp) {
 
   chSysLock();
+  chDbgAssert(tp->refs > (trefs_t)0, "not referenced");
   chDbgAssert(tp->refs < THREAD_MAX_REFERENCES, "too many references");
   tp->refs++;
   chSysUnlock();
@@ -703,6 +707,7 @@ thread_t *chThdAddRef(thread_t *tp) {
  *          removed by performing a registry scan operation.
  * @pre     The configuration option @p CH_CFG_USE_REGISTRY must be enabled in
  *          order to use this function.
+ * @pre     The caller must own the reference being released.
  * @note    Static threads are not affected, only removed from the registry.
  *
  * @param[in] tp        pointer to the thread
@@ -843,6 +848,8 @@ void chThdExitS(msg_t msg) {
  *          responsible for eventually releasing its reference.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
+ * @pre     If @p CH_CFG_USE_REGISTRY is @p TRUE then the caller must own a
+ *          valid reference to the thread.
  * @post    Enabling @p chThdSyncS() requires 2-4 (depending on the
  *          architecture) extra bytes in the @p thread_t structure.
  *
@@ -880,6 +887,8 @@ msg_t chThdSyncS(thread_t *tp) {
  *          responsible for eventually releasing its reference.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
+ * @pre     If @p CH_CFG_USE_REGISTRY is @p TRUE then the caller must own a
+ *          valid reference to the thread.
  * @post    Enabling @p chThdSync() requires 2-4 (depending on the
  *          architecture) extra bytes in the @p thread_t structure.
  *
@@ -908,6 +917,8 @@ msg_t chThdSync(thread_t *tp) {
  *          thread is removed from the registry.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
+ * @pre     If @p CH_CFG_USE_REGISTRY is @p TRUE then the caller must own the
+ *          reference consumed by this function.
  * @post    Enabling @p chThdWait() requires 2-4 (depending on the
  *          architecture) extra bytes in the @p thread_t structure.
  * @note    If @p CH_CFG_USE_REGISTRY is @p FALSE then this function only

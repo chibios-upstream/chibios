@@ -1871,7 +1871,8 @@ test_assert(chRegGetThreadNameX(tp) == oldname, "name not restored");]]></value>
               <description>
                 <value>A static thread is created then retrieved by name,
                   pointer and working area while an unnamed thread is in the
-                  registry.</value>
+                  registry. Its initial reference is released and reacquired
+                  through the registry.</value>
               </description>
               <tags>
                 <value />
@@ -1888,6 +1889,12 @@ chThdRelease(tp);
 tp = chRegFindThreadByName("registry-missing");
 test_assert(tp == NULL, "unexpected thread found");
 chRegSetThreadName(oldname);
+
+chThdRelease(threads[0]);
+tp = chRegFindThreadByPointer(threads[0]);
+test_assert(tp == threads[0], "detached thread not reacquired");
+test_assert(tp->refs == (trefs_t)1, "wrong reference counter");
+threads[0] = tp;
 
 tp = chThdAddRef(threads[0]);
 test_assert(tp == threads[0], "wrong referenced thread");

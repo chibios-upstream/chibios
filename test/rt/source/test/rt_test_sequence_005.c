@@ -638,7 +638,8 @@ static const testcase_t rt_test_005_006 = {
  * - [5.7.1] The current thread registry name is changed and then
  *   restored.
  * - [5.7.2] A static thread is created then retrieved by name, pointer
- *   and working area while an unnamed thread is in the registry.
+ *   and working area while an unnamed thread is in the registry. Its initial
+ *   reference is released and reacquired through the registry.
  * - [5.7.3] The registry is scanned forward until the end and the
  *   created thread is found in the scan.
  * .
@@ -682,6 +683,12 @@ static void rt_test_005_007_execute(void) {
     tp = chRegFindThreadByName("registry-missing");
     test_assert(tp == NULL, "unexpected thread found");
     chRegSetThreadName(oldname);
+
+    chThdRelease(threads[0]);
+    tp = chRegFindThreadByPointer(threads[0]);
+    test_assert(tp == threads[0], "detached thread not reacquired");
+    test_assert(tp->refs == (trefs_t)1, "wrong reference counter");
+    threads[0] = tp;
 
     tp = chThdAddRef(threads[0]);
     test_assert(tp == threads[0], "wrong referenced thread");

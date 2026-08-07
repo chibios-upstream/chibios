@@ -287,6 +287,9 @@ thread_t *chRegFindThreadByName(const char *name) {
 
 /**
  * @brief   Confirms that a pointer is a valid thread pointer.
+ * @details Unlike @p chThdAddRef(), this function does not require the caller
+ *          to already own a reference. Registry membership is checked and a
+ *          reference is acquired while protected by the kernel lock.
  * @note    The reference counter of the found thread is increased by one so
  *          it cannot be disposed incidentally after the pointer has been
  *          returned.
