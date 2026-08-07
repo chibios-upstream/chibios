@@ -586,12 +586,15 @@ static inline stkline_t *chThdGetWorkingAreaX(thread_t *tp) {
  * @param[in] tp        pointer to the thread
  * @retval true         thread terminated.
  * @retval false        thread not terminated.
+ * @note    The state is read through a volatile-qualified access because it
+ *          can be modified by another core.
  *
  * @xclass
  */
 static inline bool chThdTerminatedX(thread_t *tp) {
+  const volatile tstate_t *statep = &tp->state;
 
-  return (bool)(tp->state == CH_STATE_FINAL);
+  return (bool)(*statep == CH_STATE_FINAL);
 }
 
 /**
@@ -599,12 +602,15 @@ static inline bool chThdTerminatedX(thread_t *tp) {
  *
  * @retval true         termination request pending.
  * @retval false        termination request not pending.
+ * @note    The flags are read through a volatile-qualified access because
+ *          they can be modified by another core.
  *
  * @xclass
  */
 static inline bool chThdShouldTerminateX(void) {
+  const volatile tmode_t *flagsp = &chThdGetSelfX()->flags;
 
-  return (bool)((chThdGetSelfX()->flags & CH_FLAGS_TERMINATE) != (tmode_t)0);
+  return (bool)((*flagsp & CH_FLAGS_TERMINATE) != (tmode_t)0);
 }
 
 /**

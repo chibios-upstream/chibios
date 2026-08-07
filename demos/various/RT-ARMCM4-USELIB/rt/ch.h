@@ -1295,10 +1295,12 @@ static inline stkline_t *chThdGetWorkingAreaX(thread_t *tp) {
   return tp->wabase;
 }
 static inline bool chThdTerminatedX(thread_t *tp) {
-  return (bool)(tp->state == CH_STATE_FINAL);
+  const volatile tstate_t *statep = &tp->state;
+  return (bool)(*statep == CH_STATE_FINAL);
 }
 static inline bool chThdShouldTerminateX(void) {
-  return (bool)((chThdGetSelfX()->flags & CH_FLAGS_TERMINATE) != (tmode_t)0);
+  const volatile tmode_t *flagsp = &chThdGetSelfX()->flags;
+  return (bool)((*flagsp & CH_FLAGS_TERMINATE) != (tmode_t)0);
 }
 static inline thread_t *chThdStartI(thread_t *tp) {
   chDbgAssert(tp->state == CH_STATE_WTSTART, "wrong state");
