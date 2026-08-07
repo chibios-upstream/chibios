@@ -60,13 +60,17 @@
 #define STM32_FLASH_SIZE_SCALE              1024U
 
 /*
- * Flash size is organised as 32 or 64 x 2K pages.
+ * Flash size is organised as 32, 64, 128 or 256 x 2K pages.
  *
  */
 #define STM32_FLASH_SIZE_64K                64U
 #define STM32_FLASH_SIZE_128K               128U
+#define STM32_FLASH_SIZE_256K               256U
+#define STM32_FLASH_SIZE_512K               512U
 #define STM32_FLASH_SECTORS_TOTAL_64K       32
 #define STM32_FLASH_SECTORS_TOTAL_128K      64
+#define STM32_FLASH_SECTORS_TOTAL_256K      128
+#define STM32_FLASH_SECTORS_TOTAL_512K      256
 
 /* 64K flash.*/
 #define STM32_FLASH_SECTOR_SIZE_64K         ((STM32_FLASH_SIZE_64K         \
@@ -76,6 +80,14 @@
 #define STM32_FLASH_SECTOR_SIZE_128K         ((STM32_FLASH_SIZE_128K        \
                                              * STM32_FLASH_SIZE_SCALE)      \
                                              / STM32_FLASH_SECTORS_TOTAL_128K)
+/* 256K flash.*/
+#define STM32_FLASH_SECTOR_SIZE_256K         ((STM32_FLASH_SIZE_256K        \
+                                             * STM32_FLASH_SIZE_SCALE)      \
+                                             / STM32_FLASH_SECTORS_TOTAL_256K)
+/* 512K flash.*/
+#define STM32_FLASH_SECTOR_SIZE_512K         ((STM32_FLASH_SIZE_512K        \
+                                             * STM32_FLASH_SIZE_SCALE)      \
+                                             / STM32_FLASH_SECTORS_TOTAL_512K)
 
 #else
 #error "This EFL driver does not support the selected device"

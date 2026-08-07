@@ -89,6 +89,38 @@ static const flash_descriptor_t efl_lld_size2[STM32_FLASH_NUMBER_OF_BANKS] = {
       }
 };
 
+/* The descriptor for 256K devices. */
+static const flash_descriptor_t efl_lld_size3[STM32_FLASH_NUMBER_OF_BANKS] = {
+      { /* Bank 1. */
+       .attributes        = FLASH_ATTR_ERASED_IS_ONE |
+                            FLASH_ATTR_MEMORY_MAPPED |
+                            FLASH_ATTR_ECC_CAPABLE   |
+                            FLASH_ATTR_ECC_ZERO_LINE_CAPABLE,
+       .page_size         = STM32_FLASH_LINE_SIZE,
+       .sectors_count     = STM32_FLASH_SECTORS_TOTAL_256K,
+       .sectors           = NULL,
+       .sectors_size      = STM32_FLASH_SECTOR_SIZE_256K,
+       .address           = (uint8_t *)FLASH_BASE,
+       .size              = STM32_FLASH_SIZE_256K * STM32_FLASH_SIZE_SCALE
+      }
+};
+
+/* The descriptor for 512K devices. */
+static const flash_descriptor_t efl_lld_size4[STM32_FLASH_NUMBER_OF_BANKS] = {
+      { /* Bank 1. */
+       .attributes        = FLASH_ATTR_ERASED_IS_ONE |
+                            FLASH_ATTR_MEMORY_MAPPED |
+                            FLASH_ATTR_ECC_CAPABLE   |
+                            FLASH_ATTR_ECC_ZERO_LINE_CAPABLE,
+       .page_size         = STM32_FLASH_LINE_SIZE,
+       .sectors_count     = STM32_FLASH_SECTORS_TOTAL_512K,
+       .sectors           = NULL,
+       .sectors_size      = STM32_FLASH_SECTOR_SIZE_512K,
+       .address           = (uint8_t *)FLASH_BASE,
+       .size              = STM32_FLASH_SIZE_512K * STM32_FLASH_SIZE_SCALE
+      }
+};
+
 /* Table describing possible flash sizes and descriptors for this device. */
 static const efl_lld_size_t efl_lld_flash_sizes[] = {
       {
@@ -96,6 +128,12 @@ static const efl_lld_size_t efl_lld_flash_sizes[] = {
       },
       {
        .desc = efl_lld_size2
+      },
+      {
+       .desc = efl_lld_size3
+      },
+      {
+       .desc = efl_lld_size4
       }
 };
 
