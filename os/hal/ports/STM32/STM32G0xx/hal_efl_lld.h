@@ -89,6 +89,16 @@
                                              * STM32_FLASH_SIZE_SCALE)      \
                                              / STM32_FLASH_SECTORS_TOTAL_512K)
 
+/*
+ * NOTE: the 256K and 512K descriptors assume single-bank operation
+ *       (FLASH_OPTR.DUAL_BANK = 0). STM32G0B1/G0C1 (and dual-bank 256K
+ *       parts) ship with DUAL_BANK = 1, where the flash is split into two
+ *       banks with non-contiguous page numbering (RM0444 Table 11); this
+ *       driver does not support that mode. On such devices the option byte
+ *       must be set to single-bank before the upper flash can be erased or
+ *       programmed through this driver.
+ */
+
 #else
 #error "This EFL driver does not support the selected device"
 #endif
