@@ -290,6 +290,12 @@ struct ch_thread {
      */
     void                        *wtobjp;
     /**
+     * @brief   Pointer to a threads queue object.
+     * @note    This field is valid when the thread is in
+     *          @p CH_STATE_QUEUED state.
+     */
+    threads_queue_t             *wtqueuep;
+    /**
      * @brief   Pointer to a generic thread reference object.
      * @note    This field is used to get a pointer to a synchronization
      *          object and is valid when the thread is in @p CH_STATE_SUSPENDED

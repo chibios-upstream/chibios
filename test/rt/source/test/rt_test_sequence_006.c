@@ -181,8 +181,9 @@ static const testcase_t rt_test_006_001 = {
  * - [6.2.1] A threads queue is initialized, tested as empty, then
  *   touched with empty dequeue operations.
  * - [6.2.2] Immediate timeout enqueue is tested on an empty queue.
- * - [6.2.3] One queued thread is resumed using chThdDequeueNextI() and,
- *   when enabled, its ready trace message is tested.
+ * - [6.2.3] One queued thread's queue owner is verified, then it is resumed
+ *   using chThdDequeueNextI() and, when enabled, its ready trace message is
+ *   tested.
  * - [6.2.4] Two queued threads are resumed using chThdDequeueAllI().
  * .
  */
@@ -201,6 +202,7 @@ static void rt_test_006_002_teardown(void) {
 static void rt_test_006_002_execute(void) {
   msg_t msg;
   bool empty;
+  bool owned;
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
      ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
   msg_t tracemsg;
@@ -232,8 +234,9 @@ static void rt_test_006_002_execute(void) {
   }
   test_end_step(2);
 
-  /* [6.2.3] One queued thread is resumed using chThdDequeueNextI() and,
-     when enabled, its ready trace message is tested.*/
+  /* [6.2.3] One queued thread's queue owner is verified, then it is resumed
+     using chThdDequeueNextI() and, when enabled, its ready trace message is
+     tested.*/
   test_set_step(3);
   {
     qmsg1 = MSG_OK;
@@ -242,6 +245,8 @@ static void rt_test_006_002_execute(void) {
     chThdYield();
     chSysLock();
     empty = chThdQueueIsEmptyI(&tq1);
+    owned = (threads[0]->state == CH_STATE_QUEUED) &&
+            (threads[0]->u.wtqueuep == &tq1);
     chThdDequeueNextI(&tq1, MSG_RESET);
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
      ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
@@ -249,6 +254,7 @@ static void rt_test_006_002_execute(void) {
 #endif
     chSysUnlock();
     test_assert(!empty, "queue empty");
+    test_assert(owned, "invalid queue owner");
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
      ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
     test_assert(found, "ready trace not found");

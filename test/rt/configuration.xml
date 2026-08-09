@@ -2380,6 +2380,7 @@ chThdQueueObjectDispose(&tq1);]]></value>
             <local_variables>
               <value><![CDATA[msg_t msg;
 bool empty;
+bool owned;
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
      ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
 msg_t tracemsg;
@@ -2425,9 +2426,9 @@ test_assert(empty, "queue not empty");]]></value>
             </step>
             <step>
               <description>
-                <value>One queued thread is resumed using
-                  chThdDequeueNextI() and, when enabled, its ready trace
-                  message is tested.</value>
+                <value>One queued thread's queue owner is verified, then
+                  it is resumed using chThdDequeueNextI() and, when
+                  enabled, its ready trace message is tested.</value>
               </description>
               <tags>
                 <value />
@@ -2439,6 +2440,8 @@ threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX(),
 chThdYield();
 chSysLock();
 empty = chThdQueueIsEmptyI(&tq1);
+owned = (threads[0]->state == CH_STATE_QUEUED) &&
+        (threads[0]->u.wtqueuep == &tq1);
 chThdDequeueNextI(&tq1, MSG_RESET);
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
      ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
@@ -2446,6 +2449,7 @@ found = test_find_ready_trace(threads[0], CH_STATE_QUEUED, &tracemsg);
 #endif
 chSysUnlock();
 test_assert(!empty, "queue empty");
+test_assert(owned, "invalid queue owner");
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
      ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
 test_assert(found, "ready trace not found");

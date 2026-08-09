@@ -1405,6 +1405,7 @@ msg_t chThdEnqueueTimeoutS(threads_queue_t *tqp, sysinterval_t timeout) {
   }
 
   currtp = chThdGetSelfX();
+  currtp->u.wtqueuep = tqp;
   ch_queue_insert(&tqp->queue, (ch_queue_t *)currtp);
 
   return chSchGoSleepTimeoutS(CH_STATE_QUEUED, timeout);
