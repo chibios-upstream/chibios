@@ -45,6 +45,8 @@ testxhal/TRNG/make/stm32g474re_nucleo64.make
 testxhal/TRNG/make/stm32h563zi_nucleo144.make
 testxhal/TRNG/make/stm32wl55jc_nucleo64.make
 testxhal/USB_CDC/make/stm32g474re_nucleo64.make
+testxhal/WDG/make/rp2040_pico.make
+testxhal/WDG/make/rp2350_pico2.make
 testxhal/WDG/make/stm32g474re_nucleo64.make
 testxhal/WDG/make/stm32h563zi_nucleo144.make
 testxhal/WDG/make/stm32wl55jc_nucleo64.make

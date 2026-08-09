@@ -58,7 +58,7 @@
 #define HAL_USE_PWM                         FALSE
 #define HAL_USE_RTC                         FALSE
 #define HAL_USE_SDC                         FALSE
-#define HAL_USE_SIO                         FALSE
+#define HAL_USE_SIO                         TRUE
 #define HAL_USE_SPI                         FALSE
 #define HAL_USE_TRNG                        FALSE
 #define HAL_USE_USB                         FALSE

@@ -33,6 +33,8 @@ External libraries integrated under `ext/`: FatFS, littlefs, lwIP, wolfSSL.
 - **HAL ports:** STM32 (most families), Raspberry Pi RP2040 and RP2350
   (both Cortex-M33 and Hazard3 RISC-V cores), SPC5, LPC, AVR, ADUCM, MAX32,
   plus Posix and Win32 simulators for development and testing.
+- **XHAL ports:** STM32 (selected families), Raspberry Pi RP2040 and RP2350
+  (ARM cores).
 - **Kernel ports:** ARM Cortex-M (ARMv6-M, ARMv7-M, ARMv8-M, including
   alternate ports optimized for sandboxing and fast context switch), classic
   ARM7/9, Cortex-R, Hazard3 RISC-V, Power e200z, AVR.

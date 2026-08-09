@@ -14,28 +14,24 @@
     limitations under the License.
 */
 
-/**
- * @file    portab.h
- * @brief   Application portability macros and structures.
- *
- * @addtogroup application_portability
- * @{
+#include "hal.h"
+
+#include "portab.h"
+
+/*
+ * Watchdog deadline set to one second, the RP LLD expresses the reload
+ * value in milliseconds.
  */
+const WDGConfig portab_wdgcfg = {
+  .rlr          = 1000U
+};
 
-#ifndef PORTAB_H
-#define PORTAB_H
+void portab_setup(void) {
 
-#define PORTAB_LINE_LED1                    LINE_LED1
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-  extern const WDGConfig portab_wdgcfg;
-  void portab_setup(void);
-#ifdef __cplusplus
+  /*
+   * LED line as output.
+   */
+  palSetLineMode(PORTAB_LINE_LED1, PAL_MODE_OUTPUT_PUSHPULL |
+                                   PAL_RP_PAD_DRIVE12);
+  palWriteLine(PORTAB_LINE_LED1, PORTAB_LED_OFF);
 }
-#endif
-
-#endif /* PORTAB_H */
-
-/** @} */

@@ -58,11 +58,11 @@
 #define HAL_USE_PWM                         FALSE
 #define HAL_USE_RTC                         FALSE
 #define HAL_USE_SDC                         FALSE
-#define HAL_USE_SIO                         TRUE
+#define HAL_USE_SIO                         FALSE
 #define HAL_USE_SPI                         FALSE
 #define HAL_USE_TRNG                        FALSE
 #define HAL_USE_USB                         FALSE
-#define HAL_USE_WDG                         FALSE
+#define HAL_USE_WDG                         TRUE
 #define HAL_USE_WSPI                        FALSE
 
 /*===========================================================================*/
@@ -152,7 +152,7 @@
 #define SIO_DEFAULT_BITRATE                 38400
 #define SIO_USE_SYNCHRONIZATION             TRUE
 #define SIO_USE_STREAMS_INTERFACE           SIO_USE_SYNCHRONIZATION
-#define SIO_USE_BUFFERING                   TRUE
+#define SIO_USE_BUFFERING                   FALSE
 #define SIO_USE_CONFIGURATIONS              FALSE
 
 /*===========================================================================*/

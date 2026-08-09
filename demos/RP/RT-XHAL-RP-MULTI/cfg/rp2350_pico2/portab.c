@@ -58,6 +58,12 @@ void portab_setup(void) {
   palSetLineMode(PORTAB_LINE_LED, PAL_MODE_OUTPUT_PUSHPULL |
                                   PAL_RP_PAD_DRIVE12);
   palWriteLine(PORTAB_LINE_LED, PORTAB_LED_OFF);
+
+  /*
+   * UART0 console pads, TX on GP0 and RX on GP1.
+   */
+  palSetLineMode(0U, PAL_MODE_ALTERNATE_UART);
+  palSetLineMode(1U, PAL_MODE_ALTERNATE_UART);
 }
 
 /** @} */

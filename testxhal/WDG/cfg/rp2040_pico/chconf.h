@@ -46,7 +46,7 @@
  *          direct interactions are handled by the OS.
  */
 #if !defined(CH_CFG_SMP_MODE)
-#define CH_CFG_SMP_MODE                     TRUE
+#define CH_CFG_SMP_MODE                     FALSE
 #endif
 
 /**
@@ -193,9 +193,11 @@
  *          the kernel.
  *
  * @note    The default is @p TRUE.
+ * @note    Disabled because the non-SMP ARMv6-M port has no realtime
+ *          counter support.
  */
 #if !defined(CH_CFG_USE_TM)
-#define CH_CFG_USE_TM                       TRUE
+#define CH_CFG_USE_TM                       FALSE
 #endif
 
 /**

@@ -33,6 +33,8 @@
 #define PORTAB_LED_OFF              PAL_LOW
 #define PORTAB_LED_ON               PAL_HIGH
 
+#define PORTAB_SIO_CONSOLE          SIOD0
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/

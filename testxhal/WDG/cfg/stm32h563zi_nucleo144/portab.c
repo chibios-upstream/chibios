@@ -18,5 +18,16 @@
 
 #include "portab.h"
 
+/*
+ * Watchdog deadline set to more than one second (LSI=40000 / (64 * 1000)).
+ */
+const WDGConfig portab_wdgcfg = {
+  .pr           = STM32_IWDG_PR_64,
+  .rlr          = STM32_IWDG_RL(1000),
+#if STM32_IWDG_IS_WINDOWED
+  .winr         = STM32_IWDG_WIN_DISABLED,
+#endif
+};
+
 void portab_setup(void) {
 }

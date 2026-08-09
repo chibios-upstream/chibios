@@ -15,18 +15,40 @@
 */
 
 /**
- * @file    RP2040/rp_isr.c
- * @brief   RP2040 ISR handler code.
+ * @file    UARTv1/rp_uart1.inc
+ * @brief   Shared UART1 handler.
  *
- * @addtogroup RP2040_ISR
+ * @addtogroup RP_UART1_HANDLER
  * @{
  */
-
-#include "hal.h"
 
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
+
+/*===========================================================================*/
+/* Derived constants and error checks.                                       */
+/*===========================================================================*/
+
+/* Registry checks for robustness.*/
+#if !defined(RP_HAS_UART1)
+#error "RP_HAS_UART1 not defined in registry"
+#endif
+
+#if HAL_USE_SIO == TRUE
+#if RP_SIO_USE_UART1 == TRUE
+
+/* Priority settings checks.*/
+#if !defined(RP_IRQ_UART1_PRIORITY)
+#error "RP_IRQ_UART1_PRIORITY not defined in xmcuconf.h"
+#endif
+
+#if !CH_IRQ_IS_VALID_KERNEL_PRIORITY(RP_IRQ_UART1_PRIORITY)
+#error "Invalid IRQ priority assigned to RP_IRQ_UART1_PRIORITY"
+#endif
+
+#endif /* RP_SIO_USE_UART1 == TRUE */
+#endif /* HAL_USE_SIO == TRUE */
 
 /*===========================================================================*/
 /* Driver exported variables.                                                */
@@ -40,35 +62,44 @@
 /* Driver local functions.                                                   */
 /*===========================================================================*/
 
+#if HAL_USE_SIO == TRUE
+#if (RP_SIO_USE_UART1 == TRUE) || defined(__DOXYGEN__)
+static inline void uart1_irq_init(void) {
+
+  nvicEnableVector(RP_UART1_IRQ_NUMBER, RP_IRQ_UART1_PRIORITY);
+}
+
+static inline void uart1_irq_deinit(void) {
+
+  nvicDisableVector(RP_UART1_IRQ_NUMBER);
+}
+#endif
+#endif
+
 /*===========================================================================*/
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
-#include "rp_uart0.inc"
-#include "rp_uart1.inc"
+#if HAL_USE_SIO == TRUE
+#if (RP_SIO_USE_UART1 == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   UART1 interrupt handler.
+ *
+ * @isr
+ */
+CH_IRQ_HANDLER(RP_UART1_IRQ_HANDLER) {
+
+  CH_IRQ_PROLOGUE();
+
+  sio_lld_serve_interrupt(&SIOD1);
+
+  CH_IRQ_EPILOGUE();
+}
+#endif
+#endif
 
 /*===========================================================================*/
 /* Driver exported functions.                                                */
 /*===========================================================================*/
-
-/**
- * @brief   IRQ subsystem initialization.
- * @details Puts the IRQ controller in a known clean state before any
- *          HAL drivers enable their individual interrupts.
- *
- * @notapi
- */
-void irqInit(void) {
-
-}
-
-/**
- * @brief   Disables IRQ sources.
- *
- * @notapi
- */
-void irqDeinit(void) {
-
-}
 
 /** @} */

@@ -25,7 +25,10 @@
 #ifndef PORTAB_H
 #define PORTAB_H
 
-#define PORTAB_LINE_LED1                    LINE_LED1
+/* The Pico board has no user button, no PORTAB_LINE_BUTTON is provided.*/
+#define PORTAB_LINE_LED1                    25U
+#define PORTAB_LED_OFF                      PAL_LOW
+#define PORTAB_LED_ON                       PAL_HIGH
 
 #ifdef __cplusplus
 extern "C" {

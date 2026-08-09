@@ -61,7 +61,7 @@ endif
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
 # stack is used for processing interrupts and exceptions.
 ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
-  USE_EXCEPTIONS_STACKSIZE = 0x400
+  USE_EXCEPTIONS_STACKSIZE = 0x800
 endif
 
 # Enables the use of FPU (no, softfp, hard).
@@ -84,7 +84,7 @@ PROJECT = ch
 MCU  = cortex-m0plus
 
 # Imported source files and paths.
-CHIBIOS  := ../../..
+CHIBIOS  := ../../
 CONFDIR  := ./cfg/rp2040_pico
 BUILDDIR := ./build/rp2040_pico
 DEPDIR   := ./.dep/rp2040_pico
@@ -103,10 +103,6 @@ include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMv6-M/compilers/GCC/mk/port_rp2.mk
 # Auto-build files in ./source recursively.
 include $(CHIBIOS)/tools/mk/autobuild.mk
-# Other files (optional).
-include $(CHIBIOS)/os/test/test.mk
-include $(CHIBIOS)/test/rt/rt_test.mk
-include $(CHIBIOS)/test/oslib/oslib_test.mk
 
 # Define linker script file here.
 LDSCRIPT= $(STARTUPLD)/RP2040_FLASH.ld
@@ -114,9 +110,8 @@ LDSCRIPT= $(STARTUPLD)/RP2040_FLASH.ld
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
 CSRC = $(ALLCSRC) \
-       $(TESTSRC) \
        $(CONFDIR)/portab.c \
-       main.c c1_main.c
+       main.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -129,7 +124,7 @@ ASMSRC = $(ALLASMSRC)
 ASMXSRC = $(ALLXASMSRC)
 
 # Inclusion directories.
-INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
+INCDIR = $(CONFDIR) $(ALLINC)
 
 # Define C warning options here.
 CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes
@@ -146,10 +141,10 @@ CPPWARN = -Wall -Wextra -Wundef
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS = -DCRT0_VTOR_INIT=1 -DCRT0_EXTRA_CORES_NUMBER=1 -DOOP_USE_LEGACY
+UDEFS = -DCRT0_VTOR_INIT=1
 
 # Define ASM defines here
-UADEFS = -DCRT0_VTOR_INIT=1 -DCRT0_EXTRA_CORES_NUMBER=1
+UADEFS = -DCRT0_VTOR_INIT=1
 
 # List all user directories here
 UINCDIR =

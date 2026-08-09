@@ -14,28 +14,30 @@
     limitations under the License.
 */
 
+#include "ch.h"
+#include "hal.h"
+
 /**
- * @file    portab.h
- * @brief   Application portability macros and structures.
- *
- * @addtogroup application_portability
- * @{
+ * Core 1 entry point.
  */
+void c1_main(void) {
 
-#ifndef PORTAB_H
-#define PORTAB_H
+  /*
+   * Starting a new OS instance running on this core, we need to wait for
+   * system initialization on the other side.
+   */
+  chSysWaitSystemState(ch_sys_running);
+  chInstanceObjectInit(&ch1, &ch_core1_cfg);
 
-#define PORTAB_LINE_LED1                    LINE_LED1
+  /* It is alive now.*/
+  chSysUnlock();
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-  extern const WDGConfig portab_wdgcfg;
-  void portab_setup(void);
-#ifdef __cplusplus
+  /*
+   * Normal main() thread activity on this core, in this demo it does
+   * nothing except sleeping in a loop, the kernel test suites run on
+   * core 0 and this core must not interfere with the results.
+   */
+  while (true) {
+    chThdSleepMilliseconds(500);
+  }
 }
-#endif
-
-#endif /* PORTAB_H */
-
-/** @} */

@@ -16,13 +16,24 @@
 
 #include "ch.h"
 #include "hal.h"
+#include "rt_test_root.h"
+#include "oslib_test_root.h"
 
 #include "portab.h"
+
+static hal_buffered_sio_c bsio1;
+static uint8_t rxbuf[32];
+static uint8_t txbuf[32];
+
+static const char banner[] = "\r\n" BOARD_NAME " -- ChibiOS/RT "
+                             CH_KERNEL_VERSION "\r\n";
 
 /*
  * Application entry point.
  */
 int main(void) {
+  BaseSequentialStream *stream;
+  msg_t msg;
 
   /*
    * System initializations.
@@ -38,6 +49,25 @@ int main(void) {
    * Initialization of portability code, could be empty.
    */
   portab_setup();
+
+  /*
+   * Activates the console buffered SIO driver using the default
+   * configuration.
+   */
+  bsioObjectInit(&bsio1, &PORTAB_SIO_CONSOLE,
+                 rxbuf, sizeof rxbuf,
+                 txbuf, sizeof txbuf);
+  msg = drvStart(&bsio1, NULL);
+  chDbgAssert(msg == HAL_RET_SUCCESS, "buffered SIO start failed");
+  stream = (BaseSequentialStream *)&bsio1.chn;
+
+  /*
+   * Prints the banner then executes the kernel test suites once. Core 1
+   * stays quiescent so that results are attributable to core 0.
+   */
+  stmWrite(stream, (const uint8_t *)banner, sizeof banner - 1U);
+  test_execute(stream, &rt_test_suite);
+  test_execute(stream, &oslib_test_suite);
 
   /*
    * Normal main() thread activity, in this demo it toggles the board LED

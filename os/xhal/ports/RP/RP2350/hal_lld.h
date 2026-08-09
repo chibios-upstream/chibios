@@ -379,6 +379,7 @@ typedef uint32_t halcnt_t;
 #include "cache.h"
 #include "rp_isr.h"
 #include "rp_fifo.h"
+#include "rp_dma.h"
 #include "rp_bootrom.h"
 
 extern uint32_t SystemCoreClock;

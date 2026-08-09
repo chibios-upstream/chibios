@@ -61,12 +61,17 @@ endif
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
 # stack is used for processing interrupts and exceptions.
 ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
-  USE_EXCEPTIONS_STACKSIZE = 0x400
+  USE_EXCEPTIONS_STACKSIZE = 0x800
 endif
 
 # Enables the use of FPU (no, softfp, hard).
 ifeq ($(USE_FPU),)
-  USE_FPU = no
+  USE_FPU = softfp
+endif
+
+# FPU-related options.
+ifeq ($(USE_FPU_OPT),)
+  USE_FPU_OPT = -mfloat-abi=$(USE_FPU) -mfpu=fpv5-sp-d16
 endif
 
 #
@@ -81,42 +86,37 @@ endif
 PROJECT = ch
 
 # Target settings.
-MCU  = cortex-m0plus
+MCU  = cortex-m33
 
 # Imported source files and paths.
-CHIBIOS  := ../../..
-CONFDIR  := ./cfg/rp2040_pico
-BUILDDIR := ./build/rp2040_pico
-DEPDIR   := ./.dep/rp2040_pico
+CHIBIOS  := ../../
+CONFDIR  := ./cfg/rp2350_pico2
+BUILDDIR := ./build/rp2350_pico2
+DEPDIR   := ./.dep/rp2350_pico2
 
 # Licensing files.
 include $(CHIBIOS)/os/license/license.mk
 # Startup files.
-include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_rp2040.mk
+include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_rp2350.mk
 # XHAL files.
 include $(CHIBIOS)/os/xhal/xhal.mk
-include $(CHIBIOS)/os/xhal/ports/RP/RP2040/platform.mk
+include $(CHIBIOS)/os/xhal/ports/RP/RP2350/platform.mk
 include $(CHIBIOS)/os/hal/ports/RP/rp_uf2_image.mk
-include $(CHIBIOS)/os/hal/boards/RP_PICO_RP2040/board.mk
+include $(CHIBIOS)/os/hal/boards/RP_PICO2_RP2350/board.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
-include $(CHIBIOS)/os/common/ports/ARMv6-M/compilers/GCC/mk/port_rp2.mk
+include $(CHIBIOS)/os/common/ports/ARMv8-M-ML-ALT/compilers/GCC/mk/port_rp2.mk
 # Auto-build files in ./source recursively.
 include $(CHIBIOS)/tools/mk/autobuild.mk
-# Other files (optional).
-include $(CHIBIOS)/os/test/test.mk
-include $(CHIBIOS)/test/rt/rt_test.mk
-include $(CHIBIOS)/test/oslib/oslib_test.mk
 
 # Define linker script file here.
-LDSCRIPT= $(STARTUPLD)/RP2040_FLASH.ld
+LDSCRIPT= $(STARTUPLD)/RP2350_FLASH.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
 CSRC = $(ALLCSRC) \
-       $(TESTSRC) \
        $(CONFDIR)/portab.c \
-       main.c c1_main.c
+       main.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -129,7 +129,7 @@ ASMSRC = $(ALLASMSRC)
 ASMXSRC = $(ALLXASMSRC)
 
 # Inclusion directories.
-INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
+INCDIR = $(CONFDIR) $(ALLINC)
 
 # Define C warning options here.
 CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes
@@ -146,10 +146,10 @@ CPPWARN = -Wall -Wextra -Wundef
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS = -DCRT0_VTOR_INIT=1 -DCRT0_EXTRA_CORES_NUMBER=1 -DOOP_USE_LEGACY
+UDEFS = -DCRT0_VTOR_INIT=1
 
 # Define ASM defines here
-UADEFS = -DCRT0_VTOR_INIT=1 -DCRT0_EXTRA_CORES_NUMBER=1
+UADEFS = -DCRT0_VTOR_INIT=1
 
 # List all user directories here
 UINCDIR =
