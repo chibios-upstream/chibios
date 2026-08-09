@@ -100,20 +100,25 @@ CH_IRQ_HANDLER(SysTick_Handler) {
  * @isr
  */
 CH_IRQ_HANDLER(RP_TIMER0_IRQ0_HANDLER) {
+  uint32_t ints;
 
   CH_IRQ_PROLOGUE();
 
-  chDbgAssert((TIMER0->INTS & TIMER_INTS_ALARM0) != 0U, "not pending");
-
+  ints = TIMER0->INTS;
   TIMER0->INTR = TIMER_INTR_ALARM0;
 
+  /* Dismissing spurious wakeups, the alarm can be stopped from within a
+     critical section while its interrupt is already latched and pended
+     in the NVIC, in that case the callback must not be invoked.*/
+  if ((ints & TIMER_INTS_ALARM0) != 0U) {
 #if defined(ST_LLD_ALARM0_STATIC_CB)
-  ST_LLD_ALARM0_STATIC_CB();
+    ST_LLD_ALARM0_STATIC_CB();
 #else
-  if (st_callbacks[0] != NULL) {
-    st_callbacks[0](0U);
-  }
+    if (st_callbacks[0] != NULL) {
+      st_callbacks[0](0U);
+    }
 #endif
+  }
 
   CH_IRQ_EPILOGUE();
 }
@@ -126,20 +131,25 @@ CH_IRQ_HANDLER(RP_TIMER0_IRQ0_HANDLER) {
  * @isr
  */
 CH_IRQ_HANDLER(RP_TIMER0_IRQ1_HANDLER) {
+  uint32_t ints;
 
   CH_IRQ_PROLOGUE();
 
-  chDbgAssert((TIMER0->INTS & TIMER_INTS_ALARM1) != 0U, "not pending");
-
+  ints = TIMER0->INTS;
   TIMER0->INTR = TIMER_INTR_ALARM1;
 
+  /* Dismissing spurious wakeups, the alarm can be stopped from within a
+     critical section while its interrupt is already latched and pended
+     in the NVIC, in that case the callback must not be invoked.*/
+  if ((ints & TIMER_INTS_ALARM1) != 0U) {
 #if defined(ST_LLD_ALARM1_STATIC_CB)
-  ST_LLD_ALARM1_STATIC_CB();
+    ST_LLD_ALARM1_STATIC_CB();
 #else
-  if (st_callbacks[1] != NULL) {
-    st_callbacks[1](1U);
-  }
+    if (st_callbacks[1] != NULL) {
+      st_callbacks[1](1U);
+    }
 #endif
+  }
 
   CH_IRQ_EPILOGUE();
 }
@@ -152,20 +162,25 @@ CH_IRQ_HANDLER(RP_TIMER0_IRQ1_HANDLER) {
  * @isr
  */
 CH_IRQ_HANDLER(RP_TIMER0_IRQ2_HANDLER) {
+  uint32_t ints;
 
   CH_IRQ_PROLOGUE();
 
-  chDbgAssert((TIMER0->INTS & TIMER_INTS_ALARM2) != 0U, "not pending");
-
+  ints = TIMER0->INTS;
   TIMER0->INTR = TIMER_INTR_ALARM2;
 
+  /* Dismissing spurious wakeups, the alarm can be stopped from within a
+     critical section while its interrupt is already latched and pended
+     in the NVIC, in that case the callback must not be invoked.*/
+  if ((ints & TIMER_INTS_ALARM2) != 0U) {
 #if defined(ST_LLD_ALARM2_STATIC_CB)
-  ST_LLD_ALARM2_STATIC_CB();
+    ST_LLD_ALARM2_STATIC_CB();
 #else
-  if (st_callbacks[2] != NULL) {
-    st_callbacks[2](2U);
-  }
+    if (st_callbacks[2] != NULL) {
+      st_callbacks[2](2U);
+    }
 #endif
+  }
 
   CH_IRQ_EPILOGUE();
 }
@@ -178,20 +193,25 @@ CH_IRQ_HANDLER(RP_TIMER0_IRQ2_HANDLER) {
  * @isr
  */
 CH_IRQ_HANDLER(RP_TIMER0_IRQ3_HANDLER) {
+  uint32_t ints;
 
   CH_IRQ_PROLOGUE();
 
-  chDbgAssert((TIMER0->INTS & TIMER_INTS_ALARM3) != 0U, "not pending");
-
+  ints = TIMER0->INTS;
   TIMER0->INTR = TIMER_INTR_ALARM3;
 
+  /* Dismissing spurious wakeups, the alarm can be stopped from within a
+     critical section while its interrupt is already latched and pended
+     in the NVIC, in that case the callback must not be invoked.*/
+  if ((ints & TIMER_INTS_ALARM3) != 0U) {
 #if defined(ST_LLD_ALARM3_STATIC_CB)
-  ST_LLD_ALARM3_STATIC_CB();
+    ST_LLD_ALARM3_STATIC_CB();
 #else
-  if (st_callbacks[3] != NULL) {
-    st_callbacks[3](3U);
-  }
+    if (st_callbacks[3] != NULL) {
+      st_callbacks[3](3U);
+    }
 #endif
+  }
 
   CH_IRQ_EPILOGUE();
 }
