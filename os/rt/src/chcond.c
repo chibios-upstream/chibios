@@ -177,6 +177,7 @@ void chCondBroadcast(condition_variable_t *cp) {
  * @iclass
  */
 void chCondBroadcastI(condition_variable_t *cp) {
+  thread_t *tp;
 
   chDbgCheckClassI();
   chDbgCheck(cp != NULL);
@@ -185,7 +186,9 @@ void chCondBroadcastI(condition_variable_t *cp) {
      ready list in FIFO order. The wakeup message is set to @p MSG_RESET in
      order to make a chCondBroadcast() detectable from a chCondSignal().*/
   while (ch_queue_notempty(&cp->queue)) {
-    chSchReadyI(threadref(ch_queue_fifo_remove(&cp->queue)))->u.rdymsg = MSG_RESET;
+    tp = threadref(ch_queue_fifo_remove(&cp->queue));
+    tp->u.rdymsg = MSG_RESET;
+    (void) chSchReadyI(tp);
   }
 }
 

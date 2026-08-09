@@ -1138,7 +1138,8 @@ static const testcase_t rt_test_008_008 = {
  * - [8.9.1] Starting the five threads with increasing priority, the
  *   threads will queue on the condition variable.
  * - [8.9.2] Broarcasting on the condition variable then waiting for
- *   the threads to terminate in priority order, the order is tested.
+ *   the threads to terminate in priority order, the order and, when
+ *   enabled, a ready trace message are tested.
  * .
  */
 
@@ -1153,6 +1154,11 @@ static void rt_test_008_009_teardown(void) {
 }
 
 static void rt_test_008_009_execute(void) {
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+  msg_t tracemsg;
+  bool found;
+#endif
 
   /* [8.9.1] Starting the five threads with increasing priority, the
      threads will queue on the condition variable.*/
@@ -1168,10 +1174,19 @@ static void rt_test_008_009_execute(void) {
   test_end_step(1);
 
   /* [8.9.2] Broarcasting on the condition variable then waiting for
-     the threads to terminate in priority order, the order is tested.*/
+     the threads to terminate in priority order, the order and, when
+     enabled, a ready trace message are tested.*/
   test_set_step(2);
   {
     chCondBroadcast(&c1);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+    chSysLock();
+    found = test_find_ready_trace(threads[0], CH_STATE_WTCOND, &tracemsg);
+    chSysUnlock();
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_RESET, "invalid ready trace message");
+#endif
     test_wait_threads();
     test_assert_sequence("ABCDE", "invalid sequence");
   }

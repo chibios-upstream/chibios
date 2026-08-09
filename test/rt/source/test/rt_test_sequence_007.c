@@ -165,10 +165,12 @@ static const testcase_t rt_test_007_001 = {
  * - [7.2.1] Five threads are created with mixed priority levels (not
  *   increasing nor decreasing). Threads enqueue on a semaphore
  *   initialized to zero.
- * - [7.2.2] The semaphore is signaled 5 times. The thread activation
- *   sequence is tested.
+ * - [7.2.2] The semaphore is signaled 5 times, first through the I-class
+ *   API. The thread activation sequence and, when enabled, a ready trace
+ *   message are tested.
  * - [7.2.3] Five equal-priority threads are enqueued then released using
- *   a semaphore reset. The thread activation sequence is tested.
+ *   a semaphore reset with a non-default message. The thread activation
+ *   sequence and, when enabled, the ready trace message are tested.
  * .
  */
 
@@ -181,6 +183,11 @@ static void rt_test_007_002_teardown(void) {
 }
 
 static void rt_test_007_002_execute(void) {
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+  msg_t tracemsg;
+  bool found;
+#endif
 
   /* [7.2.1] Five threads are created with mixed priority levels (not
      increasing nor decreasing). Threads enqueue on a semaphore
@@ -195,11 +202,24 @@ static void rt_test_007_002_execute(void) {
   }
   test_end_step(1);
 
-  /* [7.2.2] The semaphore is signaled 5 times. The thread activation
-     sequence is tested.*/
+  /* [7.2.2] The semaphore is signaled 5 times, first through the I-class
+     API. The thread activation sequence and, when enabled, a ready trace
+     message are tested.*/
   test_set_step(2);
   {
-    chSemSignal(&sem1);
+    chSysLock();
+    chSemSignalI(&sem1);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+    found = test_find_ready_trace(threads[0], CH_STATE_WTSEM, &tracemsg);
+#endif
+    chSchRescheduleS();
+    chSysUnlock();
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+#endif
     chSemSignal(&sem1);
     chSemSignal(&sem1);
     chSemSignal(&sem1);
@@ -214,7 +234,8 @@ static void rt_test_007_002_execute(void) {
   test_end_step(2);
 
   /* [7.2.3] Five equal-priority threads are enqueued then released using
-     a semaphore reset. The thread activation sequence is tested.*/
+     a semaphore reset with a non-default message. The thread activation
+     sequence and, when enabled, the ready trace message are tested.*/
   test_set_step(3);
   {
     threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()+1, thread1, "A");
@@ -222,7 +243,15 @@ static void rt_test_007_002_execute(void) {
     threads[2] = chThdCreateStatic(wa[2], WA_SIZE, chThdGetPriorityX()+1, thread1, "C");
     threads[3] = chThdCreateStatic(wa[3], WA_SIZE, chThdGetPriorityX()+1, thread1, "D");
     threads[4] = chThdCreateStatic(wa[4], WA_SIZE, chThdGetPriorityX()+1, thread1, "E");
-    chSemReset(&sem1, 0);
+    chSemResetWithMessage(&sem1, 0, MSG_TIMEOUT);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+    chSysLock();
+    found = test_find_ready_trace(threads[0], CH_STATE_WTSEM, &tracemsg);
+    chSysUnlock();
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_TIMEOUT, "invalid ready trace message");
+#endif
     test_wait_threads();
     test_assert_sequence("ABCDE", "invalid sequence");
   }
@@ -325,7 +354,8 @@ static const testcase_t rt_test_007_003 = {
  * <h2>Test Steps</h2>
  * - [7.4.1] A thread is created, it goes to wait on the semaphore.
  * - [7.4.2] The semaphore counter is increased by two, it is then
- *   tested to be one, the thread must have completed.
+ *   tested to be one, the thread must have completed and, when enabled,
+ *   its ready trace message is tested.
  * .
  */
 
@@ -338,6 +368,11 @@ static void rt_test_007_004_teardown(void) {
 }
 
 static void rt_test_007_004_execute(void) {
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+  msg_t tracemsg;
+  bool found;
+#endif
 
   /* [7.4.1] A thread is created, it goes to wait on the semaphore.*/
   test_set_step(1);
@@ -347,13 +382,23 @@ static void rt_test_007_004_execute(void) {
   test_end_step(1);
 
   /* [7.4.2] The semaphore counter is increased by two, it is then
-     tested to be one, the thread must have completed.*/
+     tested to be one, the thread must have completed and, when enabled,
+     its ready trace message is tested.*/
   test_set_step(2);
   {
     chSysLock();
     chSemAddCounterI(&sem1, 2);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+    found = test_find_ready_trace(threads[0], CH_STATE_WTSEM, &tracemsg);
+#endif
     chSchRescheduleS();
     chSysUnlock();
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+#endif
     test_wait_threads();
     test_assert_lock(chSemGetCounterI(&sem1) == 1, "invalid counter");
     test_assert_sequence("A", "invalid sequence");
@@ -384,7 +429,8 @@ static const testcase_t rt_test_007_004 = {
  *   non-atomical wait and signal operations on a semaphore.
  * - [7.5.2] The function chSemSignalWait() is invoked by specifying
  *   the same semaphore for the wait and signal phases. The counter
- *   value must be one on exit.
+ *   value and, when enabled, the signaled thread's ready trace message
+ *   are tested on exit.
  * - [7.5.3] The function chSemSignalWait() is invoked again by
  *   specifying the same semaphore for the wait and signal phases. The
  *   counter value must be one on exit.
@@ -401,6 +447,11 @@ static void rt_test_007_005_teardown(void) {
 }
 
 static void rt_test_007_005_execute(void) {
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+  msg_t tracemsg;
+  bool found;
+#endif
 
   /* [7.5.1] An higher priority thread is created that performs
      non-atomical wait and signal operations on a semaphore.*/
@@ -412,10 +463,19 @@ static void rt_test_007_005_execute(void) {
 
   /* [7.5.2] The function chSemSignalWait() is invoked by specifying
      the same semaphore for the wait and signal phases. The counter
-     value must be one on exit.*/
+     value and, when enabled, the signaled thread's ready trace message
+     are tested on exit.*/
   test_set_step(2);
   {
     chSemSignalWait(&sem1, &sem1);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+    chSysLock();
+    found = test_find_ready_trace(threads[0], CH_STATE_WTSEM, &tracemsg);
+    chSysUnlock();
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+#endif
     test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
     test_assert(sem1.cnt == 0, "counter not zero");
   }

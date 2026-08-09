@@ -97,7 +97,11 @@ extern void * ROMCONST wa[MAX_THREADS];
 void test_print_port_info(void);
 void test_terminate_threads(void);
 void test_wait_threads(void);
-systime_t test_wait_tick(void);]]></value>
+systime_t test_wait_tick(void);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+bool test_find_ready_trace(thread_t *tp, tstate_t state, msg_t *msgp);
+#endif]]></value>
     </global_definitions>
     <global_code>
       <value><![CDATA[/*
@@ -152,7 +156,34 @@ systime_t test_wait_tick(void) {
 
   chThdSleep(1);
   return chVTGetSystemTime();
-}]]></value>
+}
+
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+/*
+ * Searches backward in the trace buffer for a thread ready event.
+ */
+bool test_find_ready_trace(thread_t *tp, tstate_t state, msg_t *msgp) {
+  trace_buffer_t *tbp = &currcore->trace_buffer;
+  trace_event_t *tep = tbp->ptr;
+  unsigned i;
+
+  for (i = 0U; i < (unsigned)CH_DBG_TRACE_BUFFER_SIZE; i++) {
+    if (tep == &tbp->buffer[0]) {
+      tep = &tbp->buffer[CH_DBG_TRACE_BUFFER_SIZE];
+    }
+    tep--;
+    if ((tep->type == CH_TRACE_TYPE_READY) &&
+        (tep->state == (uint8_t)state) &&
+        (tep->u.rdy.tp == tp)) {
+      *msgp = tep->u.rdy.msg;
+      return true;
+    }
+  }
+
+  return false;
+}
+#endif]]></value>
     </global_code>
   </global_data_and_code>
   <sequences>
@@ -1239,31 +1270,7 @@ static void setup_thread_descriptor(thread_descriptor_t *tdp,
   tdp->arg   = arg;
   tdp->owner = NULL;
 }
-
-#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
-     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&             \
-     (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
-static bool find_ready_trace(thread_t *tp, tstate_t state, msg_t *msgp) {
-  trace_buffer_t *tbp = &currcore->trace_buffer;
-  trace_event_t *tep = tbp->ptr;
-  unsigned i;
-
-  for (i = 0U; i < (unsigned)CH_DBG_TRACE_BUFFER_SIZE; i++) {
-    if (tep == &tbp->buffer[0]) {
-      tep = &tbp->buffer[CH_DBG_TRACE_BUFFER_SIZE];
-    }
-    tep--;
-    if ((tep->type == CH_TRACE_TYPE_READY) &&
-        (tep->state == (uint8_t)state) &&
-        (tep->u.rdy.tp == tp)) {
-      *msgp = tep->u.rdy.msg;
-      return true;
-    }
-  }
-
-  return false;
-}
-#endif]]></value>
+]]></value>
       </shared_code>
       <cases>
         <case>
@@ -2120,7 +2127,7 @@ chSysLock();
 threads[0] = chThdSpawnSuspendedI(TEST_THREAD_OBJECT(0), &td);
 initmsg = threads[0]->u.rdymsg;
 chThdStartI(threads[0]);
-found = find_ready_trace(threads[0], CH_STATE_WTSTART, &tracemsg);
+found = test_find_ready_trace(threads[0], CH_STATE_WTSTART, &tracemsg);
 chSysUnlock();
 test_assert(initmsg == MSG_OK, "ready message not initialized");
 test_assert(found, "ready trace not found");
@@ -2145,7 +2152,7 @@ chThdObjectDispose(TEST_THREAD_OBJECT(0));]]></value>
 TEST_THREAD_OBJECT(1)->u.rdymsg = MSG_RESET;
 chSysLock();
 threads[1] = chThdSpawnRunningI(TEST_THREAD_OBJECT(1), &td);
-found = find_ready_trace(threads[1], CH_STATE_WTSTART, &tracemsg);
+found = test_find_ready_trace(threads[1], CH_STATE_WTSTART, &tracemsg);
 chSysUnlock();
 test_assert(found, "ready trace not found");
 test_assert(tracemsg == MSG_OK, "invalid ready trace message");
@@ -2169,7 +2176,7 @@ chThdObjectDispose(TEST_THREAD_OBJECT(1));]]></value>
 TEST_THREAD_OBJECT(2)->u.rdymsg = MSG_RESET;
 chSysLock();
 threads[2] = chThdCreateI(&td);
-found = find_ready_trace(threads[2], CH_STATE_WTSTART, &tracemsg);
+found = test_find_ready_trace(threads[2], CH_STATE_WTSTART, &tracemsg);
 chSysUnlock();
 test_assert(found, "ready trace not found");
 test_assert(tracemsg == MSG_OK, "invalid ready trace message");
@@ -2193,7 +2200,7 @@ self->u.rdymsg = MSG_RESET;
 (void) chThdWait(threads[3]);
 threads[3] = NULL;
 chSysLock();
-found = find_ready_trace(self, CH_STATE_WTEXIT, &tracemsg);
+found = test_find_ready_trace(self, CH_STATE_WTEXIT, &tracemsg);
 chSysUnlock();
 test_assert(found, "waiter ready trace not found");
 test_assert(tracemsg == MSG_OK, "invalid waiter trace message");
@@ -2372,7 +2379,12 @@ chThdQueueObjectDispose(&tq1);]]></value>
             </teardown_code>
             <local_variables>
               <value><![CDATA[msg_t msg;
-bool empty;]]></value>
+bool empty;
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+msg_t tracemsg;
+bool found;
+#endif]]></value>
             </local_variables>
           </various_code>
           <steps>
@@ -2414,7 +2426,8 @@ test_assert(empty, "queue not empty");]]></value>
             <step>
               <description>
                 <value>One queued thread is resumed using
-                  chThdDequeueNextI().</value>
+                  chThdDequeueNextI() and, when enabled, its ready trace
+                  message is tested.</value>
               </description>
               <tags>
                 <value />
@@ -2427,8 +2440,17 @@ chThdYield();
 chSysLock();
 empty = chThdQueueIsEmptyI(&tq1);
 chThdDequeueNextI(&tq1, MSG_RESET);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+found = test_find_ready_trace(threads[0], CH_STATE_QUEUED, &tracemsg);
+#endif
 chSysUnlock();
 test_assert(!empty, "queue empty");
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+test_assert(found, "ready trace not found");
+test_assert(tracemsg == MSG_RESET, "invalid ready trace message");
+#endif
 test_wait_threads();
 test_assert(qmsg1 == MSG_RESET, "wrong returned message");
 test_assert_sequence("C", "invalid sequence");]]></value>
@@ -2603,7 +2625,11 @@ test_assert_lock(chSemGetCounterI(&sem1) == 2, "wrong counter value");]]></value
               <value><![CDATA[chSemObjectDispose(&sem1);]]></value>
             </teardown_code>
             <local_variables>
-              <value />
+              <value><![CDATA[#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+msg_t tracemsg;
+bool found;
+#endif]]></value>
             </local_variables>
           </various_code>
           <steps>
@@ -2626,14 +2652,27 @@ threads[4] = chThdCreateStatic(wa[4], WA_SIZE, chThdGetPriorityX()+2, thread1, "
             </step>
             <step>
               <description>
-                <value>The semaphore is signaled 5 times. The thread
-                  activation sequence is tested.</value>
+                <value>The semaphore is signaled 5 times, first through
+                  the I-class API. The thread activation sequence and,
+                  when enabled, a ready trace message are tested.</value>
               </description>
               <tags>
                 <value />
               </tags>
               <code>
-                <value><![CDATA[chSemSignal(&sem1);
+                <value><![CDATA[chSysLock();
+chSemSignalI(&sem1);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+found = test_find_ready_trace(threads[0], CH_STATE_WTSEM, &tracemsg);
+#endif
+chSchRescheduleS();
+chSysUnlock();
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+test_assert(found, "ready trace not found");
+test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+#endif
 chSemSignal(&sem1);
 chSemSignal(&sem1);
 chSemSignal(&sem1);
@@ -2649,8 +2688,9 @@ test_assert_sequence("ABCDE", "invalid sequence");
             <step>
               <description>
                 <value>Five equal-priority threads are enqueued then
-                  released using a semaphore reset. The thread
-                  activation sequence is tested.</value>
+                  released using a semaphore reset with a non-default
+                  message. The thread activation sequence and, when
+                  enabled, the ready trace message are tested.</value>
               </description>
               <tags>
                 <value />
@@ -2661,7 +2701,15 @@ threads[1] = chThdCreateStatic(wa[1], WA_SIZE, chThdGetPriorityX()+1, thread1, "
 threads[2] = chThdCreateStatic(wa[2], WA_SIZE, chThdGetPriorityX()+1, thread1, "C");
 threads[3] = chThdCreateStatic(wa[3], WA_SIZE, chThdGetPriorityX()+1, thread1, "D");
 threads[4] = chThdCreateStatic(wa[4], WA_SIZE, chThdGetPriorityX()+1, thread1, "E");
-chSemReset(&sem1, 0);
+chSemResetWithMessage(&sem1, 0, MSG_TIMEOUT);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+chSysLock();
+found = test_find_ready_trace(threads[0], CH_STATE_WTSEM, &tracemsg);
+chSysUnlock();
+test_assert(found, "ready trace not found");
+test_assert(tracemsg == MSG_TIMEOUT, "invalid ready trace message");
+#endif
 test_wait_threads();
 test_assert_sequence("ABCDE", "invalid sequence");]]></value>
               </code>
@@ -2771,7 +2819,11 @@ test_assert_time_window(target_time,
               <value><![CDATA[chSemObjectDispose(&sem1);]]></value>
             </teardown_code>
             <local_variables>
-              <value />
+              <value><![CDATA[#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+msg_t tracemsg;
+bool found;
+#endif]]></value>
             </local_variables>
           </various_code>
           <steps>
@@ -2790,7 +2842,8 @@ test_assert_time_window(target_time,
             <step>
               <description>
                 <value>The semaphore counter is increased by two, it is
-                  then tested to be one, the thread must have completed.
+                  then tested to be one, the thread must have completed
+                  and, when enabled, its ready trace message is tested.
                 </value>
               </description>
               <tags>
@@ -2799,8 +2852,17 @@ test_assert_time_window(target_time,
               <code>
                 <value><![CDATA[chSysLock();
 chSemAddCounterI(&sem1, 2);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+found = test_find_ready_trace(threads[0], CH_STATE_WTSEM, &tracemsg);
+#endif
 chSchRescheduleS();
 chSysUnlock();
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+test_assert(found, "ready trace not found");
+test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+#endif
 test_wait_threads();
 test_assert_lock(chSemGetCounterI(&sem1) == 1, "invalid counter");
 test_assert_sequence("A", "invalid sequence");]]></value>
@@ -2834,7 +2896,11 @@ test_assert_sequence("A", "invalid sequence");]]></value>
 chSemObjectDispose(&sem1);]]></value>
             </teardown_code>
             <local_variables>
-              <value />
+              <value><![CDATA[#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+msg_t tracemsg;
+bool found;
+#endif]]></value>
             </local_variables>
           </various_code>
           <steps>
@@ -2855,13 +2921,23 @@ chSemObjectDispose(&sem1);]]></value>
               <description>
                 <value>The function chSemSignalWait() is invoked by
                   specifying the same semaphore for the wait and signal
-                  phases. The counter value must be one on exit.</value>
+                  phases. The counter value and, when enabled, the
+                  signaled thread's ready trace message are tested on
+                  exit.</value>
               </description>
               <tags>
                 <value />
               </tags>
               <code>
                 <value><![CDATA[chSemSignalWait(&sem1, &sem1);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+chSysLock();
+found = test_find_ready_trace(threads[0], CH_STATE_WTSEM, &tracemsg);
+chSysUnlock();
+test_assert(found, "ready trace not found");
+test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+#endif
 test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
 test_assert(sem1.cnt == 0, "counter not zero");]]></value>
               </code>
@@ -4139,7 +4215,11 @@ chMtxObjectInit(&m1);]]></value>
 chMtxObjectDispose(&m1);]]></value>
             </teardown_code>
             <local_variables>
-              <value />
+              <value><![CDATA[#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+msg_t tracemsg;
+bool found;
+#endif]]></value>
             </local_variables>
           </various_code>
           <steps>
@@ -4165,13 +4245,22 @@ threads[4] = chThdCreateStatic(wa[4], WA_SIZE, prio+5, thread6, "A");]]></value>
               <description>
                 <value>Broarcasting on the condition variable then
                   waiting for the threads to terminate in priority
-                  order, the order is tested.</value>
+                  order, the order and, when enabled, a ready trace
+                  message are tested.</value>
               </description>
               <tags>
                 <value />
               </tags>
               <code>
                 <value><![CDATA[chCondBroadcast(&c1);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+chSysLock();
+found = test_find_ready_trace(threads[0], CH_STATE_WTCOND, &tracemsg);
+chSysUnlock();
+test_assert(found, "ready trace not found");
+test_assert(tracemsg == MSG_RESET, "invalid ready trace message");
+#endif
 test_wait_threads();
 test_assert_sequence("ABCDE", "invalid sequence");]]></value>
               </code>

@@ -86,31 +86,6 @@ static void setup_thread_descriptor(thread_descriptor_t *tdp,
   tdp->owner = NULL;
 }
 
-#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
-     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&             \
-     (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
-static bool find_ready_trace(thread_t *tp, tstate_t state, msg_t *msgp) {
-  trace_buffer_t *tbp = &currcore->trace_buffer;
-  trace_event_t *tep = tbp->ptr;
-  unsigned i;
-
-  for (i = 0U; i < (unsigned)CH_DBG_TRACE_BUFFER_SIZE; i++) {
-    if (tep == &tbp->buffer[0]) {
-      tep = &tbp->buffer[CH_DBG_TRACE_BUFFER_SIZE];
-    }
-    tep--;
-    if ((tep->type == CH_TRACE_TYPE_READY) &&
-        (tep->state == (uint8_t)state) &&
-        (tep->u.rdy.tp == tp)) {
-      *msgp = tep->u.rdy.msg;
-      return true;
-    }
-  }
-
-  return false;
-}
-#endif
-
 /*===========================================================================*/
 /* Test cases.                                                               */
 /*===========================================================================*/
@@ -913,7 +888,7 @@ static void rt_test_005_009_execute(void) {
     threads[0] = chThdSpawnSuspendedI(TEST_THREAD_OBJECT(0), &td);
     initmsg = threads[0]->u.rdymsg;
     chThdStartI(threads[0]);
-    found = find_ready_trace(threads[0], CH_STATE_WTSTART, &tracemsg);
+    found = test_find_ready_trace(threads[0], CH_STATE_WTSTART, &tracemsg);
     chSysUnlock();
     test_assert(initmsg == MSG_OK, "ready message not initialized");
     test_assert(found, "ready trace not found");
@@ -934,7 +909,7 @@ static void rt_test_005_009_execute(void) {
     TEST_THREAD_OBJECT(1)->u.rdymsg = MSG_RESET;
     chSysLock();
     threads[1] = chThdSpawnRunningI(TEST_THREAD_OBJECT(1), &td);
-    found = find_ready_trace(threads[1], CH_STATE_WTSTART, &tracemsg);
+    found = test_find_ready_trace(threads[1], CH_STATE_WTSTART, &tracemsg);
     chSysUnlock();
     test_assert(found, "ready trace not found");
     test_assert(tracemsg == MSG_OK, "invalid ready trace message");
@@ -954,7 +929,7 @@ static void rt_test_005_009_execute(void) {
     TEST_THREAD_OBJECT(2)->u.rdymsg = MSG_RESET;
     chSysLock();
     threads[2] = chThdCreateI(&td);
-    found = find_ready_trace(threads[2], CH_STATE_WTSTART, &tracemsg);
+    found = test_find_ready_trace(threads[2], CH_STATE_WTSTART, &tracemsg);
     chSysUnlock();
     test_assert(found, "ready trace not found");
     test_assert(tracemsg == MSG_OK, "invalid ready trace message");
@@ -974,7 +949,7 @@ static void rt_test_005_009_execute(void) {
     (void) chThdWait(threads[3]);
     threads[3] = NULL;
     chSysLock();
-    found = find_ready_trace(self, CH_STATE_WTEXIT, &tracemsg);
+    found = test_find_ready_trace(self, CH_STATE_WTEXIT, &tracemsg);
     chSysUnlock();
     test_assert(found, "waiter ready trace not found");
     test_assert(tracemsg == MSG_OK, "invalid waiter trace message");

@@ -122,6 +122,10 @@ void test_print_port_info(void);
 void test_terminate_threads(void);
 void test_wait_threads(void);
 systime_t test_wait_tick(void);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+bool test_find_ready_trace(thread_t *tp, tstate_t state, msg_t *msgp);
+#endif
 
 #endif /* !defined(__DOXYGEN__) */
 
