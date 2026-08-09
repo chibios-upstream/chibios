@@ -33,6 +33,20 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   Maximum semaphore counter value.
+ * @details This is the maximum number of available units that can be
+ *          represented by a semaphore.
+ */
+#define SEMAPHORE_MAX_COUNT                                                \
+  ((cnt_t)(((ucnt_t)-1) / (ucnt_t)2))
+
+/**
+ * @brief   Maximum number of threads waiting on a semaphore.
+ */
+#define SEMAPHORE_MAX_WAITERS                                              \
+  ((ucnt_t)SEMAPHORE_MAX_COUNT + (ucnt_t)1)
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -51,7 +65,11 @@
 typedef struct ch_semaphore {
   ch_queue_t            queue;      /**< @brief Queue of the threads sleeping
                                                 on this semaphore.          */
-  cnt_t                 cnt;        /**< @brief The semaphore counter.      */
+  cnt_t                 cnt;        /**< @brief The semaphore counter, up to
+                                                @p SEMAPHORE_MAX_COUNT
+                                                available units or
+                                                @p SEMAPHORE_MAX_WAITERS
+                                                waiting threads.            */
 } semaphore_t;
 
 /*===========================================================================*/
@@ -150,6 +168,7 @@ static inline void chSemResetI(semaphore_t *sp, cnt_t n) {
 /**
  * @brief   Decreases the semaphore counter.
  * @details This macro can be used when the counter is known to be positive.
+ * @pre     The semaphore counter must be positive.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
  *
@@ -158,14 +177,17 @@ static inline void chSemResetI(semaphore_t *sp, cnt_t n) {
 static inline void chSemFastWaitI(semaphore_t *sp) {
 
   chDbgCheckClassI();
+  chDbgAssert(sp->cnt > (cnt_t)0, "counter is not positive");
 
   sp->cnt--;
 }
 
 /**
  * @brief   Increases the semaphore counter.
- * @details This macro can be used when the counter is known to be not
- *          negative.
+ * @details This function can be used when incrementing the counter does not
+ *          require dequeuing a waiting thread.
+ * @pre     The semaphore counter must be lower than
+ *          @p SEMAPHORE_MAX_COUNT.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
  *
@@ -174,6 +196,8 @@ static inline void chSemFastWaitI(semaphore_t *sp) {
 static inline void chSemFastSignalI(semaphore_t *sp) {
 
   chDbgCheckClassI();
+  chDbgAssert(sp->cnt < SEMAPHORE_MAX_COUNT,
+              "counter overflow");
 
   sp->cnt++;
 }

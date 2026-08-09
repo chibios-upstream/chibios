@@ -245,10 +245,10 @@ static bool vt_iteration(unsigned i, uint32_t *latp) {
   d2_fired = false;
 
   /* Draining any stale semaphore signal.*/
-  while (chSemWaitTimeout(&d2_sem, TIME_IMMEDIATE) == MSG_OK) {
-  }
-
   chSysLock();
+  while (chSemGetCounterI(&d2_sem) > (cnt_t)0) {
+    chSemFastWaitI(&d2_sem);
+  }
 
   /* Arming both one-shot timers.*/
   start = (uint32_t)chVTGetSystemTimeX();

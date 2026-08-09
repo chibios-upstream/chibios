@@ -42,6 +42,7 @@
  * - @subpage rt_test_007_004
  * - @subpage rt_test_007_005
  * - @subpage rt_test_007_006
+ * - @subpage rt_test_007_007
  * .
  */
 
@@ -54,6 +55,7 @@
 #include "ch.h"
 
 static semaphore_t sem1;
+static semaphore_t sem2;
 
 static THD_FUNCTION(thread1, p) {
 
@@ -75,7 +77,7 @@ static THD_FUNCTION(thread3, p) {
 
   (void)p;
   chSemWait(&sem1);
-  chSemSignal(&sem1);
+  chSemSignal(&sem2);
 }
 
 static THD_FUNCTION(thread4, p) {
@@ -269,16 +271,13 @@ static const testcase_t rt_test_007_002 = {
  * @page rt_test_007_003 [7.3] Semaphore timeout test
  *
  * <h2>Description</h2>
- * The three possible semaphore waiting modes (do not wait, wait with
- * timeout, wait without timeout) are explored. The test expects that
- * the semaphore wait function returns the correct value in each of the
- * above scenario and that the semaphore structure status is correct
- * after each operation.
+ * Successful and expired timed semaphore waits are explored. The test
+ * expects that the semaphore wait function returns the correct value and
+ * that the semaphore structure status is correct after each operation.
  *
  * <h2>Test Steps</h2>
- * - [7.3.1] Testing special case TIME_IMMEDIATE.
- * - [7.3.2] Testing non-timeout condition.
- * - [7.3.3] Testing timeout condition.
+ * - [7.3.1] Testing non-timeout condition.
+ * - [7.3.2] Testing timeout condition.
  * .
  */
 
@@ -295,18 +294,8 @@ static void rt_test_007_003_execute(void) {
   systime_t target_time;
   msg_t msg;
 
-  /* [7.3.1] Testing special case TIME_IMMEDIATE.*/
+  /* [7.3.1] Testing non-timeout condition.*/
   test_set_step(1);
-  {
-    msg = chSemWaitTimeout(&sem1, TIME_IMMEDIATE);
-    test_assert(msg == MSG_TIMEOUT, "wrong wake-up message");
-    test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
-    test_assert(sem1.cnt == 0, "counter not zero");
-  }
-  test_end_step(1);
-
-  /* [7.3.2] Testing non-timeout condition.*/
-  test_set_step(2);
   {
     threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX() - 1,
                                    thread2, 0);
@@ -316,10 +305,10 @@ static void rt_test_007_003_execute(void) {
     test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
     test_assert(sem1.cnt == 0, "counter not zero");
   }
-  test_end_step(2);
+  test_end_step(1);
 
-  /* [7.3.3] Testing timeout condition.*/
-  test_set_step(3);
+  /* [7.3.2] Testing timeout condition.*/
+  test_set_step(2);
   {
     target_time = chTimeAddX(test_wait_tick(), TIME_MS2I(5 * 50));
     for (i = 0; i < 5; i++) {
@@ -334,7 +323,7 @@ static void rt_test_007_003_execute(void) {
                             chTimeAddX(target_time, ALLOWED_DELAY),
                             "out of time window");
   }
-  test_end_step(3);
+  test_end_step(2);
 }
 
 static const testcase_t rt_test_007_003 = {
@@ -418,56 +407,56 @@ static const testcase_t rt_test_007_004 = {
  *
  * <h2>Description</h2>
  * This test case explicitly addresses the @p chSemWaitSignal()
- * function. A thread is created that performs a wait and a signal
- * operations. The tester thread is awakened from an atomic wait/signal
- * operation. The test expects that the semaphore wait function returns
- * the correct value in each of the above scenario and that the
- * semaphore structure status is correct after each operation.
+ * function. A thread is created that performs a wait on the signal
+ * semaphore then signals the wait semaphore. The tester thread is awakened
+ * from an atomic wait/signal operation. The test expects that the semaphore
+ * wait function returns the correct value and that both semaphore structures
+ * are correct after each operation.
  *
  * <h2>Test Steps</h2>
- * - [7.5.1] An higher priority thread is created that performs
- *   non-atomical wait and signal operations on a semaphore.
- * - [7.5.2] The function chSemSignalWait() is invoked by specifying
- *   the same semaphore for the wait and signal phases. The counter
- *   value and, when enabled, the signaled thread's ready trace message
- *   are tested on exit.
- * - [7.5.3] The function chSemSignalWait() is invoked again by
- *   specifying the same semaphore for the wait and signal phases. The
- *   counter value must be one on exit.
+ * - [7.5.1] A higher priority thread is created that waits on the signal
+ *   semaphore then signals the wait semaphore.
+ * - [7.5.2] The function chSemSignalWait() is invoked with distinct signal
+ *   and wait semaphores. Their counters and, when enabled, the signaled
+ *   thread's ready trace message are tested on exit.
+ * - [7.5.3] The wait semaphore is pre-signaled, then chSemSignalWait() is
+ *   invoked again and verified to complete without blocking.
  * .
  */
 
 static void rt_test_007_005_setup(void) {
   chSemObjectInit(&sem1, 0);
+  chSemObjectInit(&sem2, 0);
 }
 
 static void rt_test_007_005_teardown(void) {
   test_wait_threads();
   chSemObjectDispose(&sem1);
+  chSemObjectDispose(&sem2);
 }
 
 static void rt_test_007_005_execute(void) {
+  msg_t msg;
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
      ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
   msg_t tracemsg;
   bool found;
 #endif
 
-  /* [7.5.1] An higher priority thread is created that performs
-     non-atomical wait and signal operations on a semaphore.*/
+  /* [7.5.1] A higher priority thread is created that waits on the signal
+     semaphore then signals the wait semaphore.*/
   test_set_step(1);
   {
     threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()+1, thread3, 0);
   }
   test_end_step(1);
 
-  /* [7.5.2] The function chSemSignalWait() is invoked by specifying
-     the same semaphore for the wait and signal phases. The counter
-     value and, when enabled, the signaled thread's ready trace message
-     are tested on exit.*/
+  /* [7.5.2] The function chSemSignalWait() is invoked with distinct signal
+     and wait semaphores. Their counters and, when enabled, the signaled
+     thread's ready trace message are tested on exit.*/
   test_set_step(2);
   {
-    chSemSignalWait(&sem1, &sem1);
+    msg = chSemSignalWait(&sem1, &sem2);
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
      ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
     chSysLock();
@@ -476,19 +465,23 @@ static void rt_test_007_005_execute(void) {
     test_assert(found, "ready trace not found");
     test_assert(tracemsg == MSG_OK, "invalid ready trace message");
 #endif
+    test_assert(msg == MSG_OK, "wrong returned message");
     test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
-    test_assert(sem1.cnt == 0, "counter not zero");
+    test_assert(ch_queue_isempty(&sem2.queue), "queue not empty");
+    test_assert((sem1.cnt == 0) && (sem2.cnt == 0), "counter not zero");
   }
   test_end_step(2);
 
-  /* [7.5.3] The function chSemSignalWait() is invoked again by
-     specifying the same semaphore for the wait and signal phases. The
-     counter value must be one on exit.*/
+  /* [7.5.3] The wait semaphore is pre-signaled, then chSemSignalWait() is
+     invoked again and verified to complete without blocking.*/
   test_set_step(3);
   {
-    chSemSignalWait(&sem1, &sem1);
+    chSemSignal(&sem2);
+    msg = chSemSignalWait(&sem1, &sem2);
+    test_assert(msg == MSG_OK, "wrong returned message");
     test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
-    test_assert(sem1.cnt == 0, "counter not zero");
+    test_assert(ch_queue_isempty(&sem2.queue), "queue not empty");
+    test_assert((sem1.cnt == 1) && (sem2.cnt == 0), "invalid counter");
   }
   test_end_step(3);
 }
@@ -597,6 +590,111 @@ static const testcase_t rt_test_007_006 = {
   rt_test_007_006_execute
 };
 
+/**
+ * @page rt_test_007_007 [7.7] Semaphore counter boundaries
+ *
+ * <h2>Description</h2>
+ * The representable semaphore counter boundaries and the operations that
+ * can validly reach them are tested.
+ *
+ * <h2>Test Steps</h2>
+ * - [7.7.1] The public counter and waiter limits are checked.
+ * - [7.7.2] Signal, add-counter, and fast operations are exercised up to
+ *   the maximum counter value.
+ * - [7.7.3] A distinct-object signal/wait operation is verified at the
+ *   maximum signal counter value.
+ * .
+ */
+
+static void rt_test_007_007_setup(void) {
+  chSemObjectInit(&sem1, 0);
+  chSemObjectInit(&sem2, 0);
+}
+
+static void rt_test_007_007_teardown(void) {
+  chSemObjectDispose(&sem1);
+  chSemObjectDispose(&sem2);
+}
+
+static void rt_test_007_007_execute(void) {
+  cnt_t cnt;
+  msg_t msg;
+  bool empty;
+
+  /* [7.7.1] The public counter and waiter limits are checked.*/
+  test_set_step(1);
+  {
+    test_assert(SEMAPHORE_MAX_COUNT > (cnt_t)0,
+                "invalid maximum counter");
+    test_assert(SEMAPHORE_MAX_WAITERS ==
+                (ucnt_t)SEMAPHORE_MAX_COUNT + (ucnt_t)1,
+                "invalid maximum waiters");
+  }
+  test_end_step(1);
+
+  /* [7.7.2] Signal, add-counter, and fast operations are exercised up to
+     the maximum counter value.*/
+  test_set_step(2);
+  {
+    chSemReset(&sem1, SEMAPHORE_MAX_COUNT - (cnt_t)1);
+    chSemSignal(&sem1);
+    test_assert_lock(chSemGetCounterI(&sem1) == SEMAPHORE_MAX_COUNT,
+                     "signal boundary failed");
+
+    chSemReset(&sem1, SEMAPHORE_MAX_COUNT - (cnt_t)1);
+    chSysLock();
+    chSemSignalI(&sem1);
+    cnt = chSemGetCounterI(&sem1);
+    chSysUnlock();
+    test_assert(cnt == SEMAPHORE_MAX_COUNT,
+                "I-class signal boundary failed");
+
+    chSemReset(&sem1, SEMAPHORE_MAX_COUNT - (cnt_t)2);
+    chSysLock();
+    chSemAddCounterI(&sem1, (cnt_t)2);
+    cnt = chSemGetCounterI(&sem1);
+    chSysUnlock();
+    test_assert(cnt == SEMAPHORE_MAX_COUNT,
+                "add-counter boundary failed");
+
+    chSemReset(&sem1, SEMAPHORE_MAX_COUNT - (cnt_t)1);
+    chSysLock();
+    chSemFastSignalI(&sem1);
+    cnt = chSemGetCounterI(&sem1);
+    chSemFastWaitI(&sem1);
+    chSysUnlock();
+    test_assert(cnt == SEMAPHORE_MAX_COUNT,
+                "fast signal boundary failed");
+  }
+  test_end_step(2);
+
+  /* [7.7.3] A distinct-object signal/wait operation is verified at the
+     maximum signal counter value.*/
+  test_set_step(3);
+  {
+    chSemReset(&sem1, SEMAPHORE_MAX_COUNT - (cnt_t)1);
+    chSemReset(&sem2, 1);
+    msg = chSemSignalWait(&sem1, &sem2);
+    chSysLock();
+    cnt = chSemGetCounterI(&sem1);
+    empty = ch_queue_isempty(&sem1.queue) &&
+            ch_queue_isempty(&sem2.queue) &&
+            (chSemGetCounterI(&sem2) == (cnt_t)0);
+    chSysUnlock();
+    test_assert(msg == MSG_OK, "wrong returned message");
+    test_assert(cnt == SEMAPHORE_MAX_COUNT, "invalid signal counter");
+    test_assert(empty, "invalid wait semaphore");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t rt_test_007_007 = {
+  "Semaphore counter boundaries",
+  rt_test_007_007_setup,
+  rt_test_007_007_teardown,
+  rt_test_007_007_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -611,6 +709,7 @@ const testcase_t * const rt_test_sequence_007_array[] = {
   &rt_test_007_004,
   &rt_test_007_005,
   &rt_test_007_006,
+  &rt_test_007_007,
   NULL
 };
 

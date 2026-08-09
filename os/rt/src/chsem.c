@@ -49,6 +49,8 @@
  *          Semaphores usually use a FIFO queuing strategy but it is possible
  *          to make them order threads by priority by enabling
  *          @p CH_CFG_USE_SEMAPHORES_PRIORITY in @p chconf.h.
+ *          A semaphore can represent up to @p SEMAPHORE_MAX_COUNT available
+ *          units or @p SEMAPHORE_MAX_WAITERS waiting threads.
  * @pre     In order to use the semaphore APIs the @p CH_CFG_USE_SEMAPHORES
  *          option must be enabled in @p chconf.h.
  * @{
@@ -75,6 +77,9 @@
 /*===========================================================================*/
 /* Module local functions.                                                   */
 /*===========================================================================*/
+
+#define SEMAPHORE_MIN_COUNT                                                \
+  ((cnt_t)(-SEMAPHORE_MAX_COUNT - (cnt_t)1))
 
 #if CH_CFG_USE_SEMAPHORES_PRIORITY == TRUE
 #define sem_insert(qp, tp) ch_sch_prio_insert(qp, &tp->hdr.queue)
@@ -189,6 +194,8 @@ void chSemResetWithMessageI(semaphore_t *sp, cnt_t n, msg_t msg) {
 
 /**
  * @brief   Performs a wait operation on a semaphore.
+ * @pre     Fewer than @p SEMAPHORE_MAX_WAITERS threads may already be waiting
+ *          on the semaphore.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
  * @return              A message specifying how the invoking thread has been
@@ -211,6 +218,8 @@ msg_t chSemWait(semaphore_t *sp) {
 
 /**
  * @brief   Performs a wait operation on a semaphore.
+ * @pre     Fewer than @p SEMAPHORE_MAX_WAITERS threads may already be waiting
+ *          on the semaphore.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
  * @return              A message specifying how the invoking thread has been
@@ -228,6 +237,7 @@ msg_t chSemWaitS(semaphore_t *sp) {
   chDbgAssert(((sp->cnt >= (cnt_t)0) && ch_queue_isempty(&sp->queue)) ||
               ((sp->cnt < (cnt_t)0) && ch_queue_notempty(&sp->queue)),
               "inconsistent semaphore");
+  chDbgAssert(sp->cnt > SEMAPHORE_MIN_COUNT, "counter underflow");
 
   if (--sp->cnt < (cnt_t)0) {
     thread_t *currtp = chThdGetSelfX();
@@ -243,11 +253,15 @@ msg_t chSemWaitS(semaphore_t *sp) {
 
 /**
  * @brief   Performs a wait operation on a semaphore with timeout specification.
+ * @note    For a non-waiting acquisition when the counter is known to be
+ *          positive, use @p chSemFastWaitI().
+ * @pre     Fewer than @p SEMAPHORE_MAX_WAITERS threads may already be waiting
+ *          on the semaphore.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
  * @param[in] timeout   the number of ticks before the operation times out,
- *                      the following special values are allowed:
- *                      - @a TIME_IMMEDIATE immediate timeout.
+ *                      the following special values are handled as follows:
+ *                      - @a TIME_IMMEDIATE this value is not allowed.
  *                      - @a TIME_INFINITE no timeout.
  * @return              A message specifying how the invoking thread has been
  *                      released from the semaphore.
@@ -271,11 +285,15 @@ msg_t chSemWaitTimeout(semaphore_t *sp, sysinterval_t timeout) {
 
 /**
  * @brief   Performs a wait operation on a semaphore with timeout specification.
+ * @note    For a non-waiting acquisition when the counter is known to be
+ *          positive, use @p chSemFastWaitI().
+ * @pre     Fewer than @p SEMAPHORE_MAX_WAITERS threads may already be waiting
+ *          on the semaphore.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
  * @param[in] timeout   the number of ticks before the operation times out,
- *                      the following special values are allowed:
- *                      - @a TIME_IMMEDIATE immediate timeout.
+ *                      the following special values are handled as follows:
+ *                      - @a TIME_IMMEDIATE this value is not allowed.
  *                      - @a TIME_INFINITE no timeout.
  * @return              A message specifying how the invoking thread has been
  *                      released from the semaphore.
@@ -290,17 +308,13 @@ msg_t chSemWaitTimeout(semaphore_t *sp, sysinterval_t timeout) {
 msg_t chSemWaitTimeoutS(semaphore_t *sp, sysinterval_t timeout) {
 
   chDbgCheckClassS();
-  chDbgCheck(sp != NULL);
+  chDbgCheck((sp != NULL) && (timeout != TIME_IMMEDIATE));
   chDbgAssert(((sp->cnt >= (cnt_t)0) && ch_queue_isempty(&sp->queue)) ||
               ((sp->cnt < (cnt_t)0) && ch_queue_notempty(&sp->queue)),
               "inconsistent semaphore");
 
+  chDbgAssert(sp->cnt > SEMAPHORE_MIN_COUNT, "counter underflow");
   if (--sp->cnt < (cnt_t)0) {
-    if (unlikely(TIME_IMMEDIATE == timeout)) {
-      sp->cnt++;
-
-      return MSG_TIMEOUT;
-    }
     thread_t *currtp = chThdGetSelfX();
     currtp->u.wtsemp = sp;
     sem_insert(&sp->queue, currtp);
@@ -313,6 +327,8 @@ msg_t chSemWaitTimeoutS(semaphore_t *sp, sysinterval_t timeout) {
 
 /**
  * @brief   Performs a signal operation on a semaphore.
+ * @pre     The semaphore counter must be lower than
+ *          @p SEMAPHORE_MAX_COUNT.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
  *
@@ -326,6 +342,7 @@ void chSemSignal(semaphore_t *sp) {
   chDbgAssert(((sp->cnt >= (cnt_t)0) && ch_queue_isempty(&sp->queue)) ||
               ((sp->cnt < (cnt_t)0) && ch_queue_notempty(&sp->queue)),
               "inconsistent semaphore");
+  chDbgAssert(sp->cnt < SEMAPHORE_MAX_COUNT, "counter overflow");
   if (++sp->cnt <= (cnt_t)0) {
     chSchWakeupS(threadref(ch_queue_fifo_remove(&sp->queue)), MSG_OK);
   }
@@ -334,6 +351,8 @@ void chSemSignal(semaphore_t *sp) {
 
 /**
  * @brief   Performs a signal operation on a semaphore.
+ * @pre     The semaphore counter must be lower than
+ *          @p SEMAPHORE_MAX_COUNT.
  * @post    This function does not reschedule so a call to a rescheduling
  *          function must be performed before unlocking the kernel. Note that
  *          interrupt handlers always reschedule on exit so an explicit
@@ -350,6 +369,7 @@ void chSemSignalI(semaphore_t *sp) {
   chDbgAssert(((sp->cnt >= (cnt_t)0) && ch_queue_isempty(&sp->queue)) ||
               ((sp->cnt < (cnt_t)0) && ch_queue_notempty(&sp->queue)),
               "inconsistent semaphore");
+  chDbgAssert(sp->cnt < SEMAPHORE_MAX_COUNT, "counter overflow");
 
   if (++sp->cnt <= (cnt_t)0) {
     /* Note, it is done this way in order to allow a tail call on
@@ -362,6 +382,8 @@ void chSemSignalI(semaphore_t *sp) {
 
 /**
  * @brief   Adds the specified value to the semaphore counter.
+ * @pre     The resulting counter value must not exceed
+ *          @p SEMAPHORE_MAX_COUNT.
  * @post    This function does not reschedule so a call to a rescheduling
  *          function must be performed before unlocking the kernel. Note that
  *          interrupt handlers always reschedule on exit so an explicit
@@ -381,6 +403,9 @@ void chSemAddCounterI(semaphore_t *sp, cnt_t n) {
   chDbgAssert(((sp->cnt >= (cnt_t)0) && ch_queue_isempty(&sp->queue)) ||
               ((sp->cnt < (cnt_t)0) && ch_queue_notempty(&sp->queue)),
               "inconsistent semaphore");
+  chDbgAssert((sp->cnt <= (cnt_t)0) ||
+              (n <= SEMAPHORE_MAX_COUNT - sp->cnt),
+              "counter overflow");
 
   while (n > (cnt_t)0) {
     if (++sp->cnt <= (cnt_t)0) {
@@ -394,6 +419,11 @@ void chSemAddCounterI(semaphore_t *sp, cnt_t n) {
 
 /**
  * @brief   Performs atomic signal and wait operations on two semaphores.
+ * @pre     The signal and wait semaphores must be different objects.
+ * @pre     The signal semaphore counter must be lower than
+ *          @p SEMAPHORE_MAX_COUNT and fewer than
+ *          @p SEMAPHORE_MAX_WAITERS threads may already be waiting on the
+ *          wait semaphore.
  *
  * @param[in] sps       pointer to a @p semaphore_t object to be signaled
  * @param[in] spw       pointer to a @p semaphore_t object to wait on
@@ -410,6 +440,7 @@ msg_t chSemSignalWait(semaphore_t *sps, semaphore_t *spw) {
   msg_t msg;
 
   chDbgCheck((sps != NULL) && (spw != NULL));
+  chDbgAssert(sps != spw, "same semaphore");
 
   chSysLock();
   chDbgAssert(((sps->cnt >= (cnt_t)0) && ch_queue_isempty(&sps->queue)) ||
@@ -418,6 +449,9 @@ msg_t chSemSignalWait(semaphore_t *sps, semaphore_t *spw) {
   chDbgAssert(((spw->cnt >= (cnt_t)0) && ch_queue_isempty(&spw->queue)) ||
               ((spw->cnt < (cnt_t)0) && ch_queue_notempty(&spw->queue)),
               "inconsistent semaphore");
+
+  chDbgAssert(sps->cnt < SEMAPHORE_MAX_COUNT, "counter overflow");
+  chDbgAssert(spw->cnt > SEMAPHORE_MIN_COUNT, "counter underflow");
   if (++sps->cnt <= (cnt_t)0) {
     tp = threadref(ch_queue_fifo_remove(&sps->queue));
     tp->u.rdymsg = MSG_OK;

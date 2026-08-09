@@ -2505,6 +2505,7 @@ test_assert_sequence("DE", "invalid sequence");]]></value>
         <value><![CDATA[#include "ch.h"
 
 static semaphore_t sem1;
+static semaphore_t sem2;
 
 static THD_FUNCTION(thread1, p) {
 
@@ -2526,7 +2527,7 @@ static THD_FUNCTION(thread3, p) {
 
   (void)p;
   chSemWait(&sem1);
-  chSemSignal(&sem1);
+  chSemSignal(&sem2);
 }
 
 static THD_FUNCTION(thread4, p) {
@@ -2721,12 +2722,10 @@ test_assert_sequence("ABCDE", "invalid sequence");]]></value>
             <value>Semaphore timeout test.</value>
           </brief>
           <description>
-            <value>The three possible semaphore waiting modes (do not
-              wait, wait with timeout, wait without timeout) are
+            <value>Successful and expired timed semaphore waits are
               explored. The test expects that the semaphore wait
-              function returns the correct value in each of the above
-              scenario and that the semaphore structure status is
-              correct after each operation.</value>
+              function returns the correct value and that the semaphore
+              structure status is correct after each operation.</value>
           </description>
           <condition>
             <value />
@@ -2745,20 +2744,6 @@ msg_t msg;]]></value>
             </local_variables>
           </various_code>
           <steps>
-            <step>
-              <description>
-                <value>Testing special case TIME_IMMEDIATE.</value>
-              </description>
-              <tags>
-                <value />
-              </tags>
-              <code>
-                <value><![CDATA[msg = chSemWaitTimeout(&sem1, TIME_IMMEDIATE);
-test_assert(msg == MSG_TIMEOUT, "wrong wake-up message");
-test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
-test_assert(sem1.cnt == 0, "counter not zero");]]></value>
-              </code>
-            </step>
             <step>
               <description>
                 <value>Testing non-timeout condition.</value>
@@ -2877,26 +2862,29 @@ test_assert_sequence("A", "invalid sequence");]]></value>
           <description>
             <value>This test case explicitly addresses the @p
               chSemWaitSignal() function. A thread is created that
-              performs a wait and a signal operations. The tester thread
-              is awakened from an atomic wait/signal operation. The test
-              expects that the semaphore wait function returns the
-              correct value in each of the above scenario and that the
-              semaphore structure status is correct after each
-              operation.</value>
+              performs a wait on the signal semaphore then signals the
+              wait semaphore. The tester thread is awakened from an
+              atomic wait/signal operation. The test expects that the
+              semaphore wait function returns the correct value and that
+              both semaphore structures are correct after each operation.
+            </value>
           </description>
           <condition>
             <value />
           </condition>
           <various_code>
             <setup_code>
-              <value><![CDATA[chSemObjectInit(&sem1, 0);]]></value>
+              <value><![CDATA[chSemObjectInit(&sem1, 0);
+chSemObjectInit(&sem2, 0);]]></value>
             </setup_code>
             <teardown_code>
               <value><![CDATA[test_wait_threads();
-chSemObjectDispose(&sem1);]]></value>
+chSemObjectDispose(&sem1);
+chSemObjectDispose(&sem2);]]></value>
             </teardown_code>
             <local_variables>
-              <value><![CDATA[#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+              <value><![CDATA[msg_t msg;
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
      ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
 msg_t tracemsg;
 bool found;
@@ -2906,9 +2894,9 @@ bool found;
           <steps>
             <step>
               <description>
-                <value>An higher priority thread is created that
-                  performs non-atomical wait and signal operations on a
-                  semaphore.</value>
+                <value>A higher priority thread is created that waits on
+                  the signal semaphore then signals the wait semaphore.
+                </value>
               </description>
               <tags>
                 <value />
@@ -2919,17 +2907,16 @@ bool found;
             </step>
             <step>
               <description>
-                <value>The function chSemSignalWait() is invoked by
-                  specifying the same semaphore for the wait and signal
-                  phases. The counter value and, when enabled, the
-                  signaled thread's ready trace message are tested on
-                  exit.</value>
+                <value>The function chSemSignalWait() is invoked with
+                  distinct signal and wait semaphores. Their counters
+                  and, when enabled, the signaled thread's ready trace
+                  message are tested on exit.</value>
               </description>
               <tags>
                 <value />
               </tags>
               <code>
-                <value><![CDATA[chSemSignalWait(&sem1, &sem1);
+                <value><![CDATA[msg = chSemSignalWait(&sem1, &sem2);
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
      ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
 chSysLock();
@@ -2938,24 +2925,28 @@ chSysUnlock();
 test_assert(found, "ready trace not found");
 test_assert(tracemsg == MSG_OK, "invalid ready trace message");
 #endif
+test_assert(msg == MSG_OK, "wrong returned message");
 test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
-test_assert(sem1.cnt == 0, "counter not zero");]]></value>
+test_assert(ch_queue_isempty(&sem2.queue), "queue not empty");
+test_assert((sem1.cnt == 0) && (sem2.cnt == 0), "counter not zero");]]></value>
               </code>
             </step>
             <step>
               <description>
-                <value>The function chSemSignalWait() is invoked again
-                  by specifying the same semaphore for the wait and
-                  signal phases. The counter value must be one on exit.
-                </value>
+                <value>The wait semaphore is pre-signaled, then
+                  chSemSignalWait() is invoked again and verified to
+                  complete without blocking.</value>
               </description>
               <tags>
                 <value />
               </tags>
               <code>
-                <value><![CDATA[chSemSignalWait(&sem1, &sem1);
+                <value><![CDATA[chSemSignal(&sem2);
+msg = chSemSignalWait(&sem1, &sem2);
+test_assert(msg == MSG_OK, "wrong returned message");
 test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
-test_assert(sem1.cnt == 0, "counter not zero");]]></value>
+test_assert(ch_queue_isempty(&sem2.queue), "queue not empty");
+test_assert((sem1.cnt == 1) && (sem2.cnt == 0), "invalid counter");]]></value>
               </code>
             </step>
           </steps>
@@ -3068,6 +3059,115 @@ test_assert_lock(chSemGetCounterI(&bsem.sem) == 1, "unexpected counter");]]></va
                 <value><![CDATA[chBSemSignal(&bsem);
 test_assert_lock(chBSemGetStateI(&bsem) == false, "taken");
 test_assert_lock(chSemGetCounterI(&bsem.sem) == 1, "unexpected counter");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Semaphore counter boundaries.</value>
+          </brief>
+          <description>
+            <value>The representable semaphore counter boundaries and
+              the operations that can validly reach them are tested.
+            </value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chSemObjectInit(&sem1, 0);
+chSemObjectInit(&sem2, 0);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chSemObjectDispose(&sem1);
+chSemObjectDispose(&sem2);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[cnt_t cnt;
+msg_t msg;
+bool empty;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The public counter and waiter limits are checked.
+                </value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(SEMAPHORE_MAX_COUNT > (cnt_t)0,
+            "invalid maximum counter");
+test_assert(SEMAPHORE_MAX_WAITERS ==
+            (ucnt_t)SEMAPHORE_MAX_COUNT + (ucnt_t)1,
+            "invalid maximum waiters");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Signal, add-counter, and fast operations are
+                  exercised up to the maximum counter value.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSemReset(&sem1, SEMAPHORE_MAX_COUNT - (cnt_t)1);
+chSemSignal(&sem1);
+test_assert_lock(chSemGetCounterI(&sem1) == SEMAPHORE_MAX_COUNT,
+                 "signal boundary failed");
+
+chSemReset(&sem1, SEMAPHORE_MAX_COUNT - (cnt_t)1);
+chSysLock();
+chSemSignalI(&sem1);
+cnt = chSemGetCounterI(&sem1);
+chSysUnlock();
+test_assert(cnt == SEMAPHORE_MAX_COUNT,
+            "I-class signal boundary failed");
+
+chSemReset(&sem1, SEMAPHORE_MAX_COUNT - (cnt_t)2);
+chSysLock();
+chSemAddCounterI(&sem1, (cnt_t)2);
+cnt = chSemGetCounterI(&sem1);
+chSysUnlock();
+test_assert(cnt == SEMAPHORE_MAX_COUNT,
+            "add-counter boundary failed");
+
+chSemReset(&sem1, SEMAPHORE_MAX_COUNT - (cnt_t)1);
+chSysLock();
+chSemFastSignalI(&sem1);
+cnt = chSemGetCounterI(&sem1);
+chSemFastWaitI(&sem1);
+chSysUnlock();
+test_assert(cnt == SEMAPHORE_MAX_COUNT,
+            "fast signal boundary failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A distinct-object signal/wait operation is
+                  verified at the maximum signal counter value.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSemReset(&sem1, SEMAPHORE_MAX_COUNT - (cnt_t)1);
+chSemReset(&sem2, 1);
+msg = chSemSignalWait(&sem1, &sem2);
+chSysLock();
+cnt = chSemGetCounterI(&sem1);
+empty = ch_queue_isempty(&sem1.queue) &&
+        ch_queue_isempty(&sem2.queue) &&
+        (chSemGetCounterI(&sem2) == (cnt_t)0);
+chSysUnlock();
+test_assert(msg == MSG_OK, "wrong returned message");
+test_assert(cnt == SEMAPHORE_MAX_COUNT, "invalid signal counter");
+test_assert(empty, "invalid wait semaphore");]]></value>
               </code>
             </step>
           </steps>
