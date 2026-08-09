@@ -1,4 +1,6 @@
 # XHAL OSAL-removal build manifest, one make recipe per line.
+demos/RP/RT-XHAL-RP-MULTI/make/rp2040_pico.make
+demos/RP/RT-XHAL-RP-MULTI/make/rp2350_pico2.make
 demos/STM32/RT-STM32-LWIP/make/stm32h563zi_nucleo144_xhal.make
 demos/STM32/RT-STM32G474RE-NUCLEO64-SB_HOST_NOSWITCH/Makefile
 demos/STM32/RT-STM32G474RE-NUCLEO64-SB_HOST_SWITCHED/Makefile
