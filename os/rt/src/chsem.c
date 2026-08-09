@@ -253,15 +253,17 @@ msg_t chSemWaitS(semaphore_t *sp) {
 
 /**
  * @brief   Performs a wait operation on a semaphore with timeout specification.
- * @note    For a non-waiting acquisition when the counter is known to be
- *          positive, use @p chSemFastWaitI().
- * @pre     Fewer than @p SEMAPHORE_MAX_WAITERS threads may already be waiting
- *          on the semaphore.
+ * @note    When the counter is already known to be positive in a locked
+ *          context, @p chSemFastWaitI() provides a faster non-waiting
+ *          acquisition.
+ * @pre     Unless @p timeout is @p TIME_IMMEDIATE, fewer than
+ *          @p SEMAPHORE_MAX_WAITERS threads may already be waiting on the
+ *          semaphore.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
  * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are handled as follows:
- *                      - @a TIME_IMMEDIATE this value is not allowed.
+ *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
  * @return              A message specifying how the invoking thread has been
  *                      released from the semaphore.
@@ -285,15 +287,17 @@ msg_t chSemWaitTimeout(semaphore_t *sp, sysinterval_t timeout) {
 
 /**
  * @brief   Performs a wait operation on a semaphore with timeout specification.
- * @note    For a non-waiting acquisition when the counter is known to be
- *          positive, use @p chSemFastWaitI().
- * @pre     Fewer than @p SEMAPHORE_MAX_WAITERS threads may already be waiting
- *          on the semaphore.
+ * @note    When the counter is already known to be positive in a locked
+ *          context, @p chSemFastWaitI() provides a faster non-waiting
+ *          acquisition.
+ * @pre     Unless @p timeout is @p TIME_IMMEDIATE, fewer than
+ *          @p SEMAPHORE_MAX_WAITERS threads may already be waiting on the
+ *          semaphore.
  *
  * @param[in] sp        pointer to a @p semaphore_t object
  * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are handled as follows:
- *                      - @a TIME_IMMEDIATE this value is not allowed.
+ *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
  * @return              A message specifying how the invoking thread has been
  *                      released from the semaphore.
@@ -308,10 +312,19 @@ msg_t chSemWaitTimeout(semaphore_t *sp, sysinterval_t timeout) {
 msg_t chSemWaitTimeoutS(semaphore_t *sp, sysinterval_t timeout) {
 
   chDbgCheckClassS();
-  chDbgCheck((sp != NULL) && (timeout != TIME_IMMEDIATE));
+  chDbgCheck(sp != NULL);
   chDbgAssert(((sp->cnt >= (cnt_t)0) && ch_queue_isempty(&sp->queue)) ||
               ((sp->cnt < (cnt_t)0) && ch_queue_notempty(&sp->queue)),
               "inconsistent semaphore");
+
+  if (unlikely(TIME_IMMEDIATE == timeout)) {
+    if (sp->cnt <= (cnt_t)0) {
+      return MSG_TIMEOUT;
+    }
+
+    chSemFastWaitI(sp);
+    return MSG_OK;
+  }
 
   chDbgAssert(sp->cnt > SEMAPHORE_MIN_COUNT, "counter underflow");
   if (--sp->cnt < (cnt_t)0) {

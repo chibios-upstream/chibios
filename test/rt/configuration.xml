@@ -2726,10 +2726,11 @@ test_assert_sequence("ABCDE", "invalid sequence");]]></value>
             <value>Semaphore timeout test.</value>
           </brief>
           <description>
-            <value>Successful and expired timed semaphore waits are
-              explored. The test expects that the semaphore wait
-              function returns the correct value and that the semaphore
-              structure status is correct after each operation.</value>
+            <value>Immediate, successful, and expired timed semaphore
+              waits are explored. The test expects that the semaphore
+              wait function returns the correct value and that the
+              semaphore structure status is correct after each
+              operation.</value>
           </description>
           <condition>
             <value />
@@ -2748,6 +2749,27 @@ msg_t msg;]]></value>
             </local_variables>
           </various_code>
           <steps>
+            <step>
+              <description>
+                <value>Immediate waits are tested with one available
+                  unit and with an empty semaphore.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chSemSignal(&sem1);
+msg = chSemWaitTimeout(&sem1, TIME_IMMEDIATE);
+test_assert(msg == MSG_OK, "wrong wake-up message");
+test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
+test_assert(sem1.cnt == 0, "counter not zero");
+
+msg = chSemWaitTimeout(&sem1, TIME_IMMEDIATE);
+test_assert(msg == MSG_TIMEOUT, "wrong wake-up message");
+test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
+test_assert(sem1.cnt == 0, "counter not zero");]]></value>
+              </code>
+            </step>
             <step>
               <description>
                 <value>Testing non-timeout condition.</value>

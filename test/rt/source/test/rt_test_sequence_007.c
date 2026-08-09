@@ -271,13 +271,16 @@ static const testcase_t rt_test_007_002 = {
  * @page rt_test_007_003 [7.3] Semaphore timeout test
  *
  * <h2>Description</h2>
- * Successful and expired timed semaphore waits are explored. The test
- * expects that the semaphore wait function returns the correct value and
- * that the semaphore structure status is correct after each operation.
+ * Immediate, successful, and expired timed semaphore waits are explored.
+ * The test expects that the semaphore wait function returns the correct
+ * value and that the semaphore structure status is correct after each
+ * operation.
  *
  * <h2>Test Steps</h2>
- * - [7.3.1] Testing non-timeout condition.
- * - [7.3.2] Testing timeout condition.
+ * - [7.3.1] Immediate waits are tested with one available unit and with an
+ *   empty semaphore.
+ * - [7.3.2] Testing non-timeout condition.
+ * - [7.3.3] Testing timeout condition.
  * .
  */
 
@@ -294,8 +297,25 @@ static void rt_test_007_003_execute(void) {
   systime_t target_time;
   msg_t msg;
 
-  /* [7.3.1] Testing non-timeout condition.*/
+  /* [7.3.1] Immediate waits are tested with one available unit and with an
+     empty semaphore.*/
   test_set_step(1);
+  {
+    chSemSignal(&sem1);
+    msg = chSemWaitTimeout(&sem1, TIME_IMMEDIATE);
+    test_assert(msg == MSG_OK, "wrong wake-up message");
+    test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
+    test_assert(sem1.cnt == 0, "counter not zero");
+
+    msg = chSemWaitTimeout(&sem1, TIME_IMMEDIATE);
+    test_assert(msg == MSG_TIMEOUT, "wrong wake-up message");
+    test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
+    test_assert(sem1.cnt == 0, "counter not zero");
+  }
+  test_end_step(1);
+
+  /* [7.3.2] Testing non-timeout condition.*/
+  test_set_step(2);
   {
     threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX() - 1,
                                    thread2, 0);
@@ -305,10 +325,10 @@ static void rt_test_007_003_execute(void) {
     test_assert(ch_queue_isempty(&sem1.queue), "queue not empty");
     test_assert(sem1.cnt == 0, "counter not zero");
   }
-  test_end_step(1);
+  test_end_step(2);
 
-  /* [7.3.2] Testing timeout condition.*/
-  test_set_step(2);
+  /* [7.3.3] Testing timeout condition.*/
+  test_set_step(3);
   {
     target_time = chTimeAddX(test_wait_tick(), TIME_MS2I(5 * 50));
     for (i = 0; i < 5; i++) {
@@ -323,7 +343,7 @@ static void rt_test_007_003_execute(void) {
                             chTimeAddX(target_time, ALLOWED_DELAY),
                             "out of time window");
   }
-  test_end_step(2);
+  test_end_step(3);
 }
 
 static const testcase_t rt_test_007_003 = {
