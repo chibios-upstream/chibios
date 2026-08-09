@@ -35,6 +35,7 @@ include $(CHIBIOS)/os/xhal/ports/RP/LLD/GPIOv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/SPIv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/TIMERv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/UARTv1/driver.mk
+include $(CHIBIOS)/os/xhal/ports/RP/LLD/USBv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/WDGv1/driver.mk
 
 # Shared variables
