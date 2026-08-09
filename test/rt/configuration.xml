@@ -1205,6 +1205,14 @@ do {
   test_emit_token(*(char *)p);
 }
 
+#if ((CH_CFG_USE_REGISTRY == TRUE) &&                                   \
+     (CH_DBG_ENABLE_ASSERTS == TRUE)) || defined(__DOXYGEN__)
+static THD_FUNCTION(registry_thread, p) {
+
+  (void)p;
+}
+#endif
+
 #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
 static MUTEX_DECL(priority_mtx);
 
@@ -1843,7 +1851,10 @@ test_assert_sequence("H", "invalid sequence");]]></value>
               <value><![CDATA[test_wait_threads();]]></value>
             </teardown_code>
             <local_variables>
-              <value><![CDATA[thread_t *tp, *ntp;
+              <value><![CDATA[#if CH_DBG_ENABLE_ASSERTS == TRUE
+thread_descriptor_t td;
+#endif
+thread_t *tp, *ntp;
 const char *oldname, *newname;
 bool found;]]></value>
             </local_variables>
@@ -1914,6 +1925,64 @@ chThdRelease(tp);
 
 tp = chRegFindThreadByName("registry-missing");
 test_assert(tp == NULL, "unexpected thread found");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>When debug assertions are enabled, creation conflict
+                  checks are exercised for a live thread object, a partially
+                  overlapping working area, disjoint resources and permitted
+                  cross-type overlaps.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[#if CH_DBG_ENABLE_ASSERTS == TRUE
+test_assert_lock(
+  __reg_is_thread_area_in_use_i(threads[0],
+                                TEST_THREAD_STACK_BASE(1),
+                                TEST_THREAD_STACK_END(1)),
+  "live thread object not detected");
+test_assert_lock(
+  __reg_is_thread_area_in_use_i(
+    TEST_THREAD_OBJECT(1),
+    (stkline_t *)(void *)((uint8_t *)TEST_THREAD_WA_BASE(0) +
+                          PORT_WORKING_AREA_ALIGN),
+    TEST_THREAD_WA_END(0)),
+  "working area overlap not detected");
+test_assert_lock(
+  !__reg_is_thread_area_in_use_i(TEST_THREAD_OBJECT(1),
+                                 TEST_THREAD_STACK_BASE(1),
+                                 TEST_THREAD_STACK_END(1)),
+  "disjoint resources reported in use");
+
+setup_thread_descriptor(&td, "registry-external",
+                        TEST_THREAD_STACK_BASE(2),
+                        TEST_THREAD_STACK_END(2),
+                        chThdGetPriorityX() + 1, NULL);
+td.funcp = registry_thread;
+chSysLock();
+threads[1] = chThdSpawnSuspendedI(TEST_THREAD_OBJECT(2), &td);
+chSysUnlock();
+
+test_assert_lock(
+  !__reg_is_thread_area_in_use_i(
+    (thread_t *)(void *)TEST_THREAD_STACK_BASE(2),
+    TEST_THREAD_STACK_BASE(1), TEST_THREAD_STACK_END(1)),
+  "thread object in another working area rejected");
+test_assert_lock(
+  !__reg_is_thread_area_in_use_i(
+    TEST_THREAD_OBJECT(1),
+    (stkline_t *)(void *)TEST_THREAD_OBJECT(2),
+    TEST_THREAD_WA_END(3)),
+  "working area containing another thread object rejected");
+
+chThdStart(threads[1]);
+(void) chThdWait(threads[1]);
+threads[1] = NULL;
+chThdObjectDispose(TEST_THREAD_OBJECT(2));
+#endif /* CH_DBG_ENABLE_ASSERTS == TRUE */]]></value>
               </code>
             </step>
             <step>

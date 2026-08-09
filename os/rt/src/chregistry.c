@@ -111,6 +111,14 @@ typedef char chdebug_layout_fits_uint8_t[
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+#if CH_DBG_ENABLE_ASSERTS == TRUE
+static bool reg_ranges_overlap(uintptr_t astart, uintptr_t aend,
+                               uintptr_t bstart, uintptr_t bend) {
+
+  return (astart < bend) && (bstart < aend);
+}
+#endif
+
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
@@ -345,6 +353,57 @@ thread_t *chRegFindThreadByWorkingArea(stkline_t *wa) {
 
   return NULL;
 }
+
+#if CH_DBG_ENABLE_ASSERTS == TRUE
+/**
+ * @brief   Checks if a thread object or working area is already in use.
+ * @details The specified thread object is checked against registered thread
+ *          objects and the working area is checked against registered working
+ *          areas. Cross-type overlaps are permitted.
+ * @pre     The specified working area must be a valid non-empty interval.
+ *
+ * @param[in] tp        pointer to the candidate thread object
+ * @param[in] wbase     base of the candidate working area
+ * @param[in] wend      end of the candidate working area
+ * @retval true         if a conflicting thread has been found.
+ * @retval false        if a conflicting thread has not been found.
+ *
+ * @iclass
+ * @notapi
+ */
+bool __reg_is_thread_area_in_use_i(const thread_t *tp,
+                                   const stkline_t *wbase,
+                                   const stkline_t *wend) {
+  ch_queue_t *tqp;
+  uintptr_t tpstart, tpend, wastart, waend;
+
+  chDbgCheckClassI();
+
+  tpstart = (uintptr_t)(const void *)tp;
+  tpend   = (uintptr_t)(const void *)(tp + 1);
+  wastart = (uintptr_t)(const void *)wbase;
+  waend   = (uintptr_t)(const void *)wend;
+
+  /* Scanning registry.*/
+  tqp = REG_HEADER(currcore)->next;
+  while (tqp != REG_HEADER(currcore)) {
+    thread_t *ctp = __CH_OWNEROF((uint8_t *)tqp, thread_t, rqueue);
+    uintptr_t ctpstart = (uintptr_t)(void *)ctp;
+    uintptr_t ctpend   = (uintptr_t)(void *)(ctp + 1);
+    uintptr_t cwastart = (uintptr_t)(void *)ctp->wabase;
+    uintptr_t cwaend   = (uintptr_t)(void *)ctp->waend;
+
+    if (reg_ranges_overlap(tpstart, tpend, ctpstart, ctpend) ||
+        reg_ranges_overlap(wastart, waend, cwastart, cwaend)) {
+      return true;
+    }
+
+    tqp = tqp->next;
+  }
+
+  return false;
+}
+#endif /* CH_DBG_ENABLE_ASSERTS == TRUE */
 
 /**
  * @brief   Confirms that a working area is being used by some active thread.

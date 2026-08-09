@@ -51,6 +51,14 @@ static THD_FUNCTION(thread, p) {
   test_emit_token(*(char *)p);
 }
 
+#if ((CH_CFG_USE_REGISTRY == TRUE) &&                                   \
+     (CH_DBG_ENABLE_ASSERTS == TRUE)) || defined(__DOXYGEN__)
+static THD_FUNCTION(registry_thread, p) {
+
+  (void)p;
+}
+#endif
+
 #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
 static MUTEX_DECL(priority_mtx);
 
@@ -640,7 +648,10 @@ static const testcase_t rt_test_005_006 = {
  * - [5.7.2] A static thread is created then retrieved by name, pointer
  *   and working area while an unnamed thread is in the registry. Its initial
  *   reference is released and reacquired through the registry.
- * - [5.7.3] The registry is scanned forward until the end and the
+ * - [5.7.3] When debug assertions are enabled, creation conflict checks are
+ *   exercised for a live thread object, a partially overlapping working area,
+ *   disjoint resources and permitted cross-type overlaps.
+ * - [5.7.4] The registry is scanned forward until the end and the
  *   created thread is found in the scan.
  * .
  */
@@ -650,6 +661,9 @@ static void rt_test_005_007_teardown(void) {
 }
 
 static void rt_test_005_007_execute(void) {
+#if CH_DBG_ENABLE_ASSERTS == TRUE
+  thread_descriptor_t td;
+#endif
   thread_t *tp, *ntp;
   const char *oldname, *newname;
   bool found;
@@ -711,9 +725,62 @@ static void rt_test_005_007_execute(void) {
   }
   test_end_step(2);
 
-  /* [5.7.3] The registry is scanned forward until the end and the
-     created thread is found in the scan.*/
+  /* [5.7.3] When debug assertions are enabled, creation conflict checks are
+     exercised for a live thread object, a partially overlapping working area,
+     disjoint resources and permitted cross-type overlaps.*/
   test_set_step(3);
+  {
+#if CH_DBG_ENABLE_ASSERTS == TRUE
+    test_assert_lock(
+      __reg_is_thread_area_in_use_i(threads[0],
+                                    TEST_THREAD_STACK_BASE(1),
+                                    TEST_THREAD_STACK_END(1)),
+      "live thread object not detected");
+    test_assert_lock(
+      __reg_is_thread_area_in_use_i(
+        TEST_THREAD_OBJECT(1),
+        (stkline_t *)(void *)((uint8_t *)TEST_THREAD_WA_BASE(0) +
+                              PORT_WORKING_AREA_ALIGN),
+        TEST_THREAD_WA_END(0)),
+      "working area overlap not detected");
+    test_assert_lock(
+      !__reg_is_thread_area_in_use_i(TEST_THREAD_OBJECT(1),
+                                     TEST_THREAD_STACK_BASE(1),
+                                     TEST_THREAD_STACK_END(1)),
+      "disjoint resources reported in use");
+
+    setup_thread_descriptor(&td, "registry-external",
+                            TEST_THREAD_STACK_BASE(2),
+                            TEST_THREAD_STACK_END(2),
+                            chThdGetPriorityX() + 1, NULL);
+    td.funcp = registry_thread;
+    chSysLock();
+    threads[1] = chThdSpawnSuspendedI(TEST_THREAD_OBJECT(2), &td);
+    chSysUnlock();
+
+    test_assert_lock(
+      !__reg_is_thread_area_in_use_i(
+        (thread_t *)(void *)TEST_THREAD_STACK_BASE(2),
+        TEST_THREAD_STACK_BASE(1), TEST_THREAD_STACK_END(1)),
+      "thread object in another working area rejected");
+    test_assert_lock(
+      !__reg_is_thread_area_in_use_i(
+        TEST_THREAD_OBJECT(1),
+        (stkline_t *)(void *)TEST_THREAD_OBJECT(2),
+        TEST_THREAD_WA_END(3)),
+      "working area containing another thread object rejected");
+
+    chThdStart(threads[1]);
+    (void) chThdWait(threads[1]);
+    threads[1] = NULL;
+    chThdObjectDispose(TEST_THREAD_OBJECT(2));
+#endif /* CH_DBG_ENABLE_ASSERTS == TRUE */
+  }
+  test_end_step(3);
+
+  /* [5.7.4] The registry is scanned forward until the end and the
+     created thread is found in the scan.*/
+  test_set_step(4);
   {
     found = false;
     tp = chRegFirstThread();
@@ -729,7 +796,7 @@ static void rt_test_005_007_execute(void) {
     test_wait_threads();
     test_assert_sequence("R", "invalid sequence");
   }
-  test_end_step(3);
+  test_end_step(4);
 }
 
 static const testcase_t rt_test_005_007 = {

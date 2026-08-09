@@ -270,9 +270,9 @@ void chThdObjectDispose(thread_t *tp) {
 thread_t *__thd_spawn_suspended(thread_t *tp,
                                 const thread_descriptor_t *tdp) {
 
-#if CH_CFG_USE_REGISTRY == TRUE
-  chDbgAssert(!chRegIsWorkingAreaInUseI(tdp->wbase),
-              "working area in use");
+#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_DBG_ENABLE_ASSERTS == TRUE)
+  chDbgAssert(!__reg_is_thread_area_in_use_i(tp, tdp->wbase, tdp->wend),
+              "thread or working area in use");
 #endif
 
   /* Thread object initialization.*/
@@ -302,6 +302,9 @@ thread_t *__thd_spawn_suspended(thread_t *tp,
  * @note    Threads created using this function do not honor the
  *          @p CH_DBG_FILL_THREADS debug option because it would stay
  *          in a critical section for too long while filling.
+ * @pre     The thread object and its working area must not overlap each other.
+ *          Neither resource may overlap a resource of the same type belonging
+ *          to an active thread.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
@@ -323,6 +326,11 @@ thread_t *chThdSpawnSuspendedI(thread_t *tp,
              (tdp->wend > tdp->wbase) &&
              (((size_t)tdp->wend - (size_t)tdp->wbase) >= THD_STACK_SIZE(0)));
 
+  /* The external thread object cannot be part of its working area.*/
+  chDbgCheck(((uintptr_t)(void *)(tp + 1) <=
+              (uintptr_t)(void *)tdp->wbase) ||
+             ((uintptr_t)(void *)tp >= (uintptr_t)(void *)tdp->wend));
+
   /* Other checks.*/
   chDbgCheck((tdp->prio >= LOWPRIO) &&
              (tdp->prio <= HIGHPRIO) &&
@@ -341,6 +349,9 @@ thread_t *chThdSpawnSuspendedI(thread_t *tp,
  *          to eventually release that reference using @p chThdRelease() or,
  *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
  *          persists in the registry until its reference counter reaches zero.
+ * @pre     The thread object and its working area must not overlap each other.
+ *          Neither resource may overlap a resource of the same type belonging
+ *          to an active thread.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
@@ -371,6 +382,9 @@ thread_t *chThdSpawnSuspended(thread_t *tp,
  * @note    Threads created using this function do not honor the
  *          @p CH_DBG_FILL_THREADS debug option because it would keep
  *          the kernel locked for too much time.
+ * @pre     The thread object and its working area must not overlap each other.
+ *          Neither resource may overlap a resource of the same type belonging
+ *          to an active thread.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
@@ -396,6 +410,9 @@ thread_t *chThdSpawnRunningI(thread_t *tp, const thread_descriptor_t *tdp) {
  *          to eventually release that reference using @p chThdRelease() or,
  *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
  *          persists in the registry until its reference counter reaches zero.
+ * @pre     The thread object and its working area must not overlap each other.
+ *          Neither resource may overlap a resource of the same type belonging
+ *          to an active thread.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
@@ -462,13 +479,15 @@ thread_t *chThdCreateSuspendedI(const thread_descriptor_t *tdp) {
   chDbgCheck(MEM_IS_ALIGNED(stkbase, PORT_WORKING_AREA_ALIGN) &&
              MEM_IS_ALIGNED(stktop, PORT_STACK_ALIGN));
 
-#if CH_CFG_USE_REGISTRY == TRUE
-  chDbgAssert(!chRegIsWorkingAreaInUseI(tdp->wbase),
-              "working area in use");
+  tp = threadref(stktop);
+
+#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_DBG_ENABLE_ASSERTS == TRUE)
+  chDbgAssert(!__reg_is_thread_area_in_use_i(tp, tdp->wbase, tdp->wend),
+              "thread or working area in use");
 #endif
 
   /* The thread object is initialized but not started.*/
-  tp = chThdObjectInit(threadref(stktop), tdp);
+  tp = chThdObjectInit(tp, tdp);
 
   /* Setting up the port-dependent part of the working area.*/
   port_setup_context(&tp->ctx, stkbase, tp, tdp->funcp, tdp->arg);
@@ -633,12 +652,15 @@ thread_t *chThdCreateStatic(stkline_t *wbase, size_t wsize,
 
   chSysLock();
 
-#if CH_CFG_USE_REGISTRY == TRUE
+#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_DBG_ENABLE_ASSERTS == TRUE)
   /* Special situation where the working area is already in use by an
      active thread.*/
-  chDbgAssert(!chRegIsWorkingAreaInUseI(wbase),
-              "working area in use");
+  chDbgAssert(!__reg_is_thread_area_in_use_i(tp, wbase,
+                                             (stkline_t *)(void *)wend),
+              "thread or working area in use");
+#endif
 
+#if CH_CFG_USE_REGISTRY == TRUE
   REG_INSERT(tp->owner, tp);
 #endif
 
