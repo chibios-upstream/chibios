@@ -668,6 +668,7 @@ static inline void chThdSleepS(sysinterval_t ticks) {
 static inline bool chThdQueueIsEmptyI(threads_queue_t *tqp) {
 
   chDbgCheckClassI();
+  chDbgCheck(tqp != NULL);
 
   return ch_queue_isempty(&tqp->queue);
 }
@@ -687,6 +688,7 @@ static inline void chThdDoDequeueNextI(threads_queue_t *tqp, msg_t msg) {
   thread_t *tp;
 
   chDbgCheckClassI();
+  chDbgCheck(tqp != NULL);
 
   chDbgAssert(ch_queue_notempty(&tqp->queue), "empty queue");
 

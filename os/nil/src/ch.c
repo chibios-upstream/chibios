@@ -1013,8 +1013,8 @@ void chThdSleepUntil(systime_t abstime) {
  *                      handled as follows:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
- * @return              The message from @p osalQueueWakeupOneI() or
- *                      @p osalQueueWakeupAllI() functions.
+ * @return              The message passed to @p chThdDequeueNextI() or
+ *                      @p chThdDequeueAllI().
  * @retval MSG_TIMEOUT  if the thread has not been dequeued within the
  *                      specified timeout or if the function has been
  *                      invoked with @p TIME_IMMEDIATE as timeout

@@ -1386,8 +1386,8 @@ void chThdQueueObjectDispose(threads_queue_t *tqp) {
  *                      - @a TIME_IMMEDIATE the thread is not enqueued and
  *                        the function returns @p MSG_TIMEOUT as if a timeout
  *                        occurred.
- * @return              The message from @p osalQueueWakeupOneI() or
- *                      @p osalQueueWakeupAllI() functions.
+ * @return              The message passed to @p chThdDequeueNextI() or
+ *                      @p chThdDequeueAllI().
  * @retval MSG_TIMEOUT  if the thread has not been dequeued within the
  *                      specified timeout or if the function has been
  *                      invoked with @p TIME_IMMEDIATE as timeout
@@ -1399,6 +1399,7 @@ msg_t chThdEnqueueTimeoutS(threads_queue_t *tqp, sysinterval_t timeout) {
   thread_t *currtp;
 
   chDbgCheckClassS();
+  chDbgCheck(tqp != NULL);
 
   if (unlikely(TIME_IMMEDIATE == timeout)) {
     return MSG_TIMEOUT;
@@ -1423,6 +1424,7 @@ msg_t chThdEnqueueTimeoutS(threads_queue_t *tqp, sysinterval_t timeout) {
 void chThdDequeueNextI(threads_queue_t *tqp, msg_t msg) {
 
   chDbgCheckClassI();
+  chDbgCheck(tqp != NULL);
 
   if (ch_queue_notempty(&tqp->queue)) {
     chThdDoDequeueNextI(tqp, msg);
@@ -1440,6 +1442,7 @@ void chThdDequeueNextI(threads_queue_t *tqp, msg_t msg) {
 void chThdDequeueAllI(threads_queue_t *tqp, msg_t msg) {
 
   chDbgCheckClassI();
+  chDbgCheck(tqp != NULL);
 
   while (ch_queue_notempty(&tqp->queue)) {
     chThdDoDequeueNextI(tqp, msg);
