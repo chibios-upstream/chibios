@@ -157,10 +157,9 @@ static const testcase_t rt_test_007_001 = {
  * @page rt_test_007_002 [7.2] Semaphore enqueuing test
  *
  * <h2>Description</h2>
- * Five threads with randomized priorities are enqueued to a semaphore
- * then awakened one at time. The test expects that the threads reach
- * their goal in FIFO order or priority order depending on the @p
- * CH_CFG_USE_SEMAPHORES_PRIORITY configuration setting.
+ * Mixed-priority threads are enqueued then awakened one at time to verify
+ * signal selection. Equal-priority threads are then released together to
+ * verify that reset preserves peer order.
  *
  * <h2>Test Steps</h2>
  * - [7.2.1] Five threads are created with mixed priority levels (not
@@ -168,6 +167,8 @@ static const testcase_t rt_test_007_001 = {
  *   initialized to zero.
  * - [7.2.2] The semaphore is signaled 5 times. The thread activation
  *   sequence is tested.
+ * - [7.2.3] Five equal-priority threads are enqueued then released using
+ *   a semaphore reset. The thread activation sequence is tested.
  * .
  */
 
@@ -211,6 +212,21 @@ static void rt_test_007_002_execute(void) {
 #endif
   }
   test_end_step(2);
+
+  /* [7.2.3] Five equal-priority threads are enqueued then released using
+     a semaphore reset. The thread activation sequence is tested.*/
+  test_set_step(3);
+  {
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()+1, thread1, "A");
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, chThdGetPriorityX()+1, thread1, "B");
+    threads[2] = chThdCreateStatic(wa[2], WA_SIZE, chThdGetPriorityX()+1, thread1, "C");
+    threads[3] = chThdCreateStatic(wa[3], WA_SIZE, chThdGetPriorityX()+1, thread1, "D");
+    threads[4] = chThdCreateStatic(wa[4], WA_SIZE, chThdGetPriorityX()+1, thread1, "E");
+    chSemReset(&sem1, 0);
+    test_wait_threads();
+    test_assert_sequence("ABCDE", "invalid sequence");
+  }
+  test_end_step(3);
 }
 
 static const testcase_t rt_test_007_002 = {

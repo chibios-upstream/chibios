@@ -180,7 +180,7 @@ void chSemResetWithMessageI(semaphore_t *sp, cnt_t n, msg_t msg) {
 
   sp->cnt = n;
   while (ch_queue_notempty(&sp->queue)) {
-    chSchReadyI(threadref(ch_queue_lifo_remove(&sp->queue)))->u.rdymsg = msg;
+    chSchReadyI(threadref(ch_queue_fifo_remove(&sp->queue)))->u.rdymsg = msg;
   }
 }
 

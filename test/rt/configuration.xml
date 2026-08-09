@@ -2587,12 +2587,10 @@ test_assert_lock(chSemGetCounterI(&sem1) == 2, "wrong counter value");]]></value
             <value>Semaphore enqueuing test.</value>
           </brief>
           <description>
-            <value>Five threads with randomized priorities are enqueued
-              to a semaphore then awakened one at time. The test expects
-              that the threads reach their goal in FIFO order or
-              priority order depending on the @p
-              CH_CFG_USE_SEMAPHORES_PRIORITY configuration setting.
-            </value>
+            <value>Mixed-priority threads are enqueued then awakened one
+              at time to verify signal selection. Equal-priority threads
+              are then released together to verify that reset preserves
+              peer order.</value>
           </description>
           <condition>
             <value />
@@ -2646,6 +2644,26 @@ test_assert_sequence("ADCEB", "invalid sequence");
 #else
 test_assert_sequence("ABCDE", "invalid sequence");
 #endif]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Five equal-priority threads are enqueued then
+                  released using a semaphore reset. The thread
+                  activation sequence is tested.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()+1, thread1, "A");
+threads[1] = chThdCreateStatic(wa[1], WA_SIZE, chThdGetPriorityX()+1, thread1, "B");
+threads[2] = chThdCreateStatic(wa[2], WA_SIZE, chThdGetPriorityX()+1, thread1, "C");
+threads[3] = chThdCreateStatic(wa[3], WA_SIZE, chThdGetPriorityX()+1, thread1, "D");
+threads[4] = chThdCreateStatic(wa[4], WA_SIZE, chThdGetPriorityX()+1, thread1, "E");
+chSemReset(&sem1, 0);
+test_wait_threads();
+test_assert_sequence("ABCDE", "invalid sequence");]]></value>
               </code>
             </step>
           </steps>
