@@ -321,11 +321,22 @@ void chGuardedPoolLoadArray(guarded_memory_pool_t *gmp, void *p, size_t n) {
  */
 void *chGuardedPoolAllocTimeoutS(guarded_memory_pool_t *gmp,
                                  sysinterval_t timeout) {
-  msg_t msg;
 
-  msg = chSemWaitTimeoutS(&gmp->sem, timeout);
-  if (msg != MSG_OK) {
-    return NULL;
+  /* Non-wait acquisition is performed directly on the counter, the
+     semaphore wait API no longer accepts TIME_IMMEDIATE.*/
+  if (timeout == TIME_IMMEDIATE) {
+    if (chSemGetCounterI(&gmp->sem) <= (cnt_t)0) {
+      return NULL;
+    }
+    chSemFastWaitI(&gmp->sem);
+  }
+  else {
+    msg_t msg;
+
+    msg = chSemWaitTimeoutS(&gmp->sem, timeout);
+    if (msg != MSG_OK) {
+      return NULL;
+    }
   }
 
   return chPoolAllocI(&gmp->pool);
