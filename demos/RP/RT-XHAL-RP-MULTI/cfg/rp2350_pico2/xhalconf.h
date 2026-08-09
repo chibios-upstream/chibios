@@ -45,7 +45,7 @@
 /*===========================================================================*/
 
 #define HAL_USE_PAL                         TRUE
-#define HAL_USE_ADC                         FALSE
+#define HAL_USE_ADC                         TRUE
 #define HAL_USE_DAC                         FALSE
 #define HAL_USE_CAN                         FALSE
 #define HAL_USE_EFL                         FALSE
@@ -55,7 +55,7 @@
 #define HAL_USE_I2S                         FALSE
 #define HAL_USE_ICU                         FALSE
 #define HAL_USE_MMC_SPI                     FALSE
-#define HAL_USE_PWM                         FALSE
+#define HAL_USE_PWM                         TRUE
 #define HAL_USE_RTC                         FALSE
 #define HAL_USE_SDC                         FALSE
 #define HAL_USE_SIO                         TRUE

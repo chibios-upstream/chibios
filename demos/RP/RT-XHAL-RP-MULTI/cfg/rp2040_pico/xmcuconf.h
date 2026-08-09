@@ -60,4 +60,25 @@
 #define RP_SIO_USE_UART0                    TRUE
 #define RP_SIO_USE_UART1                    FALSE
 
+/*
+ * ADC driver system settings.
+ */
+#define RP_ADC_USE_ADC1                     TRUE
+#define RP_ADC_ADC1_DMA_CHANNEL             RP_DMA_CHANNEL_ID_ANY
+#define RP_ADC_ADC1_DMA_PRIORITY            0
+#define RP_ADC_ADC1_DMA_IRQ_PRIORITY        3
+
+/*
+ * PWM driver system settings.
+ */
+#define RP_PWM_USE_PWM0                     FALSE
+#define RP_PWM_USE_PWM1                     FALSE
+#define RP_PWM_USE_PWM2                     FALSE
+#define RP_PWM_USE_PWM3                     FALSE
+#define RP_PWM_USE_PWM4                     TRUE
+#define RP_PWM_USE_PWM5                     FALSE
+#define RP_PWM_USE_PWM6                     FALSE
+#define RP_PWM_USE_PWM7                     FALSE
+#define RP_PWM_IRQ_WRAP_NUMBER_PRIORITY     3
+
 #endif /* XMCUCONF_H */
