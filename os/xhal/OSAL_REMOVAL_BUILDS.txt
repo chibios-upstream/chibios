@@ -39,6 +39,8 @@ testxhal/I2S/make/stm32g474re_nucleo64.make
 testxhal/MMC-SPI/make/stm32g474re_nucleo64.make
 testxhal/RTC/make/stm32g474re_nucleo64.make
 testxhal/RTC/make/stm32wl55jc_nucleo64.make
+testxhal/SPI/make/rp2040_pico.make
+testxhal/SPI/make/rp2350_pico2.make
 testxhal/SPI/make/stm32g474re_nucleo64.make
 testxhal/SPI/make/stm32wl55jc_nucleo64.make
 testxhal/TRNG/make/stm32g474re_nucleo64.make
