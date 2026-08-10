@@ -171,7 +171,7 @@ static void print_hex2(BaseSequentialStream *stream, uint32_t value) {
 }
 
 /*
- * Writes a two digits, zero padded, unsigned decimal number.
+ * Writes a two-digit, zero-padded, unsigned decimal number.
  */
 static void print_dec2(BaseSequentialStream *stream, uint32_t value) {
 
