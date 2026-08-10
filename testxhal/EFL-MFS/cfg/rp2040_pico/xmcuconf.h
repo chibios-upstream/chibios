@@ -37,7 +37,7 @@
  * HAL driver system settings.
  */
 #define RP_NO_INIT                          FALSE
-#define RP_CORE1_START                      TRUE
+#define RP_CORE1_START                      FALSE
 #define RP_CORE1_VECTORS_TABLE              _vectors
 #define RP_CORE1_ENTRY_POINT                _crt0_c1_entry
 #define RP_CORE1_STACK_END                  __c1_main_stack_end__
@@ -55,30 +55,21 @@
 #define RP_IO_IRQ_BANK0_PRIORITY            2
 
 /*
+ * EFL driver system settings.
+ * Single-core configuration, no XIP safety strategy is required and the
+ * default no-op coordination callbacks are used.
+ */
+#define RP_FLASH_SIZE                       (2U * 1024U * 1024U)
+#define RP_EFL_XIP_SAFETY                   RP_EFL_XIP_SAFETY_NONE
+#define RP_FLASH_WAIT_TIME_MS               1U
+#define RP_FLASH_SSI_TIMEOUT_US             1000U
+#define RP_FLASH_PROGRAM_TIMEOUT_US         20000U
+#define RP_FLASH_ERASE_TIMEOUT_US           4000000U
+
+/*
  * SIO driver system settings.
  */
 #define RP_SIO_USE_UART0                    TRUE
 #define RP_SIO_USE_UART1                    FALSE
-
-/*
- * ADC driver system settings.
- */
-#define RP_ADC_USE_ADC1                     TRUE
-#define RP_ADC_ADC1_DMA_CHANNEL             RP_DMA_CHANNEL_ID_ANY
-#define RP_ADC_ADC1_DMA_PRIORITY            0
-#define RP_ADC_ADC1_DMA_IRQ_PRIORITY        3
-
-/*
- * PWM driver system settings.
- */
-#define RP_PWM_USE_PWM0                     FALSE
-#define RP_PWM_USE_PWM1                     FALSE
-#define RP_PWM_USE_PWM2                     FALSE
-#define RP_PWM_USE_PWM3                     FALSE
-#define RP_PWM_USE_PWM4                     TRUE
-#define RP_PWM_USE_PWM5                     FALSE
-#define RP_PWM_USE_PWM6                     FALSE
-#define RP_PWM_USE_PWM7                     FALSE
-#define RP_PWM_IRQ_WRAP_NUMBER_PRIORITY     3
 
 #endif /* XMCUCONF_H */

@@ -35,6 +35,15 @@
 
 #define PORTAB_SIO_CONSOLE          SIOD0
 
+/* The board LED on GP25 is served by PWM slice 4 channel B.*/
+#define PORTAB_PWM                  PWMD4
+#define PORTAB_PWM_CHANNEL          1U
+
+/* ADC instance and index of the temperature sensor conversion group
+   within the portability ADC configuration.*/
+#define PORTAB_ADC                  ADCD1
+#define PORTAB_ADC_TEMP_GRP         0U
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -54,6 +63,9 @@
 /*===========================================================================*/
 /* External declarations.                                                    */
 /*===========================================================================*/
+
+extern const hal_pwm_config_t portab_pwm_config;
+extern const hal_adc_config_t portab_adc_config;
 
 #ifdef __cplusplus
 extern "C" {

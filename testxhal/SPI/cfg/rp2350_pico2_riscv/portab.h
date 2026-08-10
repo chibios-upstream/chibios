@@ -29,20 +29,26 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
-#define PORTAB_LINE_LED             25U
+#define PORTAB_LINE_LED1            25U
 #define PORTAB_LED_OFF              PAL_LOW
 #define PORTAB_LED_ON               PAL_HIGH
 
-#define PORTAB_SIO_CONSOLE          SIOD0
+/* The Pico 2 board has no user button, GP22 is configured as a pulled-down
+   input by portab_setup() so the line reads as not pressed unless it is
+   externally driven high.*/
+#define PORTAB_LINE_BUTTON          22U
+#define PORTAB_BUTTON_PRESSED       PAL_HIGH
 
-/* The board LED on GP25 is served by PWM slice 4 channel B.*/
-#define PORTAB_PWM                  PWMD4
-#define PORTAB_PWM_CHANNEL          1U
+/* Single SPI instance, the RP SPI driver supports neither slave mode nor
+   circular mode so no PORTAB_SPI2 is provided and the related test code
+   compiles out.*/
+#define PORTAB_SPI1                 SPID0
 
-/* ADC instance and index of the temperature sensor conversion group
-   within the portability ADC configuration.*/
-#define PORTAB_ADC                  ADCD1
-#define PORTAB_ADC_TEMP_GRP         0U
+/* Required SPI configurations, indices into spi_configurations. Circular
+   and slave entries are not provided, the code paths consuming them are
+   disabled by SPI_SUPPORTS_CIRCULAR and SPI_SUPPORTS_SLAVE_MODE.*/
+#define SPI_CFG_HIGH_SPEED          0U
+#define SPI_CFG_LOW_SPEED           1U
 
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
@@ -63,9 +69,6 @@
 /*===========================================================================*/
 /* External declarations.                                                    */
 /*===========================================================================*/
-
-extern const hal_pwm_config_t portab_pwm_config;
-extern const hal_adc_config_t portab_adc_config;
 
 #ifdef __cplusplus
 extern "C" {

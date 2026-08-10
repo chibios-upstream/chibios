@@ -45,7 +45,7 @@
 /*===========================================================================*/
 
 #define HAL_USE_PAL                         TRUE
-#define HAL_USE_ADC                         TRUE
+#define HAL_USE_ADC                         FALSE
 #define HAL_USE_DAC                         FALSE
 #define HAL_USE_CAN                         FALSE
 #define HAL_USE_EFL                         FALSE
@@ -55,11 +55,11 @@
 #define HAL_USE_I2S                         FALSE
 #define HAL_USE_ICU                         FALSE
 #define HAL_USE_MMC_SPI                     FALSE
-#define HAL_USE_PWM                         TRUE
+#define HAL_USE_PWM                         FALSE
 #define HAL_USE_RTC                         FALSE
 #define HAL_USE_SDC                         FALSE
-#define HAL_USE_SIO                         TRUE
-#define HAL_USE_SPI                         FALSE
+#define HAL_USE_SIO                         FALSE
+#define HAL_USE_SPI                         TRUE
 #define HAL_USE_TRNG                        FALSE
 #define HAL_USE_USB                         FALSE
 #define HAL_USE_WDG                         FALSE
@@ -152,7 +152,7 @@
 #define SIO_DEFAULT_BITRATE                 38400
 #define SIO_USE_SYNCHRONIZATION             TRUE
 #define SIO_USE_STREAMS_INTERFACE           SIO_USE_SYNCHRONIZATION
-#define SIO_USE_BUFFERING                   TRUE
+#define SIO_USE_BUFFERING                   FALSE
 #define SIO_USE_CONFIGURATIONS              FALSE
 
 /*===========================================================================*/
@@ -161,7 +161,7 @@
 
 #define SPI_USE_SYNCHRONIZATION             TRUE
 #define SPI_USE_ASSERT_ON_ERROR             FALSE
-#define SPI_USE_CONFIGURATIONS              FALSE
+#define SPI_USE_CONFIGURATIONS              TRUE
 
 /*===========================================================================*/
 /* USB driver settings.                                                      */

@@ -1,6 +1,7 @@
 # XHAL OSAL-removal build manifest, one make recipe per line.
 demos/RP/RT-XHAL-RP-MULTI/make/rp2040_pico.make
 demos/RP/RT-XHAL-RP-MULTI/make/rp2350_pico2.make
+demos/RP/RT-XHAL-RP-MULTI/make/rp2350_pico2_riscv.make
 demos/STM32/RT-STM32-LWIP/make/stm32h563zi_nucleo144_xhal.make
 demos/STM32/RT-STM32G474RE-NUCLEO64-SB_HOST_NOSWITCH/Makefile
 demos/STM32/RT-STM32G474RE-NUCLEO64-SB_HOST_SWITCHED/Makefile
@@ -33,6 +34,8 @@ testxhal/ADC-GPT/make/stm32u575zi_nucleo144.make
 testxhal/ADC-GPT/make/stm32wl55jc_nucleo64.make
 testxhal/DAC-GPT/make/stm32g474re_nucleo64.make
 testxhal/DAC-GPT/make/stm32h563zi_nucleo144.make
+testxhal/EFL-MFS/make/rp2040_pico.make
+testxhal/EFL-MFS/make/rp2350_pico2.make
 testxhal/EFL-MFS/make/stm32g474re_nucleo64.make
 testxhal/EFL-MFS/make/stm32wl55jc_nucleo64.make
 testxhal/I2S/make/stm32g474re_nucleo64.make
@@ -41,6 +44,7 @@ testxhal/RTC/make/stm32g474re_nucleo64.make
 testxhal/RTC/make/stm32wl55jc_nucleo64.make
 testxhal/SPI/make/rp2040_pico.make
 testxhal/SPI/make/rp2350_pico2.make
+testxhal/SPI/make/rp2350_pico2_riscv.make
 testxhal/SPI/make/stm32g474re_nucleo64.make
 testxhal/SPI/make/stm32wl55jc_nucleo64.make
 testxhal/TRNG/make/stm32g474re_nucleo64.make

@@ -1,5 +1,6 @@
 # Required platform files.
-PLATFORMSRC := $(CHIBIOS)/os/xhal/ports/common/ARMCMx/nvic.c \
+PLATFORMSRC := $(CHIBIOS)/os/xhal/ports/common/RISCV-HAZARD3/nvic.c \
+               $(CHIBIOS)/os/xhal/ports/common/RISCV-HAZARD3/hal_st_lld.c \
                $(CHIBIOS)/os/xhal/ports/RP/rp_bootrom.c \
                $(CHIBIOS)/os/xhal/ports/RP/RP2350/rp_clocks.c \
                $(CHIBIOS)/os/xhal/ports/RP/RP2350/rp_isr.c \
@@ -8,9 +9,13 @@ PLATFORMSRC := $(CHIBIOS)/os/xhal/ports/common/ARMCMx/nvic.c \
                $(CHIBIOS)/os/xhal/ports/RP/RP2350/hal_lld.c
 
 # Required include directories.
-PLATFORMINC := $(CHIBIOS)/os/xhal/ports/common/ARMCMx \
+# Note, include resolution relies on the ARM common directory being absent
+# from this recipe, the build system sorts include paths so ordering alone
+# would not shadow nvic.h/cache.h.
+PLATFORMINC := $(CHIBIOS)/os/xhal/ports/common/RISCV-HAZARD3 \
                $(CHIBIOS)/os/xhal/ports/RP \
-               $(CHIBIOS)/os/xhal/ports/RP/RP2350
+               $(CHIBIOS)/os/xhal/ports/RP/RP2350 \
+               $(CHIBIOS)/os/common/ports/RISCV-HAZARD3
 
 # Optional platform files.
 ifeq ($(USE_SMART_BUILD),yes)
@@ -26,24 +31,14 @@ endif
 
 HALCONF := $(strip $(shell cat $(HALCONFDIR)/xhalconf.h | grep -E "\#define"))
 
-ifneq ($(findstring HAL_USE_EFL TRUE,$(HALCONF)),)
-PLATFORMSRC += $(CHIBIOS)/os/xhal/ports/RP/RP2350/hal_efl_lld.c \
-               $(CHIBIOS)/os/xhal/ports/RP/RP2350/rp_flash_safety.c
-endif
 else
-PLATFORMSRC += $(CHIBIOS)/os/xhal/ports/RP/RP2350/hal_efl_lld.c \
-               $(CHIBIOS)/os/xhal/ports/RP/RP2350/rp_flash_safety.c
 endif
 
 # Drivers compatible with the platform.
-include $(CHIBIOS)/os/xhal/ports/RP/LLD/ADCv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/DMAv1/driver.mk
-include $(CHIBIOS)/os/xhal/ports/RP/LLD/EFLv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/GPIOv1/driver.mk
-include $(CHIBIOS)/os/xhal/ports/RP/LLD/RTCv2/driver.mk
-include $(CHIBIOS)/os/xhal/ports/RP/LLD/PWMv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/SPIv1/driver.mk
-include $(CHIBIOS)/os/xhal/ports/RP/LLD/TIMERv1/driver.mk
+# The Hazard3 port owns its core-local MTIME/MTIMECMP system timer.
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/UARTv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/WDGv1/driver.mk
 

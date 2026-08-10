@@ -34,52 +34,33 @@
 /* Module exported variables.                                                */
 /*===========================================================================*/
 
-/**
- * @brief   PWM configuration for the LED slice.
- * @details The slice counts at 1MHz over a 1000 ticks period giving a
- *          1kHz PWM frequency, the LED on GP25 is driven by the B
- *          channel. Events are enabled at runtime by the application.
+/*
+ * The PL022 bit rate is SSPCLK / (CPSDVSR * (1 + SCR)), SSPCLK is clk_peri
+ * running at 150MHz on this target. Circular and slave configurations are
+ * not provided because the RP SPI driver supports neither mode.
  */
-const hal_pwm_config_t portab_pwm_config = {
-  .frequency      = 1000000U,
-  .period         = 1000U,
-  .enabled_events = 0U,
-  .channels       = {
-    {
-      .mode       = PWM_OUTPUT_DISABLED
+const spi_configurations_t spi_configurations = {
+  .cfgsnum          = 2U,
+  .cfgs = {
+    /*
+     * High speed SPI configuration (3.947MHz, CPHA=0, CPOL=0, MSb first).
+     */
+    [0] = {
+      .mode         = SPI_MODE_FSIZE_8,
+      .ssline       = 17U,
+      .SSPCR0       = SPI_SSPCR0_SCR(18U) | SPI_SSPCR0_DSS_8BIT,
+      .SSPCPSR      = 2U
     },
-    {
-      .mode       = PWM_OUTPUT_ACTIVE_HIGH
-    }
-  },
-  .dummy          = 0U
-};
-
-/**
- * @brief   Conversion groups of the portability ADC configuration.
- * @details A single conversion group sampling the on-die temperature
- *          sensor at the free-running rate, the sensor bias is enabled
- *          by the driver for the duration of the conversion.
- */
-static const adc_conversion_groups_t portab_adc_groups = {
-  .grpsnum        = 1U,
-  .grps           = {
-    {
-      .num_channels = 1U,
-      .channel      = ADC_CHANNEL_TEMPSENSOR,
-      .rrobin       = 0U,
-      .div          = 0U,
-      .ts_enabled   = true
-    }
+    /*
+     * Low speed SPI configuration (500kHz, CPHA=0, CPOL=0, MSb first).
+     */
+    [1] = {
+      .mode         = SPI_MODE_FSIZE_8,
+      .ssline       = 17U,
+      .SSPCR0       = SPI_SSPCR0_SCR(149U) | SPI_SSPCR0_DSS_8BIT,
+      .SSPCPSR      = 2U
+    },
   }
-};
-
-/**
- * @brief   ADC configuration carrying the temperature sensor group.
- */
-const hal_adc_config_t portab_adc_config = {
-  .grps           = &portab_adc_groups,
-  .dummy          = 0U
 };
 
 /*===========================================================================*/
@@ -101,17 +82,29 @@ const hal_adc_config_t portab_adc_config = {
 void portab_setup(void) {
 
   /*
-   * LED line on the PWM function, the pad is driven by slice 4
-   * channel B.
+   * SPI0 I/O pins setup, chip select is a software-driven PAL line. For
+   * bench validation without an external device a GP19-GP16 jumper loops
+   * MOSI back into MISO.
    */
-  palSetLineMode(PORTAB_LINE_LED, PAL_MODE_ALTERNATE_PWM |
-                                  PAL_RP_PAD_DRIVE12);
+  palSetLineMode(16U, PAL_MODE_ALTERNATE_SPI);            /* SPI0 MISO (RX).*/
+  palSetLineMode(18U, PAL_MODE_ALTERNATE_SPI);            /* SPI0 SCK.      */
+  palSetLineMode(19U, PAL_MODE_ALTERNATE_SPI);            /* SPI0 MOSI (TX).*/
+  palSetLine(17U);
+  palSetLineMode(17U, PAL_MODE_OUTPUT_PUSHPULL |
+                      PAL_RP_PAD_DRIVE12);                /* SPI0 CS.       */
 
   /*
-   * UART0 console pads, TX on GP0 and RX on GP1.
+   * LED line as output.
    */
-  palSetLineMode(0U, PAL_MODE_ALTERNATE_UART);
-  palSetLineMode(1U, PAL_MODE_ALTERNATE_UART);
+  palSetLineMode(PORTAB_LINE_LED1, PAL_MODE_OUTPUT_PUSHPULL |
+                                   PAL_RP_PAD_DRIVE12);
+  palWriteLine(PORTAB_LINE_LED1, PORTAB_LED_OFF);
+
+  /*
+   * Button replacement line as pulled-down input, it reads as not pressed
+   * unless externally driven high.
+   */
+  palSetLineMode(PORTAB_LINE_BUTTON, PAL_MODE_INPUT_PULLDOWN);
 }
 
 /** @} */

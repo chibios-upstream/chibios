@@ -15,70 +15,53 @@
 */
 
 /**
- * @file    portab.h
- * @brief   Application portability macros and structures.
+ * @file    RISCV-HAZARD3/hal_st_lld.c
+ * @brief   RISC-V Hazard3 ST Driver subsystem low level driver code.
+ * @details The kernel port owns the core-local MTIME/MTIMECMP timer. This
+ *          file supplies the HAL initialization hook for that timer.
  *
- * @addtogroup application_portability
+ * @addtogroup ST
  * @{
  */
 
-#ifndef PORTAB_H
-#define PORTAB_H
+#include "hal.h"
 
 /*===========================================================================*/
-/* Module constants.                                                         */
-/*===========================================================================*/
-
-#define PORTAB_LINE_LED             25U
-#define PORTAB_LED_OFF              PAL_LOW
-#define PORTAB_LED_ON               PAL_HIGH
-
-#define PORTAB_SIO_CONSOLE          SIOD0
-
-/* The board LED on GP25 is served by PWM slice 4 channel B.*/
-#define PORTAB_PWM                  PWMD4
-#define PORTAB_PWM_CHANNEL          1U
-
-/* ADC instance and index of the temperature sensor conversion group
-   within the portability ADC configuration.*/
-#define PORTAB_ADC                  ADCD1
-#define PORTAB_ADC_TEMP_GRP         0U
-
-/*===========================================================================*/
-/* Module pre-compile time settings.                                         */
+/* Driver local definitions.                                                 */
 /*===========================================================================*/
 
 /*===========================================================================*/
-/* Derived constants and error checks.                                       */
+/* Driver exported variables.                                                */
 /*===========================================================================*/
 
 /*===========================================================================*/
-/* Module data structures and types.                                         */
+/* Driver local types.                                                       */
 /*===========================================================================*/
 
 /*===========================================================================*/
-/* Module macros.                                                            */
+/* Driver local variables and types.                                         */
 /*===========================================================================*/
 
 /*===========================================================================*/
-/* External declarations.                                                    */
+/* Driver local functions.                                                   */
 /*===========================================================================*/
 
-extern const hal_pwm_config_t portab_pwm_config;
-extern const hal_adc_config_t portab_adc_config;
+/*===========================================================================*/
+/* Driver interrupt handlers.                                                */
+/*===========================================================================*/
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-  void portab_setup(void);
-#ifdef __cplusplus
+/*===========================================================================*/
+/* Driver exported functions.                                                */
+/*===========================================================================*/
+
+/**
+ * @brief   Low level ST driver initialization.
+ * @note    For RISC-V Hazard3, the timer is initialized in port_init() in
+ *          chcore.c. This function is a no-op.
+ *
+ * @notapi
+ */
+void st_lld_init(void) {
 }
-#endif
-
-/*===========================================================================*/
-/* Module inline functions.                                                  */
-/*===========================================================================*/
-
-#endif /* PORTAB_H */
 
 /** @} */

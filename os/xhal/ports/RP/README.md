@@ -1,7 +1,7 @@
 # RP2040 / RP2350 XHAL port
 
 XHAL port for the Raspberry Pi RP2040 (Cortex-M0+) and RP2350 (Cortex-M33,
-Hazard3 RISC-V planned as a separate milestone). The port is a twin of the
+Hazard3 RISC-V supported via the RISC-V common layer and platform_riscv.mk). The port is a twin of the
 classic HAL port at `os/hal/ports/RP`, adapted to the XHAL driver contract
 (no OSAL, `drvStart()`/`drvStop()` lifecycle, `setcfg`/`selcfg` configuration
 model, callback-driver semantics).
@@ -22,9 +22,10 @@ intentional divergence in this table.
 
 Intentional divergences from the classic tree:
 
-- `hal_lld_init()` calls `stBind()` unconditionally (classic gates it to
-  free running mode, leaving the periodic SysTick path configured by
-  `st_lld_bind()` but never started).
+- `hal_lld_init()` calls `stBind()` unconditionally on the ARM cores
+  (classic gates it to free running mode, leaving the periodic SysTick
+  path configured by `st_lld_bind()` but never started); on Hazard3 the
+  call is excluded entirely, the MTIMECMP timer being core-local.
 - The ST and PAL headers validate their IRQ priority knobs with
   `CH_IRQ_IS_VALID_KERNEL_PRIORITY` (classic performs no checks; these
   handlers take kernel locks, so architectural-only validity would be

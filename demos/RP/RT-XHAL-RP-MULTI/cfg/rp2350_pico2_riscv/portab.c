@@ -15,70 +15,55 @@
 */
 
 /**
- * @file    portab.h
- * @brief   Application portability macros and structures.
+ * @file    portab.c
+ * @brief   Application portability module code.
  *
  * @addtogroup application_portability
  * @{
  */
 
-#ifndef PORTAB_H
-#define PORTAB_H
+#include "hal.h"
+
+#include "portab.h"
 
 /*===========================================================================*/
-/* Module constants.                                                         */
-/*===========================================================================*/
-
-#define PORTAB_LINE_LED             25U
-#define PORTAB_LED_OFF              PAL_LOW
-#define PORTAB_LED_ON               PAL_HIGH
-
-#define PORTAB_SIO_CONSOLE          SIOD0
-
-/* The board LED on GP25 is served by PWM slice 4 channel B.*/
-#define PORTAB_PWM                  PWMD4
-#define PORTAB_PWM_CHANNEL          1U
-
-/* ADC instance and index of the temperature sensor conversion group
-   within the portability ADC configuration.*/
-#define PORTAB_ADC                  ADCD1
-#define PORTAB_ADC_TEMP_GRP         0U
-
-/*===========================================================================*/
-/* Module pre-compile time settings.                                         */
+/* Module local definitions.                                                 */
 /*===========================================================================*/
 
 /*===========================================================================*/
-/* Derived constants and error checks.                                       */
+/* Module exported variables.                                                */
 /*===========================================================================*/
 
 /*===========================================================================*/
-/* Module data structures and types.                                         */
+/* Module local types.                                                       */
 /*===========================================================================*/
 
 /*===========================================================================*/
-/* Module macros.                                                            */
+/* Module local variables.                                                   */
 /*===========================================================================*/
 
 /*===========================================================================*/
-/* External declarations.                                                    */
+/* Module local functions.                                                   */
 /*===========================================================================*/
 
-extern const hal_pwm_config_t portab_pwm_config;
-extern const hal_adc_config_t portab_adc_config;
+/*===========================================================================*/
+/* Module exported functions.                                                */
+/*===========================================================================*/
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-  void portab_setup(void);
-#ifdef __cplusplus
+void portab_setup(void) {
+
+  /*
+   * LED line as output.
+   */
+  palSetLineMode(PORTAB_LINE_LED, PAL_MODE_OUTPUT_PUSHPULL |
+                                  PAL_RP_PAD_DRIVE12);
+  palWriteLine(PORTAB_LINE_LED, PORTAB_LED_OFF);
+
+  /*
+   * UART0 console pads, TX on GP0 and RX on GP1.
+   */
+  palSetLineMode(0U, PAL_MODE_ALTERNATE_UART);
+  palSetLineMode(1U, PAL_MODE_ALTERNATE_UART);
 }
-#endif
-
-/*===========================================================================*/
-/* Module inline functions.                                                  */
-/*===========================================================================*/
-
-#endif /* PORTAB_H */
 
 /** @} */

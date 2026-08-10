@@ -1,5 +1,5 @@
 /*
-    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -15,37 +15,42 @@
 */
 
 /**
- * @file    portab.h
- * @brief   Application portability macros and structures.
+ * @file    common/RISCV-HAZARD3/nvic.h
+ * @brief   RISC-V Hazard3 interrupt controller support.
+ * @details Provides the NVIC-compatible interface used by RP low level
+ *          drivers on top of the Xh3irq interrupt controller.
  *
- * @addtogroup application_portability
+ * @addtogroup COMMON_RISCV_HAZARD3_IRQ
  * @{
  */
 
-#ifndef PORTAB_H
-#define PORTAB_H
+#ifndef RISCV_HAZARD3_NVIC_H
+#define RISCV_HAZARD3_NVIC_H
 
 /*===========================================================================*/
-/* Module constants.                                                         */
+/* Driver constants.                                                         */
 /*===========================================================================*/
 
-#define PORTAB_LINE_LED             25U
-#define PORTAB_LED_OFF              PAL_LOW
-#define PORTAB_LED_ON               PAL_HIGH
+/**
+ * @brief   Number of external interrupts on Hazard3/RP2350.
+ * @note    Derived from RISCV_NUM_INTERRUPTS defined in rvparams.h.
+ */
+#define HAZARD3_NUM_EXTERNAL_IRQS       RISCV_NUM_INTERRUPTS
 
-#define PORTAB_SIO_CONSOLE          SIOD0
+/**
+ * @brief   Number of interrupt priority levels on Hazard3.
+ */
+#define HAZARD3_NUM_PRIORITY_LEVELS     4U
 
-/* The board LED on GP25 is served by PWM slice 4 channel B.*/
-#define PORTAB_PWM                  PWMD4
-#define PORTAB_PWM_CHANNEL          1U
-
-/* ADC instance and index of the temperature sensor conversion group
-   within the portability ADC configuration.*/
-#define PORTAB_ADC                  ADCD1
-#define PORTAB_ADC_TEMP_GRP         0U
+/**
+ * @brief   ChibiOS logical priority to Xh3irq priority conversion macro.
+ * @note    ChibiOS uses zero as the most urgent logical priority while
+ *          Xh3irq uses three as the most urgent logical priority.
+ */
+#define NVIC_PRIORITY_MASK(prio)        (3U - (uint32_t)(prio))
 
 /*===========================================================================*/
-/* Module pre-compile time settings.                                         */
+/* Driver pre-compile time settings.                                         */
 /*===========================================================================*/
 
 /*===========================================================================*/
@@ -53,32 +58,30 @@
 /*===========================================================================*/
 
 /*===========================================================================*/
-/* Module data structures and types.                                         */
+/* Driver data structures and types.                                         */
 /*===========================================================================*/
 
 /*===========================================================================*/
-/* Module macros.                                                            */
+/* Driver macros.                                                            */
 /*===========================================================================*/
 
 /*===========================================================================*/
 /* External declarations.                                                    */
 /*===========================================================================*/
 
-extern const hal_pwm_config_t portab_pwm_config;
-extern const hal_adc_config_t portab_adc_config;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-  void portab_setup(void);
+  void nvicInit(void);
+  void nvicEnableVector(uint32_t n, uint32_t prio);
+  void nvicDisableVector(uint32_t n);
+  void nvicSetSystemHandlerPriority(uint32_t handler, uint32_t prio);
+  void nvicClearPending(uint32_t n);
+  void nvicSetPending(uint32_t n);
 #ifdef __cplusplus
 }
 #endif
 
-/*===========================================================================*/
-/* Module inline functions.                                                  */
-/*===========================================================================*/
-
-#endif /* PORTAB_H */
+#endif /* RISCV_HAZARD3_NVIC_H */
 
 /** @} */
