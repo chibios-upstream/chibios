@@ -35,8 +35,12 @@ else
 endif
 
 # Drivers compatible with the platform.
+include $(CHIBIOS)/os/xhal/ports/RP/LLD/ADCv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/DMAv1/driver.mk
+# EFLv1 is absent, the RP2350 XIP safety hooks park the other core using
+# the SMP port lockout services which the Hazard3 port does not provide.
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/GPIOv1/driver.mk
+include $(CHIBIOS)/os/xhal/ports/RP/LLD/PWMv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/SPIv1/driver.mk
 # The Hazard3 port owns its core-local MTIME/MTIMECMP system timer.
 include $(CHIBIOS)/os/xhal/ports/RP/LLD/UARTv1/driver.mk
