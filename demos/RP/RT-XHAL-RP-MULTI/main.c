@@ -79,12 +79,14 @@ static volatile uint32_t pwm_wraps;
  */
 static adcsample_t temp_sample[1];
 
+#if (HAL_USE_RTC == TRUE) || defined(__DOXYGEN__)
 /*
  * RTC alarm callback state. The callback runs in ISR context, it only
  * touches these two words which the self-check loop observes.
  */
 static volatile uint32_t rtc_alarm_count;
 static volatile rtceventflags_t rtc_alarm_flags;
+#endif /* HAL_USE_RTC == TRUE */
 
 static const char banner[] = "\r\n" BOARD_NAME " -- ChibiOS/RT "
                              CH_KERNEL_VERSION "\r\n";
@@ -170,6 +172,7 @@ static void print_hex2(BaseSequentialStream *stream, uint32_t value) {
   stmWrite(stream, (const uint8_t *)buf, sizeof buf);
 }
 
+#if (HAL_USE_RTC == TRUE) || defined(__DOXYGEN__)
 /*
  * Writes a two-digit, zero-padded, unsigned decimal number.
  */
@@ -212,6 +215,7 @@ static void print_time(BaseSequentialStream *stream,
   print_dec2(stream, sec % 60U);
   print_str(stream, "Z");
 }
+#endif /* HAL_USE_RTC == TRUE */
 
 /*
  * Converts a raw temperature sensor sample into tenths of Celsius
@@ -346,6 +350,7 @@ static void i2c_scan(BaseSequentialStream *stream) {
   print_str(stream, "\r\n");
 }
 
+#if (HAL_USE_RTC == TRUE) || defined(__DOXYGEN__)
 /*
  * RTC alarm callback, it runs in ISR context.
  */
@@ -506,6 +511,7 @@ static bool rtc_selfcheck(BaseSequentialStream *stream) {
 
   return true;
 }
+#endif /* HAL_USE_RTC == TRUE */
 
 /*
  * Application entry point.
@@ -559,9 +565,11 @@ int main(void) {
    * because it measures the alarm latency against a one second budget
    * and the 1kHz PWM wrap interrupt would perturb that measurement.
    */
+#if HAL_USE_RTC == TRUE
   if (rtc_selfcheck(stream)) {
     print_str(stream, "rtc: PASS\r\n");
   }
+#endif
 
   /*
    * Activates the PWM driver on the LED slice using the portability
