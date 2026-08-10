@@ -444,12 +444,20 @@ struct port_context {
  *          body GCC is free to place the body and the trampoline in different
  *          @p ltrans partitions, or to privatise the local symbol under a new
  *          name; the literal then has nothing to bind to and the link fails
- *          with @p "undefined @p reference @p to @p Vector7C_isr" as soon as
- *          an image grows large enough for @p -flto to split it.
+ *          with @p "undefined @p reference" as soon as an image grows large
+ *          enough for @p -flto to split it.
  *          @p __attribute__((used)) only pins the body against dead-code
  *          elimination, it does not make the asm-only reference visible: do
  *          not re-add @p static here. @p PORT_IRQ_HANDLER_LINKAGE keeps the
  *          assembler name unmangled when a handler is compiled as C++.
+ *          @n@n
+ *          Because that linkage publishes one global symbol per handler, the
+ *          body is deliberately named @p __port_irq_body_<id> rather than
+ *          @p <id>_isr, keeping it in the implementation-reserved namespace
+ *          already used by @p __port_irq_epilogue() and the other port
+ *          internals so it cannot collide with an application symbol. The
+ *          name is part of the macro contract: the forward declaration, the
+ *          definition and the @p ".word" literal must be kept in step.
  */
 #if defined(__GNUC__) || defined(__DOXYGEN__)
   #ifdef __cplusplus
@@ -459,17 +467,17 @@ struct port_context {
   #endif
   #define PORT_IRQ_HANDLER(id)                                              \
     PORT_IRQ_HANDLER_LINKAGE __attribute__((used))                         \
-    void id##_isr(uint32_t _saved_lr);                                     \
+    void __port_irq_body_##id(uint32_t _saved_lr);                         \
     PORT_IRQ_HANDLER_LINKAGE __attribute__((naked, used))                  \
     void id(void) {                                                        \
       __asm volatile ("mov   r0, lr            \n\t"                       \
                       "ldr   r1, 1f            \n\t"                       \
                       "bx    r1                \n\t"                       \
                       ".balign 4               \n\t"                       \
-                      "1: .word " #id "_isr    \n\t");                     \
+                      "1: .word __port_irq_body_" #id "\n\t");             \
     }                                                                      \
     PORT_IRQ_HANDLER_LINKAGE __attribute__((used))                         \
-    void id##_isr(uint32_t _saved_lr)
+    void __port_irq_body_##id(uint32_t _saved_lr)
 #else /* IAR (__ICCARM__) / ARMCC5 (__CC_ARM): EXC_RETURN captured in the
          prologue via a compiler intrinsic; no trampoline.
          TODO: verify whether these toolchains' duplicate-function merging
