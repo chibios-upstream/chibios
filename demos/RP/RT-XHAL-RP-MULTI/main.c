@@ -455,6 +455,9 @@ static bool rtc_selfcheck(BaseSequentialStream *stream) {
     waited += RTC_CHECK_POLL_MS;
   }
   if (rtc_alarm_count == 0U) {
+    /* Disarming before dropping the callback, in this order the alarm
+       source is silenced first and cannot fire in between.*/
+    (void) rtcSetAlarm(&PORTAB_RTC, 0U, NULL);
     drvSetCallbackX(&PORTAB_RTC, NULL);
     return rtc_fail(stream, "alarm timeout");
   }
