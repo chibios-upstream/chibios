@@ -55,6 +55,14 @@
  */
 #define I2C_SCAN_PERIOD             2U
 
+/* Known date/time used by the RTC self-check, 2026-01-01T00:00:00Z
+   expressed in seconds since the Unix epoch, the timescale of the shared
+   64-bit RTC representation.*/
+#define RTC_CHECK_EPOCH             1767225600U
+
+/* Polling period used while waiting for the alarm callback.*/
+#define RTC_CHECK_POLL_MS           50U
+
 static hal_buffered_sio_c bsio1;
 static uint8_t rxbuf[32];
 static uint8_t txbuf[32];
@@ -70,6 +78,13 @@ static volatile uint32_t pwm_wraps;
  * Buffer receiving the temperature sensor samples via DMA.
  */
 static adcsample_t temp_sample[1];
+
+/*
+ * RTC alarm callback state. The callback runs in ISR context, it only
+ * touches these two words which the self-check loop observes.
+ */
+static volatile uint32_t rtc_alarm_count;
+static volatile rtceventflags_t rtc_alarm_flags;
 
 static const char banner[] = "\r\n" BOARD_NAME " -- ChibiOS/RT "
                              CH_KERNEL_VERSION "\r\n";
@@ -124,6 +139,7 @@ static void print_dec(BaseSequentialStream *stream, int32_t value) {
  * Writes an unsigned decimal number on the stream. Counters and any
  * value that can exceed the signed range are printed through this
  * helper, passing them to the signed printer would misrepresent them.
+ * The Unix epoch seconds handled by the RTC check are one such value.
  */
 static void print_udec(BaseSequentialStream *stream, uint32_t value) {
   char buf[10];
@@ -152,6 +168,49 @@ static void print_hex2(BaseSequentialStream *stream, uint32_t value) {
   buf[3] = digits[value & 0x0FU];
 
   stmWrite(stream, (const uint8_t *)buf, sizeof buf);
+}
+
+/*
+ * Writes a two digits, zero padded, unsigned decimal number.
+ */
+static void print_dec2(BaseSequentialStream *stream, uint32_t value) {
+
+  if (value < 10U) {
+    print_str(stream, "0");
+  }
+  print_udec(stream, value);
+}
+
+/*
+ * Writes a 64-bit RTC time as seconds since the Unix epoch followed by
+ * the equivalent broken-down date/time.
+ */
+static void print_time(BaseSequentialStream *stream,
+                       const rtc_time64_t *timespec) {
+  rtc_datetime_t dt;
+  uint32_t sec;
+
+  print_udec(stream, (uint32_t)timespec->tv_sec);
+
+  if (rtcConvertTime64ToDateTime(timespec, &dt) != HAL_RET_SUCCESS) {
+    print_str(stream, " (not representable)");
+    return;
+  }
+
+  sec = dt.millisecond / 1000U;
+  print_str(stream, " ");
+  print_udec(stream, (uint32_t)dt.year + RTC_BASE_YEAR);
+  print_str(stream, "-");
+  print_dec2(stream, dt.month);
+  print_str(stream, "-");
+  print_dec2(stream, dt.day);
+  print_str(stream, "T");
+  print_dec2(stream, sec / 3600U);
+  print_str(stream, ":");
+  print_dec2(stream, (sec / 60U) % 60U);
+  print_str(stream, ":");
+  print_dec2(stream, sec % 60U);
+  print_str(stream, "Z");
 }
 
 /*
@@ -288,6 +347,164 @@ static void i2c_scan(BaseSequentialStream *stream) {
 }
 
 /*
+ * RTC alarm callback, it runs in ISR context.
+ */
+static void rtc_alarm_cb(void *ip) {
+
+  rtc_alarm_flags |= rtcGetAndClearEventsX(ip, RTC_FLAGS_ALARM_A);
+  rtc_alarm_count++;
+}
+
+/*
+ * Prints the self-check failure summary line, always returns false so
+ * that it can be used as the value of a failing return statement.
+ */
+static bool rtc_fail(BaseSequentialStream *stream, const char *what) {
+
+  print_str(stream, "rtc: FAIL ");
+  print_str(stream, what);
+  print_str(stream, "\r\n");
+
+  return false;
+}
+
+/*
+ * RTC self-check, it is executed once and prints one line per step. All
+ * the board and device specific knowledge is in portab.h, the check only
+ * uses shared XHAL APIs.
+ */
+static bool rtc_selfcheck(BaseSequentialStream *stream) {
+  rtc_time64_t tv;
+  rtc_alarm_t alarm;
+  uint32_t base, waited, delay;
+  msg_t msg;
+
+  /* Driver activation using the default configuration.*/
+  msg = drvStart(&PORTAB_RTC, NULL);
+  if (msg != HAL_RET_SUCCESS) {
+    return rtc_fail(stream, "start");
+  }
+  print_str(stream, "rtc: started\r\n");
+
+  /* Reading the date/time before setting it, the documented behavior is
+     a configuration error while no date/time has ever been set. Devices
+     retaining the time across resets can legitimately report a time
+     here instead.*/
+  msg = rtcGetTime64(&PORTAB_RTC, &tv);
+  if (msg == HAL_RET_CONFIG_ERROR) {
+    print_str(stream, "rtc: pre-set read reports not-set, ok\r\n");
+  }
+  else if ((msg == HAL_RET_SUCCESS) && PORTAB_RTC_TIME_RETAINED) {
+    print_str(stream, "rtc: pre-set read reports retained time ");
+    print_time(stream, &tv);
+    print_str(stream, ", ok\r\n");
+  }
+  else {
+    return rtc_fail(stream, "pre-set read");
+  }
+
+  /* Setting the known date/time.*/
+  tv.tv_sec  = (int64_t)RTC_CHECK_EPOCH;
+  tv.tv_nsec = 0U;
+  msg = rtcSetTime64(&PORTAB_RTC, &tv);
+  if (msg != HAL_RET_SUCCESS) {
+    return rtc_fail(stream, "set time");
+  }
+  print_str(stream, "rtc: set time ");
+  print_time(stream, &tv);
+  print_str(stream, "\r\n");
+
+  /* Reading the date/time back, one second of counting is tolerated
+     between the two operations.*/
+  msg = rtcGetTime64(&PORTAB_RTC, &tv);
+  if (msg != HAL_RET_SUCCESS) {
+    return rtc_fail(stream, "read back");
+  }
+  print_str(stream, "rtc: read back ");
+  print_time(stream, &tv);
+  print_str(stream, "\r\n");
+
+  base = (uint32_t)tv.tv_sec;
+  if ((base < RTC_CHECK_EPOCH) || ((base - RTC_CHECK_EPOCH) > 1U)) {
+    return rtc_fail(stream, "read back mismatch");
+  }
+  print_str(stream, "rtc: time round-trips, ok\r\n");
+
+  /* Arming a one-shot alarm a few seconds ahead, the alarm time is an
+     absolute time on the same timescale as the date/time just set.*/
+  rtc_alarm_count = 0U;
+  rtc_alarm_flags = 0U;
+  drvSetCallbackX(&PORTAB_RTC, rtc_alarm_cb);
+
+  alarm.alrmr = base + PORTAB_RTC_ALARM_LEAD_S;
+  msg = rtcSetAlarm(&PORTAB_RTC, 0U, &alarm);
+  if (msg != HAL_RET_SUCCESS) {
+    return rtc_fail(stream, "alarm set");
+  }
+  print_str(stream, "rtc: alarm armed at ");
+  print_udec(stream, alarm.alrmr);
+  print_str(stream, ", lead ");
+  print_udec(stream, PORTAB_RTC_ALARM_LEAD_S);
+  print_str(stream, " s\r\n");
+
+  /* Waiting for the callback to publish the alarm event.*/
+  waited = 0U;
+  while ((rtc_alarm_count == 0U) &&
+         (waited < PORTAB_RTC_ALARM_TIMEOUT_MS)) {
+    chThdSleepMilliseconds(RTC_CHECK_POLL_MS);
+    waited += RTC_CHECK_POLL_MS;
+  }
+  if (rtc_alarm_count == 0U) {
+    drvSetCallbackX(&PORTAB_RTC, NULL);
+    return rtc_fail(stream, "alarm timeout");
+  }
+
+  /* Measuring the elapsed delay against the RTC own clock.*/
+  msg = rtcGetTime64(&PORTAB_RTC, &tv);
+  if (msg != HAL_RET_SUCCESS) {
+    drvSetCallbackX(&PORTAB_RTC, NULL);
+    return rtc_fail(stream, "post-alarm read");
+  }
+  delay = (uint32_t)tv.tv_sec - base;
+
+  print_str(stream, "rtc: alarm fired after ");
+  print_udec(stream, delay);
+  print_str(stream, " s, callbacks ");
+  print_udec(stream, rtc_alarm_count);
+  print_str(stream, ", flags ");
+  print_udec(stream, rtc_alarm_flags);
+  print_str(stream, "\r\n");
+
+  drvSetCallbackX(&PORTAB_RTC, NULL);
+
+  if (rtc_alarm_count != 1U) {
+    return rtc_fail(stream, "alarm repeated");
+  }
+  if ((rtc_alarm_flags & RTC_FLAGS_ALARM_A) == 0U) {
+    return rtc_fail(stream, "alarm event flag");
+  }
+  if ((delay < (PORTAB_RTC_ALARM_LEAD_S - 1U)) ||
+      (delay > (PORTAB_RTC_ALARM_LEAD_S + 1U))) {
+    return rtc_fail(stream, "alarm delay");
+  }
+
+  /* A fired one-shot alarm must read back as disarmed.*/
+  msg = rtcGetAlarm(&PORTAB_RTC, 0U, &alarm);
+  if (msg != HAL_RET_SUCCESS) {
+    return rtc_fail(stream, "alarm read back");
+  }
+  if (alarm.alrmr != 0U) {
+    print_str(stream, "rtc: alarm still reads ");
+    print_udec(stream, alarm.alrmr);
+    print_str(stream, "\r\n");
+    return rtc_fail(stream, "alarm not disarmed");
+  }
+  print_str(stream, "rtc: alarm reads back disarmed, ok\r\n");
+
+  return true;
+}
+
+/*
  * Application entry point.
  */
 int main(void) {
@@ -332,6 +549,16 @@ int main(void) {
   stmWrite(stream, (const uint8_t *)banner, sizeof banner - 1U);
   test_execute(stream, &rt_test_suite);
   test_execute(stream, &oslib_test_suite);
+
+  /*
+   * Exercises the RTC driver once, the check prints its own failure
+   * summary line. It runs before the PWM and ADC drivers are started
+   * because it measures the alarm latency against a one second budget
+   * and the 1kHz PWM wrap interrupt would perturb that measurement.
+   */
+  if (rtc_selfcheck(stream)) {
+    print_str(stream, "rtc: PASS\r\n");
+  }
 
   /*
    * Activates the PWM driver on the LED slice using the portability

@@ -49,6 +49,24 @@
 #define PORTAB_I2C                  I2CD0
 #define PORTAB_LINE_I2C_SDA         4U
 #define PORTAB_LINE_I2C_SCL         5U
+#define PORTAB_RTC                  RTCD1
+
+/*
+ * The RP2040 RTC block sits behind the RESETS block and is held in reset
+ * at every chip reset, its counters always come up cleared. A date/time
+ * read taken before a date/time has been set therefore always reports the
+ * not-set condition.
+ */
+#define PORTAB_RTC_TIME_RETAINED    FALSE
+
+/*
+ * Alarm lead time, in RTC seconds, and the wall clock budget allowed for
+ * it to elapse. The RTC 1Hz reference is divided down from clk_rtc, which
+ * is crystal derived through the USB PLL, so RTC seconds and wall clock
+ * seconds match and a small margin is enough.
+ */
+#define PORTAB_RTC_ALARM_LEAD_S     3U
+#define PORTAB_RTC_ALARM_TIMEOUT_MS 6000U
 
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
