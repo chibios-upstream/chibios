@@ -436,6 +436,20 @@ struct port_context {
  *          of the only unconditional Thumb branch available on ARMv6-M. The
  *          address literal is emitted immediately after the trampoline so the
  *          Thumb-1 literal load is independent of assembler pool placement.
+ *          @n@n
+ *          The body must have external linkage. The trampoline reaches it
+ *          only through the assembler name in the @p ".word" literal, and a
+ *          reference that lives inside inline assembly is invisible to the
+ *          compiler and, critically, to the LTO partitioner. With a @p static
+ *          body GCC is free to place the body and the trampoline in different
+ *          @p ltrans partitions, or to privatise the local symbol under a new
+ *          name; the literal then has nothing to bind to and the link fails
+ *          with @p "undefined @p reference @p to @p Vector7C_isr" as soon as
+ *          an image grows large enough for @p -flto to split it.
+ *          @p __attribute__((used)) only pins the body against dead-code
+ *          elimination, it does not make the asm-only reference visible: do
+ *          not re-add @p static here. @p PORT_IRQ_HANDLER_LINKAGE keeps the
+ *          assembler name unmangled when a handler is compiled as C++.
  */
 #if defined(__GNUC__) || defined(__DOXYGEN__)
   #ifdef __cplusplus
@@ -444,7 +458,8 @@ struct port_context {
     #define PORT_IRQ_HANDLER_LINKAGE
   #endif
   #define PORT_IRQ_HANDLER(id)                                              \
-    static __attribute__((used)) void id##_isr(uint32_t _saved_lr);        \
+    PORT_IRQ_HANDLER_LINKAGE __attribute__((used))                         \
+    void id##_isr(uint32_t _saved_lr);                                     \
     PORT_IRQ_HANDLER_LINKAGE __attribute__((naked, used))                  \
     void id(void) {                                                        \
       __asm volatile ("mov   r0, lr            \n\t"                       \
@@ -453,7 +468,8 @@ struct port_context {
                       ".balign 4               \n\t"                       \
                       "1: .word " #id "_isr    \n\t");                     \
     }                                                                      \
-    static __attribute__((used)) void id##_isr(uint32_t _saved_lr)
+    PORT_IRQ_HANDLER_LINKAGE __attribute__((used))                         \
+    void id##_isr(uint32_t _saved_lr)
 #else /* IAR (__ICCARM__) / ARMCC5 (__CC_ARM): EXC_RETURN captured in the
          prologue via a compiler intrinsic; no trampoline.
          TODO: verify whether these toolchains' duplicate-function merging
