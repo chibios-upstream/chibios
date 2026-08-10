@@ -118,6 +118,56 @@ static inline void usb_dpram_memcpy(void *dst, const void *src, size_t n) {
 #endif
 
 /**
+ * @brief   Publishes a buffer control word, arming AVAILABLE separately.
+ * @details The USB controller can sample a buffer control register while a
+ *          processor write to it is still in flight and then act on a
+ *          partially updated word. Both the RP2040 and the RP2350
+ *          datasheets therefore require the AVAILABLE bits to be written
+ *          in a separate, later write than the rest of the word. The word
+ *          is published with the AVAILABLE bits masked off, that write is
+ *          completed by a barrier, a short fixed delay is executed and
+ *          only then the complete word is written. Words carrying no
+ *          AVAILABLE bit hand nothing over to the controller and are
+ *          published in a single write.
+ * @note    Masking both AVAILABLE bits covers all the arming shapes used
+ *          by this driver: buffer 0 alone, buffer 1 alone (the word
+ *          shifted left by 16) and both buffers armed by one word.
+ * @note    The delay is a fixed sequence of twelve no operation
+ *          instructions, the budget used by the vendor reference
+ *          implementation. Twelve processor cycles exceed one 48 MHz USB
+ *          clock period for any system clock below 576 MHz (48 MHz * 12),
+ *          far above the fastest system clock supported by either device.
+ *          A fixed instruction sequence is used rather than a cycle
+ *          counter because ARMv6-M (RP2040) has none, and it is equally
+ *          valid on ARMv8-M and on the RISC-V core of the RP2350.
+ *
+ * @param[out] bcp      pointer to the buffer control register
+ * @param[in] buf_ctrl  buffer control word to be published
+ */
+static void usb_buffer_control_publish(volatile uint32_t *bcp,
+                                       uint32_t buf_ctrl) {
+  uint32_t avail;
+
+  avail = buf_ctrl & (USB_BUFFER_BUFFER0_AVAILABLE |
+                      USB_BUFFER_BUFFER1_AVAILABLE);
+
+  if (avail != 0U) {
+    /* Everything but the hand over to the controller. */
+    *bcp = buf_ctrl & ~avail;
+    __DSB();
+
+    /* Separation of the two writes, see the note above. */
+    __asm__ volatile ("nop\n\tnop\n\tnop\n\tnop\n\t"
+                      "nop\n\tnop\n\tnop\n\tnop\n\t"
+                      "nop\n\tnop\n\tnop\n\tnop"
+                      : : : "memory");
+  }
+
+  *bcp = buf_ctrl;
+  __DSB();
+}
+
+/**
  * @brief   Buffer mode for isochronous in buffer control register.
  */
 static uint16_t usb_isochronous_buffer_mode(uint16_t size) {
@@ -144,10 +194,13 @@ static uint16_t usb_isochronous_buffer_size(uint16_t max_size) {
 
   /* Double buffer offset must be one of 128, 256, 512 or 1024. */
   size = ((max_size - 1) / 128 + 1) * 128;
-  if (size == 384) {
-    size = 512;
-  } else if (size == 640 || size == 768 || size > 1024) {
+  if (size > 512) {
+    /* 640, 768, 896, 1024 and above, 1024 is the only legal offset from
+       here on. */
     size = 1024;
+  } else if (size > 256) {
+    /* 384 rounds up to the next legal offset, 512 is already legal. */
+    size = 512;
   }
   return size;
 }
@@ -273,8 +326,7 @@ static void usb_prepare_out_ep(USBDriver *usbp, usbep_t ep) {
     EP_CTRL(ep).OUT = ep_ctrl;
   }
 
-  BUF_CTRL(ep).OUT = buf_ctrl;
-  __DSB();
+  usb_buffer_control_publish(&BUF_CTRL(ep).OUT, buf_ctrl);
 }
 
 /**
@@ -364,8 +416,7 @@ static void usb_prepare_in_ep(USBDriver *usbp, usbep_t ep) {
   usb_e15_defer_if_frame_end(usbp->epc[ep]);
 #endif
 
-  BUF_CTRL(ep).IN = buf_ctrl;
-  __DSB();
+  usb_buffer_control_publish(&BUF_CTRL(ep).IN, buf_ctrl);
 }
 
 /**
@@ -397,6 +448,14 @@ static void usb_serve_endpoint(USBDriver *usbp, usbep_t ep, bool is_in) {
 
     /* Length received */
     n = BUF_CTRL(ep).OUT & USB_BUFFER_BUFFER0_TRANS_LENGTH_Msk;
+
+    /* The programmed buffer length is already the smaller of the remaining
+       transfer size and the endpoint packet size, so a longer reported
+       length would be a hardware anomaly. Clamping it keeps the copy
+       inside the user buffer and the remaining size from underflowing. */
+    if (n > oesp->rxsize) {
+      n = oesp->rxsize;
+    }
 
     /* Copy received data into user buffer */
     usb_dpram_memcpy((void *)oesp->rxbuf, (void *)oesp->hw_buf, n);
