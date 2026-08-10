@@ -19,7 +19,13 @@
  * @brief   RemoteProc trace buffer logging.
  * @details Append-only character buffer in a non-cacheable DDR window, the
  *          Linux remoteproc core exposes it through debugfs. Formatting is
- *          intentionally minimal: %s, %c, %d, %u, %x and %% only.
+ *          intentionally minimal: %s, %c, %d, %u, %x and %% only, plus an
+ *          optional decimal width and a leading '0' zero-pad flag on
+ *          %d/%u/%x (e.g. %02x, %08x) -- board test 2026-08-10 found that
+ *          without width support, an unrecognised specifier like %02x
+ *          falls through to the "print as-is" default case, which both
+ *          drops the value silently and, worse, desyncs every va_arg()
+ *          after it in the same call.
  */
 
 #include <stdarg.h>
@@ -70,7 +76,16 @@ static void trace_puts(const char *s) {
   }
 }
 
-static void trace_putu(uint32_t value, uint32_t base) {
+/**
+ * @brief   Renders an unsigned value, left-padded to a minimum width.
+ *
+ * @param[in] value     the value to render
+ * @param[in] base      10 for %u/%d, 16 for %x
+ * @param[in] width     minimum field width, 0 for none
+ * @param[in] pad_char  '0' or ' ', ignored if @p width is 0
+ */
+static void trace_putu(uint32_t value, uint32_t base, uint32_t width,
+                       char pad_char) {
   char digits[11];
   uint32_t i = 0U;
 
@@ -79,6 +94,11 @@ static void trace_putu(uint32_t value, uint32_t base) {
     digits[i++] = (d < 10U) ? (char)('0' + d) : (char)('a' + d - 10U);
     value /= base;
   } while (value != 0U);
+
+  while (width > i) {
+    trace_putc(pad_char);
+    width--;
+  }
 
   while (i > 0U) {
     trace_putc(digits[--i]);
@@ -102,12 +122,30 @@ void trace_printf(const char *fmt, ...) {
 
   va_start(ap, fmt);
   while (*fmt != '\0') {
+    char pad_char;
+    uint32_t width;
+
     if (*fmt != '%') {
       trace_putc(*fmt++);
       continue;
     }
 
     fmt++;
+
+    /* Optional zero-pad flag, then optional decimal width -- e.g. %02x,
+       %08x. No other conversion flags are recognised, matching the
+       "intentionally minimal" scope stated in the file header.*/
+    pad_char = ' ';
+    if (*fmt == '0') {
+      pad_char = '0';
+      fmt++;
+    }
+    width = 0U;
+    while ((*fmt >= '0') && (*fmt <= '9')) {
+      width = (width * 10U) + (uint32_t)(*fmt - '0');
+      fmt++;
+    }
+
     switch (*fmt++) {
     case 's':
       trace_puts(va_arg(ap, const char *));
@@ -116,10 +154,10 @@ void trace_printf(const char *fmt, ...) {
       trace_putc((char)va_arg(ap, int));
       break;
     case 'u':
-      trace_putu(va_arg(ap, uint32_t), 10U);
+      trace_putu(va_arg(ap, uint32_t), 10U, width, pad_char);
       break;
     case 'x':
-      trace_putu(va_arg(ap, uint32_t), 16U);
+      trace_putu(va_arg(ap, uint32_t), 16U, width, pad_char);
       break;
     case 'd': {
       int32_t value = va_arg(ap, int32_t);
@@ -127,7 +165,7 @@ void trace_printf(const char *fmt, ...) {
         trace_putc('-');
         value = -value;
       }
-      trace_putu((uint32_t)value, 10U);
+      trace_putu((uint32_t)value, 10U, width, pad_char);
       break;
     }
     case '%':
