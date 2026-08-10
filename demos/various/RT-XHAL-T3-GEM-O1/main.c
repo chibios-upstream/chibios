@@ -56,12 +56,15 @@ static const I2CConfig i2c0_config = {
 
 /*
  * PWM configuration for EPWM0. 1 MHz tick (1 tick = 1 us), 20 ms / 50 Hz
- * frame -- standard RC servo/ESC timing. Only channel A (output 0) is
- * used by this demo.
- * TEMP-DIAG: no scope or servo is attached to this XHAL port yet (PWM
- * conversion is compile-verified only, see the vault's hardware
- * validation backlog).
- * REMOVE-AFTER: a scope trace on EPWM0 output A confirms 1500 us @ 50 Hz.
+ * frame -- standard RC servo/ESC timing. Both channels are driven, at
+ * deliberately different widths (see pwm_probe_servo()): they share the
+ * time base, so identical pulses could not distinguish a genuinely
+ * independent CMPB from B mirroring A.
+ *
+ * Confirmed on hardware 2026-08-10 (T3 Gemstone O1), scope plus register
+ * readback: TBPRD 19531, CMPA 1464, CMPB 1171 at TBCLK 976,562.5 Hz ->
+ * 49.998 Hz with 1499.1 us and 1199.1 us pulses. AQCTLB read 0x0102,
+ * CMPB-driven, confirming channel B is independent.
  */
 static const PWMConfig pwm0_config = {
   .frequency            = 1000000U,
@@ -69,20 +72,27 @@ static const PWMConfig pwm0_config = {
   .enabled_events       = 0U,
   .channels             = {
     {.mode = PWM_OUTPUT_ACTIVE_HIGH},
-    {.mode = PWM_OUTPUT_DISABLED}
+    {.mode = PWM_OUTPUT_ACTIVE_HIGH}
   }
 };
 
 /*
- * PWM configuration for ECAP0 (PWMD3), same 1 MHz / 50 Hz timing as
- * EPWM0. Unused by ArduPilot today (see hal_pwm_lld.c's file header) --
- * this only exercises the eCAP APWM code path, which is otherwise
- * dead code in this build.
- * TEMP-DIAG / REMOVE-AFTER: same caveat as the EPWM0 probe above.
+ * PWM configuration for ECAP0 (PWMD3), same 50 Hz frame as EPWM0. eCAP
+ * has no prescaler -- its fck is fixed at AM67_ECAP_CLOCK -- so
+ * pwm_lld_start() requires frequency to equal that exactly and rejects
+ * anything else. period and width below are therefore ticks at 125 MHz,
+ * not microseconds: 125,000,000 / 50 Hz = 2,500,000 for a 20 ms frame.
+ * Unused by ArduPilot today (see hal_pwm_lld.c's file header) -- this
+ * only exercises the eCAP APWM code path, otherwise dead code here.
+ *
+ * Not verified on hardware: ECAP0's pad is not muxed by the board's
+ * overlay, so the output cannot be scoped as shipped. The register path
+ * was observed to run on 2026-08-10; the absence of a signal is the
+ * pinmux, not the driver.
  */
 static const PWMConfig pwm_ecap0_config = {
-  .frequency            = 1000000U,
-  .period               = 20000U,
+  .frequency            = AM67_ECAP_CLOCK,
+  .period               = 2500000U,
   .enabled_events       = 0U,
   .channels             = {
     {.mode = PWM_OUTPUT_ACTIVE_HIGH},
@@ -881,15 +891,34 @@ static void i2c_probe_bus(void) {
  * heartbeat thread below -- not redundant, see hal_pwm_lld.c's file
  * header on why this driver reasserts on every write.
  */
+/* 1500 us at AM67_ECAP_CLOCK (125 MHz): 1500e-6 * 125e6 ticks.*/
+#define PWM_ECAP0_WIDTH_1500US  187500U
+
 static void pwm_probe_servo(void) {
+  msg_t msg;
 
-  drvStart(&PWMD1, &pwm0_config);
-  pwmEnableChannel(&PWMD1, 0U, 1500U);
-  trace_printf("PWM: EPWM0 ch A started, 1500 us @ 50 Hz\n");
+  /* Both results are reported, not discarded. pwm_lld_start() rejects an
+     eCAP frequency that is not AM67_ECAP_CLOCK, and a probe that printed
+     "started" over a refused configuration would be worse than one that
+     printed nothing.*/
+  msg = drvStart(&PWMD1, &pwm0_config);
+  if (msg == HAL_RET_SUCCESS) {
+    pwmEnableChannel(&PWMD1, 0U, 1500U);
+    pwmEnableChannel(&PWMD1, 1U, 1200U);
+    trace_printf("PWM: EPWM0 ch A 1500 us, ch B 1200 us, both @ 50 Hz\n");
+  }
+  else {
+    trace_printf("PWM: EPWM0 drvStart failed, msg=%d\n", (int)msg);
+  }
 
-  drvStart(&PWMD3, &pwm_ecap0_config);
-  pwmEnableChannel(&PWMD3, 0U, 1500U);
-  trace_printf("PWM: ECAP0 started, 1500 us @ 50 Hz\n");
+  msg = drvStart(&PWMD3, &pwm_ecap0_config);
+  if (msg == HAL_RET_SUCCESS) {
+    pwmEnableChannel(&PWMD3, 0U, PWM_ECAP0_WIDTH_1500US);
+    trace_printf("PWM: ECAP0 started, 1500 us @ 50 Hz\n");
+  }
+  else {
+    trace_printf("PWM: ECAP0 drvStart failed, msg=%d\n", (int)msg);
+  }
 
   console_write("PWM probe done\r\n");
 }
@@ -912,7 +941,8 @@ static THD_FUNCTION(heartbeat, arg) {
        every tick, same as an RCOutput driver's per-frame output write
        would -- see hal_pwm_lld.c's file header.*/
     pwmEnableChannel(&PWMD1, 0U, 1500U);
-    pwmEnableChannel(&PWMD3, 0U, 1500U);
+    pwmEnableChannel(&PWMD1, 1U, 1200U);
+    pwmEnableChannel(&PWMD3, 0U, PWM_ECAP0_WIDTH_1500US);
     n++;
     chThdSleepMilliseconds(1000);
   }
