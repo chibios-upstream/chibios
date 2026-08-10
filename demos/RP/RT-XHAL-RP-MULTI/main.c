@@ -23,6 +23,7 @@
 
 #include "portab.h"
 
+#if (HAL_USE_I2C == TRUE) || defined(__DOXYGEN__)
 /*
  * Scanned 7-bit address range, the reserved addresses outside it are not
  * probed.
@@ -54,11 +55,14 @@
  * the bus is scanned every four seconds.
  */
 #define I2C_SCAN_PERIOD             2U
+#endif /* HAL_USE_I2C == TRUE */
 
 static hal_buffered_sio_c bsio1;
 static uint8_t rxbuf[32];
 static uint8_t txbuf[32];
+#if (HAL_USE_I2C == TRUE) || defined(__DOXYGEN__)
 static uint8_t found[I2C_SCAN_FOUND_MAX];
+#endif /* HAL_USE_I2C == TRUE */
 
 /*
  * PWM period (wrap) events counted by the PWM callback, read by the
@@ -120,6 +124,7 @@ static void print_dec(BaseSequentialStream *stream, int32_t value) {
   stmWrite(stream, (const uint8_t *)&buf[i], sizeof buf - i);
 }
 
+#if (HAL_USE_I2C == TRUE) || defined(__DOXYGEN__)
 /*
  * Writes an unsigned decimal number on the stream. Counters and any
  * value that can exceed the signed range are printed through this
@@ -153,6 +158,7 @@ static void print_hex2(BaseSequentialStream *stream, uint32_t value) {
 
   stmWrite(stream, (const uint8_t *)buf, sizeof buf);
 }
+#endif /* HAL_USE_I2C == TRUE */
 
 /*
  * Converts a raw temperature sensor sample into tenths of Celsius
@@ -168,6 +174,7 @@ static int32_t temp_raw_to_dc(adcsample_t raw) {
   return 270 - (((uv - 706000) * 10) / 1721);
 }
 
+#if (HAL_USE_I2C == TRUE) || defined(__DOXYGEN__)
 /*
  * Recovery path of a transfer that could not be terminated: the driver is
  * stopped so that the peripheral releases the bus, the bus is cleared by
@@ -286,6 +293,7 @@ static void i2c_scan(BaseSequentialStream *stream) {
 
   print_str(stream, "\r\n");
 }
+#endif /* HAL_USE_I2C == TRUE */
 
 /*
  * Application entry point.
@@ -295,7 +303,9 @@ int main(void) {
   msg_t msg;
   pwmcnt_t width;
   unsigned i;
+#if HAL_USE_I2C == TRUE
   unsigned iteration;
+#endif
   int32_t tdc;
   int32_t frac;
 
@@ -350,12 +360,14 @@ int main(void) {
   msg = drvStart(&PORTAB_ADC, &portab_adc_config);
   chDbgAssert(msg == HAL_RET_SUCCESS, "ADC start failed");
 
+#if HAL_USE_I2C == TRUE
   /*
    * Activates the I2C driver used by the bus scan, the peripheral stays
    * idle until the first probe.
    */
   msg = drvStart(&PORTAB_I2C, &portab_i2ccfg);
   chDbgAssert(msg == HAL_RET_SUCCESS, "I2C start failed");
+#endif
 
   /*
    * Normal main() thread activity, in this demo it fades the board LED
@@ -364,7 +376,9 @@ int main(void) {
    * the result together with the wrap events counter. The I2C bus is
    * scanned every I2C_SCAN_PERIOD fade cycles.
    */
+#if HAL_USE_I2C == TRUE
   iteration = 0U;
+#endif
   while (true) {
     /* One triangular fade cycle, one percent duty step every 10ms for
        a two seconds cycle at a visibly smooth 1kHz PWM frequency.*/
@@ -405,6 +419,7 @@ int main(void) {
       print_str(stream, "temp conversion failed\r\n");
     }
 
+#if HAL_USE_I2C == TRUE
     /* Periodic bus scan, the pass is run from thread context between two
        fade cycles.*/
     iteration++;
@@ -412,5 +427,6 @@ int main(void) {
       iteration = 0U;
       i2c_scan(stream);
     }
+#endif
   }
 }
