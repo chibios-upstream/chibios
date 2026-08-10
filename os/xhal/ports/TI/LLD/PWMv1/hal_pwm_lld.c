@@ -138,15 +138,20 @@ static inline uint16_t epwm_rd16(hal_pwm_driver_c *pwmp, uint32_t off) {
  *          {1,2,4,6,8,10,12,14}, CLKDIV a power of two up to 128), unlike
  *          STM32's single flexible divider -- an arbitrary requested
  *          frequency is approximated, not hit exactly. 64 combinations,
- *          brute forced once per @p pwm_lld_start().
+ *          brute forced once per @p pwm_lld_start(). The caller rescales
+ *          every period/width write against @p actual_tbclk to compensate
+ *          for the approximation -- see @p epwm_ticks().
  *
  * @param[in] frequency     requested tick frequency in Hz
  * @param[out] tbctl_presc  resolved TBCTL HSPCLKDIV/CLKDIV field bits
+ * @param[out] actual_tbclk TBCLK actually reached by @p tbctl_presc, in Hz
  * @return                  False if @p frequency is zero.
  */
-static bool epwm_find_prescale(uint32_t frequency, uint16_t *tbctl_presc) {
+static bool epwm_find_prescale(uint32_t frequency, uint16_t *tbctl_presc,
+                               uint32_t *actual_tbclk) {
   uint32_t best_err = 0xFFFFFFFFU;
   uint16_t best_field = 0U;
+  uint32_t best_tbclk = 0U;
   unsigned n, m;
 
   if (frequency == 0U) {
@@ -164,12 +169,34 @@ static bool epwm_find_prescale(uint32_t frequency, uint16_t *tbctl_presc) {
         best_err = err;
         best_field = (uint16_t)(((uint16_t)n << TBCTL_HSPCLKDIV_SHIFT) |
                                 ((uint16_t)m << TBCTL_CLKDIV_SHIFT));
+        best_tbclk = tbclk;
       }
     }
   }
 
   *tbctl_presc = best_field;
+  *actual_tbclk = best_tbclk;
   return true;
+}
+
+/**
+ * @brief   Rescales a period/width expressed in @p config->frequency ticks
+ *          to a register value in actual-TBCLK ticks.
+ * @details No-op when the prescaler landed exactly on the requested
+ *          frequency; otherwise this is what keeps @p pwm_lld_start()'s
+ *          closest-match approximation from leaking into every caller's
+ *          output timing. 64-bit intermediate: @p ticks (up to 65535) times
+ *          @p actual_tbclk (up to 250 MHz) overflows 32 bits.
+ *
+ * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
+ * @param[in] ticks     a period or width, in @p config->frequency ticks
+ * @return              the same duration, in actual-TBCLK register ticks
+ */
+static uint16_t epwm_ticks(hal_pwm_driver_c *pwmp, uint32_t ticks) {
+  const hal_pwm_config_t *config = (const hal_pwm_config_t *)pwmp->config;
+
+  return (uint16_t)(((uint64_t)ticks * (uint64_t)pwmp->actual_tbclk) /
+                    (uint64_t)config->frequency);
 }
 
 /**
@@ -186,7 +213,8 @@ static bool epwm_find_prescale(uint32_t frequency, uint16_t *tbctl_presc) {
  *          the classic driver's epwm_tbprd_for() assigns
  *          @p TBCLK_HZ @c / @p frame_hz straight to TBPRD with no
  *          adjustment, so TBPRD counts frames, unlike an STM32 timer's
- *          ARR.
+ *          ARR. "Directly" means after @p epwm_ticks() rescaling, not the
+ *          raw @p config->frequency value -- see that function's header.
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
  * @param[in] channel   0 for output A, 1 for output B
@@ -195,7 +223,7 @@ static void epwm_reassert(hal_pwm_driver_c *pwmp, pwmchannel_t channel) {
   uint16_t force = epwm_rd16(pwmp, EPWM_AQCSFRC);
 
   epwm_wr16(pwmp, EPWM_CMPCTL, CMPCTL_SHADOW_LOAD_ZERO);
-  epwm_wr16(pwmp, EPWM_TBPRD, (uint16_t)pwmp->period);
+  epwm_wr16(pwmp, EPWM_TBPRD, epwm_ticks(pwmp, pwmp->period));
   epwm_wr16(pwmp, EPWM_TBCTL, TBCTL_CTRMODE_UP | pwmp->tbctl_presc);
 
   if (channel == 0U) {
@@ -353,6 +381,12 @@ msg_t pwm_lld_start(hal_pwm_driver_c *pwmp) {
   pwmp->events         = 0U;
 
   if (pwmp->is_ecap) {
+    /* No prescaler exists to approximate a mismatched frequency with (see
+       the file header) -- refuse loudly rather than silently run at the
+       wrong rate, same principle as eHRPWM's rescale exists to avoid.*/
+    if (config->frequency != AM67_ECAP_CLOCK) {
+      return HAL_RET_CONFIG_ERROR;
+    }
     if ((config->channels[0].mode & PWM_OUTPUT_MASK) ==
         PWM_OUTPUT_ACTIVE_HIGH) {
       ecap_reassert_mode(pwmp);
@@ -368,7 +402,8 @@ msg_t pwm_lld_start(hal_pwm_driver_c *pwmp) {
        enabled reads whatever Linux left it as, same as at cold boot.*/
   }
   else {
-    if (!epwm_find_prescale(config->frequency, &pwmp->tbctl_presc)) {
+    if (!epwm_find_prescale(config->frequency, &pwmp->tbctl_presc,
+                            &pwmp->actual_tbclk)) {
       return HAL_RET_CONFIG_ERROR;
     }
     for (ch = 0U; ch < PWM_CHANNELS; ch++) {
@@ -483,22 +518,27 @@ void pwm_lld_set_callback(hal_pwm_driver_c *pwmp, drv_cb_t cb) {
  * @brief   Changes the period of the PWM peripheral.
  * @details eHRPWM: takes effect immediately via TBPRD's shadow-load-at-
  *          zero mode; the next @p pwm_lld_enable_channel() call reasserts
- *          it regardless. eCAP: only the shadow period (CAP3) is written,
- *          loading at the next boundary -- the active CAP1 is never
- *          rewritten after @p pwm_lld_start(), see the file header.
+ *          it regardless -- from @p pwmp->period, which is why this
+ *          function updates that field rather than only writing the
+ *          register: skipping it would make the new period revert on the
+ *          next channel-enable call. eCAP: only the shadow period (CAP3)
+ *          is written, loading at the next boundary -- the active CAP1 is
+ *          never rewritten after @p pwm_lld_start(), see the file header.
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
- * @param[in] period    new cycle time in ticks
+ * @param[in] period    new cycle time, in @p config->frequency ticks
  *
  * @notapi
  */
 void pwm_lld_change_period(hal_pwm_driver_c *pwmp, pwmcnt_t period) {
 
+  pwmp->period = period;
+
   if (pwmp->is_ecap) {
     ecap_wr32(pwmp, ECAP_CAP3, (uint32_t)period);
   }
   else {
-    epwm_wr16(pwmp, EPWM_TBPRD, (uint16_t)period);
+    epwm_wr16(pwmp, EPWM_TBPRD, epwm_ticks(pwmp, period));
   }
 }
 
@@ -513,7 +553,7 @@ void pwm_lld_change_period(hal_pwm_driver_c *pwmp, pwmcnt_t period) {
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
  * @param[in] channel   PWM channel identifier (0 = A, 1 = B; eCAP has
  *                      only channel 0)
- * @param[in] width     PWM pulse width, in ticks
+ * @param[in] width     PWM pulse width, in @p config->frequency ticks
  *
  * @notapi
  */
@@ -528,7 +568,8 @@ void pwm_lld_enable_channel(hal_pwm_driver_c *pwmp,
   }
   else {
     epwm_reassert(pwmp, channel);
-    epwm_wr16(pwmp, channel == 0U ? EPWM_CMPA : EPWM_CMPB, (uint16_t)width);
+    epwm_wr16(pwmp, channel == 0U ? EPWM_CMPA : EPWM_CMPB,
+             epwm_ticks(pwmp, width));
   }
 }
 

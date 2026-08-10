@@ -32,17 +32,26 @@
  *          - eCAP (ECAP0/1/2 -> PWMD3/4/5) run in APWM mode: a different
  *            IP entirely (32-bit TSCTR/CAP1-4, no prescaler -- fck is
  *            fixed at @p AM67_ECAP_CLOCK), one output per instance, no A/B
- *            pair. Per ArduPilot's RCOutput.h this hardware is currently
- *            unused (a quad only needs the four eHRPWM outputs), kept for
- *            when a fifth/sixth output is needed.
+ *            pair. Since there is no prescaler to approximate with,
+ *            @p pwm_lld_start() requires @p hal_pwm_config_t::frequency to
+ *            equal @p AM67_ECAP_CLOCK exactly and refuses the config
+ *            otherwise. Per ArduPilot's RCOutput.h this hardware is
+ *            currently unused (a quad only needs the four eHRPWM outputs),
+ *            kept for when a fifth/sixth output is needed.
  *
  *          Both were confirmed against the J722S register spreadsheet and
  *          their respective Linux drivers (pwm-tiehrpwm, pwm-tiecap).
  *          @p hal_pwm_driver_c::period and the @p width passed to
  *          @p pwmEnableChannel() are always real hardware ticks at
  *          whichever rate the instance actually runs at, same contract as
- *          every other PWM LLD. @p PWM_CHANNELS is 2 (the eHRPWM maximum);
- *          eCAP instances only ever populate channel 0.
+ *          every other PWM LLD -- for eHRPWM this means every write is
+ *          rescaled from @p hal_pwm_config_t::frequency ticks to the
+ *          actually-achieved TBCLK (see @p actual_tbclk), since the coarse
+ *          prescaler rarely hits the requested frequency exactly; a board
+ *          test on 2026-08-10 measured a 2.44% timing error (1500 us
+ *          commanded, 1536 us out) before this rescale existed.
+ *          @p PWM_CHANNELS is 2 (the eHRPWM maximum); eCAP instances only
+ *          ever populate channel 0.
  *
  * @addtogroup PWM
  * @{
@@ -210,7 +219,17 @@
   /* Resolved TBCTL HSPCLKDIV/CLKDIV prescale field bits, from the          \
      closest-match search in pwm_lld_start(). Meaningless (left zero) for   \
      an ECAP instance, which has no prescaler.*/                            \
-  uint16_t                  tbctl_presc
+  uint16_t                  tbctl_presc;                                    \
+  /* TBCLK actually reached by tbctl_presc, in Hz -- eHRPWM's prescaler is  \
+     a coarse 64-combination tree (see pwm_lld_start()'s file header note)  \
+     and rarely lands on config->frequency exactly. period/width are       \
+     rescaled from config->frequency ticks to this rate before every       \
+     register write, so the caller-facing contract ("ticks at              \
+     config->frequency") holds despite the hardware approximation.         \
+     Meaningless (left zero) for an ECAP instance: no prescaler, fck is     \
+     fixed at AM67_ECAP_CLOCK and pwm_lld_start() requires                  \
+     config->frequency to equal it exactly.*/                              \
+  uint32_t                  actual_tbclk
 
 /**
  * @brief   Low level fields of the PWM configuration structure.
