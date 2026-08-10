@@ -49,9 +49,8 @@ static const SPIConfig spi_icm20948_config = {
  * I2C configuration for MCU_I2C0, the 40-pin header instance (pins 3/5).
  * Standard mode: no sensor is wired to this bus on the Gemstone O1 (both
  * onboard sensors are on SPI), so this is a bus-level smoke test only.
- * TEMP-DIAG: no board is attached to this XHAL port yet (I2C conversion is
- * compile-verified only, see the vault's hardware validation backlog).
- * REMOVE-AFTER: the probe below has been confirmed on hardware.
+ * Confirmed on hardware 2026-08-10 (T3 Gemstone O1): the probe below
+ * returned MSG_RESET with I2C_ACK_FAILURE set, the expected clean NACK.
  */
 static const I2CConfig i2c0_config = {
   .frequency            = 100000U
