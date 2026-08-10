@@ -36,9 +36,8 @@ static const SIOConfig sio_config = {
  * SPI configuration for the ICM-20948 on MCSPI0 channel 3 (SPI0_CS3). Mode 3
  * (CPOL=1, CPHA=1) and a conservative 1 MHz -- the datasheet allows up to
  * 7 MHz, but this demo is a WHO_AM_I smoke test, not a throughput test.
- * TEMP-DIAG: no board is attached to this XHAL port yet (SPI conversion is
- * compile-verified only, see the vault's hardware validation backlog).
- * REMOVE-AFTER: the ICM-20948 read below has been confirmed on hardware.
+ * Confirmed on hardware 2026-08-10 (T3 Gemstone O1): the read below
+ * returned 0xEA, the ICM-20948's documented WHO_AM_I.
  */
 static const SPIConfig spi_icm20948_config = {
   .mode                 = 0U,
@@ -70,8 +69,8 @@ static void console_write(const char *s) {
 /*
  * Reads the ICM-20948 WHO_AM_I register over SPI channel 3. Proves the
  * select/polled-exchange/unselect path runs end to end without hanging or
- * faulting; the value itself only means something once a board is wired up
- * (expected 0xEA), see the TEMP-DIAG note on spi_icm20948_config.
+ * faulting, and the value confirms the device really answered: 0xEA is the
+ * ICM-20948's WHO_AM_I.
  */
 static void spi_probe_icm20948(void) {
   uint8_t whoami;
