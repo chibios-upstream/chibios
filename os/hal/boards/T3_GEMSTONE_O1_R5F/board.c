@@ -272,7 +272,7 @@ void Reset_Handler(void) {
     "movt    r0, #0xA111               \n"
     "str     r1, [r0]                  \n"
     "dsb                               \n"
-    "movw    sp, #0x7FC0               \n"  /* temporary stack, TCM top  */
+    "movw    sp, #0x7FC0               \n"  /* Temporary stack, TCM top  */
     "movt    sp, #0x0000               \n"
     "bl      tcm_early_init            \n"
     "movw    r0, #:lower16:ddr_reset   \n"
@@ -304,8 +304,7 @@ void ddr_reset(void) {
 __attribute__((naked, used, section(".tcm_probe")))                         \
 void name(void) {                                                           \
                                                                             \
-  __asm volatile (                                                          \
-    "movw    r1, #" #type "            \n"                                  \
+  __asm volatile ("movw    r1, #" #type "            \n"                    \
     "movt    r1, #0xDEAD               \n"                                  \
     "mrc     p15, 0, r2, " fsr_op "    \n"                                  \
     "mrc     p15, 0, r3, " far_op "    \n"                                  \

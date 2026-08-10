@@ -107,9 +107,9 @@
  */
 #define AM67_MAILBOX_BASE       0x29010000U
 #define AM67_MAILBOX_IRQ        241U
-#define AM67_MAILBOX_USER       2U      /* our interrupt user index          */
+#define AM67_MAILBOX_USER       2U      /* Our interrupt user index          */
 #define AM67_MAILBOX_RX_FIFO    1U      /* Linux writes here, we read it     */
-#define AM67_MAILBOX_TX_FIFO    0U      /* we write here, Linux reads it     */
+#define AM67_MAILBOX_TX_FIFO    0U      /* We write here, Linux reads it     */
 
 /*
  * EPWM0 (eHRPWM), first PWM output on EHRPWM0_A -> Gemstone 40-pin header
@@ -125,7 +125,7 @@
  * run but is NOT a divider. Final confirmation pending scope measurement.
  */
 #define AM67_EPWM0_BASE         0x23000000U
-#define AM67_EPWM0_CLK_HZ       250000000U   /* fck = SYSCLKOUT, pre-prescale. */
+#define AM67_EPWM0_CLK_HZ       250000000U   /* Module fck, pre-prescale.     */
 
 /*
  * EPWM1 (eHRPWM) second instance: EHRPWM1_A -> GPIO6 (pin 31), EHRPWM1_B ->
