@@ -62,7 +62,12 @@
 #define RP_ADC_USE_ADC1                     TRUE
 #define RP_ADC_ADC1_DMA_CHANNEL             RP_DMA_CHANNEL_ID_ANY
 #define RP_ADC_ADC1_DMA_PRIORITY            0
-#define RP_ADC_ADC1_DMA_IRQ_PRIORITY        3
+/* The Hazard3 controller offers four priority levels against the sixteen
+   of the ARM core, so the value used by the ARM configuration would place
+   this interrupt at the bottom here rather than near the top. The
+   conversions are free running into an eight entry FIFO and stop only
+   when this interrupt is served, so it is kept urgent.*/
+#define RP_ADC_ADC1_DMA_IRQ_PRIORITY        1
 
 /*
  * PWM driver system settings.
