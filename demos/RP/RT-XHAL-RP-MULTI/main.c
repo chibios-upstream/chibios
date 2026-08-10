@@ -124,11 +124,13 @@ static void print_dec(BaseSequentialStream *stream, int32_t value) {
   stmWrite(stream, (const uint8_t *)&buf[i], sizeof buf - i);
 }
 
-#if (HAL_USE_I2C == TRUE) || defined(__DOXYGEN__)
+#if (HAL_USE_I2C == TRUE) || (HAL_USE_RTC == TRUE) || defined(__DOXYGEN__)
 /*
  * Writes an unsigned decimal number on the stream. Counters and any
  * value that can exceed the signed range are printed through this
  * helper, passing them to the signed printer would misrepresent them.
+ * Both the bus scan and the RTC check need it, so it is available to
+ * either of them.
  */
 static void print_udec(BaseSequentialStream *stream, uint32_t value) {
   char buf[10];
@@ -142,7 +144,9 @@ static void print_udec(BaseSequentialStream *stream, uint32_t value) {
   } while (value > 0U);
   stmWrite(stream, (const uint8_t *)&buf[i], sizeof buf - i);
 }
+#endif /* HAL_USE_I2C == TRUE || HAL_USE_RTC == TRUE */
 
+#if (HAL_USE_I2C == TRUE) || defined(__DOXYGEN__)
 /*
  * Writes the low byte of a value as a two digits hexadecimal number on
  * the stream.
