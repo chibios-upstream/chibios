@@ -49,6 +49,25 @@
 #define PORTAB_I2C                  I2CD0
 #define PORTAB_LINE_I2C_SDA         4U
 #define PORTAB_LINE_I2C_SCL         5U
+#define PORTAB_RTC                  RTCD1
+
+/*
+ * The RP2350 RTC is built on the POWMAN "Always-On" timer, its counter
+ * lives in the always-on domain and survives ordinary chip resets. A
+ * date/time read taken before this firmware has set a date/time reports
+ * the not-set condition only until the first date/time is ever set,
+ * afterwards it legitimately returns the retained time.
+ */
+#define PORTAB_RTC_TIME_RETAINED    TRUE
+
+/*
+ * Alarm lead time, in RTC seconds, and the wall clock budget allowed for
+ * it to elapse. The always-on timer ticks from the LPOSC at its nominal
+ * calibration, RTC seconds can be appreciably longer or shorter than wall
+ * clock seconds, hence the wide margin.
+ */
+#define PORTAB_RTC_ALARM_LEAD_S     3U
+#define PORTAB_RTC_ALARM_TIMEOUT_MS 12000U
 
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */

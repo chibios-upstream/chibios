@@ -55,6 +55,7 @@ static uint8_t bsio1_ob[512];
 
 int main(void) {
   bool button_pressed;
+  msg_t msg;
 
   halInit();
   chSysInit();
@@ -71,8 +72,8 @@ int main(void) {
   drvStop(&bsio1);
   chDbgAssert(drvGetStateX(&bsio1) == HAL_DRV_STATE_STOP,
               "SIO not stopped");
-  chDbgAssert(drvStart(&bsio1, NULL) == HAL_RET_SUCCESS,
-              "SIO restart failed");
+  msg = drvStart(&bsio1, NULL);
+  chDbgAssert(msg == HAL_RET_SUCCESS, "SIO restart failed");
 
   chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1, NULL);
 
