@@ -138,6 +138,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- ARMv6-M could fail to link with `-flto` (an "undefined reference" to the
+  interrupt handler body) once an image grew large enough for the LTO
+  partitioner to split it; the `PORT_IRQ_HANDLER` body now has external
+  linkage and a reserved name so the trampoline's assembler reference
+  resolves across partitions
+  ([#216](https://github.com/chibios-upstream/chibios/pull/216)).
 - Serial over USB input remained inactive after a USB suspend/wakeup cycle on
   STM32 OTG devices. The generic USB driver terminates all pending
   transactions on suspend and the OTG LLD also disables the endpoints in
