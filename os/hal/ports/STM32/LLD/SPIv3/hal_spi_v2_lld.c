@@ -990,6 +990,13 @@ void spi_lld_stop(SPIDriver *spip) {
     /* Just in case this has been called uncleanly.*/
     (void) spi_lld_stop_abort(spip);
 
+    /* SPI cleanup.*/
+    spip->spi->CR1  = 0U;
+    spip->spi->CR2  = 0U;
+    spip->spi->CFG1 = 0U;
+    spip->spi->CFG2 = 0U;
+    spip->spi->IER  = 0U;
+
 #if defined(STM32_SPI_DMA_REQUIRED) && defined(STM32_SPI_BDMA_REQUIRED)
     if (spip->is_bdma)
 #endif
