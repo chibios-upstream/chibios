@@ -8,6 +8,55 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- XHAL port for the RP2040 and RP2350: ST/PAL, SIO, WDG and DMA services,
+  SPI, PWM and ADC drivers, an EFL driver with XIP flash safety, RTC drivers
+  with absolute-time alarms, a USB device driver and an I2C driver with
+  asynchronous abort, plus RP2350 Hazard3 RISC-V support and a multi-target
+  SMP demo console
+  ([#199](https://github.com/chibios-upstream/chibios/pull/199),
+  [#201](https://github.com/chibios-upstream/chibios/pull/201),
+  [#207](https://github.com/chibios-upstream/chibios/pull/207),
+  [#208](https://github.com/chibios-upstream/chibios/pull/208),
+  [#209](https://github.com/chibios-upstream/chibios/pull/209),
+  [#210](https://github.com/chibios-upstream/chibios/pull/210),
+  [#211](https://github.com/chibios-upstream/chibios/pull/211),
+  [#212](https://github.com/chibios-upstream/chibios/pull/212),
+  [#213](https://github.com/chibios-upstream/chibios/pull/213)).
+- RTCv2 driver for the RP2350, built on the POWMAN Always-On timer: a
+  millisecond time base, absolute-time alarms with field masking, and a
+  hardware validation target
+  ([#140](https://github.com/chibios-upstream/chibios/pull/140)).
+- STM32U0xx embedded flash (EFL) driver
+  ([#164](https://github.com/chibios-upstream/chibios/pull/164)).
+- STM32U5 I2C5 and I2C6 support
+  ([#196](https://github.com/chibios-upstream/chibios/pull/196)).
+- RP PIOv1 and DMAv1 API extensions: a state-machine configuration builder
+  with pin routing and DMA glue, allocation masks and SM handle access, PIO
+  IRQ flag get/clear/force, RP2350 FIFO join modes, a TX-FIFO drain helper,
+  and `dmaChannelGetCounterX()`
+  ([#138](https://github.com/chibios-upstream/chibios/pull/138),
+  [#152](https://github.com/chibios-upstream/chibios/pull/152),
+  [#167](https://github.com/chibios-upstream/chibios/pull/167),
+  [#168](https://github.com/chibios-upstream/chibios/pull/168),
+  [#169](https://github.com/chibios-upstream/chibios/pull/169),
+  [#170](https://github.com/chibios-upstream/chibios/pull/170)).
+- Alternate common IRQ dispatcher port for ARMv6-M
+  ([#171](https://github.com/chibios-upstream/chibios/pull/171)).
+- RP2350 POWMAN register map added to the CMSIS device header
+  ([#147](https://github.com/chibios-upstream/chibios/pull/147)).
+- RT non-releasing thread synchronization
+  ([#143](https://github.com/chibios-upstream/chibios/pull/143)) and an
+  arbitrary-thread-priority helper
+  ([#162](https://github.com/chibios-upstream/chibios/pull/162)).
+- SB explicit sandbox lifecycle
+  ([#144](https://github.com/chibios-upstream/chibios/pull/144)), an expanded
+  userspace application suite
+  ([#153](https://github.com/chibios-upstream/chibios/pull/153)) and shell
+  ([#154](https://github.com/chibios-upstream/chibios/pull/154)), and a
+  sandbox configuration schema with hardened failed starts
+  ([#155](https://github.com/chibios-upstream/chibios/pull/155)).
+- VFS extended stat metadata support
+  ([#151](https://github.com/chibios-upstream/chibios/pull/151)).
 - RP2350 runtime clock switching (`RP_CLOCK_DYNAMIC`, default `FALSE`): real
   `halClockSwitchMode()` support with runtime-validated PLL_SYS
   configurations, flash-timing-safe reclocking with both cores kept executing
@@ -95,6 +144,14 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- XHAL no longer depends on OSAL
+  ([#156](https://github.com/chibios-upstream/chibios/pull/156)); a redundant
+  MMC SPI module switch was removed
+  ([#157](https://github.com/chibios-upstream/chibios/pull/157)).
+- STM32 RTC clock validation hardened
+  ([#197](https://github.com/chibios-upstream/chibios/pull/197)).
+- RP2350 EFL interrupt masking made architecture-neutral (Arm and RISC-V)
+  ([#139](https://github.com/chibios-upstream/chibios/pull/139)).
 - SB sandbox VFS root is now optional and explicitly externally owned.
   `sbSetFileSystem()` is renamed `sbSetRoot()` and a matching `sbGetRoot()`
   accessor is added. A `NULL` root is allowed, leaving the sandbox without a
@@ -144,12 +201,50 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   linkage and a reserved name so the trampoline's assembler reference
   resolves across partitions
   ([#216](https://github.com/chibios-upstream/chibios/pull/216)).
+- Broad RT kernel correctness sweep: invariant and lifecycle hardening plus
+  fixes across mutexes, condition variables, virtual timers, tickless
+  operation, semaphores, thread lifecycle and SMP ownership — notably mutex
+  priority-inheritance scheduling
+  ([#158](https://github.com/chibios-upstream/chibios/pull/158)),
+  mutex/condition-variable contracts
+  ([#160](https://github.com/chibios-upstream/chibios/pull/160)), NASA OSAL
+  mutex deletion lifecycle
+  ([#161](https://github.com/chibios-upstream/chibios/pull/161)), deferred
+  round-robin preemption
+  ([#179](https://github.com/chibios-upstream/chibios/pull/179)), tickless
+  continuous-reload safety
+  ([#183](https://github.com/chibios-upstream/chibios/pull/183)),
+  queue-retained messages
+  ([#185](https://github.com/chibios-upstream/chibios/pull/185)) and semaphore
+  reset ordering and counter bounds
+  ([#194](https://github.com/chibios-upstream/chibios/pull/194),
+  [#200](https://github.com/chibios-upstream/chibios/pull/200),
+  [#206](https://github.com/chibios-upstream/chibios/pull/206)), with a
+  supporting validation series (#159, #163, #174–#178, #182, #184, #186–#190,
+  #193, #195, #202, #203).
+- RP RTCv2 build failure from a wrong alarm-mask field name
+  ([#146](https://github.com/chibios-upstream/chibios/pull/146)).
+- SB: `sbDup2` syscall selector
+  ([#149](https://github.com/chibios-upstream/chibios/pull/149)) and `r4`
+  preservation in the ELF call trampoline
+  ([#150](https://github.com/chibios-upstream/chibios/pull/150)).
+- XHAL: stop-time waiter wakeups are now locked
+  ([#145](https://github.com/chibios-upstream/chibios/pull/145)), invalid ETH
+  handle operations are reported
+  ([#148](https://github.com/chibios-upstream/chibios/pull/148)), and the
+  requested alarm is checked in `stBindAlarmN()`
+  ([#198](https://github.com/chibios-upstream/chibios/pull/198)).
+- STM32C5xx DMA3 request map corrected
+  ([#142](https://github.com/chibios-upstream/chibios/pull/142)).
+- RP USB buffer control is now published before the buffer is handed to the
+  controller ([#214](https://github.com/chibios-upstream/chibios/pull/214)).
 - Serial over USB input remained inactive after a USB suspend/wakeup cycle on
   STM32 OTG devices. The generic USB driver terminates all pending
   transactions on suspend and the OTG LLD also disables the endpoints in
   hardware, so the bulk OUT receive armed before suspend was lost. Now
   `sduWakeupHookI()` restarts the receive operation, as the XHAL driver
-  already did ([#180](https://github.com/chibios-upstream/chibios/pull/180)).
+  already did ([#180](https://github.com/chibios-upstream/chibios/pull/180))
+  *(backported to 21.11.6)*.
 - STM32 I2Cv4 did not build on devices without SMBus support (STM32U0xx),
   whose headers do not define the `I2C_ISR_PECERR`/`TIMEOUT`/`ALERT` flags
   referenced by the error mask. These flags now default to zero when
