@@ -239,6 +239,12 @@
 /* RNG attributes.*/
 #define STM32_HAS_RNG1                      TRUE
 
+/* LPTIM attributes.*/
+#define STM32_HAS_LPTIM1                    TRUE
+#define STM32_HAS_LPTIM2                    TRUE
+#define STM32_HAS_LPTIM3                    TRUE
+#define STM32_HAS_LPTIM4                    TRUE
+
 /* RTC attributes.*/
 #define STM32_HAS_RTC                       TRUE
 #define STM32_RTC_HAS_PERIODIC_WAKEUPS      TRUE

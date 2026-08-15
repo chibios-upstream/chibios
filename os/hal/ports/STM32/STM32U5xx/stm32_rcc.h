@@ -484,6 +484,7 @@
 #define rccEnableLPTIM1(lp) rccEnableAPB3(RCC_APB3ENR_LPTIM1EN, lp)
 #define rccDisableLPTIM1() rccDisableAPB3(RCC_APB3ENR_LPTIM1EN)
 #define rccResetLPTIM1() rccResetAPB3(RCC_APB3RSTR_LPTIM1RST)
+#define rccEnableLPTIM1Autonomous() (RCC->SRDAMR |= RCC_SRDAMR_LPTIM1AMEN)
 
 #define rccEnableLPTIM2(lp) rccEnableAPB1R2(RCC_APB1ENR2_LPTIM2EN, lp)
 #define rccDisableLPTIM2() rccDisableAPB1R2(RCC_APB1ENR2_LPTIM2EN)
@@ -492,10 +493,12 @@
 #define rccEnableLPTIM3(lp) rccEnableAPB3(RCC_APB3ENR_LPTIM3EN, lp)
 #define rccDisableLPTIM3() rccDisableAPB3(RCC_APB3ENR_LPTIM3EN)
 #define rccResetLPTIM3() rccResetAPB3(RCC_APB3RSTR_LPTIM3RST)
+#define rccEnableLPTIM3Autonomous() (RCC->SRDAMR |= RCC_SRDAMR_LPTIM3AMEN)
 
 #define rccEnableLPTIM4(lp) rccEnableAPB3(RCC_APB3ENR_LPTIM4EN, lp)
 #define rccDisableLPTIM4() rccDisableAPB3(RCC_APB3ENR_LPTIM4EN)
 #define rccResetLPTIM4() rccResetAPB3(RCC_APB3RSTR_LPTIM4RST)
+#define rccEnableLPTIM4Autonomous() (RCC->SRDAMR |= RCC_SRDAMR_LPTIM4AMEN)
 /** @} */
 
 /**
