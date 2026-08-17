@@ -651,18 +651,21 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
                        STM32_RCC_BDCR_CFG_MASK,
                        ccp->rcc_bdcr & STM32_RCC_BDCR_CFG_MASK,
                        true);
-  wtmask = 0U;
   if ((ccp->rcc_bdcr & RCC_BDCR_LSEON) != 0U) {
-    wtmask |= RCC_BDCR_LSERDY;
+    if (halRegWaitAllSet32X(&RCC->BDCR,
+                            RCC_BDCR_LSERDY,
+                            STM32_LSE_STARTUP_TIME,
+                            NULL)) {
+      return true;
+    }
   }
   if ((ccp->rcc_bdcr & RCC_BDCR_LSION) != 0U) {
-    wtmask |= RCC_BDCR_LSIRDY;
-  }
-  if (halRegWaitAllSet32X(&RCC->BDCR,
-                          wtmask,
-                          STM32_OSCILLATORS_STARTUP_TIME,
-                          NULL)) {
-    return true;
+    if (halRegWaitAllSet32X(&RCC->BDCR,
+                            RCC_BDCR_LSIRDY,
+                            STM32_OSCILLATORS_STARTUP_TIME,
+                            NULL)) {
+      return true;
+    }
   }
 
   /* Start configured non-PLL oscillators while keeping MSIS available.*/
