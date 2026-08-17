@@ -64,12 +64,50 @@
 
 #define STM32_WS_THRESHOLDS             16U
 
+/* Writable configuration fields in RCC_CR.*/
+#define STM32_RCC_CR_CFG_MASK           (RCC_CR_MSISON_Msk |              \
+                                         RCC_CR_MSIKERON_Msk |            \
+                                         RCC_CR_MSIKON_Msk |              \
+                                         RCC_CR_HSION_Msk |               \
+                                         RCC_CR_HSIKERON_Msk |            \
+                                         RCC_CR_HSI48ON_Msk |             \
+                                         RCC_CR_SHSION_Msk |              \
+                                         RCC_CR_HSEON_Msk |               \
+                                         RCC_CR_HSEBYP_Msk |              \
+                                         RCC_CR_HSEEXT_Msk |              \
+                                         RCC_CR_PLL1ON_Msk |              \
+                                         RCC_CR_PLL2ON_Msk |              \
+                                         RCC_CR_PLL3ON_Msk)
+
 /* Writable configuration fields in RCC_ICSCR1. The MSICALx fields contain
    factory calibration values and must be preserved.*/
 #define STM32_RCC_ICSCR1_CFG_MASK       (RCC_ICSCR1_MSIBIAS_Msk |          \
                                          RCC_ICSCR1_MSIRGSEL_Msk |         \
                                          RCC_ICSCR1_MSIKRANGE_Msk |        \
                                          RCC_ICSCR1_MSISRANGE_Msk)
+
+/* Writable configuration fields in RCC_CFGR1.*/
+#define STM32_RCC_CFGR1_CFG_MASK        (RCC_CFGR1_SW_Msk |               \
+                                         RCC_CFGR1_STOPWUCK_Msk |         \
+                                         RCC_CFGR1_STOPKERWUCK_Msk |      \
+                                         RCC_CFGR1_MCOSEL_Msk |           \
+                                         RCC_CFGR1_MCOPRE_Msk)
+
+/* Writable configuration fields in RCC_BDCR.*/
+#define STM32_RCC_BDCR_CFG_MASK         (RCC_BDCR_LSEON_Msk |             \
+                                         RCC_BDCR_LSEBYP_Msk |            \
+                                         RCC_BDCR_LSEDRV_Msk |            \
+                                         RCC_BDCR_LSESYSEN_Msk |          \
+                                         RCC_BDCR_RTCSEL_Msk |            \
+                                         RCC_BDCR_RTCEN_Msk |             \
+                                         RCC_BDCR_LSCOEN_Msk |            \
+                                         RCC_BDCR_LSCOSEL_Msk |           \
+                                         RCC_BDCR_LSION_Msk |             \
+                                         RCC_BDCR_LSIPREDIV_Msk)
+
+/* Writable configuration fields in PWR_VOSR.*/
+#define STM32_PWR_VOSR_CFG_MASK         (PWR_VOSR_VOS_Msk |               \
+                                         PWR_VOSR_BOOSTEN_Msk)
 
 #if (STM32_CLOCKTREE_VARIANT_U595 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE)
@@ -550,22 +588,19 @@ __STATIC_INLINE void hal_lld_pll_setup(uint32_t pll,
  */
 static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   uint32_t cr, wtmask;
-#if defined(PWR_VOSR_USBPWREN)
-  uint32_t usbpower;
-
-  /* Preserve an active OTG_HS transceiver across dynamic clock changes.*/
-  usbpower = PWR->VOSR & (PWR_VOSR_USBPWREN | PWR_VOSR_USBBOOSTEN);
-#endif
 
   /* Use the safest flash latency while the current clock tree is unknown.*/
   halRegWrite32X(&FLASH->ACR, FLASH_ACR_LATENCY_15WS, true);
 
   /* Enter a known MSIS-based state before applying the requested tree.*/
-  halRegModify32X(&RCC->ICSCR1,
-                  STM32_RCC_ICSCR1_RESET,
-                  STM32_RCC_ICSCR1_CFG_MASK & ~STM32_RCC_ICSCR1_RESET,
-                  true);
-  halRegWrite32X(&RCC->CR, STM32_RCC_CR_RESET, false);
+  halRegMaskedWrite32X(&RCC->ICSCR1,
+                       STM32_RCC_ICSCR1_CFG_MASK,
+                       STM32_RCC_ICSCR1_RESET & STM32_RCC_ICSCR1_CFG_MASK,
+                       true);
+  halRegMaskedWrite32X(&RCC->CR,
+                       STM32_RCC_CR_CFG_MASK,
+                       STM32_RCC_CR_RESET & STM32_RCC_CR_CFG_MASK,
+                       true);
   if (halRegWaitAllSet32X(&RCC->CR,
                           RCC_CR_MSISRDY | RCC_CR_MSIKRDY,
                           STM32_OSCILLATORS_STARTUP_TIME,
@@ -575,7 +610,10 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
 
   halRegWrite32X(&RCC->CFGR2, STM32_RCC_CFGR2_RESET, true);
   halRegWrite32X(&RCC->CFGR3, STM32_RCC_CFGR3_RESET, true);
-  halRegWrite32X(&RCC->CFGR1, STM32_RCC_CFGR1_RESET, false);
+  halRegMaskedWrite32X(&RCC->CFGR1,
+                       STM32_RCC_CFGR1_CFG_MASK,
+                       STM32_RCC_CFGR1_RESET & STM32_RCC_CFGR1_CFG_MASK,
+                       true);
   if (halRegWaitMatch32X(&RCC->CFGR1,
                          RCC_CFGR1_SWS_Msk,
                          0U,
@@ -589,13 +627,11 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   halRegWrite32X(&FLASH->ACR, STM32_FLASH_ACR_RESET, true);
 
   /* Voltage scaling must be ready before high-frequency clocks are used.*/
-#if defined(PWR_VOSR_USBPWREN)
-  halRegWrite32X(&PWR->VOSR,
-                 (ccp->pwr_vosr & ~PWR_VOSR_BOOSTEN) | usbpower,
-                 false);
-#else
-  halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr & ~PWR_VOSR_BOOSTEN, false);
-#endif
+  halRegMaskedWrite32X(&PWR->VOSR,
+                       STM32_PWR_VOSR_CFG_MASK,
+                       (ccp->pwr_vosr & ~PWR_VOSR_BOOSTEN) &
+                       STM32_PWR_VOSR_CFG_MASK,
+                       true);
   if (halRegWaitAllSet32X(&PWR->VOSR,
                           PWR_VOSR_VOSRDY,
                           STM32_REGULATORS_TRANSITION_TIME,
@@ -604,14 +640,17 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   }
 
   /* MSI ranges and bias selection. MSIRGSEL is enforced for determinism.*/
-  halRegModify32X(&RCC->ICSCR1,
-                  ccp->rcc_icscr1 | RCC_ICSCR1_MSIRGSEL_ICSCR1,
-                  STM32_RCC_ICSCR1_CFG_MASK &
-                  ~(ccp->rcc_icscr1 | RCC_ICSCR1_MSIRGSEL_ICSCR1),
-                  true);
+  halRegMaskedWrite32X(&RCC->ICSCR1,
+                       STM32_RCC_ICSCR1_CFG_MASK,
+                       (ccp->rcc_icscr1 | RCC_ICSCR1_MSIRGSEL_ICSCR1) &
+                       STM32_RCC_ICSCR1_CFG_MASK,
+                       true);
 
   /* Backup-domain clock sources and selectors.*/
-  halRegWrite32X(&RCC->BDCR, ccp->rcc_bdcr, false);
+  halRegMaskedWrite32X(&RCC->BDCR,
+                       STM32_RCC_BDCR_CFG_MASK,
+                       ccp->rcc_bdcr & STM32_RCC_BDCR_CFG_MASK,
+                       true);
   wtmask = 0U;
   if ((ccp->rcc_bdcr & RCC_BDCR_LSEON) != 0U) {
     wtmask |= RCC_BDCR_LSERDY;
@@ -632,9 +671,15 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   if ((cr & (RCC_CR_HSEON | RCC_CR_HSEBYP)) ==
       (RCC_CR_HSEON | RCC_CR_HSEBYP)) {
     /* HSEBYP must be latched while HSEON is still cleared.*/
-    halRegWrite32X(&RCC->CR, cr & ~RCC_CR_HSEON, false);
+    halRegMaskedWrite32X(&RCC->CR,
+                         STM32_RCC_CR_CFG_MASK,
+                         (cr & ~RCC_CR_HSEON) & STM32_RCC_CR_CFG_MASK,
+                         true);
   }
-  halRegWrite32X(&RCC->CR, cr, false);
+  halRegMaskedWrite32X(&RCC->CR,
+                       STM32_RCC_CR_CFG_MASK,
+                       cr & STM32_RCC_CR_CFG_MASK,
+                       true);
 
   wtmask = RCC_CR_MSISRDY;
   if ((ccp->rcc_cr & RCC_CR_MSIKON) != 0U) {
@@ -665,11 +710,10 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   hal_lld_pll_setup(2U, &ccp->plls[2]);
 
   if ((ccp->pwr_vosr & PWR_VOSR_BOOSTEN) != 0U) {
-#if defined(PWR_VOSR_USBPWREN)
-    halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr | usbpower, false);
-#else
-    halRegWrite32X(&PWR->VOSR, ccp->pwr_vosr, false);
-#endif
+    halRegMaskedWrite32X(&PWR->VOSR,
+                         STM32_PWR_VOSR_CFG_MASK,
+                         ccp->pwr_vosr & STM32_PWR_VOSR_CFG_MASK,
+                         true);
     if (halRegWaitAllSet32X(&PWR->VOSR,
                             PWR_VOSR_BOOSTRDY,
                             STM32_REGULATORS_TRANSITION_TIME,
@@ -679,7 +723,10 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   }
 
   cr = ccp->rcc_cr | RCC_CR_MSISON;
-  halRegWrite32X(&RCC->CR, cr, false);
+  halRegMaskedWrite32X(&RCC->CR,
+                       STM32_RCC_CR_CFG_MASK,
+                       cr & STM32_RCC_CR_CFG_MASK,
+                       true);
 
   wtmask = 0U;
   if ((ccp->rcc_cr & RCC_CR_PLL1ON) != 0U) {
@@ -702,7 +749,10 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   halRegWrite32X(&RCC->CFGR2, ccp->rcc_cfgr2, true);
   halRegWrite32X(&RCC->CFGR3, ccp->rcc_cfgr3, true);
   halRegWrite32X(&FLASH->ACR, ccp->flash_acr, true);
-  halRegWrite32X(&RCC->CFGR1, ccp->rcc_cfgr1, false);
+  halRegMaskedWrite32X(&RCC->CFGR1,
+                       STM32_RCC_CFGR1_CFG_MASK,
+                       ccp->rcc_cfgr1 & STM32_RCC_CFGR1_CFG_MASK,
+                       true);
   if (halRegWaitMatch32X(&RCC->CFGR1,
                          RCC_CFGR1_SWS_Msk,
                          (ccp->rcc_cfgr1 & RCC_CFGR1_SW_Msk) << RCC_CFGR1_SWS_Pos,
@@ -712,7 +762,10 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   }
 
   /* MSIS can be disabled now if it is not part of the requested tree.*/
-  halRegWrite32X(&RCC->CR, ccp->rcc_cr, false);
+  halRegMaskedWrite32X(&RCC->CR,
+                       STM32_RCC_CR_CFG_MASK,
+                       ccp->rcc_cr & STM32_RCC_CR_CFG_MASK,
+                       true);
 
   return false;
 }
