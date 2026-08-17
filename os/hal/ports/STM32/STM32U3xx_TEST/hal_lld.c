@@ -47,6 +47,50 @@
 #define STM32_RCC_CFGR4_RESET           0U
 /** @} */
 
+/* Clock configuration fields managed in RCC_CR.*/
+#define STM32_RCC_CR_CFG_MASK           (RCC_CR_MSISON_Msk |              \
+                                         RCC_CR_MSIKERON_Msk |            \
+                                         RCC_CR_MSIKON_Msk |              \
+                                         RCC_CR_MSIPLL1EN_Msk |           \
+                                         RCC_CR_MSIPLL0EN_Msk |           \
+                                         RCC_CR_MSIPLL1FAST_Msk |         \
+                                         RCC_CR_MSIPLL0FAST_Msk |         \
+                                         RCC_CR_HSION_Msk |               \
+                                         RCC_CR_HSIKERON_Msk |            \
+                                         RCC_CR_HSI48ON_Msk |             \
+                                         RCC_CR_HSEON_Msk |               \
+                                         RCC_CR_HSEBYP_Msk |              \
+                                         RCC_CR_HSEEXT_Msk)
+#define STM32_RCC_CR_HSE_MODE_MASK      (RCC_CR_HSEBYP_Msk |              \
+                                         RCC_CR_HSEEXT_Msk)
+
+/* Clock configuration fields in RCC_ICSCR1. The MSICALx fields contain
+   factory calibration values and must be preserved.*/
+#define STM32_RCC_ICSCR1_CFG_MASK       (RCC_ICSCR1_MSIHSINDIV_Msk |      \
+                                         RCC_ICSCR1_MSIPLL1SEL_Msk |      \
+                                         RCC_ICSCR1_MSIPLL0SEL_Msk |      \
+                                         RCC_ICSCR1_MSIBIAS_Msk |         \
+                                         RCC_ICSCR1_MSIRGSEL_Msk |        \
+                                         RCC_ICSCR1_MSIPLL1N_Msk |        \
+                                         RCC_ICSCR1_MSIKDIV_Msk |         \
+                                         RCC_ICSCR1_MSIKSEL_Msk |         \
+                                         RCC_ICSCR1_MSISDIV_Msk |         \
+                                         RCC_ICSCR1_MSISSEL_Msk)
+
+/* Clock configuration fields managed in RCC_CFGR1.*/
+#define STM32_RCC_CFGR1_CFG_MASK        (RCC_CFGR1_SW_Msk |               \
+                                         RCC_CFGR1_STOPWUCK_Msk |         \
+                                         RCC_CFGR1_STOPKERWUCK_Msk |      \
+                                         RCC_CFGR1_MCO2SEL_Msk |          \
+                                         RCC_CFGR1_MCO2PRE_Msk |          \
+                                         RCC_CFGR1_MCOSEL_Msk |           \
+                                         RCC_CFGR1_MCOPRE_Msk)
+
+/* Voltage configuration fields managed in PWR_VOSR.*/
+#define STM32_PWR_VOSR_CFG_MASK         (PWR_VOSR_R1EN_Msk |              \
+                                         PWR_VOSR_R2EN_Msk |              \
+                                         PWR_VOSR_BOOSTEN_Msk)
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -263,16 +307,18 @@ __STATIC_INLINE void hal_lld_set_static_clocks(void) {
  * @notapi
  */
 static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
-  uint32_t wtmask;
+  uint32_t cr, wtmask;
 
   /* Setting flash ACR to the safest value while the clock tree is
      reconfigured. we don't know the current clock settings.*/
   halRegWrite32X(&FLASH->ACR, FLASH_ACR_LATENCY_4WS, true);
 
-  /* MSIS must be active before performing the reconfiguration, MSI could
-     be restarting so waiting for the ready bits is required.*/
-  halRegWrite32X(&RCC->ICSCR1, STM32_RCC_ICSCR1_RESET, true);
-  halRegWrite32X(&RCC->CR,     STM32_RCC_CR_RESET, true);
+  /* MSIS must be active before performing the reconfiguration. The current
+     SYSCLK source is preserved until the switch to MSIS is complete.*/
+  halRegModify32X(&RCC->CR,
+                  STM32_RCC_CR_RESET & STM32_RCC_CR_CFG_MASK,
+                  0U,
+                  true);
   if (halRegWaitAllSet32X(&RCC->CR,
                           RCC_CR_MSISRDY | RCC_CR_MSIKRDY,
                           STM32_OSCILLATORS_STARTUP_TIME,
@@ -281,26 +327,61 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   }
 
   /* Resetting clock-related settings.*/
-  halRegWrite32X(&RCC->CFGR1, STM32_RCC_CFGR1_RESET, true);
+  halRegMaskedWrite32X(&RCC->CFGR1,
+                       STM32_RCC_CFGR1_CFG_MASK,
+                       STM32_RCC_CFGR1_RESET & STM32_RCC_CFGR1_CFG_MASK,
+                       true);
   if (halRegWaitMatch32X(&RCC->CFGR1,
                          RCC_CFGR1_SWS_Msk, 0U,
                          STM32_SYSCLK_SWITCH_TIME,
                          NULL)) {
     return true;
   }
+
+  /* The previous SYSCLK source can now be disabled. HSE mode bits must only
+     be changed while HSE is disabled.*/
+  cr = RCC->CR & STM32_RCC_CR_HSE_MODE_MASK;
+  if (cr != 0U) {
+    halRegMaskedWrite32X(&RCC->CR,
+                         STM32_RCC_CR_CFG_MASK,
+                         (STM32_RCC_CR_RESET | cr) & STM32_RCC_CR_CFG_MASK,
+                         true);
+  }
+  halRegMaskedWrite32X(&RCC->CR,
+                       STM32_RCC_CR_CFG_MASK,
+                       STM32_RCC_CR_RESET & STM32_RCC_CR_CFG_MASK,
+                       true);
+  halRegMaskedWrite32X(&RCC->ICSCR1,
+                       STM32_RCC_ICSCR1_CFG_MASK,
+                       STM32_RCC_ICSCR1_RESET & STM32_RCC_ICSCR1_CFG_MASK,
+                       true);
+
   halRegWrite32X(&RCC->CFGR2, STM32_RCC_CFGR2_RESET, true);
   halRegWrite32X(&RCC->CFGR3, STM32_RCC_CFGR3_RESET, true);
   halRegWrite32X(&RCC->CFGR4, STM32_RCC_CFGR4_RESET, true);
-  halRegWrite32X(&PWR->VOSR,  STM32_PWR_VOSR_RESET, true);
+  halRegMaskedWrite32X(&PWR->VOSR,
+                       STM32_PWR_VOSR_CFG_MASK,
+                       STM32_PWR_VOSR_RESET & STM32_PWR_VOSR_CFG_MASK,
+                       true);
 
   /* MSIRC1/4 as post-reset clock.*/
   hal_lld_set_coreclock(6000000U);
 
   /* Enabling all required oscillators at same time, MSIS enforced active,
      PLLs not enabled yet because we are running in "reset" mode.*/
-  halRegWrite32X(&RCC->CR,
-                 (ccp->rcc_cr | RCC_CR_MSISON) & ~(RCC_CR_MSIPLL0EN | RCC_CR_MSIPLL1EN),
-                 true);
+  cr = (ccp->rcc_cr | RCC_CR_MSISON) &
+       ~(RCC_CR_MSIPLL0EN | RCC_CR_MSIPLL1EN);
+  if (((cr & RCC_CR_HSEON) != 0U) &&
+      ((cr & STM32_RCC_CR_HSE_MODE_MASK) != 0U)) {
+    halRegMaskedWrite32X(&RCC->CR,
+                         STM32_RCC_CR_CFG_MASK,
+                         (cr & ~RCC_CR_HSEON) & STM32_RCC_CR_CFG_MASK,
+                         true);
+  }
+  halRegMaskedWrite32X(&RCC->CR,
+                       STM32_RCC_CR_CFG_MASK,
+                       cr & STM32_RCC_CR_CFG_MASK,
+                       true);
 
   /* Adding to the "wait mask" the status bits of all enabled oscillators.*/
   wtmask = RCC_CR_MSISRDY | RCC_CR_MSIKRDY;     /* Known to be ready already.*/
@@ -324,20 +405,39 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
      because the booster clock must be ready (see RCC_CFGR4) before enabling
      the booster. */
   halRegWrite32X(&RCC->CFGR4, ccp->rcc_cfgr4, true);
-  halRegWrite32X(&PWR->VOSR,  ccp->pwr_vosr,  true);
-  wtmask = ccp->pwr_vosr << 16;
+  halRegMaskedWrite32X(&PWR->VOSR,
+                       STM32_PWR_VOSR_CFG_MASK,
+                       ccp->pwr_vosr & STM32_PWR_VOSR_CFG_MASK,
+                       true);
+  wtmask = 0U;
+  if ((ccp->pwr_vosr & PWR_VOSR_R1EN) != 0U) {
+    wtmask |= PWR_VOSR_R1RDY;
+  }
+  if ((ccp->pwr_vosr & PWR_VOSR_R2EN) != 0U) {
+    wtmask |= PWR_VOSR_R2RDY;
+  }
+  if ((ccp->pwr_vosr & PWR_VOSR_BOOSTEN) != 0U) {
+    wtmask |= PWR_VOSR_BOOSTRDY;
+  }
   if (halRegWaitAllSet32X(&PWR->VOSR,
                           wtmask,
-                          STM32_OSCILLATORS_STARTUP_TIME,
+                          STM32_REGULATORS_TRANSITION_TIME,
                           NULL)) {
     return true;
   }
 
   /* MSI configuration (sources, dividers, bias). */
-  halRegWrite32X(&RCC->ICSCR1, ccp->rcc_icscr1 | RCC_ICSCR1_MSIRGSEL_ICSCR1, true);
+  halRegMaskedWrite32X(&RCC->ICSCR1,
+                       STM32_RCC_ICSCR1_CFG_MASK,
+                       (ccp->rcc_icscr1 | RCC_ICSCR1_MSIRGSEL_ICSCR1) &
+                       STM32_RCC_ICSCR1_CFG_MASK,
+                       true);
 
   /* Enabling also PLLs if required by the configuration.*/
-  halRegWrite32X(&RCC->CR, ccp->rcc_cr | RCC_CR_MSISON, true);
+  halRegMaskedWrite32X(&RCC->CR,
+                       STM32_RCC_CR_CFG_MASK,
+                       (ccp->rcc_cr | RCC_CR_MSISON) & STM32_RCC_CR_CFG_MASK,
+                       true);
   wtmask = 0U;
   if ((ccp->rcc_cr & RCC_CR_MSIPLL0EN) != 0U) {
     wtmask |= RCC_CR_MSIPLL0RDY;
@@ -353,7 +453,10 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   }
 
   /* Final RCC CFGR settings (prescalers, MCO, STOP wake-up sources, booster).*/
-  halRegWrite32X(&RCC->CFGR1, ccp->rcc_cfgr1, true);
+  halRegMaskedWrite32X(&RCC->CFGR1,
+                       STM32_RCC_CFGR1_CFG_MASK,
+                       ccp->rcc_cfgr1 & STM32_RCC_CFGR1_CFG_MASK,
+                       true);
   halRegWrite32X(&RCC->CFGR2, ccp->rcc_cfgr2, true);
   halRegWrite32X(&RCC->CFGR3, ccp->rcc_cfgr3, true);
 
@@ -370,7 +473,10 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
 
   /* Final RCC_CR value, MSIS could go off at this point if it is not part
      of the mask.*/
-  halRegWrite32X(&RCC->CR, ccp->rcc_cr, true);
+  halRegMaskedWrite32X(&RCC->CR,
+                       STM32_RCC_CR_CFG_MASK,
+                       ccp->rcc_cr & STM32_RCC_CR_CFG_MASK,
+                       true);
 
   return false;
 }
