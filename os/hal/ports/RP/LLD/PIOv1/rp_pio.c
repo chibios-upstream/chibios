@@ -94,6 +94,19 @@ static struct {
      */
     uint32_t        imem_allocated;
     /**
+     * @brief   Block level IRQ redirector.
+     */
+    struct {
+      /**
+       * @brief   PIO block callback function.
+       */
+      rp_pioisr_t   func;
+      /**
+       * @brief   PIO block callback parameter.
+       */
+      void          *param;
+    } block;
+    /**
      * @brief   PIO state machine IRQ redirectors.
      */
     struct {
@@ -137,6 +150,12 @@ static void serve_pio_irq(uint32_t blockidx, __I uint32_t *ints_reg) {
 
   if (ints != 0U) {
     unsigned i;
+
+    /* The block callback is invoked once, before the per state machine
+       ones, so it can acknowledge the source on their behalf.*/
+    if (pio.blocks[blockidx].block.func != NULL) {
+      pio.blocks[blockidx].block.func(pio.blocks[blockidx].block.param, ints);
+    }
 
     for (i = 0U; i < RP_PIO_NUM_STATE_MACHINES; i++) {
       if (pio.blocks[blockidx].sm[i].func != NULL) {
@@ -240,6 +259,7 @@ void pioInit(void) {
     pio.blocks[b].c0_allocated_mask = 0U;
     pio.blocks[b].c1_allocated_mask = 0U;
     pio.blocks[b].imem_allocated    = 0U;
+    pio.blocks[b].block.func        = NULL;
     for (s = 0U; s < RP_PIO_NUM_STATE_MACHINES; s++) {
       pio.blocks[b].sm[s].func = NULL;
     }
@@ -484,10 +504,15 @@ void pioSmFreeI(const rp_pio_sm_t *smp) {
 
   /* Reset PIO block only if no state machines remain allocated and no
      programs are loaded, resetting while instruction memory is allocated
-     would wipe loaded programs behind the bookkeeping's back.*/
+     would wipe loaded programs behind the bookkeeping's back. The reset
+     wipes the INTE routing, so the block callback is dropped with it:
+     keeping the pointer past the point it can ever fire again would
+     leave a stale registration behind.*/
   if (((pio.blocks[b].c0_allocated_mask |
         pio.blocks[b].c1_allocated_mask) == 0U) &&
       (pio.blocks[b].imem_allocated == 0U)) {
+    pio.blocks[b].block.func  = NULL;
+    pio.blocks[b].block.param = NULL;
     rp_peripheral_reset(smp->block->resets_mask);
   }
 }
@@ -623,10 +648,14 @@ void pioProgramUnloadI(const rp_pio_block_t *block,
   pio.blocks[b].imem_allocated &= ~mask;
 
   /* Reset PIO block if it became fully idle, no state machines allocated
-     by either core and no programs loaded.*/
+     by either core and no programs loaded. The reset wipes the INTE
+     routing, so the block callback is dropped with it, as in
+     pioSmFreeI().*/
   if (((pio.blocks[b].c0_allocated_mask |
         pio.blocks[b].c1_allocated_mask) == 0U) &&
       (pio.blocks[b].imem_allocated == 0U)) {
+    pio.blocks[b].block.func  = NULL;
+    pio.blocks[b].block.param = NULL;
     rp_peripheral_reset(block->resets_mask);
   }
 }
@@ -702,6 +731,56 @@ void pioSmInit(const rp_pio_sm_t *smp, uint32_t initial_pc,
   pioSmRestartX(smp);
   pioSmClkdivRestartX(smp);
   pioSmSetPCX(smp, initial_pc);
+}
+
+/**
+ * @brief   Associates a callback to a PIO block.
+ * @details The callback is invoked once per interrupt of the block, before
+ *          the callbacks of the allocated state machines, with the content
+ *          of the IRQn_INTS register.
+ * @note    The driver acknowledges nothing itself: IRQn_INTS is derived
+ *          from INTR and the FIFO levels, so unless the source is cleared
+ *          the interrupt fires again immediately. A block callback is the
+ *          natural place to do it, being the only handler guaranteed to
+ *          run exactly once per interrupt.
+ * @note    Passing @p NULL removes the callback.
+ * @note    The callback can only be invoked while the current core has
+ *          at least one state machine allocated, which is what keeps the
+ *          PIO interrupt vector enabled. It is dropped automatically
+ *          when the block becomes fully idle and is reset, together with
+ *          the INTE routing.
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @param[in] func      callback function, can be @p NULL
+ * @param[in] param     parameter passed to the callback
+ *
+ * @iclass
+ */
+void pioSetBlockCallbackI(const rp_pio_block_t *block,
+                          rp_pioisr_t func, void *param) {
+
+  osalDbgCheckClassI();
+  osalDbgCheck(block != NULL);
+
+  pio.blocks[block->pioidx].block.param = param;
+  pio.blocks[block->pioidx].block.func  = func;
+}
+
+/**
+ * @brief   Associates a callback to a PIO block.
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @param[in] func      callback function, can be @p NULL
+ * @param[in] param     parameter passed to the callback
+ *
+ * @api
+ */
+void pioSetBlockCallback(const rp_pio_block_t *block,
+                         rp_pioisr_t func, void *param) {
+
+  osalSysLock();
+  pioSetBlockCallbackI(block, func, param);
+  osalSysUnlock();
 }
 
 /**

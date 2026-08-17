@@ -196,6 +196,18 @@
 #define FDCAN_CONFIG_TDCR_TDCO(n)        ((FDCAN_CONFIG_TDCR_TDCO_Msk & ((n) << FDCAN_CONFIG_TDCR_TDCO_Pos)))
 /** @} */
 
+/**
+ * @name    Timestamp counter configuration register.
+ * @{
+ */
+#define FDCAN_CONFIG_TSCC_TSS_Pos        (0)
+#define FDCAN_CONFIG_TSCC_TSS_Msk        (0x3u << FDCAN_CONFIG_TSCC_TSS_Pos)
+#define FDCAN_CONFIG_TSCC_TSS(n)         ((FDCAN_CONFIG_TSCC_TSS_Msk & ((n) << FDCAN_CONFIG_TSCC_TSS_Pos)))
+#define FDCAN_CONFIG_TSCC_TCP_Pos        (16)
+#define FDCAN_CONFIG_TSCC_TCP_Msk        (0xFu << FDCAN_CONFIG_TSCC_TCP_Pos)
+#define FDCAN_CONFIG_TSCC_TCP(n)         ((FDCAN_CONFIG_TSCC_TCP_Msk & ((n) << FDCAN_CONFIG_TSCC_TCP_Pos)))
+/** @} */
+
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */
 /*===========================================================================*/

@@ -325,6 +325,13 @@
 
 /**
  * @brief   Type of a PIO ISR callback.
+ * @note    A block has a single interrupt line shared by its four state
+ *          machines, so the callback of every allocated state machine is
+ *          invoked on every interrupt of the block, each time with the
+ *          full IRQn_INTS word: a per state machine callback has to
+ *          select its own bits with the @p PIO_IRQ_* macros. Work that
+ *          must happen once per interrupt belongs in a block callback,
+ *          see @p pioSetBlockCallbackI().
  *
  * @param[in] p         parameter for the registered function
  * @param[in] ints      content of the IRQn_INTS register
@@ -475,6 +482,10 @@ extern "C" {
                          int32_t offset, uint32_t length);
   void pioSmInit(const rp_pio_sm_t *smp, uint32_t initial_pc,
                  const rp_pio_sm_config_t *cfgp);
+  void pioSetBlockCallbackI(const rp_pio_block_t *block,
+                            rp_pioisr_t func, void *param);
+  void pioSetBlockCallback(const rp_pio_block_t *block,
+                           rp_pioisr_t func, void *param);
   uint32_t pioGetSmAllocatedMask(const rp_pio_block_t *block);
   uint32_t pioGetImemAllocatedMask(const rp_pio_block_t *block);
 #if (RP_PIO_HAS_GPIOBASE == TRUE) || defined(__DOXYGEN__)
@@ -921,6 +932,30 @@ __STATIC_INLINE void pioSmDisableX(const rp_pio_sm_t *smp) {
 }
 
 /**
+ * @brief   Enables several state machines of a block simultaneously.
+ * @details A single write to the atomic SET alias raises the SM_ENABLE
+ *          and CLKDIV_RESTART bits of every state machine in the mask,
+ *          so their clock dividers restart together and the machines run
+ *          cycle-aligned. Machines outside the mask are not affected by
+ *          construction, and the write is atomic against the other core.
+ * @pre     Each state machine in the mask is configured and its program
+ *          counter is positioned, as before an individual
+ *          @p pioSmEnableX().
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @param[in] mask      mask of state machines, bits 0..3
+ *
+ * @special
+ */
+__STATIC_INLINE void pioEnableSmMaskInSyncX(const rp_pio_block_t *block,
+                                            uint32_t mask) {
+
+  osalDbgCheck((block != NULL) && ((mask & ~0xFU) == 0U));
+
+  block->pio->SET.CTRL = mask | (mask << 8U);
+}
+
+/**
  * @brief   Restarts a state machine.
  *
  * @param[in] smp       pointer to a rp_pio_sm_t structure
@@ -959,6 +994,22 @@ __STATIC_INLINE void pioSmSetClkdivX(const rp_pio_sm_t *smp,
 }
 
 /**
+ * @brief   Returns the clock divider of a state machine.
+ * @details The raw CLKDIV register value, decomposable with the
+ *          @p PIO_SM_CLKDIV_INT_Msk/Pos and @p PIO_SM_CLKDIV_FRAC_Msk/Pos
+ *          macros.
+ *
+ * @param[in] smp       pointer to a rp_pio_sm_t structure
+ * @return              The CLKDIV register value.
+ *
+ * @special
+ */
+__STATIC_INLINE uint32_t pioSmGetClkdivX(const rp_pio_sm_t *smp) {
+
+  return smp->block->pio->SM[smp->smidx].CLKDIV;
+}
+
+/**
  * @brief   Sets the execution control of a state machine.
  *
  * @param[in] smp       pointer to a rp_pio_sm_t structure
@@ -970,6 +1021,57 @@ __STATIC_INLINE void pioSmSetExecctrlX(const rp_pio_sm_t *smp,
                                         uint32_t execctrl) {
 
   smp->block->pio->SM[smp->smidx].EXECCTRL = execctrl;
+}
+
+/**
+ * @brief   Sets the program wrap range of a running state machine.
+ * @details Only the wrap fields of EXECCTRL are modified, everything else
+ *          in the register keeps its value. Repointing the wrap at another
+ *          program without disturbing the pin and side-set configuration is
+ *          how a single state machine is reused for several programs.
+ * @note    Both values are absolute instruction memory addresses, as in
+ *          @p pioSmConfigSetWrapX().
+ *
+ * @param[in] smp       pointer to a rp_pio_sm_t structure
+ * @param[in] bottom    address to wrap from, i.e. wrap_target (0..31)
+ * @param[in] top       address to wrap after, i.e. wrap (0..31)
+ *
+ * @special
+ */
+__STATIC_INLINE void pioSmSetWrapX(const rp_pio_sm_t *smp,
+                                   uint32_t bottom, uint32_t top) {
+  uint32_t execctrl;
+
+  osalDbgCheck((bottom < RP_PIO_NUM_INSTR_MEM) &&
+               (top < RP_PIO_NUM_INSTR_MEM));
+
+  execctrl = smp->block->pio->SM[smp->smidx].EXECCTRL;
+  smp->block->pio->SM[smp->smidx].EXECCTRL =
+    (execctrl & ~(PIO_SM_EXECCTRL_WRAP_BOTTOM_Msk |
+                  PIO_SM_EXECCTRL_WRAP_TOP_Msk)) |
+    PIO_SM_EXECCTRL_WRAP(bottom, top);
+}
+
+/**
+ * @brief   Sets the JMP PIN input of a running state machine.
+ * @details Only the JMP_PIN field of EXECCTRL is modified. The pin number
+ *          is block-relative on devices with the @p RP_PIO_HAS_GPIOBASE
+ *          capability, see @p pioGpioToRel().
+ *
+ * @param[in] smp       pointer to a rp_pio_sm_t structure
+ * @param[in] pin       pin for the JMP PIN condition (0..31)
+ *
+ * @special
+ */
+__STATIC_INLINE void pioSmSetJmpPinX(const rp_pio_sm_t *smp, uint32_t pin) {
+  uint32_t execctrl;
+
+  osalDbgCheck(pin < 32U);
+
+  execctrl = smp->block->pio->SM[smp->smidx].EXECCTRL;
+  smp->block->pio->SM[smp->smidx].EXECCTRL =
+    (execctrl & ~PIO_SM_EXECCTRL_JMP_PIN_Msk) |
+    (pin << PIO_SM_EXECCTRL_JMP_PIN_Pos);
 }
 
 /**
@@ -998,6 +1100,108 @@ __STATIC_INLINE void pioSmSetPinctrlX(const rp_pio_sm_t *smp,
                                        uint32_t pinctrl) {
 
   smp->block->pio->SM[smp->smidx].PINCTRL = pinctrl;
+}
+
+/**
+ * @brief   Sets the OUT pin group of a running state machine.
+ * @details Only the OUT_BASE and OUT_COUNT fields of PINCTRL are modified,
+ *          the runtime counterpart of @p pioSmConfigSetOutPinsX(). Pin
+ *          numbers are block-relative on devices with the
+ *          @p RP_PIO_HAS_GPIOBASE capability, see @p pioGpioToRel().
+ *
+ * @param[in] smp       pointer to a rp_pio_sm_t structure
+ * @param[in] pin_base  first pin of the OUT group (0..31)
+ * @param[in] count     number of pins in the OUT group (0..32)
+ *
+ * @special
+ */
+__STATIC_INLINE void pioSmSetOutPinsX(const rp_pio_sm_t *smp,
+                                      uint32_t pin_base, uint32_t count) {
+  uint32_t pinctrl;
+
+  osalDbgCheck((pin_base < 32U) && (count <= 32U));
+
+  pinctrl = smp->block->pio->SM[smp->smidx].PINCTRL;
+  smp->block->pio->SM[smp->smidx].PINCTRL =
+    (pinctrl & ~(PIO_SM_PINCTRL_OUT_BASE_Msk |
+                 PIO_SM_PINCTRL_OUT_COUNT_Msk)) |
+    (pin_base << PIO_SM_PINCTRL_OUT_BASE_Pos) |
+    (count << PIO_SM_PINCTRL_OUT_COUNT_Pos);
+}
+
+/**
+ * @brief   Sets the SET pin group of a running state machine.
+ * @details Only the SET_BASE and SET_COUNT fields of PINCTRL are modified,
+ *          the runtime counterpart of @p pioSmConfigSetSetPinsX(). Pin
+ *          numbers are block-relative on devices with the
+ *          @p RP_PIO_HAS_GPIOBASE capability, see @p pioGpioToRel().
+ *
+ * @param[in] smp       pointer to a rp_pio_sm_t structure
+ * @param[in] pin_base  first pin of the SET group (0..31)
+ * @param[in] count     number of pins in the SET group (0..5)
+ *
+ * @special
+ */
+__STATIC_INLINE void pioSmSetSetPinsX(const rp_pio_sm_t *smp,
+                                      uint32_t pin_base, uint32_t count) {
+  uint32_t pinctrl;
+
+  osalDbgCheck((pin_base < 32U) && (count <= 5U));
+
+  pinctrl = smp->block->pio->SM[smp->smidx].PINCTRL;
+  smp->block->pio->SM[smp->smidx].PINCTRL =
+    (pinctrl & ~(PIO_SM_PINCTRL_SET_BASE_Msk |
+                 PIO_SM_PINCTRL_SET_COUNT_Msk)) |
+    (pin_base << PIO_SM_PINCTRL_SET_BASE_Pos) |
+    (count << PIO_SM_PINCTRL_SET_COUNT_Pos);
+}
+
+/**
+ * @brief   Sets the IN pins of a running state machine.
+ * @details Only the IN_BASE field of PINCTRL is modified, the runtime
+ *          counterpart of @p pioSmConfigSetInPinsX(). Pin numbers are
+ *          block-relative on devices with the @p RP_PIO_HAS_GPIOBASE
+ *          capability, see @p pioGpioToRel().
+ *
+ * @param[in] smp       pointer to a rp_pio_sm_t structure
+ * @param[in] pin_base  first pin of the IN group (0..31)
+ *
+ * @special
+ */
+__STATIC_INLINE void pioSmSetInPinsX(const rp_pio_sm_t *smp,
+                                     uint32_t pin_base) {
+  uint32_t pinctrl;
+
+  osalDbgCheck(pin_base < 32U);
+
+  pinctrl = smp->block->pio->SM[smp->smidx].PINCTRL;
+  smp->block->pio->SM[smp->smidx].PINCTRL =
+    (pinctrl & ~PIO_SM_PINCTRL_IN_BASE_Msk) |
+    (pin_base << PIO_SM_PINCTRL_IN_BASE_Pos);
+}
+
+/**
+ * @brief   Sets the side-set pin base of a running state machine.
+ * @details Only the SIDESET_BASE field of PINCTRL is modified, the runtime
+ *          counterpart of @p pioSmConfigSetSidesetPinsX(). Pin numbers are
+ *          block-relative on devices with the @p RP_PIO_HAS_GPIOBASE
+ *          capability, see @p pioGpioToRel().
+ *
+ * @param[in] smp       pointer to a rp_pio_sm_t structure
+ * @param[in] pin_base  first pin of the side-set group (0..31)
+ *
+ * @special
+ */
+__STATIC_INLINE void pioSmSetSidesetPinsX(const rp_pio_sm_t *smp,
+                                          uint32_t pin_base) {
+  uint32_t pinctrl;
+
+  osalDbgCheck(pin_base < 32U);
+
+  pinctrl = smp->block->pio->SM[smp->smidx].PINCTRL;
+  smp->block->pio->SM[smp->smidx].PINCTRL =
+    (pinctrl & ~PIO_SM_PINCTRL_SIDESET_BASE_Msk) |
+    (pin_base << PIO_SM_PINCTRL_SIDESET_BASE_Pos);
 }
 
 /**
@@ -1229,6 +1433,31 @@ __STATIC_INLINE void pioSmExecX(const rp_pio_sm_t *smp,
                                  uint16_t instr) {
 
   smp->block->pio->SM[smp->smidx].INSTR = instr;
+}
+
+/**
+ * @brief   Rewrites one instruction memory slot of a block.
+ * @details Intended to patch instructions of an already loaded program at
+ *          runtime, typically JMP targets. The caller must own the slot
+ *          through a previous @p pioProgramLoad(); for a program loaded
+ *          at a non-zero offset both @p addr and any JMP target encoded
+ *          in @p instr must be rebased by the load offset, as the loader
+ *          itself does.
+ * @note    The instruction memory is write-only, a patch cannot be read
+ *          back.
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @param[in] addr      instruction memory address (0..31)
+ * @param[in] instr     16-bit PIO instruction
+ *
+ * @special
+ */
+__STATIC_INLINE void pioProgramPatchX(const rp_pio_block_t *block,
+                                      uint32_t addr, uint16_t instr) {
+
+  osalDbgCheck((block != NULL) && (addr < RP_PIO_NUM_INSTR_MEM));
+
+  block->pio->INSTR_MEM[addr] = (uint32_t)instr;
 }
 
 /**
@@ -1472,6 +1701,56 @@ __STATIC_INLINE void pioSmDisableInterruptX(const rp_pio_sm_t *smp,
 }
 
 /**
+ * @brief   Enables block interrupts on the current core.
+ * @details The IRQ flags a program raises with the IRQ instruction, and
+ *          the FIFO level interrupts, are properties of the block: the
+ *          mask is the same one @p pioSmEnableInterruptX() takes, but no
+ *          specific state machine handle is needed to reach it.
+ * @pre     The block is active: at least one state machine allocated or
+ *          one program loaded. An idle block is held in reset and the
+ *          INTE write is lost.
+ * @note    The PIO interrupt vector of a core is enabled while that core
+ *          has at least one state machine allocated, see
+ *          @p pioSmAllocI(): an enabled source only reaches the CPU
+ *          under that condition.
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @param[in] mask      interrupt mask (combination of PIO_IRQ_* bits)
+ *
+ * @special
+ */
+__STATIC_INLINE void pioEnableInterruptX(const rp_pio_block_t *block,
+                                         uint32_t mask) {
+
+  osalDbgCheck(block != NULL);
+
+  if (SIO->CPUID == 0U) {
+    block->pio->SET.IRQ0_INTE = mask;
+  }
+  else {
+    block->pio->SET.IRQ1_INTE = mask;
+  }
+}
+
+/**
+ * @brief   Disables block interrupts.
+ * @note    Clears both cores' INTE unconditionally (avoids CPUID check).
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @param[in] mask      interrupt mask (combination of PIO_IRQ_* bits)
+ *
+ * @special
+ */
+__STATIC_INLINE void pioDisableInterruptX(const rp_pio_block_t *block,
+                                          uint32_t mask) {
+
+  osalDbgCheck(block != NULL);
+
+  block->pio->CLR.IRQ0_INTE = mask;
+  block->pio->CLR.IRQ1_INTE = mask;
+}
+
+/**
  * @brief   Returns the state of the PIO IRQ flags of a block.
  * @details The eight flags are shared by all state machines of the
  *          block and can be set, cleared and waited on by them.
@@ -1534,6 +1813,49 @@ __STATIC_INLINE void pioIrqForceX(const rp_pio_block_t *block,
 }
 
 /**
+ * @brief   Controls the input synchronizer bypass of a block.
+ * @details A bypassed pin skips the 2-flip-flop input synchronizer, saving
+ *          two clock cycles of input latency for signals known to be
+ *          synchronous to the system clock. Bit @p n of the mask refers to
+ *          GPIO @p n; on devices with the @p RP_PIO_HAS_GPIOBASE
+ *          capability it refers to GPIO <tt>base + n</tt> of the window
+ *          selected with @p pioSetGpioBase().
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @param[in] mask      mask of pins to be changed
+ * @param[in] bypass    true to bypass the synchronizer, false to restore it
+ *
+ * @special
+ */
+__STATIC_INLINE void pioSetInputSyncBypassX(const rp_pio_block_t *block,
+                                            uint32_t mask, bool bypass) {
+
+  osalDbgCheck(block != NULL);
+
+  if (bypass) {
+    block->pio->SET.INPUT_SYNC_BYPASS = mask;
+  }
+  else {
+    block->pio->CLR.INPUT_SYNC_BYPASS = mask;
+  }
+}
+
+/**
+ * @brief   Returns the input synchronizer bypass mask of a block.
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @return              The INPUT_SYNC_BYPASS register value.
+ *
+ * @special
+ */
+__STATIC_INLINE uint32_t pioGetInputSyncBypassX(const rp_pio_block_t *block) {
+
+  osalDbgCheck(block != NULL);
+
+  return block->pio->INPUT_SYNC_BYPASS;
+}
+
+/**
  * @brief   Writes a word to the TX FIFO, blocking while full.
  *
  * @param[in] smp       pointer to a rp_pio_sm_t structure
@@ -1564,26 +1886,26 @@ __STATIC_INLINE uint32_t pioSmGet(const rp_pio_sm_t *smp) {
 }
 
 /**
- * @brief   Routes a GPIO pin to the PIO block that owns this state machine.
+ * @brief   Routes a GPIO pin to a PIO block.
  * @details Sets IO_BANK0 FUNCSEL for the given pin to PIO0, PIO1, or PIO2
- *          based on the block index of the state machine.
+ *          based on the block index.
  * @note    Only the pin multiplexer is programmed; the pad control
  *          register (input enable, schmitt trigger, drive strength, and
  *          on the RP2350 the isolation latch) is left untouched. Use
- *          @p pioGpioInitX() for complete pin routing.
+ *          @p pioGpioRouteX() for complete pin routing.
  * @note    The @p gpio parameter is an absolute GPIO number. On devices
  *          with the @p RP_PIO_HAS_GPIOBASE capability (RP2350) the pin
  *          fields written into PINCTRL/EXECCTRL are instead relative to
  *          the window selected with @p pioSetGpioBase(), see
  *          @p pioGpioToRel().
  *
- * @param[in] smp       pointer to a rp_pio_sm_t structure
+ * @param[in] block     pointer to the PIO block descriptor
  * @param[in] gpio      absolute GPIO pin number
  *
  * @special
  */
-__STATIC_INLINE void pioSmSetPinFunctionX(const rp_pio_sm_t *smp,
-                                           uint32_t gpio) {
+__STATIC_INLINE void pioSetPinFunctionX(const rp_pio_block_t *block,
+                                        uint32_t gpio) {
   static const uint32_t funcsel[] = {
     RP_PIO_FUNCSEL_PIO0,
     RP_PIO_FUNCSEL_PIO1,
@@ -1592,13 +1914,13 @@ __STATIC_INLINE void pioSmSetPinFunctionX(const rp_pio_sm_t *smp,
 #endif
   };
 
-  osalDbgCheck(gpio < RP_GPIO_NUM_LINES);
+  osalDbgCheck((block != NULL) && (gpio < RP_GPIO_NUM_LINES));
 
-  IO_BANK0->GPIO[gpio].CTRL = funcsel[smp->block->pioidx];
+  IO_BANK0->GPIO[gpio].CTRL = funcsel[block->pioidx];
 }
 
 /**
- * @brief   Routes a GPIO pin to the PIO block with explicit pad control.
+ * @brief   Routes a GPIO pin to a PIO block with explicit pad control.
  * @details Programs both the pin multiplexer and the pad control register.
  *          On the RP2350 the pad is reprogrammed while still isolated and
  *          the isolation latch is cleared only after the multiplexer
@@ -1610,6 +1932,64 @@ __STATIC_INLINE void pioSmSetPinFunctionX(const rp_pio_sm_t *smp,
  *          e.g. @p RP_PIO_PAD_DEFAULT | @p RP_PIO_PAD_PUE for an
  *          open-drain bus with pull-up.
  *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @param[in] gpio      absolute GPIO pin number
+ * @param[in] padbits   pad control value, combination of @p RP_PIO_PAD_*
+ *                      bits (excluding @p RP_PIO_PAD_ISO)
+ *
+ * @special
+ */
+__STATIC_INLINE void pioGpioRoutePadX(const rp_pio_block_t *block,
+                                      uint32_t gpio, uint32_t padbits) {
+
+  osalDbgCheck((gpio < RP_GPIO_NUM_LINES) && (padbits <= 0xFFU));
+
+#if defined(RP2350)
+  PADS_BANK0->GPIO[gpio] = padbits | RP_PIO_PAD_ISO;
+  pioSetPinFunctionX(block, gpio);
+  PADS_BANK0->GPIO[gpio] = padbits;
+#else
+  PADS_BANK0->GPIO[gpio] = padbits;
+  pioSetPinFunctionX(block, gpio);
+#endif
+}
+
+/**
+ * @brief   Routes a GPIO pin to a PIO block with default pad control.
+ * @details Equivalent to @p pioGpioRoutePadX() with @p RP_PIO_PAD_DEFAULT:
+ *          input enabled with schmitt trigger, 4mA drive, no pulls.
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @param[in] gpio      absolute GPIO pin number
+ *
+ * @special
+ */
+__STATIC_INLINE void pioGpioRouteX(const rp_pio_block_t *block,
+                                   uint32_t gpio) {
+
+  pioGpioRoutePadX(block, gpio, RP_PIO_PAD_DEFAULT);
+}
+
+/**
+ * @brief   Routes a GPIO pin to the PIO block that owns this state machine.
+ * @details Equivalent to @p pioSetPinFunctionX() on @p smp->block.
+ *
+ * @param[in] smp       pointer to a rp_pio_sm_t structure
+ * @param[in] gpio      absolute GPIO pin number
+ *
+ * @special
+ */
+__STATIC_INLINE void pioSmSetPinFunctionX(const rp_pio_sm_t *smp,
+                                           uint32_t gpio) {
+
+  pioSetPinFunctionX(smp->block, gpio);
+}
+
+/**
+ * @brief   Routes a GPIO pin to the PIO block that owns this state
+ *          machine, with explicit pad control.
+ * @details Equivalent to @p pioGpioRoutePadX() on @p smp->block.
+ *
  * @param[in] smp       pointer to a rp_pio_sm_t structure
  * @param[in] gpio      absolute GPIO pin number
  * @param[in] padbits   pad control value, combination of @p RP_PIO_PAD_*
@@ -1620,22 +2000,13 @@ __STATIC_INLINE void pioSmSetPinFunctionX(const rp_pio_sm_t *smp,
 __STATIC_INLINE void pioGpioInitPadX(const rp_pio_sm_t *smp,
                                      uint32_t gpio, uint32_t padbits) {
 
-  osalDbgCheck((gpio < RP_GPIO_NUM_LINES) && (padbits <= 0xFFU));
-
-#if defined(RP2350)
-  PADS_BANK0->GPIO[gpio] = padbits | RP_PIO_PAD_ISO;
-  pioSmSetPinFunctionX(smp, gpio);
-  PADS_BANK0->GPIO[gpio] = padbits;
-#else
-  PADS_BANK0->GPIO[gpio] = padbits;
-  pioSmSetPinFunctionX(smp, gpio);
-#endif
+  pioGpioRoutePadX(smp->block, gpio, padbits);
 }
 
 /**
- * @brief   Routes a GPIO pin to the PIO block with default pad control.
- * @details Equivalent to @p pioGpioInitPadX() with @p RP_PIO_PAD_DEFAULT:
- *          input enabled with schmitt trigger, 4mA drive, no pulls.
+ * @brief   Routes a GPIO pin to the PIO block that owns this state
+ *          machine, with default pad control.
+ * @details Equivalent to @p pioGpioRouteX() on @p smp->block.
  *
  * @param[in] smp       pointer to a rp_pio_sm_t structure
  * @param[in] gpio      absolute GPIO pin number
@@ -1644,8 +2015,30 @@ __STATIC_INLINE void pioGpioInitPadX(const rp_pio_sm_t *smp,
  */
 __STATIC_INLINE void pioGpioInitX(const rp_pio_sm_t *smp, uint32_t gpio) {
 
-  pioGpioInitPadX(smp, gpio, RP_PIO_PAD_DEFAULT);
+  pioGpioRoutePadX(smp->block, gpio, RP_PIO_PAD_DEFAULT);
 }
+
+#if (RP_PIO_HAS_GPIOBASE == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Returns the GPIO window base of a block.
+ * @details The dual of @p pioSetGpioBase(): the base of the 32-pin GPIO
+ *          window the pin fields of PINCTRL/EXECCTRL are relative to.
+ * @note    The value is only meaningful on a block that has been
+ *          configured or is active: an idle block is held in reset and
+ *          reads back 0, which coincides with the default window.
+ *
+ * @param[in] block     pointer to the PIO block descriptor
+ * @return              The GPIOBASE register value, 0 or 16.
+ *
+ * @special
+ */
+__STATIC_INLINE uint32_t pioGetGpioBaseX(const rp_pio_block_t *block) {
+
+  osalDbgCheck(block != NULL);
+
+  return block->pio->GPIOBASE;
+}
+#endif /* RP_PIO_HAS_GPIOBASE == TRUE */
 
 /**
  * @brief   Converts an absolute GPIO number to a block-relative pin number.

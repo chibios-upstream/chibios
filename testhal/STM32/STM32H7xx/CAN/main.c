@@ -49,7 +49,8 @@ static const CANConfig cancfg = {
   0,                               /* TDCR */
   0,                               /* CCCR */
   0,                               /* TEST */
-  0                                /* GFC */
+  0,                               /* GFC */
+  0                                /* TSCC */
 };
 
 /*
