@@ -141,6 +141,14 @@ thread_t *chThdObjectInit(thread_t *tp,
   chDbgCheck(tp != NULL);
   chDbgCheck(tdp != NULL);
 
+#if (CH_DBG_ENABLE_ASSERTS == TRUE) && (CH_CFG_SMP_MODE == TRUE)
+  if (tdp->owner != NULL) {
+    chDbgAssert((tdp->owner->core_id < (core_id_t)PORT_CORES_NUMBER) &&
+                (ch_system.instances[tdp->owner->core_id] == tdp->owner),
+                "instance not registered");
+  }
+#endif
+
   /* Stack boundaries.*/
   tp->wabase = (void *)tdp->wbase;
   tp->waend  = (void *)tdp->wend;

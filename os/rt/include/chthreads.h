@@ -89,6 +89,8 @@ typedef struct {
   void                          *arg;
   /**
    * @brief         OS instance affinity or @p NULL for current one.
+   * @note          A non-NULL pointer must reference an initialized instance
+   *                registered in @p ch_system.instances[].
    */
   os_instance_t                 *owner;
 } thread_descriptor_t;
@@ -248,7 +250,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] towner    thread owner OS instance or @p NULL
+ * @param[in] towner    initialized OS instance owning the thread or @p NULL
+ *                      for the current one
  */
 #define __THD_DECL_DATA(tname, twbase, twend, tprio, tfunc, targ, towner) { \
   .name         = (tname),                                                  \
@@ -270,7 +273,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] towner    thread owner OS instance or @p NULL
+ * @param[in] towner    initialized OS instance owning the thread or @p NULL
+ *                      for the current one
  */
 #define THD_DECL(var, tname, twbase, twend, tprio,                          \
                  tfunc, targ, towner)                                       \
@@ -291,7 +295,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] towner    thread owner OS instance or @p NULL
+ * @param[in] towner    initialized OS instance owning the thread or @p NULL
+ *                      for the current one
  */
 #define THD_DECL_STATIC(var, tname, twname, tprio,                          \
                         tfunc, targ, towner)                                \
@@ -312,7 +317,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] towner    thread owner OS instance or @p NULL
+ * @param[in] towner    initialized OS instance owning the thread or @p NULL
+ *                      for the current one
  *
  * @deprecated
  */
@@ -337,7 +343,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] towner    thread owner OS instance or @p NULL
+ * @param[in] towner    initialized OS instance owning the thread or @p NULL
+ *                      for the current one
  *
  * @deprecated
  */
@@ -370,7 +377,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] oip       owner OS instance or @p NULL
+ * @param[in] oip       initialized owner OS instance or @p NULL for the
+ *                      current one
  *
  * @deprecated
  */
