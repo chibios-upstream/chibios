@@ -73,6 +73,10 @@ jar.
   demanded; add sinks only when demand has a condition. Sinks can also
   specify optional `<limits ref="..."/>` references when a peripheral imposes
   a frequency range on the consumed clock.
+- A sink condition may reference a generated `<POINT>_ENABLED` state when an
+  internal dependency cannot be represented directly by the clock topology.
+  Such conditions are emitted as deferred demand expressions. Do not combine
+  `defined()` with a generated enable-state reference in the same condition.
 - `settings/states`, `settings/limit-set`, and `settings/limit-values` define
   the selectable frequency limit states, the final limit macro set, and the
   state-specific values. The generator validates that each state provides all

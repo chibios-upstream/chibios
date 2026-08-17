@@ -1530,101 +1530,97 @@
 /**
  * @brief   MSIRC0_PLL_LSE_SOURCE sink demand state.
  */
-#if ((STM32_MSIRC0_ENABLED == TRUE) &&                                      \
-     ((STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_LSE) ||                      \
-      (STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_LSE_FAST))) || defined(__DOXYGEN__)
+#if defined(__DOXYGEN__)
   #define STM32_MSIRC0_PLL_LSE_SOURCE_DEMANDED TRUE
 #else
-  #define STM32_MSIRC0_PLL_LSE_SOURCE_DEMANDED FALSE
+  #define STM32_MSIRC0_PLL_LSE_SOURCE_DEMANDED ((STM32_MSIRC0_ENABLED == TRUE) && \
+                                                ((STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_LSE) || \
+                                                 (STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_LSE_FAST)))
 #endif
 
 /**
  * @brief   MSIRC0_PLL_HSE_SOURCE sink demand state.
  */
-#if ((STM32_MSIRC0_ENABLED == TRUE) &&                                      \
-     ((STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_HSE) ||                      \
-      (STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_HSE_FAST))) || defined(__DOXYGEN__)
+#if defined(__DOXYGEN__)
   #define STM32_MSIRC0_PLL_HSE_SOURCE_DEMANDED TRUE
 #else
-  #define STM32_MSIRC0_PLL_HSE_SOURCE_DEMANDED FALSE
+  #define STM32_MSIRC0_PLL_HSE_SOURCE_DEMANDED ((STM32_MSIRC0_ENABLED == TRUE) && \
+                                                ((STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_HSE) || \
+                                                 (STM32_CFG_MSIRC0_MODE == RCC_MSIRC0_PLL_HSE_FAST)))
 #endif
 
 /**
  * @brief   MSIRC1_PLL_LSE_SOURCE sink demand state.
  */
-#if ((STM32_MSIRC1_ENABLED == TRUE) &&                                      \
-     ((STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE) ||                      \
-      (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE_FAST))) || defined(__DOXYGEN__)
+#if defined(__DOXYGEN__)
   #define STM32_MSIRC1_PLL_LSE_SOURCE_DEMANDED TRUE
 #else
-  #define STM32_MSIRC1_PLL_LSE_SOURCE_DEMANDED FALSE
+  #define STM32_MSIRC1_PLL_LSE_SOURCE_DEMANDED ((STM32_MSIRC1_ENABLED == TRUE) && \
+                                                ((STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE) || \
+                                                 (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_LSE_FAST)))
 #endif
 
 /**
  * @brief   MSIRC1_PLL_HSE_SOURCE sink demand state.
  */
-#if ((STM32_MSIRC1_ENABLED == TRUE) &&                                      \
-     ((STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE) ||                      \
-      (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE_FAST))) || defined(__DOXYGEN__)
+#if defined(__DOXYGEN__)
   #define STM32_MSIRC1_PLL_HSE_SOURCE_DEMANDED TRUE
 #else
-  #define STM32_MSIRC1_PLL_HSE_SOURCE_DEMANDED FALSE
+  #define STM32_MSIRC1_PLL_HSE_SOURCE_DEMANDED ((STM32_MSIRC1_ENABLED == TRUE) && \
+                                                ((STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE) || \
+                                                 (STM32_CFG_MSIRC1_MODE == RCC_MSIRC1_PLL_HSE_FAST)))
 #endif
 
 /**
  * @brief   MSIS_IRC0_SOURCE sink demand state.
  */
-#if ((STM32_MSIS_ENABLED == TRUE) &&                                        \
-     ((STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC0_DIV1) ||               \
-      (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC0_DIV2) ||               \
-      (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC0_DIV4) ||               \
-      (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC0_DIV8))) ||             \
-    defined(__DOXYGEN__)
+#if defined(__DOXYGEN__)
   #define STM32_MSIS_IRC0_SOURCE_DEMANDED   TRUE
 #else
-  #define STM32_MSIS_IRC0_SOURCE_DEMANDED   FALSE
+  #define STM32_MSIS_IRC0_SOURCE_DEMANDED   ((STM32_MSIS_ENABLED == TRUE) && \
+                                             ((STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC0_DIV1) || \
+                                              (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC0_DIV2) || \
+                                              (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC0_DIV4) || \
+                                              (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC0_DIV8)))
 #endif
 
 /**
  * @brief   MSIS_IRC1_SOURCE sink demand state.
  */
-#if ((STM32_MSIS_ENABLED == TRUE) &&                                        \
-     ((STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC1_DIV1) ||               \
-      (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC1_DIV2) ||               \
-      (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC1_DIV4) ||               \
-      (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC1_DIV8))) ||             \
-    defined(__DOXYGEN__)
+#if defined(__DOXYGEN__)
   #define STM32_MSIS_IRC1_SOURCE_DEMANDED   TRUE
 #else
-  #define STM32_MSIS_IRC1_SOURCE_DEMANDED   FALSE
+  #define STM32_MSIS_IRC1_SOURCE_DEMANDED   ((STM32_MSIS_ENABLED == TRUE) && \
+                                             ((STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC1_DIV1) || \
+                                              (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC1_DIV2) || \
+                                              (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC1_DIV4) || \
+                                              (STM32_CFG_MSIS_SRCDIV == RCC_ICSCR1_MSIS_IRC1_DIV8)))
 #endif
 
 /**
  * @brief   MSIK_IRC0_SOURCE sink demand state.
  */
-#if ((STM32_MSIK_ENABLED == TRUE) &&                                        \
-     ((STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC0_DIV1) ||               \
-      (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC0_DIV2) ||               \
-      (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC0_DIV4) ||               \
-      (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC0_DIV8))) ||             \
-    defined(__DOXYGEN__)
+#if defined(__DOXYGEN__)
   #define STM32_MSIK_IRC0_SOURCE_DEMANDED   TRUE
 #else
-  #define STM32_MSIK_IRC0_SOURCE_DEMANDED   FALSE
+  #define STM32_MSIK_IRC0_SOURCE_DEMANDED   ((STM32_MSIK_ENABLED == TRUE) && \
+                                             ((STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC0_DIV1) || \
+                                              (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC0_DIV2) || \
+                                              (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC0_DIV4) || \
+                                              (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC0_DIV8)))
 #endif
 
 /**
  * @brief   MSIK_IRC1_SOURCE sink demand state.
  */
-#if ((STM32_MSIK_ENABLED == TRUE) &&                                        \
-     ((STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC1_DIV1) ||               \
-      (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC1_DIV2) ||               \
-      (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC1_DIV4) ||               \
-      (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC1_DIV8))) ||             \
-    defined(__DOXYGEN__)
+#if defined(__DOXYGEN__)
   #define STM32_MSIK_IRC1_SOURCE_DEMANDED   TRUE
 #else
-  #define STM32_MSIK_IRC1_SOURCE_DEMANDED   FALSE
+  #define STM32_MSIK_IRC1_SOURCE_DEMANDED   ((STM32_MSIK_ENABLED == TRUE) && \
+                                             ((STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC1_DIV1) || \
+                                              (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC1_DIV2) || \
+                                              (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC1_DIV4) || \
+                                              (STM32_CFG_MSIK_SRCDIV == RCC_ICSCR1_MSIK_IRC1_DIV8)))
 #endif
 /** @} */
 

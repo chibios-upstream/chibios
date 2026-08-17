@@ -1441,6 +1441,22 @@ function GetSinkDemandMacro(sink)
   return premacro + sink["name"] + "_DEMANDED"
 endfunction
 
+/* Returns true if a condition references a generated enable macro.*/
+function ReferencesGeneratedEnableMacro(condition)
+  list model["clocks"] as point
+    if condition?matches(".*\\b" + GetEnableMacro(point) + "\\b.*")
+      return true
+    endif
+  endlist
+
+  return false
+endfunction
+
+/* Returns true if a condition contains the defined operator.*/
+function ContainsDefinedOperator(condition)
+  return condition?matches(".*\\bdefined\\s*\\(.*")
+endfunction
+
 /* Returns the generated clock mode setting macro for an implicit sink.*/
 function GetSinkClockModeMacro(sink)
   return precfg + sink["name"] + "_CLOCK_MODE"
@@ -2144,6 +2160,27 @@ macro EmitEnableExpression(name, expression, conditions)
   endif
 endmacro
 
+/* Emits a sink demand expression that depends on a generated enable state.*/
+macro EmitDeferredSinkDemandDefinition(sink, demandmacro, condition)
+  if ContainsDefinedOperator(condition)
+    stop ">>>> Clock sink '" + sink["name"] + "' condition cannot combine defined() with a generated enable macro"
+  endif
+
+  ppcode.EmitPPIf(expression="defined(__DOXYGEN__)")
+  ppcode.EmitPPDefine(name=demandmacro, value="TRUE")
+  if IsVariantSpecific(sink)
+    ppcode.EmitPPElif(expression=sink["variant_condition"])
+  else
+    ppcode.EmitPPElse()
+  endif
+  ppcode.EmitPPDefine(name=demandmacro, value="(" + condition + ")")
+  if IsVariantSpecific(sink)
+    ppcode.EmitPPElse()
+    ppcode.EmitPPDefine(name=demandmacro, value="FALSE")
+  endif
+  ppcode.EmitPPEndif()
+endmacro
+
 /* Emits generated sink demand states without embedding defined() in macros.*/
 macro EmitSinkDemandDefinitions()
   if model["sinks"]?size > 0
@@ -2165,7 +2202,12 @@ macro EmitSinkDemandDefinitions()
  * @brief   ${sink["name"]} sink demand state.
  */
 """
-      if condition == "TRUE"
+      if !sink["implicit_mode"] && ReferencesGeneratedEnableMacro(condition)
+        EmitDeferredSinkDemandDefinition(
+          sink=sink,
+          demandmacro=demandmacro,
+          condition=condition)
+      elseif condition == "TRUE"
         if IsVariantSpecific(sink)
           EmitVariantGuardStart(item=sink)
           ppcode.EmitPPDefine(name=demandmacro, value="TRUE")
