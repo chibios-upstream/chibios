@@ -162,10 +162,15 @@ void __port_smp_notify_panic(void) {
 
 /**
  * @brief   SMP-related port initialization.
+ * @details Acquires the global kernel lock which is released by the final
+ *          @p chSysUnlock() in the instance startup path.
  *
  * @param[in, out] oip  pointer to the @p os_instance_t structure
  */
 void __port_smp_init(os_instance_t *oip) {
+
+  /* Entering the initial global I-Lock state.*/
+  port_spinlock_take();
 
 #if CH_CFG_ST_TIMEDELTA > 0
   /* Activating timer for this instance.*/

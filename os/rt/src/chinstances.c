@@ -89,23 +89,24 @@ void chInstanceObjectInit(os_instance_t *oip,
                           const os_instance_config_t *oicp) {
   core_id_t core_id;
 
-  /* Registering into the global system structure.*/
+  /* Core associated to this instance.*/
 #if CH_CFG_SMP_MODE == TRUE
   core_id = port_get_core_id();
 #else
   core_id = 0U;
 #endif
-  chDbgAssert(ch_system.instances[core_id] == NULL, "instance already registered");
-  ch_system.instances[core_id] = oip;
-
-  /* Core associated to this instance.*/
   oip->core_id = core_id;
 
   /* Keeping a reference to the configuration data.*/
   oip->config = oicp;
 
-  /* Port initialization for the current instance.*/
+  /* Port initialization and entering the initial physical I-Lock state.*/
   port_init(oip);
+
+  /* Registering into the global system structure.*/
+  chDbgAssert(ch_system.instances[core_id] == NULL,
+              "instance already registered");
+  ch_system.instances[core_id] = oip;
 
   /* Ready list initialization.*/
   ch_pqueue_init(&oip->rlist.pqueue);

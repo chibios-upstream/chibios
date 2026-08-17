@@ -127,6 +127,10 @@ void port_init(os_instance_t *oip) {
 
   (void)oip;
 
+#if defined(port_smp_init)
+  port_smp_init(oip);
+#endif
+
   /* Starting in a known IRQ configuration.*/
   port_suspend();
 
@@ -148,10 +152,6 @@ void port_init(os_instance_t *oip) {
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
 //  DWT->LAR = 0xC5ACCE55U;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-
-#if defined(port_smp_init)
-  port_smp_init(oip);
-#endif
 
   /* Initialization of the system vectors used by the port.*/
 #if CORTEX_SIMPLIFIED_PRIORITY == FALSE

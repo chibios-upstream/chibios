@@ -157,6 +157,8 @@
  * @brief   SMP-related port initialization.
  * @note    The port checks on presence of this macro so this
  *          must be a macro.
+ * @post    The global kernel lock is acquired and is released by the final
+ *          @p chSysUnlock() in the instance startup path.
  *
  * @param[in, out] oip  pointer to the @p os_instance_t structure
  */
