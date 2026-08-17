@@ -296,6 +296,8 @@ __STATIC_INLINE void hal_lld_set_static_clocks(void) {
                  true);
 }
 
+#if !STM32_NO_INIT || defined(HAL_LLD_USE_CLOCK_MANAGEMENT) ||              \
+    defined(__DOXYGEN__)
 /**
  * @brief   Switches to a different clock configuration.
  *
@@ -480,6 +482,7 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
 
   return false;
 }
+#endif
 
 #if defined(HAL_LLD_USE_CLOCK_MANAGEMENT) || defined(__DOXYGEN__)
 /**
