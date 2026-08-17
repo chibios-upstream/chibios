@@ -300,6 +300,7 @@ msg_t can_lld_start(hal_can_driver_c *canp) {
   canp->fdcan->NBTP = config->NBTP;
   canp->fdcan->DBTP = config->DBTP;
   canp->fdcan->TDCR = config->TDCR;
+  canp->fdcan->TSCC = config->TSCC;
   canp->fdcan->CCCR |= config->CCCR;
 
   /* TEST is only writable when FDCAN_CCCR_TEST is set and FDCAN is still in
