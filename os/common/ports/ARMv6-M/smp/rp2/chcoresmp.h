@@ -164,6 +164,11 @@
   } while (false)
 
 /**
+ * @brief   Publishes flash-lockout readiness after the first IRQ unmask.
+ */
+#define PORT_UNLOCK_HOOK() __port_smp_startup_complete()
+
+/**
  * @brief   SMP-related port initialization.
  * @note    The port checks on presence of this macro so this
  *          must be a macro.
@@ -182,6 +187,7 @@
 extern "C" {
 #endif
   void __port_smp_init(os_instance_t *oip);
+  void __port_smp_startup_complete(void);
   void __port_spinlock_take(void);
   void __port_spinlock_release(void);
   void __port_flash_lockout(void);

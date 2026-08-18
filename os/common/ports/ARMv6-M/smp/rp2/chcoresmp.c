@@ -59,7 +59,7 @@
  * @note    A core which never started must not be waited for in the
  *          lockout handshake.
  */
-static volatile bool port_lockout_ready[PORT_CORES_NUMBER];
+static uint32_t port_lockout_ready[PORT_CORES_NUMBER];
 
 /**
  * @brief   Per-core lockout-in-progress flags.
@@ -370,8 +370,43 @@ void __port_smp_init(os_instance_t *oip) {
     chDbgAssert(false, "unexpected core id");
   }
 
-  /* This core can now be parked by the other one.*/
-  port_lockout_ready[port_get_core_id()] = true;
+}
+
+/**
+ * @brief   Marks this core as able to service flash-lockout requests.
+ * @details Called after the first startup unlock has lowered the local
+ *          interrupt mask. Subsequent unlocks leave the one-shot state
+ *          unchanged.
+ */
+CC_NO_INLINE CC_SECTION(".ramtext")
+void __port_smp_startup_complete(void) {
+  core_id_t core_id;
+  uint32_t primask;
+
+  core_id = (core_id_t)SIO->CPUID;
+  if (__atomic_load_n(&port_lockout_ready[core_id],
+                      __ATOMIC_RELAXED) == 0U) {
+    primask = __get_PRIMASK();
+    __disable_irq();
+
+    if (__atomic_load_n(&port_lockout_ready[core_id],
+                        __ATOMIC_RELAXED) == 0U) {
+      /* Admission is held through the complete flash operation. Waiting
+         here in RAM keeps this core off XIP until the operation ends. It
+         is intentionally unbounded like port_fifo_lockout_wait(): the
+         holder can be completing a legitimate long flash operation.*/
+      while (SIO->SPINLOCK[PORT_LOCKOUT_SPINLOCK_NUMBER] == 0U) {
+      }
+      __DMB();
+
+      __atomic_store_n(&port_lockout_ready[core_id], 1U, __ATOMIC_RELEASE);
+
+      __DMB();
+      SIO->SPINLOCK[PORT_LOCKOUT_SPINLOCK_NUMBER] = (uint32_t)SIO;
+    }
+
+    __set_PRIMASK(primask);
+  }
 }
 
 /**
@@ -419,7 +454,7 @@ void __port_flash_lockout(void) {
   /* A core which never initialized cannot acknowledge and does not need
      parking. The decision is recorded for the unlock side, the flag may
      rise in the meantime.*/
-  if (!port_lockout_ready[port_get_core_id() ^ 1U]) {
+  if (!__port_lockout_other_ready()) {
     port_lockout_parked = false;
     return;
   }
@@ -503,7 +538,8 @@ void __port_flash_unlockout(void) {
  */
 bool __port_lockout_other_ready(void) {
 
-  return port_lockout_ready[port_get_core_id() ^ 1U];
+  return __atomic_load_n(&port_lockout_ready[port_get_core_id() ^ 1U],
+                         __ATOMIC_ACQUIRE) != 0U;
 }
 
 /**

@@ -1102,6 +1102,11 @@ __STATIC_FORCEINLINE void port_unlock(void) {
   port_spinlock_release();
 #endif
   __set_BASEPRI(CORTEX_BASEPRI_DISABLED);
+#if defined(PORT_UNLOCK_HOOK)
+  if (!port_is_isr_context()) {
+    PORT_UNLOCK_HOOK();
+  }
+#endif
 }
 
 /**

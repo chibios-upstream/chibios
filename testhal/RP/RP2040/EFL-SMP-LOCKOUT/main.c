@@ -45,6 +45,9 @@ volatile uint32_t c1_cycles;
 volatile uint32_t c1_errors;
 volatile uint32_t c1_go;
 volatile uint32_t c1_done;
+volatile uint32_t c0_delay_armed;
+volatile uint32_t c1_init_entered;
+volatile uint32_t c1_init_release;
 
 /* Statically initialized: core 1 can signal it before core 0's main()
    runs any code after chSysInit().*/
@@ -58,6 +61,16 @@ static BaseSequentialStream *chp = (BaseSequentialStream *)&SIOD0;
 
 static unsigned pass_count;
 static unsigned fail_count;
+
+void eflSmpInstanceInitHook(void *oip) {
+
+  (void)oip;
+  if (SIO->CPUID == 1U) {
+    c1_init_entered = 1U;
+    while (c1_init_release == 0U) {
+    }
+  }
+}
 
 static void report(const char *name, bool ok) {
 
@@ -154,10 +167,52 @@ static THD_FUNCTION(HeartbeatThread, arg) {
 int main(void) {
   uint32_t hb_before, c1hb_before;
   uint32_t my_errors;
+  bool init_entered, init_not_ready, not_ready_during_lockout;
+  bool ready_after_unlock;
   unsigned i;
 
   halInit();
   chSysInit();
+
+  /* Holding core 1 inside its instance hook beyond the lockout timeout.
+     The system timer is masked because core 1 owns the kernel lock.*/
+  nvicDisableVector(RP_TIMER0_IRQ0_NUMBER);
+  c0_delay_armed = 1U;
+  {
+    uint32_t start;
+
+    start = TIMER0->TIMERAWL;
+    while ((c1_init_entered == 0U) &&
+           ((TIMER0->TIMERAWL - start) <= PORT_LOCKOUT_TIMEOUT_US)) {
+    }
+    init_entered = c1_init_entered != 0U;
+
+    start = TIMER0->TIMERAWL;
+    while ((TIMER0->TIMERAWL - start) <=
+           (PORT_LOCKOUT_TIMEOUT_US + 10000U)) {
+    }
+    init_not_ready = !__port_lockout_other_ready();
+
+    /* Starting an actual lockout while core 1 is unready. It does not
+       perform a FIFO handshake but keeps admission closed until unlock.*/
+    __port_flash_lockout();
+    c1_init_release = 1U;
+
+    start = TIMER0->TIMERAWL;
+    while ((TIMER0->TIMERAWL - start) <=
+           (PORT_LOCKOUT_TIMEOUT_US + 10000U)) {
+    }
+    not_ready_during_lockout = !__port_lockout_other_ready();
+
+    __port_flash_unlockout();
+    start = TIMER0->TIMERAWL;
+    while (!__port_lockout_other_ready() &&
+           ((TIMER0->TIMERAWL - start) <= PORT_LOCKOUT_TIMEOUT_US)) {
+    }
+    ready_after_unlock = __port_lockout_other_ready();
+  }
+  nvicEnableVector(RP_TIMER0_IRQ0_NUMBER,
+                   RP_IRQ_TIMER0_ALARM0_PRIORITY);
 
   /* UART0 console on GPIO0/GPIO1.*/
   palSetLineMode(0U, PAL_MODE_ALTERNATE_UART);
@@ -170,6 +225,11 @@ int main(void) {
   chprintf(chp, "*** Flash sector under test: %u\r\n", TEST_SECTOR);
 
   eflStart(&EFLD1, NULL);
+  report("core 1 entered delayed init", init_entered);
+  report("core 1 not ready during delayed init", init_not_ready);
+  report("core 1 stayed unready during lockout",
+         not_ready_during_lockout);
+  report("core 1 ready after startup unlock", ready_after_unlock);
 
   chThdCreateStatic(waHeartbeat, sizeof(waHeartbeat),
                     NORMALPRIO - 1, HeartbeatThread, NULL);

@@ -622,6 +622,11 @@ static inline void port_unlock(void) {
   port_spinlock_release();
 #endif
   __enable_irq();
+#if defined(PORT_UNLOCK_HOOK)
+  if (!port_is_isr_context()) {
+    PORT_UNLOCK_HOOK();
+  }
+#endif
 }
 
 /**

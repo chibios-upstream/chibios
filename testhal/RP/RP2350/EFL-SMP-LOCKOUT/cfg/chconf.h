@@ -723,9 +723,11 @@
  *
  * @param[in] oip       pointer to the @p os_instance_t structure
  */
-#define CH_CFG_OS_INSTANCE_INIT_HOOK(oip) do {                              \
-  /* Add OS instance initialization code here.*/                            \
-} while (false)
+#if !defined(_FROM_ASM_)
+void eflSmpInstanceInitHook(void *oip);
+#endif
+#define CH_CFG_OS_INSTANCE_INIT_HOOK(oip)                                   \
+  eflSmpInstanceInitHook(oip)
 
 /**
  * @brief   Threads descriptor structure extension.
