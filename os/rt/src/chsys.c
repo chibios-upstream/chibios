@@ -129,8 +129,11 @@ const os_instance_config_t ch_core1_cfg = {
 
 /**
  * @brief   Waits for the system state to be equal to the specified one.
- * @note    Can be called before @p chSchObjectInit() in order to wait
+ * @note    Can be called before @p chInstanceObjectInit() in order to wait
  *          for system initialization by another core.
+ * @note    This operation does not enter a critical section. During SMP
+ *          startup, @p chInstanceObjectInit() establishes the initial I-Lock
+ *          state before shared kernel objects are accessed.
  *
  * @special
  */
@@ -138,12 +141,6 @@ void chSysWaitSystemState(system_state_t state) {
 
   while (ch_system.state != state) {
   }
-
-#if defined(PORT_SYSTEM_STATE_ACQUIRE)
-  /* Pairs with the publishing core's release operation so that observing the
-     requested state also makes the preceding system initialization visible.*/
-  PORT_SYSTEM_STATE_ACQUIRE();
-#endif
 }
 
 /**
@@ -191,10 +188,6 @@ void chSysInit(void) {
   chInstanceObjectInit(&ch0, &ch_core0_cfg);
 
   /* It is alive now.*/
-#if defined(PORT_SYSTEM_STATE_RELEASE)
-  /* Publish all preceding initialization before changing the shared state.*/
-  PORT_SYSTEM_STATE_RELEASE();
-#endif
   ch_system.state = ch_sys_running;
   chSysUnlock();
 }

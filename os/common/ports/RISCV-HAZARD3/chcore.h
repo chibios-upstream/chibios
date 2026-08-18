@@ -250,21 +250,6 @@
 #define PORT_INFO                       "Compact kernel mode"
 /** @} */
 
-/**
- * @brief   Publishes initialization performed before a shared state flag.
- * @details The RP2350 cores are coherent, but RVWMO still requires an explicit
- *          release/acquire pair for message-passing through ordinary volatile
- *          storage.
- */
-#define PORT_SYSTEM_STATE_RELEASE()                                        \
-  __asm__ volatile ("fence rw, rw" : : : "memory")
-
-/**
- * @brief   Acquires initialization after observing a shared state flag.
- */
-#define PORT_SYSTEM_STATE_ACQUIRE()                                        \
-  __asm__ volatile ("fence rw, rw" : : : "memory")
-
 /*===========================================================================*/
 /* SMP support.                                                              */
 /*===========================================================================*/
