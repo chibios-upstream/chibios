@@ -61,6 +61,9 @@
 
 /**
  * @brief   Spinlock to be used by the port layer.
+ * @details RP2350-E2 permits unrelated SIO writes to release certain
+ *          spinlocks on A2, A3, and A4 silicon. The default selects an
+ *          unconditionally safe lock number.
  */
 #if !defined(PORT_SPINLOCK_NUMBER)
 #define PORT_SPINLOCK_NUMBER            31
@@ -80,6 +83,9 @@
 
 /**
  * @brief   Spinlock serializing core-lockout requesters.
+ * @details RP2350-E2 permits unrelated SIO writes to release certain
+ *          spinlocks on A2, A3, and A4 silicon. The default selects an
+ *          unconditionally safe lock number.
  */
 #if !defined(PORT_LOCKOUT_SPINLOCK_NUMBER)
 #define PORT_LOCKOUT_SPINLOCK_NUMBER    30
@@ -138,8 +144,27 @@
   #error "invalid PORT_SPINLOCK_NUMBER value"
 #endif
 
+/* RP2350-E2: only these spinlocks are immune to false releases caused by
+   unrelated SIO writes on all affected mask revisions.*/
+#if (PORT_SPINLOCK_NUMBER != 5)  && (PORT_SPINLOCK_NUMBER != 6)  &&       \
+    (PORT_SPINLOCK_NUMBER != 7)  && (PORT_SPINLOCK_NUMBER != 10) &&       \
+    (PORT_SPINLOCK_NUMBER != 11) && (PORT_SPINLOCK_NUMBER < 18)
+  #error "PORT_SPINLOCK_NUMBER is unsafe on RP2350 A2/A3/A4 (RP2350-E2)"
+#endif
+
 #if (PORT_LOCKOUT_SPINLOCK_NUMBER < 0) || (PORT_LOCKOUT_SPINLOCK_NUMBER > 31)
   #error "invalid PORT_LOCKOUT_SPINLOCK_NUMBER value"
+#endif
+
+/* Applying the same restriction to the requester-serialization lock because
+   the erratum is in the SIO address decoder, independently of bus manager.*/
+#if (PORT_LOCKOUT_SPINLOCK_NUMBER != 5)  &&                           \
+    (PORT_LOCKOUT_SPINLOCK_NUMBER != 6)  &&                           \
+    (PORT_LOCKOUT_SPINLOCK_NUMBER != 7)  &&                           \
+    (PORT_LOCKOUT_SPINLOCK_NUMBER != 10) &&                           \
+    (PORT_LOCKOUT_SPINLOCK_NUMBER != 11) &&                           \
+    (PORT_LOCKOUT_SPINLOCK_NUMBER < 18)
+  #error "PORT_LOCKOUT_SPINLOCK_NUMBER is unsafe on RP2350 A2/A3/A4 (RP2350-E2)"
 #endif
 
 #if PORT_LOCKOUT_SPINLOCK_NUMBER == PORT_SPINLOCK_NUMBER
