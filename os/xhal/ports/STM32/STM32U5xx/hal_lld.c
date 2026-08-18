@@ -651,18 +651,18 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
                        STM32_RCC_BDCR_CFG_MASK,
                        ccp->rcc_bdcr & STM32_RCC_BDCR_CFG_MASK,
                        true);
-  if ((ccp->rcc_bdcr & RCC_BDCR_LSEON) != 0U) {
-    if (halRegWaitAllSet32X(&RCC->BDCR,
-                            RCC_BDCR_LSERDY,
-                            STM32_LSE_STARTUP_TIME,
-                            NULL)) {
-      return true;
-    }
-  }
   if ((ccp->rcc_bdcr & RCC_BDCR_LSION) != 0U) {
     if (halRegWaitAllSet32X(&RCC->BDCR,
                             RCC_BDCR_LSIRDY,
                             STM32_OSCILLATORS_STARTUP_TIME,
+                            NULL)) {
+      return true;
+    }
+  }
+  if ((ccp->rcc_bdcr & RCC_BDCR_LSEON) != 0U) {
+    if (halRegWaitAllSet32X(&RCC->BDCR,
+                            RCC_BDCR_LSERDY,
+                            STM32_LSE_STARTUP_TIME,
                             NULL)) {
       return true;
     }
