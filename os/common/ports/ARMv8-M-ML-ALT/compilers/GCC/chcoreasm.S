@@ -217,6 +217,14 @@
                 .thumb_func
                 .globl  SVC_Handler
 SVC_Handler:
+                /* Enforcing a consistent C/assembly state checker
+                   configuration. The no-op relocation leaves code unchanged
+                   but requires the marker matching this module's view.*/
+#if CH_DBG_SYSTEM_STATE_CHECK
+                .reloc  ., R_ARM_NONE, __ch_debug_state_check_enabled
+#else
+                .reloc  ., R_ARM_NONE, __ch_debug_state_check_disabled
+#endif
 #if PORT_USE_SYSCALL
                 mrs     r12, CONTROL
                 tst     r12, #1

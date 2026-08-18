@@ -34,6 +34,16 @@
 /* Module exported variables.                                                */
 /*===========================================================================*/
 
+/*
+ * Configuration marker used by the assembly module for link-time consistency
+ * checks. Only the symbol matching the C view is defined.
+ */
+#if CH_DBG_SYSTEM_STATE_CHECK == TRUE
+const char __ch_debug_state_check_enabled = 0;
+#else
+const char __ch_debug_state_check_disabled = 0;
+#endif
+
 #if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
 /**
  * @brief   Default MPU regions table.
