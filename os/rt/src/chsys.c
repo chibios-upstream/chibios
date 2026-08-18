@@ -212,14 +212,18 @@ void chSysInit(void) {
  * @special
  */
 void chSysHalt(const char *reason) {
+  os_instance_t *oip;
 
   port_disable();
+  oip = currcore;
 
   /* Logging the event.*/
   __trace_halt(reason);
 
   /* Pointing to the passed message.*/
-  currcore->dbg.panic_msg = reason;
+  if (oip != NULL) {
+    oip->dbg.panic_msg = reason;
+  }
 
   /* Halt hook code, usually empty.*/
   CH_CFG_SYSTEM_HALT_HOOK(reason);

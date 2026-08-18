@@ -62,13 +62,17 @@ static bool port_is_panic_pending(void) {
 }
 
 static void port_local_halt(void) {
+  os_instance_t *oip;
   const char *reason = "remote panic";
 
   port_disable();
+  oip = currcore;
 
   __trace_halt("remote panic");
 
-  currcore->dbg.panic_msg = reason;
+  if (oip != NULL) {
+    oip->dbg.panic_msg = reason;
+  }
 
   CH_CFG_SYSTEM_HALT_HOOK(reason);
 
