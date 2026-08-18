@@ -51,6 +51,18 @@
 /*===========================================================================*/
 
 /*===========================================================================*/
+/* Module exported variables.                                                */
+/*===========================================================================*/
+
+/**
+ * @brief   Durable per-target panic notifications.
+ * @details The FIFO token is only a wakeup hint because a write is discarded
+ *          when the outbound FIFO is full. The target-owned latch makes the
+ *          notification persistent until the target observes it.
+ */
+uint32_t __port_panic_pending[PORT_CORES_NUMBER];
+
+/*===========================================================================*/
 /* Module local variables.                                                   */
 /*===========================================================================*/
 
@@ -123,6 +135,29 @@ static void port_local_halt(void) {
 }
 
 /**
+ * @brief   Halts this core from a path which cannot rely on flash.
+ * @details Records the remote-panic reason without invoking trace or user
+ *          hooks because either can reside in flash. This is used while
+ *          parked for XIP lockout and while waiting on a kernel spinlock
+ *          whose owner halted.
+ */
+CC_NO_INLINE CC_SECTION(".ramtext")
+void __port_smp_halt_from_ram(void) {
+  os_instance_t *oip;
+  const char *reason = "remote panic";
+
+  __disable_irq();
+  oip = currcore;
+
+  if (oip != NULL) {
+    oip->dbg.panic_msg = reason;
+  }
+
+  while (true) {
+  }
+}
+
+/**
  * @brief   Parks the core while the other core has flash unavailable.
  * @details Called from the FIFO handler on reception of the lockout token.
  *          The whole wait executes from RAM with interrupts masked because
@@ -138,6 +173,10 @@ static void port_fifo_lockout_wait(void) {
   /* Acknowledging the lockout, the requester waits for this before
      touching XIP.*/
   while ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) == 0U) {
+    if (__atomic_load_n(&__port_panic_pending[SIO->CPUID],
+                        __ATOMIC_ACQUIRE) != 0U) {
+      __port_smp_halt_from_ram();
+    }
   }
   SIO->FIFO_WR = PORT_FIFO_LOCKOUT_ACK_MESSAGE;
   __SEV();
@@ -146,6 +185,12 @@ static void port_fifo_lockout_wait(void) {
   while (true) {
     uint32_t message;
 
+    /* Direct RAM access is required while XIP is unavailable.*/
+    if (__atomic_load_n(&__port_panic_pending[SIO->CPUID],
+                        __ATOMIC_ACQUIRE) != 0U) {
+      __port_smp_halt_from_ram();
+    }
+
     while ((SIO->FIFO_ST & SIO_FIFO_ST_VLD) == 0U) {
     }
     message = SIO->FIFO_RD;
@@ -153,10 +198,7 @@ static void port_fifo_lockout_wait(void) {
       break;
     }
     if (message == PORT_FIFO_PANIC_MESSAGE) {
-      /* Cannot reach the flash-resident halt path, parking here, the
-         other core is halting anyway.*/
-      while (true) {
-      }
+      __port_smp_halt_from_ram();
     }
 #if defined(PORT_HANDLE_FIFO_MESSAGE)
     /* Application messages cannot be delivered while flash handlers are
@@ -180,6 +222,10 @@ static void port_fifo_lockout_wait(void) {
 
   /* Acknowledging the unlock, XIP is available again at this point.*/
   while ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) == 0U) {
+    if (__atomic_load_n(&__port_panic_pending[SIO->CPUID],
+                        __ATOMIC_ACQUIRE) != 0U) {
+      __port_smp_halt_from_ram();
+    }
   }
   SIO->FIFO_WR = PORT_FIFO_LOCKOUT_ACK_MESSAGE;
   __SEV();
@@ -214,6 +260,9 @@ static bool port_lockout_handshake(uint32_t token) {
   uint32_t start = TIMER0->TIMERAWL;
 
   while ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) == 0U) {
+    if (port_is_panic_pending()) {
+      port_local_halt();
+    }
     if ((TIMER0->TIMERAWL - start) > PORT_LOCKOUT_TIMEOUT_US) {
       return false;
     }
@@ -226,6 +275,10 @@ static bool port_lockout_handshake(uint32_t token) {
       uint32_t message = SIO->FIFO_RD;
 
       if (message == PORT_FIFO_LOCKOUT_ACK_MESSAGE) {
+        __DMB();
+        if (port_is_panic_pending()) {
+          port_local_halt();
+        }
         return true;
       }
       if (message == PORT_FIFO_PANIC_MESSAGE) {
@@ -248,6 +301,9 @@ static bool port_lockout_handshake(uint32_t token) {
       /* Reschedule tokens are dropped here, a reschedule round is forced
          after the handshake.*/
     }
+    if (port_is_panic_pending()) {
+      port_local_halt();
+    }
     if ((TIMER0->TIMERAWL - start) > PORT_LOCKOUT_TIMEOUT_US) {
       return false;
     }
@@ -260,6 +316,10 @@ static bool port_lockout_handshake(uint32_t token) {
  *          other core.
  */
 static void port_fifo_serve(void) {
+
+  if (port_is_panic_pending()) {
+    port_local_halt();
+  }
 
   SIO->FIFO_ST = SIO_FIFO_ST_ROE | SIO_FIFO_ST_WOF;
 
@@ -298,6 +358,13 @@ static void port_fifo_serve(void) {
 #else
     (void)message;
 #endif
+  }
+
+  /* Pairs with the sender's release store and closes the race between
+     draining the FIFO and publication of a panic notification.*/
+  __DMB();
+  if (port_is_panic_pending()) {
+    port_local_halt();
   }
 
   __SEV();
@@ -340,6 +407,24 @@ CH_IRQ_HANDLER(Vector80) {
 /*===========================================================================*/
 
 /**
+ * @brief   Notifies the other core of a system halt.
+ * @details The latch provides eventual delivery to a responsive target. The
+ *          FIFO token is a best-effort wakeup hint and may be discarded when
+ *          the FIFO is full.
+ */
+void __port_smp_notify_panic(void) {
+  core_id_t target;
+
+  target = port_get_core_id() ^ 1U;
+  __atomic_store_n(&__port_panic_pending[target], 1U, __ATOMIC_RELEASE);
+  __DMB();
+
+  if ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) != 0U) {
+    SIO->FIFO_WR = PORT_FIFO_PANIC_MESSAGE;
+  }
+}
+
+/**
  * @brief   SMP-related port initialization.
  * @details Acquires the global kernel lock which is released by the final
  *          @p chSysUnlock() in the instance startup path.
@@ -370,6 +455,9 @@ void __port_smp_init(os_instance_t *oip) {
     chDbgAssert(false, "unexpected core id");
   }
 
+  if (port_is_panic_pending()) {
+    NVIC_SetPendingIRQ((IRQn_Type)(15U + oip->core_id));
+  }
 }
 
 /**

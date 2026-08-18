@@ -176,17 +176,22 @@
 /*===========================================================================*/
 
 /*===========================================================================*/
+/* Module exported variables.                                                */
+/*===========================================================================*/
+
+extern uint32_t __port_panic_pending[PORT_CORES_NUMBER];
+
+/*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/
 
 /**
  * @brief   Panic notification.
- * @note    It is sent without polling for FIFO space because the other side
- *          could be unable to empty the FIFO after a catastrophic error.
+ * @note    The notification is durable even if the FIFO is full. It never
+ *          polls because the other side could be unable to empty the FIFO
+ *          after a catastrophic error.
  */
-#define PORT_SYSTEM_HALT_HOOK() do {                                        \
-    SIO->FIFO_WR = PORT_FIFO_PANIC_MESSAGE;                                 \
-  } while (false)
+#define PORT_SYSTEM_HALT_HOOK() __port_smp_notify_panic()
 
 /**
  * @brief   Publishes flash-lockout readiness after the first IRQ unmask.
@@ -213,6 +218,8 @@ extern "C" {
 #endif
   void __port_smp_init(os_instance_t *oip);
   void __port_smp_startup_complete(void);
+  void __port_smp_notify_panic(void);
+  void __port_smp_halt_from_ram(void);
   void __port_spinlock_take(void);
   void __port_spinlock_release(void);
   void __port_flash_lockout(void);
@@ -225,6 +232,19 @@ extern "C" {
 /*===========================================================================*/
 /* Module inline functions.                                                  */
 /*===========================================================================*/
+
+/**
+ * @brief   Checks for a durable panic notification for this core.
+ * @note    This is kept inline because callers can be executing from RAM
+ *          while flash is unavailable.
+ *
+ * @return              @p true if a remote panic is pending.
+ */
+__STATIC_FORCEINLINE bool port_is_panic_pending(void) {
+
+  return __atomic_load_n(&__port_panic_pending[SIO->CPUID],
+                         __ATOMIC_ACQUIRE) != 0U;
+}
 
 /**
  * @brief   Triggers an inter-core notification.
@@ -248,6 +268,12 @@ __STATIC_INLINE void port_notify_instance(os_instance_t *oip) {
 __STATIC_INLINE void port_spinlock_take(void) {
 
   while (SIO->SPINLOCK[PORT_SPINLOCK_NUMBER] == 0U) {
+    if (port_is_panic_pending()) {
+      /* The owner can have halted while holding the lock. Interrupts are
+         masked here, therefore the FIFO handler cannot consume the panic
+         notification. This loop must remain safe with XIP unavailable.*/
+      __port_smp_halt_from_ram();
+    }
   }
   __DMB();
 }
