@@ -37,8 +37,11 @@ void c1_main(void) {
   panic_spinlock_entering = 1U;
   __DMB();
 
-  /* Core 0 owns this lock and halts without releasing it. The durable panic
-     latch must stop this core from the lock-acquisition loop.*/
+  /* Core 0 owns this lock and halts without releasing it. The halt can
+     happen before or after this core reaches the acquisition loop; the
+     latch is published before the lock owner halts, so both interleavings
+     converge on the in-loop pending check and no tighter synchronization
+     is required.*/
   chSysLock();
   chSysUnlock();
 
