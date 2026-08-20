@@ -17,6 +17,8 @@
 #include "ch.h"
 #include "hal.h"
 
+#include "panic_test.h"
+
 extern volatile uint32_t panic_spinlock_ready;
 extern volatile uint32_t panic_spinlock_go;
 extern volatile uint32_t panic_spinlock_entering;
@@ -34,14 +36,19 @@ void c1_main(void) {
     panic_spinlock_heartbeat++;
   }
 
+  /* The FIFO IRQ is masked before core 0 is allowed to halt, otherwise
+     the FIFO handler could consume the panic notification in the window
+     before chSysLock() masks interrupts and the test would pass without
+     exercising the lock-acquisition check.*/
+  test_fifo_irq_disable();
+  test_irq_sync();
+
   panic_spinlock_entering = 1U;
   __DMB();
 
-  /* Core 0 owns this lock and halts without releasing it. The halt can
-     happen before or after this core reaches the acquisition loop; the
-     latch is published before the lock owner halts, so both interleavings
-     converge on the in-loop pending check and no tighter synchronization
-     is required.*/
+  /* Core 0 owns this lock and halts without releasing it. The durable
+     panic latch must stop this core from the lock-acquisition loop; with
+     the FIFO IRQ masked that is the only remaining delivery path.*/
   chSysLock();
   chSysUnlock();
 

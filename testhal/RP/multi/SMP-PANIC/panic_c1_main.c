@@ -17,31 +17,13 @@
 #include "ch.h"
 #include "hal.h"
 
-#if defined(__riscv)
-#include "hazard3_irq.h"
-#define test_fifo_irq_disable() hazard3_irq_disable(SIO_IRQ_FIFOn)
-#define test_fifo_irq_enable()  hazard3_irq_enable(SIO_IRQ_FIFOn)
-#define test_irq_sync()         __asm__ volatile ("fence" : : : "memory")
-#elif defined(RP2040_H)
-#define TEST_FIFO_IRQn ((IRQn_Type)(15U + SIO->CPUID))
-#define test_fifo_irq_disable() NVIC_DisableIRQ(TEST_FIFO_IRQn)
-#define test_fifo_irq_enable()  NVIC_EnableIRQ(TEST_FIFO_IRQn)
-#define test_irq_sync()         do { __DSB(); __ISB(); } while (false)
-#elif defined(RP2350_H)
-#define TEST_FIFO_IRQn SIO_IRQ_FIFOn
-#define test_fifo_irq_disable() NVIC_DisableIRQ(TEST_FIFO_IRQn)
-#define test_fifo_irq_enable()  NVIC_EnableIRQ(TEST_FIFO_IRQn)
-#define test_irq_sync()         do { __DSB(); __ISB(); } while (false)
-#else
-#error "unsupported RP device"
-#endif
+#include "panic_test.h"
 
 extern volatile uint32_t panic_ready;
 extern volatile uint32_t panic_go;
 extern volatile uint32_t panic_heartbeat;
 
 void c1_main(void) {
-  uint32_t start;
 
   chSysWaitSystemState(ch_sys_running);
   chInstanceObjectInit(&ch1, &ch_core1_cfg);
@@ -55,9 +37,11 @@ void c1_main(void) {
     panic_heartbeat++;
   }
 
-  /* Ensuring that core 0 has published the latch and entered chSysHalt().*/
-  start = TIMER0->TIMERAWL;
-  while ((TIMER0->TIMERAWL - start) < 10000U) {
+  /* Waiting until the durable notification is observable before unmasking
+     the FIFO IRQ. A fixed delay would allow this core to drain the FIFO
+     before core 0 halts, letting an ordinary FIFO token deliver the panic
+     without exercising the latch.*/
+  while (!port_is_panic_pending()) {
     panic_heartbeat++;
   }
 
