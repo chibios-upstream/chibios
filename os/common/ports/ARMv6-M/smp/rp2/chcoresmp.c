@@ -46,14 +46,6 @@
 /* Module exported variables.                                                */
 /*===========================================================================*/
 
-/*===========================================================================*/
-/* Module local types.                                                       */
-/*===========================================================================*/
-
-/*===========================================================================*/
-/* Module exported variables.                                                */
-/*===========================================================================*/
-
 /**
  * @brief   Durable per-target panic notifications.
  * @details The FIFO token is only a wakeup hint because a write is discarded
@@ -61,6 +53,10 @@
  *          notification persistent until the target observes it.
  */
 uint32_t __port_panic_pending[PORT_CORES_NUMBER];
+
+/*===========================================================================*/
+/* Module local types.                                                       */
+/*===========================================================================*/
 
 /*===========================================================================*/
 /* Module local variables.                                                   */
@@ -173,8 +169,7 @@ static void port_fifo_lockout_wait(void) {
   /* Acknowledging the lockout, the requester waits for this before
      touching XIP.*/
   while ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) == 0U) {
-    if (__atomic_load_n(&__port_panic_pending[SIO->CPUID],
-                        __ATOMIC_ACQUIRE) != 0U) {
+    if (port_is_panic_pending()) {
       __port_smp_halt_from_ram();
     }
   }
@@ -185,9 +180,8 @@ static void port_fifo_lockout_wait(void) {
   while (true) {
     uint32_t message;
 
-    /* Direct RAM access is required while XIP is unavailable.*/
-    if (__atomic_load_n(&__port_panic_pending[SIO->CPUID],
-                        __ATOMIC_ACQUIRE) != 0U) {
+    /* The check stays inlined, XIP can be unavailable here.*/
+    if (port_is_panic_pending()) {
       __port_smp_halt_from_ram();
     }
 
@@ -222,8 +216,7 @@ static void port_fifo_lockout_wait(void) {
 
   /* Acknowledging the unlock, XIP is available again at this point.*/
   while ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) == 0U) {
-    if (__atomic_load_n(&__port_panic_pending[SIO->CPUID],
-                        __ATOMIC_ACQUIRE) != 0U) {
+    if (port_is_panic_pending()) {
       __port_smp_halt_from_ram();
     }
   }
