@@ -260,7 +260,8 @@ void wspi_lld_start(WSPIDriver *wspip) {
   wspip->ospi->DCR2 = wspip->config->dcr2 | dcr2;
   wspip->ospi->DCR3 = wspip->config->dcr3;
   wspip->ospi->DCR4 = wspip->config->dcr4;
-  wspip->ospi->CR   = OCTOSPI_CR_TCIE  | OCTOSPI_CR_DMAEN | OCTOSPI_CR_EN;
+  wspip->ospi->CR   = wspip->config->cr | OCTOSPI_CR_TCIE |
+                      OCTOSPI_CR_DMAEN | OCTOSPI_CR_EN;
   wspip->ospi->FCR  = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
                       OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;
 }
@@ -461,7 +462,8 @@ void wspi_lld_unmap_flash(WSPIDriver *wspip) {
   }
 
   /* Disabling memory mapped mode and re-enabling DMA and IRQs.*/
-  wspip->ospi->CR = OCTOSPI_CR_TCIE | OCTOSPI_CR_DMAEN | OCTOSPI_CR_EN;
+  wspip->ospi->CR = wspip->config->cr | OCTOSPI_CR_TCIE |
+                    OCTOSPI_CR_DMAEN | OCTOSPI_CR_EN;
 }
 #endif /* WSPI_SUPPORTS_MEMMAP == TRUE */
 

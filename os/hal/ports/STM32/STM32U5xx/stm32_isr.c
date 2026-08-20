@@ -93,6 +93,9 @@
 #include "stm32_sdmmc1.inc"
 #include "stm32_sdmmc2.inc"
 
+#include "stm32_octospi1.inc"
+#include "stm32_octospi2.inc"
+
 #include "stm32_tim1.inc"
 #include "stm32_tim2.inc"
 #include "stm32_tim3.inc"
@@ -170,6 +173,9 @@ void irqInit(void) {
   sdmmc1_irq_init();
   sdmmc2_irq_init();
 
+  octospi1_irq_init();
+  octospi2_irq_init();
+
   tim1_irq_init();
   tim2_irq_init();
   tim3_irq_init();
@@ -243,6 +249,9 @@ void irqDeinit(void) {
 
   sdmmc1_irq_deinit();
   sdmmc2_irq_deinit();
+
+  octospi1_irq_deinit();
+  octospi2_irq_deinit();
 
   tim1_irq_deinit();
   tim2_irq_deinit();
