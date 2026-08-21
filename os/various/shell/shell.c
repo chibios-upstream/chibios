@@ -143,7 +143,7 @@ static void save_history(ShellHistory *shp, char *line, int length) {
   if (length > shp->sh_size - 2)
     return;
 
-  while ((*(line + length -1) == ' ') && (length > 0))
+  while ((length > 0) && (*(line + length - 1) == ' '))
     length--;
 
   if (length <= 0)
