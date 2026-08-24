@@ -168,11 +168,16 @@
 /* External declarations.                                                    */
 /*===========================================================================*/
 
+#if !defined(__DOXYGEN__)
+extern uint32_t __port_panic_pending[PORT_CORES_NUMBER];
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
   void __port_smp_init(os_instance_t *oip);
   void __port_smp_notify_panic(void);
+  void __port_smp_halt_from_ram(void);
   void __port_spinlock_take(void);
   void __port_spinlock_release(void);
 #ifdef __cplusplus
@@ -199,11 +204,30 @@ static inline void port_notify_instance(os_instance_t *oip) {
 }
 
 /**
+ * @brief   Checks for a durable panic notification for this core.
+ * @note    This is kept inline because callers can be executing with
+ *          interrupts masked.
+ *
+ * @return              @p true if a remote panic is pending.
+ */
+__STATIC_FORCEINLINE bool port_is_panic_pending(void) {
+
+  return __atomic_load_n(&__port_panic_pending[SIO->CPUID],
+                         __ATOMIC_ACQUIRE) != 0U;
+}
+
+/**
  * @brief   Takes the kernel spinlock.
  */
 static inline void port_spinlock_take(void) {
 
   while (SIO->SPINLOCK[PORT_SPINLOCK_NUMBER] == 0U) {
+    if (port_is_panic_pending()) {
+      /* The owner can have halted while holding the lock. Interrupts are
+         masked here, therefore the FIFO handler cannot consume the panic
+         notification.*/
+      __port_smp_halt_from_ram();
+    }
   }
   __DMB();
 }

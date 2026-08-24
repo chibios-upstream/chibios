@@ -104,9 +104,20 @@ LDSCRIPT= $(STARTUPLD)/RP2350_FLASH.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
-CSRC = $(ALLCSRC) \
-       \
-       main.c c1_main.c
+ifeq ($(PANIC_SATURATION),yes)
+  CSRC = $(ALLCSRC) \
+         ../../multi/SMP-PANIC/panic_hook.c \
+         ../../multi/SMP-PANIC/panic_main.c \
+         ../../multi/SMP-PANIC/panic_c1_main.c
+else ifeq ($(PANIC_SPINLOCK),yes)
+  CSRC = $(ALLCSRC) \
+         ../../multi/SMP-PANIC/panic_hook.c \
+         ../../multi/SMP-PANIC/panic_spinlock_main.c \
+         ../../multi/SMP-PANIC/panic_spinlock_c1_main.c
+else
+  CSRC = $(ALLCSRC) \
+         main.c c1_main.c
+endif
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.

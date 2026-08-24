@@ -93,6 +93,7 @@ include $(CHIBIOS)/os/hal/hal.mk
 include $(CHIBIOS)/os/hal/ports/RP/RP2350/platform_riscv.mk
 include $(CHIBIOS)/os/hal/boards/RP_PICO2_RP2350/board.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
+include $(CHIBIOS)/os/hal/lib/streams/streams.mk
 include $(CHIBIOS)/os/hal/ports/RP/rp_uf2_image.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
@@ -102,8 +103,24 @@ LDSCRIPT= $(STARTUPLD)/RP2350_RISCV_FLASH.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
-CSRC = $(ALLCSRC) \
-       main.c c1_main.c
+ifeq ($(PANIC_SATURATION),yes)
+  # The regression applications are minimal; smaller stacks leave room in
+  # the scratch banks for the core-private OS instances.
+  USE_PROCESS_STACKSIZE = 0x5C0
+  USE_EXCEPTIONS_STACKSIZE = 0x5C0
+  CSRC = $(ALLCSRC) \
+         ../../multi/SMP-PANIC/panic_main.c \
+         ../../multi/SMP-PANIC/panic_c1_main.c
+else ifeq ($(PANIC_SPINLOCK),yes)
+  USE_PROCESS_STACKSIZE = 0x5C0
+  USE_EXCEPTIONS_STACKSIZE = 0x5C0
+  CSRC = $(ALLCSRC) \
+         ../../multi/SMP-PANIC/panic_spinlock_main.c \
+         ../../multi/SMP-PANIC/panic_spinlock_c1_main.c
+else
+  CSRC = $(ALLCSRC) \
+         main.c c1_main.c
+endif
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
