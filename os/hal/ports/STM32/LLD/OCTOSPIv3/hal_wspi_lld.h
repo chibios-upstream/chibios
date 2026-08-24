@@ -313,6 +313,8 @@ typedef struct {
  * @brief   Low level fields of the WSPI configuration structure.
  */
 #define wspi_lld_config_fields                                              \
+  /* CR register additional initialization bits.*/                         \
+  uint32_t                      cr;                                         \
   /* DCR1 register initialization data.*/                                   \
   uint32_t                      dcr1;                                       \
   /* DCR2 register initialization data. The prescaler field is internally   \
