@@ -39,7 +39,7 @@
  * HAL driver general settings.
  */
 #define STM32_NO_INIT                       FALSE
-#define STM32_CLOCK_DYNAMIC                 FALSE
+#define STM32_CFG_CLOCK_DYNAMIC             FALSE
 
 /*
  * ICache settings.
@@ -53,7 +53,6 @@
 /*
  * PWR settings.
  */
-#define STM32_PWR_VOSR                      (PWR_VOSR_RANGE1)
 #define STM32_PWR_CR3                       (PWR_CR3_FSTEN | PWR_CR3_REGSEL)
 #define STM32_PWR_SVMCR                     (PWR_SVMCR_ASV | PWR_SVMCR_USV | PWR_SVMCR_AVM1EN | PWR_SVMCR_AVM2EN | PWR_SVMCR_UVMEN)
 #define STM32_PWR_WUCR1                     (0U)
@@ -88,63 +87,93 @@
 /*
  * Clock settings.
  */
-#define STM32_HSI16_ENABLED                 FALSE
-#define STM32_HSIKERON_ENABLED              FALSE
-#define STM32_HSI48_ENABLED                 FALSE
-#define STM32_HSE_ENABLED                   FALSE
-#define STM32_LSI_ENABLED                   FALSE
-#define STM32_LSE_ENABLED                   TRUE
-#define STM32_MSIRC0_MODE                   RCC_MSIRC0_PLL_LSE
-#define STM32_MSIRC1_MODE                   RCC_MSIRC1_FREE
-#define STM32_MSIPLL1N_VALUE                0
-#define STM32_MSIS_SRCDIV                   RCC_ICSCR1_MSIS_IRC0_DIV1
-#define STM32_MSIK_SRCDIV                   RCC_ICSCR1_MSIK_IRC0_DIV1
-#define STM32_MSIBIAS                       RCC_ICSCR1_MSIBIAS_CONTINUOUS
-#define STM32_SW                            RCC_CFGR1_SW_MSIS
-#define STM32_HPRE                          RCC_CFGR2_HPRE_DIV1
-#define STM32_PPRE1                         RCC_CFGR2_PPRE1_DIV1
-#define STM32_PPRE2                         RCC_CFGR2_PPRE2_DIV1
-#define STM32_PPRE3                         RCC_CFGR3_PPRE3_DIV1
-#define STM32_STOPWUCK                      RCC_CFGR1_STOPWUCK_MSIS
-#define STM32_STOPKERWUCK                   RCC_CFGR1_STOPKERWUCK_MSIK
-#define STM32_MCO1SEL                       RCC_CFGR1_MCO1SEL_OFF
-#define STM32_MCO1PRE_VALUE                 1
-#define STM32_MCO2SEL                       RCC_CFGR1_MCO2SEL_OFF
-#define STM32_MCO2PRE_VALUE                 1
-#define STM32_LSCOSEL                       RCC_BDCR_LSCOSEL_NOCLOCK
+#define STM32_CFG_PWR_VOSR                  (PWR_VOSR_RANGE1)
+#define STM32_CFG_MSIRC0_MODE               RCC_MSIRC0_PLL_LSE
+#define STM32_CFG_MSIRC1_MODE               RCC_MSIRC1_FREE
+#define STM32_CFG_MSIPLL1N_VALUE            0
+#define STM32_CFG_AUDIOCLK                  0U
+#define STM32_CFG_MSIS_SRCDIV               RCC_ICSCR1_MSIS_IRC0_DIV1
+#define STM32_CFG_MSIK_SRCDIV               RCC_ICSCR1_MSIK_IRC0_DIV1
+#define STM32_CFG_STOPWUCK                  RCC_CFGR1_STOPWUCK_MSIS
+#define STM32_CFG_STOPKERWUCK               RCC_CFGR1_STOPKERWUCK_MSIK
+#define STM32_CFG_MSIBIAS                   RCC_ICSCR1_MSIBIAS_CONTINUOUS
+#define STM32_CFG_TIMICSEL                  RCC_CCIPR1_TIMICSEL_NOCLOCK
+#define STM32_CFG_HSI16_ENABLE              FALSE
+#define STM32_CFG_HSI48_ENABLE              FALSE
+#define STM32_CFG_HSE_ENABLE                FALSE
+#define STM32_CFG_LSE_ENABLE                TRUE
+#define STM32_CFG_LSI_ENABLE                FALSE
+#define STM32_CFG_SYSCLK_SEL                RCC_CFGR1_SW_MSIS
+#define STM32_CFG_HCLK_VALUE                1
+#define STM32_CFG_PCLK1_VALUE               1
+#define STM32_CFG_PCLK2_VALUE               1
+#define STM32_CFG_PCLK3_VALUE               1
+#define STM32_CFG_MCO1DIV_SEL               RCC_CFGR1_MCO1SEL_OFF
+#define STM32_CFG_MCO1_VALUE                1
+#define STM32_CFG_MCO2DIV_SEL               RCC_CFGR1_MCO2SEL_OFF
+#define STM32_CFG_MCO2_VALUE                1
+#define STM32_CFG_RTC_SEL                   RCC_BDCR_RTCSEL_NOCLOCK
+#define STM32_CFG_LSCO_SEL                  RCC_BDCR_LSCOSEL_NOCLOCK
+
+/*
+ * Peripheral clock demand modes.
+ */
+#define STM32_CFG_USART1_CLOCK_MODE         STM32_CLOCK_AUTO
+#define STM32_CFG_USART3_CLOCK_MODE         STM32_CLOCK_AUTO
+#define STM32_CFG_UART4_CLOCK_MODE          STM32_CLOCK_AUTO
+#define STM32_CFG_UART5_CLOCK_MODE          STM32_CLOCK_AUTO
+#define STM32_CFG_LPUART1_CLOCK_MODE        STM32_CLOCK_AUTO
+#define STM32_CFG_LPTIM1_CLOCK_MODE         STM32_CLOCK_AUTO
+#define STM32_CFG_LPTIM2_CLOCK_MODE         STM32_CLOCK_AUTO
+#define STM32_CFG_LPTIM34_CLOCK_MODE        STM32_CLOCK_AUTO
+#define STM32_CFG_SPI1_CLOCK_MODE           STM32_CLOCK_AUTO
+#define STM32_CFG_SPI2_CLOCK_MODE           STM32_CLOCK_AUTO
+#define STM32_CFG_SPI3_CLOCK_MODE           STM32_CLOCK_AUTO
+#define STM32_CFG_OCTOSPI_CLOCK_MODE        STM32_CLOCK_AUTO
+#define STM32_CFG_USB_CLOCK_MODE            STM32_CLOCK_AUTO
+#define STM32_CFG_SDMMC1_CLOCK_MODE         STM32_CLOCK_AUTO
+#define STM32_CFG_I2C1_CLOCK_MODE           STM32_CLOCK_AUTO
+#define STM32_CFG_I2C2_CLOCK_MODE           STM32_CLOCK_AUTO
+#define STM32_CFG_I2C3_CLOCK_MODE           STM32_CLOCK_AUTO
+#define STM32_CFG_I3C1_CLOCK_MODE           STM32_CLOCK_AUTO
+#define STM32_CFG_I3C2_CLOCK_MODE           STM32_CLOCK_AUTO
+#define STM32_CFG_ADCDAC_CLOCK_MODE         STM32_CLOCK_AUTO
+#define STM32_CFG_DAC1SH_CLOCK_MODE         STM32_CLOCK_AUTO
+#define STM32_CFG_RNG_CLOCK_MODE            STM32_CLOCK_AUTO
+#define STM32_CFG_FDCAN1_CLOCK_MODE         STM32_CLOCK_AUTO
+#define STM32_CFG_SAI1_CLOCK_MODE           STM32_CLOCK_AUTO
+#define STM32_CFG_ADF1_CLOCK_MODE           STM32_CLOCK_AUTO
 
 /*
  * Peripherals clock sources.
  */
-#define STM32_TIMICSEL                      RCC_CCIPR1_TIMICSEL_NOCLOCK
-#define STM32_USART1SEL                     RCC_CCIPR1_USART1SEL_PCLK2
-#define STM32_USART3SEL                     RCC_CCIPR1_USART3SEL_PCLK1
-#define STM32_UART4SEL                      RCC_CCIPR1_UART4SEL_PCLK1
-#define STM32_UART5SEL                      RCC_CCIPR1_UART5SEL_PCLK1
-#define STM32_LPUART1SEL                    RCC_CCIPR3_LPUART1SEL_PCLK3
-#define STM32_LPTIM1SEL                     RCC_CCIPR3_LPTIM1SEL_MSIK
-#define STM32_LPTIM2SEL                     RCC_CCIPR1_LPTIM2SEL_PCLK1
-#define STM32_LPTIM34SEL                    RCC_CCIPR3_LPTIM34SEL_MSIK
-#define STM32_SPI1SEL                       RCC_CCIPR1_SPI1SEL_PCLK2
-#define STM32_SPI2SEL                       RCC_CCIPR1_SPI2SEL_PCLK1
-#define STM32_SPI3SEL                       RCC_CCIPR2_SPI3SEL_PCLK1
-#define STM32_OCTOSPISEL                    RCC_CCIPR2_OCTOSPISEL_SYSCLK
-#define STM32_SYSTICKSEL                    RCC_CCIPR1_SYSTICKSEL_HCLKDIV8
-#define STM32_ICLKSEL                       RCC_CCIPR1_ICLKSEL_SYSCLK
-#define STM32_USB1SEL                       RCC_CCIPR1_USB1SEL_ICLKDIV2
-#define STM32_I2C1SEL                       RCC_CCIPR1_I2C1SEL_PCLK1
-#define STM32_I2C2SEL                       RCC_CCIPR1_I2C2SEL_PCLK1
-#define STM32_I2C3SEL                       RCC_CCIPR3_I2C3SEL_PCLK3
-#define STM32_I3C1SEL                       RCC_CCIPR1_I3C1SEL_PCLK1
-#define STM32_I3C2SEL                       RCC_CCIPR1_I3C2SEL_PCLK2
-#define STM32_ADCDACSEL                     RCC_CCIPR2_ADCDACSEL_HCLK
-#define STM32_DAC1SHSEL                     RCC_CCIPR2_DAC1SHSEL_IGNORE
-#define STM32_ADCDACPRE                     RCC_CCIPR2_ADCDACPRE_ICLK
-#define STM32_RNGSEL                        RCC_CCIPR2_RNGSEL_IGNORE
-#define STM32_FDCAN1SEL                     RCC_CCIPR1_FDCAN1SEL_SYSCLK
-#define STM32_SAI1SEL                       RCC_CCIPR2_SAI1SEL_MSIK
-#define STM32_ADF1SEL                       RCC_CCIPR2_ADF1SEL_HCLK
-#define STM32_RTCSEL                        RCC_BDCR_RTCSEL_NOCLOCK
+#define STM32_CFG_USART1_SEL                RCC_CCIPR1_USART1SEL_PCLK2
+#define STM32_CFG_USART3_SEL                RCC_CCIPR1_USART3SEL_PCLK1
+#define STM32_CFG_UART4_SEL                 RCC_CCIPR1_UART4SEL_PCLK1
+#define STM32_CFG_UART5_SEL                 RCC_CCIPR1_UART5SEL_PCLK1
+#define STM32_CFG_LPUART1_SEL               RCC_CCIPR3_LPUART1SEL_PCLK3
+#define STM32_CFG_LPTIM1_SEL                RCC_CCIPR3_LPTIM1SEL_MSIK
+#define STM32_CFG_LPTIM2_SEL                RCC_CCIPR1_LPTIM2SEL_PCLK1
+#define STM32_CFG_LPTIM34_SEL               RCC_CCIPR3_LPTIM34SEL_MSIK
+#define STM32_CFG_SPI1_SEL                  RCC_CCIPR1_SPI1SEL_PCLK2
+#define STM32_CFG_SPI2_SEL                  RCC_CCIPR1_SPI2SEL_PCLK1
+#define STM32_CFG_SPI3_SEL                  RCC_CCIPR2_SPI3SEL_PCLK1
+#define STM32_CFG_OCTOSPI_SEL               RCC_CCIPR2_OCTOSPISEL_SYSCLK
+#define STM32_CFG_SYSTICK_SEL               RCC_CCIPR1_SYSTICKSEL_HCLKDIV8
+#define STM32_CFG_ICLK_SEL                  RCC_CCIPR1_ICLKSEL_SYSCLK
+#define STM32_CFG_USB_SEL                   RCC_CCIPR1_USB1SEL_ICLKDIV2
+#define STM32_CFG_I2C1_SEL                  RCC_CCIPR1_I2C1SEL_PCLK1
+#define STM32_CFG_I2C2_SEL                  RCC_CCIPR1_I2C2SEL_PCLK1
+#define STM32_CFG_I2C3_SEL                  RCC_CCIPR3_I2C3SEL_PCLK3
+#define STM32_CFG_I3C1_SEL                  RCC_CCIPR1_I3C1SEL_PCLK1
+#define STM32_CFG_I3C2_SEL                  RCC_CCIPR1_I3C2SEL_PCLK2
+#define STM32_CFG_ADCDACICLK_SEL            RCC_CCIPR2_ADCDACSEL_HCLK
+#define STM32_CFG_ADCDACPRE_VALUE           1
+#define STM32_CFG_DAC1SH_SEL                RCC_CCIPR2_DAC1SHSEL_IGNORE
+#define STM32_CFG_RNG_SEL                   RCC_CCIPR2_RNGSEL_IGNORE
+#define STM32_CFG_FDCAN1_SEL                RCC_CCIPR1_FDCAN1SEL_SYSCLK
+#define STM32_CFG_SAI1_SEL                  RCC_CCIPR2_SAI1SEL_MSIK
+#define STM32_CFG_ADF1_SEL                  RCC_CCIPR2_ADF1SEL_HCLK
 
 /*
  * IRQ system settings.
@@ -177,6 +206,8 @@
 #define STM32_IRQ_SPI1_PRIORITY             10
 #define STM32_IRQ_SPI2_PRIORITY             10
 #define STM32_IRQ_SPI3_PRIORITY             10
+
+#define STM32_IRQ_SDMMC1_PRIORITY           10
 
 #define STM32_IRQ_TIM1_BRK_PRIORITY         7
 #define STM32_IRQ_TIM1_UP_PRIORITY          7

@@ -2217,6 +2217,12 @@ macro EmitSinkDemandDefinitions()
         else
           ppcode.EmitPPDefine(name=demandmacro, value="TRUE")
         endif
+      elseif !sink["implicit_mode"] && !condition?contains("defined(")
+        /* Keep generated-clock dependencies deferred until macro expansion.*/
+        if IsVariantSpecific(sink)
+          local condition = "((" + sink["variant_condition"] + ") && (" + condition + "))"
+        endif
+        ppcode.EmitPPDefine(name=demandmacro, value="(" + condition + ")")
       else
         if IsVariantSpecific(sink)
           ppcode.EmitPPIf(expression="((" + sink["variant_condition"] + ") && (" + condition + ")) || defined(__DOXYGEN__)")

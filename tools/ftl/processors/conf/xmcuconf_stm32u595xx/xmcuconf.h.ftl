@@ -46,6 +46,8 @@
 #define STM32U599_XMCUCONF
 #define STM32U5A5_XMCUCONF
 #define STM32U5A9_XMCUCONF
+#define STM32U5G7_XMCUCONF
+#define STM32U5G9_XMCUCONF
 
 /*
  * HAL driver general settings.
