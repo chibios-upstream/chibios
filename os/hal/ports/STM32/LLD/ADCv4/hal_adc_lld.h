@@ -438,22 +438,22 @@
 #endif
 
 /* ADC boost checks.*/
-#if   STM32_ADC12_CLOCK >  6250000
-#define STM32_ADC12_BOOST               (1U << 8U)
+#if   STM32_ADC12_CLOCK > 25000000
+#define STM32_ADC12_BOOST               (3U << 8U)
 #elif STM32_ADC12_CLOCK > 12500000
 #define STM32_ADC12_BOOST               (2U << 8U)
-#elif STM32_ADC12_CLOCK > 25000000
-#define STM32_ADC12_BOOST               (3U << 8U)
+#elif STM32_ADC12_CLOCK >  6250000
+#define STM32_ADC12_BOOST               (1U << 8U)
 #else
 #define STM32_ADC12_BOOST               (0U << 8U)
 #endif
 
-#if   STM32_ADC3_CLOCK >  6250000
-#define STM32_ADC3_BOOST                (1U << 8U)
+#if   STM32_ADC3_CLOCK > 25000000
+#define STM32_ADC3_BOOST                (3U << 8U)
 #elif STM32_ADC3_CLOCK > 12500000
 #define STM32_ADC3_BOOST                (2U << 8U)
-#elif STM32_ADC3_CLOCK > 25000000
-#define STM32_ADC3_BOOST                (3U << 8U)
+#elif STM32_ADC3_CLOCK >  6250000
+#define STM32_ADC3_BOOST                (1U << 8U)
 #else
 #define STM32_ADC3_BOOST                (0U << 8U)
 #endif

@@ -195,6 +195,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [STM32] ADCv4 (STM32H7) boost-level selection tested the ADC clock thresholds
+  in ascending order, so any clock above 6.25 MHz selected BOOST level 1 and
+  levels 2 and 3 were never reached (under-boosting the analog stage above
+  12.5 MHz). The ADC12 and ADC3 thresholds are now tested in descending order
+  ([#260](https://github.com/chibios-upstream/chibios/pull/260))
+  *(backported to 21.11.6)*.
 - [STM32] OCTOSPIv2 WSPI driver had three defects: the OCTOSPI2 initialization
   used the OCTOSPI1 DHQC option bit, a non-full-init start wrote an
   uninitialized DCR2 prescaler, and the transfer-complete ISR invoked the
