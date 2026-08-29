@@ -665,6 +665,10 @@
 #define rccDisableUART5() rccDisableAPB1R1(RCC_APB1ENR1_UART5EN)
 #define rccResetUART5() rccResetAPB1R1(RCC_APB1RSTR1_UART5RST)
 
+#define rccEnableUSART6(lp) rccEnableAPB1R1(RCC_APB1ENR1_USART6EN, lp)
+#define rccDisableUSART6() rccDisableAPB1R1(RCC_APB1ENR1_USART6EN)
+#define rccResetUSART6() rccResetAPB1R1(RCC_APB1RSTR1_USART6RST)
+
 #define rccEnableLPUART1(lp) rccEnableAPB3(RCC_APB3ENR_LPUART1EN, lp)
 #define rccDisableLPUART1() rccDisableAPB3(RCC_APB3ENR_LPUART1EN)
 #define rccResetLPUART1() rccResetAPB3(RCC_APB3RSTR_LPUART1RST)

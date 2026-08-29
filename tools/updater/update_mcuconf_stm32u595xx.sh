@@ -13,7 +13,9 @@ then
   if egrep -q "STM32U595_MCUCONF" <<< "$conffile" || \
      egrep -q "STM32U599_MCUCONF" <<< "$conffile" || \
      egrep -q "STM32U5A5_MCUCONF" <<< "$conffile" || \
-     egrep -q "STM32U5A9_MCUCONF" <<< "$conffile"
+     egrep -q "STM32U5A9_MCUCONF" <<< "$conffile" || \
+     egrep -q "STM32U5G7_MCUCONF" <<< "$conffile" || \
+     egrep -q "STM32U5G9_MCUCONF" <<< "$conffile"
   then
     echo Processing: $1
     egrep -e "\#define\s+[a-zA-Z0-9_()]*\s+[^\s]" <<< "$conffile" | sed -r 's/\#define\s+([a-zA-Z0-9_]*)(\([^)]*\))?\s+/\1=/g' > ./values.txt
