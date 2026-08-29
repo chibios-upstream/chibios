@@ -8,6 +8,25 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [STM32] OCTOSPIv3 WSPI driver for STM32U5, built on GPDMA (DMA3v1) rather
+  than the OCTOSPIv2 MDMA path: the driver and its OCTOSPI IRQ handlers, the
+  OCTOSPIM clock wiring, and the STM32U575/U595 mcuconf templates, with the
+  transfer-complete ISR waiting for GPDMA idle before the portable ISR code;
+  CR-register options and the U5 OCTOSPI IRQ vectors followed
+  ([#228](https://github.com/chibios-upstream/chibios/pull/228),
+  [#253](https://github.com/chibios-upstream/chibios/pull/253)).
+- [STM32] STM32G0xx embedded flash (EFL) support for 256K and 512K devices
+  (single-bank; dual-bank G0B1/G0C1 parts must be configured single-bank)
+  ([#191](https://github.com/chibios-upstream/chibios/pull/191)).
+- [STM32] FDCAN timestamp counter (`TSCC`) configuration, exposed and
+  programmed in configuration mode across classic FDCANv1/FDCANv2 and XHAL
+  FDCANv1 ([#237](https://github.com/chibios-upstream/chibios/pull/237)).
+- [STM32] Configurable LSE startup time for STM32U5, independent of the shared
+  oscillator startup timeout
+  ([#240](https://github.com/chibios-upstream/chibios/pull/240)).
+- [STM32] Promoted the generated STM32G4 and STM32U3 clock-tree ports into XHAL
+  (previous implementations retained as `_OLD`) and added STM32U5G support
+  ([#261](https://github.com/chibios-upstream/chibios/pull/261)).
 - [XHAL] XHAL port for the RP2040 and RP2350: ST/PAL, SIO, WDG and DMA services,
   SPI, PWM and ADC drivers, an EFL driver with XIP flash safety, RTC drivers
   with absolute-time alarms, a USB device driver and an I2C driver with
@@ -33,13 +52,19 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 - [RP] RP PIOv1 and DMAv1 API extensions: a state-machine configuration builder
   with pin routing and DMA glue, allocation masks and SM handle access, PIO
   IRQ flag get/clear/force, RP2350 FIFO join modes, a TX-FIFO drain helper,
-  and `dmaChannelGetCounterX()`
+  `dmaChannelGetCounterX()`, block-level interrupt/callback and GPIO routing,
+  runtime state-machine setters and readback, in-place instruction patching
+  with synchronized multi-SM enable, and instruction encoders
   ([#138](https://github.com/chibios-upstream/chibios/pull/138),
   [#152](https://github.com/chibios-upstream/chibios/pull/152),
   [#167](https://github.com/chibios-upstream/chibios/pull/167),
   [#168](https://github.com/chibios-upstream/chibios/pull/168),
   [#169](https://github.com/chibios-upstream/chibios/pull/169),
-  [#170](https://github.com/chibios-upstream/chibios/pull/170)).
+  [#170](https://github.com/chibios-upstream/chibios/pull/170),
+  [#222](https://github.com/chibios-upstream/chibios/pull/222),
+  [#223](https://github.com/chibios-upstream/chibios/pull/223),
+  [#224](https://github.com/chibios-upstream/chibios/pull/224),
+  [#225](https://github.com/chibios-upstream/chibios/pull/225)).
 - [ARMV6M] Alternate common IRQ dispatcher port for ARMv6-M
   ([#171](https://github.com/chibios-upstream/chibios/pull/171)).
 - [RP] RP2350 POWMAN register map added to the CMSIS device header
@@ -144,6 +169,9 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [RT] Removed the optional `PORT_SYSTEM_STATE_ACQUIRE()`/`_RELEASE()` startup
+  hooks (the only merged implementation was Hazard3's)
+  ([#244](https://github.com/chibios-upstream/chibios/pull/244)).
 - [XHAL] XHAL no longer depends on OSAL
   ([#156](https://github.com/chibios-upstream/chibios/pull/156)); a redundant
   MMC SPI module switch was removed
@@ -200,6 +228,38 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   levels 2 and 3 were never reached (under-boosting the analog stage above
   12.5 MHz). The ADC12 and ADC3 thresholds are now tested in descending order
   ([#260](https://github.com/chibios-upstream/chibios/pull/260))
+  *(backported to 21.11.6)*.
+- [STM32] STM32 SPIv3 and SPIv4 did not fully deactivate the peripheral on
+  `spiStop()`; the control, configuration and interrupt-enable registers are
+  now cleared ([#231](https://github.com/chibios-upstream/chibios/pull/231)).
+- [STM32] Dynamic clock-tree register writes on STM32U5 and STM32U3 were
+  safety-verified against complete register values even where the registers
+  hold read-only or hardware-controlled fields; the readback now covers only
+  the writable fields
+  ([#232](https://github.com/chibios-upstream/chibios/pull/232),
+  [#235](https://github.com/chibios-upstream/chibios/pull/235),
+  [#236](https://github.com/chibios-upstream/chibios/pull/236)).
+- [STM32] TIM channel 5 and 6 mode encoding took the OC5M/OC6M extension bit
+  from mode bit 2 instead of bit 3, breaking PWM mode 1 on those channels; the
+  encoding is corrected (HAL and XHAL TIMv1)
+  ([#258](https://github.com/chibios-upstream/chibios/pull/258))
+  *(backported to 21.11.6)*.
+- [RP] SMP robustness: a durable per-target panic latch so panic propagation no
+  longer depends on inter-core FIFO space
+  ([#251](https://github.com/chibios-upstream/chibios/pull/251)), flash-lockout
+  startup-readiness serialization
+  ([#250](https://github.com/chibios-upstream/chibios/pull/250)), and
+  compile-time rejection of unsafe ARMv8-M spinlock overrides (RP2350-E2)
+  ([#249](https://github.com/chibios-upstream/chibios/pull/249)).
+- [RT] Initial SMP kernel-lock ownership is now established at startup
+  ([#241](https://github.com/chibios-upstream/chibios/pull/241)), and explicit
+  thread affinity is validated
+  ([#243](https://github.com/chibios-upstream/chibios/pull/243)).
+- [ARMV7R] Avoided an alignment-increasing cast in `port_setup_context()`
+  ([#230](https://github.com/chibios-upstream/chibios/pull/230)).
+- [SHELL] The legacy shell read `line[-1]` when Enter was pressed at an empty
+  prompt with history enabled; the line length is now checked first
+  ([#256](https://github.com/chibios-upstream/chibios/pull/256))
   *(backported to 21.11.6)*.
 - [STM32] OCTOSPIv2 WSPI driver had three defects: the OCTOSPI2 initialization
   used the OCTOSPI1 DHQC option bit, a non-full-init start wrote an
