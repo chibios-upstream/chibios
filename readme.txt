@@ -74,6 +74,11 @@
 *****************************************************************************
 
 *** 21.11.6 ***
+- FIX: STM32 ADCv4 (STM32H7) boost-level selection tested the ADC clock
+       thresholds in ascending order, so any clock above 6.25 MHz selected
+       BOOST level 1 and levels 2 and 3 were never reached (under-boosting the
+       analog stage above 12.5 MHz). The ADC12 and ADC3 thresholds are now
+       tested in descending order (backport of github PR #260).
 - FIX: Serial over USB input remained inactive after an USB suspend/wakeup
        cycle on STM32 OTG devices. The generic USB driver terminates all
        pending transactions on suspend and the OTG LLD also disables the
