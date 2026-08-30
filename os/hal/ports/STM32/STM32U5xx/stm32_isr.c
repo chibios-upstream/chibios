@@ -79,13 +79,6 @@
 #include "stm32_i2c5.inc"
 #include "stm32_i2c6.inc"
 
-#if HAL_USE_WSPI && STM32_WSPI_USE_OCTOSPI1
-#include "stm32_octospi1.inc"
-#endif
-#if HAL_USE_WSPI && STM32_WSPI_USE_OCTOSPI2
-#include "stm32_octospi2.inc"
-#endif
-
 #include "stm32_spi1.inc"
 #include "stm32_spi2.inc"
 #include "stm32_spi3.inc"
@@ -159,13 +152,6 @@ void irqInit(void) {
   i2c5_irq_init();
   i2c6_irq_init();
 
-#if HAL_USE_WSPI && STM32_WSPI_USE_OCTOSPI1
-  octospi1_irq_init();
-#endif
-#if HAL_USE_WSPI && STM32_WSPI_USE_OCTOSPI2
-  octospi2_irq_init();
-#endif
-
   spi1_irq_init();
   spi2_irq_init();
   spi3_irq_init();
@@ -235,13 +221,6 @@ void irqDeinit(void) {
   i2c4_irq_deinit();
   i2c5_irq_deinit();
   i2c6_irq_deinit();
-
-#if HAL_USE_WSPI && STM32_WSPI_USE_OCTOSPI1
-  octospi1_irq_deinit();
-#endif
-#if HAL_USE_WSPI && STM32_WSPI_USE_OCTOSPI2
-  octospi2_irq_deinit();
-#endif
 
   spi1_irq_deinit();
   spi2_irq_deinit();
