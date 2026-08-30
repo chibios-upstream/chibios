@@ -881,6 +881,13 @@
 #endif
 
 /**
+ * @brief   Keeps MSIK enabled for autonomous peripherals in Stop modes.
+ */
+#if !defined(STM32_CFG_MSIKERON_ENABLED) || defined(__DOXYGEN__)
+  #define STM32_CFG_MSIKERON_ENABLED        FALSE
+#endif
+
+/**
  * @brief   Selects the MSI bias mode.
  */
 #if !defined(STM32_CFG_MSIBIAS) || defined(__DOXYGEN__)
@@ -2162,6 +2169,11 @@
      (STM32_CFG_MSIK_RANGE == RCC_ICSCR1_MSIKRANGE_RANGE15_100K)) &&        \
     !defined(__DOXYGEN__)
   #error "invalid STM32_CFG_MSIK_RANGE value specified"
+#endif
+
+#if !((STM32_CFG_MSIKERON_ENABLED == TRUE) ||                              \
+      (STM32_CFG_MSIKERON_ENABLED == FALSE)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_MSIKERON_ENABLED value specified"
 #endif
 
 #if !((STM32_CFG_MSIBIAS == RCC_ICSCR1_MSIBIAS_CONTINUOUS) ||               \
@@ -5929,7 +5941,9 @@
  * @brief   MSIK clock register bits.
  */
 #if (STM32_MSIK_ENABLED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_CR_MSIK_BITS                RCC_CR_MSIKON
+  #define STM32_CR_MSIK_BITS                (RCC_CR_MSIKON |               \
+                                             ((STM32_CFG_MSIKERON_ENABLED == TRUE) ? \
+                                               RCC_CR_MSIKERON : 0U))
 #else
   #define STM32_CR_MSIK_BITS                0U
 #endif
