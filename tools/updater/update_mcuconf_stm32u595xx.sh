@@ -14,6 +14,8 @@ then
      egrep -q "STM32U599_MCUCONF" <<< "$conffile" || \
      egrep -q "STM32U5A5_MCUCONF" <<< "$conffile" || \
      egrep -q "STM32U5A9_MCUCONF" <<< "$conffile" || \
+     egrep -q "STM32U5F7_MCUCONF" <<< "$conffile" || \
+     egrep -q "STM32U5F9_MCUCONF" <<< "$conffile" || \
      egrep -q "STM32U5G7_MCUCONF" <<< "$conffile" || \
      egrep -q "STM32U5G9_MCUCONF" <<< "$conffile"
   then
