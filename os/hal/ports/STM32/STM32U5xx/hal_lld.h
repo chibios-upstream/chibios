@@ -539,7 +539,7 @@ typedef struct {
  * @note    The counter is the internal DWT cycles counter so it runs at the
  *          same frequency as the CPU.
  */
-#define HAL_LLD_GET_CNT_FREQUENCY()         hal_lld_get_clock_point(CLK_HCLK)
+#define HAL_LLD_GET_CNT_FREQUENCY()         SystemCoreClock
 
 /**
  * @brief   Real time counter value exported to the safety module.
