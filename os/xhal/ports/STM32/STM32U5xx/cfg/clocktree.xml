@@ -107,6 +107,9 @@
               variants="U599,U5A9,U5F9,U5G9">
         <description>Selects the DSI PHY PLL output frequency.</description>
       </config>
+      <config name="HSI16_STOP_ENABLE" type="bool" default="TRUE">
+        <description>Keeps HSI16 enabled for autonomous peripherals in Stop 0, Stop 1, and Stop 2 modes.</description>
+      </config>
       <config name="MSIS_RANGE" type="set"
               default="RCC_ICSCR1_MSISRANGE_RANGE0_48M"
               values="RCC_ICSCR1_MSISRANGE_RANGE0_48M RCC_ICSCR1_MSISRANGE_RANGE1_24M RCC_ICSCR1_MSISRANGE_RANGE2_16M RCC_ICSCR1_MSISRANGE_RANGE3_12M RCC_ICSCR1_MSISRANGE_RANGE4_4M RCC_ICSCR1_MSISRANGE_RANGE5_2M RCC_ICSCR1_MSISRANGE_RANGE6_1333K RCC_ICSCR1_MSISRANGE_RANGE7_1M RCC_ICSCR1_MSISRANGE_RANGE8_3072K RCC_ICSCR1_MSISRANGE_RANGE9_1536K RCC_ICSCR1_MSISRANGE_RANGE10_1024K RCC_ICSCR1_MSISRANGE_RANGE11_768K RCC_ICSCR1_MSISRANGE_RANGE12_400K RCC_ICSCR1_MSISRANGE_RANGE13_200K RCC_ICSCR1_MSISRANGE_RANGE14_133K RCC_ICSCR1_MSISRANGE_RANGE15_100K">
@@ -117,8 +120,8 @@
               values="RCC_ICSCR1_MSIKRANGE_RANGE0_48M RCC_ICSCR1_MSIKRANGE_RANGE1_24M RCC_ICSCR1_MSIKRANGE_RANGE2_16M RCC_ICSCR1_MSIKRANGE_RANGE3_12M RCC_ICSCR1_MSIKRANGE_RANGE4_4M RCC_ICSCR1_MSIKRANGE_RANGE5_2M RCC_ICSCR1_MSIKRANGE_RANGE6_1333K RCC_ICSCR1_MSIKRANGE_RANGE7_1M RCC_ICSCR1_MSIKRANGE_RANGE8_3072K RCC_ICSCR1_MSIKRANGE_RANGE9_1536K RCC_ICSCR1_MSIKRANGE_RANGE10_1024K RCC_ICSCR1_MSIKRANGE_RANGE11_768K RCC_ICSCR1_MSIKRANGE_RANGE12_400K RCC_ICSCR1_MSIKRANGE_RANGE13_200K RCC_ICSCR1_MSIKRANGE_RANGE14_133K RCC_ICSCR1_MSIKRANGE_RANGE15_100K">
         <description>Selects the MSIK frequency range.</description>
       </config>
-      <config name="MSIKERON_ENABLED" type="bool" default="FALSE">
-        <description>Keeps MSIK enabled for autonomous peripherals in Stop modes.</description>
+      <config name="MSIK_STOP_ENABLE" type="bool" default="FALSE">
+        <description>Keeps MSIK enabled for autonomous peripherals in Stop 0, Stop 1, and Stop 2 modes.</description>
       </config>
       <config name="MSIBIAS" type="set"
               default="RCC_ICSCR1_MSIBIAS_CONTINUOUS"
@@ -586,7 +589,7 @@
     </source>
     <source point="HSI16" enable="manual" dynamic="yes" frequency="16000000U">
       <description>16 MHz high speed internal oscillator</description>
-      <bits target="CR" enabled="(RCC_CR_HSION | RCC_CR_HSIKERON)" disabled="0U" />
+      <bits target="CR" enabled="(RCC_CR_HSION | ((STM32_CFG_HSI16_STOP_ENABLE == TRUE) ? RCC_CR_HSIKERON : 0U))" disabled="0U" />
     </source>
     <source point="HSI48" enable="manual" default="TRUE" dynamic="yes"
             frequency="48000000U">
@@ -684,7 +687,7 @@
     </clock>
     <clock point="MSIK" enable="auto" dynamic="yes">
       <description>MSI kernel oscillator</description>
-      <bits target="CR" enabled="(RCC_CR_MSIKON | ((STM32_CFG_MSIKERON_ENABLED == TRUE) ? RCC_CR_MSIKERON : 0U))" disabled="0U" />
+      <bits target="CR" enabled="(RCC_CR_MSIKON | ((STM32_CFG_MSIK_STOP_ENABLE == TRUE) ? RCC_CR_MSIKERON : 0U))" disabled="0U" />
       <bits target="ICSCR1" enabled="(RCC_ICSCR1_MSIRGSEL_ICSCR1 | STM32_CFG_MSIBIAS)" disabled="0U" />
       <derived input="MSIKDIV" frequency="%I%" />
     </clock>
