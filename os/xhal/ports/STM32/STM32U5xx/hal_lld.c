@@ -697,14 +697,20 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   if ((ccp->rcc_cr & RCC_CR_SHSION) != 0U) {
     wtmask |= RCC_CR_SHSIRDY;
   }
-  if ((ccp->rcc_cr & RCC_CR_HSEON) != 0U) {
-    wtmask |= RCC_CR_HSERDY;
-  }
   if (halRegWaitAllSet32X(&RCC->CR,
                           wtmask,
                           STM32_OSCILLATORS_STARTUP_TIME,
                           NULL)) {
     return true;
+  }
+
+  if ((ccp->rcc_cr & RCC_CR_HSEON) != 0U) {
+    if (halRegWaitAllSet32X(&RCC->CR,
+                            RCC_CR_HSERDY,
+                            STM32_HSE_STARTUP_TIME,
+                            NULL)) {
+      return true;
+    }
   }
 
   /* PLL setup and activation. Fractional mode is intentionally unused yet.*/
