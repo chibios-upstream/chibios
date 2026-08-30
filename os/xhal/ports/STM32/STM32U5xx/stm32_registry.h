@@ -193,15 +193,15 @@
 #define STM32_DMA3_REQ_LPTIM3_IC2           112U
 #define STM32_DMA3_REQ_LPTIM3_UE            113U
 #if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
-    defined(STM32U5A9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx) || \
-    defined(__DOXYGEN__)
+    defined(STM32U5A9xx) || defined(STM32U5F7xx) || defined(STM32U5F9xx) || \
+    defined(STM32U5G7xx) || defined(STM32U5G9xx) || defined(__DOXYGEN__)
 #define STM32_DMA3_REQ_HSPI1                114U
 #else
 #define STM32_DMA3_REQ_RESERVED114          114U
 #endif
 #if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
-    defined(STM32U5A9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx) || \
-    defined(__DOXYGEN__)
+    defined(STM32U5A9xx) || defined(STM32U5F7xx) || defined(STM32U5F9xx) || \
+    defined(STM32U5G7xx) || defined(STM32U5G9xx) || defined(__DOXYGEN__)
 #define STM32_DMA3_REQ_I2C5_RX              115U
 #define STM32_DMA3_REQ_I2C5_TX              116U
 #define STM32_DMA3_REQ_I2C5_EVC             117U
@@ -217,8 +217,8 @@
 #define STM32_DMA3_REQ_RESERVED120          120U
 #endif
 #if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
-    defined(STM32U5A9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx) || \
-    defined(__DOXYGEN__)
+    defined(STM32U5A9xx) || defined(STM32U5F7xx) || defined(STM32U5F9xx) || \
+    defined(STM32U5G7xx) || defined(STM32U5G9xx) || defined(__DOXYGEN__)
 #define STM32_DMA3_REQ_USART6_RX            121U
 #define STM32_DMA3_REQ_USART6_TX            122U
 #define STM32_DMA3_REQ_ADC2                 123U
@@ -227,7 +227,8 @@
 #define STM32_DMA3_REQ_RESERVED122          122U
 #define STM32_DMA3_REQ_RESERVED123          123U
 #endif
-#if defined(STM32U5G7xx) || defined(STM32U5G9xx) || defined(__DOXYGEN__)
+#if defined(STM32U5F7xx) || defined(STM32U5F9xx) || defined(STM32U5G7xx) || \
+    defined(STM32U5G9xx) || defined(__DOXYGEN__)
 #define STM32_DMA3_REQ_JPEG_RX              124U
 #define STM32_DMA3_REQ_JPEG_TX              125U
 #else
@@ -278,18 +279,19 @@
 
 /*===========================================================================*/
 /* STM32U575xx, STM32U585xx, STM32U595xx, STM32U599xx, STM32U5A5xx,         */
-/* STM32U5A9xx, STM32U5G7xx, STM32U5G9xx.                                  */
+/* STM32U5A9xx, STM32U5F7xx, STM32U5F9xx, STM32U5G7xx, STM32U5G9xx.        */
 /*===========================================================================*/
 
 #if defined(STM32U575xx) || defined(STM32U585xx) || defined(STM32U595xx) || \
     defined(STM32U599xx) || defined(STM32U5A5xx) || defined(STM32U5A9xx) || \
-    defined(STM32U5G7xx) || defined(STM32U5G9xx) || defined(__DOXYGEN__)
+    defined(STM32U5F7xx) || defined(STM32U5F9xx) || defined(STM32U5G7xx) || \
+    defined(STM32U5G9xx) || defined(__DOXYGEN__)
 
 /* ADC attributes.*/
 #define STM32_HAS_ADC1                      TRUE
 #if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
-    defined(STM32U5A9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx) || \
-    defined(__DOXYGEN__)
+    defined(STM32U5A9xx) || defined(STM32U5F7xx) || defined(STM32U5F9xx) || \
+    defined(STM32U5G7xx) || defined(STM32U5G9xx) || defined(__DOXYGEN__)
 #define STM32_HAS_ADC2                      TRUE
 #else
 #define STM32_HAS_ADC2                      FALSE
@@ -333,8 +335,8 @@
 #define STM32_HAS_GPIOH                     TRUE
 #define STM32_HAS_GPIOI                     TRUE
 #if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
-    defined(STM32U5A9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx) || \
-    defined(__DOXYGEN__)
+    defined(STM32U5A9xx) || defined(STM32U5F7xx) || defined(STM32U5F9xx) || \
+    defined(STM32U5G7xx) || defined(STM32U5G9xx) || defined(__DOXYGEN__)
 #define STM32_HAS_GPIOJ                     TRUE
 #define STM32_GPIOJ_EN                      RCC_AHB2ENR1_GPIOJEN
 #else
@@ -360,8 +362,8 @@
 #define STM32_HAS_I2C3                      TRUE
 #define STM32_HAS_I2C4                      TRUE
 #if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
-    defined(STM32U5A9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx) || \
-    defined(__DOXYGEN__)
+    defined(STM32U5A9xx) || defined(STM32U5F7xx) || defined(STM32U5F9xx) || \
+    defined(STM32U5G7xx) || defined(STM32U5G9xx) || defined(__DOXYGEN__)
 #define STM32_HAS_I2C5                      TRUE
 #define STM32_HAS_I2C6                      TRUE
 #else
@@ -481,8 +483,8 @@
 #define STM32_HAS_UART4                     TRUE
 #define STM32_HAS_UART5                     TRUE
 #if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || \
-    defined(STM32U5A9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx) || \
-    defined(__DOXYGEN__)
+    defined(STM32U5A9xx) || defined(STM32U5F7xx) || defined(STM32U5F9xx) || \
+    defined(STM32U5G7xx) || defined(STM32U5G9xx) || defined(__DOXYGEN__)
 #define STM32_HAS_USART6                    TRUE
 #else
 #define STM32_HAS_USART6                    FALSE
@@ -512,8 +514,9 @@
 #endif
 
 /* LTDC attributes.*/
-#if defined(STM32U599xx) || defined(STM32U5A9xx) || defined(STM32U5G7xx) || \
-    defined(STM32U5G9xx) || defined(__DOXYGEN__)
+#if defined(STM32U599xx) || defined(STM32U5A9xx) || defined(STM32U5F7xx) || \
+    defined(STM32U5F9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx) || \
+    defined(__DOXYGEN__)
 #define STM32_HAS_LTDC                      TRUE
 #else
 #define STM32_HAS_LTDC                      FALSE

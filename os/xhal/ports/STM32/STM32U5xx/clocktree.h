@@ -125,6 +125,18 @@
   #define STM32_CLOCKTREE_VARIANT_U5A9      FALSE
 #endif
 
+#if defined(STM32U5F7xx)
+  #define STM32_CLOCKTREE_VARIANT_U5F7      TRUE
+#else
+  #define STM32_CLOCKTREE_VARIANT_U5F7      FALSE
+#endif
+
+#if defined(STM32U5F9xx)
+  #define STM32_CLOCKTREE_VARIANT_U5F9      TRUE
+#else
+  #define STM32_CLOCKTREE_VARIANT_U5F9      FALSE
+#endif
+
 #if defined(STM32U5G7xx)
   #define STM32_CLOCKTREE_VARIANT_U5G7      TRUE
 #else
@@ -149,6 +161,8 @@
       (STM32_CLOCKTREE_VARIANT_U599 == FALSE) &&                            \
       (STM32_CLOCKTREE_VARIANT_U5A5 == FALSE) &&                            \
       (STM32_CLOCKTREE_VARIANT_U5A9 == FALSE) &&                            \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == FALSE) &&                            \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == FALSE) &&                            \
       (STM32_CLOCKTREE_VARIANT_U5G7 == FALSE) &&                            \
       (STM32_CLOCKTREE_VARIANT_U5G9 == FALSE))) && !defined(__DOXYGEN__)
   #error "unable to select clock tree variant"
@@ -180,6 +194,16 @@
 #endif
 
 #if !(!((STM32_CLOCKTREE_VARIANT_U575 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U575 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U575 == TRUE) &&                           \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE))) && !defined(__DOXYGEN__)
   #error "multiple clock tree variants selected"
 #endif
@@ -210,6 +234,16 @@
 #endif
 
 #if !(!((STM32_CLOCKTREE_VARIANT_U585 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U585 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U585 == TRUE) &&                           \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE))) && !defined(__DOXYGEN__)
   #error "multiple clock tree variants selected"
 #endif
@@ -235,6 +269,16 @@
 #endif
 
 #if !(!((STM32_CLOCKTREE_VARIANT_U595 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U595 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U595 == TRUE) &&                           \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE))) && !defined(__DOXYGEN__)
   #error "multiple clock tree variants selected"
 #endif
@@ -255,6 +299,16 @@
 #endif
 
 #if !(!((STM32_CLOCKTREE_VARIANT_U599 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U599 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U599 == TRUE) &&                           \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE))) && !defined(__DOXYGEN__)
   #error "multiple clock tree variants selected"
 #endif
@@ -270,6 +324,16 @@
 #endif
 
 #if !(!((STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) &&                           \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE))) && !defined(__DOXYGEN__)
   #error "multiple clock tree variants selected"
 #endif
@@ -280,11 +344,46 @@
 #endif
 
 #if !(!((STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) &&                           \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE))) && !defined(__DOXYGEN__)
   #error "multiple clock tree variants selected"
 #endif
 
 #if !(!((STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) &&                           \
+      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE))) && !defined(__DOXYGEN__)
+  #error "multiple clock tree variants selected"
+#endif
+
+#if !(!((STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) &&                           \
       (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE))) && !defined(__DOXYGEN__)
   #error "multiple clock tree variants selected"
 #endif
@@ -440,6 +539,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define RCC_CCIPR2_USART6SEL_PCLK1        ((0U) << 16U)
@@ -473,6 +574,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define RCC_CCIPR2_I2C5SEL_PCLK1          ((0U) << 24U)
@@ -485,6 +588,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define RCC_CCIPR2_I2C6SEL_PCLK1          ((0U) << 26U)
@@ -532,6 +637,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define RCC_CCIPR2_USBPHYCSEL_HSE         ((0U) << 30U)
@@ -545,6 +652,7 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define RCC_CCIPR2_DSIHOSTSEL_PLL3P       ((0U) << 15U)
   #define RCC_CCIPR2_DSIHOSTSEL_DSIPHY      ((1U) << 15U)
@@ -552,6 +660,8 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define RCC_CCIPR2_LTDCSEL_PLL3R          ((0U) << 18U)
@@ -568,6 +678,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define RCC_CCIPR2_HSPISEL_SYSCLK         ((0U) << 22U)
@@ -690,6 +802,7 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define RCC_CFGR2_PPRE_DPHY_DIV1          ((0U) << 12U)
   #define RCC_CFGR2_PPRE_DPHY_DIV2          ((4U) << 12U)
@@ -743,6 +856,7 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
  * @brief   Selects the DSI PHY PLL output frequency.
@@ -896,6 +1010,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -945,6 +1061,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -959,6 +1077,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -1015,6 +1135,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -1050,6 +1172,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -1062,6 +1186,7 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
  * @brief   Controls external demand for the DSI clock.
@@ -1073,6 +1198,8 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -1398,6 +1525,7 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
  * @brief   Configures the DPHY clock divider value.
@@ -1519,6 +1647,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -1587,6 +1717,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -1606,6 +1738,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -1709,6 +1843,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -1736,6 +1872,7 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
  * @brief   Selects the DSI clock source.
@@ -1750,6 +1887,8 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -1780,6 +1919,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -2150,6 +2291,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_USART6_CLOCK_MODE == STM32_CLOCK_DISABLED) ||            \
@@ -2195,6 +2338,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_I2C5_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
@@ -2209,6 +2354,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_I2C6_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
@@ -2261,6 +2408,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_OTGHS_CLOCK_MODE == STM32_CLOCK_DISABLED) ||             \
@@ -2296,6 +2445,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_HSPI1_CLOCK_MODE == STM32_CLOCK_DISABLED) ||             \
@@ -2308,6 +2459,7 @@
 
 #if (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_DSI_CLOCK_MODE == STM32_CLOCK_DISABLED) ||               \
        (STM32_CFG_DSI_CLOCK_MODE == STM32_CLOCK_AUTO) ||                    \
@@ -2319,6 +2471,8 @@
 
 #if (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_LTDC_CLOCK_MODE == STM32_CLOCK_DISABLED) ||              \
@@ -2417,6 +2571,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !(((STM32_CFG_USBPHYC_SEL != RCC_CCIPR2_USBPHYCSEL_PLL1P) &&          \
@@ -2501,6 +2657,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_USART6_CLOCK_MODE != STM32_CLOCK_DISABLED) ||            \
@@ -2538,6 +2696,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_I2C5_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
@@ -2550,6 +2710,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_I2C6_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
@@ -2592,6 +2754,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_OTGHS_CLOCK_MODE != STM32_CLOCK_DISABLED) ||             \
@@ -2619,6 +2783,8 @@
     (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_HSPI1_CLOCK_MODE != STM32_CLOCK_DISABLED) ||             \
@@ -2629,6 +2795,7 @@
 
 #if (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_DSI_CLOCK_MODE != STM32_CLOCK_DISABLED) ||               \
        !defined(STM32_DSI_CLOCK_REQUIRED)) && !defined(__DOXYGEN__)
@@ -2638,6 +2805,8 @@
 
 #if (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                               \
+    (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                               \
     (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)
   #if !((STM32_CFG_LTDC_CLOCK_MODE != STM32_CLOCK_DISABLED) ||              \
@@ -3616,6 +3785,8 @@
       (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) &&                            \
      ((STM32_CFG_USART6_CLOCK_MODE == STM32_CLOCK_ENABLED) ||               \
@@ -3688,6 +3859,8 @@
       (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) &&                            \
      ((STM32_CFG_I2C5_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                 \
@@ -3705,6 +3878,8 @@
       (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) &&                            \
      ((STM32_CFG_I2C6_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                 \
@@ -3803,6 +3978,8 @@
       (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) &&                            \
      ((STM32_CFG_OTGHS_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
@@ -3853,6 +4030,8 @@
       (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) &&                            \
      ((STM32_CFG_HSPI1_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                \
@@ -3868,6 +4047,7 @@
  */
 #if (((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) &&                            \
      ((STM32_CFG_DSI_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                  \
       ((STM32_CFG_DSI_CLOCK_MODE == STM32_CLOCK_AUTO) &&                    \
@@ -3882,6 +4062,8 @@
  */
 #if (((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                             \
+      (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                             \
       (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) &&                            \
      ((STM32_CFG_LTDC_CLOCK_MODE == STM32_CLOCK_ENABLED) ||                 \
@@ -4045,6 +4227,7 @@
  */
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_DSIPHY_ENABLED              (((STM32_DSI_ENABLED == TRUE) && \
                                               (STM32_CFG_DSI_SEL == RCC_CCIPR2_DSIHOSTSEL_DSIPHY)))
@@ -4381,6 +4564,7 @@
  */
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_DPHY_ENABLED                TRUE
 #else
@@ -4475,6 +4659,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_USART6_ENABLED              ((STM32_USART6_DEMANDED == TRUE))
@@ -4509,6 +4695,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_I2C5_ENABLED                ((STM32_I2C5_DEMANDED == TRUE))
@@ -4523,6 +4711,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_I2C6_ENABLED                ((STM32_I2C6_DEMANDED == TRUE))
@@ -4600,6 +4790,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_HSEDIV2_ENABLED             (((STM32_USBPHYC_ENABLED == TRUE) && \
@@ -4615,6 +4807,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_PLL1PDIV2_ENABLED           (((STM32_USBPHYC_ENABLED == TRUE) && \
@@ -4630,6 +4824,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_USBPHYC_ENABLED             ((STM32_OTGHS_DEMANDED == TRUE))
@@ -4658,6 +4854,7 @@
  */
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_DSI_ENABLED                 ((STM32_DSI_DEMANDED == TRUE))
 #else
@@ -4669,6 +4866,8 @@
  */
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_LTDC_ENABLED                ((STM32_LTDC_DEMANDED == TRUE))
@@ -4688,6 +4887,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
   #define STM32_HSPI1_ENABLED               ((STM32_HSPI1_DEMANDED == TRUE))
@@ -4823,6 +5024,7 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
  * @brief   DSIPHY nominal source frequency.
@@ -6771,6 +6973,7 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
  * @brief   DPHY clock register bits.
@@ -7323,6 +7526,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -7635,6 +7840,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -7704,6 +7911,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -8274,6 +8483,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -8303,6 +8514,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -8332,6 +8545,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -8485,6 +8700,7 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
  * @brief   DSI clock register bits.
@@ -8531,6 +8747,8 @@
 
 #if ((STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
@@ -8642,6 +8860,8 @@
      (STM32_CLOCKTREE_VARIANT_U599 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A5 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5A9 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F7 == TRUE) ||                              \
+     (STM32_CLOCKTREE_VARIANT_U5F9 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G7 == TRUE) ||                              \
      (STM32_CLOCKTREE_VARIANT_U5G9 == TRUE)) || defined(__DOXYGEN__)
 /**
