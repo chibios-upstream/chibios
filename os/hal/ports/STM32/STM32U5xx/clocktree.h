@@ -874,6 +874,13 @@
 #endif
 
 /**
+ * @brief   Keeps HSI16 enabled for autonomous peripherals in Stop 0, Stop 1, and Stop 2 modes.
+ */
+#if !defined(STM32_CFG_HSI16_STOP_ENABLE) || defined(__DOXYGEN__)
+  #define STM32_CFG_HSI16_STOP_ENABLE       TRUE
+#endif
+
+/**
  * @brief   Selects the MSIS frequency range.
  */
 #if !defined(STM32_CFG_MSIS_RANGE) || defined(__DOXYGEN__)
@@ -885,6 +892,13 @@
  */
 #if !defined(STM32_CFG_MSIK_RANGE) || defined(__DOXYGEN__)
   #define STM32_CFG_MSIK_RANGE              RCC_ICSCR1_MSIKRANGE_RANGE0_48M
+#endif
+
+/**
+ * @brief   Keeps MSIK enabled for autonomous peripherals in Stop 0, Stop 1, and Stop 2 modes.
+ */
+#if !defined(STM32_CFG_MSIK_STOP_ENABLE) || defined(__DOXYGEN__)
+  #define STM32_CFG_MSIK_STOP_ENABLE        FALSE
 #endif
 
 /**
@@ -2131,6 +2145,11 @@
   #error "invalid STM32_CFG_LSI_PREDIV value specified"
 #endif
 
+#if !((STM32_CFG_HSI16_STOP_ENABLE == TRUE) ||                              \
+     (STM32_CFG_HSI16_STOP_ENABLE == FALSE)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_HSI16_STOP_ENABLE value specified"
+#endif
+
 #if !((STM32_CFG_MSIS_RANGE == RCC_ICSCR1_MSISRANGE_RANGE0_48M) ||          \
      (STM32_CFG_MSIS_RANGE == RCC_ICSCR1_MSISRANGE_RANGE1_24M) ||           \
      (STM32_CFG_MSIS_RANGE == RCC_ICSCR1_MSISRANGE_RANGE2_16M) ||           \
@@ -2169,6 +2188,11 @@
      (STM32_CFG_MSIK_RANGE == RCC_ICSCR1_MSIKRANGE_RANGE15_100K)) &&        \
     !defined(__DOXYGEN__)
   #error "invalid STM32_CFG_MSIK_RANGE value specified"
+#endif
+
+#if !((STM32_CFG_MSIK_STOP_ENABLE == TRUE) ||                               \
+     (STM32_CFG_MSIK_STOP_ENABLE == FALSE)) && !defined(__DOXYGEN__)
+  #error "invalid STM32_CFG_MSIK_STOP_ENABLE value specified"
 #endif
 
 #if !((STM32_CFG_MSIBIAS == RCC_ICSCR1_MSIBIAS_CONTINUOUS) ||               \
@@ -5235,7 +5259,8 @@
  * @brief   HSI16 clock register bits.
  */
 #if (STM32_HSI16_ENABLED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_CR_HSI16_BITS               (RCC_CR_HSION | RCC_CR_HSIKERON)
+  #define STM32_CR_HSI16_BITS               (RCC_CR_HSION | ((STM32_CFG_HSI16_STOP_ENABLE == TRUE) ? RCC_CR_HSIKERON : \
+                                              0U))
 #else
   #define STM32_CR_HSI16_BITS               0U
 #endif
@@ -5936,7 +5961,8 @@
  * @brief   MSIK clock register bits.
  */
 #if (STM32_MSIK_ENABLED == TRUE) || defined(__DOXYGEN__)
-  #define STM32_CR_MSIK_BITS                RCC_CR_MSIKON
+  #define STM32_CR_MSIK_BITS                (RCC_CR_MSIKON | ((STM32_CFG_MSIK_STOP_ENABLE == TRUE) ? RCC_CR_MSIKERON : \
+                                              0U))
 #else
   #define STM32_CR_MSIK_BITS                0U
 #endif
