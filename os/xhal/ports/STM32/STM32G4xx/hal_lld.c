@@ -337,14 +337,14 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
 
   /* Waiting for HSE and PLL to stop.*/
   if (halRegWaitAllClear32X(&RCC->CR, RCC_CR_HSERDY | RCC_CR_PLLRDY,
-                            STM32_OSCILLATORS_STARTUP_TIME,
+                            STM32_CFG_OSCILLATORS_STARTUP_TIME,
                             NULL)) {
     return true;
   }
 
   /* Waiting for HSI48 to stop.*/
   if (halRegWaitAllClear32X(&RCC->CRRCR, RCC_CRRCR_HSI48RDY,
-                            STM32_OSCILLATORS_STARTUP_TIME,
+                            STM32_CFG_OSCILLATORS_STARTUP_TIME,
                             NULL)) {
     return true;
   }
@@ -362,7 +362,7 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
     wtmask |= RCC_CR_HSERDY;
   }
   if (halRegWaitAllSet32X(&RCC->CR, wtmask,
-                          STM32_OSCILLATORS_STARTUP_TIME,
+                          STM32_CFG_OSCILLATORS_STARTUP_TIME,
                           NULL)) {
     return true;
   }

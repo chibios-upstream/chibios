@@ -603,7 +603,7 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
                        true);
   if (halRegWaitAllSet32X(&RCC->CR,
                           RCC_CR_MSISRDY | RCC_CR_MSIKRDY,
-                          STM32_OSCILLATORS_STARTUP_TIME,
+                          STM32_CFG_OSCILLATORS_STARTUP_TIME,
                           NULL)) {
     return true;
   }
@@ -654,7 +654,7 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   if ((ccp->rcc_bdcr & RCC_BDCR_LSION) != 0U) {
     if (halRegWaitAllSet32X(&RCC->BDCR,
                             RCC_BDCR_LSIRDY,
-                            STM32_OSCILLATORS_STARTUP_TIME,
+                            STM32_CFG_OSCILLATORS_STARTUP_TIME,
                             NULL)) {
       return true;
     }
@@ -702,7 +702,7 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
   }
   if (halRegWaitAllSet32X(&RCC->CR,
                           wtmask,
-                          STM32_OSCILLATORS_STARTUP_TIME,
+                          STM32_CFG_OSCILLATORS_STARTUP_TIME,
                           NULL)) {
     return true;
   }

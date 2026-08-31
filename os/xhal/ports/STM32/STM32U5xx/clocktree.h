@@ -827,6 +827,13 @@
  * @{
  */
 /**
+ * @brief   Specifies the grouped oscillator startup timeout.
+ */
+#if !defined(STM32_CFG_OSCILLATORS_STARTUP_TIME) || defined(__DOXYGEN__)
+  #define STM32_CFG_OSCILLATORS_STARTUP_TIME STM32_OSCILLATORS_STARTUP_TIME
+#endif
+
+/**
  * @brief   Enables dynamic clock handling.
  */
 #if !defined(STM32_CFG_CLOCK_DYNAMIC) || defined(__DOXYGEN__)

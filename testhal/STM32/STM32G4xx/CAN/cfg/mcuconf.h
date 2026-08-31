@@ -41,6 +41,7 @@
  * HAL driver system settings.
  */
 #define STM32_NO_INIT                       FALSE
+#define STM32_CFG_OSCILLATORS_STARTUP_TIME STM32_OSCILLATORS_STARTUP_TIME
 #define STM32_CLOCK_DYNAMIC                 TRUE
 #define STM32_VOS                           STM32_VOS_RANGE1
 #define STM32_PWR_BOOST                     TRUE

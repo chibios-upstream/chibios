@@ -46,6 +46,9 @@
  *          seconds according to datasheet.
  */
 #define STM32_OSCILLATORS_STARTUP_TIME      (2000U * STM32_RELAXED_TIMEOUT_FACTOR)
+#if !defined(STM32_CFG_OSCILLATORS_STARTUP_TIME) || defined(__DOXYGEN__)
+#define STM32_CFG_OSCILLATORS_STARTUP_TIME  STM32_OSCILLATORS_STARTUP_TIME
+#endif
 
 /**
  * @brief   Stabilization time of the MSI PLLs.

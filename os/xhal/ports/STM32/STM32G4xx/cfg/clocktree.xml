@@ -18,6 +18,10 @@
       <define name="RCC_BDCR_LSCOSEL_LSE" value="(RCC_BDCR_LSCOEN | RCC_BDCR_LSCOSEL)" />
     </definitions>
     <configs>
+      <config name="OSCILLATORS_STARTUP_TIME" type="value"
+              default="STM32_OSCILLATORS_STARTUP_TIME">
+        <description>Specifies the grouped oscillator startup timeout.</description>
+      </config>
       <config name="CLOCK_DYNAMIC" type="bool" default="FALSE"
               role="dynamic_mode">
         <description>Enables dynamic clock handling.</description>

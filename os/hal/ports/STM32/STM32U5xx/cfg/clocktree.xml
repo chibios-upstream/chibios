@@ -87,6 +87,10 @@
               value="(3U &lt;&lt; RCC_PLL3CFGR_PLL3RGE_Pos)" />
     </definitions>
     <configs>
+      <config name="OSCILLATORS_STARTUP_TIME" type="value"
+              default="STM32_OSCILLATORS_STARTUP_TIME">
+        <description>Specifies the grouped oscillator startup timeout.</description>
+      </config>
       <config name="CLOCK_DYNAMIC" type="bool" default="FALSE"
               role="dynamic_mode">
         <description>Enables dynamic clock handling.</description>
