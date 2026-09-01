@@ -54,9 +54,16 @@
 static inline void tm_stop(time_measurement_t *tmp,
                            rtcnt_t now,
                            rtcnt_t offset) {
+  rtcnt_t delta;
 
   tmp->n++;
-  tmp->last = (now - tmp->last) - offset;
+  delta = now - tmp->last;
+  if (delta > offset) {
+    tmp->last = delta - offset;
+  }
+  else {
+    tmp->last = (rtcnt_t)0;
+  }
   tmp->cumulative += (rttime_t)tmp->last;
   if (tmp->last > tmp->worst) {
     tmp->worst = tmp->last;
@@ -125,6 +132,8 @@ NOINLINE void chTMStartMeasurementX(time_measurement_t *tmp) {
 
 /**
  * @brief   Stops a measurement.
+ * @note    A raw interval not exceeding the calibrated measurement overhead
+ *          is recorded as zero.
  * @pre     The @p time_measurement_t object must be initialized.
  *
  * @param[in,out] tmp   pointer to a @p time_measurement_t object

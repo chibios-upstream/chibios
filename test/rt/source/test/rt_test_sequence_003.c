@@ -193,6 +193,8 @@ static const testcase_t rt_test_003_002 = {
  * - [3.3.2] A measurement is performed and its result is verified.
  * - [3.3.3] The first measurement is chained to the second one and
  *   both objects are verified.
+ * - [3.3.4] A measurement shorter than the calibration offset is verified
+ *   to saturate at zero.
  * .
  */
 
@@ -208,6 +210,7 @@ static void rt_test_003_003_teardown(void) {
 
 static void rt_test_003_003_execute(void) {
   rtcnt_t first;
+  rtcnt_t offset;
 
   /* [3.3.1] The initialized measurement objects are verified.*/
   test_set_step(1);
@@ -254,6 +257,27 @@ static void rt_test_003_003_execute(void) {
     test_assert(tm2.worst == tm2.last, "invalid worst");
   }
   test_end_step(3);
+
+  /* [3.3.4] A measurement shorter than the calibration offset is verified
+     to saturate at zero.*/
+  test_set_step(4);
+  {
+    chTMObjectInit(&tm2);
+    chSysLock();
+    offset = ch_system.tmc.offset;
+    ch_system.tmc.offset = (rtcnt_t)-1;
+    chTMStartMeasurementX(&tm2);
+    chTMStopMeasurementX(&tm2);
+    ch_system.tmc.offset = offset;
+    chSysUnlock();
+
+    test_assert(tm2.n == (ucnt_t)1, "invalid counter");
+    test_assert(tm2.last == (rtcnt_t)0, "invalid last");
+    test_assert(tm2.best == (rtcnt_t)0, "invalid best");
+    test_assert(tm2.worst == (rtcnt_t)0, "invalid worst");
+    test_assert(tm2.cumulative == (rttime_t)0, "invalid cumulative");
+  }
+  test_end_step(4);
 }
 
 static const testcase_t rt_test_003_003 = {
