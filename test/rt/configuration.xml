@@ -977,11 +977,11 @@ test_assert(tm2.worst == tm2.last, "invalid worst");]]></value>
               <code>
                 <value><![CDATA[chTMObjectInit(&tm2);
 chSysLock();
-offset = ch_system.tmc.offset;
-ch_system.tmc.offset = (rtcnt_t)-1;
+offset = currcore->tmc.offset;
+currcore->tmc.offset = (rtcnt_t)-1;
 chTMStartMeasurementX(&tm2);
 chTMStopMeasurementX(&tm2);
-ch_system.tmc.offset = offset;
+currcore->tmc.offset = offset;
 chSysUnlock();
 
 test_assert(tm2.n == (ucnt_t)1, "invalid counter");

@@ -78,6 +78,35 @@ static inline void tm_stop(time_measurement_t *tmp,
 /*===========================================================================*/
 
 /**
+ * @brief   Initializes the time measurement calibration for an OS instance.
+ * @pre     The port must be initialized and @p oip must be registered as the
+ *          current core's OS instance.
+ *
+ * @param[in,out] oip   pointer to the current @p os_instance_t object
+ *
+ * @notapi
+ */
+void __tm_calibration_object_init(os_instance_t *oip) {
+  unsigned i;
+  time_measurement_t tm;
+
+  chDbgAssert(oip == currcore, "invalid instance");
+
+  /* Time Measurement subsystem calibration, it does a null measurement
+     and calculates the call overhead which is subtracted to real
+     measurements.*/
+  oip->tmc.offset = (rtcnt_t)0;
+  chTMObjectInit(&tm);
+  i = TM_CALIBRATION_LOOP;
+  do {
+    chTMStartMeasurementX(&tm);
+    chTMStopMeasurementX(&tm);
+    i--;
+  } while (i > 0U);
+  oip->tmc.offset = tm.best;
+}
+
+/**
  * @brief   Initializes a @p time_measurement_t object.
  *
  * @param[out] tmp      pointer to a @p time_measurement_t object
@@ -142,7 +171,7 @@ NOINLINE void chTMStartMeasurementX(time_measurement_t *tmp) {
  */
 NOINLINE void chTMStopMeasurementX(time_measurement_t *tmp) {
 
-  tm_stop(tmp, chSysGetRealtimeCounterX(), ch_system.tmc.offset);
+  tm_stop(tmp, chSysGetRealtimeCounterX(), currcore->tmc.offset);
 }
 
 /**
