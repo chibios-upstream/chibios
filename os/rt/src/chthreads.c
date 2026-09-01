@@ -1174,6 +1174,8 @@ void chThdSleepUntil(systime_t time) {
  * @note    The system time is assumed to be between @p prev and @p next
  *          else the call is assumed to have been called outside the
  *          allowed time interval, in this case no sleep is performed.
+ * @note    If @p CH_CFG_USE_RFCU is @p TRUE then a call outside the allowed
+ *          time interval reports @p CH_RFCU_THD_MISSED_DEADLINE.
  * @see     chThdSleepUntil()
  *
  * @param[in] prev      absolute system time of the previous deadline
@@ -1190,6 +1192,11 @@ systime_t chThdSleepUntilWindowed(systime_t prev, systime_t next) {
   if (likely(chTimeIsInRangeX(time, prev, next))) {
     chThdSleepS(chTimeDiffX(time, next));
   }
+#if CH_CFG_USE_RFCU == TRUE
+  else {
+    chRFCUCollectFaultsI(CH_RFCU_THD_MISSED_DEADLINE);
+  }
+#endif
   chSysUnlock();
 
   return next;
