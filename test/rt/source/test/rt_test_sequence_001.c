@@ -189,6 +189,9 @@ static void rt_test_001_003_execute(void) {
     test_print("--- CH_CFG_OPTIMIZE_SPEED:              ");
     test_printn(CH_CFG_OPTIMIZE_SPEED);
     test_println("");
+    test_print("--- CH_CFG_USE_RFCU:                    ");
+    test_printn(CH_CFG_USE_RFCU);
+    test_println("");
     test_print("--- CH_CFG_USE_TM:                      ");
     test_printn(CH_CFG_USE_TM);
     test_println("");

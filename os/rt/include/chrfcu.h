@@ -27,6 +27,8 @@
 #ifndef CHRFCU_H
 #define CHRFCU_H
 
+#if (CH_CFG_USE_RFCU == TRUE) || defined(__DOXYGEN__)
+
 /*===========================================================================*/
 /* Module constants.                                                         */
 /*===========================================================================*/
@@ -105,6 +107,8 @@ static inline void __rfcu_object_init(rfcu_t *rfcup) {
 
   rfcup->mask = (rfcu_mask_t)0;
 }
+
+#endif /* CH_CFG_USE_RFCU == TRUE */
 
 #endif /* CHRFCU_H */
 

@@ -378,6 +378,9 @@ test_println("");
 test_print("--- CH_CFG_OPTIMIZE_SPEED:              ");
 test_printn(CH_CFG_OPTIMIZE_SPEED);
 test_println("");
+test_print("--- CH_CFG_USE_RFCU:                    ");
+test_printn(CH_CFG_USE_RFCU);
+test_println("");
 test_print("--- CH_CFG_USE_TM:                      ");
 test_printn(CH_CFG_USE_TM);
 test_println("");
@@ -731,7 +734,7 @@ static time_measurement_t tm1, tm2;
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
 static virtual_timer_t timers_state_vt;
-#if !defined(CH_VT_RFCU_DISABLED) || defined(__DOXYGEN__)
+#if (CH_CFG_USE_RFCU == TRUE) || defined(__DOXYGEN__)
 static virtual_timer_t timers_overflow_anchor;
 static virtual_timer_t timers_overflow_vt;
 #endif
@@ -1046,7 +1049,7 @@ test_assert(interval == (sysinterval_t)0, "interval subtraction wrapped");]]></v
               coordinate is reported and saturated.</value>
           </description>
           <condition>
-            <value><![CDATA[(CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED)]]></value>
+            <value><![CDATA[(CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)]]></value>
           </condition>
           <various_code>
             <setup_code>

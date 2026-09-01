@@ -385,7 +385,7 @@ static inline void chVTReset(virtual_timer_t *vtp) {
  *          the current timer-list base reports
  *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
  *          @p TIME_INFINITE from that base.
- *          If VT RFCU collection is disabled, a debug assertion is used
+ *          If @p CH_CFG_USE_RFCU is @p FALSE, a debug assertion is used
  *          instead.
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
@@ -422,7 +422,7 @@ static inline void chVTSetI(virtual_timer_t *vtp, sysinterval_t delay,
  *          the current timer-list base reports
  *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
  *          @p TIME_INFINITE from that base.
- *          If VT RFCU collection is disabled, a debug assertion is used
+ *          If @p CH_CFG_USE_RFCU is @p FALSE, a debug assertion is used
  *          instead.
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
@@ -460,7 +460,7 @@ static inline void chVTSet(virtual_timer_t *vtp, sysinterval_t delay,
  *          the current timer-list base reports
  *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
  *          @p TIME_INFINITE from that base.
- *          If VT RFCU collection is disabled, a debug assertion is used
+ *          If @p CH_CFG_USE_RFCU is @p FALSE, a debug assertion is used
  *          instead.
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
@@ -496,7 +496,7 @@ static inline void chVTSetContinuousI(virtual_timer_t *vtp, sysinterval_t delay,
  *          the current timer-list base reports
  *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
  *          @p TIME_INFINITE from that base.
- *          If VT RFCU collection is disabled, a debug assertion is used
+ *          If @p CH_CFG_USE_RFCU is @p FALSE, a debug assertion is used
  *          instead.
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
@@ -606,7 +606,8 @@ static inline void chVTResetTimeStamp(void) {
  * @brief   Return the current delta parameter.
  * @note    This value is initially set to @p CH_CFG_ST_TIMEDELTA but can
  *          be increased if the timers subsystem experiences skips, the
- *          condition is also reported in the RFCU.
+ *          condition is also reported in the RFCU if @p CH_CFG_USE_RFCU is
+ *          @p TRUE.
  *
  * @return              The current delta setting.
  *
