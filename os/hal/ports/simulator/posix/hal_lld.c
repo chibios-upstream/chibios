@@ -24,9 +24,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
+#include <time.h>
 
 #include "hal.h"
+
+/*===========================================================================*/
+/* Driver local definitions.                                                 */
+/*===========================================================================*/
+
+/* Monotonic clock resolution used for tick scheduling.*/
+#define SIM_NANOSECONDS_PER_SECOND      1000000000ULL
 
 /*===========================================================================*/
 /* Driver exported variables.                                                */
@@ -36,12 +43,35 @@
 /* Driver local variables and types.                                         */
 /*===========================================================================*/
 
-static struct timeval nextcnt;
-static struct timeval tick = {0UL, 1000000UL / OSAL_ST_FREQUENCY};
+/* Next tick deadline and fractional nanoseconds carried across periods.*/
+static uint64_t nextcnt;
+static uint64_t tick_fraction;
 
 /*===========================================================================*/
 /* Driver local functions.                                                   */
 /*===========================================================================*/
+
+static uint64_t get_monotonic_time_ns(void) {
+  struct timespec ts;
+
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+    abort();
+  }
+
+  return ((uint64_t)ts.tv_sec * SIM_NANOSECONDS_PER_SECOND) +
+         (uint64_t)ts.tv_nsec;
+}
+
+static void advance_tick(void) {
+
+  nextcnt += SIM_NANOSECONDS_PER_SECOND / (uint64_t)OSAL_ST_FREQUENCY;
+  tick_fraction += SIM_NANOSECONDS_PER_SECOND %
+                   (uint64_t)OSAL_ST_FREQUENCY;
+  if (tick_fraction >= (uint64_t)OSAL_ST_FREQUENCY) {
+    nextcnt++;
+    tick_fraction -= (uint64_t)OSAL_ST_FREQUENCY;
+  }
+}
 
 /*===========================================================================*/
 /* Driver interrupt handlers.                                                */
@@ -61,15 +91,16 @@ void hal_lld_init(void) {
 #else
   puts("ChibiOS/RT simulator (Linux)\n");
 #endif
-  gettimeofday(&nextcnt, NULL);
-  timeradd(&nextcnt, &tick, &nextcnt);
+  nextcnt = get_monotonic_time_ns();
+  tick_fraction = 0U;
+  advance_tick();
 }
 
 /**
  * @brief   Interrupt simulation.
  */
 void _sim_check_for_interrupts(void) {
-  struct timeval tv;
+  uint64_t now;
   bool int_occurred = false;
 
 #if HAL_USE_SERIAL
@@ -78,10 +109,10 @@ void _sim_check_for_interrupts(void) {
   }
 #endif
 
-  gettimeofday(&tv, NULL);
-  if (timercmp(&tv, &nextcnt, >=)) {
+  now = get_monotonic_time_ns();
+  if (now >= nextcnt) {
     int_occurred = true;
-    timeradd(&nextcnt, &tick, &nextcnt);
+    advance_tick();
 
     CH_IRQ_PROLOGUE();
 
