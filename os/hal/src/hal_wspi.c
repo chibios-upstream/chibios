@@ -218,6 +218,111 @@ void wspiStartReceive(WSPIDriver *wspip, const wspi_command_t *cmdp,
   osalSysUnlock();
 }
 
+#if (WSPI_SUPPORTS_STATUS_MATCH == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Starts an automatic status-match operation.
+ * @post    At the end of the operation the configured callback is invoked.
+ *
+ * @param[in] wspip     pointer to the @p WSPIDriver object
+ * @param[in] cmdp      pointer to the status-read command descriptor
+ * @param[in] matchp    pointer to the status-match descriptor
+ *
+ * @api
+ */
+void wspiStartStatusMatch(WSPIDriver *wspip,
+                          const wspi_command_t *cmdp,
+                          const wspi_status_match_t *matchp) {
+
+  osalDbgCheck((wspip != NULL) && (cmdp != NULL) && (matchp != NULL));
+  osalDbgCheck((matchp->length > 0U) && (matchp->length <= 4U));
+
+  osalSysLock();
+
+  osalDbgAssert(wspip->state == WSPI_READY, "not ready");
+
+  wspiStartStatusMatchI(wspip, cmdp, matchp);
+
+  osalSysUnlock();
+}
+
+#if (WSPI_USE_WAIT == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Performs automatic status matching with a software timeout.
+ * @pre     The driver must have been configured without callbacks.
+ * @note    A timeout aborts the peripheral match operation before returning.
+ *
+ * @param[in] wspip     pointer to the @p WSPIDriver object
+ * @param[in] cmdp      pointer to the status-read command descriptor
+ * @param[in] matchp    pointer to the status-match descriptor
+ * @param[in] timeout   maximum interval to wait
+ * @return              The operation status.
+ * @retval MSG_OK       status matched
+ * @retval MSG_RESET    hardware error
+ * @retval MSG_TIMEOUT  timeout, operation aborted
+ *
+ * @api
+ */
+msg_t wspiStatusMatchTimeout(WSPIDriver *wspip,
+                             const wspi_command_t *cmdp,
+                             const wspi_status_match_t *matchp,
+                             sysinterval_t timeout) {
+  msg_t msg;
+
+  osalDbgCheck((wspip != NULL) && (cmdp != NULL) && (matchp != NULL));
+  osalDbgCheck((matchp->length > 0U) && (matchp->length <= 4U));
+
+  osalSysLock();
+
+  osalDbgAssert(wspip->state == WSPI_READY, "not ready");
+  osalDbgAssert(wspip->config->end_cb == NULL, "has callback");
+
+  wspiStartStatusMatchI(wspip, cmdp, matchp);
+  msg = osalThreadSuspendTimeoutS(&wspip->thread, timeout);
+  if (msg == MSG_TIMEOUT) {
+    wspi_lld_abort_status_match(wspip);
+    wspip->state = WSPI_READY;
+  }
+
+  osalSysUnlock();
+
+  return msg;
+}
+
+/**
+ * @brief   Aborts an active synchronous automatic status-match operation.
+ * @pre     The driver must have been configured without callbacks.
+ * @note    The suspended waiter is resumed with @p MSG_TIMEOUT.
+ * @note    If the driver is not currently matching then no state is changed.
+ *
+ * @param[in] wspip     pointer to the @p WSPIDriver object
+ * @return              Whether an active status match was aborted.
+ * @retval true         an active match was aborted
+ * @retval false        the driver was not in @p WSPI_MATCH state
+ *
+ * @iclass
+ */
+bool wspiAbortStatusMatchI(WSPIDriver *wspip) {
+
+  osalDbgCheckClassI();
+  osalDbgCheck(wspip != NULL);
+
+  if (wspip->state != WSPI_MATCH) {
+    return false;
+  }
+
+  osalDbgAssert(wspip->config->end_cb == NULL, "has callback");
+  osalDbgAssert(wspip->config->error_cb == NULL, "has callback");
+  osalDbgAssert(wspip->thread != NULL, "no waiter");
+
+  wspi_lld_abort_status_match(wspip);
+  wspip->state = WSPI_READY;
+  osalThreadResumeI(&wspip->thread, MSG_TIMEOUT);
+
+  return true;
+}
+#endif
+#endif
+
 #if (WSPI_USE_WAIT == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Sends a command without data phase.

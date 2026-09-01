@@ -399,6 +399,68 @@ void wspi_lld_receive(WSPIDriver *wspip, const wspi_command_t *cmdp,
   dma3ChannelEnable(wspip->dma);
 }
 
+#if WSPI_SUPPORTS_STATUS_MATCH == TRUE
+/**
+ * @brief   Starts OCTOSPI automatic status matching.
+ * @note    DMA is not used by automatic status polling.
+ *
+ * @param[in] wspip     pointer to the @p WSPIDriver object
+ * @param[in] cmdp      pointer to the status-read command descriptor
+ * @param[in] matchp    pointer to the status-match descriptor
+ *
+ * @notapi
+ */
+void wspi_lld_start_status_match(
+    WSPIDriver *wspip, const wspi_command_t *cmdp,
+    const wspi_status_match_t *matchp) {
+  uint32_t cr;
+
+  wspi_lld_sync(wspip);
+  wspip->status_match_cr = wspip->ospi->CR;
+  cr = wspip->status_match_cr &
+       ~(OCTOSPI_CR_FMODE | OCTOSPI_CR_PMM | OCTOSPI_CR_APMS |
+         OCTOSPI_CR_TOIE | OCTOSPI_CR_SMIE | OCTOSPI_CR_FTIE |
+         OCTOSPI_CR_TCIE | OCTOSPI_CR_TEIE | OCTOSPI_CR_DMAEN);
+  cr |= OCTOSPI_CR_FMODE_1 | OCTOSPI_CR_APMS |
+        OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE;
+
+  wspip->ospi->CR = cr;
+  wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
+                     OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;
+  wspip->ospi->DLR = matchp->length - 1U;
+  wspip->ospi->PSMKR = matchp->mask;
+  wspip->ospi->PSMAR = matchp->match;
+  wspip->ospi->PIR = matchp->interval;
+  wspip->ospi->TCR = cmdp->dummy | wspip->extra_tcr;
+  wspip->ospi->CCR = cmdp->cfg;
+  wspip->ospi->ABR = cmdp->alt;
+  wspip->ospi->IR = cmdp->cmd;
+  if ((cmdp->cfg & WSPI_CFG_ADDR_MODE_MASK) != WSPI_CFG_ADDR_MODE_NONE) {
+    wspip->ospi->AR = cmdp->addr;
+  }
+}
+
+/**
+ * @brief   Aborts automatic status matching and restores indirect mode.
+ *
+ * @param[in] wspip     pointer to the @p WSPIDriver object
+ *
+ * @iclass
+ */
+void wspi_lld_abort_status_match(WSPIDriver *wspip) {
+
+  wspip->ospi->CR &= ~(OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE);
+  if ((wspip->ospi->SR & OCTOSPI_SR_BUSY) != 0U) {
+    wspip->ospi->CR |= OCTOSPI_CR_ABORT;
+    while ((wspip->ospi->CR & OCTOSPI_CR_ABORT) != 0U) {
+    }
+  }
+  wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
+                     OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;
+  wspip->ospi->CR = wspip->status_match_cr;
+}
+#endif
+
 #if (WSPI_SUPPORTS_MEMMAP == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Maps in memory space a WSPI flash device.
@@ -473,6 +535,23 @@ void wspi_lld_unmap_flash(WSPIDriver *wspip) {
  * @param[in] wspip     pointer to the @p WSPIDriver object
  */
 void wspi_lld_serve_interrupt(WSPIDriver *wspip) {
+  uint32_t sr = wspip->ospi->SR;
+
+#if WSPI_SUPPORTS_STATUS_MATCH == TRUE
+  if (wspip->state == WSPI_MATCH) {
+    if ((sr & OCTOSPI_SR_TEF) != 0U) {
+      wspi_lld_abort_status_match(wspip);
+      _wspi_error_code(wspip);
+    }
+    else if ((sr & OCTOSPI_SR_SMF) != 0U) {
+      wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
+                         OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;
+      wspip->ospi->CR = wspip->status_match_cr;
+      _wspi_isr_code(wspip);
+    }
+    return;
+  }
+#endif
 
   wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
                      OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;

@@ -36,6 +36,7 @@
  * @{
  */
 #define WSPI_SUPPORTS_MEMMAP                TRUE
+#define WSPI_SUPPORTS_STATUS_MATCH          TRUE
 #define WSPI_DEFAULT_CFG_MASKS              TRUE
 /** @} */
 
@@ -331,6 +332,8 @@ typedef struct {
 #define wspi_lld_driver_fields                                              \
   /* Extra bits for the TCR register.*/                                     \
   uint32_t                      extra_tcr;                                  \
+  /* CR value restored after automatic status matching.*/                  \
+  uint32_t                      status_match_cr;                            \
   /* Pointer to the OCTOSPIx registers block.*/                             \
   OCTOSPI_TypeDef               *ospi;                                      \
   /* OCTOSPI GPDMA channel.*/                                               \
@@ -365,6 +368,12 @@ extern "C" {
                      size_t n, const uint8_t *txbuf);
   void wspi_lld_receive(WSPIDriver *wspip, const wspi_command_t *cmdp,
                         size_t n, uint8_t *rxbuf);
+#if WSPI_SUPPORTS_STATUS_MATCH == TRUE
+  void wspi_lld_start_status_match(
+      WSPIDriver *wspip, const wspi_command_t *cmdp,
+      const wspi_status_match_t *matchp);
+  void wspi_lld_abort_status_match(WSPIDriver *wspip);
+#endif
 #if WSPI_SUPPORTS_MEMMAP == TRUE
   void wspi_lld_map_flash(WSPIDriver *wspip,
                           const wspi_command_t *cmdp,

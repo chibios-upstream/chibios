@@ -74,7 +74,8 @@ typedef enum {
   WSPI_SEND = 3,                    /**< Sending data.                      */
   WSPI_RECEIVE = 4,                 /**< Receiving data.                    */
   WSPI_COMPLETE = 5,                /**< Asynchronous operation complete.   */
-  WSPI_MEMMAP = 6                   /**< In memory mapped mode.             */
+  WSPI_MEMMAP = 6,                  /**< In memory mapped mode.             */
+  WSPI_MATCH = 7                    /**< Automatic status match active.     */
 } wspistate_t;
 
 /**
@@ -121,12 +122,38 @@ typedef struct {
   uint32_t              dummy;
 } wspi_command_t;
 
+/**
+ * @brief   WSPI automatic status-match descriptor.
+ */
+typedef struct {
+  /**
+   * @brief   Number of status bytes to read, from one through four.
+   */
+  size_t                length;
+  /**
+   * @brief   Status bits included in the comparison.
+   */
+  uint32_t              mask;
+  /**
+   * @brief   Required value of the unmasked status bits.
+   */
+  uint32_t              match;
+  /**
+   * @brief   Peripheral-clock interval between status reads.
+   */
+  uint32_t              interval;
+} wspi_status_match_t;
+
 /* Including the low level driver header, it exports information required
    for completing types.*/
 #include "hal_wspi_lld.h"
 
 #if !defined(WSPI_SUPPORTS_MEMMAP)
 #error "low level does not define WSPI_SUPPORTS_MEMMAP"
+#endif
+
+#if !defined(WSPI_SUPPORTS_STATUS_MATCH)
+#define WSPI_SUPPORTS_STATUS_MATCH          FALSE
 #endif
 
 #if !defined(WSPI_DEFAULT_CFG_MASKS)
@@ -319,6 +346,27 @@ struct hal_wspi_driver {
   wspi_lld_receive(wspip, cmdp, n, rxbuf);                                  \
 }
 
+#if (WSPI_SUPPORTS_STATUS_MATCH == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Starts automatic status matching.
+ * @details The low-level driver repeatedly executes @p cmdp until the masked
+ *          status bytes match or the operation is explicitly aborted.
+ *
+ * @param[in] wspip     pointer to the @p WSPIDriver object
+ * @param[in] cmdp      pointer to the status-read command descriptor
+ * @param[in] matchp    pointer to the status-match descriptor
+ *
+ * @iclass
+ */
+#define wspiStartStatusMatchI(wspip, cmdp, matchp) {                        \
+  osalDbgAssert(((cmdp)->cfg & WSPI_CFG_DATA_MODE_MASK) !=                  \
+                WSPI_CFG_DATA_MODE_NONE,                                    \
+                "data mode required");                                     \
+  (wspip)->state = WSPI_MATCH;                                              \
+  wspi_lld_start_status_match(wspip, cmdp, matchp);                         \
+}
+#endif
+
 #if (WSPI_SUPPORTS_MEMMAP == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Maps in memory space a WSPI flash device.
@@ -440,6 +488,18 @@ extern "C" {
                      size_t n, const uint8_t *txbuf);
   void wspiStartReceive(WSPIDriver *wspip, const wspi_command_t *cmdp,
                         size_t n, uint8_t *rxbuf);
+#if WSPI_SUPPORTS_STATUS_MATCH == TRUE
+  void wspiStartStatusMatch(WSPIDriver *wspip,
+                            const wspi_command_t *cmdp,
+                            const wspi_status_match_t *matchp);
+#if WSPI_USE_WAIT == TRUE
+  msg_t wspiStatusMatchTimeout(WSPIDriver *wspip,
+                               const wspi_command_t *cmdp,
+                               const wspi_status_match_t *matchp,
+                               sysinterval_t timeout);
+  bool wspiAbortStatusMatchI(WSPIDriver *wspip);
+#endif
+#endif
 #if WSPI_USE_WAIT == TRUE
   bool wspiCommand(WSPIDriver *wspip, const wspi_command_t *cmdp);
   bool wspiSend(WSPIDriver *wspip, const wspi_command_t *cmdp,
