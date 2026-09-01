@@ -4,6 +4,9 @@ This demo exercises the SYSTICKv3 LPTIM backend on a NUCLEO-U575ZI-Q. It uses
 LPTIM4, clocked from LSE through the divide-by-32 prescaler, as a 1024 Hz,
 16-bit ChibiOS system timer.
 
+`CH_CFG_ST_TIMEDELTA` is eight ST ticks. This satisfies the SYSTICKv3 default
+minimum margin for asynchronous LPTIM register updates and interrupt latency.
+
 The user button starts a two-second STOP2 interval. The LPTIM4 compare wakes
 the core, the SYSTICKv3 wake hook restores the default RUN clock tree, and only
 then does the ChibiOS virtual-timer callback execute. The callback turns on the
