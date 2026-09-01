@@ -108,6 +108,11 @@ void chInstanceObjectInit(os_instance_t *oip,
               "instance already registered");
   ch_system.instances[core_id] = oip;
 
+#if CH_CFG_USE_TM == TRUE
+  /* Time Measurement calibration for this instance.*/
+  __tm_calibration_object_init(oip);
+#endif
+
   /* Ready list initialization.*/
   ch_pqueue_init(&oip->rlist.pqueue);
 

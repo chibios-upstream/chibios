@@ -451,6 +451,12 @@ struct ch_os_instance {
    * @brief   Virtual timers delta list header.
    */
   virtual_timers_list_t         vtlist;
+#if (CH_CFG_USE_TM == TRUE) || defined(__DOXYGEN__)
+  /**
+   * @brief   Time measurement calibration data for this instance.
+   */
+  tm_calibration_t              tmc;
+#endif
 #if ((CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == FALSE)) ||        \
     defined(__DOXYGEN__)
   /**
@@ -526,12 +532,6 @@ typedef struct ch_system {
    * @brief   Initialized OS instances or @p NULL.
    */
   os_instance_t                 *instances[PORT_CORES_NUMBER];
-#if (CH_CFG_USE_TM == TRUE) || defined(__DOXYGEN__)
-  /**
-   * @brief   Time measurement calibration data.
-   */
-  tm_calibration_t              tmc;
-#endif
 #if ((CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == TRUE)) ||         \
     defined(__DOXYGEN__)
   /**

@@ -264,11 +264,11 @@ static void rt_test_003_003_execute(void) {
   {
     chTMObjectInit(&tm2);
     chSysLock();
-    offset = ch_system.tmc.offset;
-    ch_system.tmc.offset = (rtcnt_t)-1;
+    offset = currcore->tmc.offset;
+    currcore->tmc.offset = (rtcnt_t)-1;
     chTMStartMeasurementX(&tm2);
     chTMStopMeasurementX(&tm2);
-    ch_system.tmc.offset = offset;
+    currcore->tmc.offset = offset;
     chSysUnlock();
 
     test_assert(tm2.n == (ucnt_t)1, "invalid counter");
