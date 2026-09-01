@@ -902,7 +902,8 @@ chTMObjectInit(&tm2);]]></value>
 chTMObjectDispose(&tm2);]]></value>
             </teardown_code>
             <local_variables>
-              <value><![CDATA[rtcnt_t first;]]></value>
+              <value><![CDATA[rtcnt_t first;
+rtcnt_t offset;]]></value>
             </local_variables>
           </various_code>
           <steps>
@@ -963,6 +964,31 @@ test_assert(tm2.n == (ucnt_t)1, "invalid counter");
 test_assert(tm2.last > (rtcnt_t)0, "invalid last");
 test_assert(tm2.best == tm2.last, "invalid best");
 test_assert(tm2.worst == tm2.last, "invalid worst");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A measurement shorter than the calibration offset is
+                  verified to saturate at zero.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chTMObjectInit(&tm2);
+chSysLock();
+offset = ch_system.tmc.offset;
+ch_system.tmc.offset = (rtcnt_t)-1;
+chTMStartMeasurementX(&tm2);
+chTMStopMeasurementX(&tm2);
+ch_system.tmc.offset = offset;
+chSysUnlock();
+
+test_assert(tm2.n == (ucnt_t)1, "invalid counter");
+test_assert(tm2.last == (rtcnt_t)0, "invalid last");
+test_assert(tm2.best == (rtcnt_t)0, "invalid best");
+test_assert(tm2.worst == (rtcnt_t)0, "invalid worst");
+test_assert(tm2.cumulative == (rttime_t)0, "invalid cumulative");]]></value>
               </code>
             </step>
           </steps>
