@@ -61,6 +61,17 @@
 #define STM32_ST_LPTIM_PRESCALER            4
 #endif
 
+/**
+ * @brief   Minimum safe kernel time delta in ST ticks.
+ * @note    The default includes margin for asynchronous LPTIM register
+ *          updates and interrupt latency. A lower target-specific value must
+ *          only be selected after validation across counter wraps and low
+ *          power wake-up paths.
+ */
+#if !defined(STM32_ST_LPTIM_MINIMUM_DELTA) || defined(__DOXYGEN__)
+#define STM32_ST_LPTIM_MINIMUM_DELTA         8
+#endif
+
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/

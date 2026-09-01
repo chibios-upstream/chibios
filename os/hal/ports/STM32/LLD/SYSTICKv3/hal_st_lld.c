@@ -138,6 +138,12 @@ void st_lld_set_dier(uint32_t dier) {
  */
 void st_lld_init(void) {
 
+  /* The LPTIM compare and interrupt-enable registers are updated across an
+     asynchronous clock boundary. The kernel delta must leave enough time for
+     those updates and for the interrupt/wake-up path.*/
+  osalDbgAssert(CH_CFG_ST_TIMEDELTA >= STM32_ST_LPTIM_MINIMUM_DELTA,
+                "insufficient ST delta");
+
   ST_ENABLE_CLOCK();
   ST_RESET();
   ST_ENABLE_AUTONOMOUS();
