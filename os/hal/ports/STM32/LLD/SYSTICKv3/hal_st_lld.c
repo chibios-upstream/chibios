@@ -108,9 +108,10 @@ OSAL_IRQ_HANDLER(ST_HANDLER) {
 /*===========================================================================*/
 
 /**
- * @brief   Writes CCR1 and waits until the asynchronous update completes.
- * @note    The completed update flag is intentionally left set as the token
- *          required before the next write.
+ * @brief   Writes CCR1 after the preceding asynchronous update completes.
+ * @note    The current update is not polled immediately. Its completed-update
+ *          flag becomes the token consumed before the next write, avoiding a
+ *          tight APB polling loop while the slow LPTIM kernel accepts CCR1.
  */
 void st_lld_set_compare(systime_t abstime) {
 
@@ -118,8 +119,6 @@ void st_lld_set_compare(systime_t abstime) {
   }
   STM32_ST_LPTIM->ICR  = LPTIM_ICR_CMP1OKCF;
   STM32_ST_LPTIM->CCR1 = (uint32_t)abstime;
-  while ((STM32_ST_LPTIM->ISR & LPTIM_ISR_CMP1OK) == 0U) {
-  }
 }
 
 /**
