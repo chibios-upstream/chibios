@@ -116,7 +116,7 @@ void chInstanceObjectInit(os_instance_t *oip,
   __reg_object_init(&oip->reglist);
 #endif
 
-#if CH_CFG_SMP_MODE == FALSE
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == FALSE)
   /* RFCU initialization when SMP mode is disabled.*/
   __rfcu_object_init(&oip->rfcu);
 #endif

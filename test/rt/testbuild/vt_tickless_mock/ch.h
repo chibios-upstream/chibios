@@ -25,6 +25,7 @@
 #define TRUE                                    1
 #define FALSE                                   0
 
+#define CH_CFG_USE_RFCU                         TRUE
 #define CH_CFG_HARDENING_LEVEL                  0
 #define CH_CFG_INTERVALS_SIZE                   32
 #define CH_CFG_ST_RESOLUTION                    32

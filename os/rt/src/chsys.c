@@ -173,7 +173,7 @@ void chSysInit(void) {
   __reg_object_init(&ch_system.reglist);
 #endif
 
-#if CH_CFG_SMP_MODE == TRUE
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == TRUE)
   /* RFCU initialization when SMP mode is enabled.*/
   __rfcu_object_init(&ch_system.rfcu);
 #endif

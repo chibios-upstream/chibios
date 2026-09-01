@@ -22,6 +22,8 @@
 
 #define CH_CFG_SMP_MODE                     FALSE
 
+#define CH_CFG_USE_RFCU                     TRUE
+
 #define CH_CFG_HARDENING_LEVEL              0
 #define CH_CFG_ST_RESOLUTION                32
 #define CH_CFG_ST_FREQUENCY                 1000000

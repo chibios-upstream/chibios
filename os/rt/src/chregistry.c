@@ -89,7 +89,7 @@ typedef char chdebug_layout_fits_uint8_t[
 #if (CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == TRUE)
     (offsetof(ch_system_t, reglist) <= (size_t)UINT8_MAX) &&
 #endif
-#if CH_CFG_SMP_MODE == TRUE
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == TRUE)
     (offsetof(ch_system_t, rfcu) <= (size_t)UINT8_MAX) &&
 #endif
     (offsetof(os_instance_t, rlist.current) <= (size_t)UINT8_MAX) &&
@@ -98,7 +98,7 @@ typedef char chdebug_layout_fits_uint8_t[
 #if (CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == FALSE)
     (offsetof(os_instance_t, reglist) <= (size_t)UINT8_MAX) &&
 #endif
-#if CH_CFG_SMP_MODE == FALSE
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == FALSE)
     (offsetof(os_instance_t, rfcu) <= (size_t)UINT8_MAX) &&
 #endif
     (offsetof(os_instance_t, core_id) <= (size_t)UINT8_MAX)) ? 1 : -1];
@@ -170,7 +170,7 @@ ROMCONST chdebug_t ch_debug = {
 #else
   .off_sys_reglist          = (uint8_t)0,
 #endif
-#if CH_CFG_SMP_MODE == TRUE
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == TRUE)
   .off_sys_rfcu             = (uint8_t)__CH_OFFSETOF(ch_system_t, rfcu),
 #else
   .off_sys_rfcu             = (uint8_t)0,
@@ -185,7 +185,7 @@ ROMCONST chdebug_t ch_debug = {
   .off_inst_reglist         = (uint8_t)0,
 #endif
   .off_inst_core_id         = (uint8_t)__CH_OFFSETOF(os_instance_t, core_id),
-#if CH_CFG_SMP_MODE == FALSE
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == FALSE)
   .off_inst_rfcu            = (uint8_t)__CH_OFFSETOF(os_instance_t, rfcu)
 #else
   .off_inst_rfcu            = (uint8_t)0

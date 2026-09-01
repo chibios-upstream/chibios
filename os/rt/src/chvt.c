@@ -137,7 +137,7 @@ static void vt_set_alarm(virtual_timers_list_t *vtlp,
     delay = currdelta;
   }
 
-#if !defined(CH_VT_RFCU_DISABLED)
+#if CH_CFG_USE_RFCU == TRUE
   /* Checking if a skip occurred.*/
   if (currdelta > vtlp->lastdelta) {
     vtlp->lastdelta = currdelta;
@@ -217,7 +217,7 @@ static void vt_insert_first(virtual_timers_list_t *vtlp,
     delay = currdelta;
   }
 
-#if !defined(CH_VT_RFCU_DISABLED)
+#if CH_CFG_USE_RFCU == TRUE
   /* Checking if a skip occurred.*/
   if (currdelta > vtlp->lastdelta) {
     vtlp->lastdelta = currdelta;
@@ -242,7 +242,7 @@ static sysinterval_t vt_add_delta(sysinterval_t nowdelta,
                                   sysinterval_t delay) {
 
   if (unlikely(delay > (TIME_INFINITE - nowdelta))) {
-#if !defined(CH_VT_RFCU_DISABLED)
+#if CH_CFG_USE_RFCU == TRUE
     chRFCUCollectFaultsI(CH_RFCU_VT_INTERVAL_OVERFLOW);
 #else
     chDbgAssert(false, "interval overflow");
@@ -708,7 +708,7 @@ void chVTDoTickI(void) {
       now = chVTGetSystemTimeX();
       elapsed = chTimeDiffX(lasttime, now);
 
-#if !defined(CH_VT_RFCU_DISABLED)
+#if CH_CFG_USE_RFCU == TRUE
       /* Checking if the required reload is feasible.*/
       if (elapsed > vtp->reload) {
         /* System time is already past the deadline, logging the fault and
@@ -717,10 +717,10 @@ void chVTDoTickI(void) {
         chDbgAssert(false, "skipped deadline");
         chRFCUCollectFaultsI(CH_RFCU_VT_SKIPPED_DEADLINE);
       }
-#else /* defined(CH_VT_RFCU_DISABLED) */
+#else /* CH_CFG_USE_RFCU == FALSE */
       /* Assertions as fallback.*/
       chDbgAssert(elapsed <= vtp->reload, "skipped deadline");
-#endif /* defined(CH_VT_RFCU_DISABLED) */
+#endif /* CH_CFG_USE_RFCU == TRUE */
 
       /* A reached or skipped phase deadline is deferred by the physical
          minimum delta. The ticker returns after insertion so the callback

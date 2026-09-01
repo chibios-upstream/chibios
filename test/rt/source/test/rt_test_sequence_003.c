@@ -51,7 +51,7 @@ static time_measurement_t tm1, tm2;
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
 static virtual_timer_t timers_state_vt;
-#if !defined(CH_VT_RFCU_DISABLED) || defined(__DOXYGEN__)
+#if (CH_CFG_USE_RFCU == TRUE) || defined(__DOXYGEN__)
 static virtual_timer_t timers_overflow_anchor;
 static virtual_timer_t timers_overflow_vt;
 #endif
@@ -348,7 +348,8 @@ static const testcase_t rt_test_003_004 = {
 };
 #endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
-#if ((CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED)) || defined(__DOXYGEN__)
+#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) ||            \
+    defined(__DOXYGEN__)
 /**
  * @page rt_test_003_005 [3.5] Tickless timer interval overflow
  *
@@ -359,7 +360,7 @@ static const testcase_t rt_test_003_004 = {
  * <h2>Conditions</h2>
  * This test is only executed if the following preprocessor condition
  * evaluates to true:
- * - (CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED)
+ * - (CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)
  * .
  *
  * <h2>Test Steps</h2>
@@ -420,7 +421,7 @@ static const testcase_t rt_test_003_005 = {
   rt_test_003_005_teardown,
   rt_test_003_005_execute
 };
-#endif /* (CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED) */
+#endif /* (CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE) */
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
 /**
@@ -479,7 +480,8 @@ const testcase_t * const rt_test_sequence_003_array[] = {
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
   &rt_test_003_004,
 #endif
-#if ((CH_CFG_ST_TIMEDELTA > 0) && !defined(CH_VT_RFCU_DISABLED)) || defined(__DOXYGEN__)
+#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) ||            \
+    defined(__DOXYGEN__)
   &rt_test_003_005,
 #endif
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
