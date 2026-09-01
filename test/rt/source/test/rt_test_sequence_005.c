@@ -112,6 +112,8 @@ static void setup_thread_descriptor(thread_descriptor_t *tdp,
  *   "now" + 100 ticks.
  * - [5.1.6] Function chThdSleepUntilWindowed() is tested with an
  *   active time window.
+ * - [5.1.7] With RFCU enabled, a missed window is reported and the
+ *   next deadline is returned.
  * .
  */
 
@@ -192,6 +194,34 @@ static void rt_test_005_001_execute(void) {
                             "out of time window");
   }
   test_end_step(6);
+
+  /* [5.1.7] With RFCU enabled, a missed window is reported and the
+     next deadline is returned.*/
+  test_set_step(7);
+  {
+#if CH_CFG_USE_RFCU == TRUE
+    rfcu_mask_t mask;
+    systime_t next;
+
+    chSysLock();
+    (void) chRFCUGetAndClearFaultsI(CH_RFCU_THD_MISSED_DEADLINE);
+    chSysUnlock();
+
+    time = chVTGetSystemTimeX();
+    next = chTimeAddX(time, (sysinterval_t)1);
+    chThdSleep((sysinterval_t)2);
+    time = chThdSleepUntilWindowed(time, next);
+
+    chSysLock();
+    mask = chRFCUGetAndClearFaultsI(CH_RFCU_THD_MISSED_DEADLINE);
+    chSysUnlock();
+
+    test_assert(time == next, "invalid returned deadline");
+    test_assert((mask & CH_RFCU_THD_MISSED_DEADLINE) != (rfcu_mask_t)0,
+                "missed deadline not reported");
+#endif
+  }
+  test_end_step(7);
 }
 
 static const testcase_t rt_test_005_001 = {

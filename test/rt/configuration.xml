@@ -1399,6 +1399,38 @@ test_assert_time_window(time,
                         "out of time window");]]></value>
               </code>
             </step>
+            <step>
+              <description>
+                <value>With RFCU enabled, a missed window is reported
+                  and the next deadline is returned.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[#if CH_CFG_USE_RFCU == TRUE
+rfcu_mask_t mask;
+systime_t next;
+
+chSysLock();
+(void) chRFCUGetAndClearFaultsI(CH_RFCU_THD_MISSED_DEADLINE);
+chSysUnlock();
+
+time = chVTGetSystemTimeX();
+next = chTimeAddX(time, (sysinterval_t)1);
+chThdSleep((sysinterval_t)2);
+time = chThdSleepUntilWindowed(time, next);
+
+chSysLock();
+mask = chRFCUGetAndClearFaultsI(CH_RFCU_THD_MISSED_DEADLINE);
+chSysUnlock();
+
+test_assert(time == next, "invalid returned deadline");
+test_assert((mask & CH_RFCU_THD_MISSED_DEADLINE) != (rfcu_mask_t)0,
+            "missed deadline not reported");
+#endif]]></value>
+              </code>
+            </step>
           </steps>
         </case>
         <case>
