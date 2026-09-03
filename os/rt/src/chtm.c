@@ -149,6 +149,8 @@ void chTMObjectDispose(time_measurement_t *tmp) {
 /**
  * @brief   Starts a measurement.
  * @pre     The @p time_measurement_t object must be initialized.
+ * @pre     On SMP systems with non-coherent per-core realtime counters, the
+ *          matching stop or chain operation must execute on the same core.
  *
  * @param[in,out] tmp   pointer to a @p time_measurement_t object
  *
@@ -164,6 +166,8 @@ NOINLINE void chTMStartMeasurementX(time_measurement_t *tmp) {
  * @note    A raw interval not exceeding the calibrated measurement overhead
  *          is recorded as zero.
  * @pre     The @p time_measurement_t object must be initialized.
+ * @pre     On SMP systems with non-coherent per-core realtime counters, the
+ *          measurement must have been started on the same core.
  *
  * @param[in,out] tmp   pointer to a @p time_measurement_t object
  *
@@ -188,6 +192,8 @@ NOINLINE void chTMStopMeasurementX(time_measurement_t *tmp) {
  *          @p chTMStartMeasurementX() or a preceding chain operation.
  * @pre     @p tmp2 must be an initialized @p time_measurement_t object.
  * @pre     The measurement objects must not be modified concurrently.
+ * @pre     On SMP systems with non-coherent per-core realtime counters, the
+ *          measurement in @p tmp1 must have been started on the same core.
  *
  * @param[in,out] tmp1  pointer to the @p time_measurement_t object to be
  *                      stopped

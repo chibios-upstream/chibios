@@ -74,12 +74,22 @@ typedef struct {
  *          of few cycles depending on the compiler and target architecture.
  * @note    Interrupts can affect measurement if the measurement is performed
  *          with interrupts enabled.
+ * @note    On SMP systems, cross-core measurements require realtime counters
+ *          coherent across all cores. A shared coherent hardware counter is
+ *          the preferred port implementation. With non-coherent per-core
+ *          counters, each measured segment must begin and end, by stopping or
+ *          chaining, on the same core.
+ * @note    The measurements counter @p n is modular and wraps on overflow.
+ *          Long-running users requiring valid averages must periodically
+ *          snapshot and reinitialize the object before this occurs. Such
+ *          operations must be synchronized with measurement updates.
  */
 typedef struct {
   rtcnt_t               best;           /**< @brief Best measurement.       */
   rtcnt_t               worst;          /**< @brief Worst measurement.      */
   rtcnt_t               last;           /**< @brief Last measurement.       */
-  ucnt_t                n;              /**< @brief Number of measurements. */
+  ucnt_t                n;              /**< @brief Number of measurements,
+                                                wraps on overflow.          */
   rttime_t              cumulative;     /**< @brief Cumulative measurement. */
 } time_measurement_t;
 

@@ -188,7 +188,7 @@
  *
  * @api
  */
-#define MS2RTC(freq, msec)                                                   \
+#define MS2RTC(freq, msec)                                                  \
   ((rtcnt_t)((((rttime_t)(msec) * (rttime_t)(freq)) +                       \
               (rttime_t)999) / (rttime_t)1000))
 
@@ -206,7 +206,7 @@
  *
  * @api
  */
-#define US2RTC(freq, usec)                                                   \
+#define US2RTC(freq, usec)                                                  \
   ((rtcnt_t)((((rttime_t)(usec) * (rttime_t)(freq)) +                       \
               (rttime_t)999999) / (rttime_t)1000000))
 
@@ -224,7 +224,7 @@
  *
  * @api
  */
-#define RTC2S(freq, n)                                                       \
+#define RTC2S(freq, n)                                                      \
   ((rtcnt_t)(((rttime_t)(n) + (rttime_t)(freq) - (rttime_t)1) /             \
              (rttime_t)(freq)))
 
@@ -242,7 +242,7 @@
  *
  * @api
  */
-#define RTC2MS(freq, n)                                                      \
+#define RTC2MS(freq, n)                                                     \
   ((rtcnt_t)((((rttime_t)(n) * (rttime_t)1000) +                            \
               (rttime_t)(freq) - (rttime_t)1) / (rttime_t)(freq)))
 
@@ -260,7 +260,7 @@
  *
  * @api
  */
-#define RTC2US(freq, n)                                                      \
+#define RTC2US(freq, n)                                                     \
   ((rtcnt_t)((((rttime_t)(n) * (rttime_t)1000000) +                         \
               (rttime_t)(freq) - (rttime_t)1) / (rttime_t)(freq)))
 /** @} */
@@ -269,6 +269,8 @@
  * @brief   Returns the current value of the system real time counter.
  * @note    This function is only available if the port layer supports the
  *          option @p PORT_SUPPORTS_RT.
+ * @note    On SMP systems, counter coherence across cores depends on the port
+ *          implementation. A shared coherent hardware counter is preferred.
  *
  * @return              The value of the system realtime counter of
  *                      type rtcnt_t.
