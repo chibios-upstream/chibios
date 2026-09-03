@@ -39,6 +39,9 @@
  */
 /**
  * @brief   This port supports a realtime counter.
+ * @note    SMP ports should preferably use a hardware counter coherent across
+ *          all cores. Ports using non-coherent per-core counters must
+ *          document this limitation.
  */
 #define PORT_SUPPORTS_RT                FALSE
 
@@ -428,6 +431,8 @@ static inline void port_setup_context(struct port_context *ctxp,
 
 /**
  * @brief   Returns the current value of the realtime counter.
+ * @note    On SMP systems, a shared coherent hardware counter is the
+ *          preferred implementation.
  *
  * @return              The realtime counter value.
  */

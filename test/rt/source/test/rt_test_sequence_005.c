@@ -651,11 +651,12 @@ static const testcase_t rt_test_005_006 = {
  * - [5.7.1] The current thread registry name is changed and then
  *   restored.
  * - [5.7.2] A static thread is created then retrieved by name, pointer
- *   and working area while an unnamed thread is in the registry. Its initial
- *   reference is released and reacquired through the registry.
- * - [5.7.3] When debug assertions are enabled, creation conflict checks are
- *   exercised for a live thread object, a partially overlapping working area,
- *   disjoint resources and permitted cross-type overlaps.
+ *   and working area while an unnamed thread is in the registry. Its
+ *   initial reference is released and reacquired through the registry.
+ * - [5.7.3] When debug assertions are enabled, creation conflict
+ *   checks are exercised for a live thread object, a partially
+ *   overlapping working area, disjoint resources and permitted
+ *   cross-type overlaps.
  * - [5.7.4] The registry is scanned forward until the end and the
  *   created thread is found in the scan.
  * .
@@ -688,7 +689,9 @@ static void rt_test_005_007_execute(void) {
   test_end_step(1);
 
   /* [5.7.2] A static thread is created then retrieved by name, pointer
-     and working area while an unnamed thread is in the registry.*/
+     and working area while an unnamed thread is in the registry. Its
+     initial reference is released and reacquired through the
+     registry.*/
   test_set_step(2);
   {
     threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()-1, thread, "R");
@@ -730,9 +733,10 @@ static void rt_test_005_007_execute(void) {
   }
   test_end_step(2);
 
-  /* [5.7.3] When debug assertions are enabled, creation conflict checks are
-     exercised for a live thread object, a partially overlapping working area,
-     disjoint resources and permitted cross-type overlaps.*/
+  /* [5.7.3] When debug assertions are enabled, creation conflict
+     checks are exercised for a live thread object, a partially
+     overlapping working area, disjoint resources and permitted
+     cross-type overlaps.*/
   test_set_step(3);
   {
 #if CH_DBG_ENABLE_ASSERTS == TRUE
@@ -870,29 +874,30 @@ static const testcase_t rt_test_005_008 = {
   rt_test_005_008_execute
 };
 
-#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
-     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&             \
-     (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) && ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) && (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
 /**
  * @page rt_test_005_009 [5.9] Lifecycle ready trace messages
  *
  * <h2>Description</h2>
- * Lifecycle transitions into the ready state are verified to trace a defined
- * @p MSG_OK ready message.
+ * Lifecycle transitions into the ready state are verified to trace a
+ * defined MSG_OK ready message.
  *
  * <h2>Conditions</h2>
- * This test is only executed if ready tracing and thread-wait support are
- * enabled.
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - (CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) && ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) && (CH_CFG_USE_WAITEXIT == TRUE)
+ * .
  *
  * <h2>Test Steps</h2>
- * - [5.9.1] A suspended external thread object is initialized and started
- *   through I-class APIs. Its initialized and traced messages are checked.
- * - [5.9.2] A running external thread is spawned through an I-class API and
- *   its ready trace is checked.
- * - [5.9.3] A running embedded thread is created through an I-class API and
- *   its ready trace is checked.
- * - [5.9.4] A thread exit wakes its waiter and the waiter's ready trace is
- *   checked.
+ * - [5.9.1] A suspended external thread object is initialized and
+ *   started through I-class APIs. Its initialized and traced messages
+ *   are checked.
+ * - [5.9.2] A running external thread is spawned through an I-class
+ *   API and its ready trace is checked.
+ * - [5.9.3] A running embedded thread is created through an I-class
+ *   API and its ready trace is checked.
+ * - [5.9.4] A thread exit wakes its waiter and the waiter's ready
+ *   trace is checked.
  * .
  */
 
@@ -906,8 +911,9 @@ static void rt_test_005_009_execute(void) {
   msg_t initmsg, tracemsg = MSG_RESET;
   bool found;
 
-  /* [5.9.1] A suspended external thread object is initialized and started
-     through I-class APIs. Its initialized and traced messages are checked.*/
+  /* [5.9.1] A suspended external thread object is initialized and
+     started through I-class APIs. Its initialized and traced messages
+     are checked.*/
   test_set_step(1);
   {
     setup_thread_descriptor(&td, "trace-start-i",
@@ -929,8 +935,8 @@ static void rt_test_005_009_execute(void) {
   }
   test_end_step(1);
 
-  /* [5.9.2] A running external thread is spawned through an I-class API and
-     its ready trace is checked.*/
+  /* [5.9.2] A running external thread is spawned through an I-class
+     API and its ready trace is checked.*/
   test_set_step(2);
   {
     setup_thread_descriptor(&td, "trace-spawn-i",
@@ -949,8 +955,8 @@ static void rt_test_005_009_execute(void) {
   }
   test_end_step(2);
 
-  /* [5.9.3] A running embedded thread is created through an I-class API and
-     its ready trace is checked.*/
+  /* [5.9.3] A running embedded thread is created through an I-class
+     API and its ready trace is checked.*/
   test_set_step(3);
   {
     setup_thread_descriptor(&td, "trace-create-i",
@@ -968,8 +974,8 @@ static void rt_test_005_009_execute(void) {
   }
   test_end_step(3);
 
-  /* [5.9.4] A thread exit wakes its waiter and the waiter's ready trace is
-     checked.*/
+  /* [5.9.4] A thread exit wakes its waiter and the waiter's ready
+     trace is checked.*/
   test_set_step(4);
   {
     self = chThdGetSelfX();
@@ -994,7 +1000,7 @@ static const testcase_t rt_test_005_009 = {
   rt_test_005_009_teardown,
   rt_test_005_009_execute
 };
-#endif
+#endif /* (CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) && ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) && (CH_CFG_USE_WAITEXIT == TRUE) */
 
 /*===========================================================================*/
 /* Exported data.                                                            */
@@ -1016,9 +1022,7 @@ const testcase_t * const rt_test_sequence_005_array[] = {
   &rt_test_005_007,
 #endif
   &rt_test_005_008,
-#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
-     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&             \
-     (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) && ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) && (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
   &rt_test_005_009,
 #endif
   NULL
