@@ -734,7 +734,7 @@ enum {
 };
 
 #if CH_CFG_USE_TM || defined(__DOXYGEN__)
-static time_measurement_t tm1, tm2;
+static time_measurement_t tm1, tm2, tm3;
 #endif
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
@@ -900,14 +900,16 @@ test_assert(b == false, "in range");
           <various_code>
             <setup_code>
               <value><![CDATA[chTMObjectInit(&tm1);
-chTMObjectInit(&tm2);]]></value>
+chTMObjectInit(&tm2);
+chTMObjectInit(&tm3);]]></value>
             </setup_code>
             <teardown_code>
               <value><![CDATA[chTMObjectDispose(&tm1);
-chTMObjectDispose(&tm2);]]></value>
+chTMObjectDispose(&tm2);
+chTMObjectDispose(&tm3);]]></value>
             </teardown_code>
             <local_variables>
-              <value><![CDATA[rtcnt_t first;
+              <value><![CDATA[rttime_t cumulative;
 rtcnt_t offset;]]></value>
             </local_variables>
           </various_code>
@@ -944,31 +946,69 @@ test_assert(tm1.n == (ucnt_t)1, "invalid counter");
 test_assert(tm1.last > (rtcnt_t)0, "invalid last");
 test_assert(tm1.best == tm1.last, "invalid best");
 test_assert(tm1.worst == tm1.last, "invalid worst");
-test_assert(tm1.cumulative == (rttime_t)tm1.last, "invalid cumulative");
-first = tm1.last;]]></value>
+test_assert(tm1.cumulative == (rttime_t)tm1.last, "invalid cumulative");]]></value>
               </code>
             </step>
             <step>
               <description>
-                <value>The first measurement is chained to the second one
-                  and both objects are verified.</value>
+                <value>A measurement is chained to another object and both
+                  objects are verified.</value>
               </description>
               <tags>
                 <value />
               </tags>
               <code>
-                <value><![CDATA[chTMChainMeasurementToX(&tm1, &tm2);
+                <value><![CDATA[chSysLock();
+offset = currcore->tmc.offset;
+currcore->tmc.offset = (rtcnt_t)-1;
+chTMStartMeasurementX(&tm2);
+chSysPolledDelayX((rtcnt_t)100);
+chTMChainMeasurementToX(&tm2, &tm3);
 chSysPolledDelayX((rtcnt_t)10);
-chTMStopMeasurementX(&tm2);
+chTMStopMeasurementX(&tm3);
+currcore->tmc.offset = offset;
+chSysUnlock();
 
-test_assert(tm1.n == (ucnt_t)2, "invalid counter");
-test_assert(tm1.last > (rtcnt_t)0, "invalid last");
-test_assert(tm1.best <= tm1.worst, "invalid range");
-test_assert(tm1.cumulative >= (rttime_t)first, "invalid cumulative");
 test_assert(tm2.n == (ucnt_t)1, "invalid counter");
 test_assert(tm2.last > (rtcnt_t)0, "invalid last");
 test_assert(tm2.best == tm2.last, "invalid best");
-test_assert(tm2.worst == tm2.last, "invalid worst");]]></value>
+test_assert(tm2.worst == tm2.last, "invalid worst");
+test_assert(tm2.cumulative == (rttime_t)tm2.last, "invalid cumulative");
+test_assert(tm3.n == (ucnt_t)1, "invalid counter");
+test_assert(tm3.last == (rtcnt_t)0, "invalid last");
+test_assert(tm3.best == (rtcnt_t)0, "invalid best");
+test_assert(tm3.worst == (rtcnt_t)0, "invalid worst");
+test_assert(tm3.cumulative == (rttime_t)0, "invalid cumulative");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A measurement is chained to itself and the object is
+                  verified.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chTMObjectInit(&tm3);
+chTMStartMeasurementX(&tm3);
+chSysPolledDelayX((rtcnt_t)100);
+chTMChainMeasurementToX(&tm3, &tm3);
+
+test_assert(tm3.n == (ucnt_t)1, "invalid counter");
+test_assert(tm3.best > (rtcnt_t)0, "invalid best");
+test_assert(tm3.worst == tm3.best, "invalid worst");
+test_assert(tm3.cumulative == (rttime_t)tm3.best, "invalid cumulative");
+cumulative = tm3.cumulative;
+
+chSysPolledDelayX((rtcnt_t)10);
+chTMStopMeasurementX(&tm3);
+
+test_assert(tm3.n == (ucnt_t)2, "invalid counter");
+test_assert(tm3.last > (rtcnt_t)0, "invalid last");
+test_assert(tm3.best <= tm3.worst, "invalid range");
+test_assert(tm3.cumulative == cumulative + (rttime_t)tm3.last,
+            "invalid cumulative");]]></value>
               </code>
             </step>
             <step>

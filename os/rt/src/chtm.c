@@ -177,12 +177,22 @@ NOINLINE void chTMStopMeasurementX(time_measurement_t *tmp) {
 /**
  * @brief   Stops a measurement and chains to the next one using the same time
  *          stamp.
+ * @note    No calibration offset is subtracted from the measurement stopped
+ *          in @p tmp1, this preserves continuity between chained
+ *          measurements.
+ * @note    Ordinary stopped measurements and chained measurements have
+ *          different calibration semantics, mixing them in the same object
+ *          makes the collected statistics non-homogeneous.
+ * @note    @p tmp1 and @p tmp2 may point to the same object.
+ * @pre     @p tmp1 must contain an active measurement started using
+ *          @p chTMStartMeasurementX() or a preceding chain operation.
+ * @pre     @p tmp2 must be an initialized @p time_measurement_t object.
+ * @pre     The measurement objects must not be modified concurrently.
  *
  * @param[in,out] tmp1  pointer to the @p time_measurement_t object to be
  *                      stopped
  * @param[in,out] tmp2  pointer to the @p time_measurement_t object to be
  *                      started
- *
  *
  * @xclass
  */

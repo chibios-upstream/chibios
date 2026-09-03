@@ -52,7 +52,7 @@ enum {
 };
 
 #if CH_CFG_USE_TM || defined(__DOXYGEN__)
-static time_measurement_t tm1, tm2;
+static time_measurement_t tm1, tm2, tm3;
 #endif
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
@@ -197,9 +197,10 @@ static const testcase_t rt_test_003_002 = {
  * <h2>Test Steps</h2>
  * - [3.3.1] The initialized measurement objects are verified.
  * - [3.3.2] A measurement is performed and its result is verified.
- * - [3.3.3] The first measurement is chained to the second one and
- *   both objects are verified.
- * - [3.3.4] A measurement shorter than the calibration offset is verified
+ * - [3.3.3] A measurement is chained to another object and both objects are
+ *   verified.
+ * - [3.3.4] A measurement is chained to itself and the object is verified.
+ * - [3.3.5] A measurement shorter than the calibration offset is verified
  *   to saturate at zero.
  * .
  */
@@ -207,15 +208,17 @@ static const testcase_t rt_test_003_002 = {
 static void rt_test_003_003_setup(void) {
   chTMObjectInit(&tm1);
   chTMObjectInit(&tm2);
+  chTMObjectInit(&tm3);
 }
 
 static void rt_test_003_003_teardown(void) {
   chTMObjectDispose(&tm1);
   chTMObjectDispose(&tm2);
+  chTMObjectDispose(&tm3);
 }
 
 static void rt_test_003_003_execute(void) {
-  rtcnt_t first;
+  rttime_t cumulative;
   rtcnt_t offset;
 
   /* [3.3.1] The initialized measurement objects are verified.*/
@@ -241,32 +244,65 @@ static void rt_test_003_003_execute(void) {
     test_assert(tm1.best == tm1.last, "invalid best");
     test_assert(tm1.worst == tm1.last, "invalid worst");
     test_assert(tm1.cumulative == (rttime_t)tm1.last, "invalid cumulative");
-    first = tm1.last;
   }
   test_end_step(2);
 
-  /* [3.3.3] The first measurement is chained to the second one and
-     both objects are verified.*/
+  /* [3.3.3] A measurement is chained to another object and both objects are
+     verified.*/
   test_set_step(3);
   {
-    chTMChainMeasurementToX(&tm1, &tm2);
+    chSysLock();
+    offset = currcore->tmc.offset;
+    currcore->tmc.offset = (rtcnt_t)-1;
+    chTMStartMeasurementX(&tm2);
+    chSysPolledDelayX((rtcnt_t)100);
+    chTMChainMeasurementToX(&tm2, &tm3);
     chSysPolledDelayX((rtcnt_t)10);
-    chTMStopMeasurementX(&tm2);
+    chTMStopMeasurementX(&tm3);
+    currcore->tmc.offset = offset;
+    chSysUnlock();
 
-    test_assert(tm1.n == (ucnt_t)2, "invalid counter");
-    test_assert(tm1.last > (rtcnt_t)0, "invalid last");
-    test_assert(tm1.best <= tm1.worst, "invalid range");
-    test_assert(tm1.cumulative >= (rttime_t)first, "invalid cumulative");
     test_assert(tm2.n == (ucnt_t)1, "invalid counter");
     test_assert(tm2.last > (rtcnt_t)0, "invalid last");
     test_assert(tm2.best == tm2.last, "invalid best");
     test_assert(tm2.worst == tm2.last, "invalid worst");
+    test_assert(tm2.cumulative == (rttime_t)tm2.last, "invalid cumulative");
+    test_assert(tm3.n == (ucnt_t)1, "invalid counter");
+    test_assert(tm3.last == (rtcnt_t)0, "invalid last");
+    test_assert(tm3.best == (rtcnt_t)0, "invalid best");
+    test_assert(tm3.worst == (rtcnt_t)0, "invalid worst");
+    test_assert(tm3.cumulative == (rttime_t)0, "invalid cumulative");
   }
   test_end_step(3);
 
-  /* [3.3.4] A measurement shorter than the calibration offset is verified
-     to saturate at zero.*/
+  /* [3.3.4] A measurement is chained to itself and the object is verified.*/
   test_set_step(4);
+  {
+    chTMObjectInit(&tm3);
+    chTMStartMeasurementX(&tm3);
+    chSysPolledDelayX((rtcnt_t)100);
+    chTMChainMeasurementToX(&tm3, &tm3);
+
+    test_assert(tm3.n == (ucnt_t)1, "invalid counter");
+    test_assert(tm3.best > (rtcnt_t)0, "invalid best");
+    test_assert(tm3.worst == tm3.best, "invalid worst");
+    test_assert(tm3.cumulative == (rttime_t)tm3.best, "invalid cumulative");
+    cumulative = tm3.cumulative;
+
+    chSysPolledDelayX((rtcnt_t)10);
+    chTMStopMeasurementX(&tm3);
+
+    test_assert(tm3.n == (ucnt_t)2, "invalid counter");
+    test_assert(tm3.last > (rtcnt_t)0, "invalid last");
+    test_assert(tm3.best <= tm3.worst, "invalid range");
+    test_assert(tm3.cumulative == cumulative + (rttime_t)tm3.last,
+                "invalid cumulative");
+  }
+  test_end_step(4);
+
+  /* [3.3.5] A measurement shorter than the calibration offset is verified
+     to saturate at zero.*/
+  test_set_step(5);
   {
     chTMObjectInit(&tm2);
     chSysLock();
@@ -283,7 +319,7 @@ static void rt_test_003_003_execute(void) {
     test_assert(tm2.worst == (rtcnt_t)0, "invalid worst");
     test_assert(tm2.cumulative == (rttime_t)0, "invalid cumulative");
   }
-  test_end_step(4);
+  test_end_step(5);
 }
 
 static const testcase_t rt_test_003_003 = {
