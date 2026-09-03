@@ -103,7 +103,7 @@ typedef void (*evhandler_t)(eventid_t id);
 /**
  * @brief   Static event source initializer.
  * @details Statically initialized event sources require no explicit
- *          initialization using @p chEvtInit().
+ *          initialization using @p chEvtObjectInit().
  *
  * @param name          the name of the event source variable
  */
@@ -141,6 +141,10 @@ typedef void (*evhandler_t)(eventid_t id);
  *          will be notified of all events broadcasted there.
  * @note    Multiple Event Listeners can specify the same bits to be ORed to
  *          different threads.
+ * @note    The event source, listener storage, and listening thread must
+ *          remain valid until the listener is unregistered.
+ * @pre     The event listener must not already be registered on any event
+ *          source.
  *
  * @param[in] esp       pointer to an @p event_source_t structure
  * @param[out] elp      pointer to an @p event_listener_t structure
@@ -156,6 +160,10 @@ typedef void (*evhandler_t)(eventid_t id);
  * @brief   Registers an Event Listener on an Event Source.
  * @note    Multiple Event Listeners can use the same event identifier, the
  *          listener will share the callback function.
+ * @note    The event source, listener storage, and listening thread must
+ *          remain valid until the listener is unregistered.
+ * @pre     The event listener must not already be registered on any event
+ *          source.
  *
  * @param[in] esp       pointer to an @p event_source_t structure
  * @param[out] elp      pointer to an @p event_listener_t structure
@@ -237,6 +245,7 @@ typedef void (*evhandler_t)(eventid_t id);
  *                      for, @p ALL_EVENTS enables all the events
  * @return              The mask of the lowest event id served and cleared.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
@@ -252,6 +261,7 @@ typedef void (*evhandler_t)(eventid_t id);
  *                      for, @p ALL_EVENTS enables all the events
  * @return              The mask of the served and cleared events.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
@@ -266,6 +276,7 @@ typedef void (*evhandler_t)(eventid_t id);
  *                      for, @p ALL_EVENTS enables all the events
  * @return              The mask of the served and cleared events.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
