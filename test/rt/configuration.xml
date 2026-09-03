@@ -2275,9 +2275,7 @@ test_assert_sequence("BA", "ready list not reordered");]]></value>
               trace a defined MSG_OK ready message.</value>
           </description>
           <condition>
-            <value><![CDATA[(CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&
-((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&
-(CH_CFG_USE_WAITEXIT == TRUE)]]></value>
+            <value><![CDATA[(CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) && ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) && (CH_CFG_USE_WAITEXIT == TRUE)]]></value>
           </condition>
           <various_code>
             <setup_code>

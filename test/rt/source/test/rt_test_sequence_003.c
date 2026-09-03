@@ -197,11 +197,12 @@ static const testcase_t rt_test_003_002 = {
  * <h2>Test Steps</h2>
  * - [3.3.1] The initialized measurement objects are verified.
  * - [3.3.2] A measurement is performed and its result is verified.
- * - [3.3.3] A measurement is chained to another object and both objects are
+ * - [3.3.3] A measurement is chained to another object and both
+ *   objects are verified.
+ * - [3.3.4] A measurement is chained to itself and the object is
  *   verified.
- * - [3.3.4] A measurement is chained to itself and the object is verified.
- * - [3.3.5] A measurement shorter than the calibration offset is verified
- *   to saturate at zero.
+ * - [3.3.5] A measurement shorter than the calibration offset is
+ *   verified to saturate at zero.
  * .
  */
 
@@ -247,8 +248,8 @@ static void rt_test_003_003_execute(void) {
   }
   test_end_step(2);
 
-  /* [3.3.3] A measurement is chained to another object and both objects are
-     verified.*/
+  /* [3.3.3] A measurement is chained to another object and both
+     objects are verified.*/
   test_set_step(3);
   {
     chSysLock();
@@ -275,7 +276,8 @@ static void rt_test_003_003_execute(void) {
   }
   test_end_step(3);
 
-  /* [3.3.4] A measurement is chained to itself and the object is verified.*/
+  /* [3.3.4] A measurement is chained to itself and the object is
+     verified.*/
   test_set_step(4);
   {
     chTMObjectInit(&tm3);
@@ -300,8 +302,8 @@ static void rt_test_003_003_execute(void) {
   }
   test_end_step(4);
 
-  /* [3.3.5] A measurement shorter than the calibration offset is verified
-     to saturate at zero.*/
+  /* [3.3.5] A measurement shorter than the calibration offset is
+     verified to saturate at zero.*/
   test_set_step(5);
   {
     chTMObjectInit(&tm2);
@@ -414,8 +416,7 @@ static const testcase_t rt_test_003_004 = {
 };
 #endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
-#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) ||            \
-    defined(__DOXYGEN__)
+#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) || defined(__DOXYGEN__)
 /**
  * @page rt_test_003_005 [3.5] Tickless timer interval overflow
  *
@@ -540,7 +541,8 @@ static const testcase_t rt_test_003_006 = {
  * - [3.7.1] Zero is converted in both directions.
  * - [3.7.2] Exact and non-divisible frequencies are converted with
  *   upward rounding.
- * - [3.7.3] Constant arguments are usable as integer constant expressions.
+ * - [3.7.3] Constant arguments are usable as integer constant
+ *   expressions.
  * .
  */
 
@@ -577,11 +579,14 @@ static void rt_test_003_007_execute(void) {
   }
   test_end_step(2);
 
-  /* [3.7.3] Constant arguments are usable as integer constant expressions.*/
+  /* [3.7.3] Constant arguments are usable as integer constant
+     expressions.*/
   test_set_step(3);
   {
-    test_assert(RTC_MS_CONSTEXPR == 32768, "MS2RTC constant expression");
-    test_assert(RTC_2MS_CONSTEXPR == 1000, "RTC2MS constant expression");
+    test_assert(RTC_MS_CONSTEXPR == 32768,
+                "MS2RTC constant expression");
+    test_assert(RTC_2MS_CONSTEXPR == 1000,
+                "RTC2MS constant expression");
   }
   test_end_step(3);
 }
@@ -609,8 +614,7 @@ const testcase_t * const rt_test_sequence_003_array[] = {
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
   &rt_test_003_004,
 #endif
-#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) ||            \
-    defined(__DOXYGEN__)
+#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) || defined(__DOXYGEN__)
   &rt_test_003_005,
 #endif
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
