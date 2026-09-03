@@ -32,75 +32,56 @@
 #define CORTEX_MODEL            5
 
 /**
+ * @brief   Vector Base Address Register presence.
+ */
+#define CORTEX_HAS_VBAR         0
+
+/**
  * @brief   Floating Point unit presence.
  */
-#if !defined(ARMCR5_HAS_FPU) || defined(__DOXYGEN__)
-#define ARMCR5_HAS_FPU          0
-#endif
-
-#define CORTEX_HAS_FPU          ARMCR5_HAS_FPU
+#define CORTEX_HAS_FPU          0
 
 /**
  * @brief   Generic Interrupt Controller presence.
  */
-#if !defined(ARMCR5_HAS_GIC) || defined(__DOXYGEN__)
-#define ARMCR5_HAS_GIC          0
-#endif
+#define CORTEX_HAS_GIC          0
 
 /**
  * @brief   Vectored Interrupt Controller presence.
  */
-#if !defined(ARMCR5_HAS_VIC) || defined(__DOXYGEN__)
-#define ARMCR5_HAS_VIC          0
-#endif
+#define CORTEX_HAS_VIC          0
 
 /**
  * @brief   MPU presence.
  */
-#if !defined(ARMCR5_HAS_MPU) || defined(__DOXYGEN__)
-#define ARMCR5_HAS_MPU          0
-#endif
-
-#define CORTEX_HAS_MPU          ARMCR5_HAS_MPU
+#define CORTEX_HAS_MPU          0
 
 /**
  * @brief   Number of MPU regions.
  * @note    The Cortex-R5 MPU can be configured with 12 or 16 regions,
- *          the actual number must be taken from the SoC documentation.
+ *          this generic configuration selects 16 regions.
  */
-#if !defined(ARMCR5_MPU_REGIONS) || defined(__DOXYGEN__)
-#define ARMCR5_MPU_REGIONS      16
-#endif
-
-#define CORTEX_MPU_REGIONS      ARMCR5_MPU_REGIONS
+#define CORTEX_MPU_REGIONS      16
 
 /**
  * @brief   Instruction cache presence.
  */
-#if !defined(ARMCR5_HAS_ICACHE) || defined(__DOXYGEN__)
-#define ARMCR5_HAS_ICACHE       0
-#endif
+#define CORTEX_HAS_ICACHE       0
 
 /**
  * @brief   Data cache presence.
  */
-#if !defined(ARMCR5_HAS_DCACHE) || defined(__DOXYGEN__)
-#define ARMCR5_HAS_DCACHE       0
-#endif
+#define CORTEX_HAS_DCACHE       0
 
 /**
  * @brief   DTCM presence.
  */
-#if !defined(ARMCR5_HAS_DTCM) || defined(__DOXYGEN__)
-#define ARMCR5_HAS_DTCM         0
-#endif
+#define CORTEX_HAS_DTCM         0
 
 /**
  * @brief   ECC presence.
  */
-#if !defined(ARMCR5_HAS_ECC) || defined(__DOXYGEN__)
-#define ARMCR5_HAS_ECC          0
-#endif
+#define CORTEX_HAS_ECC          0
 
 #endif /* CRPARAMS_H */
 
