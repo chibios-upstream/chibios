@@ -141,6 +141,8 @@ void chEvtObjectDispose(event_source_t *esp) {
  *          thread. The registrant is responsible for keeping the thread
  *          object valid while the listener is registered, acquiring a
  *          reference if required.
+ * @pre     The event listener must not already be registered on any event
+ *          source.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[in] elp       pointer to an @p event_listener_t structure
@@ -179,6 +181,8 @@ void chEvtRegisterMaskWithFlagsI(event_source_t *esp,
  *          thread. The registrant is responsible for keeping the thread
  *          object valid while the listener is registered, acquiring a
  *          reference if required.
+ * @pre     The event listener must not already be registered on any event
+ *          source.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[in] elp       pointer to an @p event_listener_t structure

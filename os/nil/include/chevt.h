@@ -143,6 +143,8 @@ typedef void (*evhandler_t)(eventid_t id);
  *          different threads.
  * @note    The event source, listener storage, and listening thread must
  *          remain valid until the listener is unregistered.
+ * @pre     The event listener must not already be registered on any event
+ *          source.
  *
  * @param[in] esp       pointer to an @p event_source_t structure
  * @param[out] elp      pointer to an @p event_listener_t structure
@@ -160,6 +162,8 @@ typedef void (*evhandler_t)(eventid_t id);
  *          listener will share the callback function.
  * @note    The event source, listener storage, and listening thread must
  *          remain valid until the listener is unregistered.
+ * @pre     The event listener must not already be registered on any event
+ *          source.
  *
  * @param[in] esp       pointer to an @p event_source_t structure
  * @param[out] elp      pointer to an @p event_listener_t structure

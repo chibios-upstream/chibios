@@ -60,6 +60,8 @@
  *          different threads.
  * @note    The event source, listener storage, and listening thread must
  *          remain valid until the listener is unregistered.
+ * @pre     The event listener must not already be registered on any event
+ *          source.
  *
  * @param[in] esp       pointer to an @p event_source_t structure
  * @param[in] elp       pointer to an @p event_listener_t structure
