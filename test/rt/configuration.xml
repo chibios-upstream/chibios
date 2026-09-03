@@ -728,6 +728,11 @@ chSysEnable();]]></value>
       <shared_code>
         <value><![CDATA[#include "ch.h"
 
+enum {
+  RTC_MS_CONSTEXPR = MS2RTC(32768U, 1000U),
+  RTC_2MS_CONSTEXPR = RTC2MS(32768U, 32768U)
+};
+
 #if CH_CFG_USE_TM || defined(__DOXYGEN__)
 static time_measurement_t tm1, tm2;
 #endif
@@ -1163,6 +1168,85 @@ test_assert(listdelta == TIME_INFINITE,
                 <value><![CDATA[delta = chVTGetCurrentDelta();
 test_assert(delta >= (sysinterval_t)CH_CFG_ST_TIMEDELTA,
             "invalid current delta");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Realtime counter conversions.</value>
+          </brief>
+          <description>
+            <value>Realtime counter conversion boundaries and rounding are
+              tested.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value />
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Zero is converted in both directions.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(S2RTC(1U, 0U) == (rtcnt_t)0, "S2RTC zero");
+test_assert(MS2RTC(1000U, 0U) == (rtcnt_t)0, "MS2RTC zero");
+test_assert(US2RTC(1000000U, 0U) == (rtcnt_t)0, "US2RTC zero");
+test_assert(RTC2S(1U, 0U) == (rtcnt_t)0, "RTC2S zero");
+test_assert(RTC2MS(1000U, 0U) == (rtcnt_t)0, "RTC2MS zero");
+test_assert(RTC2US(1000000U, 0U) == (rtcnt_t)0, "RTC2US zero");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Exact and non-divisible frequencies are converted
+                  with upward rounding.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(MS2RTC(32768U, 1000U) == (rtcnt_t)32768,
+            "MS2RTC non-divisible");
+test_assert(RTC2MS(32768U, 32768U) == (rtcnt_t)1000,
+            "RTC2MS non-divisible");
+test_assert(MS2RTC(32768U, 1U) == (rtcnt_t)33,
+            "MS2RTC rounding");
+test_assert(RTC2MS(32768U, 1U) == (rtcnt_t)1,
+            "RTC2MS rounding");
+test_assert(US2RTC(1000001U, 1000000U) == (rtcnt_t)1000001,
+            "US2RTC non-divisible");
+test_assert(RTC2US(1000001U, 1000001U) == (rtcnt_t)1000000,
+            "RTC2US non-divisible");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Constant arguments are usable as integer constant
+                  expressions.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(RTC_MS_CONSTEXPR == 32768,
+            "MS2RTC constant expression");
+test_assert(RTC_2MS_CONSTEXPR == 1000,
+            "RTC2MS constant expression");]]></value>
               </code>
             </step>
           </steps>
