@@ -41,50 +41,47 @@
 /**
  * @brief   Floating Point unit presence.
  */
-#define ARMCR8_HAS_FPU          1
-#define CORTEX_HAS_FPU          ARMCR8_HAS_FPU
+#define CORTEX_HAS_FPU          1
 
 /**
  * @brief   Generic Interrupt Controller presence.
  */
-#define ARMCR8_HAS_GIC          1
+#define CORTEX_HAS_GIC          1
 
 /**
  * @brief   Vectored Interrupt Controller presence.
  */
-#define ARMCR8_HAS_VIC          0
+#define CORTEX_HAS_VIC          0
 
 /**
  * @brief   MPU presence.
  */
-#define ARMCR8_HAS_MPU          1
-#define CORTEX_HAS_MPU          ARMCR8_HAS_MPU
+#define CORTEX_HAS_MPU          1
 
 /**
  * @brief   Number of MPU regions.
  */
-#define ARMCR8_MPU_REGIONS      16
-#define CORTEX_MPU_REGIONS      ARMCR8_MPU_REGIONS
+#define CORTEX_MPU_REGIONS      16
 
 /**
  * @brief   Instruction cache presence.
  */
-#define ARMCR8_HAS_ICACHE       1
+#define CORTEX_HAS_ICACHE       1
 
 /**
  * @brief   Data cache presence.
  */
-#define ARMCR8_HAS_DCACHE       1
+#define CORTEX_HAS_DCACHE       1
 
 /**
  * @brief   DTCM presence.
  */
-#define ARMCR8_HAS_DTCM         1
+#define CORTEX_HAS_DTCM         1
 
 /**
  * @brief   ECC presence.
  */
-#define ARMCR8_HAS_ECC          1
+#define CORTEX_HAS_ECC          1
 
 #endif /* CRPARAMS_H */
 

@@ -28,14 +28,14 @@
 #include "crparams.h"
 
 #define __CR5_REV              0x0000U
-#define __FPU_PRESENT          ARMCR5_HAS_FPU
-#define __VIC_PRESENT          ARMCR5_HAS_VIC
-#define __GIC_PRESENT          ARMCR5_HAS_GIC
-#define __MPU_PRESENT          ARMCR5_HAS_MPU
-#define __ICACHE_PRESENT       ARMCR5_HAS_ICACHE
-#define __DCACHE_PRESENT       ARMCR5_HAS_DCACHE
-#define __DTCM_PRESENT         ARMCR5_HAS_DTCM
-#define __ECC_PRESENT          ARMCR5_HAS_ECC
+#define __FPU_PRESENT          CORTEX_HAS_FPU
+#define __VIC_PRESENT          CORTEX_HAS_VIC
+#define __GIC_PRESENT          CORTEX_HAS_GIC
+#define __MPU_PRESENT          CORTEX_HAS_MPU
+#define __ICACHE_PRESENT       CORTEX_HAS_ICACHE
+#define __DCACHE_PRESENT       CORTEX_HAS_DCACHE
+#define __DTCM_PRESENT         CORTEX_HAS_DTCM
+#define __ECC_PRESENT          CORTEX_HAS_ECC
 
 /**
  * @brief   Placeholder interrupt number type.
