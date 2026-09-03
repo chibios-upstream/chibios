@@ -490,12 +490,15 @@ void chEvtDispatch(const evhandler_t *handlers, eventmask_t events) {
  * @param[in] events    events that the function should wait
  *                      for, @p ALL_EVENTS enables all the events
  * @return              The mask of the lowest event id served and cleared.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitOne(eventmask_t events) {
   thread_t *currtp = chThdGetSelfX();
   eventmask_t m;
+
+  chDbgCheck(events != (eventmask_t)0);
 
   chSysLock();
   m = currtp->epending & events;
@@ -520,12 +523,15 @@ eventmask_t chEvtWaitOne(eventmask_t events) {
  * @param[in] events    events that the function should wait
  *                      for, @p ALL_EVENTS enables all the events
  * @return              The mask of the served and cleared events.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitAny(eventmask_t events) {
   thread_t *currtp = chThdGetSelfX();
   eventmask_t m;
+
+  chDbgCheck(events != (eventmask_t)0);
 
   chSysLock();
   m = currtp->epending & events;
@@ -548,11 +554,14 @@ eventmask_t chEvtWaitAny(eventmask_t events) {
  * @param[in] events    events that the function should wait
  *                      for, @p ALL_EVENTS requires all the events
  * @return              The mask of the served and cleared events.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitAll(eventmask_t events) {
   thread_t *currtp = chThdGetSelfX();
+
+  chDbgCheck(events != (eventmask_t)0);
 
   chSysLock();
   if ((currtp->epending & events) != events) {
@@ -585,12 +594,15 @@ eventmask_t chEvtWaitAll(eventmask_t events) {
  *                      - @a TIME_INFINITE no timeout.
  * @return              The mask of the lowest event id served and cleared.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitOneTimeout(eventmask_t events, sysinterval_t timeout) {
   thread_t *currtp = chThdGetSelfX();
   eventmask_t m;
+
+  chDbgCheck(events != (eventmask_t)0);
 
   chSysLock();
   m = currtp->epending & events;
@@ -627,12 +639,15 @@ eventmask_t chEvtWaitOneTimeout(eventmask_t events, sysinterval_t timeout) {
  *                      - @a TIME_INFINITE no timeout.
  * @return              The mask of the served and cleared events.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitAnyTimeout(eventmask_t events, sysinterval_t timeout) {
   thread_t *currtp = chThdGetSelfX();
   eventmask_t m;
+
+  chDbgCheck(events != (eventmask_t)0);
 
   chSysLock();
   m = currtp->epending & events;
@@ -667,11 +682,14 @@ eventmask_t chEvtWaitAnyTimeout(eventmask_t events, sysinterval_t timeout) {
  *                      - @a TIME_INFINITE no timeout.
  * @return              The mask of the served and cleared events.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitAllTimeout(eventmask_t events, sysinterval_t timeout) {
   thread_t *currtp = chThdGetSelfX();
+
+  chDbgCheck(events != (eventmask_t)0);
 
   chSysLock();
   if ((currtp->epending & events) != events) {

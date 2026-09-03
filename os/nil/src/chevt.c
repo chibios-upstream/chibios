@@ -364,12 +364,15 @@ void chEvtDispatch(const evhandler_t *handlers, eventmask_t events) {
  *                      - @a TIME_INFINITE no timeout.
  * @return              The mask of the lowest event id served and cleared.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitOneTimeout(eventmask_t events, sysinterval_t timeout) {
   thread_t *ctp = nil.current;
   eventmask_t m;
+
+  chDbgCheck(events != (eventmask_t)0);
 
   chSysLock();
   m = ctp->epmask & events;
@@ -408,12 +411,15 @@ eventmask_t chEvtWaitOneTimeout(eventmask_t events, sysinterval_t timeout) {
  *                      - @a TIME_INFINITE no timeout.
  * @return              The mask of the served and cleared events.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p mask must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitAnyTimeout(eventmask_t mask, sysinterval_t timeout) {
   thread_t *ctp = nil.current;
   eventmask_t m;
+
+  chDbgCheck(mask != (eventmask_t)0);
 
   chSysLock();
   if ((m = (ctp->epmask & mask)) == (eventmask_t)0) {
@@ -449,11 +455,14 @@ eventmask_t chEvtWaitAnyTimeout(eventmask_t mask, sysinterval_t timeout) {
  *                      - @a TIME_INFINITE no timeout.
  * @return              The mask of the served and cleared events.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p mask must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitAllTimeout(eventmask_t mask, sysinterval_t timeout) {
   thread_t *ctp = nil.current;
+
+  chDbgCheck(mask != (eventmask_t)0);
 
   chSysLock();
   if ((ctp->epmask & mask) != mask) {

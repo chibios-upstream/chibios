@@ -245,6 +245,7 @@ typedef void (*evhandler_t)(eventid_t id);
  *                      for, @p ALL_EVENTS enables all the events
  * @return              The mask of the lowest event id served and cleared.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
@@ -260,6 +261,7 @@ typedef void (*evhandler_t)(eventid_t id);
  *                      for, @p ALL_EVENTS enables all the events
  * @return              The mask of the served and cleared events.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
@@ -274,6 +276,7 @@ typedef void (*evhandler_t)(eventid_t id);
  *                      for, @p ALL_EVENTS enables all the events
  * @return              The mask of the served and cleared events.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
