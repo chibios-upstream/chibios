@@ -118,15 +118,14 @@
  * k3-am67a-t3-gem-o1-pwm-epwm0-gpio5.dtbo). The DT owns pinmux + the module
  * clock/power; the firmware only drives EPWM registers.
  *
- * AM67_EPWM0_CLK_HZ is the EPWM counter input clock (SYSCLKOUT), i.e. the
- * clock BEFORE the TBCTL HSPCLKDIV/CLKDIV prescale. It is the module "fck":
- * confirmed 250 MHz on this board via /sys/kernel/debug/clk/clk_summary and
- * the Linux pwm-tiehrpwm driver (it derives period/duty from clk_get_rate of
- * "fck"). The separate epwm_tbclk gate must be enabled for the counter to
- * run but is NOT a divider. Final confirmation pending scope measurement.
+ * The EPWM counter input clock (SYSCLKOUT) is the clock BEFORE the TBCTL
+ * HSPCLKDIV/CLKDIV prescale, i.e. the module "fck": confirmed 250 MHz on this
+ * board via /sys/kernel/debug/clk/clk_summary and the Linux pwm-tiehrpwm
+ * driver (it derives period/duty from clk_get_rate of "fck"). The separate
+ * epwm_tbclk gate must be enabled for the counter to run but is NOT a
+ * divider. The value itself lives in am67_registry.h as AM67_EPWM_CLOCK.
  */
 #define AM67_EPWM0_BASE         0x23000000U
-#define AM67_EPWM0_CLK_HZ       250000000U   /* Module fck, pre-prescale.     */
 
 /*
  * EPWM1 (eHRPWM) second instance: EHRPWM1_A -> GPIO6 (pin 31), EHRPWM1_B ->
@@ -161,6 +160,10 @@
  * the clock muxes: the same peripheral on another carrier can be parented
  * differently. A wrong value shows up as a rate off by a clean integer
  * ratio, not as a boot failure.
+ *
+ * The eHRPWM and eCAP counter clocks are NOT repeated here: they are owned
+ * by am67_registry.h (AM67_EPWM_CLOCK / AM67_ECAP_CLOCK), which is the single
+ * source of truth for them and what the XHAL PWM driver actually reads.
  */
 #define AM67_ST_TIMER_CLOCK     AM67_TIMER0_CLK_HZ
 #define AM67_MAIN_UART1_CLOCK   48000000U
