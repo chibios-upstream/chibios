@@ -32,6 +32,11 @@
 #define CORTEX_MODEL            8
 
 /**
+ * @brief   Vector Base Address Register presence.
+ */
+#define CORTEX_HAS_VBAR         0
+
+/**
  * @brief   Floating Point unit presence.
  */
 #if !defined(ARMCR8_HAS_FPU) || defined(__DOXYGEN__)
