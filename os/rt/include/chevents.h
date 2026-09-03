@@ -173,6 +173,12 @@ extern "C" {
  *          will be notified of all events broadcasted there.
  * @note    Multiple Event Listeners can specify the same bits to be ORed to
  *          different threads.
+ * @note    The event source and listener are borrowed by the registration
+ *          and must remain valid until the listener is unregistered.
+ * @note    This function does not acquire a reference to the listening
+ *          thread. The registrant is responsible for keeping the thread
+ *          object valid while the listener is registered, acquiring a
+ *          reference if required.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[out] elp      pointer to an @p event_listener_t structure
@@ -192,6 +198,12 @@ static inline void chEvtRegisterMask(event_source_t *esp,
  * @brief   Registers an Event Listener on an Event Source.
  * @note    Multiple Event Listeners can use the same event identifier, the
  *          listener will share the callback function.
+ * @note    The event source and listener are borrowed by the registration
+ *          and must remain valid until the listener is unregistered.
+ * @note    This function does not acquire a reference to the listening
+ *          thread. The registrant is responsible for keeping the thread
+ *          object valid while the listener is registered, acquiring a
+ *          reference if required.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[out] elp      pointer to an @p event_listener_t structure
@@ -268,14 +280,18 @@ static inline eventmask_t chEvtAddEventsI(eventmask_t events) {
 /**
  * @brief   Returns the events mask.
  * @details The pending events mask is returned but not altered in any way.
+ * @note    The events mask is read through a volatile-qualified access
+ *          because it can be modified by another core.
  *
  * @return              The pending events mask.
  *
- * @api
+ * @xclass
  */
 static inline eventmask_t chEvtGetEventsX(void) {
+  const volatile eventmask_t *eventsp =
+    &__sch_get_currthread()->epending;
 
-  return __sch_get_currthread()->epending;
+  return *eventsp;
 }
 
 #endif /* CH_CFG_USE_EVENTS == TRUE */

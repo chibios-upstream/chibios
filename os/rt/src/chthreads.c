@@ -785,6 +785,10 @@ void chThdRelease(thread_t *tp) {
  *          any mutex.
  * @pre     If messages are enabled then the invoking thread must not have
  *          pending messages.
+ * @pre     If events are enabled then listeners registered by the invoking
+ *          thread must be unregistered before exit, unless their event
+ *          sources, listener storage, and the thread object are kept valid
+ *          until another thread unregisters them.
  *
  * @param[in] msg       thread exit code
  *
@@ -813,6 +817,10 @@ void chThdExit(msg_t msg) {
  *          any mutex.
  * @pre     If messages are enabled then the invoking thread must not have
  *          pending messages.
+ * @pre     If events are enabled then listeners registered by the invoking
+ *          thread must be unregistered before exit, unless their event
+ *          sources, listener storage, and the thread object are kept valid
+ *          until another thread unregisters them.
  *
  * @param[in] msg       thread exit code
  *

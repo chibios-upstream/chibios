@@ -141,6 +141,8 @@ typedef void (*evhandler_t)(eventid_t id);
  *          will be notified of all events broadcasted there.
  * @note    Multiple Event Listeners can specify the same bits to be ORed to
  *          different threads.
+ * @note    The event source, listener storage, and listening thread must
+ *          remain valid until the listener is unregistered.
  *
  * @param[in] esp       pointer to an @p event_source_t structure
  * @param[out] elp      pointer to an @p event_listener_t structure
@@ -156,6 +158,8 @@ typedef void (*evhandler_t)(eventid_t id);
  * @brief   Registers an Event Listener on an Event Source.
  * @note    Multiple Event Listeners can use the same event identifier, the
  *          listener will share the callback function.
+ * @note    The event source, listener storage, and listening thread must
+ *          remain valid until the listener is unregistered.
  *
  * @param[in] esp       pointer to an @p event_source_t structure
  * @param[out] elp      pointer to an @p event_listener_t structure

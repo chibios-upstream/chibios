@@ -135,6 +135,12 @@ void chEvtObjectDispose(event_source_t *esp) {
  *          will be notified of all events broadcasted there.
  * @note    Multiple Event Listeners can specify the same bits to be ORed to
  *          different threads.
+ * @note    The event source and listener are borrowed by the registration
+ *          and must remain valid until the listener is unregistered.
+ * @note    This function does not acquire a reference to the listening
+ *          thread. The registrant is responsible for keeping the thread
+ *          object valid while the listener is registered, acquiring a
+ *          reference if required.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[in] elp       pointer to an @p event_listener_t structure
@@ -167,6 +173,12 @@ void chEvtRegisterMaskWithFlagsI(event_source_t *esp,
  *          will be notified of all events broadcasted there.
  * @note    Multiple Event Listeners can specify the same bits to be ORed to
  *          different threads.
+ * @note    The event source and listener are borrowed by the registration
+ *          and must remain valid until the listener is unregistered.
+ * @note    This function does not acquire a reference to the listening
+ *          thread. The registrant is responsible for keeping the thread
+ *          object valid while the listener is registered, acquiring a
+ *          reference if required.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[in] elp       pointer to an @p event_listener_t structure
@@ -193,6 +205,10 @@ void chEvtRegisterMaskWithFlags(event_source_t *esp,
  * @note    For optimal performance it is better to perform the unregister
  *          operations in inverse order of the register operations (elements
  *          are found on top of the list).
+ * @note    This function does not release thread references. A reference
+ *          acquired by the registrant for this registration remains owned by
+ *          the registrant and must be retained until the listener has been
+ *          unregistered.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[in] elp       pointer to an @p event_listener_t structure
@@ -200,22 +216,22 @@ void chEvtRegisterMaskWithFlags(event_source_t *esp,
  * @api
  */
 void chEvtUnregister(event_source_t *esp, event_listener_t *elp) {
-  event_listener_t *p;
+  event_listener_t *sentinelp;
+  event_listener_t **linkp;
 
   chDbgCheck((esp != NULL) && (elp != NULL));
 
   /*lint -save -e9087 -e740 [11.3, 1.3] Cast required by list handling.*/
-  p = (event_listener_t *)esp;
+  sentinelp = (event_listener_t *)esp;
   /*lint -restore*/
+  linkp = &esp->next;
   chSysLock();
-  /*lint -save -e9087 -e740 [11.3, 1.3] Cast required by list handling.*/
-  while (p->next != (event_listener_t *)esp) {
-  /*lint -restore*/
-    if (p->next == elp) {
-      p->next = elp->next;
+  while (*linkp != sentinelp) {
+    if (*linkp == elp) {
+      *linkp = elp->next;
       break;
     }
-    p = p->next;
+    linkp = &(*linkp)->next;
   }
   chSysUnlock();
 }

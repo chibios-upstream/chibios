@@ -1536,7 +1536,9 @@ static inline eventmask_t chEvtAddEventsI(eventmask_t events) {
   return __sch_get_currthread()->epending |= events;
 }
 static inline eventmask_t chEvtGetEventsX(void) {
-  return __sch_get_currthread()->epending;
+  const volatile eventmask_t *eventsp =
+    &__sch_get_currthread()->epending;
+  return *eventsp;
 }
 #define CHMSG_H 
 #define __ch_msg_insert(qp,tp) ch_queue_insert(qp, &tp->hdr.queue)
