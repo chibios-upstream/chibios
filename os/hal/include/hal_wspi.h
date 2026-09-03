@@ -75,7 +75,7 @@ typedef enum {
   WSPI_RECEIVE = 4,                 /**< Receiving data.                    */
   WSPI_COMPLETE = 5,                /**< Asynchronous operation complete.   */
   WSPI_MEMMAP = 6,                  /**< In memory mapped mode.             */
-  WSPI_MATCH = 7                    /**< Automatic status match active.     */
+  WSPI_POLL = 7                     /**< Status polling active.              */
 } wspistate_t;
 
 /**
@@ -123,26 +123,31 @@ typedef struct {
 } wspi_command_t;
 
 /**
- * @brief   WSPI automatic status-match descriptor.
+ * @brief   WSPI status-poll descriptor.
  */
 typedef struct {
   /**
-   * @brief   Number of status bytes to read, from one through four.
+   * @brief   Number of status bytes to read.
    */
   size_t                length;
   /**
-   * @brief   Status bits included in the comparison.
+   * @brief   Buffer receiving the status value.
    */
-  uint32_t              mask;
+  uint8_t               *statusp;
   /**
-   * @brief   Required value of the unmasked status bits.
+   * @brief   Status bytes included in the comparison.
    */
-  uint32_t              match;
+  const uint8_t         *maskp;
   /**
-   * @brief   Peripheral-clock interval between status reads.
+   * @brief   Expected value after masking the status bytes.
+   * @note    Bits outside the corresponding mask byte must be zero.
    */
-  uint32_t              interval;
-} wspi_status_match_t;
+  const uint8_t         *matchp;
+  /**
+   * @brief   Minimum interval between status reads, in microseconds.
+   */
+  uint32_t              interval_us;
+} wspi_status_poll_t;
 
 /* Including the low level driver header, it exports information required
    for completing types.*/
@@ -152,8 +157,8 @@ typedef struct {
 #error "low level does not define WSPI_SUPPORTS_MEMMAP"
 #endif
 
-#if !defined(WSPI_SUPPORTS_STATUS_MATCH)
-#define WSPI_SUPPORTS_STATUS_MATCH          FALSE
+#if !defined(WSPI_LLD_SUPPORTS_STATUS_POLL)
+#define WSPI_LLD_SUPPORTS_STATUS_POLL       FALSE
 #endif
 
 #if !defined(WSPI_DEFAULT_CFG_MASKS)
@@ -193,6 +198,18 @@ struct hal_wspi_driver {
    * @brief   Waiting thread.
    */
   thread_reference_t        thread;
+  /**
+   * @brief   Status-poll operation active flag.
+   */
+  bool                      status_poll_active;
+  /**
+   * @brief   Status-poll cancellation flag.
+   */
+  bool                      status_poll_cancelled;
+  /**
+   * @brief   Low-level status-poll accelerator active flag.
+   */
+  bool                      status_poll_lld_active;
 #endif /* WSPI_USE_WAIT */
 #if (WSPI_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
   /**
@@ -346,27 +363,6 @@ struct hal_wspi_driver {
   wspi_lld_receive(wspip, cmdp, n, rxbuf);                                  \
 }
 
-#if (WSPI_SUPPORTS_STATUS_MATCH == TRUE) || defined(__DOXYGEN__)
-/**
- * @brief   Starts automatic status matching.
- * @details The low-level driver repeatedly executes @p cmdp until the masked
- *          status bytes match or the operation is explicitly aborted.
- *
- * @param[in] wspip     pointer to the @p WSPIDriver object
- * @param[in] cmdp      pointer to the status-read command descriptor
- * @param[in] matchp    pointer to the status-match descriptor
- *
- * @iclass
- */
-#define wspiStartStatusMatchI(wspip, cmdp, matchp) {                        \
-  osalDbgAssert(((cmdp)->cfg & WSPI_CFG_DATA_MODE_MASK) !=                  \
-                WSPI_CFG_DATA_MODE_NONE,                                    \
-                "data mode required");                                     \
-  (wspip)->state = WSPI_MATCH;                                              \
-  wspi_lld_start_status_match(wspip, cmdp, matchp);                         \
-}
-#endif
-
 #if (WSPI_SUPPORTS_MEMMAP == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Maps in memory space a WSPI flash device.
@@ -415,8 +411,11 @@ struct hal_wspi_driver {
   osalThreadResumeI(&(wspip)->thread, msg);                                 \
   osalSysUnlockFromISR();                                                   \
 }
+#define _wspi_ready_state(wspip)                                            \
+  ((wspip)->status_poll_active ? WSPI_POLL : WSPI_READY)
 #else /* !WSPI_USE_WAIT */
 #define _wspi_wakeup_isr(wspip, msg)
+#define _wspi_ready_state(wspip)          WSPI_READY
 #endif /* !WSPI_USE_WAIT */
 
 /**
@@ -438,10 +437,10 @@ struct hal_wspi_driver {
     (wspip)->state = WSPI_COMPLETE;                                         \
     (wspip)->config->end_cb(wspip);                                         \
     if ((wspip)->state == WSPI_COMPLETE)                                    \
-      (wspip)->state = WSPI_READY;                                          \
+      (wspip)->state = _wspi_ready_state(wspip);                            \
   }                                                                         \
   else                                                                      \
-    (wspip)->state = WSPI_READY;                                            \
+    (wspip)->state = _wspi_ready_state(wspip);                              \
   _wspi_wakeup_isr(wspip, MSG_OK);                                          \
 }
 
@@ -464,10 +463,10 @@ struct hal_wspi_driver {
     (wspip)->state = WSPI_COMPLETE;                                         \
     (wspip)->config->error_cb(wspip);                                       \
     if ((wspip)->state == WSPI_COMPLETE)                                    \
-      (wspip)->state = WSPI_READY;                                          \
+      (wspip)->state = _wspi_ready_state(wspip);                            \
   }                                                                         \
   else                                                                      \
-    (wspip)->state = WSPI_READY;                                            \
+    (wspip)->state = _wspi_ready_state(wspip);                              \
   _wspi_wakeup_isr(wspip, MSG_RESET);                                       \
 }
 /** @} */
@@ -488,17 +487,12 @@ extern "C" {
                      size_t n, const uint8_t *txbuf);
   void wspiStartReceive(WSPIDriver *wspip, const wspi_command_t *cmdp,
                         size_t n, uint8_t *rxbuf);
-#if WSPI_SUPPORTS_STATUS_MATCH == TRUE
-  void wspiStartStatusMatch(WSPIDriver *wspip,
-                            const wspi_command_t *cmdp,
-                            const wspi_status_match_t *matchp);
 #if WSPI_USE_WAIT == TRUE
-  msg_t wspiStatusMatchTimeout(WSPIDriver *wspip,
-                               const wspi_command_t *cmdp,
-                               const wspi_status_match_t *matchp,
-                               sysinterval_t timeout);
-  bool wspiAbortStatusMatchI(WSPIDriver *wspip);
-#endif
+  msg_t wspiPollStatusTimeout(WSPIDriver *wspip,
+                              const wspi_command_t *cmdp,
+                              const wspi_status_poll_t *pollp,
+                              sysinterval_t timeout);
+  bool wspiAbortStatusPollI(WSPIDriver *wspip);
 #endif
 #if WSPI_USE_WAIT == TRUE
   bool wspiCommand(WSPIDriver *wspip, const wspi_command_t *cmdp);

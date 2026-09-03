@@ -323,22 +323,43 @@ static const uint8_t mx25_memory_type_ids[] = {0x85};
 
 static flash_error_t mx25_poll_status(hal_xsnor_macronix_mx25_c *self) {
 
-  do {
-    if ((xsnorcfg->options & MX25_OPT_NICE_WAITING) != 0U) {
-      chThdSleepMilliseconds(1);
-    }
+#if XSNOR_USE_WSPI == TRUE
+  if (xsnorcfg->bus_type != XSNOR_BUS_MODE_SPI) {
+    const uint8_t mask[2] = {1U, 0U};
+    const uint8_t match[2] = {0U, 0U};
+    wspi_command_t cmd;
+    wspi_status_poll_t poll;
 
-    /* Read status command.*/
-    if (xsnorcfg->bus_type == XSNOR_BUS_MODE_SPI) {
+    cmd.cmd          = CMD_OPI_RDSR;
+    cmd.cfg          = self->commands->cmd_addr_data;
+    cmd.addr         = 0U;
+    cmd.alt          = 0U;
+    cmd.dummy        = 4U;
+    poll.length      = 2U;
+    poll.statusp     = &xsnorcfg->buffers->databuf[0];
+    poll.maskp       = mask;
+    poll.matchp      = match;
+    poll.interval_us = (xsnorcfg->options & MX25_OPT_NICE_WAITING) != 0U ?
+                       1000U : 0U;
+
+    if (wspiPollStatusTimeout(xsnorcfg->bus.wspi.drv, &cmd, &poll,
+                              TIME_INFINITE) != MSG_OK) {
+      return FLASH_ERROR_HW_FAILURE;
+    }
+  }
+  else
+#endif
+  {
+    do {
+      if ((xsnorcfg->options & MX25_OPT_NICE_WAITING) != 0U) {
+        chThdSleepMilliseconds(1);
+      }
+
+      /* Read status command.*/
       __xsnor_bus_cmd_receive(self, CMD_SPI_RDSR,
-                            1U, &xsnorcfg->buffers->databuf[0]);
-    }
-    else {
-      __xsnor_bus_cmd_addr_dummy_receive(self, CMD_OPI_RDSR,
-                                         0U, 4U, 2U,
-                                         &xsnorcfg->buffers->databuf[0]);
-    }
-  } while ((xsnorcfg->buffers->databuf[0] & 1U) != 0U);
+                              1U, &xsnorcfg->buffers->databuf[0]);
+    } while ((xsnorcfg->buffers->databuf[0] & 1U) != 0U);
+  }
 
   /* Reading security register and checking for errors.*/
   if (xsnorcfg->bus_type == XSNOR_BUS_MODE_SPI) {
