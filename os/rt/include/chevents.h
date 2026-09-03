@@ -230,6 +230,9 @@ static inline void chEvtRegister(event_source_t *esp,
  */
 static inline bool chEvtIsListeningI(event_source_t *esp) {
 
+  chDbgCheckClassI();
+  chDbgCheck(esp != NULL);
+
   return (bool)(esp != (event_source_t *)esp->next);
 }
 
@@ -273,6 +276,8 @@ static inline void chEvtBroadcastI(event_source_t *esp) {
  * @iclass
  */
 static inline eventmask_t chEvtAddEventsI(eventmask_t events) {
+
+  chDbgCheckClassI();
 
   return __sch_get_currthread()->epending |= events;
 }

@@ -1524,6 +1524,8 @@ static inline void chEvtRegister(event_source_t *esp,
   chEvtRegisterMask(esp, elp, EVENT_MASK(event));
 }
 static inline bool chEvtIsListeningI(event_source_t *esp) {
+  chDbgCheckClassI();
+  chDbgCheck(esp != NULL);
   return (bool)(esp != (event_source_t *)esp->next);
 }
 static inline void chEvtBroadcast(event_source_t *esp) {
@@ -1533,6 +1535,7 @@ static inline void chEvtBroadcastI(event_source_t *esp) {
   chEvtBroadcastFlagsI(esp, (eventflags_t)0);
 }
 static inline eventmask_t chEvtAddEventsI(eventmask_t events) {
+  chDbgCheckClassI();
   return __sch_get_currthread()->epending |= events;
 }
 static inline eventmask_t chEvtGetEventsX(void) {
