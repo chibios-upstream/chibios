@@ -85,6 +85,7 @@
  * @name    ARMv7-R variants
  * @{
  */
+#define ARM_CORE_CORTEX_R5              5
 #define ARM_CORE_CORTEX_R8              8
 /** @} */
 
@@ -102,6 +103,11 @@
   #define PORT_ARCHITECTURE_ARM_CORTEXR8
   #define PORT_ARCHITECTURE_NAME        "ARMv7-R"
   #define PORT_CORE_VARIANT_NAME        "ARM Cortex-R8"
+
+#elif CORTEX_MODEL == ARM_CORE_CORTEX_R5
+  #define PORT_ARCHITECTURE_ARM_CORTEXR5
+  #define PORT_ARCHITECTURE_NAME        "ARMv7-R"
+  #define PORT_CORE_VARIANT_NAME        "ARM Cortex-R5"
 
 #else
   #error "unknown or unsupported ARMv7-R core"
