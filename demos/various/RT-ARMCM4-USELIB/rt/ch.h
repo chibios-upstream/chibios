@@ -1521,6 +1521,8 @@ static inline void chEvtRegisterMask(event_source_t *esp,
 static inline void chEvtRegister(event_source_t *esp,
                                  event_listener_t *elp,
                                  eventid_t event) {
+  chDbgCheck((event >= (eventid_t)0) &&
+             (event < (eventid_t)(sizeof (eventmask_t) * 8U)));
   chEvtRegisterMask(esp, elp, EVENT_MASK(event));
 }
 static inline bool chEvtIsListeningI(event_source_t *esp) {

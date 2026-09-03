@@ -103,7 +103,7 @@ typedef void (*evhandler_t)(eventid_t id);
 /**
  * @brief   Static event source initializer.
  * @details Statically initialized event sources require no explicit
- *          initialization using @p chEvtInit().
+ *          initialization using @p chEvtObjectInit().
  *
  * @param name          the name of the event source variable
  */
