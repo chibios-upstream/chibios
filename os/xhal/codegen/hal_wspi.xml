@@ -100,6 +100,10 @@ do {
         <brief>Type of a WSPI command descriptor.</brief>
         <basetype ctype="struct wspi_command" />
       </typedef>
+      <typedef name="wspi_status_poll_t">
+        <brief>Type of a WSPI status-poll descriptor.</brief>
+        <basetype ctype="struct wspi_status_poll" />
+      </typedef>
       <verbatim><![CDATA[
 /**
  * @brief       WSPI driver specific states.
@@ -138,6 +142,27 @@ typedef enum {
           </field>
           <field name="dummy" ctype="uint32_t">
             <brief>Number of dummy cycles to be inserted.</brief>
+          </field>
+        </fields>
+      </struct>
+      <struct name="wspi_status_poll">
+        <brief>WSPI status-poll descriptor.</brief>
+        <fields>
+          <field name="length" ctype="size_t">
+            <brief>Number of status bytes to read.</brief>
+          </field>
+          <field name="statusp" ctype="uint8_t *">
+            <brief>Buffer receiving the last status value.</brief>
+          </field>
+          <field name="maskp" ctype="const uint8_t *">
+            <brief>Status bytes included in the comparison.</brief>
+          </field>
+          <field name="matchp" ctype="const uint8_t *">
+            <brief>Expected value after masking the status bytes.</brief>
+            <details>Bits outside the corresponding mask byte must be zero.</details>
+          </field>
+          <field name="interval" ctype="sysinterval_t">
+            <brief>Minimum interval between status reads.</brief>
           </field>
         </fields>
       </struct>
@@ -377,6 +402,89 @@ chSysUnlock();
 
 return (bool)(msg != MSG_OK);]]></implementation>
               </method>
+              <method name="wspiPollStatusTimeout" ctype="msg_t">
+                <brief>Polls a status value until its masked bytes match.</brief>
+                <details><![CDATA[The status is read at least once. After a
+                  non-matching read, the operation is repeated until the
+                  requested timeout expires. Each status read is an ordinary
+                  WSPI receive operation and its completion is not timed.]]></details>
+                <note>@p TIME_IMMEDIATE is not a valid timeout.</note>
+                <param name="cmdp" ctype="const wspi_command_t *" dir="in">
+                  Pointer to the WSPI command descriptor.
+                </param>
+                <param name="pollp" ctype="const wspi_status_poll_t *" dir="in">
+                  Pointer to the status-poll descriptor.
+                </param>
+                <param name="timeout" ctype="sysinterval_t" dir="in">
+                  Maximum interval to wait for a matching status.
+                </param>
+                <return>The operation status.</return>
+                <retval value="MSG_OK">If the status matched.</retval>
+                <retval value="MSG_RESET">If a hardware error occurred.</retval>
+                <retval value="MSG_TIMEOUT">If the polling interval expired.</retval>
+                <api />
+                <implementation><![CDATA[
+systime_t start;
+systime_t end;
+msg_t msg;
+size_t i;
+
+chDbgCheck((self != NULL) && (cmdp != NULL) && (pollp != NULL));
+chDbgCheck((pollp->length > 0U) && (pollp->statusp != NULL) &&
+           (pollp->maskp != NULL) && (pollp->matchp != NULL));
+chDbgCheck(pollp->interval != TIME_INFINITE);
+chDbgCheck(timeout != TIME_IMMEDIATE);
+chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+
+for (i = 0U; i < pollp->length; ++i) {
+  chDbgCheck((pollp->matchp[i] & (uint8_t)~pollp->maskp[i]) == 0U);
+}
+
+start = chVTGetSystemTimeX();
+end = start;
+if (timeout != TIME_INFINITE) {
+  end = chTimeAddX(start, timeout);
+}
+
+while (true) {
+  if (wspiReceive(self, cmdp, pollp->length, pollp->statusp)) {
+    msg = MSG_RESET;
+    break;
+  }
+
+  if (wspi_status_match(pollp)) {
+    msg = MSG_OK;
+    break;
+  }
+
+  {
+    sysinterval_t delay;
+
+    delay = pollp->interval;
+    if (timeout != TIME_INFINITE) {
+      systime_t now;
+      sysinterval_t remaining;
+
+      now = chVTGetSystemTimeX();
+      if (!chTimeIsInRangeX(now, start, end)) {
+        msg = MSG_TIMEOUT;
+        break;
+      }
+
+      remaining = chTimeDiffX(now, end);
+      if (delay > remaining) {
+        delay = remaining;
+      }
+    }
+
+    if (delay > (sysinterval_t)0) {
+      chThdSleep(delay);
+    }
+  }
+}
+
+return msg;]]></implementation>
+              </method>
             </condition>
             <condition check="WSPI_SUPPORTS_MEMMAP == TRUE">
               <method name="wspiMapFlashI" ctype="void">
@@ -491,5 +599,28 @@ wspi_lld_init();]]></implementation>
     <includes_always>
       <include style="regular">hal.h</include>
     </includes_always>
+    <functions>
+      <condition check="WSPI_USE_SYNCHRONIZATION == TRUE">
+        <function name="wspi_status_match" ctype="bool">
+          <brief>Checks a received status against its mask and match value.</brief>
+          <param name="pollp" ctype="const wspi_status_poll_t *" dir="in">
+            Pointer to the status-poll descriptor.
+          </param>
+          <return>The comparison result.</return>
+          <retval value="true">If all masked status bytes match.</retval>
+          <retval value="false">If any masked status byte does not match.</retval>
+          <implementation><![CDATA[
+size_t i;
+
+for (i = 0U; i < pollp->length; ++i) {
+  if ((pollp->statusp[i] & pollp->maskp[i]) != pollp->matchp[i]) {
+    return false;
+  }
+}
+
+return true;]]></implementation>
+        </function>
+      </condition>
+    </functions>
   </private>
 </module>

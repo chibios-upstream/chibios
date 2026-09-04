@@ -51,6 +51,28 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+#if (WSPI_USE_SYNCHRONIZATION == TRUE) || defined (__DOXYGEN__)
+/**
+ * @brief       Checks a received status against its mask and match value.
+ *
+ * @param[in]     pollp         Pointer to the status-poll descriptor.
+ * @return                      The comparison result.
+ * @retval true                 If all masked status bytes match.
+ * @retval false                If any masked status byte does not match.
+ */
+static bool wspi_status_match(const wspi_status_poll_t *pollp) {
+  size_t i;
+
+  for (i = 0U; i < pollp->length; ++i) {
+    if ((pollp->statusp[i] & pollp->maskp[i]) != pollp->matchp[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+#endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
+
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
@@ -409,6 +431,91 @@ bool wspiReceive(void *ip, const wspi_command_t *cmdp, size_t n,
   chSysUnlock();
 
   return (bool)(msg != MSG_OK);
+}
+
+/**
+ * @brief       Polls a status value until its masked bytes match.
+ * @details     The status is read at least once. After a non-matching read,
+ *              the operation is repeated until the requested timeout expires.
+ *              Each status read is an ordinary WSPI receive operation and its
+ *              completion is not timed.
+ * @note        @p TIME_IMMEDIATE is not a valid timeout.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_wspi_driver_c instance.
+ * @param[in]     cmdp          Pointer to the WSPI command descriptor.
+ * @param[in]     pollp         Pointer to the status-poll descriptor.
+ * @param[in]     timeout       Maximum interval to wait for a matching status.
+ * @return                      The operation status.
+ * @retval MSG_OK               If the status matched.
+ * @retval MSG_RESET            If a hardware error occurred.
+ * @retval MSG_TIMEOUT          If the polling interval expired.
+ *
+ * @api
+ */
+msg_t wspiPollStatusTimeout(void *ip, const wspi_command_t *cmdp,
+                            const wspi_status_poll_t *pollp,
+                            sysinterval_t timeout) {
+  hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
+  systime_t start;
+  systime_t end;
+  msg_t msg;
+  size_t i;
+
+  chDbgCheck((self != NULL) && (cmdp != NULL) && (pollp != NULL));
+  chDbgCheck((pollp->length > 0U) && (pollp->statusp != NULL) &&
+             (pollp->maskp != NULL) && (pollp->matchp != NULL));
+  chDbgCheck(pollp->interval != TIME_INFINITE);
+  chDbgCheck(timeout != TIME_IMMEDIATE);
+  chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
+
+  for (i = 0U; i < pollp->length; ++i) {
+    chDbgCheck((pollp->matchp[i] & (uint8_t)~pollp->maskp[i]) == 0U);
+  }
+
+  start = chVTGetSystemTimeX();
+  end = start;
+  if (timeout != TIME_INFINITE) {
+    end = chTimeAddX(start, timeout);
+  }
+
+  while (true) {
+    if (wspiReceive(self, cmdp, pollp->length, pollp->statusp)) {
+      msg = MSG_RESET;
+      break;
+    }
+
+    if (wspi_status_match(pollp)) {
+      msg = MSG_OK;
+      break;
+    }
+
+    {
+      sysinterval_t delay;
+
+      delay = pollp->interval;
+      if (timeout != TIME_INFINITE) {
+        systime_t now;
+        sysinterval_t remaining;
+
+        now = chVTGetSystemTimeX();
+        if (!chTimeIsInRangeX(now, start, end)) {
+          msg = MSG_TIMEOUT;
+          break;
+        }
+
+        remaining = chTimeDiffX(now, end);
+        if (delay > remaining) {
+          delay = remaining;
+        }
+      }
+
+      if (delay > (sysinterval_t)0) {
+        chThdSleep(delay);
+      }
+    }
+  }
+
+  return msg;
 }
 #endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 
