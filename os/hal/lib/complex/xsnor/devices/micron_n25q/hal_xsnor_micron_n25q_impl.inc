@@ -326,15 +326,43 @@ static bool n25q_find_id(const uint8_t *set, size_t size, uint8_t element) {
 
 static flash_error_t n25q_poll_status(hal_xsnor_micron_n25q_c *self) {
 
-  do {
-    if ((self->config->options & N25Q_OPT_NICE_WAITING) != 0U) {
-      osalThreadSleepMilliseconds(1);
-    }
+#if XSNOR_USE_WSPI == TRUE
+  if (self->config->bus_type != XSNOR_BUS_MODE_SPI) {
+    const uint8_t mask[1] = {FLAGS_PROGRAM_ERASE};
+    const uint8_t match[1] = {FLAGS_PROGRAM_ERASE};
+    wspi_command_t cmd;
+    wspi_status_poll_t poll;
 
-    /* Read status command.*/
-    __xsnor_bus_cmd_receive(self, CMD_READ_FLAG_STATUS_REGISTER,
-                            1U, &self->config->buffers->databuf[0]);
-  } while ((self->config->buffers->databuf[0] & FLAGS_PROGRAM_ERASE) == 0U);
+    cmd.cmd       = CMD_READ_FLAG_STATUS_REGISTER;
+    cmd.cfg       = self->commands->cmd_data;
+    cmd.addr      = 0U;
+    cmd.alt       = 0U;
+    cmd.dummy     = 0U;
+    poll.length   = 1U;
+    poll.statusp  = &self->config->buffers->databuf[0];
+    poll.maskp    = mask;
+    poll.matchp   = match;
+    poll.interval = (self->config->options & N25Q_OPT_NICE_WAITING) != 0U ?
+                    OSAL_MS2I(1) : (sysinterval_t)0;
+
+    if (wspiPollStatusTimeout(self->config->bus.wspi.drv, &cmd, &poll,
+                              TIME_INFINITE) != MSG_OK) {
+      return FLASH_ERROR_HW_FAILURE;
+    }
+  }
+  else
+#endif
+  {
+    do {
+      if ((self->config->options & N25Q_OPT_NICE_WAITING) != 0U) {
+        osalThreadSleepMilliseconds(1);
+      }
+
+      /* Read status command.*/
+      __xsnor_bus_cmd_receive(self, CMD_READ_FLAG_STATUS_REGISTER,
+                              1U, &self->config->buffers->databuf[0]);
+    } while ((self->config->buffers->databuf[0] & FLAGS_PROGRAM_ERASE) == 0U);
+  }
 
   /* Checking for errors.*/
   if ((self->config->buffers->databuf[0] & FLAGS_ALL_ERRORS) != 0U) {
@@ -1022,4 +1050,3 @@ const struct hal_xsnor_micron_n25q_vmt __hal_xsnor_micron_n25q_vmt = {
 };
 
 /** @} */
-
