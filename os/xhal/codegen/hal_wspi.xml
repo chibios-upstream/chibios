@@ -112,6 +112,7 @@ typedef enum {
   WSPI_STATE_COMMAND = HAL_DRV_STATE_ERROR + 1U,
   WSPI_STATE_SEND,
   WSPI_STATE_RECEIVE,
+  WSPI_STATE_POLL,
   WSPI_STATE_MEMMAP
 } wspistate_t;
 
@@ -120,6 +121,10 @@ typedef enum {
 
 #if !defined(WSPI_SUPPORTS_MEMMAP)
 #error "WSPI_SUPPORTS_MEMMAP not defined in WSPI LLD driver"
+#endif
+
+#if !defined(WSPI_LLD_SUPPORTS_STATUS_POLL)
+#error "WSPI_LLD_SUPPORTS_STATUS_POLL not defined in WSPI LLD driver"
 #endif
 
 #if !defined(WSPI_DEFAULT_CFG_MASKS)
@@ -404,10 +409,12 @@ return (bool)(msg != MSG_OK);]]></implementation>
               </method>
               <method name="wspiPollStatusTimeout" ctype="msg_t">
                 <brief>Polls a status value until its masked bytes match.</brief>
-                <details><![CDATA[The status is read at least once. After a
-                  non-matching read, the operation is repeated until the
-                  requested timeout expires. Each status read is an ordinary
-                  WSPI receive operation and its completion is not timed.]]></details>
+                <details><![CDATA[The low-level driver can implement this
+                  operation directly. If the low-level driver does not support
+                  status polling then the status is read using ordinary WSPI
+                  receive operations until it matches or the requested timeout
+                  expires. Each fallback status read is not individually
+                  timed.]]></details>
                 <note>@p TIME_IMMEDIATE is not a valid timeout.</note>
                 <param name="cmdp" ctype="const wspi_command_t *" dir="in">
                   Pointer to the WSPI command descriptor.
@@ -424,8 +431,6 @@ return (bool)(msg != MSG_OK);]]></implementation>
                 <retval value="MSG_TIMEOUT">If the polling interval expired.</retval>
                 <api />
                 <implementation><![CDATA[
-systime_t start;
-systime_t end;
 msg_t msg;
 size_t i;
 
@@ -440,48 +445,67 @@ for (i = 0U; i < pollp->length; ++i) {
   chDbgCheck((pollp->matchp[i] & (uint8_t)~pollp->maskp[i]) == 0U);
 }
 
-start = chVTGetSystemTimeX();
-end = start;
-if (timeout != TIME_INFINITE) {
-  end = chTimeAddX(start, timeout);
+#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
+chSysLock();
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+chDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
+self->state = WSPI_STATE_POLL;
+wspi_lld_start_status_poll(self, cmdp, pollp);
+msg = chThdSuspendTimeoutS(&self->sync_transfer, timeout);
+if (self->state == WSPI_STATE_POLL) {
+  wspi_lld_stop_status_poll(self, pollp);
+  self->state = HAL_DRV_STATE_READY;
 }
+chSysUnlock();
+#else
+{
+  systime_t start;
+  systime_t end;
 
-while (true) {
-  if (wspiReceive(self, cmdp, pollp->length, pollp->statusp)) {
-    msg = MSG_RESET;
-    break;
+  start = chVTGetSystemTimeX();
+  end = start;
+  if (timeout != TIME_INFINITE) {
+    end = chTimeAddX(start, timeout);
   }
 
-  if (wspi_status_match(pollp)) {
-    msg = MSG_OK;
-    break;
-  }
-
-  {
-    sysinterval_t delay;
-
-    delay = pollp->interval;
-    if (timeout != TIME_INFINITE) {
-      systime_t now;
-      sysinterval_t remaining;
-
-      now = chVTGetSystemTimeX();
-      if (!chTimeIsInRangeX(now, start, end)) {
-        msg = MSG_TIMEOUT;
-        break;
-      }
-
-      remaining = chTimeDiffX(now, end);
-      if (delay > remaining) {
-        delay = remaining;
-      }
+  while (true) {
+    if (wspiReceive(self, cmdp, pollp->length, pollp->statusp)) {
+      msg = MSG_RESET;
+      break;
     }
 
-    if (delay > (sysinterval_t)0) {
-      chThdSleep(delay);
+    if (wspi_status_match(pollp)) {
+      msg = MSG_OK;
+      break;
+    }
+
+    {
+      sysinterval_t delay;
+
+      delay = pollp->interval;
+      if (timeout != TIME_INFINITE) {
+        systime_t now;
+        sysinterval_t remaining;
+
+        now = chVTGetSystemTimeX();
+        if (!chTimeIsInRangeX(now, start, end)) {
+          msg = MSG_TIMEOUT;
+          break;
+        }
+
+        remaining = chTimeDiffX(now, end);
+        if (delay > remaining) {
+          delay = remaining;
+        }
+      }
+
+      if (delay > (sysinterval_t)0) {
+        chThdSleep(delay);
+      }
     }
   }
 }
+#endif
 
 return msg;]]></implementation>
               </method>
@@ -600,7 +624,7 @@ wspi_lld_init();]]></implementation>
       <include style="regular">hal.h</include>
     </includes_always>
     <functions>
-      <condition check="WSPI_USE_SYNCHRONIZATION == TRUE">
+      <condition check="(WSPI_USE_SYNCHRONIZATION == TRUE) &amp;&amp; (WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE)">
         <function name="wspi_status_match" ctype="bool">
           <brief>Checks a received status against its mask and match value.</brief>
           <param name="pollp" ctype="const wspi_status_poll_t *" dir="in">

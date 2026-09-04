@@ -51,7 +51,7 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
-#if (WSPI_USE_SYNCHRONIZATION == TRUE) || defined (__DOXYGEN__)
+#if ((WSPI_USE_SYNCHRONIZATION == TRUE) && (WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE)) || defined (__DOXYGEN__)
 /**
  * @brief       Checks a received status against its mask and match value.
  *
@@ -71,7 +71,7 @@ static bool wspi_status_match(const wspi_status_poll_t *pollp) {
 
   return true;
 }
-#endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
+#endif /* (WSPI_USE_SYNCHRONIZATION == TRUE) && (WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE) */
 
 /*===========================================================================*/
 /* Module exported functions.                                                */
@@ -435,10 +435,11 @@ bool wspiReceive(void *ip, const wspi_command_t *cmdp, size_t n,
 
 /**
  * @brief       Polls a status value until its masked bytes match.
- * @details     The status is read at least once. After a non-matching read,
- *              the operation is repeated until the requested timeout expires.
- *              Each status read is an ordinary WSPI receive operation and its
- *              completion is not timed.
+ * @details     The low-level driver can implement this operation directly. If
+ *              the low-level driver does not support status polling then the
+ *              status is read using ordinary WSPI receive operations until it
+ *              matches or the requested timeout expires. Each fallback status
+ *              read is not individually timed.
  * @note        @p TIME_IMMEDIATE is not a valid timeout.
  *
  * @param[in,out] ip            Pointer to a @p hal_wspi_driver_c instance.
@@ -456,8 +457,6 @@ msg_t wspiPollStatusTimeout(void *ip, const wspi_command_t *cmdp,
                             const wspi_status_poll_t *pollp,
                             sysinterval_t timeout) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  systime_t start;
-  systime_t end;
   msg_t msg;
   size_t i;
 
@@ -472,48 +471,67 @@ msg_t wspiPollStatusTimeout(void *ip, const wspi_command_t *cmdp,
     chDbgCheck((pollp->matchp[i] & (uint8_t)~pollp->maskp[i]) == 0U);
   }
 
-  start = chVTGetSystemTimeX();
-  end = start;
-  if (timeout != TIME_INFINITE) {
-    end = chTimeAddX(start, timeout);
+#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
+  chSysLock();
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
+  self->state = WSPI_STATE_POLL;
+  wspi_lld_start_status_poll(self, cmdp, pollp);
+  msg = chThdSuspendTimeoutS(&self->sync_transfer, timeout);
+  if (self->state == WSPI_STATE_POLL) {
+    wspi_lld_stop_status_poll(self, pollp);
+    self->state = HAL_DRV_STATE_READY;
   }
+  chSysUnlock();
+#else
+  {
+    systime_t start;
+    systime_t end;
 
-  while (true) {
-    if (wspiReceive(self, cmdp, pollp->length, pollp->statusp)) {
-      msg = MSG_RESET;
-      break;
+    start = chVTGetSystemTimeX();
+    end = start;
+    if (timeout != TIME_INFINITE) {
+      end = chTimeAddX(start, timeout);
     }
 
-    if (wspi_status_match(pollp)) {
-      msg = MSG_OK;
-      break;
-    }
-
-    {
-      sysinterval_t delay;
-
-      delay = pollp->interval;
-      if (timeout != TIME_INFINITE) {
-        systime_t now;
-        sysinterval_t remaining;
-
-        now = chVTGetSystemTimeX();
-        if (!chTimeIsInRangeX(now, start, end)) {
-          msg = MSG_TIMEOUT;
-          break;
-        }
-
-        remaining = chTimeDiffX(now, end);
-        if (delay > remaining) {
-          delay = remaining;
-        }
+    while (true) {
+      if (wspiReceive(self, cmdp, pollp->length, pollp->statusp)) {
+        msg = MSG_RESET;
+        break;
       }
 
-      if (delay > (sysinterval_t)0) {
-        chThdSleep(delay);
+      if (wspi_status_match(pollp)) {
+        msg = MSG_OK;
+        break;
+      }
+
+      {
+        sysinterval_t delay;
+
+        delay = pollp->interval;
+        if (timeout != TIME_INFINITE) {
+          systime_t now;
+          sysinterval_t remaining;
+
+          now = chVTGetSystemTimeX();
+          if (!chTimeIsInRangeX(now, start, end)) {
+            msg = MSG_TIMEOUT;
+            break;
+          }
+
+          remaining = chTimeDiffX(now, end);
+          if (delay > remaining) {
+            delay = remaining;
+          }
+        }
+
+        if (delay > (sysinterval_t)0) {
+          chThdSleep(delay);
+        }
       }
     }
   }
+#endif
 
   return msg;
 }

@@ -66,6 +66,23 @@ static inline void wspi_lld_sync(hal_wspi_driver_c *wspip) {
   }
 }
 
+#if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) &&                              \
+    (WSPI_USE_SYNCHRONIZATION == TRUE)
+/**
+ * @brief   Copies the last status value from the OCTOSPI FIFO.
+ */
+static void wspi_lld_read_status(hal_wspi_driver_c *wspip,
+                                 const wspi_status_poll_t *pollp) {
+  volatile uint8_t *drp;
+  size_t i;
+
+  drp = (volatile uint8_t *)&wspip->ospi->DR;
+  for (i = 0U; i < pollp->length; ++i) {
+    pollp->statusp[i] = *drp;
+  }
+}
+#endif
+
 /**
  * @brief   Shared DMA3 service routine.
  *
@@ -104,7 +121,7 @@ void wspi_lld_init(void) {
 
 #if STM32_WSPI_USE_OCTOSPI1
   wspiObjectInit(&WSPID1);
-  WSPID1.extra_tcr = 0U
+  WSPID1.extra_tcr      = 0U
 #if STM32_WSPI_OCTOSPI1_SSHIFT
                      | OCTOSPI_TCR_SSHIFT
 #endif
@@ -112,10 +129,10 @@ void wspi_lld_init(void) {
                      | OCTOSPI_TCR_DHQC
 #endif
                      ;
-  WSPID1.ospi      = OCTOSPI1;
-  WSPID1.dmachp    = NULL;
-  WSPID1.dreq      = STM32_DMA3_REQ_OSPI1;
-  WSPID1.dprio     = STM32_WSPI_OCTOSPI1_DMA_PRIORITY;
+  WSPID1.ospi           = OCTOSPI1;
+  WSPID1.dmachp         = NULL;
+  WSPID1.dreq           = STM32_DMA3_REQ_OSPI1;
+  WSPID1.dprio          = STM32_WSPI_OCTOSPI1_DMA_PRIORITY;
 #endif
 }
 
@@ -175,6 +192,12 @@ msg_t wspi_lld_start(hal_wspi_driver_c *wspip) {
  */
 void wspi_lld_stop(hal_wspi_driver_c *wspip) {
 
+#if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) &&                              \
+    (WSPI_USE_SYNCHRONIZATION == TRUE)
+  if ((wspip->ospi->CR & OCTOSPI_CR_FMODE) == OCTOSPI_CR_FMODE_1) {
+    wspi_lld_abort_status_poll(wspip);
+  }
+#endif
   wspi_lld_sync(wspip);
   wspip->ospi->CR = 0U;
 
@@ -241,6 +264,22 @@ const hal_wspi_config_t *wspi_lld_selcfg(hal_wspi_driver_c *wspip,
 void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
   bool data_transfer;
   uint32_t sr;
+
+#if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) &&                              \
+    (WSPI_USE_SYNCHRONIZATION == TRUE)
+  if ((wspip->ospi->CR & OCTOSPI_CR_FMODE) == OCTOSPI_CR_FMODE_1) {
+    sr = wspip->ospi->SR;
+    if ((sr & OCTOSPI_SR_TEF) != 0U) {
+      wspip->ospi->CR &= ~(OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE);
+      _wspi_wakeup_isr(wspip, MSG_RESET);
+    }
+    else if ((sr & OCTOSPI_SR_SMF) != 0U) {
+      wspip->ospi->CR &= ~(OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE);
+      _wspi_wakeup_isr(wspip, MSG_OK);
+    }
+    return;
+  }
+#endif
 
   data_transfer = (wspip->state == WSPI_STATE_SEND) ||
                   (wspip->state == WSPI_STATE_RECEIVE);
@@ -374,6 +413,105 @@ void wspi_lld_receive(hal_wspi_driver_c *wspip, const wspi_command_t *cmdp,
 
   dma3ChannelEnable(wspip->dmachp);
 }
+
+#if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) &&                              \
+    (WSPI_USE_SYNCHRONIZATION == TRUE)
+/**
+ * @brief   Starts OCTOSPI-accelerated status polling.
+ * @note    DMA is not used by automatic status polling.
+ * @note    The OCTOSPI matcher supports status values up to four bytes.
+ *
+ * @param[in] wspip     pointer to the @p hal_wspi_driver_c object
+ * @param[in] cmdp      pointer to the status-read command descriptor
+ * @param[in] pollp     pointer to the status-poll descriptor
+ *
+ * @notapi
+ */
+void wspi_lld_start_status_poll(
+    hal_wspi_driver_c *wspip, const wspi_command_t *cmdp,
+    const wspi_status_poll_t *pollp) {
+  uint64_t interval;
+  uint32_t mask;
+  uint32_t match;
+  size_t i;
+
+  chDbgAssert(pollp->length <= sizeof(uint32_t), "status too long");
+
+  interval = ((uint64_t)(STM32_OSPICLK /
+                         STM32_WSPI_OCTOSPI1_PRESCALER_VALUE) *
+              (uint64_t)pollp->interval +
+              (uint64_t)CH_CFG_ST_FREQUENCY - 1ULL) /
+             (uint64_t)CH_CFG_ST_FREQUENCY;
+  chDbgAssert(interval <= (uint64_t)OCTOSPI_PIR_INTERVAL,
+              "interval too long");
+
+  mask = 0U;
+  match = 0U;
+  for (i = 0U; i < pollp->length; ++i) {
+    mask |= (uint32_t)pollp->maskp[i] << (i * 8U);
+    match |= (uint32_t)pollp->matchp[i] << (i * 8U);
+  }
+
+  wspi_lld_sync(wspip);
+
+  wspip->ospi->CR = OCTOSPI_CR_FMODE_1 | OCTOSPI_CR_APMS |
+                    OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE |
+                    OCTOSPI_CR_DMAEN | OCTOSPI_CR_EN;
+  wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
+                     OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;
+  wspip->ospi->DLR = pollp->length - 1U;
+  wspip->ospi->PSMKR = mask;
+  wspip->ospi->PSMAR = match;
+  wspip->ospi->PIR = (uint32_t)interval;
+  wspip->ospi->TCR = cmdp->dummy | wspip->extra_tcr;
+  wspip->ospi->CCR = cmdp->cfg;
+  wspip->ospi->ABR = cmdp->alt;
+  wspip->ospi->IR = cmdp->cmd;
+  if ((cmdp->cfg & WSPI_CFG_ADDR_MODE_MASK) != WSPI_CFG_ADDR_MODE_NONE) {
+    wspip->ospi->AR = cmdp->addr;
+  }
+}
+
+/**
+ * @brief   Stops accelerated status polling and saves the last status.
+ *
+ * @param[in] wspip     pointer to the @p hal_wspi_driver_c object
+ * @param[in] pollp     pointer to the status-poll descriptor
+ *
+ * @notapi
+ */
+void wspi_lld_stop_status_poll(hal_wspi_driver_c *wspip,
+                               const wspi_status_poll_t *pollp) {
+
+  wspip->ospi->CR &= ~(OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE);
+  if ((wspip->ospi->SR & OCTOSPI_SR_FTF) != 0U) {
+    wspi_lld_read_status(wspip, pollp);
+  }
+
+  wspi_lld_abort_status_poll(wspip);
+}
+
+/**
+ * @brief   Aborts accelerated status polling and restores indirect mode.
+ *
+ * @param[in] wspip     pointer to the @p hal_wspi_driver_c object
+ *
+ * @notapi
+ */
+void wspi_lld_abort_status_poll(hal_wspi_driver_c *wspip) {
+
+  wspip->ospi->CR &= ~(OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE);
+  if ((wspip->ospi->SR & OCTOSPI_SR_BUSY) != 0U) {
+    wspip->ospi->CR |= OCTOSPI_CR_ABORT;
+    while ((wspip->ospi->CR & OCTOSPI_CR_ABORT) != 0U) {
+    }
+  }
+  wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
+                     OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;
+  wspip->ospi->CR = OCTOSPI_CR_TEIE | OCTOSPI_CR_TCIE |
+                    OCTOSPI_CR_DMAEN | OCTOSPI_CR_EN;
+}
+#endif
 
 #if WSPI_SUPPORTS_MEMMAP == TRUE || defined(__DOXYGEN__)
 /**

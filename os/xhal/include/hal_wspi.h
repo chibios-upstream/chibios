@@ -184,6 +184,7 @@ typedef enum {
   WSPI_STATE_COMMAND = HAL_DRV_STATE_ERROR + 1U,
   WSPI_STATE_SEND,
   WSPI_STATE_RECEIVE,
+  WSPI_STATE_POLL,
   WSPI_STATE_MEMMAP
 } wspistate_t;
 
@@ -192,6 +193,10 @@ typedef enum {
 
 #if !defined(WSPI_SUPPORTS_MEMMAP)
 #error "WSPI_SUPPORTS_MEMMAP not defined in WSPI LLD driver"
+#endif
+
+#if !defined(WSPI_LLD_SUPPORTS_STATUS_POLL)
+#error "WSPI_LLD_SUPPORTS_STATUS_POLL not defined in WSPI LLD driver"
 #endif
 
 #if !defined(WSPI_DEFAULT_CFG_MASKS)
