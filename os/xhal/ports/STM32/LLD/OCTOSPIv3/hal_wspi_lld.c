@@ -69,16 +69,18 @@ static inline void wspi_lld_sync(hal_wspi_driver_c *wspip) {
 #if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) &&                              \
     (WSPI_USE_SYNCHRONIZATION == TRUE)
 /**
- * @brief   Copies the last status value from the OCTOSPI FIFO.
+ * @brief   Copies the last status value from the OCTOSPI data register.
  */
 static void wspi_lld_read_status(hal_wspi_driver_c *wspip,
                                  const wspi_status_poll_t *pollp) {
-  volatile uint8_t *drp;
+  uint32_t status;
   size_t i;
 
-  drp = (volatile uint8_t *)&wspip->ospi->DR;
+  /* The FIFO is disabled in automatic status-polling mode.*/
+  status = wspip->ospi->DR;
   for (i = 0U; i < pollp->length; ++i) {
-    pollp->statusp[i] = *drp;
+    pollp->statusp[i] = (uint8_t)status;
+    status >>= 8U;
   }
 }
 #endif
@@ -502,9 +504,13 @@ void wspi_lld_abort_status_poll(hal_wspi_driver_c *wspip) {
 
   wspip->ospi->CR &= ~(OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE);
   if ((wspip->ospi->SR & OCTOSPI_SR_BUSY) != 0U) {
+    wspip->ospi->FCR = OCTOSPI_FCR_CTCF;
     wspip->ospi->CR |= OCTOSPI_CR_ABORT;
-    while ((wspip->ospi->CR & OCTOSPI_CR_ABORT) != 0U) {
+
+    /* ABORT always reads as zero, wait for actual completion instead.*/
+    while ((wspip->ospi->SR & OCTOSPI_SR_TCF) == 0U) {
     }
+    wspi_lld_sync(wspip);
   }
   wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
                      OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;

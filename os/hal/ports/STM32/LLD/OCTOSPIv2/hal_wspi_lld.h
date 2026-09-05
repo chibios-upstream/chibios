@@ -36,7 +36,7 @@
  * @{
  */
 #define WSPI_SUPPORTS_MEMMAP                TRUE
-#define WSPI_LLD_SUPPORTS_STATUS_POLL       FALSE
+#define WSPI_LLD_SUPPORTS_STATUS_POLL       TRUE
 #define WSPI_DEFAULT_CFG_MASKS              TRUE
 /** @} */
 
@@ -335,6 +335,14 @@ extern "C" {
                      size_t n, const uint8_t *txbuf);
   void wspi_lld_receive(WSPIDriver *wspip, const wspi_command_t *cmdp,
                         size_t n, uint8_t *rxbuf);
+#if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) && (WSPI_USE_WAIT == TRUE)
+  void wspi_lld_start_status_poll(WSPIDriver *wspip,
+                                  const wspi_command_t *cmdp,
+                                  const wspi_status_poll_t *pollp);
+  void wspi_lld_stop_status_poll(WSPIDriver *wspip,
+                                 const wspi_status_poll_t *pollp);
+  void wspi_lld_abort_status_poll(WSPIDriver *wspip);
+#endif
 #if WSPI_SUPPORTS_MEMMAP == TRUE
   void wspi_lld_map_flash(WSPIDriver *wspip,
                           const wspi_command_t *cmdp,

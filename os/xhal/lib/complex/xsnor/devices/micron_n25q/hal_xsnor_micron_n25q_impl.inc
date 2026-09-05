@@ -332,7 +332,9 @@ static flash_error_t n25q_poll_status(hal_xsnor_micron_n25q_c *self) {
     poll.statusp  = &xsnorcfg->buffers->databuf[0];
     poll.maskp    = mask;
     poll.matchp   = match;
-    poll.interval = (xsnorcfg->options & N25Q_OPT_NICE_WAITING) != 0U ?
+    /* Hardware polling already releases the CPU while waiting.*/
+    poll.interval = ((WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE) &&
+                     ((xsnorcfg->options & N25Q_OPT_NICE_WAITING) != 0U)) ?
                     TIME_MS2I(1) : (sysinterval_t)0;
 
     if (wspiPollStatusTimeout(xsnorcfg->bus.wspi.drv, &cmd, &poll,
