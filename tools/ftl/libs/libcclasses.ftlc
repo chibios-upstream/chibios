@@ -32,7 +32,7 @@ assign ifscache={}
   */
 macro ResetState()
   assign generated = false
-endmacro
+end
 
 /*
   -- Loads an XML file into the XML cache.
@@ -46,12 +46,12 @@ function LoadXML(xmlname="")
       attempt
         return pp.loadData("xml", path[0]?ensure_ends_with("/") + xmlname)
       recover
-      endattempt
-    endlist
-  endattempt
+      end
+    end
+  end
   pp.dropOutputFile()
   stop ">>>> Importing '" + xmlname + "' failed!"
-endfunction
+end
 
 /*
   -- Getting references of all module public classes/interfaces.
@@ -59,10 +59,10 @@ endfunction
 macro ImportModulePublicClasses(node=[])
   list node.public.types.interface as interface
     assign ifscache = ifscache + {GetNodeName(interface):interface}
-  endlist
+  end
   list node.public.types.class as class
     assign classescache = classescache + {GetNodeName(class):class}
-  endlist
+  end
   list node.imports.import as import
     local xmlname = import?trim
     if xmlcache[xmlname]??
@@ -71,9 +71,9 @@ macro ImportModulePublicClasses(node=[])
       local xmldoc = LoadXML(xmlname)
       ImportModulePublicClasses(node=xmldoc.module)
       assign xmlcache = xmlcache + {xmlname:xmldoc}
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- Getting references of all module private classes/interfaces.
@@ -81,11 +81,11 @@ endmacro
 macro ImportModulePrivateClasses(node=[])
   list node.public.types.interface as interface
     assign ifscache = ifscache + {GetNodeName(interface):interface}
-  endlist
+  end
   list node.public.types.class as class
     assign classescache = classescache + {GetNodeName(class):class}
-  endlist
-endmacro
+  end
+end
 
 macro InitModule(node=[])
   ccode.ResetState()
@@ -93,35 +93,35 @@ macro InitModule(node=[])
   ImportModulePrivateClasses(node=node)
   ImportModulePublicClasses(node=node)
   /* ${xmlcache?keys?join(", ")} - ${classescache?keys?join(", ")} - ${ifscache?keys?join(", ")} */
-endmacro
+end
 
 /*
   -- Returns the name attribute from an XML node.
   */
 function GetNodeName(node=[], default="no-name")
   return (node.@name[0]!default)?trim
-endfunction
+end
 
 /*
   -- Returns the namespace attribute from an XML node.
   */
 function GetNodeNamespace(node=[], default="no-namespace")
   return (node.@namespace[0]!default)?trim
-endfunction
+end
 
 /*
   -- Returns the ancestorname attribute from an XML node.
   */
 function GetNodeAncestorName(node=[], default="")
   return (node.@ancestorname[0]!default)?trim
-endfunction
+end
 
 /*
   -- Returns the descr attribute from an XML node.
   */
 function GetNodeDescription(node=[], default="no-descr")
   return (node.@descr[0]!default)?trim
-endfunction
+end
 
 /*
   -- Returns the interface C type from an XML node.
@@ -133,9 +133,9 @@ function GetInterfaceCType(node=[], default="")
     local ifctype = ifname + interface_suffix
   else
     local ifctype = default
-  endif
+  end
   return ifctype
-endfunction
+end
 
 /*
   -- Returns the interface ancestor C type from an XML node.
@@ -147,9 +147,9 @@ function GetInterfaceAncestorCType(node=[], default="")
     local ancestorctype = ancestorname + interface_suffix
   else
     local ancestorctype = default
-  endif
+  end
   return ancestorctype
-endfunction
+end
 
 /*
   -- Returns the class C type from an XML node.
@@ -161,9 +161,9 @@ function GetClassCType(node=[], default="")
     local classctype = classname + class_suffix
   else
     local classctype = default
-  endif
+  end
   return classctype
-endfunction
+end
 
 /*
   -- Returns the class ancestor C type from an XML node.
@@ -175,9 +175,9 @@ function GetClassAncestorCType(node=[], default="")
     local ancestorctype = ancestorname + class_suffix
   else
     local ancestorctype = default
-  endif
+  end
   return ancestorctype
-endfunction
+end
 
 /*
   -- Returns the class type from an XML node.
@@ -186,7 +186,7 @@ function GetClassType(node=[], default="no-type")
   local class = node
   local classtype = (class.@type[0]!default)?trim
   return classtype
-endfunction
+end
 
 /*
   -- Returns the method short name from an XML node.
@@ -196,9 +196,9 @@ function GetMethodShortName(node=[], default="")
   local methodsname = (method.@shortname[0]!default)?trim
     if methodsname?length == 0
       local methodsname = GetNodeName(method, default)?lower_case
-    endif
+    end
   return methodsname
-endfunction
+end
 
 /*
   -- Returns the method return C type from an XML node.
@@ -207,14 +207,14 @@ function GetMethodCType(node=[], default="void")
   local method = node
   local methodctype = (method.@ctype[0]!default)?trim
   return methodctype
-endfunction
+end
 
 /*
   -- Returns the method short name from an XML node.
   */
 function GetObjinitCallsuper(node=[], default="true")
   return (node.@callsuper[0]!default)?trim
-endfunction
+end
 
 /*
   -- Get class by name.
@@ -222,9 +222,9 @@ endfunction
 function GetClassByName(classname="")
   if classescache[classname]??
     return classescache[classname]
-  endif
+  end
   stop ">>>> Unknown class '" + classname + "'"
-endfunction
+end
 
 /*
   -- Get interface by name.
@@ -232,9 +232,9 @@ endfunction
 function GetInterfaceByName(ifname="")
   if ifscache[ifname]??
     return ifscache[ifname]
-  endif
+  end
   stop ">>>> Unknown interface '" + ifname + "'"
-endfunction
+end
 
 /*
   -- Returns the ancestor of the specified class.
@@ -243,9 +243,9 @@ function GetAncestorClass(class=[])
   local ancestorname = GetNodeAncestorName(class)
   if classescache[ancestorname]??
     return classescache[ancestorname]
-  endif
+  end
   stop ">>>> Unknown class '" + ancestorname + "'"
-endfunction
+end
 
 /*
   -- Returns a sequence of class ancestors classes from an XML node.
@@ -254,13 +254,13 @@ function GetClassAncestorsSequence(class=[])
   local ancestorname = GetNodeAncestorName(class)
   if ancestorname?length == 0
     return []
-  endif
+  end
   if classescache[ancestorname]??
     local ancestorclass = classescache[ancestorname]
     return GetClassAncestorsSequence(ancestorclass) + [ancestorclass]
-  endif
+  end
   stop ">>>> Unknown class '" + ancestorname + "'"
-endfunction
+end
 
 /*
   -- Returns a sequence of class virtual methods, including those from
@@ -272,10 +272,10 @@ function GetClassVirtualMethodsSequence(node=[])
   list classes as class
     list class.methods.virtual.method as method
       local methods = methods + method
-    endlist
-  endlist
+    end
+  end
   return methods
-endfunction
+end
 
 /*
   -- Returns a sequence of interface ancestors interfaces from an XML node.
@@ -284,13 +284,13 @@ function GetInterfaceAncestorsSequence(if=[])
   local ancestorname = GetNodeAncestorName(if)
   if ancestorname?length == 0
     return []
-  endif
+  end
   if ifscache[ancestorname]??
     local ancestorif = ifscache[ancestorname]
     return GetInterfaceAncestorsSequence(ancestorif) + [ancestorif]
-  endif
+  end
   stop ">>>> Unknown interface '" + ancestorname + "'"
-endfunction
+end
 
 /*
   -- Returns a sequence of interface methods, including those from
@@ -302,10 +302,10 @@ function GetInterfaceMethodsSequence(node=[])
   list ifs as if
     list if.methods.method as method
       local methods = methods + method
-    endlist
-  endlist
+    end
+  end
   return methods
-endfunction
+end
 
 /*
   -- Returns a sequence of class ancestors CTypes.
@@ -314,9 +314,9 @@ function GetClassAncestorsCTypes(ancestors=[])
   local names = []
   list ancestors as ancestor
     local names = names + [GetClassCType(ancestor)]
-  endlist
+  end
   return names
-endfunction
+end
 
 /*
   -- Returns a sequence of interface ancestors CTypes.
@@ -325,9 +325,9 @@ function GetInterfaceAncestorsCTypes(ancestors=[])
   local names = []
   list ancestors as ancestor
     local names = names + [GetInterfaceCType(ancestor)]
-  endlist
+  end
   return names
-endfunction
+end
 
 /*
   -- Returns the closest method implementation name searching in the specified
@@ -342,12 +342,12 @@ function GetMethodNearestImplementation(classes=[], method=[])
          each class so picking the current class one. */
     if shortname == "dispose"
       return "__" + classnamespace + "_" + shortname + "_impl"
-    endif
+    end
     /* First checking among the current class overrides.*/
     local m = class["methods/override/method[@shortname='" + shortname + "']"]
     if m[0]??
       return "__" + classnamespace + "_" + shortname + "_impl"
-    endif
+    end
     /* Checking if we reached the class where the method was declared.*/
     local m = class["methods/virtual/method[@shortname='" + shortname + "']"]
     if m[0]??
@@ -358,11 +358,11 @@ function GetMethodNearestImplementation(classes=[], method=[])
         return "__" + classnamespace + "_" + shortname + "_impl"
       else
         return "NULL /* Method not found.*/"
-      endif
-    endif
-  endlist
+      end
+    end
+  end
   return "NULL"
-endfunction
+end
 
 /*
   -- Returns the class in the sequence of ancestors owning the specified
@@ -374,10 +374,10 @@ function GetVirtualMethodOwnerClass(ancestors=[], shortname="")
     local m = ancestor["methods/virtual/method[@shortname='" + shortname + "']"]
     if m[0]??
       return [ancestor, m]
-    endif
-  endlist
+    end
+  end
   stop ">>>> Undefined method '" + shortname + "'"
-endfunction
+end
 
 /*
   -- This macro generates a class wrapper from an XML node.
@@ -394,7 +394,7 @@ macro GenerateClass(node=[])
   doxygen.EmitTagVerbatim(indent="", tag="class", text=classctype)
   if ancestorname?length > 0
     doxygen.EmitTagVerbatim(indent="", tag="extends", text=GetClassAncestorCType(class, ""))
-  endif
+  end
   GenerateClassImplementsTags(class.implements)
   emit " *\n"
   doxygen.EmitBriefFromNode(node=class)
@@ -420,7 +420,7 @@ macro GenerateClass(node=[])
     ccode.Indent(1)
     emit "/* From ${GetClassCType(ancestor)}.*/\n"
     GenerateVMTPointers(ancestor.methods.virtual)
-  endlist
+  end
   ccode.Indent(1)
   emit "/* From ${classctype}.*/\n"
   GenerateVMTPointers(class.methods.virtual)
@@ -443,7 +443,7 @@ macro GenerateClass(node=[])
       indent = ccode.indentation,
       fields = ancestor.fields
     )
-  endlist
+  end
   GenerateClassInterfaceFields(node = class.implements)
   ccode.GenerateStructureFieldsFromNode(
     indent = ccode.indentation,
@@ -451,7 +451,7 @@ macro GenerateClass(node=[])
   )
   emit "};\n"
   emit "/** @} */\n"
-endmacro
+end
 
 /*
   -- This macro generates an interface wrapper from an XML node.
@@ -468,7 +468,7 @@ macro GenerateInterface(node=[])
   emit " * @interface   ${ifctype}\n"
   if ancestorname?length > 0
     doxygen.EmitTagVerbatim(indent="", tag="extends", text=GetInterfaceAncestorCType(if, ""))
-  endif
+  end
   emit " *\n"
   doxygen.EmitBriefFromNode(node=if)
   doxygen.EmitDetailsFromNode(node=if)
@@ -496,7 +496,7 @@ macro GenerateInterface(node=[])
     ccode.Indent(1)
     emit "/* From ${GetInterfaceCType(ancestor)}.*/\n"
     GenerateVMTPointers(ancestor.methods)
-  endlist
+  end
   ccode.Indent(1)
   emit "/* From ${ifctype}.*/\n"
   GenerateVMTPointers(if.methods)
@@ -515,7 +515,7 @@ macro GenerateInterface(node=[])
   emit ccode.MakeVariableDeclaration(ccode.indentation, "vmt", vmtctype) + "\n"
   emit "};\n"
   emit "/** @} */\n"
-endmacro
+end
 
 /*
   -- Generates implementation functions for constructor, destructor,
@@ -581,15 +581,15 @@ macro GenerateClassImplementations(node=[], modifiers=[])
         params      = ["self", "vmt"]
       )
       emit "\n"
-    endif
-  endif
+    end
+  end
   if class.implements.*?size > 0
     GenerateClassInterfacesInit(
       node           = class.implements,
       classctype     = classctype,
       classnamespace = classnamespace
     )
-  endif
+  end
   if ((class.methods.objinit[0].implementation[0])?? &&
        (class.methods.objinit[0].implementation[0]?trim?length > 0))
     ccode.Indent(1)
@@ -601,7 +601,7 @@ macro GenerateClassImplementations(node=[], modifiers=[])
   else
     ccode.Indent(1)
     emit "/* No initialization code.*/\n"
-  endif
+  end
   emit "\n"
   ccode.Indent(1)
   emit "return self;\n"
@@ -642,7 +642,7 @@ macro GenerateClassImplementations(node=[], modifiers=[])
     emit "/* No finalization code.*/\n"
     ccode.Indent(1)
     emit "(void)self;\n"
-  endif
+  end
   if ancestorname?length > 0
     local ancestor = GetAncestorClass(class)
     emit "\n"
@@ -650,7 +650,7 @@ macro GenerateClassImplementations(node=[], modifiers=[])
     emit "/* Finalization of the ancestors-defined parts.*/\n"
     ccode.Indent(1)
     emit "__${GetNodeNamespace(ancestor)}_dispose_impl(self);\n"
-  endif
+  end
   emit "}\n"
   /* Scanning for al method overrides defined in the current class then
        checking in which class the virtual method is defined.*/
@@ -691,7 +691,7 @@ macro GenerateClassImplementations(node=[], modifiers=[])
       ccode  = methodimpl
     )
     emit "}\n"
-  endlist
+  end
   /* Scanning for all virtual methods defined in the current class.*/
   list class.methods.virtual.method as method
     local methodname     = GetNodeName(method)
@@ -727,11 +727,11 @@ macro GenerateClassImplementations(node=[], modifiers=[])
         ccode  = methodimpl
       )
       emit "}\n"
-    endif
-  endlist
+    end
+  end
   emit "/** @} */\n"
   emit "\n"
-endmacro
+end
 
 /*
   -- This macro generates regular methods from an XML node.
@@ -754,10 +754,10 @@ macro GenerateMethods(node=[], classctype="no-ctype", modifiers=[], nodoc=false)
           extratext="Pointer to a @p " + classctype + " instance.",
           memberof=""
         )
-      endif
+      end
       if modifiers?seq_contains("static") && modifiers?seq_contains("inline")
         emit "CC_FORCE_INLINE\n"
-      endif
+      end
       ccode.GeneratePrototypeFromNode(
         modifiers = modifiers,
         params    = ["void *ip"],
@@ -772,7 +772,7 @@ macro GenerateMethods(node=[], classctype="no-ctype", modifiers=[], nodoc=false)
       emit "}\n"
       if this?has_next
         emit "\n"
-      endif
+      end
     elseif this?node_name == "condition"
       local condition = this
       local condcheck = (condition.@check[0]!"1")?trim
@@ -786,7 +786,7 @@ macro GenerateMethods(node=[], classctype="no-ctype", modifiers=[], nodoc=false)
       emit "#endif /* ${condcheck} */\n"
       if this?has_next
         emit "\n"
-      endif
+      end
     elseif this?node_name == "elseif"
       local nodoc = true
       local condcheck = (this.@check[0]!"")?trim
@@ -795,10 +795,10 @@ macro GenerateMethods(node=[], classctype="no-ctype", modifiers=[], nodoc=false)
         emit "\n"
       else
         emit "#elif ${condcheck}\n"
-      endif
-    endif
-  endlist
-endmacro
+      end
+    end
+  end
+end
 
 /*
   -- This macro generates regular methods from an XML node.
@@ -818,8 +818,8 @@ macro GenerateClassRegularMethods(node=[], modifiers=[])
     )
     emit "/** @} */\n"
     emit "\n"
-  endif
-endmacro
+  end
+end
 
 /*
   -- This macro generates inline methods from an XML node.
@@ -839,8 +839,8 @@ macro GenerateClassInlineMethods(node=[])
     )
     emit "/** @} */\n"
     emit "\n"
-  endif
-endmacro
+  end
+end
 
 /*
   -- This macro generates virtual methods as inline functions
@@ -879,16 +879,16 @@ macro GenerateVirtualMethods(methods=[], ctype="no-ctype", namespace="no-namespa
         ccode.GenerateFunctionCall(ccode.indentation, "", callname, callparams)
       else
         ccode.GenerateFunctionCall(ccode.indentation, "return ", callname, callparams)
-      endif
+      end
       emit "}\n"
       if method?has_next
         emit "\n"
-      endif
-    endlist
+      end
+    end
     emit "/** @} */\n"
     emit "\n"
-  endif
-endmacro
+  end
+end
 
 /*
   -- This macro generates class virtual methods as inline functions
@@ -903,7 +903,7 @@ macro GenerateClassVirtualMethods(node=[])
     ctype     = classctype,
     namespace = classnamespace
   )
-endmacro
+end
 
 /*
   -- Generates extern prototypes for constructor, destructor, overidden
@@ -952,7 +952,7 @@ macro GenerateClassPrototypes(node=[])
       node      = ancestormethod
     )
     emit ";\n"
-  endlist
+  end
   /* Scanning for all virtual methods defined in the current class.*/
   list class.methods.virtual.method as method
     local methodname     = GetNodeName(method)
@@ -968,9 +968,9 @@ macro GenerateClassPrototypes(node=[])
         node      = method
       )
       emit ";\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- This macro generates regular method prototypes from an XML node.
@@ -995,9 +995,9 @@ macro GenerateClassRegularMethodsPrototypes(node=[])
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
       GenerateClassRegularMethodsPrototypes(node=condition)
       emit "#endif /* ${condcheck} */\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- This macro generates regular method prototypes from a class XML node.
@@ -1008,7 +1008,7 @@ macro GenerateClassMethodsPrototypes(class=[])
     emit "/* Methods of ${classctype}.*/\n"
     GenerateClassPrototypes(node=class)
     GenerateClassRegularMethodsPrototypes(node=class.methods.regular)
-endmacro
+end
 
 /*
   -- This macro generates virtual methods pointers from a sequence of XML nodes.
@@ -1021,8 +1021,8 @@ macro GenerateVMTPointers(methods=[], ipctype="void *")
                     ccode.MakeProtoParamsSequence([ipctype + "ip"], method)?join(", ") +
                     ");")
     emit funcptr + "\n"
-  endlist
-endmacro
+  end
+end
 
 /*
   -- This macro generates a class VMT structure from an XML node.
@@ -1041,7 +1041,7 @@ macro GenerateClassVMT(node=[], modifiers=[])
     emit " */\n"
     if modifiers?size > 0
       emit modifiers?join(" ") + " "
-    endif
+    end
     emit "const struct ${classname}_vmt __${classname}_vmt = {\n"
     local classes = GetClassAncestorsSequence(node) + [node]
     local methods = GetClassVirtualMethodsSequence(node)
@@ -1054,12 +1054,12 @@ macro GenerateClassVMT(node=[], modifiers=[])
         emit s + "," + "\n"
       else
         emit s + "\n"
-      endif
-    endlist
+      end
+    end
     emit "};\n"
     emit "\n"
-  endif
-endmacro
+  end
+end
 
 /*
   -- This macro generates class method implementations from an XML node.
@@ -1092,13 +1092,13 @@ macro GenerateClassInterfacesInit(node=[], classctype="no-ctype", classnamespace
                       methodshortname + "_impl")
         else
           local s = s + "NULL /* Missing implementation.*/"
-        endif
+        end
         if method?has_next
           emit s + "," + "\n"
         else
           emit s + "\n"
-        endif
-      endlist
+        end
+      end
       ccode.Indent(2)
       emit "};\n"
       ccode.Indent(2)
@@ -1107,7 +1107,7 @@ macro GenerateClassInterfacesInit(node=[], classctype="no-ctype", classnamespace
       emit "}\n"
       if node?node_name != "condition"
         emit "\n"
-      endif
+      end
     elseif this?node_name == "condition"
       local condcheck = (this.@check[0]!"1")?trim
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
@@ -1118,9 +1118,9 @@ macro GenerateClassInterfacesInit(node=[], classctype="no-ctype", classnamespace
       )
       emit "#endif /* ${condcheck} */\n"
       emit "\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- This macro generates class interface fields from an XML node.
@@ -1147,9 +1147,9 @@ macro GenerateClassInterfaceFields(node=[])
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
       GenerateClassInterfaceFields(this)
       emit "#endif /* ${condcheck} */\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- This macro generates a Doxygen list of implemented interfaces from an XML node.
@@ -1163,9 +1163,9 @@ macro GenerateClassImplementsTags(node=[])
       doxygen.EmitTagVerbatim(indent="", tag="implements", text=refctype)
     elseif this?node_name == "condition"
       GenerateClassImplementsTags(this)
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- This macro generates private constructor and destructor from an XML node.
@@ -1215,8 +1215,8 @@ macro GenerateClassPrivateConstructor(node=[])
     emit "}\n"
     emit "/** @} */\n"
     emit "\n"
-  endif
-endmacro
+  end
+end
 
 /*
   -- This macro generates public constructor and destructor from an XML node.
@@ -1269,8 +1269,8 @@ macro GenerateClassPublicConstructor(node=[])
     emit "}\n"
     emit "/** @} */\n"
     emit "\n"
-  endif
-endmacro
+  end
+end
 
 /*
   -- This macro generates interface virtual methods as inline functions
@@ -1284,7 +1284,7 @@ macro GenerateInterfaceVirtualMethods(if=[])
     ctype     = ifctype,
     namespace = ifnamespace
   )
-endmacro
+end
 
 /*
   -- This macro generates a class wrapper from an XML node.
@@ -1301,7 +1301,7 @@ macro GenerateInterfaceWrapper(node=[])
   emit " * @interface   ${ifctype}\n"
   if ancestorctype?length > 0
     emit " * @extends     ${ancestorctype}\n"
-  endif
+  end
   emit " *\n"
   doxygen.EmitBriefFromNode(node=if)
   doxygen.EmitDetailsFromNode(node=if)
@@ -1332,7 +1332,7 @@ macro GenerateInterfaceWrapper(node=[])
     GenerateVMTPointers(methods=if.methods)
     emit "};\n"
     emit "\n"
-  endif
+  end
   emit "/**\n"
   doxygen.EmitBrief("", "Interface @p " + ifctype + " methods.")
   emit " */\n"
@@ -1341,7 +1341,7 @@ macro GenerateInterfaceWrapper(node=[])
   if ancestorname?length > 0
     emit ((ccode.indentation + "__" + ancestorname +
                        "_methods")?right_pad(ccode.backslash_align) + "\\" + "\n")
-  endif
+  end
   if if.methods.method?size > 0
     ccode.GenerateVariableDeclaration(
       indent=ccode.indentation,
@@ -1355,7 +1355,7 @@ macro GenerateInterfaceWrapper(node=[])
     emit (ccode.indentation + "   the implementing class structure.*/")?right_pad(ccode.backslash_align) + "\\" + "\n"
     emit (ccode.indentation + "size_t instance_offset;") + "\n"
     emit "\n"
-  endif
+  end
   emit "/**\n"
   doxygen.EmitBrief("", "Interface @p " + ifctype + " VMT initializer.")
   emit " *\n"
@@ -1368,12 +1368,12 @@ macro GenerateInterfaceWrapper(node=[])
     local s = "  __" + ancestorname + "_vmt_init(ns, off)"
     if node.methods?size > 0
       local s = (s + " ")?right_pad(76) + "\\"
-    endif
+    end
     emit s + "\n"
     GenerateVMTInitializers(methods=node.methods, namespace=ifnamespace)
   else
     emit (ccode.indentation + ".instance_offset")?right_pad(ccode.initializers_align) + "= off," + "\n"
-  endif
+  end
   emit "\n"
   emit "/**\n"
   doxygen.EmitBrief("", "Interface @p " + ifctype + " virtual methods table.")
@@ -1395,7 +1395,7 @@ macro GenerateInterfaceWrapper(node=[])
   emit ccode.MakeVariableDeclaration(ccode.indentation, "vmt", vmtctype) + "\n"
   emit "};\n"
   emit "/** @} */\n"
-endmacro
+end
 
 macro GenerateInterfacesImplementations(node=[],
                                         classnamespace="no-namespace",
@@ -1411,7 +1411,7 @@ macro GenerateInterfacesImplementations(node=[],
         local foundmethods = ifmethods?filter(m -> GetMethodShortName(m) == methodsname)
         if !foundmethods[0]??
           stop ">>>> Method '" + methodsname + "' not found."
-        endif
+        end
         local method     = foundmethods[0]
         local methodname = GetNodeName(method)
         emit "/**\n"
@@ -1443,8 +1443,8 @@ macro GenerateInterfacesImplementations(node=[],
         emit "}\n"
         if methodref?has_next
           emit "\n"
-        endif
-      endlist
+        end
+      end
     elseif this?node_name == "condition"
       local condcheck = (this.@check[0]!"1")?trim
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
@@ -1454,15 +1454,15 @@ macro GenerateInterfacesImplementations(node=[],
         classctype     = classctype
       )
       emit "#endif /* ${condcheck} */\n"
-    endif
+    end
     if this?has_next
       emit "\n"
     elseif ((this?parent?node_name != "condition") &&
              (this?parent?node_name != "implements"))
       emit "\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- This macro generates a class interfaces implementatios from an XML node.
@@ -1482,8 +1482,8 @@ macro GenerateClassInterfacesImplementations(node=[], private=false)
     )
     emit "/** @} */\n"
     emit "\n"
-  endif
-endmacro
+  end
+end
 
 /*
   -- This macro generates the class code from an XML node.
@@ -1493,4 +1493,4 @@ macro GenerateClassCode(class=[], modifiers=[])
   GenerateClassImplementations(node=class, modifiers=modifiers)
   GenerateClassVMT(node=class, modifiers=modifiers)
   GenerateClassRegularMethods(node=class, modifiers=modifiers)
-endmacro
+end
