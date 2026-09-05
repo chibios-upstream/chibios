@@ -37,7 +37,7 @@ assign boundary = 80
   */
 macro ResetState()
   assign generated = false
-endmacro
+end
 
 /*
   -- Returns the function/macro name from an XML node.
@@ -45,7 +45,7 @@ endmacro
 function GetName(node=[], default="no-name")
   local name = (node.@name[0]!default)?trim
   return name
-endfunction
+end
 
 /*
   -- Returns the function return C type from an XML node.
@@ -54,9 +54,9 @@ function GetCType(node=[], default="void")
   local ctype = (node.@ctype[0]!default)?trim
   if ctype?length == 0
     local ctype = default
-  endif
+  end
   return ctype
-endfunction
+end
 
 /*
   -- Returns the function/macro implementation from an XML node.
@@ -64,7 +64,7 @@ endfunction
 function GetImplementation(node=[], default="")
   local impl = node.implementation[0]!default
   return impl
-endfunction
+end
 
 /*
   -- This function generates a variable or field declaration in a string.
@@ -79,17 +79,17 @@ function MakeVariableDeclaration(indent="", name="no-name", ctype="no-ctype")
       local fstring = fstring?replace("$N", name)
     else
       local fstring = fstring + name
-    endif
+    end
   else
     local fstring = indent + ctype
     if fstring?contains("$N")
       local fstring = fstring?replace("$N", name)
     else
       local fstring = (fstring + " ")?right_pad(fields_align) + name
-    endif
-  endif
+    end
+  end
   return fstring + ";"
-endfunction
+end
 
 /*
   -- Creates a sequence containing function parameters taken from an XML node.
@@ -106,15 +106,15 @@ function MakeProtoParamsSequence(params=[], node=[])
         local pstring = ctype + "" + name
       else
         local pstring = ctype + " " + name
-      endif
-    endif
+      end
+    end
     local params = params + [pstring]
-  endlist
+  end
   if params?size == 0
     local params = ["void"]
-  endif
+  end
   return params
-endfunction
+end
 
 /*
   -- Creates a sequence containing parameters names taken from an XML node.
@@ -123,9 +123,9 @@ function MakeCallParamsSequence(params=[], node=[])
   list node.param as param
     local name  = (param.@name[0]!"no-name")?trim
     local params = params + [name]
-  endlist
+  end
   return params
-endfunction
+end
 
 /*
   -- Emits the specified indentation as spaces.
@@ -133,8 +133,8 @@ endfunction
 macro Indent(n=0)
   list 1..n as i
     emit indentation
-  endlist
-endmacro
+  end
+end
 
 /*
   -- Emits a C function body code reformatting the indentation using the
@@ -150,13 +150,13 @@ macro GenerateIndentedCCode(indent=indentation, ccode="")
           emit s + "\n"
         else
           emit indent + s + "\n"
-        endif
+        end
       else
         emit "\n"
-      endif
-    endif
-  endlist
-endmacro
+      end
+    end
+  end
+end
 
 /*
   -- This macro generates a variable or field.
@@ -166,7 +166,7 @@ endmacro
 macro GenerateVariableDeclaration(indent="", name="no-name", ctype="no-ctype")
   local fstring = MakeVariableDeclaration(indent, name, ctype)
   emit fstring
-endmacro
+end
 
 /*
   -- This macro generates a function prototype from an XML node.
@@ -178,10 +178,10 @@ macro GeneratePrototype(indent="", name="no-name", ctype="no-ctype",
     local l1 = ctype + name + "("
   else
     local l1 = ctype + " " + name + "("
-  endif
+  end
   if modifiers?size > 0
     local l1 = modifiers?join(" ") + " " + l1
-  endif
+  end
   local l1 = indent + l1
   local ln = ""?right_pad(l1?length)
   list params as param
@@ -193,11 +193,11 @@ macro GeneratePrototype(indent="", name="no-name", ctype="no-ctype",
         local line = ln + param
       else
         local line = line + ", " + param
-      endif
-    endif
-  endlist
+      end
+    end
+  end
   emit line + ")"
-endmacro
+end
 
 /*
   -- This macro generates a function prototype from an XML node.
@@ -207,10 +207,10 @@ macro GeneratePrototypeFromNode(indent="", name="", ctype="",
                                 modifiers=[], params=[], node=[])
   if name?length == 0
     local name = GetName(node)
-  endif
+  end
   if ctype?length == 0
     local ctype = GetCType(node)
-  endif
+  end
   local params = MakeProtoParamsSequence(params, node)
   GeneratePrototype(
     indent    = indent,
@@ -219,7 +219,7 @@ macro GeneratePrototypeFromNode(indent="", name="", ctype="",
     modifiers = modifiers,
     params    = params
   )
-endmacro
+end
 
 /*
   -- This macro generates a function call.
@@ -227,12 +227,12 @@ endmacro
 macro GenerateFunctionCall(indent="", destination="", name="", params=[])
   if name?length == 0
     local name = "no-name"
-  endif
+  end
   if destination?trim?length > 0
     local l1 = indent + destination?trim + " " + name + "("
   else
     local l1 = indent + destination?trim + name + "("
-  endif
+  end
   local ln = ""?right_pad(l1?length)
   local line = l1
   list params as param
@@ -244,11 +244,11 @@ macro GenerateFunctionCall(indent="", destination="", name="", params=[])
         local line = ln + param
       else
         local line = line + ", " + param
-      endif
-    endif
-  endlist
+      end
+    end
+  end
   emit line + ");" + "\n"
-endmacro
+end
 
 /*
   -- Generates inclusions from an XML node.
@@ -261,7 +261,7 @@ macro GenerateInclusionsFromNode(node=[])
         emit "#include <${this[0]}>\n"
       else
         emit "#include \"${this[0]}\"\n"
-      endif
+      end
     elseif this?node_name == "condition"
       local condcheck = (this.@check[0]!"1")?trim
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
@@ -273,10 +273,10 @@ macro GenerateInclusionsFromNode(node=[])
         emit "#else\n"
       else
         emit "#elif ${condcheck}\n"
-      endif
-    endif
-  endlist
-endmacro
+      end
+    end
+  end
+end
 
 /*
   -- Generates a single line definition macro from an XML node.
@@ -290,9 +290,9 @@ macro GenerateDefineFromNode(node=[])
     local s = ("#define " + name +  "(" + params?join(", ") + ")")?right_pad(define_value_align) + value
   else
     local s = ("#define " + name +  " ")?right_pad(define_value_align) + value
-  endif
+  end
   emit s + "\n"
-endmacro
+end
 
 /*
   -- Generates all single line definitions from an XML node.
@@ -305,19 +305,19 @@ macro GenerateDefinesFromNode(node=[])
         GenerateDefineFromNode(this)
         if this?has_next || node?node_name?starts_with("definitions")
           emit "\n"
-        endif
+        end
       else
         GenerateDefineFromNode(this)
         if node?node_name?starts_with("definitions")
           emit "\n"
-        endif
-      endif
+        end
+      end
     elseif this?node_name == "verbatim"
       local ccode = (this[0]!"")?trim
       GenerateIndentedCCode("", ccode)
       if node?node_name?starts_with("definitions")
         emit "\n"
-      endif
+      end
     elseif this?node_name == "group"
       local groupdescription = (this.@description[0]!"no-description")?trim
       emit "/**\n"
@@ -328,7 +328,7 @@ macro GenerateDefinesFromNode(node=[])
       emit "/** @} */\n"
       if (node?node_name != "group") && (node?node_name != "condition")
         emit "\n"
-      endif
+      end
     elseif this?node_name == "condition"
       local condcheck = (this.@check[0]!"1")?trim
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
@@ -336,10 +336,10 @@ macro GenerateDefinesFromNode(node=[])
       emit "#endif /* ${condcheck} */\n"
       if (node?node_name != "group") && (node?node_name != "condition")
         emit "\n"
-      endif
-    endif
-  endlist
-endmacro
+      end
+    end
+  end
+end
 
 /*
   -- Generates a conmfiguration definition from an XML node.
@@ -353,7 +353,7 @@ macro GenerateConfigFromNode(node=[])
   emit "#if !defined(${name}) || defined(__DOXYGEN__)\n"
   emit s + "\n"
   emit "#endif\n"
-endmacro
+end
 
 /*
   -- Generates all configurations from an XML node.
@@ -370,12 +370,12 @@ macro GenerateConfigsFromNode(node=[])
       GenerateConfigFromNode(node=config)
       if !config?is_last
         emit "\n"
-      endif
-    endlist
+      end
+    end
     emit "/** @} */\n"
     emit "\n"
-  endif
-endmacro
+  end
+end
 
 /*
   -- Generates all configuration checks from an XML node.
@@ -396,20 +396,20 @@ macro GenerateConfigAssertsFromNode(node=[])
             emit "#error \"${message}\"\n"
           else
             emit "#error \"invalid ${name} value\"\n"
-          endif
+          end
           emit "#endif\n"
           emit "\n"
-        endlist
-      endif
+        end
+      end
     elseif this?node_name == "verbatim"
       local ccode = (this[0]!"")?trim
       if ccode?length > 0
         GenerateIndentedCCode("", ccode)
         emit "\n"
-      endif
-    endif
-  endlist
-endmacro
+      end
+    end
+  end
+end
 
 /*
   -- Generates a multi-line C macro from an XML node.
@@ -433,10 +433,10 @@ macro GenerateMacroFromNode(indent=indentation, node=[])
         emit (indent + s + "") + "\n"
       else
         emit (indent + s + "")?right_pad(backslash_align) + "\\" + "\n"
-      endif
-    endlist
-  endif
-endmacro
+      end
+    end
+  end
+end
 
 /*
   -- Generates all macros from an XML node.
@@ -446,14 +446,14 @@ macro GenerateMacrosFromNode(indent=indentation, node=[])
     if this?node_name == "macro"
       if this.brief[0]?? && !this?is_first
         emit "\n"
-      endif
+      end
       doxygen.EmitFullCommentFromNode("", this)
       GenerateMacroFromNode(node=this)
     elseif this?node_name == "group"
       local groupdescription = (this.@description[0]!"no-description")?trim
       if !this?is_first
         emit "\n"
-      endif
+      end
       emit "/**\n"
       emit " * @name    ${groupdescription}\n"
       emit " * @{\n"
@@ -464,7 +464,7 @@ macro GenerateMacrosFromNode(indent=indentation, node=[])
       local condcheck = (this.@check[0]!"1")?trim
       if !this?is_first
         emit "\n"
-      endif
+      end
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
       GenerateMacrosFromNode(node=this)
       emit "#endif /* ${condcheck} */\n"
@@ -472,18 +472,18 @@ macro GenerateMacrosFromNode(indent=indentation, node=[])
       local condcheck = (this.@check[0]!"")?trim
       if !this?is_first
         emit "\n"
-      endif
+      end
       if condcheck?length == 0
         emit "#else\n"
       else
         emit "#elif ${condcheck}\n"
-      endif
-    endif
+      end
+    end
     if this?is_last && (node?node_name?starts_with("macros"))
       emit "\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- This macro generates a simple type definition from an XML node.
@@ -499,13 +499,13 @@ macro GenerateTypedefFromNode(indent="", node=[])
       emit "${indent}typedef ${basectype};\n"
     else
       emit "${indent}typedef ${basectype} ${typename};\n"
-    endif
+    end
   elseif typedef.structtype[0]??
   elseif typedef.enumtype[0]??
   elseif typedef.functype[0]??
   else
-  endif
-endmacro
+  end
+end
 
 /*
   -- This macro generates a struct definition from an XML node.
@@ -514,11 +514,11 @@ macro GenerateStructFromNode(indent="", node=[], default="###no-name###")
   local structname = GetName(node, default)
   if structname?length > 0
     local structname = structname + " "
-  endif
+  end
   emit "${indent}struct ${structname}{\n"
   ccode.GenerateStructureFieldsFromNode(indent+indentation, node.fields)
   emit "${indent}};\n"
-endmacro
+end
 
 /*
   -- This macro generates a union definition from an XML node.
@@ -527,11 +527,11 @@ macro GenerateUnionFromNode(indent="", node=[], default="###no-name###")
   local unionname = GetName(node, default)
   if unionname?length > 0
     local unionname = unionname + " "
-  endif
+  end
   emit "${indent}union ${unionname}{\n"
   ccode.GenerateStructureFieldsFromNode(indent+indentation, node.fields)
   emit "${indent}};\n"
-endmacro
+end
 
 /*
   -- Generates type definitions from an XML node.
@@ -559,12 +559,12 @@ macro GenerateTypesFromNode(indent="", node=[])
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
       GenerateTypesFromNode("", this)
       emit "#endif /* ${condcheck} */\n"
-    endif
+    end
     if this?has_next || (node?node_name != "condition")
       emit "\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- This macro generates a variable definition from an XML node.
@@ -578,10 +578,10 @@ macro GenerateVariableFromNode(indent="", node=[], static=false)
     local varstring = indent + "static " + varstring
   else
     local varstring = indent + varstring
-  endif
+  end
   doxygen.EmitFullCommentFromNode(indent, node)
   emit varstring + "\n"
-endmacro
+end
 
 /*
   -- Generates variable definitions from an XML node.
@@ -599,12 +599,12 @@ macro GenerateVariablesFromNode(indent="", node=[], static=false)
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
       GenerateVariablesFromNode(indent, this, static)
       emit "#endif /* ${condcheck} */\n"
-    endif
+    end
     if this?has_next || (node?node_name != "condition")
       emit "\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- This macro generates a variable extern definition from an XML node.
@@ -615,7 +615,7 @@ macro GenerateVariableExternFromNode(indent="", node=[])
   local varctype  = GetCType(node)
   local varstring = MakeVariableDeclaration(indent+"extern ", varname, varctype)
   emit varstring + "\n"
-endmacro
+end
 
 /*
   -- Generates variable extern definitions from an XML node.
@@ -630,12 +630,12 @@ macro GenerateVariablesExternFromNode(indent="", node=[])
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
       GenerateVariablesExternFromNode(indent, this)
       emit "#endif /* ${condcheck} */\n"
-    endif
+    end
     if this?is_last && (node?node_name != "condition")
       emit "\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- This macro generates structure fields from an XML node.
@@ -658,9 +658,9 @@ macro GenerateStructureFieldsFromNode(indent="", fields=[])
     elseif node?node_name == "verbatim"
       local ccode = (node[0]!"")?trim
       GenerateIndentedCCode(indent, ccode)
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- Generates a function from an XML node.
@@ -671,7 +671,7 @@ macro GenerateFunctionFromNode(modifiers=[], node=[])
   emit " {\n"
   GenerateIndentedCCode(indent=indentation, ccode=funcimpl)
   emit "}\n"
-endmacro
+end
 
 /*
   -- Generates all functions from an XML node.
@@ -682,14 +682,14 @@ macro GenerateFunctionsFromNode(modifiers=[], node=[])
       assign generated = true
       if !this?is_first
         emit "\n"
-      endif
+      end
       doxygen.EmitFullCommentFromNode("", this)
       GenerateFunctionFromNode(modifiers=modifiers, node=this)
     elseif this?node_name == "group"
       local groupdescription = (this.@description[0]!"no-description")?trim
       if !this?is_first
         emit "\n"
-      endif
+      end
       emit "/**\n"
       emit " * @name    ${groupdescription}\n"
       emit " * @{\n"
@@ -699,14 +699,14 @@ macro GenerateFunctionsFromNode(modifiers=[], node=[])
     elseif this?node_name == "verbatim"
       if !this?is_first
         emit "\n"
-      endif
+      end
       local ccode = (this[0]!"")?trim
       GenerateIndentedCCode("", ccode)
     elseif this?node_name == "condition"
       local condcheck = (this.@check[0]!"1")?trim
       if !this?is_first
         emit "\n"
-      endif
+      end
       emit "#if (${condcheck}) || defined (__DOXYGEN__)\n"
       GenerateFunctionsFromNode(modifiers=modifiers, node=this)
       emit "#endif /* ${condcheck} */\n"
@@ -714,18 +714,18 @@ macro GenerateFunctionsFromNode(modifiers=[], node=[])
       local condcheck = (this.@check[0]!"")?trim
       if !this?is_first
         emit "\n"
-      endif
+      end
       if condcheck?length == 0
         emit "#else\n"
       else
         emit "#elif ${condcheck}\n"
-      endif
-    endif
+      end
+    end
     if this?is_last && (node?node_name?starts_with("functions"))
       emit "\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- Generates all function prototypes from an XML node.
@@ -749,7 +749,7 @@ macro GenerateFunctionPrototypesFromNode(indent=indentation, modifiers=[], node=
         emit "#else\n"
       else
         emit "#elif ${condcheck}\n"
-      endif
-    endif
-  endlist
-endmacro
+      end
+    end
+  end
+end
