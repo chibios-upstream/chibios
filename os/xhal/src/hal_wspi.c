@@ -51,6 +51,28 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+#if ((WSPI_USE_SYNCHRONIZATION == TRUE) && (WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE)) || defined (__DOXYGEN__)
+/**
+ * @brief       Checks a received status against its mask and match value.
+ *
+ * @param[in]     pollp         Pointer to the status-poll descriptor.
+ * @return                      The comparison result.
+ * @retval true                 If all masked status bytes match.
+ * @retval false                If any masked status byte does not match.
+ */
+static bool wspi_status_match(const wspi_status_poll_t *pollp) {
+  size_t i;
+
+  for (i = 0U; i < pollp->length; ++i) {
+    if ((pollp->statusp[i] & pollp->maskp[i]) != pollp->matchp[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+#endif /* (WSPI_USE_SYNCHRONIZATION == TRUE) && (WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE) */
+
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
@@ -90,9 +112,6 @@ void *__wspi_objinit_impl(void *ip, const void *vmt) {
   /* Initialization code.*/
 #if WSPI_USE_SYNCHRONIZATION == TRUE
   self->sync_transfer = NULL;
-  self->status_poll_active = false;
-  self->status_poll_cancelled = false;
-  self->status_poll_lld_active = false;
 #endif
 
   /* Optional, user-defined initializer.*/
@@ -416,20 +435,21 @@ bool wspiReceive(void *ip, const wspi_command_t *cmdp, size_t n,
 
 /**
  * @brief       Polls a status value until its masked bytes match.
- * @details     Low-level drivers can accelerate this operation in hardware.
- *              Otherwise, ordinary receive operations and thread sleeps are
- *              used. The status buffer is updated by the software fallback but
- *              its contents are unspecified when a low-level accelerator is
- *              used.
+ * @details     The low-level driver can implement this operation directly. If
+ *              the low-level driver does not support status polling then the
+ *              status is read using ordinary WSPI receive operations until it
+ *              matches or the requested timeout expires. Each fallback status
+ *              read is not individually timed.
+ * @note        @p TIME_IMMEDIATE is not a valid timeout.
  *
  * @param[in,out] ip            Pointer to a @p hal_wspi_driver_c instance.
  * @param[in]     cmdp          Pointer to the WSPI command descriptor.
  * @param[in]     pollp         Pointer to the status-poll descriptor.
- * @param[in]     timeout       Maximum interval to wait.
+ * @param[in]     timeout       Maximum interval to wait for a matching status.
  * @return                      The operation status.
  * @retval MSG_OK               If the status matched.
  * @retval MSG_RESET            If a hardware error occurred.
- * @retval MSG_TIMEOUT          If the operation timed out or was cancelled.
+ * @retval MSG_TIMEOUT          If the polling interval expired.
  *
  * @api
  */
@@ -437,184 +457,83 @@ msg_t wspiPollStatusTimeout(void *ip, const wspi_command_t *cmdp,
                             const wspi_status_poll_t *pollp,
                             sysinterval_t timeout) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  systime_t start;
-  systime_t end;
   msg_t msg;
+  size_t i;
 
   chDbgCheck((self != NULL) && (cmdp != NULL) && (pollp != NULL));
   chDbgCheck((pollp->length > 0U) && (pollp->statusp != NULL) &&
-               (pollp->maskp != NULL) && (pollp->matchp != NULL));
+             (pollp->maskp != NULL) && (pollp->matchp != NULL));
+  chDbgCheck(pollp->interval != TIME_INFINITE);
+  chDbgCheck(timeout != TIME_IMMEDIATE);
   chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
 
+  for (i = 0U; i < pollp->length; ++i) {
+    chDbgCheck((pollp->matchp[i] & (uint8_t)~pollp->maskp[i]) == 0U);
+  }
+
+#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
   chSysLock();
   chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
   chDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
-
-  self->status_poll_active = true;
-  self->status_poll_cancelled = false;
-  self->status_poll_lld_active = false;
   self->state = WSPI_STATE_POLL;
-
-#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
-  if ((timeout != TIME_IMMEDIATE) &&
-      wspi_lld_status_poll_supported(self, pollp)) {
-    self->status_poll_lld_active = true;
-    wspi_lld_start_status_poll(self, cmdp, pollp);
-    msg = chThdSuspendTimeoutS(&self->sync_transfer, timeout);
-    if (self->status_poll_lld_active) {
-      wspi_lld_abort_status_poll(self);
-      self->status_poll_lld_active = false;
-    }
-    if (self->status_poll_cancelled) {
-      msg = MSG_TIMEOUT;
-    }
-
-    self->status_poll_active = false;
+  wspi_lld_start_status_poll(self, cmdp, pollp);
+  msg = chThdSuspendTimeoutS(&self->sync_transfer, timeout);
+  if (self->state == WSPI_STATE_POLL) {
+    wspi_lld_stop_status_poll(self, pollp);
     self->state = HAL_DRV_STATE_READY;
-    chSysUnlock();
-
-    return msg;
   }
-#endif
-
   chSysUnlock();
+#else
+  {
+    systime_t start;
+    systime_t end;
 
-  start = chVTGetSystemTimeX();
-  end = start;
-  if ((timeout != TIME_IMMEDIATE) && (timeout != TIME_INFINITE)) {
-    end = chTimeAddX(start, timeout);
-  }
-  while (true) {
-    bool cancelled;
-    bool matched;
-    size_t i;
-
-    chSysLock();
-    cancelled = self->status_poll_cancelled;
-    if (!cancelled) {
-      self->state = WSPI_STATE_RECEIVE;
-      wspi_lld_receive(self, cmdp, pollp->length, pollp->statusp);
-      msg = chThdSuspendTimeoutS(&self->sync_transfer, TIME_INFINITE);
-      self->state = WSPI_STATE_POLL;
-      cancelled = self->status_poll_cancelled;
-    }
-    else {
-      msg = MSG_TIMEOUT;
-    }
-    chSysUnlock();
-
-    if (cancelled) {
-      msg = MSG_TIMEOUT;
-      break;
-    }
-    if (msg != MSG_OK) {
-      msg = MSG_RESET;
-      break;
-    }
-
-    matched = true;
-    for (i = 0U; i < pollp->length; ++i) {
-      if ((pollp->statusp[i] & pollp->maskp[i]) != pollp->matchp[i]) {
-        matched = false;
-        break;
-      }
-    }
-    if (matched) {
-      msg = MSG_OK;
-      break;
-    }
-    if (timeout == TIME_IMMEDIATE) {
-      msg = MSG_TIMEOUT;
-      break;
-    }
-
+    start = chVTGetSystemTimeX();
+    end = start;
     if (timeout != TIME_INFINITE) {
-      systime_t now;
-
-      now = chVTGetSystemTimeX();
-      if (!chTimeIsInRangeX(now, start, end)) {
-        msg = MSG_TIMEOUT;
-        break;
-      }
+      end = chTimeAddX(start, timeout);
     }
 
-    if (pollp->interval_us > 0U) {
-      sysinterval_t delay;
+    while (true) {
+      if (wspiReceive(self, cmdp, pollp->length, pollp->statusp)) {
+        msg = MSG_RESET;
+        break;
+      }
 
-      delay = TIME_US2I(pollp->interval_us);
-      if (timeout != TIME_INFINITE) {
-        systime_t now;
-        sysinterval_t remaining;
+      if (wspi_status_match(pollp)) {
+        msg = MSG_OK;
+        break;
+      }
 
-        now = chVTGetSystemTimeX();
-        if (!chTimeIsInRangeX(now, start, end)) {
-          delay = TIME_IMMEDIATE;
-        }
-        else {
+      {
+        sysinterval_t delay;
+
+        delay = pollp->interval;
+        if (timeout != TIME_INFINITE) {
+          systime_t now;
+          sysinterval_t remaining;
+
+          now = chVTGetSystemTimeX();
+          if (!chTimeIsInRangeX(now, start, end)) {
+            msg = MSG_TIMEOUT;
+            break;
+          }
+
           remaining = chTimeDiffX(now, end);
           if (delay > remaining) {
             delay = remaining;
           }
         }
-      }
 
-      if (delay > TIME_IMMEDIATE) {
-        chSysLock();
-        if (!self->status_poll_cancelled) {
-          chThdSleepS(delay);
-        }
-        cancelled = self->status_poll_cancelled;
-        chSysUnlock();
-        if (cancelled) {
-          msg = MSG_TIMEOUT;
-          break;
+        if (delay > (sysinterval_t)0) {
+          chThdSleep(delay);
         }
       }
     }
   }
-
-  chSysLock();
-  self->status_poll_active = false;
-  self->state = HAL_DRV_STATE_READY;
-  chSysUnlock();
-
-  return msg;
-}
-
-/**
- * @brief       Cancels an active status-poll operation.
- * @details     Low-level accelerated polling is stopped immediately. A
- *              software fallback observes cancellation after its current read
- *              or sleep. The polling thread retains ownership of final driver
- *              cleanup.
- *
- * @param[in,out] ip            Pointer to a @p hal_wspi_driver_c instance.
- * @return                      Whether an active status poll was cancelled.
- * @retval true                 If an active status poll was cancelled.
- * @retval false                If no status poll was active.
- *
- * @iclass
- */
-bool wspiAbortStatusPollI(void *ip) {
-  hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
-  chDbgCheckClassI();
-  chDbgCheck(self != NULL);
-
-  if (!self->status_poll_active) {
-    return false;
-  }
-
-  self->status_poll_cancelled = true;
-
-#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
-  if (self->status_poll_lld_active) {
-    wspi_lld_abort_status_poll(self);
-    self->status_poll_lld_active = false;
-    chThdResumeI(&self->sync_transfer, MSG_TIMEOUT);
-  }
 #endif
 
-  return true;
+  return msg;
 }
 #endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 

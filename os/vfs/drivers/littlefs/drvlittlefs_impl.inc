@@ -116,6 +116,10 @@ static msg_t translate_error(enum lfs_error res) {
     msg = CH_RET_ENOENT;
     break;
 
+  case LFS_ERR_NOENT:
+    msg = CH_RET_ENOENT;
+    break;
+
   case LFS_ERR_NAMETOOLONG:
     msg = CH_RET_ENAMETOOLONG;
     break;

@@ -332,8 +332,6 @@ typedef struct {
 #define wspi_lld_driver_fields                                              \
   /* Extra bits for the TCR register.*/                                     \
   uint32_t                      extra_tcr;                                  \
-  /* CR value restored after accelerated status polling.*/                 \
-  uint32_t                      status_poll_cr;                             \
   /* Pointer to the OCTOSPIx registers block.*/                             \
   OCTOSPI_TypeDef               *ospi;                                      \
   /* OCTOSPI GPDMA channel.*/                                               \
@@ -369,11 +367,11 @@ extern "C" {
   void wspi_lld_receive(WSPIDriver *wspip, const wspi_command_t *cmdp,
                         size_t n, uint8_t *rxbuf);
 #if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) && (WSPI_USE_WAIT == TRUE)
-  bool wspi_lld_status_poll_supported(
-      WSPIDriver *wspip, const wspi_status_poll_t *pollp);
-  void wspi_lld_start_status_poll(
-      WSPIDriver *wspip, const wspi_command_t *cmdp,
-      const wspi_status_poll_t *pollp);
+  void wspi_lld_start_status_poll(WSPIDriver *wspip,
+                                  const wspi_command_t *cmdp,
+                                  const wspi_status_poll_t *pollp);
+  void wspi_lld_stop_status_poll(WSPIDriver *wspip,
+                                 const wspi_status_poll_t *pollp);
   void wspi_lld_abort_status_poll(WSPIDriver *wspip);
 #endif
 #if WSPI_SUPPORTS_MEMMAP == TRUE

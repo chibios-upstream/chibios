@@ -690,8 +690,8 @@ static void rt_test_010_008_execute(void) {
   {
     chEvtUnregister(&es1, &el1);
     chEvtUnregister(&es2, &el2);
-    test_assert(!chEvtIsListeningI(&es1), "stuck listener");
-    test_assert(!chEvtIsListeningI(&es2), "stuck listener");
+    test_assert_lock(!chEvtIsListeningI(&es1), "stuck listener");
+    test_assert_lock(!chEvtIsListeningI(&es2), "stuck listener");
   }
   test_end_step(4);
 }

@@ -106,17 +106,6 @@
     chThdResumeI(&(wspip)->sync_transfer, msg);                             \
     chSysUnlockFromISR();                                                   \
   } while (false)
-
-/**
- * @brief       Returns the state following a low-level transfer.
- *
- * @param[in]     wspip         Pointer to the WSPI driver instance.
- * @return                      The next driver state.
- *
- * @notapi
- */
-#define _wspi_ready_state(wspip)                                            \
-  ((wspip)->status_poll_active ? WSPI_STATE_POLL : HAL_DRV_STATE_READY)
 #endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 
 #if (WSPI_USE_SYNCHRONIZATION != TRUE) || defined (__DOXYGEN__)
@@ -133,17 +122,6 @@
     (void)(wspip);                                                          \
     (void)(msg);                                                            \
   } while (false)
-
-/**
- * @brief       Returns the state following a low-level transfer.
- *
- * @param[in]     wspip         Pointer to the WSPI driver instance.
- * @return                      The next driver state.
- *
- * @notapi
- */
-#define _wspi_ready_state(wspip)                                            \
-  HAL_DRV_STATE_READY
 #endif /* WSPI_USE_SYNCHRONIZATION != TRUE */
 
 /**
@@ -155,9 +133,7 @@
  */
 #define _wspi_isr_complete_code(wspip)                                      \
   do {                                                                      \
-    __cbdrv_invoke_cb_with_transition(wspip,                                \
-                                      HAL_DRV_STATE_COMPLETE,               \
-                                      _wspi_ready_state(wspip));            \
+    __cbdrv_invoke_complete_cb(wspip);                                      \
     _wspi_wakeup_isr(wspip, MSG_OK);                                        \
   } while (false)
 
@@ -172,7 +148,7 @@
   do {                                                                      \
     __cbdrv_invoke_cb_with_transition(wspip,                                \
                                       HAL_DRV_STATE_ERROR,                  \
-                                      _wspi_ready_state(wspip));            \
+                                      HAL_DRV_STATE_READY);                 \
     _wspi_wakeup_isr(wspip, MSG_RESET);                                     \
   } while (false)
 /** @} */
@@ -220,7 +196,7 @@ typedef enum {
 #endif
 
 #if !defined(WSPI_LLD_SUPPORTS_STATUS_POLL)
-#define WSPI_LLD_SUPPORTS_STATUS_POLL       FALSE
+#error "WSPI_LLD_SUPPORTS_STATUS_POLL not defined in WSPI LLD driver"
 #endif
 
 #if !defined(WSPI_DEFAULT_CFG_MASKS)
@@ -262,7 +238,7 @@ struct wspi_status_poll {
    */
   size_t                    length;
   /**
-   * @brief       Buffer receiving the status value.
+   * @brief       Buffer receiving the last status value.
    */
   uint8_t *                 statusp;
   /**
@@ -275,9 +251,9 @@ struct wspi_status_poll {
    */
   const uint8_t *           matchp;
   /**
-   * @brief       Minimum interval between status reads, in microseconds.
+   * @brief       Minimum interval between status reads.
    */
-  uint32_t                  interval_us;
+  sysinterval_t             interval;
 };
 
 /**
@@ -372,18 +348,6 @@ struct hal_wspi_driver {
    * @brief       Synchronization point for blocking transfers.
    */
   thread_reference_t        sync_transfer;
-  /**
-   * @brief       Status-poll operation active flag.
-   */
-  bool                      status_poll_active;
-  /**
-   * @brief       Status-poll cancellation flag.
-   */
-  bool                      status_poll_cancelled;
-  /**
-   * @brief       Low-level status-poll accelerator active flag.
-   */
-  bool                      status_poll_lld_active;
 #endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 #if (defined(WSPI_DRIVER_EXT_FIELDS)) || defined (__DOXYGEN__)
   WSPI_DRIVER_EXT_FIELDS
@@ -426,7 +390,6 @@ extern "C" {
   msg_t wspiPollStatusTimeout(void *ip, const wspi_command_t *cmdp,
                               const wspi_status_poll_t *pollp,
                               sysinterval_t timeout);
-  bool wspiAbortStatusPollI(void *ip);
 #endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 #if (WSPI_SUPPORTS_MEMMAP == TRUE) || defined (__DOXYGEN__)
   void wspiMapFlashI(void *ip, const wspi_command_t *cmdp, uint8_t **addrp);

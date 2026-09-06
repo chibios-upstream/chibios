@@ -49,14 +49,6 @@ do {
   chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
-          <macro name="_wspi_ready_state">
-            <brief>Returns the state following a low-level transfer.</brief>
-            <param name="wspip" dir="in">Pointer to the WSPI driver instance.</param>
-            <return>The next driver state.</return>
-            <notapi />
-            <implementation><![CDATA[
-((wspip)->status_poll_active ? WSPI_STATE_POLL : HAL_DRV_STATE_READY)]]></implementation>
-          </macro>
         </condition>
         <condition check="WSPI_USE_SYNCHRONIZATION != TRUE">
           <macro name="_wspi_wakeup_isr">
@@ -70,14 +62,6 @@ do {
   (void)(msg);
 } while (false)]]></implementation>
           </macro>
-          <macro name="_wspi_ready_state">
-            <brief>Returns the state following a low-level transfer.</brief>
-            <param name="wspip" dir="in">Pointer to the WSPI driver instance.</param>
-            <return>The next driver state.</return>
-            <notapi />
-            <implementation><![CDATA[
-HAL_DRV_STATE_READY]]></implementation>
-          </macro>
         </condition>
         <macro name="_wspi_isr_complete_code">
           <brief>Common ISR code for successful operation completion.</brief>
@@ -85,9 +69,7 @@ HAL_DRV_STATE_READY]]></implementation>
           <notapi />
           <implementation><![CDATA[
 do {
-  __cbdrv_invoke_cb_with_transition(wspip,
-                                    HAL_DRV_STATE_COMPLETE,
-                                    _wspi_ready_state(wspip));
+  __cbdrv_invoke_complete_cb(wspip);
   _wspi_wakeup_isr(wspip, MSG_OK);
 } while (false)]]></implementation>
         </macro>
@@ -99,7 +81,7 @@ do {
 do {
   __cbdrv_invoke_cb_with_transition(wspip,
                                     HAL_DRV_STATE_ERROR,
-                                    _wspi_ready_state(wspip));
+                                    HAL_DRV_STATE_READY);
   _wspi_wakeup_isr(wspip, MSG_RESET);
 } while (false)]]></implementation>
         </macro>
@@ -142,7 +124,7 @@ typedef enum {
 #endif
 
 #if !defined(WSPI_LLD_SUPPORTS_STATUS_POLL)
-#define WSPI_LLD_SUPPORTS_STATUS_POLL       FALSE
+#error "WSPI_LLD_SUPPORTS_STATUS_POLL not defined in WSPI LLD driver"
 #endif
 
 #if !defined(WSPI_DEFAULT_CFG_MASKS)
@@ -175,7 +157,7 @@ typedef enum {
             <brief>Number of status bytes to read.</brief>
           </field>
           <field name="statusp" ctype="uint8_t *">
-            <brief>Buffer receiving the status value.</brief>
+            <brief>Buffer receiving the last status value.</brief>
           </field>
           <field name="maskp" ctype="const uint8_t *">
             <brief>Status bytes included in the comparison.</brief>
@@ -184,8 +166,8 @@ typedef enum {
             <brief>Expected value after masking the status bytes.</brief>
             <details>Bits outside the corresponding mask byte must be zero.</details>
           </field>
-          <field name="interval_us" ctype="uint32_t">
-            <brief>Minimum interval between status reads, in microseconds.</brief>
+          <field name="interval" ctype="sysinterval_t">
+            <brief>Minimum interval between status reads.</brief>
           </field>
         </fields>
       </struct>
@@ -209,15 +191,6 @@ WSPI_CONFIG_EXT_FIELDS]]></verbatim>
             <field name="sync_transfer" ctype="thread_reference_t">
               <brief>Synchronization point for blocking transfers.</brief>
             </field>
-            <field name="status_poll_active" ctype="bool">
-              <brief>Status-poll operation active flag.</brief>
-            </field>
-            <field name="status_poll_cancelled" ctype="bool">
-              <brief>Status-poll cancellation flag.</brief>
-            </field>
-            <field name="status_poll_lld_active" ctype="bool">
-              <brief>Low-level status-poll accelerator active flag.</brief>
-            </field>
           </condition>
           <condition check="defined(WSPI_DRIVER_EXT_FIELDS)">
             <verbatim><![CDATA[
@@ -232,9 +205,6 @@ wspi_lld_driver_fields;]]></verbatim>
             <implementation><![CDATA[
 #if WSPI_USE_SYNCHRONIZATION == TRUE
 self->sync_transfer = NULL;
-self->status_poll_active = false;
-self->status_poll_cancelled = false;
-self->status_poll_lld_active = false;
 #endif
 
 /* Optional, user-defined initializer.*/
@@ -439,11 +409,13 @@ return (bool)(msg != MSG_OK);]]></implementation>
               </method>
               <method name="wspiPollStatusTimeout" ctype="msg_t">
                 <brief>Polls a status value until its masked bytes match.</brief>
-                <details><![CDATA[Low-level drivers can accelerate this operation
-                  in hardware. Otherwise, ordinary receive operations and
-                  thread sleeps are used. The status buffer is updated by the
-                  software fallback but its contents are unspecified when a
-                  low-level accelerator is used.]]></details>
+                <details><![CDATA[The low-level driver can implement this
+                  operation directly. If the low-level driver does not support
+                  status polling then the status is read using ordinary WSPI
+                  receive operations until it matches or the requested timeout
+                  expires. Each fallback status read is not individually
+                  timed.]]></details>
+                <note>@p TIME_IMMEDIATE is not a valid timeout.</note>
                 <param name="cmdp" ctype="const wspi_command_t *" dir="in">
                   Pointer to the WSPI command descriptor.
                 </param>
@@ -451,186 +423,91 @@ return (bool)(msg != MSG_OK);]]></implementation>
                   Pointer to the status-poll descriptor.
                 </param>
                 <param name="timeout" ctype="sysinterval_t" dir="in">
-                  Maximum interval to wait.
+                  Maximum interval to wait for a matching status.
                 </param>
                 <return>The operation status.</return>
                 <retval value="MSG_OK">If the status matched.</retval>
                 <retval value="MSG_RESET">If a hardware error occurred.</retval>
-                <retval value="MSG_TIMEOUT">If the operation timed out or was cancelled.</retval>
+                <retval value="MSG_TIMEOUT">If the polling interval expired.</retval>
                 <api />
                 <implementation><![CDATA[
-systime_t start;
-systime_t end;
 msg_t msg;
+size_t i;
 
 chDbgCheck((self != NULL) && (cmdp != NULL) && (pollp != NULL));
 chDbgCheck((pollp->length > 0U) && (pollp->statusp != NULL) &&
-             (pollp->maskp != NULL) && (pollp->matchp != NULL));
+           (pollp->maskp != NULL) && (pollp->matchp != NULL));
+chDbgCheck(pollp->interval != TIME_INFINITE);
+chDbgCheck(timeout != TIME_IMMEDIATE);
 chDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) != WSPI_CFG_DATA_MODE_NONE);
 
+for (i = 0U; i < pollp->length; ++i) {
+  chDbgCheck((pollp->matchp[i] & (uint8_t)~pollp->maskp[i]) == 0U);
+}
+
+#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
 chSysLock();
 chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 chDbgAssert(drvGetCallbackX(self) == NULL, "has callback");
-
-self->status_poll_active = true;
-self->status_poll_cancelled = false;
-self->status_poll_lld_active = false;
 self->state = WSPI_STATE_POLL;
-
-#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
-if ((timeout != TIME_IMMEDIATE) &&
-    wspi_lld_status_poll_supported(self, pollp)) {
-  self->status_poll_lld_active = true;
-  wspi_lld_start_status_poll(self, cmdp, pollp);
-  msg = chThdSuspendTimeoutS(&self->sync_transfer, timeout);
-  if (self->status_poll_lld_active) {
-    wspi_lld_abort_status_poll(self);
-    self->status_poll_lld_active = false;
-  }
-  if (self->status_poll_cancelled) {
-    msg = MSG_TIMEOUT;
-  }
-
-  self->status_poll_active = false;
+wspi_lld_start_status_poll(self, cmdp, pollp);
+msg = chThdSuspendTimeoutS(&self->sync_transfer, timeout);
+if (self->state == WSPI_STATE_POLL) {
+  wspi_lld_stop_status_poll(self, pollp);
   self->state = HAL_DRV_STATE_READY;
-  chSysUnlock();
-
-  return msg;
 }
-#endif
-
 chSysUnlock();
+#else
+{
+  systime_t start;
+  systime_t end;
 
-start = chVTGetSystemTimeX();
-end = start;
-if ((timeout != TIME_IMMEDIATE) && (timeout != TIME_INFINITE)) {
-  end = chTimeAddX(start, timeout);
-}
-while (true) {
-  bool cancelled;
-  bool matched;
-  size_t i;
-
-  chSysLock();
-  cancelled = self->status_poll_cancelled;
-  if (!cancelled) {
-    self->state = WSPI_STATE_RECEIVE;
-    wspi_lld_receive(self, cmdp, pollp->length, pollp->statusp);
-    msg = chThdSuspendTimeoutS(&self->sync_transfer, TIME_INFINITE);
-    self->state = WSPI_STATE_POLL;
-    cancelled = self->status_poll_cancelled;
-  }
-  else {
-    msg = MSG_TIMEOUT;
-  }
-  chSysUnlock();
-
-  if (cancelled) {
-    msg = MSG_TIMEOUT;
-    break;
-  }
-  if (msg != MSG_OK) {
-    msg = MSG_RESET;
-    break;
-  }
-
-  matched = true;
-  for (i = 0U; i < pollp->length; ++i) {
-    if ((pollp->statusp[i] & pollp->maskp[i]) != pollp->matchp[i]) {
-      matched = false;
-      break;
-    }
-  }
-  if (matched) {
-    msg = MSG_OK;
-    break;
-  }
-  if (timeout == TIME_IMMEDIATE) {
-    msg = MSG_TIMEOUT;
-    break;
-  }
-
+  start = chVTGetSystemTimeX();
+  end = start;
   if (timeout != TIME_INFINITE) {
-    systime_t now;
-
-    now = chVTGetSystemTimeX();
-    if (!chTimeIsInRangeX(now, start, end)) {
-      msg = MSG_TIMEOUT;
-      break;
-    }
+    end = chTimeAddX(start, timeout);
   }
 
-  if (pollp->interval_us > 0U) {
-    sysinterval_t delay;
+  while (true) {
+    if (wspiReceive(self, cmdp, pollp->length, pollp->statusp)) {
+      msg = MSG_RESET;
+      break;
+    }
 
-    delay = TIME_US2I(pollp->interval_us);
-    if (timeout != TIME_INFINITE) {
-      systime_t now;
-      sysinterval_t remaining;
+    if (wspi_status_match(pollp)) {
+      msg = MSG_OK;
+      break;
+    }
 
-      now = chVTGetSystemTimeX();
-      if (!chTimeIsInRangeX(now, start, end)) {
-        delay = TIME_IMMEDIATE;
-      }
-      else {
+    {
+      sysinterval_t delay;
+
+      delay = pollp->interval;
+      if (timeout != TIME_INFINITE) {
+        systime_t now;
+        sysinterval_t remaining;
+
+        now = chVTGetSystemTimeX();
+        if (!chTimeIsInRangeX(now, start, end)) {
+          msg = MSG_TIMEOUT;
+          break;
+        }
+
         remaining = chTimeDiffX(now, end);
         if (delay > remaining) {
           delay = remaining;
         }
       }
-    }
 
-    if (delay > TIME_IMMEDIATE) {
-      chSysLock();
-      if (!self->status_poll_cancelled) {
-        chThdSleepS(delay);
-      }
-      cancelled = self->status_poll_cancelled;
-      chSysUnlock();
-      if (cancelled) {
-        msg = MSG_TIMEOUT;
-        break;
+      if (delay > (sysinterval_t)0) {
+        chThdSleep(delay);
       }
     }
   }
 }
-
-chSysLock();
-self->status_poll_active = false;
-self->state = HAL_DRV_STATE_READY;
-chSysUnlock();
-
-return msg;]]></implementation>
-              </method>
-              <method name="wspiAbortStatusPollI" ctype="bool">
-                <brief>Cancels an active status-poll operation.</brief>
-                <details><![CDATA[Low-level accelerated polling is stopped
-                  immediately. A software fallback observes cancellation after
-                  its current read or sleep. The polling thread retains
-                  ownership of final driver cleanup.]]></details>
-                <return>Whether an active status poll was cancelled.</return>
-                <retval value="true">If an active status poll was cancelled.</retval>
-                <retval value="false">If no status poll was active.</retval>
-                <iclass />
-                <implementation><![CDATA[
-chDbgCheckClassI();
-chDbgCheck(self != NULL);
-
-if (!self->status_poll_active) {
-  return false;
-}
-
-self->status_poll_cancelled = true;
-
-#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
-if (self->status_poll_lld_active) {
-  wspi_lld_abort_status_poll(self);
-  self->status_poll_lld_active = false;
-  chThdResumeI(&self->sync_transfer, MSG_TIMEOUT);
-}
 #endif
 
-return true;]]></implementation>
+return msg;]]></implementation>
               </method>
             </condition>
             <condition check="WSPI_SUPPORTS_MEMMAP == TRUE">
@@ -746,5 +623,28 @@ wspi_lld_init();]]></implementation>
     <includes_always>
       <include style="regular">hal.h</include>
     </includes_always>
+    <functions>
+      <condition check="(WSPI_USE_SYNCHRONIZATION == TRUE) &amp;&amp; (WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE)">
+        <function name="wspi_status_match" ctype="bool">
+          <brief>Checks a received status against its mask and match value.</brief>
+          <param name="pollp" ctype="const wspi_status_poll_t *" dir="in">
+            Pointer to the status-poll descriptor.
+          </param>
+          <return>The comparison result.</return>
+          <retval value="true">If all masked status bytes match.</retval>
+          <retval value="false">If any masked status byte does not match.</retval>
+          <implementation><![CDATA[
+size_t i;
+
+for (i = 0U; i < pollp->length; ++i) {
+  if ((pollp->statusp[i] & pollp->maskp[i]) != pollp->matchp[i]) {
+    return false;
+  }
+}
+
+return true;]]></implementation>
+        </function>
+      </condition>
+    </functions>
   </private>
 </module>

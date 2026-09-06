@@ -564,7 +564,7 @@ extern const halclkcfg_t hal_clkcfg_default;
 #endif
 
 #if HAL_USE_ADC || HAL_USE_DAC || HAL_USE_I2C || HAL_USE_SPI ||             \
-    defined(__DOXYGEN__)
+    HAL_USE_WSPI || defined(__DOXYGEN__)
 #include "stm32_dma3.h"
 #endif
 

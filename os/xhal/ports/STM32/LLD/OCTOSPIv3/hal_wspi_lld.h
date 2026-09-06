@@ -308,7 +308,6 @@
  */
 #define wspi_lld_driver_fields                                              \
   uint32_t                  extra_tcr;                                      \
-  uint32_t                  status_poll_cr;                                \
   OCTOSPI_TypeDef           *ospi;                                          \
   const stm32_dma3_channel_t *dmachp;                                       \
   uint8_t                   dreq;                                           \
@@ -339,11 +338,11 @@ extern "C" {
                         size_t n, uint8_t *rxbuf);
 #if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) &&                              \
     (WSPI_USE_SYNCHRONIZATION == TRUE)
-  bool wspi_lld_status_poll_supported(
-      hal_wspi_driver_c *wspip, const wspi_status_poll_t *pollp);
   void wspi_lld_start_status_poll(
       hal_wspi_driver_c *wspip, const wspi_command_t *cmdp,
       const wspi_status_poll_t *pollp);
+  void wspi_lld_stop_status_poll(
+      hal_wspi_driver_c *wspip, const wspi_status_poll_t *pollp);
   void wspi_lld_abort_status_poll(hal_wspi_driver_c *wspip);
 #endif
 #if WSPI_SUPPORTS_MEMMAP == TRUE

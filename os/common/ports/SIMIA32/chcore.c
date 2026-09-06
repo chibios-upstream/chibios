@@ -27,7 +27,8 @@
 #if defined(WIN32)
 #include <windows.h>
 #else
-#include <sys/time.h>
+#include <stdlib.h>
+#include <time.h>
 #endif
 
 #include "ch.h"
@@ -132,10 +133,14 @@ rtcnt_t port_rt_get_counter_value(void) {
 
   return (rtcnt_t)(n.QuadPart / 1000LL);
 #else
-  struct timeval tv;
+  struct timespec ts;
 
-  gettimeofday(&tv, NULL);
-  return ((rtcnt_t)tv.tv_sec * (rtcnt_t)1000000) + (rtcnt_t)tv.tv_usec;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+    abort();
+  }
+
+  return ((rtcnt_t)ts.tv_sec * (rtcnt_t)1000000) +
+         (rtcnt_t)(ts.tv_nsec / 1000L);
 #endif
 }
 

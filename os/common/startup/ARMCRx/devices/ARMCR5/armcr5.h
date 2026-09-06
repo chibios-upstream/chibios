@@ -15,19 +15,19 @@
 */
 
 /**
- * @file    RZV2H/rzv2h.h
- * @brief   ARM Cortex-R8 CMSIS device header for the Renesas RZ/V2H.
+ * @file    ARMCR5/armcr5.h
+ * @brief   Generic ARM Cortex-R5 CMSIS device header.
  *
- * @addtogroup ARMCRx_RZV2H
+ * @addtogroup ARMCRx_ARMCR5
  * @{
  */
 
-#ifndef RZV2H_H
-#define RZV2H_H
+#ifndef ARMCR5_H
+#define ARMCR5_H
 
 #include "crparams.h"
 
-#define __CR8_REV              0x0003U
+#define __CR5_REV              0x0000U
 #define __FPU_PRESENT          CORTEX_HAS_FPU
 #define __VIC_PRESENT          CORTEX_HAS_VIC
 #define __GIC_PRESENT          CORTEX_HAS_GIC
@@ -37,25 +37,18 @@
 #define __DTCM_PRESENT         CORTEX_HAS_DTCM
 #define __ECC_PRESENT          CORTEX_HAS_ECC
 
-/* GIC base addresses. The Cortex-R8 GIC lives in the MPCore private space at
-   PERIPHBASE = 0x12C10000 (CPU interface +0x100, distributor +0x1000). They
-   are defined here, before core_cr8.h, because the CMSIS GICv2 register set
-   and interrupt-controller support code consume them. */
-#define GIC_INTERFACE_BASE     0x12C10100U
-#define GIC_DISTRIBUTOR_BASE   0x12C11000U
-
 /**
  * @brief   Placeholder interrupt number type.
- * @details The Cortex-R8 GIC interrupt IDs are handled directly by the port
- *          GIC driver; the CMSIS @p IRQn_Type enumeration is not used for the
- *          SoC interrupt map.
+ * @details This is intentionally minimal. Real platforms are expected to
+ *          replace this header with the vendor device header, or to extend
+ *          it with the platform interrupt map.
  */
 typedef enum {
-  RZV2H_GenericIRQ0_IRQn = 0
+  ARMCR5_GenericIRQ0_IRQn = 0
 } IRQn_Type;
 
-#include "core_cr8.h"
+#include "core_cr5.h"
 
-#endif /* RZV2H_H */
+#endif /* ARMCR5_H */
 
 /** @} */

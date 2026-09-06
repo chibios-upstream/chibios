@@ -73,6 +73,24 @@ static inline void wspi_lld_sync(WSPIDriver *wspip) {
   }
 }
 
+#if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) && (WSPI_USE_WAIT == TRUE)
+/**
+ * @brief   Copies the last status value from the OCTOSPI data register.
+ */
+static void wspi_lld_read_status(WSPIDriver *wspip,
+                                 const wspi_status_poll_t *pollp) {
+  uint32_t status;
+  size_t i;
+
+  /* The FIFO is disabled in automatic status-polling mode.*/
+  status = wspip->ospi->DR;
+  for (i = 0U; i < pollp->length; ++i) {
+    pollp->statusp[i] = (uint8_t)status;
+    status >>= 8U;
+  }
+}
+#endif
+
 /**
  * @brief   Shared service routine.
  *
@@ -401,40 +419,9 @@ void wspi_lld_receive(WSPIDriver *wspip, const wspi_command_t *cmdp,
 
 #if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) && (WSPI_USE_WAIT == TRUE)
 /**
- * @brief   Checks whether a status poll can be accelerated by OCTOSPI.
- *
- * @param[in] wspip     pointer to the @p WSPIDriver object
- * @param[in] pollp     pointer to the status-poll descriptor
- * @return              Whether hardware acceleration is available.
- *
- * @notapi
- */
-bool wspi_lld_status_poll_supported(
-    WSPIDriver *wspip, const wspi_status_poll_t *pollp) {
-  uint64_t interval;
-  size_t i;
-
-  (void)wspip;
-
-  if (pollp->length > sizeof(uint32_t)) {
-    return false;
-  }
-
-  interval = ((uint64_t)STM32_OSPICLK * (uint64_t)pollp->interval_us +
-              999999ULL) / 1000000ULL;
-
-  for (i = 0U; i < pollp->length; ++i) {
-    if ((pollp->matchp[i] & (uint8_t)~pollp->maskp[i]) != 0U) {
-      return false;
-    }
-  }
-
-  return interval <= (uint64_t)OCTOSPI_PIR_INTERVAL;
-}
-
-/**
  * @brief   Starts OCTOSPI-accelerated status polling.
  * @note    DMA is not used by automatic status polling.
+ * @note    The OCTOSPI matcher supports status values up to four bytes.
  *
  * @param[in] wspip     pointer to the @p WSPIDriver object
  * @param[in] cmdp      pointer to the status-read command descriptor
@@ -442,23 +429,24 @@ bool wspi_lld_status_poll_supported(
  *
  * @notapi
  */
-void wspi_lld_start_status_poll(
-    WSPIDriver *wspip, const wspi_command_t *cmdp,
-    const wspi_status_poll_t *pollp) {
+void wspi_lld_start_status_poll(WSPIDriver *wspip,
+                                const wspi_command_t *cmdp,
+                                const wspi_status_poll_t *pollp) {
   uint64_t interval;
-  uint32_t cr;
   uint32_t mask;
   uint32_t match;
+  uint32_t prescaler;
   size_t i;
 
-  wspi_lld_sync(wspip);
-  wspip->status_poll_cr = wspip->ospi->CR;
-  cr = wspip->status_poll_cr &
-       ~(OCTOSPI_CR_FMODE | OCTOSPI_CR_PMM | OCTOSPI_CR_APMS |
-         OCTOSPI_CR_TOIE | OCTOSPI_CR_SMIE | OCTOSPI_CR_FTIE |
-         OCTOSPI_CR_TCIE | OCTOSPI_CR_TEIE | OCTOSPI_CR_DMAEN);
-  cr |= OCTOSPI_CR_FMODE_1 | OCTOSPI_CR_APMS |
-        OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE;
+  osalDbgAssert(pollp->length <= sizeof(uint32_t), "status too long");
+
+  prescaler = (wspip->ospi->DCR2 & STM32_DCR2_PRESCALER_MASK) + 1U;
+  interval = ((uint64_t)(STM32_OSPICLK / prescaler) *
+              (uint64_t)pollp->interval +
+              (uint64_t)OSAL_ST_FREQUENCY - 1ULL) /
+             (uint64_t)OSAL_ST_FREQUENCY;
+  osalDbgAssert(interval <= (uint64_t)OCTOSPI_PIR_INTERVAL,
+                "interval too long");
 
   mask = 0U;
   match = 0U;
@@ -466,10 +454,15 @@ void wspi_lld_start_status_poll(
     mask |= (uint32_t)pollp->maskp[i] << (i * 8U);
     match |= (uint32_t)pollp->matchp[i] << (i * 8U);
   }
-  interval = ((uint64_t)STM32_OSPICLK * (uint64_t)pollp->interval_us +
-              999999ULL) / 1000000ULL;
 
-  wspip->ospi->CR = cr;
+  wspi_lld_sync(wspip);
+
+  wspip->ospi->CR = (wspip->config->cr &
+                     ~(OCTOSPI_CR_FMODE | OCTOSPI_CR_TCIE |
+                       OCTOSPI_CR_TOIE)) |
+                    OCTOSPI_CR_FMODE_1 | OCTOSPI_CR_APMS |
+                    OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE |
+                    OCTOSPI_CR_DMAEN | OCTOSPI_CR_EN;
   wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
                      OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;
   wspip->ospi->DLR = pollp->length - 1U;
@@ -486,23 +479,47 @@ void wspi_lld_start_status_poll(
 }
 
 /**
+ * @brief   Stops accelerated status polling and saves the last status.
+ *
+ * @param[in] wspip     pointer to the @p WSPIDriver object
+ * @param[in] pollp     pointer to the status-poll descriptor
+ *
+ * @notapi
+ */
+void wspi_lld_stop_status_poll(WSPIDriver *wspip,
+                               const wspi_status_poll_t *pollp) {
+
+  wspip->ospi->CR &= ~(OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE);
+  if ((wspip->ospi->SR & OCTOSPI_SR_FTF) != 0U) {
+    wspi_lld_read_status(wspip, pollp);
+  }
+
+  wspi_lld_abort_status_poll(wspip);
+}
+
+/**
  * @brief   Aborts accelerated status polling and restores indirect mode.
  *
  * @param[in] wspip     pointer to the @p WSPIDriver object
  *
- * @iclass
+ * @notapi
  */
 void wspi_lld_abort_status_poll(WSPIDriver *wspip) {
 
   wspip->ospi->CR &= ~(OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE);
   if ((wspip->ospi->SR & OCTOSPI_SR_BUSY) != 0U) {
+    wspip->ospi->FCR = OCTOSPI_FCR_CTCF;
     wspip->ospi->CR |= OCTOSPI_CR_ABORT;
-    while ((wspip->ospi->CR & OCTOSPI_CR_ABORT) != 0U) {
+
+    /* ABORT always reads as zero, wait for actual completion instead.*/
+    while ((wspip->ospi->SR & OCTOSPI_SR_TCF) == 0U) {
     }
+    wspi_lld_sync(wspip);
   }
   wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
                      OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;
-  wspip->ospi->CR = wspip->status_poll_cr;
+  wspip->ospi->CR = wspip->config->cr | OCTOSPI_CR_TCIE |
+                    OCTOSPI_CR_DMAEN | OCTOSPI_CR_EN;
 }
 #endif
 
@@ -580,20 +597,18 @@ void wspi_lld_unmap_flash(WSPIDriver *wspip) {
  * @param[in] wspip     pointer to the @p WSPIDriver object
  */
 void wspi_lld_serve_interrupt(WSPIDriver *wspip) {
-  uint32_t sr = wspip->ospi->SR;
 
 #if (WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE) && (WSPI_USE_WAIT == TRUE)
-  if ((wspip->state == WSPI_POLL) && wspip->status_poll_lld_active) {
+  if ((wspip->ospi->CR & OCTOSPI_CR_FMODE) == OCTOSPI_CR_FMODE_1) {
+    uint32_t sr;
+
+    sr = wspip->ospi->SR;
     if ((sr & OCTOSPI_SR_TEF) != 0U) {
       wspi_lld_abort_status_poll(wspip);
-      wspip->status_poll_lld_active = false;
-      _wspi_wakeup_isr(wspip, MSG_RESET);
+      _wspi_error_code(wspip);
     }
     else if ((sr & OCTOSPI_SR_SMF) != 0U) {
-      wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
-                         OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;
-      wspip->ospi->CR = wspip->status_poll_cr;
-      wspip->status_poll_lld_active = false;
+      wspip->ospi->CR &= ~(OCTOSPI_CR_SMIE | OCTOSPI_CR_TEIE);
       _wspi_wakeup_isr(wspip, MSG_OK);
     }
     return;

@@ -42,6 +42,23 @@
 /* Driver local functions.                                                   */
 /*===========================================================================*/
 
+#if (WSPI_USE_WAIT == TRUE) && (WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE)
+/**
+ * @brief   Checks a received status value against its mask and match value.
+ */
+static bool wspi_status_match(const wspi_status_poll_t *pollp) {
+  size_t i;
+
+  for (i = 0U; i < pollp->length; ++i) {
+    if ((pollp->statusp[i] & pollp->maskp[i]) != pollp->matchp[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+#endif
+
 /*===========================================================================*/
 /* Driver exported functions.                                                */
 /*===========================================================================*/
@@ -71,9 +88,6 @@ void wspiObjectInit(WSPIDriver *wspip) {
   wspip->config = NULL;
 #if WSPI_USE_WAIT == TRUE
   wspip->thread = NULL;
-  wspip->status_poll_active = false;
-  wspip->status_poll_cancelled = false;
-  wspip->status_poll_lld_active = false;
 #endif
 #if WSPI_USE_MUTUAL_EXCLUSION == TRUE
   osalMutexObjectInit(&wspip->mutex);
@@ -223,217 +237,6 @@ void wspiStartReceive(WSPIDriver *wspip, const wspi_command_t *cmdp,
 
 #if (WSPI_USE_WAIT == TRUE) || defined(__DOXYGEN__)
 /**
- * @brief   Polls a status value until its masked bytes match.
- * @details Low-level drivers can accelerate this operation in hardware.
- *          Otherwise, ordinary receive operations and thread sleeps are used.
- * @pre     The driver must have been configured without callbacks.
- * @note    The status buffer is updated by the generic software fallback but
- *          its contents are unspecified when a low-level accelerator is used.
- *
- * @param[in] wspip     pointer to the @p WSPIDriver object
- * @param[in] cmdp      pointer to the status-read command descriptor
- * @param[in] pollp     pointer to the status-poll descriptor
- * @param[in] timeout   maximum interval to wait
- * @return              The operation status.
- * @retval MSG_OK       status matched
- * @retval MSG_RESET    hardware error
- * @retval MSG_TIMEOUT  timeout or external cancellation
- *
- * @api
- */
-msg_t wspiPollStatusTimeout(WSPIDriver *wspip,
-                            const wspi_command_t *cmdp,
-                            const wspi_status_poll_t *pollp,
-                            sysinterval_t timeout) {
-  msg_t msg;
-
-  osalDbgCheck((wspip != NULL) && (cmdp != NULL) && (pollp != NULL));
-  osalDbgCheck((pollp->length > 0U) && (pollp->statusp != NULL) &&
-               (pollp->maskp != NULL) && (pollp->matchp != NULL));
-  osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) !=
-               WSPI_CFG_DATA_MODE_NONE);
-
-  osalSysLock();
-
-  osalDbgAssert(wspip->state == WSPI_READY, "not ready");
-  osalDbgAssert(wspip->config->end_cb == NULL, "has callback");
-  osalDbgAssert(wspip->config->error_cb == NULL, "has callback");
-
-  wspip->status_poll_active = true;
-  wspip->status_poll_cancelled = false;
-  wspip->status_poll_lld_active = false;
-  wspip->state = WSPI_POLL;
-
-#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
-  if ((timeout != TIME_IMMEDIATE) &&
-      wspi_lld_status_poll_supported(wspip, pollp)) {
-    wspip->status_poll_lld_active = true;
-    wspi_lld_start_status_poll(wspip, cmdp, pollp);
-    msg = osalThreadSuspendTimeoutS(&wspip->thread, timeout);
-    if (wspip->status_poll_lld_active) {
-      wspi_lld_abort_status_poll(wspip);
-      wspip->status_poll_lld_active = false;
-    }
-    if (wspip->status_poll_cancelled) {
-      msg = MSG_TIMEOUT;
-    }
-
-    wspip->status_poll_active = false;
-    wspip->state = WSPI_READY;
-    osalSysUnlock();
-
-    return msg;
-  }
-#endif
-
-  osalSysUnlock();
-
-  {
-    systime_t start;
-    systime_t end;
-
-    start = osalOsGetSystemTimeX();
-    end = start;
-    if ((timeout != TIME_IMMEDIATE) && (timeout != TIME_INFINITE)) {
-      end = osalTimeAddX(start, timeout);
-    }
-
-    while (true) {
-      bool cancelled;
-      bool matched;
-      size_t i;
-
-      osalSysLock();
-      cancelled = wspip->status_poll_cancelled;
-      if (!cancelled) {
-        wspip->state = WSPI_RECEIVE;
-        wspi_lld_receive(wspip, cmdp, pollp->length, pollp->statusp);
-        msg = osalThreadSuspendS(&wspip->thread);
-        wspip->state = WSPI_POLL;
-        cancelled = wspip->status_poll_cancelled;
-      }
-      else {
-        msg = MSG_TIMEOUT;
-      }
-      osalSysUnlock();
-
-      if (cancelled) {
-        msg = MSG_TIMEOUT;
-        break;
-      }
-      if (msg != MSG_OK) {
-        msg = MSG_RESET;
-        break;
-      }
-
-      matched = true;
-      for (i = 0U; i < pollp->length; ++i) {
-        if ((pollp->statusp[i] & pollp->maskp[i]) != pollp->matchp[i]) {
-          matched = false;
-          break;
-        }
-      }
-      if (matched) {
-        msg = MSG_OK;
-        break;
-      }
-      if (timeout == TIME_IMMEDIATE) {
-        msg = MSG_TIMEOUT;
-        break;
-      }
-
-      if (timeout != TIME_INFINITE) {
-        systime_t now;
-
-        now = osalOsGetSystemTimeX();
-        if (!osalTimeIsInRangeX(now, start, end)) {
-          msg = MSG_TIMEOUT;
-          break;
-        }
-      }
-
-      if (pollp->interval_us > 0U) {
-        sysinterval_t delay;
-
-        delay = OSAL_US2I(pollp->interval_us);
-        if (timeout != TIME_INFINITE) {
-          systime_t now;
-          sysinterval_t remaining;
-
-          now = osalOsGetSystemTimeX();
-          if (!osalTimeIsInRangeX(now, start, end)) {
-            delay = TIME_IMMEDIATE;
-          }
-          else {
-            remaining = osalTimeDiffX(now, end);
-            if (delay > remaining) {
-              delay = remaining;
-            }
-          }
-        }
-
-        if (delay > TIME_IMMEDIATE) {
-          osalSysLock();
-          if (!wspip->status_poll_cancelled) {
-            osalThreadSleepS(delay);
-          }
-          cancelled = wspip->status_poll_cancelled;
-          osalSysUnlock();
-          if (cancelled) {
-            msg = MSG_TIMEOUT;
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  osalSysLock();
-  wspip->status_poll_active = false;
-  wspip->state = WSPI_READY;
-  osalSysUnlock();
-
-  return msg;
-}
-
-/**
- * @brief   Cancels an active status-poll operation.
- * @note    Low-level accelerated polling is stopped immediately. A software
- *          fallback observes cancellation after its current read or sleep.
- * @note    The polling thread retains ownership of final driver cleanup.
- *
- * @param[in] wspip     pointer to the @p WSPIDriver object
- * @return              Whether an active status poll was cancelled.
- * @retval true         an active status poll was cancelled
- * @retval false        no status poll was active
- *
- * @iclass
- */
-bool wspiAbortStatusPollI(WSPIDriver *wspip) {
-
-  osalDbgCheckClassI();
-  osalDbgCheck(wspip != NULL);
-
-  if (!wspip->status_poll_active) {
-    return false;
-  }
-
-  wspip->status_poll_cancelled = true;
-
-#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
-  if (wspip->status_poll_lld_active) {
-    wspi_lld_abort_status_poll(wspip);
-    wspip->status_poll_lld_active = false;
-    osalThreadResumeI(&wspip->thread, MSG_TIMEOUT);
-  }
-#endif
-
-  return true;
-}
-#endif
-
-#if (WSPI_USE_WAIT == TRUE) || defined(__DOXYGEN__)
-/**
  * @brief   Sends a command without data phase.
  * @pre     In order to use this function the option @p WSPI_USE_WAIT must be
  *          enabled.
@@ -541,6 +344,114 @@ bool wspiReceive(WSPIDriver *wspip, const wspi_command_t *cmdp,
   osalSysUnlock();
 
   return (bool)(msg != MSG_OK);
+}
+
+/**
+ * @brief   Polls a status value until its masked bytes match.
+ * @details The low-level driver can implement this operation directly. If
+ *          the low-level driver does not support status polling then the
+ *          status is read using ordinary WSPI receive operations until it
+ *          matches or the requested timeout expires. Each fallback status
+ *          read is not individually timed.
+ * @note    @p TIME_IMMEDIATE is not a valid timeout.
+ * @pre     In order to use this function the option @p WSPI_USE_WAIT must be
+ *          enabled.
+ * @pre     In order to use this function the driver must have been configured
+ *          without end callback (@p end_cb = @p NULL).
+ *
+ * @param[in] wspip     pointer to the @p WSPIDriver object
+ * @param[in] cmdp      pointer to the status-read command descriptor
+ * @param[in] pollp     pointer to the status-poll descriptor
+ * @param[in] timeout   maximum interval to wait for a matching status
+ * @return              The operation status.
+ * @retval MSG_OK       if the status matched.
+ * @retval MSG_RESET    if a hardware error occurred.
+ * @retval MSG_TIMEOUT  if the polling interval expired.
+ *
+ * @api
+ */
+msg_t wspiPollStatusTimeout(WSPIDriver *wspip,
+                            const wspi_command_t *cmdp,
+                            const wspi_status_poll_t *pollp,
+                            sysinterval_t timeout) {
+  msg_t msg;
+  size_t i;
+
+  osalDbgCheck((wspip != NULL) && (cmdp != NULL) && (pollp != NULL));
+  osalDbgCheck((pollp->length > 0U) && (pollp->statusp != NULL) &&
+               (pollp->maskp != NULL) && (pollp->matchp != NULL));
+  osalDbgCheck(pollp->interval != TIME_INFINITE);
+  osalDbgCheck(timeout != TIME_IMMEDIATE);
+  osalDbgCheck((cmdp->cfg & WSPI_CFG_DATA_MODE_MASK) !=
+               WSPI_CFG_DATA_MODE_NONE);
+
+  for (i = 0U; i < pollp->length; ++i) {
+    osalDbgCheck((pollp->matchp[i] & (uint8_t)~pollp->maskp[i]) == 0U);
+  }
+
+#if WSPI_LLD_SUPPORTS_STATUS_POLL == TRUE
+  osalSysLock();
+  osalDbgAssert(wspip->state == WSPI_READY, "not ready");
+  osalDbgAssert(wspip->config->end_cb == NULL, "has callback");
+  wspip->state = WSPI_POLL;
+  wspi_lld_start_status_poll(wspip, cmdp, pollp);
+  msg = osalThreadSuspendTimeoutS(&wspip->thread, timeout);
+  if (wspip->state == WSPI_POLL) {
+    wspi_lld_stop_status_poll(wspip, pollp);
+    wspip->state = WSPI_READY;
+  }
+  osalSysUnlock();
+#else
+  {
+    systime_t start;
+    systime_t end;
+
+    start = osalOsGetSystemTimeX();
+    end = start;
+    if (timeout != TIME_INFINITE) {
+      end = osalTimeAddX(start, timeout);
+    }
+
+    while (true) {
+      if (wspiReceive(wspip, cmdp, pollp->length, pollp->statusp)) {
+        msg = MSG_RESET;
+        break;
+      }
+
+      if (wspi_status_match(pollp)) {
+        msg = MSG_OK;
+        break;
+      }
+
+      {
+        sysinterval_t delay;
+
+        delay = pollp->interval;
+        if (timeout != TIME_INFINITE) {
+          systime_t now;
+          sysinterval_t remaining;
+
+          now = osalOsGetSystemTimeX();
+          if (!osalTimeIsInRangeX(now, start, end)) {
+            msg = MSG_TIMEOUT;
+            break;
+          }
+
+          remaining = osalTimeDiffX(now, end);
+          if (delay > remaining) {
+            delay = remaining;
+          }
+        }
+
+        if (delay > (sysinterval_t)0) {
+          osalThreadSleep(delay);
+        }
+      }
+    }
+  }
+#endif
+
+  return msg;
 }
 #endif /* WSPI_USE_WAIT == TRUE */
 

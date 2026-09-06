@@ -330,17 +330,19 @@ static flash_error_t mx25_poll_status(hal_xsnor_macronix_mx25_c *self) {
     wspi_command_t cmd;
     wspi_status_poll_t poll;
 
-    cmd.cmd          = CMD_OPI_RDSR;
-    cmd.cfg          = self->commands->cmd_addr_data;
-    cmd.addr         = 0U;
-    cmd.alt          = 0U;
-    cmd.dummy        = 4U;
-    poll.length      = 2U;
-    poll.statusp     = &xsnorcfg->buffers->databuf[0];
-    poll.maskp       = mask;
-    poll.matchp      = match;
-    poll.interval_us = (xsnorcfg->options & MX25_OPT_NICE_WAITING) != 0U ?
-                       1000U : 0U;
+    cmd.cmd       = CMD_OPI_RDSR;
+    cmd.cfg       = self->commands->cmd_addr_data;
+    cmd.addr      = 0U;
+    cmd.alt       = 0U;
+    cmd.dummy     = 4U;
+    poll.length   = 2U;
+    poll.statusp  = &xsnorcfg->buffers->databuf[0];
+    poll.maskp    = mask;
+    poll.matchp   = match;
+    /* Hardware polling already releases the CPU while waiting.*/
+    poll.interval = ((WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE) &&
+                     ((xsnorcfg->options & MX25_OPT_NICE_WAITING) != 0U)) ?
+                    TIME_MS2I(1) : (sysinterval_t)0;
 
     if (wspiPollStatusTimeout(xsnorcfg->bus.wspi.drv, &cmd, &poll,
                               TIME_INFINITE) != MSG_OK) {

@@ -15,10 +15,10 @@
 */
 
 /**
- * @file    ARMCR8/crparams.h
- * @brief   Generic ARM Cortex-R8 parameters.
+ * @file    ARMCR5/crparams.h
+ * @brief   Generic ARM Cortex-R5 parameters.
  *
- * @defgroup ARMCRx_ARMCR8 ARMCR8 Generic Parameters
+ * @defgroup ARMCRx_ARMCR5 ARMCR5 Generic Parameters
  * @ingroup ARMCRx_SPECIFIC
  * @{
  */
@@ -29,7 +29,7 @@
 /**
  * @brief   Cortex core model.
  */
-#define CORTEX_MODEL            8
+#define CORTEX_MODEL            5
 
 /**
  * @brief   Vector Base Address Register presence.
@@ -39,7 +39,7 @@
 /**
  * @brief   Floating Point unit presence.
  */
-#define CORTEX_HAS_FPU          1
+#define CORTEX_HAS_FPU          0
 
 /**
  * @brief   Generic Interrupt Controller presence.
@@ -58,8 +58,10 @@
 
 /**
  * @brief   Number of MPU regions.
+ * @note    The Cortex-R5 MPU can be configured with 12 or 16 regions,
+ *          this generic configuration selects 16 regions.
  */
-#define CORTEX_MPU_REGIONS      24
+#define CORTEX_MPU_REGIONS      16
 
 /**
  * @brief   Instruction cache presence.

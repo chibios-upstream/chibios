@@ -333,26 +333,24 @@ static flash_error_t n25q_poll_status(hal_xsnor_micron_n25q_c *self) {
     wspi_command_t cmd;
     wspi_status_poll_t poll;
 
-    cmd.cmd          = CMD_READ_FLAG_STATUS_REGISTER;
-    cmd.cfg          = self->commands->cmd_data;
-    cmd.addr         = 0U;
-    cmd.alt          = 0U;
-    cmd.dummy        = 0U;
-    poll.length      = 1U;
-    poll.statusp     = &self->config->buffers->databuf[0];
-    poll.maskp       = mask;
-    poll.matchp      = match;
-    poll.interval_us = (self->config->options & N25Q_OPT_NICE_WAITING) != 0U ?
-                       1000U : 0U;
+    cmd.cmd       = CMD_READ_FLAG_STATUS_REGISTER;
+    cmd.cfg       = self->commands->cmd_data;
+    cmd.addr      = 0U;
+    cmd.alt       = 0U;
+    cmd.dummy     = 0U;
+    poll.length   = 1U;
+    poll.statusp  = &self->config->buffers->databuf[0];
+    poll.maskp    = mask;
+    poll.matchp   = match;
+    /* Hardware polling already releases the CPU while waiting.*/
+    poll.interval = ((WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE) &&
+                     ((self->config->options & N25Q_OPT_NICE_WAITING) != 0U)) ?
+                    OSAL_MS2I(1) : (sysinterval_t)0;
 
     if (wspiPollStatusTimeout(self->config->bus.wspi.drv, &cmd, &poll,
                               TIME_INFINITE) != MSG_OK) {
       return FLASH_ERROR_HW_FAILURE;
     }
-
-    /* The accelerated path does not return the matching value.*/
-    __xsnor_bus_cmd_receive(self, CMD_READ_FLAG_STATUS_REGISTER,
-                            1U, &self->config->buffers->databuf[0]);
   }
   else
 #endif

@@ -728,8 +728,13 @@ chSysEnable();]]></value>
       <shared_code>
         <value><![CDATA[#include "ch.h"
 
+enum {
+  RTC_MS_CONSTEXPR = MS2RTC(32768U, 1000U),
+  RTC_2MS_CONSTEXPR = RTC2MS(32768U, 32768U)
+};
+
 #if CH_CFG_USE_TM || defined(__DOXYGEN__)
-static time_measurement_t tm1, tm2;
+static time_measurement_t tm1, tm2, tm3;
 #endif
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
@@ -895,14 +900,16 @@ test_assert(b == false, "in range");
           <various_code>
             <setup_code>
               <value><![CDATA[chTMObjectInit(&tm1);
-chTMObjectInit(&tm2);]]></value>
+chTMObjectInit(&tm2);
+chTMObjectInit(&tm3);]]></value>
             </setup_code>
             <teardown_code>
               <value><![CDATA[chTMObjectDispose(&tm1);
-chTMObjectDispose(&tm2);]]></value>
+chTMObjectDispose(&tm2);
+chTMObjectDispose(&tm3);]]></value>
             </teardown_code>
             <local_variables>
-              <value><![CDATA[rtcnt_t first;
+              <value><![CDATA[rttime_t cumulative;
 rtcnt_t offset;]]></value>
             </local_variables>
           </various_code>
@@ -939,31 +946,69 @@ test_assert(tm1.n == (ucnt_t)1, "invalid counter");
 test_assert(tm1.last > (rtcnt_t)0, "invalid last");
 test_assert(tm1.best == tm1.last, "invalid best");
 test_assert(tm1.worst == tm1.last, "invalid worst");
-test_assert(tm1.cumulative == (rttime_t)tm1.last, "invalid cumulative");
-first = tm1.last;]]></value>
+test_assert(tm1.cumulative == (rttime_t)tm1.last, "invalid cumulative");]]></value>
               </code>
             </step>
             <step>
               <description>
-                <value>The first measurement is chained to the second one
-                  and both objects are verified.</value>
+                <value>A measurement is chained to another object and both
+                  objects are verified.</value>
               </description>
               <tags>
                 <value />
               </tags>
               <code>
-                <value><![CDATA[chTMChainMeasurementToX(&tm1, &tm2);
+                <value><![CDATA[chSysLock();
+offset = currcore->tmc.offset;
+currcore->tmc.offset = (rtcnt_t)-1;
+chTMStartMeasurementX(&tm2);
+chSysPolledDelayX((rtcnt_t)100);
+chTMChainMeasurementToX(&tm2, &tm3);
 chSysPolledDelayX((rtcnt_t)10);
-chTMStopMeasurementX(&tm2);
+chTMStopMeasurementX(&tm3);
+currcore->tmc.offset = offset;
+chSysUnlock();
 
-test_assert(tm1.n == (ucnt_t)2, "invalid counter");
-test_assert(tm1.last > (rtcnt_t)0, "invalid last");
-test_assert(tm1.best <= tm1.worst, "invalid range");
-test_assert(tm1.cumulative >= (rttime_t)first, "invalid cumulative");
 test_assert(tm2.n == (ucnt_t)1, "invalid counter");
 test_assert(tm2.last > (rtcnt_t)0, "invalid last");
 test_assert(tm2.best == tm2.last, "invalid best");
-test_assert(tm2.worst == tm2.last, "invalid worst");]]></value>
+test_assert(tm2.worst == tm2.last, "invalid worst");
+test_assert(tm2.cumulative == (rttime_t)tm2.last, "invalid cumulative");
+test_assert(tm3.n == (ucnt_t)1, "invalid counter");
+test_assert(tm3.last == (rtcnt_t)0, "invalid last");
+test_assert(tm3.best == (rtcnt_t)0, "invalid best");
+test_assert(tm3.worst == (rtcnt_t)0, "invalid worst");
+test_assert(tm3.cumulative == (rttime_t)0, "invalid cumulative");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A measurement is chained to itself and the object is
+                  verified.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chTMObjectInit(&tm3);
+chTMStartMeasurementX(&tm3);
+chSysPolledDelayX((rtcnt_t)100);
+chTMChainMeasurementToX(&tm3, &tm3);
+
+test_assert(tm3.n == (ucnt_t)1, "invalid counter");
+test_assert(tm3.best > (rtcnt_t)0, "invalid best");
+test_assert(tm3.worst == tm3.best, "invalid worst");
+test_assert(tm3.cumulative == (rttime_t)tm3.best, "invalid cumulative");
+cumulative = tm3.cumulative;
+
+chSysPolledDelayX((rtcnt_t)10);
+chTMStopMeasurementX(&tm3);
+
+test_assert(tm3.n == (ucnt_t)2, "invalid counter");
+test_assert(tm3.last > (rtcnt_t)0, "invalid last");
+test_assert(tm3.best <= tm3.worst, "invalid range");
+test_assert(tm3.cumulative == cumulative + (rttime_t)tm3.last,
+            "invalid cumulative");]]></value>
               </code>
             </step>
             <step>
@@ -977,11 +1022,11 @@ test_assert(tm2.worst == tm2.last, "invalid worst");]]></value>
               <code>
                 <value><![CDATA[chTMObjectInit(&tm2);
 chSysLock();
-offset = ch_system.tmc.offset;
-ch_system.tmc.offset = (rtcnt_t)-1;
+offset = currcore->tmc.offset;
+currcore->tmc.offset = (rtcnt_t)-1;
 chTMStartMeasurementX(&tm2);
 chTMStopMeasurementX(&tm2);
-ch_system.tmc.offset = offset;
+currcore->tmc.offset = offset;
 chSysUnlock();
 
 test_assert(tm2.n == (ucnt_t)1, "invalid counter");
@@ -1163,6 +1208,85 @@ test_assert(listdelta == TIME_INFINITE,
                 <value><![CDATA[delta = chVTGetCurrentDelta();
 test_assert(delta >= (sysinterval_t)CH_CFG_ST_TIMEDELTA,
             "invalid current delta");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Realtime counter conversions.</value>
+          </brief>
+          <description>
+            <value>Realtime counter conversion boundaries and rounding are
+              tested.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value />
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Zero is converted in both directions.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(S2RTC(1U, 0U) == (rtcnt_t)0, "S2RTC zero");
+test_assert(MS2RTC(1000U, 0U) == (rtcnt_t)0, "MS2RTC zero");
+test_assert(US2RTC(1000000U, 0U) == (rtcnt_t)0, "US2RTC zero");
+test_assert(RTC2S(1U, 0U) == (rtcnt_t)0, "RTC2S zero");
+test_assert(RTC2MS(1000U, 0U) == (rtcnt_t)0, "RTC2MS zero");
+test_assert(RTC2US(1000000U, 0U) == (rtcnt_t)0, "RTC2US zero");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Exact and non-divisible frequencies are converted
+                  with upward rounding.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(MS2RTC(32768U, 1000U) == (rtcnt_t)32768,
+            "MS2RTC non-divisible");
+test_assert(RTC2MS(32768U, 32768U) == (rtcnt_t)1000,
+            "RTC2MS non-divisible");
+test_assert(MS2RTC(32768U, 1U) == (rtcnt_t)33,
+            "MS2RTC rounding");
+test_assert(RTC2MS(32768U, 1U) == (rtcnt_t)1,
+            "RTC2MS rounding");
+test_assert(US2RTC(1000001U, 1000000U) == (rtcnt_t)1000001,
+            "US2RTC non-divisible");
+test_assert(RTC2US(1000001U, 1000001U) == (rtcnt_t)1000000,
+            "RTC2US non-divisible");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Constant arguments are usable as integer constant
+                  expressions.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(RTC_MS_CONSTEXPR == 32768,
+            "MS2RTC constant expression");
+test_assert(RTC_2MS_CONSTEXPR == 1000,
+            "RTC2MS constant expression");]]></value>
               </code>
             </step>
           </steps>
@@ -2151,9 +2275,7 @@ test_assert_sequence("BA", "ready list not reordered");]]></value>
               trace a defined MSG_OK ready message.</value>
           </description>
           <condition>
-            <value><![CDATA[(CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&
-((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) &&
-(CH_CFG_USE_WAITEXIT == TRUE)]]></value>
+            <value><![CDATA[(CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) && ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) && (CH_CFG_USE_WAITEXIT == TRUE)]]></value>
           </condition>
           <various_code>
             <setup_code>
@@ -6104,8 +6226,8 @@ test_wait_threads();]]></value>
               <code>
                 <value><![CDATA[chEvtUnregister(&es1, &el1);
 chEvtUnregister(&es2, &el2);
-test_assert(!chEvtIsListeningI(&es1), "stuck listener");
-test_assert(!chEvtIsListeningI(&es2), "stuck listener");]]></value>
+test_assert_lock(!chEvtIsListeningI(&es1), "stuck listener");
+test_assert_lock(!chEvtIsListeningI(&es2), "stuck listener");]]></value>
               </code>
             </step>
           </steps>

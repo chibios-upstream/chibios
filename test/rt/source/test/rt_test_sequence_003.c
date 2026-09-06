@@ -36,6 +36,7 @@
  * - @subpage rt_test_003_004
  * - @subpage rt_test_003_005
  * - @subpage rt_test_003_006
+ * - @subpage rt_test_003_007
  * .
  */
 
@@ -45,8 +46,13 @@
 
 #include "ch.h"
 
+enum {
+  RTC_MS_CONSTEXPR = MS2RTC(32768U, 1000U),
+  RTC_2MS_CONSTEXPR = RTC2MS(32768U, 32768U)
+};
+
 #if CH_CFG_USE_TM || defined(__DOXYGEN__)
-static time_measurement_t tm1, tm2;
+static time_measurement_t tm1, tm2, tm3;
 #endif
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
@@ -191,25 +197,29 @@ static const testcase_t rt_test_003_002 = {
  * <h2>Test Steps</h2>
  * - [3.3.1] The initialized measurement objects are verified.
  * - [3.3.2] A measurement is performed and its result is verified.
- * - [3.3.3] The first measurement is chained to the second one and
- *   both objects are verified.
- * - [3.3.4] A measurement shorter than the calibration offset is verified
- *   to saturate at zero.
+ * - [3.3.3] A measurement is chained to another object and both
+ *   objects are verified.
+ * - [3.3.4] A measurement is chained to itself and the object is
+ *   verified.
+ * - [3.3.5] A measurement shorter than the calibration offset is
+ *   verified to saturate at zero.
  * .
  */
 
 static void rt_test_003_003_setup(void) {
   chTMObjectInit(&tm1);
   chTMObjectInit(&tm2);
+  chTMObjectInit(&tm3);
 }
 
 static void rt_test_003_003_teardown(void) {
   chTMObjectDispose(&tm1);
   chTMObjectDispose(&tm2);
+  chTMObjectDispose(&tm3);
 }
 
 static void rt_test_003_003_execute(void) {
-  rtcnt_t first;
+  rttime_t cumulative;
   rtcnt_t offset;
 
   /* [3.3.1] The initialized measurement objects are verified.*/
@@ -235,40 +245,74 @@ static void rt_test_003_003_execute(void) {
     test_assert(tm1.best == tm1.last, "invalid best");
     test_assert(tm1.worst == tm1.last, "invalid worst");
     test_assert(tm1.cumulative == (rttime_t)tm1.last, "invalid cumulative");
-    first = tm1.last;
   }
   test_end_step(2);
 
-  /* [3.3.3] The first measurement is chained to the second one and
-     both objects are verified.*/
+  /* [3.3.3] A measurement is chained to another object and both
+     objects are verified.*/
   test_set_step(3);
   {
-    chTMChainMeasurementToX(&tm1, &tm2);
+    chSysLock();
+    offset = currcore->tmc.offset;
+    currcore->tmc.offset = (rtcnt_t)-1;
+    chTMStartMeasurementX(&tm2);
+    chSysPolledDelayX((rtcnt_t)100);
+    chTMChainMeasurementToX(&tm2, &tm3);
     chSysPolledDelayX((rtcnt_t)10);
-    chTMStopMeasurementX(&tm2);
+    chTMStopMeasurementX(&tm3);
+    currcore->tmc.offset = offset;
+    chSysUnlock();
 
-    test_assert(tm1.n == (ucnt_t)2, "invalid counter");
-    test_assert(tm1.last > (rtcnt_t)0, "invalid last");
-    test_assert(tm1.best <= tm1.worst, "invalid range");
-    test_assert(tm1.cumulative >= (rttime_t)first, "invalid cumulative");
     test_assert(tm2.n == (ucnt_t)1, "invalid counter");
     test_assert(tm2.last > (rtcnt_t)0, "invalid last");
     test_assert(tm2.best == tm2.last, "invalid best");
     test_assert(tm2.worst == tm2.last, "invalid worst");
+    test_assert(tm2.cumulative == (rttime_t)tm2.last, "invalid cumulative");
+    test_assert(tm3.n == (ucnt_t)1, "invalid counter");
+    test_assert(tm3.last == (rtcnt_t)0, "invalid last");
+    test_assert(tm3.best == (rtcnt_t)0, "invalid best");
+    test_assert(tm3.worst == (rtcnt_t)0, "invalid worst");
+    test_assert(tm3.cumulative == (rttime_t)0, "invalid cumulative");
   }
   test_end_step(3);
 
-  /* [3.3.4] A measurement shorter than the calibration offset is verified
-     to saturate at zero.*/
+  /* [3.3.4] A measurement is chained to itself and the object is
+     verified.*/
   test_set_step(4);
+  {
+    chTMObjectInit(&tm3);
+    chTMStartMeasurementX(&tm3);
+    chSysPolledDelayX((rtcnt_t)100);
+    chTMChainMeasurementToX(&tm3, &tm3);
+
+    test_assert(tm3.n == (ucnt_t)1, "invalid counter");
+    test_assert(tm3.best > (rtcnt_t)0, "invalid best");
+    test_assert(tm3.worst == tm3.best, "invalid worst");
+    test_assert(tm3.cumulative == (rttime_t)tm3.best, "invalid cumulative");
+    cumulative = tm3.cumulative;
+
+    chSysPolledDelayX((rtcnt_t)10);
+    chTMStopMeasurementX(&tm3);
+
+    test_assert(tm3.n == (ucnt_t)2, "invalid counter");
+    test_assert(tm3.last > (rtcnt_t)0, "invalid last");
+    test_assert(tm3.best <= tm3.worst, "invalid range");
+    test_assert(tm3.cumulative == cumulative + (rttime_t)tm3.last,
+                "invalid cumulative");
+  }
+  test_end_step(4);
+
+  /* [3.3.5] A measurement shorter than the calibration offset is
+     verified to saturate at zero.*/
+  test_set_step(5);
   {
     chTMObjectInit(&tm2);
     chSysLock();
-    offset = ch_system.tmc.offset;
-    ch_system.tmc.offset = (rtcnt_t)-1;
+    offset = currcore->tmc.offset;
+    currcore->tmc.offset = (rtcnt_t)-1;
     chTMStartMeasurementX(&tm2);
     chTMStopMeasurementX(&tm2);
-    ch_system.tmc.offset = offset;
+    currcore->tmc.offset = offset;
     chSysUnlock();
 
     test_assert(tm2.n == (ucnt_t)1, "invalid counter");
@@ -277,7 +321,7 @@ static void rt_test_003_003_execute(void) {
     test_assert(tm2.worst == (rtcnt_t)0, "invalid worst");
     test_assert(tm2.cumulative == (rttime_t)0, "invalid cumulative");
   }
-  test_end_step(4);
+  test_end_step(5);
 }
 
 static const testcase_t rt_test_003_003 = {
@@ -372,8 +416,7 @@ static const testcase_t rt_test_003_004 = {
 };
 #endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
-#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) ||            \
-    defined(__DOXYGEN__)
+#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) || defined(__DOXYGEN__)
 /**
  * @page rt_test_003_005 [3.5] Tickless timer interval overflow
  *
@@ -488,6 +531,73 @@ static const testcase_t rt_test_003_006 = {
 };
 #endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
+/**
+ * @page rt_test_003_007 [3.7] Realtime counter conversions
+ *
+ * <h2>Description</h2>
+ * Realtime counter conversion boundaries and rounding are tested.
+ *
+ * <h2>Test Steps</h2>
+ * - [3.7.1] Zero is converted in both directions.
+ * - [3.7.2] Exact and non-divisible frequencies are converted with
+ *   upward rounding.
+ * - [3.7.3] Constant arguments are usable as integer constant
+ *   expressions.
+ * .
+ */
+
+static void rt_test_003_007_execute(void) {
+
+  /* [3.7.1] Zero is converted in both directions.*/
+  test_set_step(1);
+  {
+    test_assert(S2RTC(1U, 0U) == (rtcnt_t)0, "S2RTC zero");
+    test_assert(MS2RTC(1000U, 0U) == (rtcnt_t)0, "MS2RTC zero");
+    test_assert(US2RTC(1000000U, 0U) == (rtcnt_t)0, "US2RTC zero");
+    test_assert(RTC2S(1U, 0U) == (rtcnt_t)0, "RTC2S zero");
+    test_assert(RTC2MS(1000U, 0U) == (rtcnt_t)0, "RTC2MS zero");
+    test_assert(RTC2US(1000000U, 0U) == (rtcnt_t)0, "RTC2US zero");
+  }
+  test_end_step(1);
+
+  /* [3.7.2] Exact and non-divisible frequencies are converted with
+     upward rounding.*/
+  test_set_step(2);
+  {
+    test_assert(MS2RTC(32768U, 1000U) == (rtcnt_t)32768,
+                "MS2RTC non-divisible");
+    test_assert(RTC2MS(32768U, 32768U) == (rtcnt_t)1000,
+                "RTC2MS non-divisible");
+    test_assert(MS2RTC(32768U, 1U) == (rtcnt_t)33,
+                "MS2RTC rounding");
+    test_assert(RTC2MS(32768U, 1U) == (rtcnt_t)1,
+                "RTC2MS rounding");
+    test_assert(US2RTC(1000001U, 1000000U) == (rtcnt_t)1000001,
+                "US2RTC non-divisible");
+    test_assert(RTC2US(1000001U, 1000001U) == (rtcnt_t)1000000,
+                "RTC2US non-divisible");
+  }
+  test_end_step(2);
+
+  /* [3.7.3] Constant arguments are usable as integer constant
+     expressions.*/
+  test_set_step(3);
+  {
+    test_assert(RTC_MS_CONSTEXPR == 32768,
+                "MS2RTC constant expression");
+    test_assert(RTC_2MS_CONSTEXPR == 1000,
+                "RTC2MS constant expression");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t rt_test_003_007 = {
+  "Realtime counter conversions",
+  NULL,
+  NULL,
+  rt_test_003_007_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -504,13 +614,13 @@ const testcase_t * const rt_test_sequence_003_array[] = {
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
   &rt_test_003_004,
 #endif
-#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) ||            \
-    defined(__DOXYGEN__)
+#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) || defined(__DOXYGEN__)
   &rt_test_003_005,
 #endif
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
   &rt_test_003_006,
 #endif
+  &rt_test_003_007,
   NULL
 };
 
