@@ -241,9 +241,17 @@
 
 /* LPTIM attributes.*/
 #define STM32_HAS_LPTIM1                    TRUE
+#define STM32_LPTIM1_CHANNELS               2
+#define STM32_LPTIM1_IS_SRD                 TRUE
 #define STM32_HAS_LPTIM2                    TRUE
+#define STM32_LPTIM2_CHANNELS               2
+#define STM32_LPTIM2_IS_SRD                 FALSE
 #define STM32_HAS_LPTIM3                    TRUE
+#define STM32_LPTIM3_CHANNELS               2
+#define STM32_LPTIM3_IS_SRD                 TRUE
 #define STM32_HAS_LPTIM4                    TRUE
+#define STM32_LPTIM4_CHANNELS               1
+#define STM32_LPTIM4_IS_SRD                 TRUE
 
 /* RTC attributes.*/
 #define STM32_HAS_RTC                       TRUE
