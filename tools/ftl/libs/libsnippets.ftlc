@@ -26,7 +26,7 @@ function GetThreadCode(name)
     if ((snippet.type[0] == "thread_body") &&
         ((snippet.name[0]!"")?trim?lower_case == name?trim?lower_case))
       return snippet.text[0]!""
-    endif
-  endlist
+    end
+  end
   return "/* Thread style not found: " + name + " */"
-endfunction
+end
