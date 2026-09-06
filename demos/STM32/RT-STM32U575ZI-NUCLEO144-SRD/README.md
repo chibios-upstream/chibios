@@ -24,10 +24,12 @@ Application elapsed time is measured with `systimestamp_t`,
 `chVTGetTimeStamp()`, and `chTimeStampDiffX()`. The wrapping 16-bit system-time
 counter is not used as an application clock.
 
-A mandatory maintenance virtual timer is rearmed at `TIME_MAX_SYSTIME / 2`.
-Its I-class callback calls `chVTGetTimeStampI()` before the 16-bit system timer
-can wrap, preserving the monotonic timestamp extension even when the
-application does not request a timestamp for a long period.
+The SYSTICKv3 registry capability check reports that the one-channel LPTIM4
+requires application timestamp maintenance. The demo therefore runs a
+mandatory continuous virtual timer at `TIME_MAX_SYSTIME / 2`. Its I-class
+callback calls `chVTGetTimeStampI()` before the 16-bit system timer can wrap,
+preserving the monotonic timestamp extension even when the application does
+not request a timestamp for a long period.
 
 ## Autonomous activity probe
 

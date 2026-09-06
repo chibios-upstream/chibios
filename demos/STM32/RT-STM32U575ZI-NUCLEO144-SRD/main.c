@@ -54,6 +54,10 @@
 #error "this demo requires the SYSTICKv3 LPTIM4 backend"
 #endif
 
+#if ST_LLD_REQUIRES_APPLICATION_TIMESTAMP != TRUE
+#error "this one-channel LPTIM4 demo requires application timestamp maintenance"
+#endif
+
 /*===========================================================================*/
 /* Demo data structures and variables.                                       */
 /*===========================================================================*/
@@ -129,8 +133,6 @@ static void timestampCallback(virtual_timer_t *vtp, void *p) {
   (void)chVTGetTimeStampI();
   timestamp_refreshes++;
   palToggleLine(PORTAB_LINE_LED3);
-  chVTSetI(&timestamp_vt, TIME_MAX_SYSTIME / 2,
-           timestampCallback, NULL);
 }
 
 /** @brief Completes the timed STOP2 demonstration. */
@@ -149,8 +151,8 @@ static void timestampMaintenanceStart(void) {
 
   chVTObjectInit(&timestamp_vt);
   (void)chVTGetTimeStamp();
-  chVTSet(&timestamp_vt, TIME_MAX_SYSTIME / 2,
-          timestampCallback, NULL);
+  chVTSetContinuous(&timestamp_vt, TIME_MAX_SYSTIME / 2,
+                    timestampCallback, NULL);
 }
 
 #if DEMO_USE_AUTONOMOUS_PROBE == TRUE
