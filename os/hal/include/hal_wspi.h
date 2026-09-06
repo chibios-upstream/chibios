@@ -74,7 +74,8 @@ typedef enum {
   WSPI_SEND = 3,                    /**< Sending data.                      */
   WSPI_RECEIVE = 4,                 /**< Receiving data.                    */
   WSPI_COMPLETE = 5,                /**< Asynchronous operation complete.   */
-  WSPI_MEMMAP = 6                   /**< In memory mapped mode.             */
+  WSPI_MEMMAP = 6,                  /**< In memory mapped mode.             */
+  WSPI_POLL = 7                     /**< Polling a status value.             */
 } wspistate_t;
 
 /**
@@ -121,12 +122,43 @@ typedef struct {
   uint32_t              dummy;
 } wspi_command_t;
 
+/**
+ * @brief   Type of a WSPI status-poll descriptor.
+ */
+typedef struct {
+  /**
+   * @brief   Number of status bytes to read.
+   */
+  size_t                length;
+  /**
+   * @brief   Buffer receiving the last status value.
+   */
+  uint8_t               *statusp;
+  /**
+   * @brief   Status bytes included in the comparison.
+   */
+  const uint8_t         *maskp;
+  /**
+   * @brief   Expected value after masking the status bytes.
+   * @details Bits outside the corresponding mask byte must be zero.
+   */
+  const uint8_t         *matchp;
+  /**
+   * @brief   Minimum interval between status reads.
+   */
+  sysinterval_t         interval;
+} wspi_status_poll_t;
+
 /* Including the low level driver header, it exports information required
    for completing types.*/
 #include "hal_wspi_lld.h"
 
 #if !defined(WSPI_SUPPORTS_MEMMAP)
 #error "low level does not define WSPI_SUPPORTS_MEMMAP"
+#endif
+
+#if !defined(WSPI_LLD_SUPPORTS_STATUS_POLL)
+#error "low level does not define WSPI_LLD_SUPPORTS_STATUS_POLL"
 #endif
 
 #if !defined(WSPI_DEFAULT_CFG_MASKS)
@@ -446,6 +478,10 @@ extern "C" {
                 size_t n, const uint8_t *txbuf);
   bool wspiReceive(WSPIDriver *wspip, const wspi_command_t *cmdp,
                    size_t n, uint8_t *rxbuf);
+  msg_t wspiPollStatusTimeout(WSPIDriver *wspip,
+                              const wspi_command_t *cmdp,
+                              const wspi_status_poll_t *pollp,
+                              sysinterval_t timeout);
 #endif
 #if WSPI_SUPPORTS_MEMMAP == TRUE
 void wspiMapFlash(WSPIDriver *wspip,

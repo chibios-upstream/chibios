@@ -173,12 +173,18 @@ typedef struct hal_wspi_config hal_wspi_config_t;
 typedef struct wspi_command wspi_command_t;
 
 /**
+ * @brief       Type of a WSPI status-poll descriptor.
+ */
+typedef struct wspi_status_poll wspi_status_poll_t;
+
+/**
  * @brief       WSPI driver specific states.
  */
 typedef enum {
   WSPI_STATE_COMMAND = HAL_DRV_STATE_ERROR + 1U,
   WSPI_STATE_SEND,
   WSPI_STATE_RECEIVE,
+  WSPI_STATE_POLL,
   WSPI_STATE_MEMMAP
 } wspistate_t;
 
@@ -187,6 +193,10 @@ typedef enum {
 
 #if !defined(WSPI_SUPPORTS_MEMMAP)
 #error "WSPI_SUPPORTS_MEMMAP not defined in WSPI LLD driver"
+#endif
+
+#if !defined(WSPI_LLD_SUPPORTS_STATUS_POLL)
+#error "WSPI_LLD_SUPPORTS_STATUS_POLL not defined in WSPI LLD driver"
 #endif
 
 #if !defined(WSPI_DEFAULT_CFG_MASKS)
@@ -217,6 +227,33 @@ struct wspi_command {
    * @brief       Number of dummy cycles to be inserted.
    */
   uint32_t                  dummy;
+};
+
+/**
+ * @brief       WSPI status-poll descriptor.
+ */
+struct wspi_status_poll {
+  /**
+   * @brief       Number of status bytes to read.
+   */
+  size_t                    length;
+  /**
+   * @brief       Buffer receiving the last status value.
+   */
+  uint8_t *                 statusp;
+  /**
+   * @brief       Status bytes included in the comparison.
+   */
+  const uint8_t *           maskp;
+  /**
+   * @brief       Expected value after masking the status bytes.
+   * @details     Bits outside the corresponding mask byte must be zero.
+   */
+  const uint8_t *           matchp;
+  /**
+   * @brief       Minimum interval between status reads.
+   */
+  sysinterval_t             interval;
 };
 
 /**
@@ -350,6 +387,9 @@ extern "C" {
                 const uint8_t *txbuf);
   bool wspiReceive(void *ip, const wspi_command_t *cmdp, size_t n,
                    uint8_t *rxbuf);
+  msg_t wspiPollStatusTimeout(void *ip, const wspi_command_t *cmdp,
+                              const wspi_status_poll_t *pollp,
+                              sysinterval_t timeout);
 #endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 #if (WSPI_SUPPORTS_MEMMAP == TRUE) || defined (__DOXYGEN__)
   void wspiMapFlashI(void *ip, const wspi_command_t *cmdp, uint8_t **addrp);
