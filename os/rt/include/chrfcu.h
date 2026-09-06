@@ -27,6 +27,8 @@
 #ifndef CHRFCU_H
 #define CHRFCU_H
 
+#if (CH_CFG_USE_RFCU == TRUE) || defined(__DOXYGEN__)
+
 /*===========================================================================*/
 /* Module constants.                                                         */
 /*===========================================================================*/
@@ -38,6 +40,7 @@
 #define CH_RFCU_VT_INSUFFICIENT_DELTA       1U
 #define CH_RFCU_VT_SKIPPED_DEADLINE         2U
 #define CH_RFCU_VT_INTERVAL_OVERFLOW        4U
+#define CH_RFCU_THD_MISSED_DEADLINE         8U
 /** @} */
 
 /**
@@ -105,6 +108,8 @@ static inline void __rfcu_object_init(rfcu_t *rfcup) {
 
   rfcup->mask = (rfcu_mask_t)0;
 }
+
+#endif /* CH_CFG_USE_RFCU == TRUE */
 
 #endif /* CHRFCU_H */
 

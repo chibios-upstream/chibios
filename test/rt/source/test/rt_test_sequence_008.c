@@ -1155,7 +1155,7 @@ static void rt_test_008_009_teardown(void) {
 
 static void rt_test_008_009_execute(void) {
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
-     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+       ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
   msg_t tracemsg;
   bool found;
 #endif
@@ -1180,7 +1180,7 @@ static void rt_test_008_009_execute(void) {
   {
     chCondBroadcast(&c1);
 #if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
-     ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+         ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
     chSysLock();
     found = test_find_ready_trace(threads[0], CH_STATE_WTCOND, &tracemsg);
     chSysUnlock();

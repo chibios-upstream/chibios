@@ -451,6 +451,12 @@ struct ch_os_instance {
    * @brief   Virtual timers delta list header.
    */
   virtual_timers_list_t         vtlist;
+#if (CH_CFG_USE_TM == TRUE) || defined(__DOXYGEN__)
+  /**
+   * @brief   Time measurement calibration data for this instance.
+   */
+  tm_calibration_t              tmc;
+#endif
 #if ((CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == FALSE)) ||        \
     defined(__DOXYGEN__)
   /**
@@ -463,10 +469,12 @@ struct ch_os_instance {
    * @brief   Core associated to this instance.
    */
   core_id_t                     core_id;
-#if (CH_CFG_SMP_MODE == FALSE) || defined(__DOXYGEN__)
+#if ((CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == FALSE)) ||           \
+    defined(__DOXYGEN__)
   /**
    * @brief   Runtime Faults Collection Unit for this instance.
-   * @note    This field is present only if the SMP mode is disabled.
+   * @note    This field is present only if RFCU is enabled and the SMP mode
+   *          is disabled.
    */
   rfcu_t                        rfcu;
 #endif
@@ -524,12 +532,6 @@ typedef struct ch_system {
    * @brief   Initialized OS instances or @p NULL.
    */
   os_instance_t                 *instances[PORT_CORES_NUMBER];
-#if (CH_CFG_USE_TM == TRUE) || defined(__DOXYGEN__)
-  /**
-   * @brief   Time measurement calibration data.
-   */
-  tm_calibration_t              tmc;
-#endif
 #if ((CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == TRUE)) ||         \
     defined(__DOXYGEN__)
   /**
@@ -538,10 +540,11 @@ typedef struct ch_system {
    */
   registry_t                    reglist;
 #endif
-#if (CH_CFG_SMP_MODE == TRUE) || defined(__DOXYGEN__)
+#if ((CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == TRUE)) ||            \
+    defined(__DOXYGEN__)
   /**
    * @brief   Runtime Faults Collection Unit.
-   * @note    This field is present only if the SMP mode is enabled.
+   * @note    This field is present only if RFCU and the SMP mode are enabled.
    */
   rfcu_t                        rfcu;
 #endif

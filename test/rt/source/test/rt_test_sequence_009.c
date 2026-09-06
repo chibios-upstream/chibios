@@ -351,16 +351,17 @@ static const testcase_t rt_test_009_004 = {
  * @page rt_test_009_005 [9.5] Messages lifecycle closure
  *
  * <h2>Description</h2>
- * Message senders remain linked to their receiver until release. Explicit
- * receiver cleanup rejects selected and queued senders before termination,
- * and sending to an already terminated receiver is rejected immediately.
+ * Message senders remain linked to their receiver until release.
+ * Explicit receiver cleanup rejects selected and queued senders before
+ * termination, and sending to an already terminated receiver is
+ * rejected immediately.
  *
  * <h2>Test Steps</h2>
- * - [9.5.1] A selected sender remains queued and can be released by identity
- *   after a higher-priority sender is inserted ahead of it.
+ * - [9.5.1] A selected sender remains queued and can be released by
+ *   identity after a higher-priority sender is inserted ahead of it.
  * - [9.5.2] Sending to a final thread returns MSG_RESET immediately.
- * - [9.5.3] A receiver rejects a selected sender using chMsgReleaseAllI()
- *   before exiting.
+ * - [9.5.3] A receiver rejects a selected sender using
+ *   chMsgReleaseAllI() before exiting.
  * - [9.5.4] A receiver rejects multiple queued senders using
  *   chMsgReleaseAllI() before exiting.
  * .
@@ -442,8 +443,8 @@ static void rt_test_009_005_execute(void) {
   }
   test_end_step(2);
 
-  /* [9.5.3] A receiver rejects a selected sender using chMsgReleaseAllI()
-     before exiting.*/
+  /* [9.5.3] A receiver rejects a selected sender using
+     chMsgReleaseAllI() before exiting.*/
   test_set_step(3);
   {
     threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 1,

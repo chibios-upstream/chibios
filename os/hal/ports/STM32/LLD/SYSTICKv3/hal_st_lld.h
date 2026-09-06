@@ -42,6 +42,10 @@
 
 #define ST_LLD_NUM_ALARMS                   1
 
+#if !defined(OSAL_ST_USE_TIMESTAMP)
+#define OSAL_ST_USE_TIMESTAMP               FALSE
+#endif
+
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -76,17 +80,55 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
-#if (STM32_ST_USE_LPTIM != 1) && (STM32_ST_USE_LPTIM != 3) &&               \
-    (STM32_ST_USE_LPTIM != 4)
+#if (STM32_ST_USE_LPTIM != 1) && (STM32_ST_USE_LPTIM != 2) &&               \
+    (STM32_ST_USE_LPTIM != 3) && (STM32_ST_USE_LPTIM != 4)
 #error "invalid STM32_ST_USE_LPTIM value"
 #endif
 
 #if STM32_ST_USE_LPTIM == 1
 #define STM32_ST_LPTIM                     LPTIM1
+#define STM32_ST_LPTIM_CHANNELS            STM32_LPTIM1_CHANNELS
+#define STM32_ST_LPTIM_IS_SRD              STM32_LPTIM1_IS_SRD
+#elif STM32_ST_USE_LPTIM == 2
+#define STM32_ST_LPTIM                     LPTIM2
+#define STM32_ST_LPTIM_CHANNELS            STM32_LPTIM2_CHANNELS
+#define STM32_ST_LPTIM_IS_SRD              STM32_LPTIM2_IS_SRD
 #elif STM32_ST_USE_LPTIM == 3
 #define STM32_ST_LPTIM                     LPTIM3
+#define STM32_ST_LPTIM_CHANNELS            STM32_LPTIM3_CHANNELS
+#define STM32_ST_LPTIM_IS_SRD              STM32_LPTIM3_IS_SRD
 #elif STM32_ST_USE_LPTIM == 4
 #define STM32_ST_LPTIM                     LPTIM4
+#define STM32_ST_LPTIM_CHANNELS            STM32_LPTIM4_CHANNELS
+#define STM32_ST_LPTIM_IS_SRD              STM32_LPTIM4_IS_SRD
+#endif
+
+#if !defined(STM32_ST_LPTIM_CHANNELS) || !defined(STM32_ST_LPTIM_IS_SRD)
+#error "selected LPTIM registry attributes are incomplete"
+#endif
+
+#if STM32_ST_LPTIM_IS_SRD != TRUE
+#error "the LPTIM backend requires an SRD-capable instance"
+#endif
+
+/**
+ * @brief   Automatic timestamp maintenance capability.
+ * @details A second LPTIM compare channel extends the 16-bit system timer
+ *          automatically. A single-channel instance remains usable but
+ *          requires an application half-range timestamp-update virtual timer.
+ */
+#if (OSAL_ST_USE_TIMESTAMP == TRUE) && (STM32_ST_LPTIM_CHANNELS >= 2)
+#define ST_LLD_HAS_AUTOMATIC_TIMESTAMP      TRUE
+#define ST_LLD_REQUIRES_APPLICATION_TIMESTAMP FALSE
+#define STM32_ST_LPTIM_TIMESTAMP_DIER       LPTIM_DIER_CC2IE
+#elif (OSAL_ST_USE_TIMESTAMP == TRUE)
+#define ST_LLD_HAS_AUTOMATIC_TIMESTAMP      FALSE
+#define ST_LLD_REQUIRES_APPLICATION_TIMESTAMP TRUE
+#define STM32_ST_LPTIM_TIMESTAMP_DIER       0U
+#else
+#define ST_LLD_HAS_AUTOMATIC_TIMESTAMP      FALSE
+#define ST_LLD_REQUIRES_APPLICATION_TIMESTAMP FALSE
+#define STM32_ST_LPTIM_TIMESTAMP_DIER       0U
 #endif
 
 #if (STM32_ST_LPTIM_PRESCALER == 1)
@@ -117,6 +159,13 @@
 #error "the LPTIM backend requires 16-bit ST resolution"
 #endif
 
+#if (ST_LLD_HAS_AUTOMATIC_TIMESTAMP == TRUE) &&                         \
+    (!defined(LPTIM_ISR_CC2IF) || !defined(LPTIM_ICR_CC2CF) ||          \
+     !defined(LPTIM_ISR_CMP2OK) || !defined(LPTIM_ICR_CMP2OKCF) ||      \
+     !defined(LPTIM_DIER_CC2IE))
+#error "automatic timestamp maintenance requires LPTIM compare channel 2"
+#endif
+
 /*===========================================================================*/
 /* Driver data structures and types.                                         */
 /*===========================================================================*/
@@ -133,7 +182,7 @@
 extern "C" {
 #endif
   void st_lld_init(void);
-  void st_lld_serve_interrupt(void);
+  void st_lld_serve_interrupt(uint32_t pending);
   void st_lld_set_compare(systime_t abstime);
   void st_lld_set_dier(uint32_t dier);
 #ifdef __cplusplus
@@ -163,15 +212,15 @@ static inline systime_t st_lld_get_counter(void) {
 
 static inline void st_lld_start_alarm(systime_t abstime) {
 
-  st_lld_set_dier(0U);
+  st_lld_set_dier(STM32_ST_LPTIM_TIMESTAMP_DIER);
   STM32_ST_LPTIM->ICR  = LPTIM_ICR_CC1CF;
   st_lld_set_compare(abstime);
-  st_lld_set_dier(LPTIM_DIER_CC1IE);
+  st_lld_set_dier(LPTIM_DIER_CC1IE | STM32_ST_LPTIM_TIMESTAMP_DIER);
 }
 
 static inline void st_lld_stop_alarm(void) {
 
-  st_lld_set_dier(0U);
+  st_lld_set_dier(STM32_ST_LPTIM_TIMESTAMP_DIER);
 }
 
 static inline void st_lld_set_alarm(systime_t abstime) {

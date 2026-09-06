@@ -103,6 +103,17 @@
 #else
 #define OSAL_ST_MODE                        OSAL_ST_MODE_FREERUNNING
 #endif
+
+/**
+ * @brief   Monotonic timestamp service required by the underlying OS.
+ * @note    This capability is currently provided by ChibiOS/RT only. NIL does
+ *          not define @p CH_CFG_USE_TIMESTAMP and therefore leaves it disabled.
+ */
+#if defined(CH_CFG_USE_TIMESTAMP) && (CH_CFG_USE_TIMESTAMP == TRUE)
+#define OSAL_ST_USE_TIMESTAMP               TRUE
+#else
+#define OSAL_ST_USE_TIMESTAMP               FALSE
+#endif
 /** @} */
 
 /*===========================================================================*/
@@ -665,6 +676,21 @@ static inline void osalSysPolledDelayX(rtcnt_t cycles) {
 static inline void osalOsTimerHandlerI(void) {
 
   chSysTimerHandlerI();
+}
+#endif
+
+/**
+ * @brief   Refreshes the monotonic timestamp maintained by the underlying OS.
+ * @note    This callback is defined only when the OSAL advertises timestamp
+ *          support. It is intended for a narrow hardware system timer which
+ *          must periodically extend its counter before it wraps.
+ *
+ * @iclass
+ */
+#if (OSAL_ST_USE_TIMESTAMP == TRUE) || defined(__DOXYGEN__)
+static inline void osalOsTimeStampHandlerI(void) {
+
+  (void)chVTGetTimeStampI();
 }
 #endif
 

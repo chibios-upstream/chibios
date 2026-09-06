@@ -27,6 +27,8 @@
 
 #include "ch.h"
 
+#if (CH_CFG_USE_RFCU == TRUE) || defined(__DOXYGEN__)
+
 /*===========================================================================*/
 /* Module local definitions.                                                 */
 /*===========================================================================*/
@@ -91,4 +93,7 @@ rfcu_mask_t chRFCUGetAndClearFaultsI(rfcu_mask_t mask) {
 
   return m;
 }
+
+#endif /* CH_CFG_USE_RFCU == TRUE */
+
 /** @} */
