@@ -58,6 +58,10 @@
  *          will be notified of all events broadcasted there.
  * @note    Multiple Event Listeners can specify the same bits to be ORed to
  *          different threads.
+ * @note    The event source, listener storage, and listening thread must
+ *          remain valid until the listener is unregistered.
+ * @pre     The event listener must not already be registered on any event
+ *          source.
  *
  * @param[in] esp       pointer to an @p event_source_t structure
  * @param[in] elp       pointer to an @p event_listener_t structure
@@ -91,6 +95,8 @@ void chEvtRegisterMaskWithFlags(event_source_t *esp,
  * @note    For optimal performance it is better to perform the unregister
  *          operations in inverse order of the register operations (elements
  *          are found on top of the list).
+ * @note    After the listener has been unregistered, its storage is no longer
+ *          borrowed by the event source.
  *
  * @param[in] esp       pointer to an @p event_source_t structure
  * @param[in] elp       pointer to an @p event_listener_t structure
@@ -98,22 +104,22 @@ void chEvtRegisterMaskWithFlags(event_source_t *esp,
  * @api
  */
 void chEvtUnregister(event_source_t *esp, event_listener_t *elp) {
-  event_listener_t *p;
+  event_listener_t *sentinelp;
+  event_listener_t **linkp;
 
   chDbgCheck((esp != NULL) && (elp != NULL));
 
   /*lint -save -e9087 -e740 [11.3, 1.3] Cast required by list handling.*/
-  p = (event_listener_t *)esp;
+  sentinelp = (event_listener_t *)esp;
   /*lint -restore*/
+  linkp = &esp->next;
   chSysLock();
-  /*lint -save -e9087 -e740 [11.3, 1.3] Cast required by list handling.*/
-  while (p->next != (event_listener_t *)esp) {
-  /*lint -restore*/
-    if (p->next == elp) {
-      p->next = elp->next;
+  while (*linkp != sentinelp) {
+    if (*linkp == elp) {
+      *linkp = elp->next;
       break;
     }
-    p = p->next;
+    linkp = &(*linkp)->next;
   }
   chSysUnlock();
 }
@@ -358,12 +364,15 @@ void chEvtDispatch(const evhandler_t *handlers, eventmask_t events) {
  *                      - @a TIME_INFINITE no timeout.
  * @return              The mask of the lowest event id served and cleared.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p events must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitOneTimeout(eventmask_t events, sysinterval_t timeout) {
   thread_t *ctp = nil.current;
   eventmask_t m;
+
+  chDbgCheck(events != (eventmask_t)0);
 
   chSysLock();
   m = ctp->epmask & events;
@@ -402,12 +411,15 @@ eventmask_t chEvtWaitOneTimeout(eventmask_t events, sysinterval_t timeout) {
  *                      - @a TIME_INFINITE no timeout.
  * @return              The mask of the served and cleared events.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p mask must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitAnyTimeout(eventmask_t mask, sysinterval_t timeout) {
   thread_t *ctp = nil.current;
   eventmask_t m;
+
+  chDbgCheck(mask != (eventmask_t)0);
 
   chSysLock();
   if ((m = (ctp->epmask & mask)) == (eventmask_t)0) {
@@ -443,11 +455,14 @@ eventmask_t chEvtWaitAnyTimeout(eventmask_t mask, sysinterval_t timeout) {
  *                      - @a TIME_INFINITE no timeout.
  * @return              The mask of the served and cleared events.
  * @retval 0            if the operation has timed out.
+ * @pre                 @p mask must not be zero.
  *
  * @api
  */
 eventmask_t chEvtWaitAllTimeout(eventmask_t mask, sysinterval_t timeout) {
   thread_t *ctp = nil.current;
+
+  chDbgCheck(mask != (eventmask_t)0);
 
   chSysLock();
   if ((ctp->epmask & mask) != mask) {

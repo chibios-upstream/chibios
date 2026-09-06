@@ -18,19 +18,19 @@
 
 import "/@lib/libpp.ftlc" as ppcode
 
-prename = doc1.clocktree.settings.prefixes.@clock_points[0]?string
-premacro = doc1.clocktree.settings.prefixes.@macros[0]?string
-precfg = doc1.clocktree.settings.prefixes.@cfgs[0]?string
-postclocks = doc1.clocktree.settings.suffixes.@frequency[0]?string
-postclock = (doc1.clocktree.settings.suffixes.@clock[0]!"_CLOCK")?string
-postnominal = (doc1.clocktree.settings.suffixes.@nominal[0]!"_SOURCE_FREQ")?string
-postvalues = doc1.clocktree.settings.suffixes.@values[0]?string
-postbits = doc1.clocktree.settings.suffixes.@bits[0]?string
-postchoices = doc1.clocktree.settings.suffixes.@selector[0]?string
-postenable = doc1.clocktree.settings.suffixes.@enable[0]?string
-postenabled = doc1.clocktree.settings.suffixes.@enabled[0]?string
-postmin = "_MIN"
-postmax = "_MAX"
+assign prename = doc1.clocktree.settings.prefixes.@clock_points[0]?string
+assign premacro = doc1.clocktree.settings.prefixes.@macros[0]?string
+assign precfg = doc1.clocktree.settings.prefixes.@cfgs[0]?string
+assign postclocks = doc1.clocktree.settings.suffixes.@frequency[0]?string
+assign postclock = (doc1.clocktree.settings.suffixes.@clock[0]!"_CLOCK")?string
+assign postnominal = (doc1.clocktree.settings.suffixes.@nominal[0]!"_SOURCE_FREQ")?string
+assign postvalues = doc1.clocktree.settings.suffixes.@values[0]?string
+assign postbits = doc1.clocktree.settings.suffixes.@bits[0]?string
+assign postchoices = doc1.clocktree.settings.suffixes.@selector[0]?string
+assign postenable = doc1.clocktree.settings.suffixes.@enable[0]?string
+assign postenabled = doc1.clocktree.settings.suffixes.@enabled[0]?string
+assign postmin = "_MIN"
+assign postmax = "_MAX"
 
 /* Configures the preprocessor emitter used by this library.*/
 macro ConfigurePreprocessor(
@@ -45,7 +45,7 @@ macro ConfigurePreprocessor(
     backslashColumn=backslashColumn,
     splitColumn=splitColumn)
   ppcode.ResetPP()
-endmacro
+end
 
 /* Validates uniqueness of bit targets in a parsed bits list.*/
 function ValidateBitTargets(bits, context)
@@ -54,12 +54,12 @@ function ValidateBitTargets(bits, context)
     local target = bit["target"]
     if targets?seq_contains(target)
       stop ">>>> Duplicate bits target '" + target + "' in " + context
-    endif
+    end
     local targets = targets + [target]
-  endlist
+  end
 
   return bits
-endfunction
+end
 
 /* Parses value bits elements.*/
 function ParseValueBits(node, context)
@@ -70,12 +70,12 @@ function ParseValueBits(node, context)
       local masks = []
     else
       local masks = [mask]
-    endif
+    end
     local bits = bits + [{"target":(bit.@target[0]!"")?string, "value":bit.@value[0]?string, "masks":masks}]
-  endlist
+  end
 
   return ValidateBitTargets(bits, context)
-endfunction
+end
 
 /* Checks that two bit groups do not reuse the same mask on one target.*/
 function CheckBitMaskOverlap(inherited, localbits)
@@ -83,12 +83,12 @@ function CheckBitMaskOverlap(inherited, localbits)
     list localbits["masks"] as localmask
       if inheritedmask == localmask
         return inheritedmask
-      endif
-    endlist
-  endlist
+      end
+    end
+  end
 
   return ""
-endfunction
+end
 
 /* Combines inherited and local value bits expressions by target.*/
 function MergeValueBits(inherited, localbits, context)
@@ -98,25 +98,25 @@ function MergeValueBits(inherited, localbits, context)
     if localbit?size > 0
       if bit["masks"]?size == 0 || localbit["masks"]?size == 0
         stop ">>>> Missing bits mask for merged target '" + bit["target"] + "' in " + context
-      endif
+      end
       local overlap = CheckBitMaskOverlap(bit, localbit)
       if overlap != ""
         stop ">>>> Overlapping bits mask '" + overlap + "' for target '" + bit["target"] + "' in " + context
-      endif
+      end
       local merged = merged + [{"target":bit["target"], "value":"(" + bit["value"] + " | " + localbit["value"] + ")", "masks":bit["masks"] + localbit["masks"]}]
     else
       local merged = merged + [bit]
-    endif
-  endlist
+    end
+  end
 
   list localbits as bit
     if !HasValueBitsTarget(inherited, bit["target"])
       local merged = merged + [bit]
-    endif
-  endlist
+    end
+  end
 
   return merged
-endfunction
+end
 
 /* Parses enable-state bits elements.*/
 function ParseBoolBits(node, context)
@@ -127,31 +127,31 @@ function ParseBoolBits(node, context)
       local masks = []
     else
       local masks = [mask]
-    endif
+    end
     local bits = bits + [{"target":(bit.@target[0]!"")?string, "enabled":bit.@enabled[0]?string, "disabled":bit.@disabled[0]?string, "masks":masks}]
-  endlist
+  end
 
   return ValidateBitTargets(bits, context)
-endfunction
+end
 
 /* Returns the string value of a single untargeted bits element.*/
 function GetBitsValue(node)
   local bits = ParseValueBits(node, "selection")
   if bits?size == 1 && bits[0]["target"] == ""
     return bits[0]["value"]
-  endif
+  end
 
   if bits?size == 0
     stop ">>>> Missing bits element"
-  endif
+  end
 
   stop ">>>> Selection bits must use one untargeted bits element"
-endfunction
+end
 
 /* Builds a generated selector macro name from a field name and selector label.*/
 function GetGeneratedSelectorMacro(field, label)
   return field + "_" + label
-endfunction
+end
 
 /* Builds one preprocessor expression from nested conditional terms.*/
 function BuildAndExpression(terms)
@@ -162,46 +162,46 @@ function BuildAndExpression(terms)
       local expression = formatted
     else
       local expression = expression + " && " + formatted
-    endif
-  endlist
+    end
+  end
 
   return expression
-endfunction
+end
 
 /* Splits an expression containing top-level && operators.*/
 function SplitAndCondition(expression)
   local terms = []
   list expression?split("&&") as term
     local terms = terms + [term?trim]
-  endlist
+  end
 
   return terms
-endfunction
+end
 
 /* Splits an expression containing top-level || operators.*/
 function SplitOrCondition(expression)
   local terms = []
   list expression?split("||") as term
     local terms = terms + [term?trim]
-  endlist
+  end
 
   return terms
-endfunction
+end
 
 /* Removes one external pair from XML-authored OR groups when present.*/
 function NormalizeOrCondition(expression)
   local text = expression?trim
   if text?starts_with("((") && text?ends_with("))")
     return text?remove_beginning("(")?remove_ending(")")
-  endif
+  end
 
   return text
-endfunction
+end
 
 /* Builds a generated variant macro name.*/
 function GetVariantMacroName(name)
   return premacro + "CLOCKTREE_VARIANT_" + name
-endfunction
+end
 
 /* Parses variant declarations.*/
 function ParseVariants()
@@ -215,25 +215,25 @@ function ParseVariants()
 
       if names?seq_contains(name)
         stop ">>>> Duplicate clock tree variant '" + name + "'"
-      endif
+      end
       local names = names + [name]
       local variants = variants + [{"name":name, "macro":GetVariantMacroName(name), "condition":condition}]
-    endlist
-  endif
+    end
+  end
 
   return variants
-endfunction
+end
 
 /* Returns a variant declaration by name.*/
 function GetVariantDeclaration(variants, name)
   list variants as variant
     if variant["name"] == name
       return variant
-    endif
-  endlist
+    end
+  end
 
   return {}
-endfunction
+end
 
 /* Parses an optional variants attribute.*/
 function ParseVariantRefs(node, variants, context)
@@ -242,46 +242,46 @@ function ParseVariantRefs(node, variants, context)
 
   if text == ""
     return refs
-  endif
+  end
 
   list text?replace(",", " ")?word_list as name
     if refs?seq_contains(name)
       stop ">>>> Duplicate variant '" + name + "' in " + context
-    endif
+    end
     if GetVariantDeclaration(variants, name)?size == 0
       stop ">>>> Unknown variant '" + name + "' in " + context
-    endif
+    end
     local refs = refs + [name]
-  endlist
+  end
 
   return refs
-endfunction
+end
 
 /* Builds the active-variant expression for a variant reference list.*/
 function BuildVariantCondition(refs)
   if refs?size == 0
     return "TRUE"
-  endif
+  end
 
   local terms = []
   list refs as ref
     local terms = terms + [GetVariantMacroName(ref) + " == TRUE"]
-  endlist
+  end
 
   return BuildOrExpression(terms)
-endfunction
+end
 
 /* Parses variant metadata for one XML element.*/
 function ParseVariantMetadata(node, variants, context)
   local refs = ParseVariantRefs(node, variants, context)
 
   return {"variants":refs, "variant_condition":BuildVariantCondition(refs)}
-endfunction
+end
 
 /* Returns true if a parsed element is variant-specific.*/
 function IsVariantSpecific(item)
   return (item["variant_condition"]!"TRUE") != "TRUE"
-endfunction
+end
 
 /* Parses a recursive conditional value select into flat conditional cases.*/
 function ParseConditionalValueSelect(select, conditions, bits, context)
@@ -294,21 +294,21 @@ function ParseConditionalValueSelect(select, conditions, bits, context)
 
     if hasvalue && hasselect
       stop ">>>> Conditional branch in " + context + " cannot specify both value and select"
-    endif
+    end
     if !hasvalue && !hasselect
       stop ">>>> Conditional branch in " + context + " must specify value or select"
-    endif
+    end
 
     if hasselect
       local cases = cases + ParseConditionalValueSelect(when.select[0], branchconditions, branchbits, context)
     else
       local cases = cases + [{"when":BuildAndExpression(branchconditions), "value":when.@value[0]?string, "bits":branchbits}]
-    endif
-  endlist
+    end
+  end
 
   if !select.otherwise[0]??
     stop ">>>> Conditional select in " + context + " requires otherwise"
-  endif
+  end
 
   local otherwise = select.otherwise[0]
   local branchbits = MergeValueBits(bits, ParseValueBits(otherwise, context + " conditional otherwise"), context + " conditional otherwise")
@@ -317,36 +317,36 @@ function ParseConditionalValueSelect(select, conditions, bits, context)
 
   if hasvalue && hasselect
     stop ">>>> Conditional otherwise in " + context + " cannot specify both value and select"
-  endif
+  end
   if !hasvalue && !hasselect
     stop ">>>> Conditional otherwise in " + context + " must specify value or select"
-  endif
+  end
 
   if hasselect
     local cases = cases + ParseConditionalValueSelect(otherwise.select[0], conditions, branchbits, context)
   else
     local cases = cases + [{"when":BuildAndExpression(conditions), "value":otherwise.@value[0]?string, "bits":branchbits}]
-  endif
+  end
 
   return cases
-endfunction
+end
 
 /* Parses conditional source frequency cases.*/
 function ParseFrequencyCases(source, point)
   if source.frequencies[0].select[0]??
     return ParseConditionalValueSelect(source.frequencies[0].select[0], [], [], "frequency table for clock point '" + point + "'")
-  endif
+  end
 
   local cases = []
   list source.frequencies[0]["case"] as casefreq
     local cases = cases + [{"when":casefreq.@when[0]?string, "value":casefreq.@value[0]?string, "bits":ParseValueBits(casefreq, "frequency case for clock point '" + point + "'")}]
-  endlist
+  end
 
   local default = source.frequencies[0]["default"][0]
   local cases = cases + [{"when":"", "value":default.@value[0]?string, "bits":ParseValueBits(default, "default frequency for clock point '" + point + "'")}]
 
   return cases
-endfunction
+end
 
 /* Parses divider/multiplier value selection subtrees.*/
 function ParseScaler(scaler)
@@ -374,22 +374,22 @@ function ParseScaler(scaler)
       if choice.bits[0]??
         if encoding != ""
           stop ">>>> Choice '" + item + "' mixes explicit bits and selector encoding"
-        endif
+        end
         local bits = GetBitsValue(choice)
       else
         if field == "" || offset == "" || encoding == ""
           stop ">>>> Missing selector encoding for choice '" + item + "'"
-        endif
+        end
         local bits = GetGeneratedSelectorMacro(field, item)
         local selectors = selectors + [{"kind":"encoded", "field":field, "macro":bits, "encoding":encoding, "offset":offset}]
-      endif
+      end
       local choices = choices + [{"item":item, "value":value, "bits":bits}]
-    endlist
+    end
     local data = {"choices":choices, "default":default, "field":field, "offset":offset, "selectors":selectors}
-  endif
+  end
 
   return {"kind":kind, "data":data}
-endfunction
+end
 
 /* Returns the default configuration value for a scaler.*/
 function GetScalerDefault(point)
@@ -404,65 +404,65 @@ function GetScalerDefault(point)
     local default = data["choices"][0]["value"]!""
   else
     local default = ""
-  endif
+  end
 
   if default == ""
     stop ">>>> Missing default value for clock point '" + point["name"] + "'"
-  endif
+  end
 
   return default
-endfunction
+end
 
 /* Returns the enable condition macro for a clock point.*/
 function GetEnableMacro(point)
   if point["enable"] == "manual" || point["enable"] == "auto" || point["enable"] == "never" || point["enable"] == "always"
     return premacro + point["name"] + postenabled
-  endif
+  end
 
   stop ">>>> Unknown enable mode '" + point["enable"] + "' for clock point '" + point["name"] + "'"
-endfunction
+end
 
 /* Parses optional clock frequency limits.*/
 function ParseClockLimits(clock)
   if clock.limits[0]??
     return {"ref":clock.limits[0].@ref[0]?string}
-  endif
+  end
 
   return {}
-endfunction
+end
 
 /* Returns a limit declaration by name.*/
 function GetLimitDeclaration(limits, name)
   list limits as limit
     if limit["name"] == name
       return limit
-    endif
-  endlist
+    end
+  end
 
   return {}
-endfunction
+end
 
 /* Returns a state value set by state name.*/
 function GetStateValues(values, state)
   list values as value
     if value["state"] == state
       return value
-    endif
-  endlist
+    end
+  end
 
   return {}
-endfunction
+end
 
 /* Returns a limit value by limit name.*/
 function GetLimitValue(values, name)
   list values as value
     if value["name"] == name
       return value
-    endif
-  endlist
+    end
+  end
 
   return {}
-endfunction
+end
 
 /* Parses selectable frequency limit definitions.*/
 function ParseLimitModel()
@@ -472,11 +472,11 @@ function ParseLimitModel()
 
   if !hasstates && !haslimitset && !haslimitvalues
     return {"states":[], "limits":[], "values":[]}
-  endif
+  end
 
   if !hasstates || !haslimitset || !haslimitvalues
     stop ">>>> Incomplete clock limit model"
-  endif
+  end
 
   local statenames = []
   local states = []
@@ -484,10 +484,10 @@ function ParseLimitModel()
     local name = state.@name[0]?string
     if statenames?seq_contains(name)
       stop ">>>> Duplicate clock limit state '" + name + "'"
-    endif
+    end
     local statenames = statenames + [name]
     local states = states + [{"name":name, "when":state.@when[0]?string}]
-  endlist
+  end
 
   local limitnames = []
   local limits = []
@@ -495,10 +495,10 @@ function ParseLimitModel()
     local name = limit.@name[0]?string
     if limitnames?seq_contains(name)
       stop ">>>> Duplicate clock limit '" + name + "'"
-    endif
+    end
     local limitnames = limitnames + [name]
     local limits = limits + [{"name":name, "min":limit.@min[0]?string, "max":limit.@max[0]?string}]
-  endlist
+  end
 
   local valueStates = []
   local values = []
@@ -506,10 +506,10 @@ function ParseLimitModel()
     local statename = statevalues.@state[0]?string
     if !statenames?seq_contains(statename)
       stop ">>>> Unknown clock limit state '" + statename + "'"
-    endif
+    end
     if valueStates?seq_contains(statename)
       stop ">>>> Duplicate values for clock limit state '" + statename + "'"
-    endif
+    end
     local valueStates = valueStates + [statename]
 
     local valuenames = []
@@ -518,72 +518,72 @@ function ParseLimitModel()
       local name = limit.@name[0]?string
       if !limitnames?seq_contains(name)
         stop ">>>> Unknown clock limit '" + name + "' in state '" + statename + "'"
-      endif
+      end
       if valuenames?seq_contains(name)
         stop ">>>> Duplicate clock limit value '" + name + "' in state '" + statename + "'"
-      endif
+      end
       local valuenames = valuenames + [name]
       local variants = []
       if limit["case"][0]?? || limit["default"][0]??
         if limit.@min[0]?? || limit.@max[0]??
           stop ">>>> Direct and conditional values cannot be mixed for clock limit '" + name + "' in state '" + statename + "'"
-        endif
+        end
         if !limit["default"][0]??
           stop ">>>> Missing default value for clock limit '" + name + "' in state '" + statename + "'"
-        endif
+        end
         list limit["case"] as casevalue
           local variants = variants + [{"when":casevalue.@when[0]?string, "min":(casevalue.@min[0]!"")?string, "max":(casevalue.@max[0]!"")?string}]
-        endlist
+        end
         local defaultvalue = limit["default"][0]
         local variants = variants + [{"when":"", "min":(defaultvalue.@min[0]!"")?string, "max":(defaultvalue.@max[0]!"")?string}]
       else
         local variants = variants + [{"when":"", "min":(limit.@min[0]!"")?string, "max":(limit.@max[0]!"")?string}]
-      endif
+      end
       local limitvalues = limitvalues + [{"name":name, "variants":variants}]
-    endlist
+    end
 
     local values = values + [{"state":statename, "limits":limitvalues}]
-  endlist
+  end
 
   list states as state
     local statevalues = GetStateValues(values, state["name"])
     if statevalues?size == 0
       stop ">>>> Missing clock limit values for state '" + state["name"] + "'"
-    endif
+    end
 
     list limits as limit
       local limitvalue = GetLimitValue(statevalues["limits"], limit["name"])
       if limitvalue?size == 0
         stop ">>>> Missing clock limit '" + limit["name"] + "' in state '" + state["name"] + "'"
-      endif
+      end
       if limitvalue["variants"]?size == 0
         stop ">>>> Missing value variants for clock limit '" + limit["name"] + "' in state '" + state["name"] + "'"
-      endif
+      end
       if limitvalue["variants"]?last["when"] != ""
         stop ">>>> Missing default value for clock limit '" + limit["name"] + "' in state '" + state["name"] + "'"
-      endif
+      end
       list limitvalue["variants"] as variant
         if variant["when"] == "" && !variant?is_last
           stop ">>>> Default value must be last for clock limit '" + limit["name"] + "' in state '" + state["name"] + "'"
-        endif
+        end
         if limit["min"] == "yes" && variant["min"] == ""
           stop ">>>> Missing minimum value for clock limit '" + limit["name"] + "' in state '" + state["name"] + "'"
-        endif
+        end
         if limit["min"] == "no" && variant["min"] != ""
           stop ">>>> Unexpected minimum value for clock limit '" + limit["name"] + "' in state '" + state["name"] + "'"
-        endif
+        end
         if limit["max"] == "yes" && variant["max"] == ""
           stop ">>>> Missing maximum value for clock limit '" + limit["name"] + "' in state '" + state["name"] + "'"
-        endif
+        end
         if limit["max"] == "no" && variant["max"] != ""
           stop ">>>> Unexpected maximum value for clock limit '" + limit["name"] + "' in state '" + state["name"] + "'"
-        endif
-      endlist
-    endlist
-  endlist
+        end
+      end
+    end
+  end
 
   return {"states":states, "limits":limits, "values":values}
-endfunction
+end
 
 /* Parses arbitrary support definitions and structured enumerations.*/
 function ParseDefinitions(variants)
@@ -603,21 +603,21 @@ function ParseDefinitions(variants)
 
       if itemnames?seq_contains(itemname)
         stop ">>>> Duplicate item '" + itemname + "' in enumeration '" + enumname + "'"
-      endif
+      end
       local itemnames = itemnames + [itemname]
 
       if names?seq_contains(name)
         stop ">>>> Duplicate definition '" + name + "'"
-      endif
+      end
       local names = names + [name]
 
       if field != ""
         local value = "((" + value + ") << " + field + ")"
-      endif
+      end
 
       local definitions = definitions + [{"name":name, "value":value, "variants":variantdata["variants"], "variant_condition":variantdata["variant_condition"]}]
-    endlist
-  endlist
+    end
+  end
 
   list doc1.clocktree.settings.definitions.define as define
     local name = define.@name[0]?string
@@ -626,14 +626,14 @@ function ParseDefinitions(variants)
 
     if names?seq_contains(name)
       stop ">>>> Duplicate definition '" + name + "'"
-    endif
+    end
     local names = names + [name]
 
     local definitions = definitions + [{"name":name, "value":value, "variants":variantdata["variants"], "variant_condition":variantdata["variant_condition"]}]
-  endlist
+  end
 
   return definitions
-endfunction
+end
 
 /* Parses the generic configuration settings.*/
 function ParseConfigurations(variants)
@@ -655,65 +655,65 @@ function ParseConfigurations(variants)
 
     if names?seq_contains(name)
       stop ">>>> Duplicate configuration '" + name + "'"
-    endif
+    end
     local names = names + [name]
 
     if role != ""
       if roles?seq_contains(role)
         stop ">>>> Duplicate configuration role '" + role + "'"
-      endif
+      end
       local roles = roles + [role]
-    endif
+    end
 
     if type == "bool"
       if default != "TRUE" && default != "FALSE"
         stop ">>>> Invalid default value for boolean configuration '" + name + "'"
-      endif
+      end
       if minval != "" || maxval != "" || values != ""
         stop ">>>> Invalid constraints for boolean configuration '" + name + "'"
-      endif
+      end
     elseif type == "value"
       if values != ""
         stop ">>>> Invalid value list for numeric configuration '" + name + "'"
-      endif
+      end
     elseif type == "set"
       if values == ""
         stop ">>>> Missing value list for set configuration '" + name + "'"
-      endif
+      end
       if minval != "" || maxval != ""
         stop ">>>> Invalid range constraints for set configuration '" + name + "'"
-      endif
+      end
       if !values?replace(",", " ")?word_list?seq_contains(default)
         stop ">>>> Invalid default value for set configuration '" + name + "'"
-      endif
+      end
     elseif type == "raw"
       if minval != "" || maxval != "" || values != ""
         stop ">>>> Invalid constraints for raw configuration '" + name + "'"
-      endif
+      end
     else
       stop ">>>> Unknown configuration type '" + type + "' for configuration '" + name + "'"
-    endif
+    end
 
     local configs = configs + [{"name":name, "type":type, "default":default, "role":role, "min":minval, "max":maxval, "values":values, "description":description, "variants":variantdata["variants"], "variant_condition":variantdata["variant_condition"]}]
-  endlist
+  end
 
   return configs
-endfunction
+end
 
 /* Returns a generated derived configuration macro name.*/
 function GetDerivedConfigMacro(name)
   return premacro + "DCFG_" + name
-endfunction
+end
 
 /* Parses derived configuration settings.*/
 function ParseDerivedConfigurations(definitions, configs, variants)
   local names = []
   list definitions as definition
     local names = names + [definition["name"]]
-  endlist
+  end
   list configs as config
     local names = names + [config["name"]]
-  endlist
+  end
 
   local dconfigs = []
   if doc1.clocktree.settings["derived-configs"][0]??
@@ -726,19 +726,19 @@ function ParseDerivedConfigurations(definitions, configs, variants)
 
       if names?seq_contains(name)
         stop ">>>> Duplicate derived configuration '" + name + "'"
-      endif
+      end
       local names = names + [name]
 
       if type != "expression"
         stop ">>>> Unknown derived configuration type '" + type + "' for configuration '" + name + "'"
-      endif
+      end
 
       local dconfigs = dconfigs + [{"name":name, "type":type, "value":value, "variants":variantdata["variants"], "variant_condition":variantdata["variant_condition"]}]
-    endlist
-  endif
+    end
+  end
 
   return dconfigs
-endfunction
+end
 
 /* Parses cross-configuration assertions.*/
 function ParseConfigurationAssertions(variants)
@@ -754,15 +754,15 @@ function ParseConfigurationAssertions(variants)
 
       if names?seq_contains(name)
         stop ">>>> Duplicate configuration assertion '" + name + "'"
-      endif
+      end
       local names = names + [name]
 
       local asserts = asserts + [{"name":name, "condition":condition, "message":message, "variants":variantdata["variants"], "variant_condition":variantdata["variant_condition"]}]
-    endlist
-  endif
+    end
+  end
 
   return asserts
-endfunction
+end
 
 /* Parses terminal clock sinks.*/
 function ParseSinks(clocknames, variants)
@@ -779,25 +779,25 @@ function ParseSinks(clocknames, variants)
         local description = sink.description[0]?string?word_list?join(" ")
       else
         local description = "no description"
-      endif
+      end
       local limits = ParseClockLimits(sink)
       local variantdata = ParseVariantMetadata(sink, variants, "clock sink '" + name + "'")
 
       if names?seq_contains(name)
         stop ">>>> Duplicate clock sink '" + name + "'"
-      endif
+      end
       local names = names + [name]
 
       if clocknames?seq_contains(input) == false
         stop ">>>> Unknown clock point '" + input + "' referenced by sink '" + name + "'"
-      endif
+      end
 
       local sinks = sinks + [{"name":name, "input":input, "condition":condition, "implicit_mode":implicitmode, "description":description, "limits":limits, "variants":variantdata["variants"], "variant_condition":variantdata["variant_condition"]}]
-    endlist
-  endif
+    end
+  end
 
   return sinks
-endfunction
+end
 
 /* Parses one source or clock point.*/
 function ParseClockPoint(clock, sourceonly, variants)
@@ -812,15 +812,15 @@ function ParseClockPoint(clock, sourceonly, variants)
     local clockdescr = clock.description[0]?string?word_list?join(" ")
   else
     local clockdescr = "no description"
-  endif
+  end
   if clockdefault != "" && clockenable != "manual"
     stop ">>>> Enable default specified for non-manual clock point '" + clockname + "'"
-  endif
+  end
   local clockbits = ParseBoolBits(clock, "clock point '" + clockname + "'")
   local clocklimits = ParseClockLimits(clock)
   if clockenable == "manual" && clockbits?size == 0
     stop ">>>> Missing enable bits for manually enabled clock point '" + clockname + "'"
-  endif
+  end
 
   /* Determining the type of the clock point by looking at the child element.*/
   if sourceonly || clock.derived[0]??
@@ -830,29 +830,29 @@ function ParseClockPoint(clock, sourceonly, variants)
     else
       local node = clock.derived[0]
       local kind = "Derived"
-    endif
+    end
 
     local hasfrequency = node.@frequency[0]??
     local hasfrequencies = node.frequencies[0]??
     if hasfrequency && hasfrequencies
       stop ">>>> " + kind + " clock point '" + clockname + "' mixes fixed and conditional frequencies"
-    endif
+    end
     if !hasfrequency && !hasfrequencies
       stop ">>>> " + kind + " clock point '" + clockname + "' has no frequency definition"
-    endif
+    end
     local clockinput = (node.@input[0]!"")?string
     if sourceonly && clockinput != ""
       stop ">>>> Source clock point '" + clockname + "' cannot use an input clock"
-    endif
+    end
     if hasfrequencies
       if clockinput != ""
         stop ">>>> Conditional frequency " + kind?lower_case + " clock point '" + clockname + "' cannot use an input clock"
-      endif
+      end
       return {"type":"source", "subtype":"frequencies", "sourceonly":sourceonly, "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "private":clockprivate, "bits":clockbits, "limits":clocklimits, "frequencies":ParseFrequencyCases(node, clockname), "input":"", "variants":variantdata["variants"], "variant_condition":variantdata["variant_condition"]}
     else
       local clockfreq = node.@frequency[0]?string
       return {"type":"source", "subtype":"fixed", "sourceonly":sourceonly, "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "private":clockprivate, "bits":clockbits, "limits":clocklimits, "frequency":clockfreq, "input":clockinput, "variants":variantdata["variants"], "variant_condition":variantdata["variant_condition"]}
-    endif
+    end
 
   elseif clock.mux[0]??
     /* It is a muxed clock.*/
@@ -873,33 +873,33 @@ function ParseClockPoint(clock, sourceonly, variants)
       if inputencoding != ""
         if muxfield == "" || muxoffset == ""
           stop ">>>> Missing selector encoding for input '" + inputpoint + "' in clock mux '" + clockname + "'"
-        endif
+        end
         local inputvalue = GetGeneratedSelectorMacro(muxfield, inputlabel)
         local muxselectors = muxselectors + [{"kind":"encoded", "field":muxfield, "macro":inputvalue, "encoding":inputencoding, "offset":muxoffset}]
         if input.bits[0]??
           local inputbits = "(" + inputvalue + " | " + GetBitsValue(input) + ")"
         else
           local inputbits = inputvalue
-        endif
+        end
       elseif input.bits[0]??
         local inputvalue = GetBitsValue(input)
         local inputbits = inputvalue
       else
         stop ">>>> Missing selector encoding for input '" + inputpoint + "' in clock mux '" + clockname + "'"
-      endif
+      end
       if muxvalues?seq_contains(inputvalue)
         stop ">>>> Duplicate selector value '" + inputvalue + "' in clock mux '" + clockname + "'"
-      endif
+      end
       local muxvalues = muxvalues + [inputvalue]
       if inputdefault == "yes"
         local muxdefault = inputvalue
-      endif
+      end
       local muxinputs = muxinputs + [{"point":inputpoint, "value":inputvalue, "bits":inputbits, "default":inputdefault}]
       local muxbranches = muxbranches + [{"type":"input", "point":inputpoint, "value":inputvalue, "bits":inputbits, "default":inputdefault, "condition":""}]
-    endlist
+    end
     if muxinputs?size == 0
       stop ">>>> Missing input for clock mux '" + clockname + "'"
-    endif
+    end
     list clock.mux.inactive as inactive
       local hasinactivevalue = inactive.@value[0]??
       local inactivelabel = (inactive.@label[0]!"")?string
@@ -910,15 +910,15 @@ function ParseClockPoint(clock, sourceonly, variants)
         local inactivevalue = inactive.@value[0]?string
       else
         stop ">>>> Missing selector value for inactive branch in clock mux '" + clockname + "'"
-      endif
+      end
       local inactivebits = (inactive.@bits[0]!"0U")?string
       local inactivecondition = inactive.@when[0]?string
       if muxvalues?seq_contains(inactivevalue)
         stop ">>>> Duplicate selector value '" + inactivevalue + "' in clock mux '" + clockname + "'"
-      endif
+      end
       local muxvalues = muxvalues + [inactivevalue]
       local muxbranches = muxbranches + [{"type":"inactive", "point":"", "value":inactivevalue, "bits":inactivebits, "default":"no", "condition":inactivecondition}]
-    endlist
+    end
     return {"type":"mux", "name":clockname, "muxname":muxname, "field":muxfield, "setting":muxsetting, "inputs":muxinputs, "branches":muxbranches, "selectors":muxselectors, "default":muxdefault, "description":clockdescr, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "private":clockprivate, "bits":clockbits, "limits":clocklimits, "variants":variantdata["variants"], "variant_condition":variantdata["variant_condition"]}
 
   elseif clock.divider[0]??
@@ -936,29 +936,29 @@ function ParseClockPoint(clock, sourceonly, variants)
     local mulsetting = (clock.multiplier[0].@setting[0]!"")?string
     local mulparsed = ParseScaler(clock.multiplier[0])
     return {"type":"multiplier", "description":clockdescr, "name":clockname, "enable":clockenable, "enable_default":clockdefault, "dynamic":clockdynamic, "private":clockprivate, "bits":clockbits, "limits":clocklimits, "mulname":mulname, "input":mulinput, "setting":mulsetting, "kind":mulparsed["kind"], "data":mulparsed["data"], "variants":variantdata["variants"], "variant_condition":variantdata["variant_condition"]}
-  endif
+  end
 
   stop ">>>> Unknown clock point type for '" + clockname + "'"
-endfunction
+end
 
 /* Returns true if a point frequency expression is not valid in generated _FREQ macros.*/
 function HasRuntimeFrequencyExpression(point)
   if point["type"] != "source"
     return false
-  endif
+  end
 
   if point["subtype"] == "frequencies"
     list point["frequencies"] as frequency
       if frequency["value"]?contains("hal_lld_get_clock_point(")
         return true
-      endif
-    endlist
+      end
+    end
   elseif point["frequency"]?contains("hal_lld_get_clock_point(")
     return true
-  endif
+  end
 
   return false
-endfunction
+end
 
 /* Initializes the parsed clock tree data model.*/
 function Initialize()
@@ -983,8 +983,8 @@ function Initialize()
       local clocknames = clocknames + [clockname]
       local points = points + [clockpoint]
       local clocks = clocks + [clockpoint]
-    endlist
-  endif
+    end
+  end
 
   /* Scanning clock points, gathering data.*/
   list doc1.clocktree.clocks.clock as clock
@@ -999,9 +999,9 @@ function Initialize()
       local dividers = dividers + [clockpoint]
     elseif clockpoint["type"] == "multiplier"
       local multipliers = multipliers + [clockpoint]
-    endif
+    end
     local clocks = clocks + [clockpoint]
-  endlist
+  end
 
   /* Validating references.*/
   list muxes as mux
@@ -1009,40 +1009,40 @@ function Initialize()
       local inputpoint = input["point"]
       if clocknames?seq_contains(inputpoint) == false
         stop ">>>> Unknown clock point '" + inputpoint + "' referenced by mux '" + mux["name"] + "'"
-      endif
-    endlist
-  endlist
+      end
+    end
+  end
   list clocks as clock
     if clock["type"] == "source"
       local inputpoint = clock["input"]
       if inputpoint != "" && clocknames?seq_contains(inputpoint) == false
         stop ">>>> Unknown clock point '" + inputpoint + "' referenced by source '" + clock["name"] + "'"
-      endif
-    endif
-  endlist
+      end
+    end
+  end
   list dividers as div
     local inputpoint = div["input"]
     if clocknames?seq_contains(inputpoint) == false
       stop ">>>> Unknown clock point '" + inputpoint + "' referenced by divider '" + div["name"] + "'"
-    endif
-  endlist
+    end
+  end
   list multipliers as mul
     local inputpoint = mul["input"]
     if clocknames?seq_contains(inputpoint) == false
       stop ">>>> Unknown clock point '" + inputpoint + "' referenced by multiplier '" + mul["name"] + "'"
-    endif
-  endlist
+    end
+  end
   list clocks as clock
     if HasRuntimeFrequencyExpression(clock)
       stop ">>>> Clock point '" + clock["name"] + "' uses a runtime function call in a _FREQ expression"
-    endif
+    end
     if clock["limits"]?size > 0
       local limit = GetLimitDeclaration(limitmodel["limits"], clock["limits"]["ref"])
       if limit?size == 0
         stop ">>>> Unknown clock limit '" + clock["limits"]["ref"] + "' referenced by clock point '" + clock["name"] + "'"
-      endif
-    endif
-  endlist
+      end
+    end
+  end
 
   local sinks = ParseSinks(clocknames, variants)
   list sinks as sink
@@ -1050,25 +1050,25 @@ function Initialize()
       local limit = GetLimitDeclaration(limitmodel["limits"], sink["limits"]["ref"])
       if limit?size == 0
         stop ">>>> Unknown clock limit '" + sink["limits"]["ref"] + "' referenced by clock sink '" + sink["name"] + "'"
-      endif
-    endif
+      end
+    end
     if sink["implicit_mode"]
       local config = BuildSinkClockModeConfig(sink)
       list configs as existing
         if existing["name"] == config["name"]
           stop ">>>> Duplicate implicit clock mode configuration '" + config["name"] + "' for clock sink '" + sink["name"] + "'"
-        endif
-      endlist
+        end
+      end
       local configs = configs + [config]
       local asserts = asserts + [BuildSinkClockModeAssert(sink)]
-    endif
-  endlist
+    end
+  end
 
   return {"variants":variants, "definitions":definitions, "configs":configs, "derived_configs":dconfigs, "asserts":asserts, "limits":limitmodel, "clocknames":clocknames, "clocks":clocks, "points":points, "muxes":muxes, "dividers":dividers, "multipliers":multipliers, "sinks":sinks}
-endfunction
+end
 
 /* Static data parsed at startup.*/
-model = Initialize()
+assign model = Initialize()
 
 /* Emits clock tree variant selection macros and consistency checks.*/
 macro EmitVariantSelection()
@@ -1088,13 +1088,13 @@ macro EmitVariantSelection()
       ppcode.EmitPPEndif()
       sep
         emit "\e"
-      endsep
-    endlist
+      end
+    end
 
     local none = []
     list model["variants"] as variant
       local none = none + [variant["macro"] + " == FALSE"]
-    endlist
+    end
     emit "\e"
     ppcode.EmitPPAssert(
       expression="!(" + BuildAndExpression(none) + ")",
@@ -1109,14 +1109,14 @@ macro EmitVariantSelection()
             expression="!((" + left["macro"] + " == TRUE) && (" + right["macro"] + " == TRUE))",
             message="\"multiple clock tree variants selected\"",
             requires=["TRUE"])
-        endif
-      endlist
-    endlist
+        end
+      end
+    end
     emit """
 /** @} */
 """
-  endif
-endmacro
+  end
+end
 
 /* Emits a variant guard start for one parsed item.*/
 macro EmitVariantGuardStart(item, doxygen=true)
@@ -1125,21 +1125,21 @@ macro EmitVariantGuardStart(item, doxygen=true)
       ppcode.EmitPPIf(expression="(" + item["variant_condition"] + ") || defined(__DOXYGEN__)")
     else
       ppcode.EmitPPIf(expression=item["variant_condition"])
-    endif
-  endif
-endmacro
+    end
+  end
+end
 
 /* Emits a variant guard end for one parsed item.*/
 macro EmitVariantGuardEnd(item)
   if IsVariantSpecific(item)
     ppcode.EmitPPEndif()
-  endif
-endmacro
+  end
+end
 
 /* Returns true if a dynamic clock point is part of the public runtime API.*/
 function IsPublicDynamicPoint(point)
   return point["dynamic"] == "yes" && (point["private"]!"false") != "true"
-endfunction
+end
 
 /* Returns the clock points belonging to the public dynamic set.*/
 function GetDynamicPoints()
@@ -1147,22 +1147,22 @@ function GetDynamicPoints()
   list model["clocks"] as point
     if IsPublicDynamicPoint(point)
       local points = points + [point]
-    endif
-  endlist
+    end
+  end
 
   return points
-endfunction
+end
 
 /* Returns the configuration assigned to a semantic role.*/
 function GetConfigByRole(role)
   list model["configs"] as config
     if config["role"] == role
       return config
-    endif
-  endlist
+    end
+  end
 
   stop ">>>> Missing configuration with role '" + role + "'"
-endfunction
+end
 
 /* Emits dynamic clock point indexes and names.*/
 macro EmitClockPointConstants()
@@ -1175,7 +1175,7 @@ macro EmitClockPointConstants()
 ${("#define " + prename + point["name"])?right_pad(32) + index + "U"}
 """
       local index = index + 1
-    endlist
+    end
     emit """
 ${("#define " + prename + "ARRAY_SIZE")?right_pad(32) + points?size + "U"}
 
@@ -1186,43 +1186,43 @@ ${("#define " + prename + "ARRAY_SIZE")?right_pad(32) + points?size + "U"}
       local name = "\"" + point["name"] + "\""
       if !point?is_last
         local name = name + ","
-      endif
+      end
       emit """
 ${("    " + name)?right_pad(76)}\
 """
-    endlist
+    end
     emit """
   }
 """
-  endif
-endmacro
+  end
+end
 
 /* Returns true if any mux has generated selector constants.*/
 function HasGeneratedMuxSelectors()
   list model["muxes"] as mux
     if mux["selectors"]?size > 0
       return true
-    endif
-  endlist
+    end
+  end
 
   return false
-endfunction
+end
 
 /* Returns true if any scaler has generated selector constants.*/
 function HasGeneratedScalerSelectors()
   list model["dividers"] as divider
     if divider["data"]["selectors"]?size > 0
       return true
-    endif
-  endlist
+    end
+  end
   list model["multipliers"] as multiplier
     if multiplier["data"]["selectors"]?size > 0
       return true
-    endif
-  endlist
+    end
+  end
 
   return false
-endfunction
+end
 
 /* Emits arbitrary support definitions from the XML settings section.*/
 macro EmitDefinitions()
@@ -1237,27 +1237,27 @@ macro EmitDefinitions()
     if HasImplicitSinkModes()
       if !IsGeneratedDefinition(GetSinkClockModeDisabledValue())
         ppcode.EmitPPDefine(name=GetSinkClockModeDisabledValue(), value="0U")
-      endif
+      end
       if !IsGeneratedDefinition(GetSinkClockModeAutoValue())
         ppcode.EmitPPDefine(name=GetSinkClockModeAutoValue(), value="1U")
-      endif
+      end
       if !IsGeneratedDefinition(GetSinkClockModeEnabledValue())
         ppcode.EmitPPDefine(name=GetSinkClockModeEnabledValue(), value="2U")
-      endif
+      end
       if model["definitions"]?size > 0
         emit "\e"
-      endif
-    endif
+      end
+    end
     list model["definitions"] as definition
       EmitVariantGuardStart(item=definition)
       ppcode.EmitPPDefine(name=definition["name"], value=definition["value"])
       EmitVariantGuardEnd(item=definition)
-    endlist
+    end
     emit """
 /** @} */
 """
-  endif
-endmacro
+  end
+end
 
 /* Emits generated selector constants for one group of fields.*/
 macro EmitGeneratedSelectors(selectors)
@@ -1266,9 +1266,9 @@ macro EmitGeneratedSelectors(selectors)
       ppcode.EmitPPDefine(name=selector["macro"], value="((" + selector["encoding"] + ") << " + selector["offset"] + ")")
     else
       ppcode.EmitPPDefine(name=selector["macro"], value=selector["value"])
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /* Emits generated mux selector constants.*/
 macro EmitMuxSelectorConstants()
@@ -1287,14 +1287,14 @@ macro EmitMuxSelectorConstants()
         EmitVariantGuardEnd(item=mux)
         sep
           emit "\e"
-        endsep
-      endif
-    endlist
+        end
+      end
+    end
     emit """
 /** @} */
 """
-  endif
-endmacro
+  end
+end
 
 /* Emits generated scaler selector constants.*/
 macro EmitScalerSelectorConstants()
@@ -1313,9 +1313,9 @@ macro EmitScalerSelectorConstants()
         EmitVariantGuardEnd(item=divider)
         sep
           emit "\e"
-        endsep
-      endif
-    endlist
+        end
+      end
+    end
     list model["multipliers"] as multiplier
       if multiplier["data"]["selectors"]?size > 0
         EmitVariantGuardStart(item=multiplier)
@@ -1323,14 +1323,14 @@ macro EmitScalerSelectorConstants()
         EmitVariantGuardEnd(item=multiplier)
         sep
           emit "\e"
-        endsep
-      endif
-    endlist
+        end
+      end
+    end
     emit """
 /** @} */
 """
-  endif
-endmacro
+  end
+end
 
 /* Emits the static clock point getter for non-dynamic mode.*/
 macro EmitStaticClockPointGetter()
@@ -1360,52 +1360,52 @@ macro EmitStaticClockPointGetter()
         local prefix = "  ("
       else
         local prefix = "   "
-      endif
+      end
       local line = (prefix + "(clkpt) == " + clkmacro)?right_pad(30) + " ? " + freqmacro?right_pad(24) + " :"
       ppcode.EmitPPLogicalLine(text=line, continued=true)
-    endlist
+    end
     emit """
    0U)
 #endif
 """
-  endif
-endmacro
+  end
+end
 
 /* Returns a clock point by name.*/
 function GetClockPoint(name)
   list model["clocks"] as point
     if point["name"] == name
       return point
-    endif
-  endlist
+    end
+  end
 
   stop ">>>> Unknown clock point '" + name + "'"
-endfunction
+end
 
 /* Returns a generated clock point frequency macro name.*/
 function GetClockFrequencyMacro(name)
   return premacro + name + postclocks
-endfunction
+end
 
 /* Returns a generated nominal source frequency macro name.*/
 function GetClockNominalFrequencyMacro(name)
   return premacro + name + postnominal
-endfunction
+end
 
 /* Returns a generated current clock point macro name.*/
 function GetClockCurrentMacro(name)
   return premacro + name + postclock
-endfunction
+end
 
 /* Returns a generated dynamic clock point index macro name.*/
 function GetClockIndexMacro(name)
   return prename + name
-endfunction
+end
 
 /* Returns the default/static frequency expression for a clock point.*/
 function GetDefaultFrequencyExpression(name)
   return GetClockFrequencyMacro(name)
-endfunction
+end
 
 /* Returns the runtime frequency expression for a clock point reference.*/
 function GetRuntimeFrequencyExpression(name)
@@ -1413,92 +1413,92 @@ function GetRuntimeFrequencyExpression(name)
 
   if IsPublicDynamicPoint(point)
     return "hal_lld_get_clock_point(" + GetClockIndexMacro(name) + ")"
-  endif
+  end
 
   return GetClockCurrentMacro(name)
-endfunction
+end
 
 /* Returns the selector/configuration macro used by a mux clock point.*/
 function GetMuxSettingMacro(point)
   if (point["setting"]!"") != ""
     return point["setting"]
-  endif
+  end
 
   return precfg + point["name"] + postchoices
-endfunction
+end
 
 /* Returns the selector/configuration macro used by a scaler clock point.*/
 function GetScalerSettingMacro(point)
   if (point["setting"]!"") != ""
     return point["setting"]
-  endif
+  end
 
   return precfg + point["name"] + postvalues
-endfunction
+end
 
 /* Returns the generated demand macro for a clock sink.*/
 function GetSinkDemandMacro(sink)
   return premacro + sink["name"] + "_DEMANDED"
-endfunction
+end
 
 /* Returns true if a condition references a generated enable macro.*/
 function ReferencesGeneratedEnableMacro(condition)
   list model["clocks"] as point
     if condition?matches(".*\\b" + GetEnableMacro(point) + "\\b.*")
       return true
-    endif
-  endlist
+    end
+  end
 
   return false
-endfunction
+end
 
 /* Returns true if a condition contains the defined operator.*/
 function ContainsDefinedOperator(condition)
   return condition?matches(".*\\bdefined\\s*\\(.*")
-endfunction
+end
 
 /* Returns the generated clock mode setting macro for an implicit sink.*/
 function GetSinkClockModeMacro(sink)
   return precfg + sink["name"] + "_CLOCK_MODE"
-endfunction
+end
 
 /* Returns the external requirement atom for an implicit sink.*/
 function GetSinkClockRequiredMacro(sink)
   return premacro + sink["name"] + "_CLOCK_REQUIRED"
-endfunction
+end
 
 /* Returns the generated disabled mode value for implicit sinks.*/
 function GetSinkClockModeDisabledValue()
   return premacro + "CLOCK_DISABLED"
-endfunction
+end
 
 /* Returns the generated auto mode value for implicit sinks.*/
 function GetSinkClockModeAutoValue()
   return premacro + "CLOCK_AUTO"
-endfunction
+end
 
 /* Returns the generated enabled mode value for implicit sinks.*/
 function GetSinkClockModeEnabledValue()
   return premacro + "CLOCK_ENABLED"
-endfunction
+end
 
 /* Returns true if a macro is one of the generated sink mode values.*/
 function IsGeneratedSinkModeValue(name)
   return (name == GetSinkClockModeDisabledValue() ||
           name == GetSinkClockModeAutoValue() ||
           name == GetSinkClockModeEnabledValue())
-endfunction
+end
 
 /* Returns true if there are implicit-mode sinks.*/
 function HasImplicitSinkModes()
   list model["sinks"] as sink
     if sink["implicit_mode"]
       return true
-    endif
-  endlist
+    end
+  end
 
   return false
-endfunction
+end
 
 /* Returns the generated demand condition for an implicit sink.*/
 function GetImplicitSinkDemandCondition(sink)
@@ -1508,7 +1508,7 @@ function GetImplicitSinkDemandCondition(sink)
   return ("(" + modemacro + " == " + GetSinkClockModeEnabledValue() + ") || " +
           "((" + modemacro + " == " + GetSinkClockModeAutoValue() + ") && " +
           "defined(" + requiredmacro + "))")
-endfunction
+end
 
 /* Builds the implicit clock mode configuration for one sink.*/
 function BuildSinkClockModeConfig(sink)
@@ -1516,7 +1516,7 @@ function BuildSinkClockModeConfig(sink)
   local values = GetSinkClockModeDisabledValue() + " " + GetSinkClockModeAutoValue() + " " + GetSinkClockModeEnabledValue()
 
   return {"name":GetSinkClockModeMacro(sink), "type":"set", "default":GetSinkClockModeAutoValue(), "role":"", "min":"", "max":"", "values":values, "description":description, "variants":sink["variants"], "variant_condition":sink["variant_condition"]}
-endfunction
+end
 
 /* Builds the disabled-vs-required assertion for one implicit sink.*/
 function BuildSinkClockModeAssert(sink)
@@ -1526,11 +1526,11 @@ function BuildSinkClockModeAssert(sink)
                      "!defined(" + requiredmacro + ")")
 
   return {"name":sink["name"] + "_CLOCK_NOT_DISABLED", "condition":condition, "message":sink["name"] + " clock disabled but " + sink["name"] + " clock is required", "variants":sink["variants"], "variant_condition":sink["variant_condition"]}
-endfunction
+end
 
 /* Current clock point values are emitted together with their _FREQ macros.*/
 macro EmitCurrentClockDefinitions()
-endmacro
+end
 
 /* Returns the downstream demand conditions for a clock point.*/
 function GetDemandConditions(point)
@@ -1539,32 +1539,32 @@ function GetDemandConditions(point)
     if sink["input"] == point["name"]
       local demandmacro = GetSinkDemandMacro(sink)
       local conditions = conditions + [{"demander":sink["name"], "terms":[demandmacro + " == TRUE"], "requires":["TRUE"]}]
-    endif
-  endlist
+    end
+  end
   list model["clocks"] as downstream
     if downstream["type"] == "source"
       if downstream["input"] == point["name"]
         local enmacro = GetEnableMacro(downstream)
         local conditions = conditions + [{"demander":downstream["name"], "terms":[enmacro + " == TRUE"], "requires":[enmacro, "TRUE"]}]
-      endif
+      end
     elseif downstream["type"] == "mux"
       local enmacro = GetEnableMacro(downstream)
       local selmacro = GetMuxSettingMacro(downstream)
       list downstream["inputs"] as input
         if input["point"] == point["name"]
           local conditions = conditions + [{"demander":downstream["name"], "terms":[enmacro + " == TRUE", selmacro + " == " + input["value"]], "requires":AddExternalMacroRequirements(["TRUE"], [input["value"]])}]
-        endif
-      endlist
+        end
+      end
     elseif downstream["type"] == "divider" || downstream["type"] == "multiplier"
       if downstream["input"] == point["name"]
         local enmacro = GetEnableMacro(downstream)
         local conditions = conditions + [{"demander":downstream["name"], "terms":[enmacro + " == TRUE"], "requires":[enmacro, "TRUE"]}]
-      endif
-    endif
-  endlist
+      end
+    end
+  end
 
   return conditions
-endfunction
+end
 
 /* Returns the mux bits corresponding to a disabled source, if declared.*/
 function GetMuxDisabledBits(point)
@@ -1574,18 +1574,18 @@ function GetMuxDisabledBits(point)
   list point["inputs"] as input
     if input["point"] == "NONE"
       local disabledinputbits = input["bits"]
-    endif
-  endlist
+    end
+  end
 
   if disabledbits != "" && disabledinputbits != ""
     return "(" + disabledbits + " | " + disabledinputbits + ")"
-  endif
+  end
   if disabledbits != ""
     return disabledbits
-  endif
+  end
 
   return disabledinputbits
-endfunction
+end
 
 /* Emits generic configuration settings.*/
 macro EmitGenericConfigurations()
@@ -1600,9 +1600,9 @@ macro EmitGenericConfigurations()
     EmitVariantGuardEnd(item=config)
     sep
       emit "\e"
-    endsep
-  endlist
-endmacro
+    end
+  end
+end
 
 /* Emits derived configuration macros.*/
 macro EmitDerivedConfigurationMacros()
@@ -1618,10 +1618,10 @@ macro EmitDerivedConfigurationMacros()
       EmitVariantGuardEnd(item=config)
       sep
         emit "\e"
-      endsep
-    endlist
-  endif
-endmacro
+      end
+    end
+  end
+end
 
 /* Emits clock point configuration settings in XML order.*/
 macro EmitConfigurations()
@@ -1629,18 +1629,18 @@ macro EmitConfigurations()
   list model["clocks"] as point
     if point["enable"] == "manual"
       local configs = configs + [{"type":"enable", "point":point}]
-    endif
+    end
     if point["type"] == "mux" && (point["setting"]!"") == ""
       local configs = configs + [{"type":"mux", "point":point}]
     elseif (point["type"] == "divider" || point["type"] == "multiplier") && (point["setting"]!"") == ""
       local configs = configs + [{"type":"value", "point":point}]
-    endif
-  endlist
+    end
+  end
 
   EmitGenericConfigurations()
   if model["configs"]?size > 0 && configs?size > 0
     emit "\e"
-  endif
+  end
 
   list configs as config
     local point = config["point"]
@@ -1653,23 +1653,23 @@ macro EmitConfigurations()
         local default = point["enable_default"]
       else
         local default = "FALSE"
-      endif
+      end
     elseif config["type"] == "mux"
       local name = GetMuxSettingMacro(point)
       local brief = "Selects the " + point["name"] + " clock source."
       local notes = " * @note    Allowed sources:\n"
       list point["inputs"] as input
         local notes = notes + " *          - " + input["point"] + ".\n"
-      endlist
+      end
       list point["branches"] as branch
         if branch["type"] == "inactive"
           local notes = notes + " *          - inactive selection " + branch["value"] + ".\n"
-        endif
-      endlist
+        end
+      end
       local default = point["default"]
       if default == ""
         stop ">>>> Missing default input for clock mux '" + point["name"] + "'"
-      endif
+      end
     else
       local name = GetScalerSettingMacro(point)
       local notes = ""
@@ -1677,16 +1677,16 @@ macro EmitConfigurations()
         local brief = "Configures the " + point["name"] + " clock divider value."
       else
         local brief = "Configures the " + point["name"] + " clock multiplier value."
-      endif
+      end
       local default = GetScalerDefault(point)
-    endif
+    end
     emit """
 /**
  * @brief   ${brief}
 """
     if notes != ""
       emit notes
-    endif
+    end
     emit """
  */
 """
@@ -1694,79 +1694,79 @@ macro EmitConfigurations()
     EmitVariantGuardEnd(item=point)
     sep
       emit "\e"
-    endsep
-  endlist
-endmacro
+    end
+  end
+end
 
 /* Returns true if a generic configuration has emitted checks.*/
 function HasGenericConfigCheck(config)
   if config["type"] == "bool" || config["type"] == "set"
     return true
-  endif
+  end
 
   if config["type"] == "value"
     if config["min"] != "" || config["max"] != ""
       return true
-    endif
-  endif
+    end
+  end
 
   return false
-endfunction
+end
 
 /* Returns true if generic configuration checks are emitted.*/
 function HasGenericConfigChecks()
   if model["asserts"]?size > 0
     return true
-  endif
+  end
 
   list model["configs"] as config
     if HasGenericConfigCheck(config)
       return true
-    endif
-  endlist
+    end
+  end
 
   return false
-endfunction
+end
 
 /* Emits one cross-configuration assertion.*/
 macro EmitOneConfigAssertion(assertion)
   ppcode.EmitPPAssert(
     expression=assertion["condition"],
     message="\"" + assertion["message"] + "\"")
-endmacro
+end
 
 /* Formats one preprocessor condition term.*/
 function FormatConditionTerm(term)
   local text = term?trim
   if text?starts_with("defined(") || text?starts_with("!defined(")
     return text
-  endif
+  end
   if text?starts_with("(") && text?ends_with(")")
     return text
-  endif
+  end
 
   return "(" + text + ")"
-endfunction
+end
 
 /* Adds one explicitly referenced external macro to a requirements list.*/
 function GetDefinedMacroName(name)
   if name?contains("(")
     return name?keep_before("(")
-  endif
+  end
 
   return name
-endfunction
+end
 
 /* Returns true if a macro is generated as an XML support definition.*/
 function IsGeneratedDefinition(name)
   list model["definitions"] as definition
     if GetDefinedMacroName(definition["name"]) == name
       return true
-    endif
-  endlist
+    end
+  end
 
   return false
-endfunction
+end
 
 /* Returns true if a macro is generated as a selector constant.*/
 function IsGeneratedSelector(name)
@@ -1774,52 +1774,52 @@ function IsGeneratedSelector(name)
     list mux["selectors"] as selector
       if selector["macro"] == name
         return true
-      endif
-    endlist
-  endlist
+      end
+    end
+  end
 
   list model["dividers"] as divider
     list divider["data"]["selectors"] as selector
       if selector["macro"] == name
         return true
-      endif
-    endlist
-  endlist
+      end
+    end
+  end
 
   list model["multipliers"] as multiplier
     list multiplier["data"]["selectors"] as selector
       if selector["macro"] == name
         return true
-      endif
-    endlist
-  endlist
+      end
+    end
+  end
 
   return false
-endfunction
+end
 
 /* Returns true if a macro is generated by the clock tree header itself.*/
 function IsGeneratedMacro(name)
   return IsGeneratedDefinition(name) || IsGeneratedSelector(name) || (HasImplicitSinkModes() && IsGeneratedSinkModeValue(name))
-endfunction
+end
 
 /* Adds one explicitly referenced external macro to a requirements list.*/
 function AddExternalMacroRequirement(requires, ref)
   local text = ref?trim
   if text?matches("^[A-Za-z_][A-Za-z0-9_]*$") && text != "__DOXYGEN__" && !IsGeneratedMacro(text) && !requires?seq_contains(text)
     return requires + [text]
-  endif
+  end
 
   return requires
-endfunction
+end
 
 /* Adds explicitly referenced external macros to a requirements list.*/
 function AddExternalMacroRequirements(requires, refs)
   list refs as ref
     local requires = AddExternalMacroRequirement(requires, ref)
-  endlist
+  end
 
   return requires
-endfunction
+end
 
 /* Builds one OR expression from terms.*/
 function BuildOrExpression(terms)
@@ -1830,11 +1830,11 @@ function BuildOrExpression(terms)
       local expression = formatted
     else
       local expression = expression + " || " + formatted
-    endif
-  endlist
+    end
+  end
 
   return expression
-endfunction
+end
 
 /* Emits a preprocessor condition using && between all terms.*/
 macro EmitAndCondition(keyword, terms)
@@ -1843,15 +1843,15 @@ macro EmitAndCondition(keyword, terms)
       local line = keyword + " " + FormatConditionTerm(term)
     else
       local line = "    " + FormatConditionTerm(term)
-    endif
+    end
     if !term?is_last
       local line = line + " && \\"
-    endif
+    end
     emit """
 ${line}
 """
-  endlist
-endmacro
+  end
+end
 
 /* Emits a preprocessor condition using || between checks, then a doxygen guard.*/
 macro EmitDoxygenGuardedOrCondition(checks)
@@ -1863,21 +1863,21 @@ macro EmitDoxygenGuardedOrCondition(checks)
         local line = "#if (" + FormatConditionTerm(check)
       else
         local line = "     " + FormatConditionTerm(check)
-      endif
+      end
       if check?is_last
         local line = line + ") && \\"
       else
         local line = line + " || \\"
-      endif
+      end
       emit """
 ${line}
 """
-    endlist
+    end
     emit """
     !defined(__DOXYGEN__)
 """
-  endif
-endmacro
+  end
+end
 
 /* Emits a state selection condition, optionally with a doxygen alternative.*/
 macro EmitStateCondition(keyword, expression, doxygen)
@@ -1891,17 +1891,17 @@ macro EmitStateCondition(keyword, expression, doxygen)
           local line = "      " + FormatConditionTerm(term)
         else
           local line = "     " + FormatConditionTerm(term)
-        endif
-      endif
+        end
+      end
       if term?is_last
         local line = line + ") || \\"
       else
         local line = line + " && \\"
-      endif
+      end
       emit """
 ${line}
 """
-    endlist
+    end
     emit """
     defined(__DOXYGEN__)
 """
@@ -1911,7 +1911,7 @@ ${line}
       local operator = " || "
     else
       local operator = " && "
-    endif
+    end
     list terms as term
       if term?is_first
         local line = keyword + " " + FormatConditionTerm(term)
@@ -1920,17 +1920,17 @@ ${line}
           local line = "      " + FormatConditionTerm(term)
         else
           local line = "    " + FormatConditionTerm(term)
-        endif
-      endif
+        end
+      end
       if !term?is_last
         local line = line + operator + "\\"
-      endif
+      end
       emit """
 ${line}
 """
-    endlist
-  endif
-endmacro
+    end
+  end
+end
 
 /* Emits checks for one generic configuration setting.*/
 macro EmitOneGenericConfigChecks(config)
@@ -1947,30 +1947,30 @@ macro EmitOneGenericConfigChecks(config)
     if config["min"] != ""
       local checks = checks + [name + " >= " + config["min"]]
       local requires = AddExternalMacroRequirement(requires, config["min"])
-    endif
+    end
     if config["max"] != ""
       local checks = checks + [name + " <= " + config["max"]]
       local requires = AddExternalMacroRequirement(requires, config["max"])
-    endif
+    end
     if checks?size > 0
       ppcode.EmitPPAssert(
         expression=BuildAndExpression(checks),
         message="\"invalid " + name + " value specified\"",
         requires=requires)
-    endif
+    end
   elseif config["type"] == "set"
     local checks = []
     local requires = []
     list config["values"]?replace(",", " ")?word_list as value
       local checks = checks + [name + " == " + value]
       local requires = AddExternalMacroRequirement(requires, value)
-    endlist
+    end
     ppcode.EmitPPAssert(
       expression=BuildOrExpression(checks),
       message="\"invalid " + name + " value specified\"",
       requires=requires)
-  endif
-endmacro
+  end
+end
 
 /* Emits checks for generic configuration settings.*/
 macro EmitGenericConfigChecks()
@@ -1985,25 +1985,25 @@ macro EmitGenericConfigChecks()
       if HasGenericConfigCheck(config)
         if emitted
           emit "\e"
-        endif
+        end
         EmitVariantGuardStart(item=config, doxygen=false)
         EmitOneGenericConfigChecks(config=config)
         EmitVariantGuardEnd(item=config)
         local emitted = true
-      endif
-    endlist
+      end
+    end
 
     list model["asserts"] as assertion
       if emitted
         emit "\e"
-      endif
+      end
       EmitVariantGuardStart(item=assertion, doxygen=false)
       EmitOneConfigAssertion(assertion=assertion)
       EmitVariantGuardEnd(item=assertion)
       local emitted = true
-    endlist
-  endif
-endmacro
+    end
+  end
+end
 
 /* Returns a generated limit macro name.*/
 function GetLimitMacro(limit, kind)
@@ -2011,10 +2011,10 @@ function GetLimitMacro(limit, kind)
     return premacro + limit["name"] + postmin
   elseif kind == "max"
     return premacro + limit["name"] + postmax
-  endif
+  end
 
   stop ">>>> Unknown clock limit kind '" + kind + "'"
-endfunction
+end
 
 /* Returns a generated state-specific limit macro name.*/
 function GetStateLimitMacro(state, limit, kind)
@@ -2022,27 +2022,27 @@ function GetStateLimitMacro(state, limit, kind)
     return premacro + state["name"]?upper_case + "_" + limit["name"] + postmin
   elseif kind == "max"
     return premacro + state["name"]?upper_case + "_" + limit["name"] + postmax
-  endif
+  end
 
   stop ">>>> Unknown clock limit kind '" + kind + "'"
-endfunction
+end
 
 /* Emits one state-specific clock limit value macro.*/
 macro EmitOneStateLimitValueMacro(state, limit, variant, kind)
   local macroname = GetStateLimitMacro(state, limit, kind)
 
   ppcode.EmitPPDefine(name=macroname, value=variant[kind])
-endmacro
+end
 
 /* Emits state-specific clock limit value macros for one variant.*/
 macro EmitStateLimitValueMacros(state, limit, variant)
   if limit["min"] == "yes"
     EmitOneStateLimitValueMacro(state=state, limit=limit, variant=variant, kind="min")
-  endif
+  end
   if limit["max"] == "yes"
     EmitOneStateLimitValueMacro(state=state, limit=limit, variant=variant, kind="max")
-  endif
-endmacro
+  end
+end
 
 /* Emits one state-specific clock limit value, optionally conditionally.*/
 macro EmitStateLimitValue(state, statevalues, limit)
@@ -2061,14 +2061,14 @@ macro EmitStateLimitValue(state, statevalues, limit)
         emit """
 #else
 """
-      endif
+      end
       EmitStateLimitValueMacros(state=state, limit=limit, variant=variant)
-    endlist
+    end
     emit """
 #endif
 """
-  endif
-endmacro
+  end
+end
 
 /* Emits grouped state-specific clock limit values.*/
 macro EmitStateLimitDefinitions()
@@ -2076,7 +2076,7 @@ macro EmitStateLimitDefinitions()
     local statevalues = GetStateValues(model["limits"]["values"], state["name"])
     if !state?is_first
       emit "\e"
-    endif
+    end
     emit """
 /**
  * @name    Frequency limits for ${state["name"]} state
@@ -2085,12 +2085,12 @@ macro EmitStateLimitDefinitions()
 """
     list model["limits"]["limits"] as limit
       EmitStateLimitValue(state=state, statevalues=statevalues, limit=limit)
-    endlist
+    end
     emit """
 /** @} */
 """
-  endlist
-endmacro
+  end
+end
 
 /* Emits one final clock limit selection.*/
 macro EmitOneLimitSelection(state, limit, kind)
@@ -2098,7 +2098,7 @@ macro EmitOneLimitSelection(state, limit, kind)
   local statemacro = GetStateLimitMacro(state, limit, kind)
 
   ppcode.EmitPPDefine(name=macroname, value=statemacro)
-endmacro
+end
 
 /* Emits final clock limit selections.*/
 macro EmitLimitSelections()
@@ -2113,21 +2113,21 @@ macro EmitLimitSelections()
         EmitStateCondition(keyword="#if", expression=state["when"], doxygen=true)
       else
         EmitStateCondition(keyword="#elif", expression=state["when"], doxygen=false)
-      endif
+      end
       list model["limits"]["limits"] as limit
         if limit["min"] == "yes"
           EmitOneLimitSelection(state=state, limit=limit, kind="min")
-        endif
+        end
         if limit["max"] == "yes"
           EmitOneLimitSelection(state=state, limit=limit, kind="max")
-        endif
-      endlist
-    endlist
+        end
+      end
+    end
     ppcode.EmitPPElseAt(level=0)
     ppcode.EmitPPErrorAt(message="\"unable to select clock frequency limits\"", level=1)
     ppcode.EmitPPEndifAt(level=0)
-  endif
-endmacro
+  end
+end
 
 /* Emits generated clock limit definitions.*/
 macro EmitLimitDefinitions()
@@ -2135,8 +2135,8 @@ macro EmitLimitDefinitions()
     EmitStateLimitDefinitions()
     emit "\e"
     EmitLimitSelections()
-  endif
-endmacro
+  end
+end
 
 /* Emits enable-state definitions for all clock points.*/
 macro EmitEnableExpression(name, expression, conditions)
@@ -2146,25 +2146,25 @@ macro EmitEnableExpression(name, expression, conditions)
       local terms = []
       list condition["terms"] as term
         local terms = terms + [FormatConditionTerm(term)]
-      endlist
+      end
       if terms?size > 1
         local conditionexpressions = conditionexpressions + ["(" + terms?join(" && ") + ")"]
       else
         local conditionexpressions = conditionexpressions + [terms[0]]
-      endif
-    endlist
+      end
+    end
     local expression = "(" + conditionexpressions?join(" || ") + ")"
     ppcode.EmitPPDefine(name=name, value=expression)
   else
     ppcode.EmitPPDefine(name=name, value=expression)
-  endif
-endmacro
+  end
+end
 
 /* Emits a sink demand expression that depends on a generated enable state.*/
 macro EmitDeferredSinkDemandDefinition(sink, demandmacro, condition)
   if ContainsDefinedOperator(condition)
     stop ">>>> Clock sink '" + sink["name"] + "' condition cannot combine defined() with a generated enable macro"
-  endif
+  end
 
   ppcode.EmitPPIf(expression="defined(__DOXYGEN__)")
   ppcode.EmitPPDefine(name=demandmacro, value="TRUE")
@@ -2172,14 +2172,14 @@ macro EmitDeferredSinkDemandDefinition(sink, demandmacro, condition)
     ppcode.EmitPPElif(expression=sink["variant_condition"])
   else
     ppcode.EmitPPElse()
-  endif
+  end
   ppcode.EmitPPDefine(name=demandmacro, value="(" + condition + ")")
   if IsVariantSpecific(sink)
     ppcode.EmitPPElse()
     ppcode.EmitPPDefine(name=demandmacro, value="FALSE")
-  endif
+  end
   ppcode.EmitPPEndif()
-endmacro
+end
 
 /* Emits generated sink demand states without embedding defined() in macros.*/
 macro EmitSinkDemandDefinitions()
@@ -2196,7 +2196,7 @@ macro EmitSinkDemandDefinitions()
         local condition = GetImplicitSinkDemandCondition(sink)
       else
         local condition = sink["condition"]
-      endif
+      end
       emit """
 /**
  * @brief   ${sink["name"]} sink demand state.
@@ -2216,41 +2216,41 @@ macro EmitSinkDemandDefinitions()
           ppcode.EmitPPEndif()
         else
           ppcode.EmitPPDefine(name=demandmacro, value="TRUE")
-        endif
+        end
       elseif !sink["implicit_mode"] && !condition?contains("defined(")
         /* Keep generated-clock dependencies deferred until macro expansion.*/
         if IsVariantSpecific(sink)
           local condition = "((" + sink["variant_condition"] + ") && (" + condition + "))"
-        endif
+        end
         ppcode.EmitPPDefine(name=demandmacro, value="(" + condition + ")")
       else
         if IsVariantSpecific(sink)
           ppcode.EmitPPIf(expression="((" + sink["variant_condition"] + ") && (" + condition + ")) || defined(__DOXYGEN__)")
         else
           ppcode.EmitPPIf(expression="(" + condition + ") || defined(__DOXYGEN__)")
-        endif
+        end
         ppcode.EmitPPDefine(name=demandmacro, value="TRUE")
         ppcode.EmitPPElse()
         ppcode.EmitPPDefine(name=demandmacro, value="FALSE")
         ppcode.EmitPPEndif()
-      endif
+      end
       sep
         emit "\e"
-      endsep
-    endlist
+      end
+    end
     emit """
 /** @} */
 """
-  endif
-endmacro
+  end
+end
 
 macro EmitEnableDefinitions()
   local enabledpoints = []
   list model["clocks"] as point
     if point["enable"] == "manual" || point["enable"] == "auto" || point["enable"] == "never" || point["enable"] == "always"
       local enabledpoints = enabledpoints + [point]
-    endif
-  endlist
+    end
+  end
 
   list enabledpoints as point
     local enmacro = GetEnableMacro(point)
@@ -2264,15 +2264,15 @@ macro EmitEnableDefinitions()
           local expression = "((" + conditions[0]["terms"][0] + "))"
         else
           local expression = ""
-        endif
+        end
       else
         local expression = "TRUE"
-      endif
+      end
     elseif point["enable"] == "always"
       local expression = "TRUE"
     else
       local expression = "FALSE"
-    endif
+    end
     emit """
 /**
  * @brief   ${point["name"]} clock derived enable state.
@@ -2280,32 +2280,32 @@ macro EmitEnableDefinitions()
 """
     if IsVariantSpecific(point)
       EmitVariantGuardStart(item=point)
-    endif
+    end
     EmitEnableExpression(name=enmacro, expression=expression, conditions=conditions)
     if IsVariantSpecific(point)
       ppcode.EmitPPElse()
       ppcode.EmitPPDefine(name=enmacro, value="FALSE")
       ppcode.EmitPPEndif()
-    endif
+    end
     sep
       emit "\e"
-    endsep
-  endlist
-endmacro
+    end
+  end
+end
 
 /* Returns the register bits macro for a clock point and target.*/
 function GetBitsMacro(point, target)
   if target == ""
     return premacro + point["name"] + postbits
-  endif
+  end
 
   return premacro + target + "_" + point["name"] + postbits
-endfunction
+end
 
 /* Returns indentation for nested preprocessor directives.*/
 function GetPpIndent(level)
   return ppcode.GetPPIndentAt(level)
-endfunction
+end
 
 /* Returns unique bit targets from enable and value bits.*/
 function GetBitTargets(pointbits, valuebits)
@@ -2313,64 +2313,64 @@ function GetBitTargets(pointbits, valuebits)
   list pointbits as bit
     if !targets?seq_contains(bit["target"])
       local targets = targets + [bit["target"]]
-    endif
-  endlist
+    end
+  end
   list valuebits as bit
     if !targets?seq_contains(bit["target"])
       local targets = targets + [bit["target"]]
-    endif
-  endlist
+    end
+  end
 
   if targets?size == 0
     local targets = [""]
-  endif
+  end
 
   return targets
-endfunction
+end
 
 /* Returns the value bits expression for one target.*/
 function GetValueBitsExpression(valuebits, target)
   list valuebits as bit
     if bit["target"] == target
       return bit["value"]
-    endif
-  endlist
+    end
+  end
 
   return ""
-endfunction
+end
 
 /* Returns the value bits object for one target.*/
 function GetValueBits(valuebits, target)
   list valuebits as bit
     if bit["target"] == target
       return bit
-    endif
-  endlist
+    end
+  end
 
   return {}
-endfunction
+end
 
 /* Returns true if value bits contain one target.*/
 function HasValueBitsTarget(valuebits, target)
   list valuebits as bit
     if bit["target"] == target
       return true
-    endif
-  endlist
+    end
+  end
 
   return false
-endfunction
+end
 
 /* Returns the enable-state bits expression for one target and state.*/
 function GetBoolBitsExpression(pointbits, target, state)
   list pointbits as bit
     if bit["target"] == target
       return bit[state]
-    endif
-  endlist
+    end
+  end
 
   return ""
-endfunction
+end
 
 /* Emits one targeted bits definition, optionally combined with enable-state bits.*/
 macro EmitTargetBitsDefinitionAt(point, bits, target, indent)
@@ -2385,7 +2385,7 @@ macro EmitTargetBitsDefinitionAt(point, bits, target, indent)
       local disabledbits = disabledbits
     else
       local enabledbits = "(" + enabledbits + " | " + bits + ")"
-    endif
+    end
 
     if point["enable"] == "always" || enabledbits == disabledbits
       ppcode.EmitPPDefineAt(name=bitsmacro, value=enabledbits, level=indent)
@@ -2397,11 +2397,11 @@ macro EmitTargetBitsDefinitionAt(point, bits, target, indent)
       ppcode.EmitPPElseAt(level=indent)
       ppcode.EmitPPDefineAt(name=bitsmacro, value=disabledbits, level=indent + 1)
       ppcode.EmitPPEndifAt(level=indent)
-    endif
+    end
   else
     if bits == ""
       local bits = "0U"
-    endif
+    end
 
     if point["enable"] == "always"
       ppcode.EmitPPDefineAt(name=bitsmacro, value=bits, level=indent)
@@ -2413,19 +2413,19 @@ macro EmitTargetBitsDefinitionAt(point, bits, target, indent)
       ppcode.EmitPPElseAt(level=indent)
       ppcode.EmitPPDefineAt(name=bitsmacro, value="0U", level=indent + 1)
       ppcode.EmitPPEndifAt(level=indent)
-    endif
-  endif
-endmacro
+    end
+  end
+end
 
 /* Emits one targeted bits definition without extra indentation.*/
 macro EmitTargetBitsDefinition(point, bits, target)
   EmitTargetBitsDefinitionAt(point=point, bits=bits, target=target, indent=0)
-endmacro
+end
 
 /* Emits one untargeted bits definition, preserving legacy call sites.*/
 macro EmitBitsDefinition(point, bits)
   EmitTargetBitsDefinition(point=point, bits=bits, target="")
-endmacro
+end
 
 /* Emits bits definitions for all targets used by a clock point/value pair.*/
 macro EmitBitsDefinitionsAt(point, valuebits, indent)
@@ -2435,19 +2435,19 @@ macro EmitBitsDefinitionsAt(point, valuebits, indent)
     EmitTargetBitsDefinitionAt(point=point, bits=bits, target=target, indent=indent)
     sep
       emit "\e"
-    endsep
-  endlist
-endmacro
+    end
+  end
+end
 
 /* Emits bits definitions without extra indentation.*/
 macro EmitBitsDefinitions(point, valuebits)
   EmitBitsDefinitionsAt(point=point, valuebits=valuebits, indent=0)
-endmacro
+end
 
 /* Emits one dynamic current clock definition for a clock point.*/
 macro EmitDynamicCurrentClockDefinition(point)
   ppcode.EmitPPDefine(name=GetClockCurrentMacro(point["name"]), value=GetRuntimeFrequencyExpression(point["name"]))
-endmacro
+end
 
 /* Emits one frequency definition and, for non-dynamic points, its current value.*/
 macro EmitFrequencyAndCurrentAt(point, frequency, current, indent)
@@ -2455,8 +2455,8 @@ macro EmitFrequencyAndCurrentAt(point, frequency, current, indent)
   ppcode.EmitPPDefineAt(name=freqmacro, value=frequency, level=indent)
   if !IsPublicDynamicPoint(point)
     ppcode.EmitPPDefineAt(name=GetClockCurrentMacro(point["name"]), value=current, level=indent)
-  endif
-endmacro
+  end
+end
 
 /* Emits one frequency definition, optionally conditional on enable state.*/
 macro EmitFrequencyDefinition(point, frequency, current)
@@ -2470,7 +2470,7 @@ macro EmitFrequencyDefinition(point, frequency, current)
       EmitDynamicCurrentClockDefinition(point=point)
     else
       ppcode.EmitPPDefine(name=clockmacro, value=current)
-    endif
+    end
   elseif point["enable"] == "never" || frequency == "0U"
     ppcode.EmitPPDefine(name=freqmacro, value="0U")
     ppcode.EmitPPDefine(name=clockmacro, value="0U")
@@ -2479,33 +2479,33 @@ macro EmitFrequencyDefinition(point, frequency, current)
     ppcode.EmitPPDefine(name=freqmacro, value=frequency)
     if !IsPublicDynamicPoint(point)
       ppcode.EmitPPDefine(name=clockmacro, value=current)
-    endif
+    end
     ppcode.EmitPPElse()
     ppcode.EmitPPDefine(name=freqmacro, value="0U")
     if !IsPublicDynamicPoint(point)
       ppcode.EmitPPDefine(name=clockmacro, value="0U")
-    endif
+    end
     ppcode.EmitPPEndif()
     if IsPublicDynamicPoint(point)
       EmitDynamicCurrentClockDefinition(point=point)
-    endif
-  endif
-endmacro
+    end
+  end
+end
 
 /* Emits configuration value checks for one clock point.*/
 function HasClockChecks(point)
   if point["enable"] == "manual"
     return true
-  endif
+  end
 
   if point["type"] == "divider" || point["type"] == "multiplier"
     if point["kind"] == "value" || point["kind"] == "set"
       return true
-    endif
-  endif
+    end
+  end
 
   return false
-endfunction
+end
 
 macro EmitClockChecks(point)
   if point["enable"] == "manual"
@@ -2514,7 +2514,7 @@ macro EmitClockChecks(point)
       expression="(" + enmacro + " == TRUE) || (" + enmacro + " == FALSE)",
       message="\"invalid " + enmacro + " value specified\"",
       requires=AddExternalMacroRequirements([], ["TRUE", "FALSE"]))
-  endif
+  end
 
   if point["type"] == "divider" || point["type"] == "multiplier"
     local valmacro = GetScalerSettingMacro(point)
@@ -2526,63 +2526,63 @@ macro EmitClockChecks(point)
       if minval != ""
         local checks = checks + [valmacro + " >= " + minval]
         local requires = AddExternalMacroRequirement(requires, minval)
-      endif
+      end
       if maxval != ""
         local checks = checks + [valmacro + " <= " + maxval]
         local requires = AddExternalMacroRequirement(requires, maxval)
-      endif
+      end
     elseif point["kind"] == "set"
       list point["data"]["values"]?replace(",", " ")?word_list as value
         local checks = checks + [valmacro + " == " + value]
         local requires = AddExternalMacroRequirement(requires, value)
-      endlist
-    endif
+      end
+    end
     if checks?size > 0
       if point["kind"] == "set"
         local expression = BuildOrExpression(checks)
       else
         local expression = BuildAndExpression(checks)
-      endif
+      end
       ppcode.EmitPPAssert(
         expression=expression,
         message="\"invalid " + valmacro + " value specified\"",
         requires=requires)
-    endif
-  endif
-endmacro
+    end
+  end
+end
 
 /* Returns the nominal source frequency expression for a source-style point.*/
 function GetNominalFrequencyExpression(point)
   if point["type"] != "source" || !(point["sourceonly"]!false)
     return ""
-  endif
+  end
 
   if point["subtype"] == "frequencies"
     list point["frequencies"] as frequency
       if frequency["when"] == ""
         return frequency["value"]
-      endif
-    endlist
+      end
+    end
 
     stop ">>>> Missing default nominal frequency for clock point '" + point["name"] + "'"
-  endif
+  end
 
   return point["frequency"]
-endfunction
+end
 
 /* Returns true if a point represents an explicit no-clock input.*/
 function IsNoClockPoint(name)
   if name == "NONE"
     return true
-  endif
+  end
 
   local point = GetClockPoint(name)
   if point["type"] == "source" && point["subtype"] == "fixed" && point["frequency"]?trim == "0U"
     return true
-  endif
+  end
 
   return false
-endfunction
+end
 
 /* Emits the nominal source frequency for one source-style point.*/
 macro EmitNominalFrequency(point)
@@ -2594,13 +2594,13 @@ macro EmitNominalFrequency(point)
  */
 """
     ppcode.EmitPPDefine(name=GetClockNominalFrequencyMacro(point["name"]), value=frequency)
-  endif
-endmacro
+  end
+end
 
 /* Returns true if a clock point has frequency checks.*/
 function HasClockFrequencyChecks(point)
   return point["limits"]?size > 0
-endfunction
+end
 
 /* Returns the Doxygen brief for one generated clock point block.*/
 function GetClockPointBrief(point)
@@ -2609,13 +2609,13 @@ function GetClockPointBrief(point)
 
   if lower?ends_with("clock point")
     return description?cap_first + "."
-  endif
+  end
   if lower?ends_with("clock")
     return description?cap_first + " point."
-  endif
+  end
 
   return description?cap_first + " clock point."
-endfunction
+end
 
 /* Emits frequency range checks for one clock point.*/
 macro EmitClockFrequencyChecks(point)
@@ -2627,12 +2627,12 @@ macro EmitClockFrequencyChecks(point)
       local minval = GetLimitMacro(limit, "min")
     else
       local minval = ""
-    endif
+    end
     if limit["max"] == "yes"
       local maxval = GetLimitMacro(limit, "max")
     else
       local maxval = ""
-    endif
+    end
 
     if point["type"] == "mux"
       local selmacro = GetMuxSettingMacro(point)
@@ -2643,7 +2643,7 @@ macro EmitClockFrequencyChecks(point)
           if !IsNoClockPoint(input["point"])
             if emitted
               emit "\e"
-            endif
+            end
             local inputfreq = GetDefaultFrequencyExpression(input["point"])
             local active = BuildAndExpression([enmacro + " == TRUE", selmacro + " == " + input["value"]])
             local requires = AddExternalMacroRequirements(["TRUE"], [input["value"]])
@@ -2652,13 +2652,13 @@ macro EmitClockFrequencyChecks(point)
               message="\"" + freqmacro + " below minimum frequency\"",
               requires=requires)
             local emitted = true
-          endif
-        endlist
-      endif
+          end
+        end
+      end
 
       if minval != "" && maxval != "" && emitted
         emit "\e"
-      endif
+      end
 
       if maxval != ""
         local maxemitted = false
@@ -2666,7 +2666,7 @@ macro EmitClockFrequencyChecks(point)
           if !IsNoClockPoint(input["point"])
             if maxemitted
               emit "\e"
-            endif
+            end
             local inputfreq = GetDefaultFrequencyExpression(input["point"])
             local active = BuildAndExpression([enmacro + " == TRUE", selmacro + " == " + input["value"]])
             local requires = AddExternalMacroRequirements(["TRUE"], [input["value"]])
@@ -2675,46 +2675,46 @@ macro EmitClockFrequencyChecks(point)
               message="\"" + freqmacro + " above maximum frequency\"",
               requires=requires)
             local maxemitted = true
-          endif
-        endlist
-      endif
+          end
+        end
+      end
     else
       if minval != ""
         ppcode.EmitPPAssert(
           expression="(" + enmacro + " != TRUE) || (" + freqmacro + " >= " + minval + ")",
           message="\"" + freqmacro + " below minimum frequency\"",
           requires=["TRUE"])
-      endif
+      end
 
       if minval != "" && maxval != ""
         emit "\e"
-      endif
+      end
 
       if maxval != ""
         ppcode.EmitPPAssert(
           expression="(" + enmacro + " != TRUE) || (" + freqmacro + " <= " + maxval + ")",
           message="\"" + freqmacro + " above maximum frequency\"",
           requires=["TRUE"])
-      endif
-    endif
-  endif
-endmacro
+      end
+    end
+  end
+end
 
 /* Returns true if a sink has frequency checks.*/
 function HasSinkFrequencyChecks(sink)
   return sink["limits"]?size > 0
-endfunction
+end
 
 /* Returns true if any sink has frequency checks.*/
 function HasAnySinkFrequencyChecks()
   list model["sinks"] as sink
     if HasSinkFrequencyChecks(sink)
       return true
-    endif
-  endlist
+    end
+  end
 
   return false
-endfunction
+end
 
 /* Emits frequency range checks for one sink.*/
 macro EmitOneSinkFrequencyChecks(sink)
@@ -2726,36 +2726,36 @@ macro EmitOneSinkFrequencyChecks(sink)
       local active = "(" + sink["variant_condition"] + ") && (" + sink["condition"] + ")"
     else
       local active = sink["condition"]
-    endif
+    end
     local limit = GetLimitDeclaration(model["limits"]["limits"], sink["limits"]["ref"])
     if limit["min"] == "yes"
       local minval = GetLimitMacro(limit, "min")
     else
       local minval = ""
-    endif
+    end
     if limit["max"] == "yes"
       local maxval = GetLimitMacro(limit, "max")
     else
       local maxval = ""
-    endif
+    end
 
     if minval != ""
       ppcode.EmitPPAssert(
         expression="!(" + active + ") || (" + freqmacro + " >= " + minval + ")",
         message="\"" + freqmacro + " below minimum frequency for " + sink["name"] + "\"")
-    endif
+    end
 
     if minval != "" && maxval != ""
       emit "\e"
-    endif
+    end
 
     if maxval != ""
       ppcode.EmitPPAssert(
         expression="!(" + active + ") || (" + freqmacro + " <= " + maxval + ")",
         message="\"" + freqmacro + " above maximum frequency for " + sink["name"] + "\"")
-    endif
-  endif
-endmacro
+    end
+  end
+end
 
 /* Emits frequency range checks for sinks.*/
 macro EmitSinkFrequencyChecks()
@@ -2770,22 +2770,22 @@ macro EmitSinkFrequencyChecks()
       if HasSinkFrequencyChecks(sink)
         if emitted
           emit "\e"
-        endif
+        end
         EmitOneSinkFrequencyChecks(sink=sink)
         local emitted = true
-      endif
-    endlist
-  endif
-endmacro
+      end
+    end
+  end
+end
 
 /* Returns true if source dependency checks are emitted for one clock point.*/
 function HasSourceDependencyChecks(point)
   if point["enable"] == "manual" && GetDemandConditions(point)?size > 0
     return true
-  endif
+  end
 
   return false
-endfunction
+end
 
 /* Emits checks requiring manually-enabled sources when selected downstream.*/
 macro EmitSourceDependencyChecks(point)
@@ -2800,10 +2800,10 @@ macro EmitSourceDependencyChecks(point)
         requires=condition["requires"])
       if !condition?is_last
         emit "\e"
-      endif
-    endlist
-  endif
-endmacro
+      end
+    end
+  end
+end
 
 /* Emits derived register bits for one clock point.*/
 macro EmitClockBits(point)
@@ -2819,7 +2819,7 @@ macro EmitClockBits(point)
       local allbits = []
       list point["frequencies"] as frequency
         local allbits = allbits + frequency["bits"]
-      endlist
+      end
       local targets = GetBitTargets(point["bits"], allbits)
       list targets as target
         if !HasValueBitsTarget(allbits, target)
@@ -2837,23 +2837,23 @@ macro EmitClockBits(point)
               emit """
 #else
 """
-            endif
+            end
             local bits = GetValueBitsExpression(frequency["bits"], target)
             EmitTargetBitsDefinitionAt(point=point, bits=bits, target=target, indent=1)
-          endlist
+          end
           emit """
 #endif
 """
-        endif
+        end
         sep
           emit "\e"
-        endsep
-      endlist
+        end
+      end
     elseif point["bits"]?size > 0
       EmitBitsDefinitions(point=point, valuebits=[])
     else
       EmitBitsDefinitions(point=point, valuebits=[{"target":"", "value":"0U"}])
-    endif
+    end
   elseif point["type"] == "mux"
     local selmacro = GetMuxSettingMacro(point)
     local enmacro = GetEnableMacro(point)
@@ -2870,7 +2870,7 @@ macro EmitClockBits(point)
       else
         local condition = "(" + branch["condition"] + ") && (" + selmacro + " == " + branch["value"] + ")"
         local conditiondoxygen = condition
-      endif
+      end
       if branch?is_first
         if disabledbits != "" && point["enable"] != "always"
           ppcode.EmitPPIfAt(expression="(" + enmacro + " == FALSE)", level=0)
@@ -2878,12 +2878,12 @@ macro EmitClockBits(point)
           ppcode.EmitPPElifAt(expression=conditiondoxygen, level=0)
         else
           ppcode.EmitPPIfAt(expression=conditiondoxygen, level=0)
-        endif
+        end
       else
         ppcode.EmitPPElifAt(expression=condition, level=0)
-      endif
+      end
       EmitTargetBitsDefinitionAt(point=point, bits=branch["bits"], target="", indent=1)
-    endlist
+    end
     ppcode.EmitPPElseAt(level=0)
     ppcode.EmitPPErrorAt(message="\"invalid " + selmacro + " value specified\"", level=1)
     ppcode.EmitPPEndifAt(level=0)
@@ -2900,18 +2900,18 @@ macro EmitClockBits(point)
           ppcode.EmitPPIfAt(expression="(" + valmacro + " == " + choice["value"] + ") || defined(__DOXYGEN__)", level=0)
         else
           ppcode.EmitPPElifAt(expression="(" + valmacro + " == " + choice["value"] + ")", level=0)
-        endif
+        end
         EmitTargetBitsDefinitionAt(point=point, bits=choice["bits"], target="", indent=1)
-      endlist
+      end
       ppcode.EmitPPElseAt(level=0)
       ppcode.EmitPPErrorAt(message="\"invalid " + valmacro + " value specified\"", level=1)
       ppcode.EmitPPEndifAt(level=0)
     else
       local bits = point["data"]["bits"]?replace("%N%", valmacro)
       EmitBitsDefinition(point=point, bits=bits)
-    endif
-  endif
-endmacro
+    end
+  end
+end
 
 /* Emits the calculated frequency for one clock point.*/
 macro EmitClockFrequency(point)
@@ -2932,7 +2932,7 @@ macro EmitClockFrequency(point)
         ppcode.EmitPPDefineAt(name=freqmacro, value="0U", level=1)
         if !IsPublicDynamicPoint(point)
           ppcode.EmitPPDefineAt(name=clockmacro, value="0U", level=1)
-        endif
+        end
         list point["frequencies"] as frequency
           if frequency?is_first
             EmitStateCondition(keyword="#elif", expression=frequency["when"], doxygen=true)
@@ -2942,17 +2942,17 @@ macro EmitClockFrequency(point)
             emit """
 #else
 """
-          endif
+          end
           ppcode.EmitPPDefineAt(name=freqmacro, value=frequency["value"], level=1)
           if !IsPublicDynamicPoint(point)
             ppcode.EmitPPDefineAt(name=clockmacro, value=frequency["value"], level=1)
-          endif
-        endlist
+          end
+        end
         ppcode.EmitPPEndifAt(level=0)
         if IsPublicDynamicPoint(point)
           EmitDynamicCurrentClockDefinition(point=point)
-        endif
-      endif
+        end
+      end
     else
       if point["sourceonly"]
         local frequency = GetClockNominalFrequencyMacro(point["name"])
@@ -2965,10 +2965,10 @@ macro EmitClockFrequency(point)
           local frequency = frequency?replace("%I%", inputfreq)
           local inputclock = GetClockCurrentMacro(point["input"])
           local current = current?replace("%I%", inputclock)
-        endif
-      endif
+        end
+      end
       EmitFrequencyDefinition(point=point, frequency=frequency, current=current)
-    endif
+    end
   elseif point["type"] == "mux"
     local selmacro = GetMuxSettingMacro(point)
     local freqmacro = premacro + point["name"] + postclocks
@@ -2980,22 +2980,22 @@ macro EmitClockFrequency(point)
         EmitStateCondition(keyword="#if", expression=condition, doxygen=true)
       else
         EmitStateCondition(keyword="#elif", expression=condition, doxygen=false)
-      endif
+      end
       local inputfreq = GetDefaultFrequencyExpression(input["point"])
       ppcode.EmitPPDefineAt(name=freqmacro, value=inputfreq, level=1)
       if !IsPublicDynamicPoint(point)
         ppcode.EmitPPDefineAt(name=clockmacro, value=GetClockCurrentMacro(input["point"]), level=1)
-      endif
-    endlist
+      end
+    end
     ppcode.EmitPPElseAt(level=0)
     ppcode.EmitPPDefineAt(name=freqmacro, value="0U", level=1)
     if !IsPublicDynamicPoint(point)
       ppcode.EmitPPDefineAt(name=clockmacro, value="0U", level=1)
-    endif
+    end
     ppcode.EmitPPEndifAt(level=0)
     if IsPublicDynamicPoint(point)
       EmitDynamicCurrentClockDefinition(point=point)
-    endif
+    end
   elseif point["type"] == "divider"
     local valmacro = GetScalerSettingMacro(point)
     local inputfreq = GetDefaultFrequencyExpression(point["input"])
@@ -3010,8 +3010,8 @@ macro EmitClockFrequency(point)
     local inputclock = GetClockCurrentMacro(point["input"])
     local current = "(" + inputclock + " * " + valmacro + ")"
     EmitFrequencyDefinition(point=point, frequency=frequency, current=current)
-  endif
-endmacro
+  end
+end
 
 /* Returns all value bits that can be emitted by a source-style frequency table.*/
 function GetSourceFrequencyValueBits(point)
@@ -3020,89 +3020,89 @@ function GetSourceFrequencyValueBits(point)
   if point["type"] == "source" && point["subtype"] == "frequencies"
     list point["frequencies"] as frequency
       local bits = bits + frequency["bits"]
-    endlist
-  endif
+    end
+  end
 
   return bits
-endfunction
+end
 
 /* Emits inert definitions for a clock point outside the selected variant.*/
 macro EmitInactiveVariantClockPoint(point)
   if point["type"] == "source" && (point["sourceonly"]!false)
     ppcode.EmitPPDefine(name=GetClockNominalFrequencyMacro(point["name"]), value="0U")
-  endif
+  end
 
   local targets = GetBitTargets(point["bits"], GetSourceFrequencyValueBits(point))
   list targets as target
     ppcode.EmitPPDefine(name=GetBitsMacro(point, target), value="0U")
-  endlist
+  end
 
   ppcode.EmitPPDefine(name=GetClockFrequencyMacro(point["name"]), value="0U")
   ppcode.EmitPPDefine(name=GetClockCurrentMacro(point["name"]), value="0U")
-endmacro
+end
 
 /* Emits a visual separator for one clock point.*/
 macro EmitClockPointSeparator(point)
   local line = "/* --- Macros and checks for the " + point["name"] + " clock point. "
   emit line?right_pad(76, "-") + "*/\n"
-endmacro
+end
 
 /* Emits checks, register bits and calculated frequencies in XML order.*/
 macro EmitDerivedConstants()
   EmitGenericConfigChecks()
   if HasGenericConfigChecks() && model["derived_configs"]?size > 0
     emit "\e"
-  endif
+  end
   EmitDerivedConfigurationMacros()
   if (HasGenericConfigChecks() || model["derived_configs"]?size > 0) && model["limits"]["limits"]?size > 0
     emit "\e"
-  endif
+  end
   EmitLimitDefinitions()
   if model["configs"]?size > 0 || model["derived_configs"]?size > 0 || model["limits"]["limits"]?size > 0
     emit "\e"
-  endif
+  end
   EmitSinkDemandDefinitions()
   if model["sinks"]?size > 0
     emit "\e"
-  endif
+  end
   EmitEnableDefinitions()
   emit "\e"
   list model["clocks"] as point
     if !point?is_first
       emit "\e"
-    endif
+    end
     EmitClockPointSeparator(point=point)
     emit "\e"
     if IsVariantSpecific(point)
       EmitVariantGuardStart(item=point)
-    endif
+    end
     EmitClockChecks(point=point)
     if HasClockChecks(point)
       emit "\e"
-    endif
+    end
     EmitSourceDependencyChecks(point=point)
     if HasSourceDependencyChecks(point)
       emit "\e"
-    endif
+    end
     EmitNominalFrequency(point=point)
     if point["type"] == "source" && (point["sourceonly"]!false)
       emit "\e"
-    endif
+    end
     EmitClockBits(point=point)
     emit "\e"
     EmitClockFrequency(point=point)
     if HasClockFrequencyChecks(point)
       emit "\e"
       EmitClockFrequencyChecks(point=point)
-    endif
+    end
     if IsVariantSpecific(point)
       ppcode.EmitPPElse()
       EmitInactiveVariantClockPoint(point=point)
       ppcode.EmitPPEndif()
-    endif
-  endlist
+    end
+  end
   if HasAnySinkFrequencyChecks()
     emit "\e"
     EmitSinkFrequencyChecks()
-  endif
-endmacro
+  end
+end

@@ -52,6 +52,10 @@
 #error "CH_CFG_SMP_MODE not defined in chconf.h"
 #endif
 
+#if !defined(CH_CFG_USE_RFCU)
+#error "CH_CFG_USE_RFCU not defined in chconf.h"
+#endif
+
 #if !defined(CH_CFG_HARDENING_LEVEL)
 #error "CH_CFG_HARDENING_LEVEL not defined in chconf.h"
 #endif
@@ -264,7 +268,7 @@
 #error "CH_CFG_TRACE_HOOK not defined in chconf.h"
 #endif
 
-#if !defined(CH_CFG_RUNTIME_FAULTS_HOOK)
+#if (CH_CFG_USE_RFCU == TRUE) && !defined(CH_CFG_RUNTIME_FAULTS_HOOK)
 #error "CH_CFG_RUNTIME_FAULTS_HOOK not defined in chconf.h"
 #endif
 

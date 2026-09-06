@@ -22,6 +22,8 @@
  * @{
  */
 
+#include "crparams.h"
+
 /*===========================================================================*/
 /* Module constants.                                                         */
 /*===========================================================================*/
@@ -57,7 +59,11 @@
  * @details VBAR is initialized to point to the vectors table.
  */
 #if !defined(CRT0_VBAR_INIT) || defined(__DOXYGEN__)
-#define CRT0_VBAR_INIT                      TRUE
+#define CRT0_VBAR_INIT                      CORTEX_HAS_VBAR
+#endif
+
+#if (CRT0_VBAR_INIT == TRUE) && (CORTEX_HAS_VBAR == FALSE)
+#error "CRT0_VBAR_INIT requires VBAR support"
 #endif
 
 /**

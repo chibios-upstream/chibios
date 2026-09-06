@@ -123,6 +123,7 @@ test cfg33 "-DCH_CFG_INTERVALS_SIZE=64"
 test cfg34 "-DCH_CFG_USE_OBJ_FIFOS=FALSE"
 test cfg35 "-DCH_CFG_USE_FACTORY=FALSE"
 test cfg36 "-DCH_CFG_HARDENING_LEVEL=1"
+test cfg37 "-DCH_CFG_USE_RFCU=FALSE"
 
 rm *log.txt 2> /dev/null
 echo
