@@ -143,6 +143,15 @@
 #endif
 
 /* System timer clock requirement atoms.*/
+#if defined(STM32_ST_USE_LPTIM) && (STM32_ST_USE_LPTIM == 1)
+#define STM32_LPTIM1_CLOCK_REQUIRED
+#endif
+
+#if defined(STM32_ST_USE_LPTIM) &&                                           \
+    ((STM32_ST_USE_LPTIM == 3) || (STM32_ST_USE_LPTIM == 4))
+#define STM32_LPTIM34_CLOCK_REQUIRED
+#endif
+
 #if defined(OSAL_ST_MODE) && defined(OSAL_ST_MODE_PERIODIC) &&              \
     (OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC)
 #define STM32_SYSTICK_CLOCK_REQUIRED
