@@ -147,7 +147,12 @@ void chSysWaitSystemState(system_state_t state) {
  * @brief   System initialization.
  * @details After executing this function the current instruction stream
  *          becomes the main thread.
+ * @pre     Must be invoked exactly once by the boot core, before secondary
+ *          cores initialize their OS instances.
  * @pre     Interrupts must be disabled before invoking this function.
+ * @note    In SMP mode, secondary cores must wait for @p ch_sys_running using
+ *          @p chSysWaitSystemState(), then invoke @p chInstanceObjectInit()
+ *          instead of this function.
  * @post    The main thread is created with priority @p NORMALPRIO and
  *          interrupts are enabled.
  * @post    the system is in @p ch_sys_running state.

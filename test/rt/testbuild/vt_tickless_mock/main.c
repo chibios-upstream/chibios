@@ -26,6 +26,7 @@ os_instance_t test_foreign_instance;
 os_instance_t *test_currcore = &test_instance;
 systime_t test_time;
 systime_t test_alarm;
+sysinterval_t test_alarm_latency;
 bool test_alarm_active;
 unsigned test_alarm_programs;
 unsigned test_alarm_starts;
@@ -57,11 +58,7 @@ void testDbgAssert(bool condition, const char *reason) {
       longjmp(test_assert_env, 1);
     }
 
-    /* The strict overrun fixture deliberately executes the existing skipped
-       deadline assertion while validating its RFCU recovery path.*/
-    if (strcmp(reason, "skipped deadline") != 0) {
-      fail(reason);
-    }
+    fail(reason);
   }
 }
 
@@ -82,6 +79,7 @@ static void reset_fixture(void) {
   test_currcore = &test_instance;
   test_time = (systime_t)0;
   test_alarm = (systime_t)0;
+  test_alarm_latency = (sysinterval_t)0;
   test_alarm_active = false;
   test_alarm_programs = 0U;
   test_alarm_starts = 0U;
@@ -319,6 +317,59 @@ static void transition_count_cb(virtual_timer_t *vtp, void *par) {
 
   (void)vtp;
   ctx->callbacks++;
+}
+
+static void run_first_alarm_retry_test(systime_t start,
+                                       sysinterval_t latency,
+                                       unsigned expected_programs,
+                                       sysinterval_t expected_delta) {
+  transition_context_t ctx;
+  virtual_timer_t timer;
+
+  reset_fixture();
+  chVTObjectInit(&timer);
+  ctx.callbacks = 0U;
+  test_time = start;
+
+  /* Model elapsed time before each alarm register write. An alarm at or
+     behind the counter must be retried using the latest time sample.*/
+  test_alarm_latency = latency;
+  chVTDoSetI(&timer, (sysinterval_t)CH_CFG_ST_TIMEDELTA,
+             transition_count_cb, &ctx);
+
+  expect(test_time == chTimeAddX(start,
+                                 (sysinterval_t)expected_programs * latency),
+         "first alarm programming elapsed time");
+  expect(chTimeDiffX(test_time, test_alarm) == expected_delta - latency,
+         "first alarm not strictly ahead of counter");
+  expect(test_alarm_active, "first alarm inactive");
+  expect(test_alarm_programs == expected_programs,
+         "first alarm programming count");
+  expect(test_alarm_starts == 1U, "first alarm start count");
+  expect(test_alarm_sets == expected_programs - 1U,
+         "first alarm retry count");
+  expect(test_instance.vtlist.lastdelta == expected_delta,
+         "first alarm learned delta");
+  expect(test_instance.vtlist.lasttime == start,
+         "first alarm retry changed list base");
+  expect(timer.dlist.delta == (sysinterval_t)CH_CFG_ST_TIMEDELTA,
+         "first alarm retry changed timer deadline");
+  expect(chVTIsArmedI(&timer), "first alarm timer disarmed");
+  expect(ctx.callbacks == 0U, "first alarm callback before interrupt");
+  if (expected_programs > 1U) {
+    expect(test_faults == CH_RFCU_VT_INSUFFICIENT_DELTA,
+           "first alarm retry fault mask");
+  }
+  else {
+    expect(test_faults == 0U, "first alarm unexpected fault");
+  }
+
+  test_time = test_alarm;
+  chVTDoTickI();
+
+  expect(ctx.callbacks == 1U, "first alarm callback not dispatched");
+  expect(!chVTIsArmedI(&timer), "first alarm timer still armed");
+  expect(!test_alarm_active, "first alarm not stopped after dispatch");
 }
 
 static void transition_to_oneshot_cb(virtual_timer_t *vtp, void *par) {
@@ -597,6 +648,19 @@ static void run_overrun_test(systime_t callback_time,
 
 int main(void) {
 
+  /* No retry, exact-boundary retry, repeated retries and counter wrap.*/
+  run_first_alarm_retry_test((systime_t)0, (sysinterval_t)0,
+                             1U, (sysinterval_t)2);
+  run_first_alarm_retry_test((systime_t)0, (sysinterval_t)1,
+                             1U, (sysinterval_t)2);
+  run_first_alarm_retry_test((systime_t)0, (sysinterval_t)2,
+                             2U, (sysinterval_t)3);
+  run_first_alarm_retry_test((systime_t)0, (sysinterval_t)3,
+                             3U, (sysinterval_t)4);
+  run_first_alarm_retry_test(UINT32_MAX - (systime_t)1, (sysinterval_t)2,
+                             2U, (sysinterval_t)3);
+  run_first_alarm_retry_test(UINT32_MAX - (systime_t)1, (sysinterval_t)3,
+                             3U, (sysinterval_t)4);
   test_foreign_armed_access();
   test_callback_owner_lifecycle();
   run_foreign_callback_test(foreign_rearm_cb,
