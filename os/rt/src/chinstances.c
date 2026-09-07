@@ -78,6 +78,12 @@ static void __idle_thread(void *p) {
 
 /**
  * @brief   Initializes a system instance.
+ * @details Invoked by @p chSysInit() for the boot core and directly during
+ *          startup for each secondary core in SMP mode.
+ * @pre     Must be invoked only once on each core, using an instance object
+ *          not already in use.
+ * @pre     Secondary cores must first wait for @p ch_sys_running using
+ *          @p chSysWaitSystemState().
  * @note    The system instance is in I-Lock state after initialization.
  *
  * @param[out] oip      pointer to an @p os_instance_t object
@@ -88,6 +94,9 @@ static void __idle_thread(void *p) {
 void chInstanceObjectInit(os_instance_t *oip,
                           const os_instance_config_t *oicp) {
   core_id_t core_id;
+
+  chDbgCheck(oip != NULL);
+  chDbgCheck(oicp != NULL);
 
   /* Core associated to this instance.*/
 #if CH_CFG_SMP_MODE == TRUE
