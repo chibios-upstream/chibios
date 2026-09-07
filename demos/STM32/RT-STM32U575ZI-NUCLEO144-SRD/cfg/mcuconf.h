@@ -461,10 +461,6 @@
 #define STM32_ST_USE_TIMER                  2
 #define STM32_ST_USE_LPTIM                  4
 #define STM32_ST_LPTIM_PRESCALER            32
-#if !defined(_FROM_ASM_)
-extern void demoStop2SystemTimerWakeupHook(void);
-#endif
-#define STM32_ST_LPTIM_WAKEUP_HOOK() demoStop2SystemTimerWakeupHook()
 #define STM32_ST_FREQUENCY_TOLERANCE        0
 
 /*

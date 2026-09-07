@@ -58,6 +58,18 @@
 #error "this one-channel LPTIM4 demo requires application timestamp maintenance"
 #endif
 
+#if ST_LLD_HAS_AUTOMATIC_TIMESTAMP == TRUE
+#if STM32_ST_USE_LPTIM == 1
+#define DEMO_ST_IRQ_NUMBER                 STM32_LPTIM1_NUMBER
+#elif STM32_ST_USE_LPTIM == 2
+#define DEMO_ST_IRQ_NUMBER                 STM32_LPTIM2_NUMBER
+#elif STM32_ST_USE_LPTIM == 3
+#define DEMO_ST_IRQ_NUMBER                 STM32_LPTIM3_NUMBER
+#elif STM32_ST_USE_LPTIM == 4
+#define DEMO_ST_IRQ_NUMBER                 STM32_LPTIM4_NUMBER
+#endif
+#endif
+
 /*===========================================================================*/
 /* Demo data structures and variables.                                       */
 /*===========================================================================*/
@@ -90,7 +102,7 @@ static volatile uint32_t restore_failures;
 /*===========================================================================*/
 
 /**
- * @brief   Restores the RUN clock tree before RUN-domain code can execute.
+ * @brief   Restores the RUN clock tree before an IRQ driver body can execute.
  * @return  A mask describing the observed STOP state and restore result.
  * @note    PRIMASK is required here. A kernel lock only raises BASEPRI and
  *          does not mask priority-zero autonomous interrupts.
@@ -300,12 +312,35 @@ void demoStop2IdleLeaveHook(void) {
 }
 
 /**
- * @brief   SYSTICKv3 pre-OSAL wake hook.
- * @details Clock restoration is complete before the VT callback can access
- *          the LED GPIO or make a thread ready.
+ * @brief   Applies the STOP2 wake policy to every normal ChibiOS IRQ.
+ * @details The kernel invokes this after its IRQ statistics, trace and debug
+ *          entry, but before the driver body can access a RUN-only peripheral,
+ *          wake a thread or dispatch a virtual-timer callback. Priority-zero
+ *          fast IRQs bypass the kernel prologue and are unaffected.
+ *
+ * @note    With a two-channel system timer, a CCR2-only interrupt merely
+ *          maintains the timestamp and deliberately stays on the STOP wake
+ *          clock. Simultaneous CCR1 and CCR2 flags take the restore path.
  */
-void demoStop2SystemTimerWakeupHook(void) {
+void demoStop2KernelIrqPrologueHook(void) {
   uint32_t result;
+
+  if ((PWR->SR & PWR_SR_STOPF) == 0U) {
+    return;
+  }
+
+#if ST_LLD_HAS_AUTOMATIC_TIMESTAMP == TRUE
+  if ((SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ==
+      (16U + (uint32_t)DEMO_ST_IRQ_NUMBER)) {
+    uint32_t pending;
+
+    pending = STM32_ST_LPTIM->ISR & STM32_ST_LPTIM->DIER;
+    if (((pending & LPTIM_ISR_CC1IF) == 0U) &&
+        ((pending & LPTIM_ISR_CC2IF) != 0U)) {
+      return;
+    }
+  }
+#endif
 
   result = restoreRunClocksAtomic();
   if ((result & DEMO_RESTORE_CONFIRMED) != 0U) {

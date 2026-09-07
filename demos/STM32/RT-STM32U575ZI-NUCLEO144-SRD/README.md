@@ -8,15 +8,23 @@ LPTIM4, clocked from LSE through the divide-by-32 prescaler, as a 1024 Hz,
 minimum margin for asynchronous LPTIM register updates and interrupt latency.
 
 The user button starts a two-second STOP2 interval. The LPTIM4 compare wakes
-the core, the SYSTICKv3 wake hook restores the default RUN clock tree, and only
-then does the ChibiOS virtual-timer callback execute. The callback turns on the
-green LED and wakes the application thread. Results are reported over SD1 at
-the ChibiOS demo default of 38400 baud.
+the core, and the common ChibiOS IRQ-prologue hook restores the default RUN
+clock tree before the SYSTICKv3 driver dispatches the virtual-timer callback.
+The callback turns on the green LED and wakes the application thread. Results
+are reported over SD1 at the ChibiOS demo default of 38400 baud.
+
+The common hook runs after ChibiOS has entered its statistics, trace and debug
+state, but before any normal IRQ driver body. It therefore covers system-timer
+and other kernel-aware wake sources without a driver-specific hook. If a
+two-channel LPTIM is selected for a test build, the hook detects and leaves a
+CCR2-only timestamp-maintenance interrupt on the lightweight STOP wake clock;
+simultaneous CCR1 and CCR2 flags restore the RUN clocks normally.
 
 The clock-restore hook masks all maskable interrupts with PRIMASK. A ChibiOS
 kernel lock uses BASEPRI and does not mask priority-zero autonomous interrupts;
 allowing one of those handlers to run during RCC and Flash reconfiguration
-would expose a partially restored clock tree.
+would expose a partially restored clock tree. Fast priority-zero handlers do
+not enter the ChibiOS IRQ prologue and remain outside this wake policy.
 
 ## Time measurement
 
