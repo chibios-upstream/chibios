@@ -18,10 +18,10 @@
  * @file    rt/templates/chconf.h
  * @brief   Configuration file template.
  * @details A copy of this file must be placed in each project directory, it
- *          contains the application specific kernel settings.
+ *          contains the application-specific kernel settings.
  *
  * @addtogroup config
- * @details Kernel related settings and hooks.
+ * @details Kernel-related settings and hooks.
  * @{
  */
 
@@ -41,7 +41,7 @@
 /**
  * @brief   Handling of instances.
  * @note    If enabled then threads assigned to various instances can
- *          interact each other using the same synchronization objects.
+ *          interact with each other using the same synchronization objects.
  *          If disabled then each OS instance is a separate world, no
  *          direct interactions are handled by the OS.
  */
@@ -62,10 +62,11 @@
 /**
  * @brief   Kernel hardening level.
  * @details This option is the level of functional-safety checks enabled
- *          in the kerkel. The meaning is:
+ *          in the kernel. The meaning is:
  *          - 0: No checks, maximum performance.
  *          - 1: Reasonable checks.
- *          - 2: All checks.
+ *          - 2: All checks except forward link pointer validation.
+ *          - 3: All checks.
  *          .
  */
 #if !defined(CH_CFG_HARDENING_LEVEL)
@@ -95,6 +96,8 @@
  * @brief   System tick frequency.
  * @details Frequency of the system timer that drives the system ticks. This
  *          setting also defines the system tick time unit.
+ * @note    This must be a frequency that is obtainable from the system tick
+ *          timer frequency.
  * @note    MTIME runs at 1 MHz.
  */
 #if !defined(CH_CFG_ST_FREQUENCY)
@@ -674,7 +677,7 @@
 /**
  * @brief   Debug option, threads profiling.
  * @details If enabled then a field is added to the @p thread_t structure that
- *          counts the system ticks occurred while executing the thread.
+ *          counts the system ticks that occurred while executing the thread.
  *
  * @note    The default is @p FALSE.
  * @note    This debug option is not currently compatible with the
@@ -701,9 +704,14 @@
   /* Add system custom fields here.*/
 
 /**
- * @brief   System initialization hook.
- * @details User initialization code added to the @p chSysInit() function
- *          just before interrupts are enabled globally.
+ * @brief   System extra fields initialization hook.
+ * @details Initializes the fields added to @p ch_system_t by
+ *          @p CH_CFG_SYSTEM_EXTRA_FIELDS. Invoked by @p chSysInit() before
+ *          the OS library and the default OS instance are initialized.
+ * @note    Runs with interrupts disabled and no current OS instance. In SMP
+ *          mode the shared kernel lock has not yet been acquired.
+ * @note    Must preserve the interrupt and lock state and must not use
+ *          services requiring an initialized OS instance or OS library.
  */
 #define CH_CFG_SYSTEM_INIT_HOOK() do {                                      \
   /* Add system initialization code here.*/                                 \
@@ -717,7 +725,15 @@
   /* Add OS instance custom fields here.*/
 
 /**
- * @brief   OS instance initialization hook.
+ * @brief   OS instance extra fields initialization hook.
+ * @details Initializes the fields added to @p os_instance_t by
+ *          @p CH_CFG_OS_INSTANCE_EXTRA_FIELDS. Invoked by
+ *          @p chInstanceObjectInit() after the local kernel objects and the
+ *          current thread are initialized, before creating a separate idle
+ *          thread, if configured.
+ * @note    Runs on the instance's core in the initial I-Lock state. Must
+ *          preserve the interrupt and lock state and must not make threads
+ *          ready or invoke the scheduler while initialization is incomplete.
  *
  * @param[in] oip       pointer to the @p os_instance_t structure
  */
@@ -733,11 +749,14 @@
   /* Add threads custom fields here.*/
 
 /**
- * @brief   Threads initialization hook.
- * @details User initialization code added to the @p _thread_init() function.
- *
- * @note    It is invoked from within @p _thread_init() and implicitly from all
- *          the threads creation APIs.
+ * @brief   Thread extra fields initialization hook.
+ * @details Initializes the fields added to @p thread_t by
+ *          @p CH_CFG_THREAD_EXTRA_FIELDS. Invoked by @p chThdObjectInit(),
+ *          including during system initialization and thread creation.
+ * @note    Inherits the caller's context and lock state. During system
+ *          initialization the current thread may not yet be established.
+ * @note    Must preserve the interrupt and lock state and must not make
+ *          threads ready or invoke the scheduler.
  *
  * @param[in] tp        pointer to the @p thread_t structure
  */
@@ -758,6 +777,10 @@
 /**
  * @brief   Context switch hook.
  * @details This hook is invoked just before switching between threads.
+ *          It is intended for bounded bookkeeping or instrumentation.
+ * @note    Runs with the kernel locked, after the scheduler has selected
+ *          the next thread. Must preserve the interrupt and lock state and
+ *          must not change runnable state or invoke the scheduler.
  *
  * @param[in] ntp       thread being switched in
  * @param[in] otp       thread being switched out
@@ -768,6 +791,10 @@
 
 /**
  * @brief   ISR enter hook.
+ * @details Invoked after the ISR trace entry and debug state setup.
+ * @note    This hook runs in ISR context outside the kernel lock. I-class
+ *          APIs require a balanced @p chSysLockFromISR() and
+ *          @p chSysUnlockFromISR() pair. The hook must return unlocked.
  */
 #define CH_CFG_IRQ_PROLOGUE_HOOK() do {                                     \
   /* IRQ prologue code here.*/                                              \
@@ -775,6 +802,10 @@
 
 /**
  * @brief   ISR exit hook.
+ * @details Invoked before the debug state teardown and ISR trace exit.
+ * @note    This hook runs in ISR context outside the kernel lock. I-class
+ *          APIs require a balanced @p chSysLockFromISR() and
+ *          @p chSysUnlockFromISR() pair. The hook must return unlocked.
  */
 #define CH_CFG_IRQ_EPILOGUE_HOOK() do {                                     \
   /* IRQ epilogue code here.*/                                              \
