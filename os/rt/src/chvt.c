@@ -137,16 +137,16 @@ static void vt_set_alarm(virtual_timers_list_t *vtlp,
     delay = currdelta;
   }
 
-#if CH_CFG_USE_RFCU == TRUE
   /* Checking if a skip occurred.*/
   if (currdelta > vtlp->lastdelta) {
     vtlp->lastdelta = currdelta;
+#if CH_CFG_USE_RFCU == TRUE
     chRFCUCollectFaultsI(CH_RFCU_VT_INSUFFICIENT_DELTA);
-  }
 #else
-  /* Assertions as fallback.*/
-  chDbgAssert(currdelta <= CH_CFG_ST_TIMEDELTA, "insufficient delta");
+    /* Assertions as fallback.*/
+    chDbgAssert(false, "insufficient delta");
 #endif
+  }
 }
 
 /**
@@ -217,16 +217,16 @@ static void vt_insert_first(virtual_timers_list_t *vtlp,
     port_timer_set_alarm(chTimeAddX(now, delay));
   }
 
-#if CH_CFG_USE_RFCU == TRUE
   /* Checking if a skip occurred.*/
   if (currdelta > vtlp->lastdelta) {
     vtlp->lastdelta = currdelta;
+#if CH_CFG_USE_RFCU == TRUE
     chRFCUCollectFaultsI(CH_RFCU_VT_INSUFFICIENT_DELTA);
-  }
 #else
-  /* Assertions as fallback.*/
-  chDbgAssert(currdelta <= CH_CFG_ST_TIMEDELTA, "insufficient delta");
+    /* Assertions as fallback.*/
+    chDbgAssert(false, "insufficient delta");
 #endif
+  }
 }
 
 /**

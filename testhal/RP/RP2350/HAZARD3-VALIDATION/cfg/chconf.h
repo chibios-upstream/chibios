@@ -868,7 +868,22 @@
 
 /**
  * @brief   Runtime Faults Collection Unit hook.
- * @details This hook is invoked each time new faults are collected and stored.
+ * @details Invoked synchronously after storing fault flags, on the reporting
+ *          core with the caller's kernel lock still held. It can run in thread
+ *          or ISR context, including during kernel updates that are not
+ *          general callback boundaries. In SMP the common kernel lock is held.
+ *          Every collection invokes the hook, including repeated flags and
+ *          a zero mask; pending fault flags coalesce repeated occurrences.
+ * @note    The hook must be bounded and nonblocking, preserve interrupt and
+ *          lock state, and must not reschedule, wake threads, or modify timer
+ *          lists or other kernel objects. Use application-owned storage to
+ *          record information and defer processing to a suitable context.
+ * @note    Hook-owned storage must be initialized before the first possible
+ *          collection; application initialization need not be complete then.
+ * @warning Collecting faults from the hook invokes it recursively and must
+ *          be avoided.
+ *
+ * @param[in] mask      supplied fault flags, not just newly set bits
  */
 #define CH_CFG_RUNTIME_FAULTS_HOOK(mask) do {                               \
   /* Faults handling code here.*/                                           \
