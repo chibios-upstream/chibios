@@ -36,6 +36,7 @@
  * @{
  */
 #define WSPI_SUPPORTS_MEMMAP                TRUE
+#define WSPI_LLD_SUPPORTS_STATUS_POLL       FALSE
 #define WSPI_DEFAULT_CFG_MASKS              FALSE
 /** @} */
 

@@ -121,6 +121,12 @@ OSAL_IRQ_HANDLER(ST_HANDLER) {
    * CCR1 dispatch can execute arbitrary virtual-timer callbacks, so restore
    * the configured RUN clock tree before entering the OSAL IRQ section. A
    * CCR2-only timestamp refresh deliberately remains on the STOP wake clock.
+   *
+   * This LLD hook precedes OSAL_IRQ_PROLOGUE() and therefore also precedes
+   * CH_CFG_IRQ_PROLOGUE_HOOK(), which applies more broadly to all normal IRQ
+   * handlers. This hook must not call OSAL services and must leave interrupt
+   * and kernel state unchanged. It should be fast and idempotent if both hooks
+   * implement the same clock-restoration policy.
    */
   if ((pending & LPTIM_ISR_CC1IF) != 0U) {
     STM32_ST_LPTIM_WAKEUP_HOOK();

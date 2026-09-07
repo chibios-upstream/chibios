@@ -111,10 +111,10 @@
  */
 #define CH_IRQ_PROLOGUE()                                                   \
   PORT_IRQ_PROLOGUE();                                                      \
-  CH_CFG_IRQ_PROLOGUE_HOOK();                                               \
   __stats_increase_irq();                                                   \
   __trace_isr_enter(__func__);                                              \
-  __dbg_check_enter_isr()
+  __dbg_check_enter_isr();                                                  \
+  CH_CFG_IRQ_PROLOGUE_HOOK()
 
 /**
  * @brief   IRQ handler exit code.
@@ -125,9 +125,9 @@
  * @special
  */
 #define CH_IRQ_EPILOGUE()                                                   \
+  CH_CFG_IRQ_EPILOGUE_HOOK();                                               \
   __dbg_check_leave_isr();                                                  \
   __trace_isr_leave(__func__);                                              \
-  CH_CFG_IRQ_EPILOGUE_HOOK();                                               \
   PORT_IRQ_EPILOGUE()
 
 /**

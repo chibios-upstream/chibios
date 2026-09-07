@@ -25,13 +25,17 @@
 #define TRUE                                    1
 #define FALSE                                   0
 
+#if !defined(CH_CFG_USE_RFCU)
 #define CH_CFG_USE_RFCU                         TRUE
+#endif
 #define CH_CFG_HARDENING_LEVEL                  0
 #define CH_CFG_INTERVALS_SIZE                   32
 #define CH_CFG_ST_RESOLUTION                    32
 #define CH_CFG_ST_TIMEDELTA                     2
 #define CH_CFG_USE_TIMESTAMP                    FALSE
+#if !defined(CH_DBG_ENABLE_ASSERTS)
 #define CH_DBG_ENABLE_ASSERTS                   TRUE
+#endif
 #define PORT_CORES_NUMBER                       2
 
 #define CH_RFCU_VT_INSUFFICIENT_DELTA           1U
@@ -43,7 +47,11 @@
 
 void testDbgAssert(bool condition, const char *reason);
 
+#if CH_DBG_ENABLE_ASSERTS != FALSE
 #define chDbgAssert(c, msg)                     testDbgAssert((bool)(c), (msg))
+#else
+#define chDbgAssert(c, msg)                     ((void)0)
+#endif
 #define chDbgCheck(c)                           assert(c)
 #define chDbgCheckClassI()                      ((void)0)
 #define chSftAssert(level, c, msg)               ((void)0)
@@ -85,6 +93,7 @@ extern os_instance_t test_foreign_instance;
 extern os_instance_t *test_currcore;
 extern systime_t test_time;
 extern systime_t test_alarm;
+extern sysinterval_t test_alarm_latency;
 extern bool test_alarm_active;
 extern unsigned test_alarm_programs;
 extern unsigned test_alarm_starts;
@@ -128,6 +137,7 @@ static inline void chSysUnlockFromISR(void) {
 
 static inline void port_timer_start_alarm(systime_t time) {
 
+  test_time += test_alarm_latency;
   test_alarm = time;
   test_alarm_active = true;
   test_alarm_programs++;
@@ -141,6 +151,7 @@ static inline void port_timer_stop_alarm(void) {
 
 static inline void port_timer_set_alarm(systime_t time) {
 
+  test_time += test_alarm_latency;
   test_alarm = time;
   test_alarm_active = true;
   test_alarm_programs++;

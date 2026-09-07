@@ -137,16 +137,16 @@ static void vt_set_alarm(virtual_timers_list_t *vtlp,
     delay = currdelta;
   }
 
-#if CH_CFG_USE_RFCU == TRUE
   /* Checking if a skip occurred.*/
   if (currdelta > vtlp->lastdelta) {
     vtlp->lastdelta = currdelta;
+#if CH_CFG_USE_RFCU == TRUE
     chRFCUCollectFaultsI(CH_RFCU_VT_INSUFFICIENT_DELTA);
-  }
 #else
-  /* Assertions as fallback.*/
-  chDbgAssert(currdelta <= CH_CFG_ST_TIMEDELTA, "insufficient delta");
+    /* Assertions as fallback.*/
+    chDbgAssert(false, "insufficient delta");
 #endif
+  }
 }
 
 /**
@@ -209,24 +209,24 @@ static void vt_insert_first(virtual_timers_list_t *vtlp,
     /* Trying again with a more relaxed minimum delta.*/
     currdelta += (sysinterval_t)1;
 
-    /* Setting up the alarm on the next deadline.*/
-    port_timer_set_alarm(chTimeAddX(now, currdelta));
-
     /* Current time becomes the new "base" time.*/
     now = newnow;
     delay = currdelta;
+
+    /* Programming and checking the alarm must use the same time base.*/
+    port_timer_set_alarm(chTimeAddX(now, delay));
   }
 
-#if CH_CFG_USE_RFCU == TRUE
   /* Checking if a skip occurred.*/
   if (currdelta > vtlp->lastdelta) {
     vtlp->lastdelta = currdelta;
+#if CH_CFG_USE_RFCU == TRUE
     chRFCUCollectFaultsI(CH_RFCU_VT_INSUFFICIENT_DELTA);
-  }
 #else
-  /* Assertions as fallback.*/
-  chDbgAssert(currdelta <= CH_CFG_ST_TIMEDELTA, "insufficient delta");
+    /* Assertions as fallback.*/
+    chDbgAssert(false, "insufficient delta");
 #endif
+  }
 }
 
 /**
@@ -713,8 +713,6 @@ void chVTDoTickI(void) {
       if (elapsed > vtp->reload) {
         /* System time is already past the deadline, logging the fault and
            proceeding with a minimum delay.*/
-
-        chDbgAssert(false, "skipped deadline");
         chRFCUCollectFaultsI(CH_RFCU_VT_SKIPPED_DEADLINE);
       }
 #else /* CH_CFG_USE_RFCU == FALSE */

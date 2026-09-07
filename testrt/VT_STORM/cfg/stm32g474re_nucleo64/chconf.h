@@ -702,9 +702,14 @@
   /* Add system custom fields here.*/
 
 /**
- * @brief   System initialization hook.
- * @details User initialization code added to the @p chSysInit() function
- *          just before interrupts are enabled globally.
+ * @brief   System extra fields initialization hook.
+ * @details Initializes the fields added to @p ch_system_t by
+ *          @p CH_CFG_SYSTEM_EXTRA_FIELDS. Invoked by @p chSysInit() before
+ *          the OS library and the default OS instance are initialized.
+ * @note    Runs with interrupts disabled and no current OS instance. In SMP
+ *          mode the shared kernel lock has not yet been acquired.
+ * @note    Must preserve the interrupt and lock state and must not use
+ *          services requiring an initialized OS instance or OS library.
  */
 #define CH_CFG_SYSTEM_INIT_HOOK() do {                                      \
   /* Add system initialization code here.*/                                 \
@@ -718,7 +723,15 @@
   /* Add OS instance custom fields here.*/
 
 /**
- * @brief   OS instance initialization hook.
+ * @brief   OS instance extra fields initialization hook.
+ * @details Initializes the fields added to @p os_instance_t by
+ *          @p CH_CFG_OS_INSTANCE_EXTRA_FIELDS. Invoked by
+ *          @p chInstanceObjectInit() after the local kernel objects and the
+ *          current thread are initialized, before creating a separate idle
+ *          thread, if configured.
+ * @note    Runs on the instance's core in the initial I-Lock state. Must
+ *          preserve the interrupt and lock state and must not make threads
+ *          ready or invoke the scheduler while initialization is incomplete.
  *
  * @param[in] oip       pointer to the @p os_instance_t structure
  */
@@ -734,11 +747,14 @@
   /* Add threads custom fields here.*/
 
 /**
- * @brief   Threads initialization hook.
- * @details User initialization code added to the @p _thread_init() function.
- *
- * @note    It is invoked from within @p _thread_init() and implicitly from all
- *          the threads creation APIs.
+ * @brief   Thread extra fields initialization hook.
+ * @details Initializes the fields added to @p thread_t by
+ *          @p CH_CFG_THREAD_EXTRA_FIELDS. Invoked by @p chThdObjectInit(),
+ *          including during system initialization and thread creation.
+ * @note    Inherits the caller's context and lock state. During system
+ *          initialization the current thread may not yet be established.
+ * @note    Must preserve the interrupt and lock state and must not make
+ *          threads ready or invoke the scheduler.
  *
  * @param[in] tp        pointer to the @p thread_t structure
  */
@@ -759,6 +775,10 @@
 /**
  * @brief   Context switch hook.
  * @details This hook is invoked just before switching between threads.
+ *          It is intended for bounded bookkeeping or instrumentation.
+ * @note    Runs with the kernel locked, after the scheduler has selected
+ *          the next thread. Must preserve the interrupt and lock state and
+ *          must not change runnable state or invoke the scheduler.
  *
  * @param[in] ntp       thread being switched in
  * @param[in] otp       thread being switched out
@@ -769,6 +789,10 @@
 
 /**
  * @brief   ISR enter hook.
+ * @details Invoked after the ISR trace entry and debug state setup.
+ * @note    This hook runs in ISR context outside the kernel lock. I-class
+ *          APIs require a balanced @p chSysLockFromISR() and
+ *          @p chSysUnlockFromISR() pair. The hook must return unlocked.
  */
 #define CH_CFG_IRQ_PROLOGUE_HOOK() do {                                     \
   /* IRQ prologue code here.*/                                              \
@@ -776,6 +800,10 @@
 
 /**
  * @brief   ISR exit hook.
+ * @details Invoked before the debug state teardown and ISR trace exit.
+ * @note    This hook runs in ISR context outside the kernel lock. I-class
+ *          APIs require a balanced @p chSysLockFromISR() and
+ *          @p chSysUnlockFromISR() pair. The hook must return unlocked.
  */
 #define CH_CFG_IRQ_EPILOGUE_HOOK() do {                                     \
   /* IRQ epilogue code here.*/                                              \
@@ -838,7 +866,22 @@
 
 /**
  * @brief   Runtime Faults Collection Unit hook.
- * @details This hook is invoked each time new faults are collected and stored.
+ * @details Invoked synchronously after storing fault flags, on the reporting
+ *          core with the caller's kernel lock still held. It can run in thread
+ *          or ISR context, including during kernel updates that are not
+ *          general callback boundaries. In SMP the common kernel lock is held.
+ *          Every collection invokes the hook, including repeated flags and
+ *          a zero mask; pending fault flags coalesce repeated occurrences.
+ * @note    The hook must be bounded and nonblocking, preserve interrupt and
+ *          lock state, and must not reschedule, wake threads, or modify timer
+ *          lists or other kernel objects. Use application-owned storage to
+ *          record information and defer processing to a suitable context.
+ * @note    Hook-owned storage must be initialized before the first possible
+ *          collection; application initialization need not be complete then.
+ * @warning Collecting faults from the hook invokes it recursively and must
+ *          be avoided.
+ *
+ * @param[in] mask      supplied fault flags, not just newly set bits
  */
 #define CH_CFG_RUNTIME_FAULTS_HOOK(mask) do {                               \
   /* Faults handling code here.*/                                           \
