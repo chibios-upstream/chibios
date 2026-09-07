@@ -85,6 +85,7 @@ extern os_instance_t test_foreign_instance;
 extern os_instance_t *test_currcore;
 extern systime_t test_time;
 extern systime_t test_alarm;
+extern sysinterval_t test_alarm_latency;
 extern bool test_alarm_active;
 extern unsigned test_alarm_programs;
 extern unsigned test_alarm_starts;
@@ -128,6 +129,7 @@ static inline void chSysUnlockFromISR(void) {
 
 static inline void port_timer_start_alarm(systime_t time) {
 
+  test_time += test_alarm_latency;
   test_alarm = time;
   test_alarm_active = true;
   test_alarm_programs++;
@@ -141,6 +143,7 @@ static inline void port_timer_stop_alarm(void) {
 
 static inline void port_timer_set_alarm(systime_t time) {
 
+  test_time += test_alarm_latency;
   test_alarm = time;
   test_alarm_active = true;
   test_alarm_programs++;
