@@ -652,6 +652,7 @@
  * @brief   Trace buffer entries.
  * @note    The trace buffer is only allocated if @p CH_DBG_TRACE_MASK is
  *          different from @p CH_DBG_TRACE_MASK_DISABLED.
+ * @note    The allowed range is 1..65535 when the trace buffer is enabled.
  */
 #if !defined(CH_DBG_TRACE_BUFFER_SIZE)
 #define CH_DBG_TRACE_BUFFER_SIZE            128
@@ -870,8 +871,28 @@ void eflSmpInstanceInitHook(void *oip);
 
 /**
  * @brief   Trace hook.
- * @details This hook is invoked each time a new record is written in the
- *          trace buffer.
+ * @details Invoked synchronously on the reporting core after the record fields
+ *          and timestamps are written, before the next-slot pointer advances.
+ *          It can run in thread or ISR context, during initialization and on
+ *          halt paths, including inside scheduler operations.
+ * @note    This is not a general I-class callback. IRQ tracing holds the port
+ *          lock but runs before ISR debug-state setup or after its teardown.
+ *          Halt tracing disables local interrupts but need not hold the shared
+ *          SMP kernel lock.
+ * @note    The hook must be bounded and nonblocking, preserve interrupt and
+ *          lock state, and must not acquire or release kernel locks, reschedule,
+ *          wake threads, or modify kernel objects or the trace buffer.
+ * @note    The record pointer is borrowed for this call. Copy needed fields to
+ *          application-owned storage and defer processing to a suitable context;
+ *          retaining the pointer does not preserve the record against overwrite.
+ * @note    Hook-owned storage must be initialized before the first possible
+ *          record. Application initialization and current-thread setup need not
+ *          be complete then. Shared storage must account for concurrent SMP
+ *          halt reporting without the shared kernel lock.
+ * @warning Direct or indirect tracing from the hook invokes it recursively
+ *          and must be avoided.
+ *
+ * @param[in] tep       pointer to the completed record, read-only for the hook
  */
 #define CH_CFG_TRACE_HOOK(tep) do {                                         \
   /* Trace code here.*/                                                     \
