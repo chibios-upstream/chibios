@@ -179,6 +179,21 @@
 #endif
 
 /**
+ * @brief   WFI instruction alignment.
+ * @details A value of zero uses the inline CMSIS WFI implementation. A value
+ *          of 16 uses an assembly helper in order to place the WFI instruction
+ *          at the beginning of a 16-byte aligned block.
+ */
+#if !defined(PORT_WFI_INSTRUCTION_ALIGNMENT) || defined(__DOXYGEN__)
+#define PORT_WFI_INSTRUCTION_ALIGNMENT  0
+#endif
+
+#if (PORT_WFI_INSTRUCTION_ALIGNMENT != 0) &&                            \
+    (PORT_WFI_INSTRUCTION_ALIGNMENT != 16)
+#error "PORT_WFI_INSTRUCTION_ALIGNMENT must be zero or 16"
+#endif
+
+/**
  * @brief   Number of upper priority levels reserved as fast interrupts.
  * @note    The default reserves no priority levels for fast interrupts.
  */
@@ -1029,6 +1044,10 @@ extern "C" {
 #endif
   void port_init(os_instance_t *oip);
   void __port_thread_start(void);
+#if (PORT_ENABLE_WFI_IDLE == TRUE) &&                                   \
+    (PORT_WFI_INSTRUCTION_ALIGNMENT == 16)
+  void __port_wait_for_interrupt(void);
+#endif
 #ifdef __cplusplus
 }
 #endif
@@ -1168,12 +1187,17 @@ __STATIC_FORCEINLINE void port_enable(void) {
  *          The simplest implementation is an empty function or macro but this
  *          would not take advantage of architecture-specific power saving
  *          modes.
- * @note    Implemented as an inlined @p WFI instruction.
+ * @note    Implemented as an inlined @p WFI instruction or, when an
+ *          instruction alignment is configured, as an assembly helper.
  */
 __STATIC_FORCEINLINE void port_wait_for_interrupt(void) {
 
 #if PORT_ENABLE_WFI_IDLE == TRUE
+#if PORT_WFI_INSTRUCTION_ALIGNMENT == 16
+  __port_wait_for_interrupt();
+#else
   __WFI();
+#endif
 #endif
 }
 
