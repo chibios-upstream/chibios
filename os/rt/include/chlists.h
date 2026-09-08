@@ -430,6 +430,10 @@ static inline ch_priority_queue_t *ch_pqueue_remove_highest(ch_priority_queue_t 
  *          its peers.
  * @details The element is positioned behind all elements with higher or
  *          equal priority.
+ * @note    At hardening level 2 or higher, or when @p CH_DBG_ENABLE_ASSERTS
+ *          is enabled, the back-link is checked while traversing the list.
+ * @note    At hardening level 3 the forward link is validated before
+ *          dereferencing it. Debug assertions alone do not enable this check.
  *
  * @param[in] pqp       the pointer to the priority queue list header
  * @param[in] p         the pointer to the element to be inserted in the queue
@@ -465,10 +469,10 @@ static inline ch_priority_queue_t *ch_pqueue_insert_behind(ch_priority_queue_t *
  *          its peers.
  * @details The element is positioned ahead of all elements with higher or
  *          equal priority.
- * @note    At hardening level 2 the back-link is checked while traversing
- *          the list.
- * @note    At hardening level 3 the forward link is verified before
- *          de-referencing it while traversing the list.
+ * @note    At hardening level 2 or higher, or when @p CH_DBG_ENABLE_ASSERTS
+ *          is enabled, the back-link is checked while traversing the list.
+ * @note    At hardening level 3 the forward link is validated before
+ *          dereferencing it. Debug assertions alone do not enable this check.
  *
  * @param[in] pqp       the pointer to the priority queue list header
  * @param[in] p         the pointer to the element to be inserted in the queue

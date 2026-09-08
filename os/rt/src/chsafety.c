@@ -35,21 +35,28 @@
  *          the error causing random actions or stuck execution.<br>
  *          The application can override the reaction to safety checks, the
  *          default is cleanly halting the system.<br>
- *          This is the list of the currently implemented checks:
- *          - Level 0: none.
+ *          The automatic hardening levels are cumulative:
+ *          - Level 0: no automatic hardening checks or object clearing.
  *          - Level 1:
  *              - Integrity checking of objects on dispose.
  *              - Zeroing of objects on dispose.
  *              .
  *          - Level 2:
- *              - Ready list and wait queues backward pointer check on
- *                insertion.
+ *              - Ready list and priority-ordered wait queues backward-link
+ *                checks during insertion.
  *              .
  *          - Level 3:
- *              - Ready list and wait queues forward pointer validation on
- *                insertion.
+ *              - Ready list and priority-ordered wait queues forward-link
+ *                pointer validation before dereferencing during insertion.
  *              .
  *          .
+ * @note    @p CH_DBG_ENABLE_ASSERTS also enables level-0/1/2 checks,
+ *          including disposal list/queue checks, regardless of the hardening
+ *          level. It does not enable level-3 checks or object clearing at
+ *          level 0.
+ * @note    Explicit integrity scans are available at all hardening levels
+ *          and have a separate pointer-validation threshold, see
+ *          @p chSftIntegrityCheckI().
  * @{
  */
 
@@ -75,16 +82,17 @@
 /* Module exported functions.                                                */
 /*===========================================================================*/
 
-#if (CH_CFG_HARDENING_LEVEL >= 1) || defined(__DOXYGEN__)
+#if (CH_CFG_HARDENING_LEVEL >= 1) || (CH_DBG_ENABLE_ASSERTS != FALSE) ||     \
+    defined(__DOXYGEN__)
 /**
  * @brief   Performs an integrity check on a single link list.
- * @details This function performs a quick integrity check, it does not
- *          perform a full list traversal but checks the link to the first
- *          element in the list.
- * @note    This function is only available at hardening level 1, at lower
- *          levels an empty macro replaces it.
- * @note    At hardening level 2 and higher pointers are also verified
- *          before de-referencing them.
+ * @details This function validates the link to the first element without
+ *          traversing the list or dereferencing the linked element.
+ * @pre     @p p must point to a valid, readable list header or element;
+ *          the supplied pointer itself is not validated before access.
+ * @note    This function is available at hardening level 1 or higher, or
+ *          when @p CH_DBG_ENABLE_ASSERTS is enabled. Otherwise an empty
+ *          macro replaces it.
  *
  * @param[in] p         a pointer to a @p ch_list_t element
  *
@@ -105,9 +113,13 @@ void chSftCheckListX(const void *p) {
  * @brief   Performs an integrity check on a double link list.
  * @details This function performs a quick integrity check, it does not
  *          perform a full queue traversal but checks the links to the first
- *          and last elements in the queue.
- * @note    This function is only available at hardening level 1, at lower
- *          levels an empty macro replaces it.
+ *          and last elements in the queue. The fetched links are validated
+ *          before reading their links back to the supplied element.
+ * @pre     @p p must point to a valid, readable queue header or element;
+ *          the supplied pointer itself is not validated before access.
+ * @note    This function is available at hardening level 1 or higher, or
+ *          when @p CH_DBG_ENABLE_ASSERTS is enabled. Otherwise an empty
+ *          macro replaces it.
  *
  * @param[in] p         a pointer to a @p ch_queue_t, or @p ch_priority_queue_t
  *                      or @p ch_delta_list_t element
@@ -136,11 +148,16 @@ void chSftCheckQueueX(const void *p) {
  * @details Performs an integrity check of the important ChibiOS/RT data
  *          structures.
  * @note    The reaction in case of failure is to invoke the
- *          @p CH_CFG_INTEGRITY_HOOK which, by default, halts the system.
+ *          @p CH_CFG_SAFETY_CHECK_HOOK which, by default, halts the system.
+ *          A replacement hook must not return to the failed operation.
  * @note    This functionality is available at any hardening level.
- * @note    Pointers validation is enabled at hardening level 2 or greater,
- *          at lower levels a corrupted pointer can cause an exception.
- *          Exceptions should be monitored as well as possible outcomes.
+ * @note    Backward-link consistency checks always execute. Forward-link
+ *          pointer validation is enabled at hardening level 2 or higher,
+ *          or when @p CH_DBG_ENABLE_ASSERTS is enabled.
+ * @note    The default pointer validator checks only @p NULL and natural
+ *          alignment. An aligned invalid address can still cause an
+ *          exception, even at hardening level 3. Applications should also
+ *          monitor exceptions as possible outcomes of an integrity scan.
  * @note    This function is not used internally, it is up to the
  *          application to define if and where to perform system
  *          checking.
