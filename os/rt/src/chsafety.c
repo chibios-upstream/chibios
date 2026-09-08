@@ -42,12 +42,12 @@
  *              - Zeroing of objects on dispose.
  *              .
  *          - Level 2:
- *              - Ready list and priority-ordered wait queues backward-link
- *                checks during insertion.
+ *              - Consistency checks of forward/backward link pairs during
+ *                insertion into ready lists and priority-ordered wait queues.
  *              .
  *          - Level 3:
- *              - Ready list and priority-ordered wait queues forward-link
- *                pointer validation before dereferencing during insertion.
+ *              - Pointer validation before dereferencing during these
+ *                insertions (NULL and alignment checks by default).
  *              .
  *          .
  * @note    @p CH_DBG_ENABLE_ASSERTS also enables level-0/1/2 checks,
@@ -151,9 +151,9 @@ void chSftCheckQueueX(const void *p) {
  *          @p CH_CFG_SAFETY_CHECK_HOOK which, by default, halts the system.
  *          A replacement hook must not return to the failed operation.
  * @note    This functionality is available at any hardening level.
- * @note    Backward-link consistency checks always execute. Forward-link
- *          pointer validation is enabled at hardening level 2 or higher,
- *          or when @p CH_DBG_ENABLE_ASSERTS is enabled.
+ * @note    Forward/backward link consistency checks always execute. Pointer
+ *          validation before dereferencing is enabled at hardening level 2
+ *          or higher, or when @p CH_DBG_ENABLE_ASSERTS is enabled.
  * @note    The default pointer validator checks only @p NULL and natural
  *          alignment. An aligned invalid address can still cause an
  *          exception, even at hardening level 3. Applications should also
@@ -180,7 +180,7 @@ void chSftIntegrityCheckI(unsigned testmask) {
     do {
       ch_priority_queue_t *next;
 
-      /* Checking the backward link.*/
+      /* Checking link consistency.*/
       next = current->next;
       chSftValidateDataPointerX(2, next);
       chSftAssert(0, next->prev == current, "invalid backward pointer");
@@ -196,7 +196,7 @@ void chSftIntegrityCheckI(unsigned testmask) {
     do {
       ch_delta_list_t *next;
 
-      /* Checking the backward link.*/
+      /* Checking link consistency.*/
       next = current->next;
       chSftValidateDataPointerX(2, next);
       chSftAssert(0, next->prev == current, "invalid backward pointer");
@@ -212,7 +212,7 @@ void chSftIntegrityCheckI(unsigned testmask) {
     do {
       ch_queue_t *next;
 
-      /* Checking the backward link.*/
+      /* Checking link consistency.*/
       next = current->next;
       chSftValidateDataPointerX(2, next);
       chSftAssert(0, next->prev == current, "invalid backward pointer");

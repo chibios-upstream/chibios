@@ -74,17 +74,17 @@
  * @details The automatic hardening levels are cumulative:
  *          - 0: No automatic hardening checks or object clearing.
  *          - 1: Object integrity checks and clearing on disposal.
- *          - 2: Also checks backward links during insertion into ready lists
- *               and priority-ordered wait queues.
- *          - 3: Also validates forward-link pointers before dereferencing
- *               them during these insertions.
+ *          - 2: Also checks consistency of forward/backward link pairs during
+ *               insertion into ready lists and priority-ordered wait queues.
+ *          - 3: Also validates pointers before dereferencing them during
+ *               these insertions (NULL and alignment checks by default).
  *          .
  * @note    @p CH_DBG_ENABLE_ASSERTS also enables level-0/1/2 checks,
  *          including disposal list/queue checks, independently of this
  *          setting. It does not enable level-3 checks or object clearing
  *          at level 0.
  * @note    Explicit @p chSftIntegrityCheckI() scans are available at all
- *          levels. Their backward-link checks always execute; pointer
+ *          levels. Their link-consistency checks always execute; pointer
  *          validation requires level 2 or higher, or enabled debug assertions.
  */
 #if !defined(CH_CFG_HARDENING_LEVEL)

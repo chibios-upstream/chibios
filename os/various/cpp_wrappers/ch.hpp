@@ -85,9 +85,9 @@ namespace chibios_rt {
      *          @p CH_CFG_SAFETY_CHECK_HOOK which, by default, halts the system.
      *          A replacement hook must not return to the failed operation.
      * @note    This functionality is available at any hardening level.
-     * @note    Backward-link consistency checks always execute. Forward-link
-     *          pointer validation is enabled at hardening level 2 or higher,
-     *          or when @p CH_DBG_ENABLE_ASSERTS is enabled.
+     * @note    Forward/backward link consistency checks always execute. Pointer
+     *          validation before dereferencing is enabled at hardening level 2
+     *          or higher, or when @p CH_DBG_ENABLE_ASSERTS is enabled.
      * @note    The default pointer validator checks only @p NULL and natural
      *          alignment. An aligned invalid address can still cause an
      *          exception, even at hardening level 3. Applications should also
