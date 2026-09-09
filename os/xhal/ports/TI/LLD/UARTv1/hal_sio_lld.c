@@ -88,6 +88,37 @@ static void uart_set_ier(SIODriver *siop, uint32_t ier) {
 }
 
 /**
+ * @brief   Opens the enhanced register access.
+ * @details @p IER[7:4], @p FCR[5:4] and @p MCR[7:5] are write protected
+ *          unless @p EFR.ENHANCED_EN is set, a write to a protected bit is
+ *          silently dropped and the bit keeps the value it already had.
+ *          The driver needs the access for one bit in particular:
+ *          @p TI_UART_IER_SLEEPMODE. A UART handed over with sleep mode
+ *          enabled stops its clocks whenever the line goes quiet, and a
+ *          sleeping module does not run the receive character timeout, so
+ *          frames left below the FIFO trigger level are never reported and
+ *          the receiver appears to stall until unrelated activity wakes it.
+ * @note    EFR is written whole rather than read-modify-written: the
+ *          hardware flow control and software flow control bits live in the
+ *          same register and this driver implements neither, so the
+ *          deterministic value is the one that leaves them off.
+ * @note    Must be called with the peripheral inert, the LCR excursion into
+ *          configuration mode B swaps DLL and DLH in over the data and
+ *          interrupt enable registers.
+ *
+ * @param[in] siop      pointer to the @p SIODriver object
+ */
+static void uart_open_enhanced(SIODriver *siop) {
+  TI_UART_TypeDef *u = siop->uart;
+  uint32_t lcr;
+
+  lcr = u->LCR;
+  u->LCR = TI_UART_LCR_CONFIG_B;
+  u->IIR_FCR = TI_UART_EFR_ENHANCED_EN;
+  u->LCR = lcr;
+}
+
+/**
  * @brief   Latches the volatile part of the line status.
  * @note    LSR clears its error bits on read, so any read that is not
  *          recorded here loses them for good.
@@ -424,8 +455,22 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
   }
 
   /* Held disabled while it is reprogrammed, the divisor latch must not be
-     written with the transmitter live.*/
+     written with the transmitter live. Disabling the mode first also makes
+     the configuration mode B excursion below safe, an inert peripheral
+     raises no interrupt while IER is swapped out for DLH.*/
   u->MDR1 = TI_UART_MDR1_MODE_DISABLE;
+
+  /* No-idle, and no auto-idle: this driver keeps the peripheral clocked for
+     as long as it is started. Left in force-idle, as a boot loader may well
+     hand it over, the module goes quiet together with the bus traffic and
+     stops receiving while the application waits on it, which looks exactly
+     like a lost interrupt.*/
+  u->SYSC = TI_UART_SYSC_IDLEMODE_NONE;
+
+  /* Opened before the IER write, otherwise the write cannot clear
+     TI_UART_IER_SLEEPMODE and a UART inherited in sleep mode never reports
+     the receive character timeout.*/
+  uart_open_enhanced(siop);
   uart_set_ier(siop, 0U);
 
   u->LCR = TI_UART_LCR_DLAB;

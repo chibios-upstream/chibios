@@ -56,6 +56,23 @@ typedef struct {
 #define TI_UART_IER_ETBEI                   (1U << 1)
 #define TI_UART_IER_ELSI                    (1U << 2)
 #define TI_UART_IER_EDSSI                   (1U << 3)
+/**
+ * @brief   Sleep mode enable (TI extension).
+ * @note    Part of the enhanced set, see @p TI_UART_EFR_ENHANCED_EN: this
+ *          bit cannot be written while the enhanced access is closed, so a
+ *          driver that never opens it cannot clear what the boot loader
+ *          left behind.
+ */
+#define TI_UART_IER_SLEEPMODE               (1U << 4)
+/** @} */
+
+/**
+ * @name    EFR bits (TI extension, visible in configuration mode B)
+ * @note    EFR is overlaid on the IIR and FCR address and is only reachable
+ *          while LCR holds @p TI_UART_LCR_CONFIG_B.
+ * @{
+ */
+#define TI_UART_EFR_ENHANCED_EN             (1U << 4)
 /** @} */
 
 /**
@@ -109,6 +126,12 @@ typedef struct {
  *          start the line off in a break condition.
  */
 #define TI_UART_LCR_CFG_FORBIDDEN           (TI_UART_LCR_DLAB | TI_UART_LCR_BRK)
+/**
+ * @brief   Configuration mode B selector.
+ * @details Writing this value to LCR swaps EFR in over the IIR and FCR
+ *          address, which is the only way to reach the enhanced bits.
+ */
+#define TI_UART_LCR_CONFIG_B                0xBFU
 /** @} */
 
 /**
@@ -153,6 +176,32 @@ typedef struct {
 #define TI_UART_MDR1_MODE_MASK              7U
 #define TI_UART_MDR1_MODE_UART16X           0U
 #define TI_UART_MDR1_MODE_DISABLE           7U
+/** @} */
+
+/**
+ * @name    SYSC bits (TI extension)
+ * @note    Module level power management. In force-idle the UART is allowed
+ *          to drop its interface clock as soon as it goes quiet, which stops
+ *          reception and interrupt generation until something touches the
+ *          module again, so the driver must own this register rather than
+ *          inherit whatever the boot loader left.
+ * @{
+ */
+#define TI_UART_SYSC_AUTOIDLE               (1U << 0)
+#define TI_UART_SYSC_SOFTRESET              (1U << 1)
+#define TI_UART_SYSC_ENAWAKEUP              (1U << 2)
+#define TI_UART_SYSC_IDLEMODE_POS           3U
+#define TI_UART_SYSC_IDLEMODE_MASK          (3U << TI_UART_SYSC_IDLEMODE_POS)
+#define TI_UART_SYSC_IDLEMODE_FORCE         (0U << TI_UART_SYSC_IDLEMODE_POS)
+#define TI_UART_SYSC_IDLEMODE_NONE          (1U << TI_UART_SYSC_IDLEMODE_POS)
+#define TI_UART_SYSC_IDLEMODE_SMART         (2U << TI_UART_SYSC_IDLEMODE_POS)
+/** @} */
+
+/**
+ * @name    SYSS bits (TI extension)
+ * @{
+ */
+#define TI_UART_SYSS_RESETDONE              (1U << 0)
 /** @} */
 
 /**
