@@ -74,15 +74,18 @@ typedef struct {
 
 /**
  * @name    FCR bits (write)
+ * @note    The receive trigger levels are the TI ones, not the standard
+ *          16550 1/4/8/14 set: this UART has 64-byte FIFOs and encodes
+ *          8, 16, 56 and 60 characters.
  * @{
  */
 #define TI_UART_FCR_FIFOEN                  (1U << 0)
 #define TI_UART_FCR_RXRST                   (1U << 1)
 #define TI_UART_FCR_TXRST                   (1U << 2)
-#define TI_UART_FCR_RXTRIGGER_1             (0U << 6)
-#define TI_UART_FCR_RXTRIGGER_4             (1U << 6)
-#define TI_UART_FCR_RXTRIGGER_8             (2U << 6)
-#define TI_UART_FCR_RXTRIGGER_14            (3U << 6)
+#define TI_UART_FCR_RXTRIGGER_8             (0U << 6)
+#define TI_UART_FCR_RXTRIGGER_16            (1U << 6)
+#define TI_UART_FCR_RXTRIGGER_56            (2U << 6)
+#define TI_UART_FCR_RXTRIGGER_60            (3U << 6)
 /** @} */
 
 /**
