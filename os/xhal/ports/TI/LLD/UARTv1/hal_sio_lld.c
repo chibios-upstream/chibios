@@ -379,9 +379,29 @@ bool sio_lld_is_tx_ongoing(SIODriver *siop) {
 msg_t sio_lld_start(SIODriver *siop) {
   const SIOConfig *config = (const SIOConfig *)siop->config;
 
-  /* Enables the peripheral. No state test here, drvStart() has already
-     moved the driver to HAL_DRV_STATE_STARTING by the time the LLD is
-     called, activation is simply what this method is for.*/
+  /* No state test here, drvStart() has already moved the driver to
+     HAL_DRV_STATE_STARTING by the time the LLD is called, activation is
+     simply what this method is for.
+
+     The peripheral is configured before its vector is enabled, not after.
+     A UART inherited from a boot loader can have interrupt enables set and
+     a condition already standing, and the VIM line is level sensitive: arm
+     it first and the handler is entered before the driver has programmed
+     anything, on a source it cannot yet acknowledge, and it re-enters until
+     the core starves. Configuration leaves IER clear and the mode selected,
+     so by the time the line is unmasked every source is known.
+
+     The returned pointer is what the base driver expects to find in the
+     config field, including when the default configuration was selected by
+     a NULL, and a rejected configuration must not leave the peripheral
+     active.*/
+  siop->config = sio_lld_setcfg(siop, config);
+  if (siop->config == NULL) {
+    uart_deactivate(siop);
+
+    return HAL_RET_CONFIG_ERROR;
+  }
+
 #if AM67_SIO_USE_UART1 == TRUE
   if (&SIOD1 == siop) {
     vimSetHandler(siop->irq, uart_irq_handler, (void *)siop);
@@ -392,19 +412,6 @@ msg_t sio_lld_start(SIODriver *siop) {
 #endif
   {
     chDbgAssert(false, "invalid SIO instance");
-  }
-
-  /* Configures the peripheral, the returned pointer is what the base
-     driver expects to find in the config field, including when the
-     default configuration was selected by a NULL.*/
-  siop->config = sio_lld_setcfg(siop, config);
-  if (siop->config == NULL) {
-    /* A rejected configuration must not leave the peripheral active, the
-       activation performed above is undone so that the shared driver
-       returns to the stop state cleanly.*/
-    uart_deactivate(siop);
-
-    return HAL_RET_CONFIG_ERROR;
   }
 
   return HAL_RET_SUCCESS;
@@ -563,6 +570,11 @@ void sio_lld_update_enable_flags(SIODriver *siop) {
   }
 
   uart_set_ier(siop, ier);
+
+  /* Brings the line back after the handler had to mask it at the
+     controller, see the character timeout case in the handler. Harmless
+     when it was never masked.*/
+  vimEnableInterrupt(siop->irq);
 }
 
 /**
@@ -797,6 +809,17 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
   case TI_UART_IIR_INTID_CTI:
     siop->lsr |= SIO_LSR_CTI;
     uart_set_ier(siop, siop->ier & ~(TI_UART_IER_ERBFI | TI_UART_IER_ELSI));
+
+    /* The character timeout is the one source this peripheral does not gate
+       with IER: it stands until the frames behind it are read out of the
+       FIFO, and IIR keeps reporting it with every enable already cleared.
+       The VIM line is level sensitive, so masking in IER and returning
+       re-enters the handler immediately and forever, and the thread that
+       would drain the FIFO never runs. The line is therefore masked at the
+       controller instead, and the read paths bring it back through
+       sio_lld_update_enable_flags() once the receiver has been emptied.*/
+    vimDisableInterrupt(siop->irq);
+
     __sio_wakeup_rxidle(siop);
     __sio_wakeup_rx(siop);
     break;
@@ -835,7 +858,21 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
     __sio_wakeup_tx(siop);
     break;
 
+  case TI_UART_IIR_INTID_MSI:
+    /* Modem status, not used by this driver but it still has to be
+       acknowledged, and a read of MSR is what clears it.*/
+    (void)siop->uart->MSR;
+    break;
+
   default:
+    /* An unrecognised source cannot be acknowledged here, and the VIM line
+       is level sensitive, so leaving it asserted would re-enter this handler
+       forever and starve everything including the system tick. Dropping the
+       enables releases the line; the read and write paths re-arm what they
+       need through sio_lld_update_enable_flags(). This also covers the case
+       of the peripheral answering all reads with zeroes, which is what an
+       unclocked module on this interconnect looks like.*/
+    uart_set_ier(siop, 0U);
     break;
   }
 
