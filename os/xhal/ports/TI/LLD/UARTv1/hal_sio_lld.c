@@ -179,6 +179,75 @@ void sio_lld_init(void) {
 }
 
 /**
+ * @brief   Determines the state of the RX FIFO.
+ *
+ * @param[in] siop      pointer to the @p SIODriver object
+ * @return              The RX FIFO state.
+ * @retval false        if RX FIFO is not empty
+ * @retval true         if RX FIFO is empty
+ *
+ * @notapi
+ */
+bool sio_lld_is_rx_empty(SIODriver *siop) {
+
+  return (bool)((uart_latch_lsr(siop) & TI_UART_LSR_DR) == 0U);
+}
+
+/**
+ * @brief   Determines the activity state of the receiver.
+ * @note    A 16550 has no line-idle status bit. The closest honest answer
+ *          is "nothing is waiting to be read", merged with the character
+ *          timeout the handler latched, which is where the RX idle
+ *          @e event comes from.
+ *
+ * @param[in] siop      pointer to the @p SIODriver object
+ * @return              The RX activity state.
+ * @retval false        if RX is in active state.
+ * @retval true         if RX is in idle state.
+ *
+ * @notapi
+ */
+bool sio_lld_is_rx_idle(SIODriver *siop) {
+
+  return (bool)(((uart_latch_lsr(siop) & TI_UART_LSR_DR) == 0U) ||
+                ((siop->lsr & SIO_LSR_CTI) != 0U));
+}
+
+/**
+ * @brief   Determines if RX has pending error events to be read and cleared.
+ * @note    The latch is refreshed first, an error still sitting in LSR has
+ *          not been reported to anybody yet but it is pending all the same.
+ *
+ * @param[in] siop      pointer to the @p SIODriver object
+ * @return              The RX error events.
+ * @retval false        if RX has no pending events
+ * @retval true         if RX has pending events
+ *
+ * @notapi
+ */
+bool sio_lld_has_rx_errors(SIODriver *siop) {
+
+  (void)uart_latch_lsr(siop);
+
+  return (bool)((siop->lsr & TI_UART_LSR_RX_ERRORS) != 0U);
+}
+
+/**
+ * @brief   Determines the transmission state.
+ *
+ * @param[in] siop      pointer to the @p SIODriver object
+ * @return              The TX state.
+ * @retval false        if transmission is idle
+ * @retval true         if transmission is ongoing
+ *
+ * @notapi
+ */
+bool sio_lld_is_tx_ongoing(SIODriver *siop) {
+
+  return (bool)((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) == 0U);
+}
+
+/**
  * @brief   Configures and activates the SIO peripheral.
  *
  * @param[in] siop      pointer to the @p SIODriver object
@@ -586,7 +655,7 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
 
   case TI_UART_IIR_INTID_THRE:
     uart_set_ier(siop, siop->ier & ~TI_UART_IER_ETBEI);
-    if ((siop->uart->LSR & TI_UART_LSR_TEMT) != 0U) {
+    if ((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) != 0U) {
       __sio_wakeup_txend(siop);
     }
     __sio_wakeup_tx(siop);

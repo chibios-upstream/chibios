@@ -111,49 +111,9 @@
   uint32_t                  fcr
 
 /**
- * @brief   Determines the state of the RX FIFO.
- *
- * @param[in] siop      pointer to the @p SIODriver object
- * @return              The RX FIFO state.
- * @retval false        if RX FIFO is not empty
- * @retval true         if RX FIFO is empty
- *
- * @notapi
- */
-#define sio_lld_is_rx_empty(siop)                                           \
-  (bool)(((siop)->uart->LSR & TI_UART_LSR_DR) == 0U)
-
-/**
- * @brief   Determines the activity state of the receiver.
- * @note    A 16550 has no line-idle status bit. The closest honest answer
- *          is "nothing is waiting to be read"; the RX idle *event* comes
- *          from the character timeout interrupt instead.
- *
- * @param[in] siop      pointer to the @p SIODriver object
- * @return              The RX activity state.
- * @retval false        if RX is in active state.
- * @retval true         if RX is in idle state.
- *
- * @notapi
- */
-#define sio_lld_is_rx_idle(siop)                                            \
-  (bool)(((siop)->uart->LSR & TI_UART_LSR_DR) == 0U)
-
-/**
- * @brief   Determines if RX has pending error events to be read and cleared.
- *
- * @param[in] siop      pointer to the @p SIODriver object
- * @return              The RX error events.
- * @retval false        if RX has no pending events
- * @retval true         if RX has pending events
- *
- * @notapi
- */
-#define sio_lld_has_rx_errors(siop)                                         \
-  (bool)(((siop)->lsr & TI_UART_LSR_RX_ERRORS) != 0U)
-
-/**
  * @brief   Determines the state of the TX FIFO.
+ * @note    The TI status register is a plain level indication, reading it
+ *          has no side effect, so this one can stay a macro.
  *
  * @param[in] siop      pointer to the @p SIODriver object
  * @return              The TX FIFO state.
@@ -165,18 +125,12 @@
 #define sio_lld_is_tx_full(siop)                                            \
   (bool)(((siop)->uart->SSR & TI_UART_SSR_TXFIFOFULL) != 0U)
 
-/**
- * @brief   Determines the transmission state.
- *
- * @param[in] siop      pointer to the @p SIODriver object
- * @return              The TX state.
- * @retval false        if transmission is idle
- * @retval true         if transmission is ongoing
- *
- * @notapi
+/*
+ * The remaining state checks are real functions declared below, not
+ * register macros: they all need @p LSR and that register clears its
+ * error bits on read, so every read of it has to go through the driver
+ * latch or an overrun indication is silently consumed.
  */
-#define sio_lld_is_tx_ongoing(siop)                                         \
-  (bool)(((siop)->uart->LSR & TI_UART_LSR_TEMT) == 0U)
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -190,6 +144,10 @@ extern SIODriver SIOD1;
 extern "C" {
 #endif
   void sio_lld_init(void);
+  bool sio_lld_is_rx_empty(SIODriver *siop);
+  bool sio_lld_is_rx_idle(SIODriver *siop);
+  bool sio_lld_has_rx_errors(SIODriver *siop);
+  bool sio_lld_is_tx_ongoing(SIODriver *siop);
   msg_t sio_lld_start(SIODriver *siop);
   void sio_lld_stop(SIODriver *siop);
   const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config);
