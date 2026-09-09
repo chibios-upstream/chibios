@@ -1,5 +1,4 @@
 /*
-    T3 Gemstone - Copyright (C) 2026 T3 Foundation (https://t3vakfi.org).
     ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
 
     Licensed under the Apache License, Version 2.0 (the "License");
