@@ -194,6 +194,79 @@ static uint32_t uart_evt2lsr(sioevents_t events) {
   return lsr;
 }
 
+/**
+ * @brief   Interrupt enables the receiver side asks for.
+ *
+ * @param[in] siop      pointer to the @p SIODriver object
+ * @return              The receiver's IER bits.
+ */
+static uint32_t uart_rx_ier(const SIODriver *siop) {
+  uint32_t ier = 0U;
+
+  /* The character timeout that carries the RX idle event is only reported
+     while the receiver interrupt is enabled, so both events map to it.*/
+  if ((siop->enabled & (SIO_EV_RX_NOTEMPTY | SIO_EV_RX_IDLE)) != 0U) {
+    ier |= TI_UART_IER_ERBFI;
+  }
+  if ((siop->enabled & SIO_EV_ALL_ERRORS) != 0U) {
+    ier |= TI_UART_IER_ELSI;
+  }
+
+  return ier;
+}
+
+/**
+ * @brief   Interrupt enables the transmitter side asks for.
+ *
+ * @param[in] siop      pointer to the @p SIODriver object
+ * @return              The transmitter's IER bits.
+ */
+static uint32_t uart_tx_ier(const SIODriver *siop) {
+  uint32_t ier = 0U;
+
+  /* The 16550 has no transmitter-empty interrupt, the handler tests TEMT
+     when the holding register goes empty, so both events map to ETBEI.*/
+  if ((siop->enabled & (SIO_EV_TX_NOTFULL | SIO_EV_TX_END)) != 0U) {
+    ier |= TI_UART_IER_ETBEI;
+  }
+
+  return ier;
+}
+
+/**
+ * @brief   Re-arms the receiver side alone.
+ * @details Adds the receiver's enables without disturbing the
+ *          transmitter's, so that acknowledging receive events cannot put
+ *          back a transmitter interrupt the handler had just masked on an
+ *          empty FIFO.
+ * @note    The vector comes back only once the receiver has been drained.
+ *          The character timeout stands while frames are unread and is not
+ *          gated by IER, so unmasking earlier would walk straight back into
+ *          the storm the handler masked it for.
+ *
+ * @param[in] siop      pointer to the @p SIODriver object
+ */
+static void uart_arm_rx(SIODriver *siop) {
+
+  uart_set_ier(siop, siop->ier | uart_rx_ier(siop));
+
+  if (sio_lld_is_rx_empty(siop)) {
+    vimEnableInterrupt(siop->irq);
+  }
+}
+
+/**
+ * @brief   Re-arms the transmitter side alone.
+ * @note    Only IER is touched. The vector is the receiver's to release,
+ *          see @p uart_arm_rx().
+ *
+ * @param[in] siop      pointer to the @p SIODriver object
+ */
+static void uart_arm_tx(SIODriver *siop) {
+
+  uart_set_ier(siop, siop->ier | uart_tx_ier(siop));
+}
+
 #if defined(__CHIBIOS_RT__) || defined(__DOXYGEN__)
 /**
  * @brief   TX-end polling timer callback.
@@ -212,6 +285,13 @@ static uint32_t uart_evt2lsr(sioevents_t events) {
  */
 static void uart_txend_timer_cb(virtual_timer_t *vtp, void *p) {
   SIODriver *siop = (SIODriver *)p;
+
+  /* Space in the FIFO is reported from here too. While the vector is
+     masked for an unread receiver the transmitter interrupt cannot run,
+     and a thread waiting for room would otherwise wait on nothing.*/
+  if (!sio_lld_is_tx_full(siop)) {
+    __sio_wakeup_tx(siop);
+  }
 
   if ((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) != 0U) {
     __sio_wakeup_txend(siop);
@@ -552,30 +632,15 @@ const hal_sio_config_t *sio_lld_selcfg(SIODriver *siop,
  * @notapi
  */
 void sio_lld_update_enable_flags(SIODriver *siop) {
-  uint32_t ier = 0U;
 
-  /* The character timeout that carries the RX idle event is only reported
-     while the receiver interrupt is enabled, so both events map to it.*/
-  if ((siop->enabled & (SIO_EV_RX_NOTEMPTY | SIO_EV_RX_IDLE)) != 0U) {
-    ier |= TI_UART_IER_ERBFI;
+  /* The enabled set changed, so both sides are rewritten rather than added
+     to. The service paths use uart_arm_rx() and uart_arm_tx() instead, one
+     side at a time.*/
+  uart_set_ier(siop, uart_rx_ier(siop) | uart_tx_ier(siop));
+
+  if (sio_lld_is_rx_empty(siop)) {
+    vimEnableInterrupt(siop->irq);
   }
-
-  /* The 16550 has no transmitter-empty interrupt, the handler tests TEMT
-     when the holding register goes empty, so both events map to ETBEI.*/
-  if ((siop->enabled & (SIO_EV_TX_NOTFULL | SIO_EV_TX_END)) != 0U) {
-    ier |= TI_UART_IER_ETBEI;
-  }
-
-  if ((siop->enabled & SIO_EV_ALL_ERRORS) != 0U) {
-    ier |= TI_UART_IER_ELSI;
-  }
-
-  uart_set_ier(siop, ier);
-
-  /* Brings the line back after the handler had to mask it at the
-     controller, see the character timeout case in the handler. Harmless
-     when it was never masked.*/
-  vimEnableInterrupt(siop->irq);
 }
 
 /**
@@ -595,8 +660,9 @@ sioevents_t sio_lld_get_and_clear_errors(SIODriver *siop) {
   siop->lsr &= ~TI_UART_LSR_RX_ERRORS;
 
   /* Errors acknowledged, the RX sources masked by the handler can be
-     armed again.*/
-  sio_lld_update_enable_flags(siop);
+     armed again. The transmitter is left alone: acknowledging a receive
+     error is no reason to put back an interrupt for an empty TX FIFO.*/
+  uart_arm_rx(siop);
 
   return uart_lsr2evt(lsr);
 }
@@ -621,7 +687,7 @@ sioevents_t sio_lld_get_and_clear_events(SIODriver *siop, sioevents_t events) {
      stay pending for whoever does ask.*/
   siop->lsr &= ~(uart_evt2lsr(events) & SIO_LSR_STICKY);
 
-  sio_lld_update_enable_flags(siop);
+  uart_arm_rx(siop);
 
   return pending;
 }
@@ -682,7 +748,7 @@ size_t sio_lld_read(SIODriver *siop, uint8_t *buffer, size_t n) {
 
   /* Re-arms what the handler masked, now that the FIFO has been drained.*/
   if (sio_lld_is_rx_empty(siop)) {
-    sio_lld_update_enable_flags(siop);
+    uart_arm_rx(siop);
   }
 
   return rd;
@@ -714,7 +780,7 @@ size_t sio_lld_write(SIODriver *siop, const uint8_t *buffer, size_t n) {
   }
 
   /* Re-arms the transmitter interrupt masked by the handler.*/
-  sio_lld_update_enable_flags(siop);
+  uart_arm_tx(siop);
 
   return wr;
 }
@@ -734,7 +800,7 @@ msg_t sio_lld_get(SIODriver *siop) {
   msg = (msg_t)(siop->uart->RBR_THR_DLL & 0xFFU);
 
   if (sio_lld_is_rx_empty(siop)) {
-    sio_lld_update_enable_flags(siop);
+    uart_arm_rx(siop);
   }
 
   return msg;
@@ -753,7 +819,7 @@ void sio_lld_put(SIODriver *siop, uint_fast16_t data) {
 
   siop->uart->RBR_THR_DLL = (uint32_t)data;
 
-  sio_lld_update_enable_flags(siop);
+  uart_arm_tx(siop);
 }
 
 /**
@@ -818,8 +884,23 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
        re-enters the handler immediately and forever, and the thread that
        would drain the FIFO never runs. The line is therefore masked at the
        controller instead, and the read paths bring it back through
-       sio_lld_update_enable_flags() once the receiver has been emptied.*/
+       uart_arm_rx() once the receiver has been emptied.*/
     vimDisableInterrupt(siop->irq);
+
+#if defined(__CHIBIOS_RT__)
+    /* Masking the vector also silences the transmitter, which shares it.
+       If a transmission is still in flight its THRE interrupt may not have
+       run yet, so the polling timer is started here rather than left to an
+       interrupt that can no longer arrive: without this a thread waiting on
+       the end of an unrelated transmission would block until its timeout,
+       or forever.*/
+    if ((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) == 0U) {
+      chSysLockFromISR();
+      chVTSetI(&siop->txend_vt, siop->txend_step, uart_txend_timer_cb,
+               (void *)siop);
+      chSysUnlockFromISR();
+    }
+#endif
 
     __sio_wakeup_rxidle(siop);
     __sio_wakeup_rx(siop);
@@ -870,7 +951,7 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
        is level sensitive, so leaving it asserted would re-enter this handler
        forever and starve everything including the system tick. Dropping the
        enables releases the line; the read and write paths re-arm what they
-       need through sio_lld_update_enable_flags(). This also covers the case
+       need through uart_arm_rx() and uart_arm_tx(). This also covers the case
        of the peripheral answering all reads with zeroes, which is what an
        unclocked module on this interconnect looks like.*/
     uart_set_ier(siop, 0U);
