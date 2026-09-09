@@ -133,6 +133,36 @@ static sioevents_t uart_lsr2evt(uint32_t lsr) {
 }
 
 /**
+ * @brief   Translates SIO events into the status bits backing them.
+ * @note    Only the bits the driver latches in software are represented,
+ *          the live FIFO conditions have no latch to clear.
+ *
+ * @param[in] events    SIO events mask
+ * @return              The latched status bits mask.
+ */
+static uint32_t uart_evt2lsr(sioevents_t events) {
+  uint32_t lsr = 0U;
+
+  if ((events & SIO_EV_PARITY_ERR) != 0U) {
+    lsr |= TI_UART_LSR_PE;
+  }
+  if ((events & SIO_EV_FRAMING_ERR) != 0U) {
+    lsr |= TI_UART_LSR_FE;
+  }
+  if ((events & SIO_EV_OVERRUN_ERR) != 0U) {
+    lsr |= TI_UART_LSR_OE;
+  }
+  if ((events & SIO_EV_RX_BREAK) != 0U) {
+    lsr |= TI_UART_LSR_BI;
+  }
+  if ((events & SIO_EV_RX_IDLE) != 0U) {
+    lsr |= SIO_LSR_CTI;
+  }
+
+  return lsr;
+}
+
+/**
  * @brief   Common interrupt service routine.
  *
  * @param[in] arg       pointer to the @p SIODriver object
@@ -451,9 +481,11 @@ sioevents_t sio_lld_get_and_clear_events(SIODriver *siop, sioevents_t events) {
 
   pending = sio_lld_get_events(siop) & events;
 
-  /* Only the latched bits can be cleared, the live FIFO conditions clear
-     themselves when the FIFOs are drained or filled.*/
-  siop->lsr &= ~SIO_LSR_STICKY;
+  /* Only the latched bits behind the requested events are consumed: the
+     live FIFO conditions clear themselves when the FIFOs are drained or
+     filled, and errors or an RX-idle the caller did not ask for have to
+     stay pending for whoever does ask.*/
+  siop->lsr &= ~(uart_evt2lsr(events) & SIO_LSR_STICKY);
 
   sio_lld_update_enable_flags(siop);
 
