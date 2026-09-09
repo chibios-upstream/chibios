@@ -398,9 +398,14 @@ bool sio_lld_is_rx_empty(SIODriver *siop) {
 /**
  * @brief   Determines the activity state of the receiver.
  * @note    A 16550 has no line-idle status bit. The closest honest answer
- *          is "nothing is waiting to be read", merged with the character
- *          timeout the handler latched, which is where the RX idle
- *          @e event comes from.
+ *          is "nothing is waiting to be read".
+ * @note    The latched character timeout is deliberately not consulted
+ *          here. It records that a receive cycle ended, and it survives
+ *          until the application acknowledges it, so reading it as current
+ *          activity would report an idle receiver right through the next
+ *          burst. The RX idle @e event is reported by the events getters,
+ *          which is where a historical event belongs; this is the live
+ *          state.
  *
  * @param[in] siop      pointer to the @p SIODriver object
  * @return              The RX activity state.
@@ -411,8 +416,7 @@ bool sio_lld_is_rx_empty(SIODriver *siop) {
  */
 bool sio_lld_is_rx_idle(SIODriver *siop) {
 
-  return (bool)(((uart_latch_lsr(siop) & TI_UART_LSR_DR) == 0U) ||
-                ((siop->lsr & SIO_LSR_CTI) != 0U));
+  return (bool)((uart_latch_lsr(siop) & TI_UART_LSR_DR) == 0U);
 }
 
 /**
