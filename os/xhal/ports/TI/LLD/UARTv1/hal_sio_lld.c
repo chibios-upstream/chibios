@@ -162,6 +162,37 @@ static uint32_t uart_evt2lsr(sioevents_t events) {
   return lsr;
 }
 
+#if defined(__CHIBIOS_RT__) || defined(__DOXYGEN__)
+/**
+ * @brief   TX-end polling timer callback.
+ * @details ETBEI reports the holding register empty, there is no
+ *          transmission-complete interrupt, so the only way to observe the
+ *          shift register going idle is to poll @p TI_UART_LSR_TEMT. The
+ *          callback re-arms itself while the transmitter is busy, when the
+ *          wire is finally idle the TX-end waiter is woken up and the
+ *          driver callback is invoked.
+ * @note    Virtual timer callbacks run in ISR context outside the kernel
+ *          critical section, the driver callback is invoked out of the
+ *          lock as its contract requires.
+ *
+ * @param[in] vtp       pointer to the virtual timer
+ * @param[in] p         pointer to the @p SIODriver object
+ */
+static void uart_txend_timer_cb(virtual_timer_t *vtp, void *p) {
+  SIODriver *siop = (SIODriver *)p;
+
+  if ((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) != 0U) {
+    __sio_wakeup_txend(siop);
+    __sio_callback(siop);
+  }
+  else {
+    chSysLockFromISR();
+    chVTSetI(vtp, siop->txend_step, uart_txend_timer_cb, p);
+    chSysUnlockFromISR();
+  }
+}
+#endif /* defined(__CHIBIOS_RT__) */
+
 /**
  * @brief   Common interrupt service routine.
  *
@@ -205,6 +236,9 @@ void sio_lld_init(void) {
   SIOD1.clock = AM67_MAIN_UART1_CLOCK;
   SIOD1.ier   = 0U;
   SIOD1.lsr   = 0U;
+#if defined(__CHIBIOS_RT__)
+  chVTObjectInit(&SIOD1.txend_vt);
+#endif
 #endif
 }
 
@@ -323,6 +357,10 @@ void sio_lld_stop(SIODriver *siop) {
 
     vimDisableInterrupt(siop->irq);
     vimSetHandler(siop->irq, NULL, NULL);
+
+#if defined(__CHIBIOS_RT__)
+    chVTReset(&siop->txend_vt);
+#endif
   }
 }
 
@@ -381,6 +419,15 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
   /* Written last, the peripheral does nothing at all until the mode is
      selected.*/
   u->MDR1 = TI_UART_MDR1_MODE_UART16X;
+
+#if defined(__CHIBIOS_RT__)
+  /* TX-end polling interval, about four character times assuming ten bits
+     per frame, never less than one tick.*/
+  siop->txend_step = chTimeUS2I((4U * 10U * 1000000U) / config->baud);
+  if (siop->txend_step < (sysinterval_t)1) {
+    siop->txend_step = (sysinterval_t)1;
+  }
+#endif
 
   return config;
 }
@@ -687,9 +734,30 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
 
   case TI_UART_IIR_INTID_THRE:
     uart_set_ier(siop, siop->ier & ~TI_UART_IER_ETBEI);
+
+    /* ETBEI reports the holding register empty, not the end of the
+       transmission: the last frame is normally still in the shift
+       register here and no further interrupt is coming for it.*/
     if ((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) != 0U) {
+#if defined(__CHIBIOS_RT__)
+      /* Legal from here, the polling timer is only ever manipulated from
+         the handler and from its own callback.*/
+      chSysLockFromISR();
+      chVTResetI(&siop->txend_vt);
+      chSysUnlockFromISR();
+#endif
       __sio_wakeup_txend(siop);
     }
+#if defined(__CHIBIOS_RT__)
+    else {
+      /* Transmission still ongoing, TEMT is polled until the wire goes
+         idle, otherwise sioSynchronizeTXEnd() would never be released.*/
+      chSysLockFromISR();
+      chVTSetI(&siop->txend_vt, siop->txend_step, uart_txend_timer_cb,
+               (void *)siop);
+      chSysUnlockFromISR();
+    }
+#endif
     __sio_wakeup_tx(siop);
     break;
 

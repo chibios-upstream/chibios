@@ -84,7 +84,42 @@
 
 /**
  * @brief   Low level fields of the SIO driver structure.
+ * @note    TX-end detection: @p TI_UART_IER_ETBEI reports the transmitter
+ *          holding register, or the whole TX FIFO, gone empty, not the end
+ *          of the transmission: when the THRE interrupt fires the last
+ *          frame is normally still in the shift register and no further
+ *          interrupt is coming. With the RT kernel the handler arms a
+ *          polling virtual timer which watches @p TI_UART_LSR_TEMT, on
+ *          detection threads suspended in @p sioSynchronizeTXEnd() are
+ *          woken up and the driver callback is invoked. Without the RT
+ *          kernel only the opportunistic detection performed by the
+ *          handler is available, a transmission still in the shift
+ *          register when the THRE interrupt fires is never signalled, so
+ *          reliable TX-end operation requires the RT kernel.
+ * @note    The polling timer is armed, re-armed and reset only from the
+ *          UART interrupt handler, from the timer callback itself and
+ *          from the stop and start-rollback paths, never from the write
+ *          paths, as required by the virtual timers ownership rule.
  */
+#if defined(__CHIBIOS_RT__) || defined(__DOXYGEN__)
+#define sio_lld_driver_fields                                               \
+  /* Pointer to the UARTx registers block.*/                                \
+  TI_UART_TypeDef           *uart;                                          \
+  /* Interrupt line associated to the peripheral.*/                         \
+  uint32_t                  irq;                                            \
+  /* Functional clock frequency for the associated UART.*/                  \
+  uint32_t                  clock;                                          \
+  /* Shadow of the IER register, the peripheral overlays IER and DLH so a   \
+     read-modify-write is only safe while DLAB is known to be zero.*/       \
+  uint32_t                  ier;                                            \
+  /* Sticky line status bits captured by the handler, LSR clears on read    \
+     so the errors would otherwise be lost before the driver asks.*/        \
+  uint32_t                  lsr;                                            \
+  /* TX-end polling virtual timer, see the notes above.*/                   \
+  virtual_timer_t           txend_vt;                                       \
+  /* TX-end polling interval.*/                                             \
+  sysinterval_t             txend_step
+#else
 #define sio_lld_driver_fields                                               \
   /* Pointer to the UARTx registers block.*/                                \
   TI_UART_TypeDef           *uart;                                          \
@@ -98,6 +133,7 @@
   /* Sticky line status bits captured by the handler, LSR clears on read    \
      so the errors would otherwise be lost before the driver asks.*/        \
   uint32_t                  lsr
+#endif
 
 /**
  * @brief   Low level fields of the SIO configuration structure.
