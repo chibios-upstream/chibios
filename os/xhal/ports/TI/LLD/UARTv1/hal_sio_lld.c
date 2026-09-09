@@ -194,6 +194,32 @@ static void uart_txend_timer_cb(virtual_timer_t *vtp, void *p) {
 #endif /* defined(__CHIBIOS_RT__) */
 
 /**
+ * @brief   UART deactivation.
+ * @details Masks the sources, stops the TX-end machinery and puts the
+ *          peripheral back in its inert state. Shared by the stop path and
+ *          by the start failure rollback.
+ * @note    The vector is disabled before resetting the polling timer so
+ *          that the handler cannot re-arm it behind this function.
+ *
+ * @param[in] siop      pointer to the @p SIODriver object
+ */
+static void uart_deactivate(SIODriver *siop) {
+
+  uart_set_ier(siop, 0U);
+
+  /* The peripheral is inert with the mode disabled, which is also its
+     reset state, so a later start does not inherit half a setup.*/
+  siop->uart->MDR1 = TI_UART_MDR1_MODE_DISABLE;
+
+  vimDisableInterrupt(siop->irq);
+  vimSetHandler(siop->irq, NULL, NULL);
+
+#if defined(__CHIBIOS_RT__)
+  chVTReset(&siop->txend_vt);
+#endif
+}
+
+/**
  * @brief   Common interrupt service routine.
  *
  * @param[in] arg       pointer to the @p SIODriver object
@@ -320,23 +346,37 @@ bool sio_lld_is_tx_ongoing(SIODriver *siop) {
  * @notapi
  */
 msg_t sio_lld_start(SIODriver *siop) {
-  msg_t msg;
+  const SIOConfig *config = (const SIOConfig *)siop->config;
 
-  if (siop->state == HAL_DRV_STATE_STOP) {
+  /* Enables the peripheral. No state test here, drvStart() has already
+     moved the driver to HAL_DRV_STATE_STARTING by the time the LLD is
+     called, activation is simply what this method is for.*/
 #if AM67_SIO_USE_UART1 == TRUE
-    if (&SIOD1 == siop) {
-      vimSetHandler(siop->irq, uart_irq_handler, (void *)siop);
-      vimSetPriority(siop->irq, AM67_SIO_UART1_IRQ_PRIORITY);
-      vimEnableInterrupt(siop->irq);
-    }
+  if (&SIOD1 == siop) {
+    vimSetHandler(siop->irq, uart_irq_handler, (void *)siop);
+    vimSetPriority(siop->irq, AM67_SIO_UART1_IRQ_PRIORITY);
+    vimEnableInterrupt(siop->irq);
+  }
+  else
 #endif
+  {
+    chDbgAssert(false, "invalid SIO instance");
   }
 
-  /* Configures the peripheral.*/
-  msg = sio_lld_setcfg(siop, siop->config) == NULL ? HAL_RET_CONFIG_ERROR :
-                                                     HAL_RET_SUCCESS;
+  /* Configures the peripheral, the returned pointer is what the base
+     driver expects to find in the config field, including when the
+     default configuration was selected by a NULL.*/
+  siop->config = sio_lld_setcfg(siop, config);
+  if (siop->config == NULL) {
+    /* A rejected configuration must not leave the peripheral active, the
+       activation performed above is undone so that the shared driver
+       returns to the stop state cleanly.*/
+    uart_deactivate(siop);
 
-  return msg;
+    return HAL_RET_CONFIG_ERROR;
+  }
+
+  return HAL_RET_SUCCESS;
 }
 
 /**
@@ -348,20 +388,9 @@ msg_t sio_lld_start(SIODriver *siop) {
  */
 void sio_lld_stop(SIODriver *siop) {
 
-  if (siop->state == HAL_DRV_STATE_READY) {
-    uart_set_ier(siop, 0U);
-
-    /* The peripheral is inert with the mode disabled, which is also its
-       reset state, so a later start does not inherit half a setup.*/
-    siop->uart->MDR1 = TI_UART_MDR1_MODE_DISABLE;
-
-    vimDisableInterrupt(siop->irq);
-    vimSetHandler(siop->irq, NULL, NULL);
-
-#if defined(__CHIBIOS_RT__)
-    chVTReset(&siop->txend_vt);
-#endif
-  }
+  /* No state test here either, drvStop() has already moved the driver to
+     HAL_DRV_STATE_STOPPING before calling the LLD.*/
+  uart_deactivate(siop);
 }
 
 /**
