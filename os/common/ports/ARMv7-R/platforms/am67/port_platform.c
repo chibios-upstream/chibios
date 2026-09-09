@@ -95,6 +95,13 @@ static inline void vim_barrier(void) {
  *          write releases it. Both accesses are mandatory, including on a
  *          spurious activation, or the mask stays raised and no further
  *          interrupt of equal or lower priority is ever delivered.
+ * @note    The dispatch is bracketed by the kernel IRQ macros. Handlers
+ *          reached from here call the I-class API, which the system state
+ *          checker only permits inside a declared ISR, and the kernel's
+ *          interrupt statistics and tracing hang off the same brackets.
+ *          They do not interfere with the preemption-return convention:
+ *          @p PORT_IRQ_EPILOGUE() is empty on this port and preemption is
+ *          performed by the common assembly entry on the returned flag.
  *
  * @return              The preemption-required flag.
  *
@@ -103,6 +110,8 @@ static inline void vim_barrier(void) {
 bool __port_irq_dispatch(void) {
   uint32_t actirq, irq;
   bool preemption_required = false;
+
+  CH_IRQ_PROLOGUE();
 
   (void)*vim_reg(VIM_IRQVEC);
 
@@ -118,6 +127,8 @@ bool __port_irq_dispatch(void) {
   }
 
   *vim_reg(VIM_IRQVEC) = irq;
+
+  CH_IRQ_EPILOGUE();
 
   return preemption_required;
 }
