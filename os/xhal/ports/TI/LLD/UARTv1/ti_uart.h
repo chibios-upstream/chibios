@@ -102,6 +102,13 @@ typedef struct {
 #define TI_UART_LCR_BRK                     (1U << 6)
 #define TI_UART_LCR_DLAB                    (1U << 7)
 #define TI_UART_LCR_8N1                     TI_UART_LCR_WLS_8BIT
+/**
+ * @brief   LCR bits a configuration must not carry.
+ * @details @p TI_UART_LCR_DLAB left set would redirect THR and IER
+ *          accesses to the divisor latches, @p TI_UART_LCR_BRK would
+ *          start the line off in a break condition.
+ */
+#define TI_UART_LCR_CFG_FORBIDDEN           (TI_UART_LCR_DLAB | TI_UART_LCR_BRK)
 /** @} */
 
 /**

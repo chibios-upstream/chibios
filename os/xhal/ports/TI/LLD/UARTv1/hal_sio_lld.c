@@ -246,6 +246,11 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
     config = &default_config;
   }
 
+  /* Rejecting an invalid rate before using it as a divisor.*/
+  if (config->baud == 0U) {
+    return NULL;
+  }
+
   /* The 16x oversampling divisor must be representable and non zero.*/
   divisor = siop->clock / (16U * config->baud);
   if ((divisor == 0U) || (divisor > 0xFFFFU)) {
@@ -260,7 +265,11 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
   u->LCR = TI_UART_LCR_DLAB;
   u->RBR_THR_DLL = divisor & 0xFFU;
   u->IER_DLH = (divisor >> 8) & 0xFFU;
-  u->LCR = config->lcr;
+
+  /* DLAB is masked out of the stored line configuration, leaving it set
+     would keep THR and IER pointing at the divisor latches for the whole
+     session, and BRK would start the line off in a break condition.*/
+  u->LCR = config->lcr & ~TI_UART_LCR_CFG_FORBIDDEN;
 
   /* The FIFO reset bits are self clearing, they are only meaningful in the
      same write that enables the FIFOs.*/
