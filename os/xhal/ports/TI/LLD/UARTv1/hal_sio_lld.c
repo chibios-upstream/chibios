@@ -582,6 +582,14 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
      selected.*/
   u->MDR1 = TI_UART_MDR1_MODE_UART16X;
 
+  /* IER was cleared above to reprogram the divisor, and nothing outside
+     this function puts it back on a live reconfiguration: drvSetCfgX() and
+     drvSelectCfgX() reach the LLD directly, only drvStart() goes on to
+     apply the enabled set. Restoring it here keeps the peripheral in step
+     with the events the application has asked for. The vector is not
+     touched, that belongs to the receiver, see uart_arm_rx().*/
+  uart_set_ier(siop, uart_rx_ier(siop) | uart_tx_ier(siop));
+
 #if defined(__CHIBIOS_RT__)
   /* TX-end polling interval, about four character times assuming ten bits
      per frame, never less than one tick.*/
