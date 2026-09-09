@@ -30,6 +30,7 @@
 #define HAL_LLD_H
 
 #include "am67_registry.h"
+#include "am67_sci.h"
 
 /*===========================================================================*/
 /* Driver constants.                                                         */

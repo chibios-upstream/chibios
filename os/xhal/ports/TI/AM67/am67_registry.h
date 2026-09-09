@@ -30,6 +30,34 @@
 #define AM67_REGISTRY_H
 
 /*===========================================================================*/
+/* System controller interface.                                              */
+/*===========================================================================*/
+
+/**
+ * @name    TI-SCI transport
+ * @note    The secure proxy thread pair and the host identifier are not
+ *          discoverable, they are assigned to each core by the board
+ *          configuration the boot loader hands to the device manager. These
+ *          are the MCU-domain R5F values for J722S.
+ * @{
+ */
+#define AM67_SEC_PROXY_RT_BASE              0x4A600000U
+#define AM67_SEC_PROXY_SCFG_BASE            0x4A400000U
+#define AM67_SEC_PROXY_DATA_BASE            0x4D000000U
+#define AM67_SEC_PROXY_THREAD_STRIDE        0x1000U
+#define AM67_SEC_PROXY_SCFG_CTRL_OFF        0x1000U
+#define AM67_SEC_PROXY_DATA_FIRST           0x04U
+#define AM67_SEC_PROXY_DATA_LAST            0x3CU
+
+/** @brief Host identifier of the MCU domain R5F core.*/
+#define AM67_SCI_HOST_ID                    30U
+/** @brief Outbound, low priority request thread for that host.*/
+#define AM67_SEC_PROXY_TX_THREAD            19U
+/** @brief Inbound response thread for that host.*/
+#define AM67_SEC_PROXY_RX_THREAD            18U
+/** @} */
+
+/*===========================================================================*/
 /* Platform capabilities.                                                    */
 /*===========================================================================*/
 
@@ -58,6 +86,8 @@
 #define AM67_HAS_MAIN_UART1                 TRUE
 #define AM67_MAIN_UART1_BASE                0x02810000U
 #define AM67_MAIN_UART1_IRQ                 211U
+#define AM67_MAIN_UART1_SCI_DEV             152U
+#define AM67_MAIN_UART1_SCI_CLK             0U
 
 /* EHRPWM attributes.*/
 #define AM67_HAS_EPWM0                      TRUE

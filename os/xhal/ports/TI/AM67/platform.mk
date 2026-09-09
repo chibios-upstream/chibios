@@ -1,5 +1,6 @@
 # Required platform files.
-PLATFORMSRC := $(CHIBIOS)/os/xhal/ports/TI/AM67/hal_lld.c
+PLATFORMSRC := $(CHIBIOS)/os/xhal/ports/TI/AM67/hal_lld.c \
+               $(CHIBIOS)/os/xhal/ports/TI/AM67/am67_sci.c
 
 # Required include directories.
 PLATFORMINC := $(CHIBIOS)/os/xhal/ports/TI/AM67
