@@ -63,6 +63,14 @@
 
 /**
  * @brief   Initializes an empty memory pool.
+ * @note    When the pool is empty, the provider is called with the system
+ *          locked, even by @p chPoolAlloc(), and may run in ISR context
+ *          through @p chPoolAllocI(). It must follow I-class restrictions:
+ *          it must not block or change the system lock state.
+ * @note    The provider receives the object size and required alignment. It
+ *          must return a new block of at least that size with that alignment,
+ *          or @p NULL if no memory is available. @p chCoreAllocAlignedI() is
+ *          a suitable provider.
  *
  * @param[out] mp       pointer to a @p memory_pool_t object
  * @param[in] size      the size of the objects contained in this memory pool,
@@ -251,6 +259,8 @@ void chPoolFree(memory_pool_t *mp, void *objp) {
 void chGuardedPoolObjectInitAligned(guarded_memory_pool_t *gmp,
                                     size_t size,
                                     unsigned align) {
+
+  chDbgCheck(gmp != NULL);
 
   chPoolObjectInitAligned(&gmp->pool, size, align, NULL);
   chSemObjectInit(&gmp->sem, (cnt_t)0);
