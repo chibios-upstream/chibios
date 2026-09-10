@@ -39,6 +39,9 @@
  * - @subpage oslib_test_002_001
  * - @subpage oslib_test_002_002
  * - @subpage oslib_test_002_003
+ * - @subpage oslib_test_002_004
+ * - @subpage oslib_test_002_005
+ * - @subpage oslib_test_002_006
  * .
  */
 
@@ -52,6 +55,16 @@
 
 static msg_t mb_buffer[MB_SIZE];
 static MAILBOX_DECL(mb1, mb_buffer, MB_SIZE);
+
+#if CH_CFG_USE_OBJ_FIFOS == TRUE
+#define FIFO_SIZE 3U
+#define FIFO_OBJECT_SIZE MEM_ALIGN_NEXT(sizeof (void *), PORT_NATURAL_ALIGN)
+
+static objects_fifo_t fifo1;
+static ALIGNED_VAR(PORT_NATURAL_ALIGN)
+  uint8_t fifo_objects[FIFO_SIZE][FIFO_OBJECT_SIZE];
+static msg_t fifo_messages[FIFO_SIZE];
+#endif
 
 /*===========================================================================*/
 /* Test cases.                                                               */
@@ -410,6 +423,314 @@ static const testcase_t oslib_test_002_003 = {
   oslib_test_002_003_execute
 };
 
+/**
+ * @page oslib_test_002_004 [2.4] Mailbox post-ahead wraparound
+ *
+ * <h2>Description</h2>
+ * Repeated post-ahead operations wrap from the buffer base and
+ * decrement within the buffer. Capacities from one to four messages
+ * are checked using both S-class and I-class APIs.
+ *
+ * <h2>Test Steps</h2>
+ * - [2.4.1] Fill and drain each capacity repeatedly using S-class
+ *   post-ahead. Check read pointer positions, full rejection, reverse
+ *   message order and the final empty state.
+ * - [2.4.2] Repeat the capacity and wraparound checks using I-class
+ *   post-ahead and fetch operations.
+ * .
+ */
+
+static void oslib_test_002_004_setup(void) {
+  chMBObjectInit(&mb1, mb_buffer, MB_SIZE);
+}
+
+static void oslib_test_002_004_teardown(void) {
+  chMBReset(&mb1);
+}
+
+static void oslib_test_002_004_execute(void) {
+  msg_t msg1, msg2;
+  msg_t *rdptr;
+  size_t n, i, cycle;
+
+  /* [2.4.1] Fill and drain each capacity repeatedly using S-class
+     post-ahead. Check read pointer positions, full rejection, reverse
+     message order and the final empty state.*/
+  test_set_step(1);
+  {
+    for (n = 1U; n <= MB_SIZE; n++) {
+      chMBObjectInit(&mb1, mb_buffer, n);
+      for (cycle = 0U; cycle < 3U; cycle++) {
+        for (i = 0U; i < n; i++) {
+          chSysLock();
+          msg1 = chMBPostAheadTimeoutS(&mb1, (msg_t)i, TIME_IMMEDIATE);
+          rdptr = mb1.rdptr;
+          chSysUnlock();
+          test_assert(msg1 == MSG_OK, "post-ahead failed");
+          test_assert(rdptr == &mb_buffer[n - i - 1U], "wrong read pointer");
+        }
+        chSysLock();
+        msg1 = chMBPostAheadTimeoutS(&mb1, (msg_t)99, TIME_IMMEDIATE);
+        chSysUnlock();
+        test_assert(msg1 == MSG_TIMEOUT, "full mailbox accepted a message");
+        test_assert_lock(chMBGetUsedCountI(&mb1) == n, "wrong full count");
+        for (i = 0U; i < n; i++) {
+          chSysLock();
+          msg1 = chMBFetchTimeoutS(&mb1, &msg2, TIME_IMMEDIATE);
+          chSysUnlock();
+          test_assert(msg1 == MSG_OK, "fetch failed");
+          test_assert(msg2 == (msg_t)(n - i - 1U), "wrong message order");
+        }
+        test_assert_lock(chMBGetUsedCountI(&mb1) == 0U, "mailbox not empty");
+        test_assert_lock(chMBGetFreeCountI(&mb1) == n, "wrong free count");
+        test_assert(mb1.rdptr == mb_buffer, "read pointer not at base");
+        test_assert(mb1.wrptr == mb_buffer, "write pointer changed");
+      }
+    }
+  }
+  test_end_step(1);
+
+  /* [2.4.2] Repeat the capacity and wraparound checks using I-class
+     post-ahead and fetch operations.*/
+  test_set_step(2);
+  {
+    for (n = 1U; n <= MB_SIZE; n++) {
+      chMBObjectInit(&mb1, mb_buffer, n);
+      for (cycle = 0U; cycle < 3U; cycle++) {
+        for (i = 0U; i < n; i++) {
+          chSysLock();
+          msg1 = chMBPostAheadI(&mb1, (msg_t)i);
+          rdptr = mb1.rdptr;
+          chSysUnlock();
+          test_assert(msg1 == MSG_OK, "post-ahead failed");
+          test_assert(rdptr == &mb_buffer[n - i - 1U], "wrong read pointer");
+        }
+        chSysLock();
+        msg1 = chMBPostAheadI(&mb1, (msg_t)99);
+        chSysUnlock();
+        test_assert(msg1 == MSG_TIMEOUT, "full mailbox accepted a message");
+        test_assert_lock(chMBGetUsedCountI(&mb1) == n, "wrong full count");
+        for (i = 0U; i < n; i++) {
+          chSysLock();
+          msg1 = chMBFetchI(&mb1, &msg2);
+          chSysUnlock();
+          test_assert(msg1 == MSG_OK, "fetch failed");
+          test_assert(msg2 == (msg_t)(n - i - 1U), "wrong message order");
+        }
+        test_assert_lock(chMBGetUsedCountI(&mb1) == 0U, "mailbox not empty");
+        test_assert_lock(chMBGetFreeCountI(&mb1) == n, "wrong free count");
+        test_assert(mb1.rdptr == mb_buffer, "read pointer not at base");
+        test_assert(mb1.wrptr == mb_buffer, "write pointer changed");
+      }
+    }
+  }
+  test_end_step(2);
+}
+
+static const testcase_t oslib_test_002_004 = {
+  "Mailbox post-ahead wraparound",
+  oslib_test_002_004_setup,
+  oslib_test_002_004_teardown,
+  oslib_test_002_004_execute
+};
+
+#if (CH_CFG_USE_OBJ_FIFOS == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page oslib_test_002_005 [2.5] FIFO receive pointer round-trips
+ *
+ * <h2>Description</h2>
+ * All three FIFO receive variants return the original object pointers
+ * through pointer-typed output variables.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_USE_OBJ_FIFOS == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [2.5.1] Post objects and receive them using the I-class API,
+ *   checking pointer identity and restoring the free pool.
+ * - [2.5.2] Repeat the pointer round-trip check using the S-class
+ *   receive API.
+ * - [2.5.3] Repeat the pointer round-trip check using the ordinary
+ *   receive API.
+ * .
+ */
+
+static void oslib_test_002_005_setup(void) {
+  chFifoObjectInit(&fifo1, FIFO_OBJECT_SIZE, FIFO_SIZE,
+                   fifo_objects, fifo_messages);
+}
+
+static void oslib_test_002_005_execute(void) {
+  void *posted[FIFO_SIZE], *received;
+  msg_t msg;
+  unsigned i;
+
+  /* [2.5.1] Post objects and receive them using the I-class API,
+     checking pointer identity and restoring the free pool.*/
+  test_set_step(1);
+  {
+    for (i = 0U; i < FIFO_SIZE; i++) {
+      posted[i] = chFifoTakeObjectTimeout(&fifo1, TIME_IMMEDIATE);
+      test_assert(posted[i] != NULL, "no free object");
+      chFifoSendObject(&fifo1, posted[i]);
+    }
+    for (i = 0U; i < FIFO_SIZE; i++) {
+      received = &fifo1;
+      chSysLock();
+      msg = chFifoReceiveObjectI(&fifo1, &received);
+      chSysUnlock();
+      test_assert(msg == MSG_OK, "receive failed");
+      test_assert(received == posted[i], "wrong object pointer");
+      chFifoReturnObject(&fifo1, received);
+    }
+    test_assert_lock(chGuardedPoolGetCounterI(&fifo1.free) == FIFO_SIZE,
+                     "wrong free count");
+  }
+  test_end_step(1);
+
+  /* [2.5.2] Repeat the pointer round-trip check using the S-class
+     receive API.*/
+  test_set_step(2);
+  {
+    for (i = 0U; i < FIFO_SIZE; i++) {
+      posted[i] = chFifoTakeObjectTimeout(&fifo1, TIME_IMMEDIATE);
+      test_assert(posted[i] != NULL, "no free object");
+      chFifoSendObject(&fifo1, posted[i]);
+    }
+    for (i = 0U; i < FIFO_SIZE; i++) {
+      received = &fifo1;
+      chSysLock();
+      msg = chFifoReceiveObjectTimeoutS(&fifo1, &received, TIME_IMMEDIATE);
+      chSysUnlock();
+      test_assert(msg == MSG_OK, "receive failed");
+      test_assert(received == posted[i], "wrong object pointer");
+      chFifoReturnObject(&fifo1, received);
+    }
+    test_assert_lock(chGuardedPoolGetCounterI(&fifo1.free) == FIFO_SIZE,
+                     "wrong free count");
+  }
+  test_end_step(2);
+
+  /* [2.5.3] Repeat the pointer round-trip check using the ordinary
+     receive API.*/
+  test_set_step(3);
+  {
+    for (i = 0U; i < FIFO_SIZE; i++) {
+      posted[i] = chFifoTakeObjectTimeout(&fifo1, TIME_IMMEDIATE);
+      test_assert(posted[i] != NULL, "no free object");
+      chFifoSendObject(&fifo1, posted[i]);
+    }
+    for (i = 0U; i < FIFO_SIZE; i++) {
+      received = &fifo1;
+      msg = chFifoReceiveObjectTimeout(&fifo1, &received, TIME_IMMEDIATE);
+      test_assert(msg == MSG_OK, "receive failed");
+      test_assert(received == posted[i], "wrong object pointer");
+      chFifoReturnObject(&fifo1, received);
+    }
+    test_assert_lock(chGuardedPoolGetCounterI(&fifo1.free) == FIFO_SIZE,
+                     "wrong free count");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t oslib_test_002_005 = {
+  "FIFO receive pointer round-trips",
+  oslib_test_002_005_setup,
+  NULL,
+  oslib_test_002_005_execute
+};
+#endif /* CH_CFG_USE_OBJ_FIFOS == TRUE */
+
+#if (CH_CFG_USE_OBJ_FIFOS == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page oslib_test_002_006 [2.6] FIFO receive timeouts preserve output
+ *
+ * <h2>Description</h2>
+ * Immediate and finite receive timeouts leave the caller's output
+ * pointer unchanged.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_USE_OBJ_FIFOS == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [2.6.1] Receive from an empty FIFO using the I-class API. The
+ *   timeout must not overwrite the output pointer.
+ * - [2.6.2] Check unchanged output for both immediate and finite
+ *   timeouts using the S-class receive API.
+ * - [2.6.3] Check unchanged output for both immediate and finite
+ *   timeouts using the ordinary receive API.
+ * .
+ */
+
+static void oslib_test_002_006_setup(void) {
+  chFifoObjectInit(&fifo1, FIFO_OBJECT_SIZE, FIFO_SIZE,
+                   fifo_objects, fifo_messages);
+}
+
+static void oslib_test_002_006_execute(void) {
+  void *received;
+  msg_t msg;
+
+  /* [2.6.1] Receive from an empty FIFO using the I-class API. The
+     timeout must not overwrite the output pointer.*/
+  test_set_step(1);
+  {
+    received = &fifo1;
+    chSysLock();
+    msg = chFifoReceiveObjectI(&fifo1, &received);
+    chSysUnlock();
+    test_assert(msg == MSG_TIMEOUT, "unexpected receive status");
+    test_assert(received == &fifo1, "output changed on timeout");
+  }
+  test_end_step(1);
+
+  /* [2.6.2] Check unchanged output for both immediate and finite
+     timeouts using the S-class receive API.*/
+  test_set_step(2);
+  {
+    received = &fifo1;
+    chSysLock();
+    msg = chFifoReceiveObjectTimeoutS(&fifo1, &received, TIME_IMMEDIATE);
+    chSysUnlock();
+    test_assert(msg == MSG_TIMEOUT, "unexpected receive status");
+    test_assert(received == &fifo1, "output changed on immediate timeout");
+    chSysLock();
+    msg = chFifoReceiveObjectTimeoutS(&fifo1, &received, (sysinterval_t)1);
+    chSysUnlock();
+    test_assert(msg == MSG_TIMEOUT, "unexpected receive status");
+    test_assert(received == &fifo1, "output changed on finite timeout");
+  }
+  test_end_step(2);
+
+  /* [2.6.3] Check unchanged output for both immediate and finite
+     timeouts using the ordinary receive API.*/
+  test_set_step(3);
+  {
+    received = &fifo1;
+    msg = chFifoReceiveObjectTimeout(&fifo1, &received, TIME_IMMEDIATE);
+    test_assert(msg == MSG_TIMEOUT, "unexpected receive status");
+    test_assert(received == &fifo1, "output changed on immediate timeout");
+    msg = chFifoReceiveObjectTimeout(&fifo1, &received, (sysinterval_t)1);
+    test_assert(msg == MSG_TIMEOUT, "unexpected receive status");
+    test_assert(received == &fifo1, "output changed on finite timeout");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t oslib_test_002_006 = {
+  "FIFO receive timeouts preserve output",
+  oslib_test_002_006_setup,
+  NULL,
+  oslib_test_002_006_execute
+};
+#endif /* CH_CFG_USE_OBJ_FIFOS == TRUE */
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -421,6 +742,13 @@ const testcase_t * const oslib_test_sequence_002_array[] = {
   &oslib_test_002_001,
   &oslib_test_002_002,
   &oslib_test_002_003,
+  &oslib_test_002_004,
+#if (CH_CFG_USE_OBJ_FIFOS == TRUE) || defined(__DOXYGEN__)
+  &oslib_test_002_005,
+#endif
+#if (CH_CFG_USE_OBJ_FIFOS == TRUE) || defined(__DOXYGEN__)
+  &oslib_test_002_006,
+#endif
   NULL
 };
 

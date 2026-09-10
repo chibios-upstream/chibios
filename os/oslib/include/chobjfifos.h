@@ -359,9 +359,10 @@ static inline void chFifoSendObjectAhead(objects_fifo_t *ofp, void *objp) {
 
 /**
  * @brief   Fetches an object.
+ * @post    The output pointer is updated only if the operation succeeds.
  *
  * @param[in] ofp       pointer to a @p objects_fifo_t object
- * @param[in] objpp     pointer to the fetched object reference
+ * @param[out] objpp    pointer to the fetched object reference
  * @return              The operation status.
  * @retval MSG_OK       if an object has been correctly fetched.
  * @retval MSG_TIMEOUT  if the FIFO is empty and a message cannot be fetched.
@@ -370,8 +371,16 @@ static inline void chFifoSendObjectAhead(objects_fifo_t *ofp, void *objp) {
  */
 static inline msg_t chFifoReceiveObjectI(objects_fifo_t *ofp,
                                          void **objpp) {
+  msg_t msg, rdymsg;
 
-  return chMBFetchI(&ofp->mbx, (msg_t *)objpp);
+  chDbgCheck((ofp != NULL) && (objpp != NULL));
+
+  rdymsg = chMBFetchI(&ofp->mbx, &msg);
+  if (rdymsg == MSG_OK) {
+    *objpp = (void *)msg;
+  }
+
+  return rdymsg;
 }
 
 /**
@@ -381,9 +390,10 @@ static inline msg_t chFifoReceiveObjectI(objects_fifo_t *ofp,
  *          competing receiver fetches it first, waiting restarts with the
  *          original timeout. Repeated competition can therefore extend the
  *          total operation time indefinitely.
+ * @post    The output pointer is updated only if the operation succeeds.
  *
  * @param[in] ofp       pointer to a @p objects_fifo_t object
- * @param[in] objpp     pointer to the fetched object reference
+ * @param[out] objpp    pointer to the fetched object reference
  * @param[in] timeout   number of ticks per wait,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
@@ -397,8 +407,16 @@ static inline msg_t chFifoReceiveObjectI(objects_fifo_t *ofp,
 static inline msg_t chFifoReceiveObjectTimeoutS(objects_fifo_t *ofp,
                                                 void **objpp,
                                                 sysinterval_t timeout) {
+  msg_t msg, rdymsg;
 
-  return chMBFetchTimeoutS(&ofp->mbx, (msg_t *)objpp, timeout);
+  chDbgCheck((ofp != NULL) && (objpp != NULL));
+
+  rdymsg = chMBFetchTimeoutS(&ofp->mbx, &msg, timeout);
+  if (rdymsg == MSG_OK) {
+    *objpp = (void *)msg;
+  }
+
+  return rdymsg;
 }
 
 /**
@@ -408,9 +426,10 @@ static inline msg_t chFifoReceiveObjectTimeoutS(objects_fifo_t *ofp,
  *          competing receiver fetches it first, waiting restarts with the
  *          original timeout. Repeated competition can therefore extend the
  *          total operation time indefinitely.
+ * @post    The output pointer is updated only if the operation succeeds.
  *
  * @param[in] ofp       pointer to a @p objects_fifo_t object
- * @param[in] objpp     pointer to the fetched object reference
+ * @param[out] objpp    pointer to the fetched object reference
  * @param[in] timeout   number of ticks per wait,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
@@ -424,8 +443,16 @@ static inline msg_t chFifoReceiveObjectTimeoutS(objects_fifo_t *ofp,
 static inline msg_t chFifoReceiveObjectTimeout(objects_fifo_t *ofp,
                                                void **objpp,
                                                sysinterval_t timeout) {
+  msg_t msg, rdymsg;
 
-  return chMBFetchTimeout(&ofp->mbx, (msg_t *)objpp, timeout);
+  chDbgCheck((ofp != NULL) && (objpp != NULL));
+
+  rdymsg = chMBFetchTimeout(&ofp->mbx, &msg, timeout);
+  if (rdymsg == MSG_OK) {
+    *objpp = (void *)msg;
+  }
+
+  return rdymsg;
 }
 
 #endif /* CH_CFG_USE_OBJ_FIFOS == TRUE */

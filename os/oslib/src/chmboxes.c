@@ -375,8 +375,11 @@ msg_t chMBPostAheadTimeoutS(mailbox_t *mbp, msg_t msg, sysinterval_t timeout) {
 
     /* Is there a free message slot in queue? if so then post.*/
     if (chMBGetFreeCountI(mbp) > (size_t)0) {
-      if (--mbp->rdptr < mbp->buffer) {
+      if (mbp->rdptr == mbp->buffer) {
         mbp->rdptr = mbp->top - 1;
+      }
+      else {
+        mbp->rdptr--;
       }
       *mbp->rdptr = msg;
       mbp->cnt++;
@@ -422,8 +425,11 @@ msg_t chMBPostAheadI(mailbox_t *mbp, msg_t msg) {
 
   /* Is there a free message slot in queue? if so then post.*/
   if (chMBGetFreeCountI(mbp) > (size_t)0) {
-    if (--mbp->rdptr < mbp->buffer) {
+    if (mbp->rdptr == mbp->buffer) {
       mbp->rdptr = mbp->top - 1;
+    }
+    else {
+      mbp->rdptr--;
     }
     *mbp->rdptr = msg;
     mbp->cnt++;
