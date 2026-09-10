@@ -376,10 +376,15 @@ static inline msg_t chFifoReceiveObjectI(objects_fifo_t *ofp,
 
 /**
  * @brief   Fetches an object.
+ * @note    A finite timeout applies to each individual wait, not to the
+ *          whole operation. A wakeup does not reserve an object. If a
+ *          competing receiver fetches it first, waiting restarts with the
+ *          original timeout. Repeated competition can therefore extend the
+ *          total operation time indefinitely.
  *
  * @param[in] ofp       pointer to a @p objects_fifo_t object
  * @param[in] objpp     pointer to the fetched object reference
- * @param[in] timeout   number of ticks before the operation times out,
+ * @param[in] timeout   number of ticks per wait,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -398,10 +403,15 @@ static inline msg_t chFifoReceiveObjectTimeoutS(objects_fifo_t *ofp,
 
 /**
  * @brief   Fetches an object.
+ * @note    A finite timeout applies to each individual wait, not to the
+ *          whole operation. A wakeup does not reserve an object. If a
+ *          competing receiver fetches it first, waiting restarts with the
+ *          original timeout. Repeated competition can therefore extend the
+ *          total operation time indefinitely.
  *
  * @param[in] ofp       pointer to a @p objects_fifo_t object
  * @param[in] objpp     pointer to the fetched object reference
- * @param[in] timeout   number of ticks before the operation times out,
+ * @param[in] timeout   number of ticks per wait,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
