@@ -75,6 +75,7 @@ typedef struct {
 #if (CH_CFG_USE_SEMAPHORES == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Guarded memory pool descriptor.
+ * @note    The number of free objects must not exceed @p SEMAPHORE_MAX_COUNT.
  */
 typedef struct {
   semaphore_t           sem;            /**< @brief Counter semaphore guarding

@@ -294,6 +294,8 @@ void chGuardedPoolObjectDispose(guarded_memory_pool_t *gmp) {
  * @pre     The guarded memory pool must already be initialized.
  * @pre     The array elements must be of the right size for the specified
  *          guarded memory pool.
+ * @pre     The resulting number of free objects must not exceed
+ *          @p SEMAPHORE_MAX_COUNT.
  * @post    The guarded memory pool contains the elements of the input array.
  *
  * @param[in] gmp       pointer to a @p guarded_memory_pool_t object

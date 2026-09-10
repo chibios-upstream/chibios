@@ -154,10 +154,13 @@ void chMBReset(mailbox_t *mbp) {
  * @post    The mailbox is in reset state, all operations will fail and
  *          return @p MSG_RESET until the mailbox is enabled again using
  *          @p chMBResumeX().
+ * @note    This function does not reschedule. When called from thread context,
+ *          reschedule before unlocking the kernel. Interrupt handlers
+ *          reschedule on exit and must not explicitly reschedule here.
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  *
- * @api
+ * @iclass
  */
 void chMBResetI(mailbox_t *mbp) {
 

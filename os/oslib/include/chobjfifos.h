@@ -111,11 +111,14 @@ extern "C" {
  * @brief   Initializes a FIFO object.
  * @pre     The objects size must be a multiple of the alignment
  *          requirement.
+ * @pre     The number of objects must be between one and
+ *          @p SEMAPHORE_MAX_COUNT, inclusive.
  *
  * @param[out] ofp      pointer to a @p objects_fifo_t object
  * @param[in] objsize   object size
  * @param[in] objn      number of objects available
- * @param[in] objalign  required objects alignment
+ * @param[in] objalign  required objects alignment, a power of two not smaller
+ *                      than @p PORT_NATURAL_ALIGN
  * @param[in] objbuf    pointer to the buffer of objects, it must be able
  *                      to hold @p objn objects of @p objsize size with
  *                      @p objalign alignment
@@ -128,7 +131,11 @@ static inline void chFifoObjectInitAligned(objects_fifo_t *ofp, size_t objsize,
                                            size_t objn, unsigned objalign,
                                            void *objbuf, msg_t *msgbuf) {
 
-  chDbgCheck((objsize >= objalign) && ((objsize % objalign) == 0U));
+  chDbgCheck((ofp != NULL) && (objbuf != NULL) && (msgbuf != NULL));
+  chDbgCheck((objn > 0U) && (objn <= (size_t)SEMAPHORE_MAX_COUNT));
+  chDbgCheck(MEM_IS_VALID_ALIGNMENT(objalign) &&
+             (objalign >= PORT_NATURAL_ALIGN) &&
+             (objsize >= objalign) && ((objsize % objalign) == 0U));
 
   chGuardedPoolObjectInitAligned(&ofp->free, objsize, objalign);
   chGuardedPoolLoadArray(&ofp->free, objbuf, objn);
@@ -139,6 +146,8 @@ static inline void chFifoObjectInitAligned(objects_fifo_t *ofp, size_t objsize,
  * @brief   Initializes a FIFO object.
  * @pre     The objects size must be a multiple of the alignment
  *          requirement.
+ * @pre     The number of objects must be between one and
+ *          @p SEMAPHORE_MAX_COUNT, inclusive.
  *
  * @param[out] ofp      pointer to a @p objects_fifo_t object
  * @param[in] objsize   object size
@@ -153,6 +162,8 @@ static inline void chFifoObjectInitAligned(objects_fifo_t *ofp, size_t objsize,
 static inline void chFifoObjectInit(objects_fifo_t *ofp, size_t objsize,
                                     size_t objn, void *objbuf,
                                     msg_t *msgbuf) {
+
+  chDbgCheck(ofp != NULL);
 
   chFifoObjectInitAligned(ofp, objsize, objn,
                           PORT_NATURAL_ALIGN,
@@ -169,6 +180,8 @@ static inline void chFifoObjectInit(objects_fifo_t *ofp, size_t objsize,
  * @iclass
  */
 static inline void *chFifoTakeObjectI(objects_fifo_t *ofp) {
+
+  chDbgCheck(ofp != NULL);
 
   return chGuardedPoolAllocI(&ofp->free);
 }
@@ -190,6 +203,8 @@ static inline void *chFifoTakeObjectI(objects_fifo_t *ofp) {
 static inline void *chFifoTakeObjectTimeoutS(objects_fifo_t *ofp,
                                              sysinterval_t timeout) {
 
+  chDbgCheck(ofp != NULL);
+
   return chGuardedPoolAllocTimeoutS(&ofp->free, timeout);
 }
 
@@ -210,6 +225,8 @@ static inline void *chFifoTakeObjectTimeoutS(objects_fifo_t *ofp,
 static inline void *chFifoTakeObjectTimeout(objects_fifo_t *ofp,
                                             sysinterval_t timeout) {
 
+  chDbgCheck(ofp != NULL);
+
   return chGuardedPoolAllocTimeout(&ofp->free, timeout);
 }
 
@@ -223,6 +240,8 @@ static inline void *chFifoTakeObjectTimeout(objects_fifo_t *ofp,
  */
 static inline void chFifoReturnObjectI(objects_fifo_t *ofp,
                                        void *objp) {
+
+  chDbgCheck(ofp != NULL);
 
   chGuardedPoolFreeI(&ofp->free, objp);
 }
@@ -238,6 +257,8 @@ static inline void chFifoReturnObjectI(objects_fifo_t *ofp,
 static inline void chFifoReturnObjectS(objects_fifo_t *ofp,
                                        void *objp) {
 
+  chDbgCheck(ofp != NULL);
+
   chGuardedPoolFreeS(&ofp->free, objp);
 }
 
@@ -251,6 +272,8 @@ static inline void chFifoReturnObjectS(objects_fifo_t *ofp,
  */
 static inline void chFifoReturnObject(objects_fifo_t *ofp,
                                       void *objp) {
+
+  chDbgCheck(ofp != NULL);
 
   chGuardedPoolFree(&ofp->free, objp);
 }
@@ -267,6 +290,8 @@ static inline void chFifoReturnObject(objects_fifo_t *ofp,
 static inline void chFifoSendObjectI(objects_fifo_t *ofp,
                                      void *objp) {
   msg_t msg;
+
+  chDbgCheck(ofp != NULL);
 
   msg = chMBPostI(&ofp->mbx, (msg_t)objp);
   chDbgAssert(msg == MSG_OK, "post failed");
@@ -285,6 +310,8 @@ static inline void chFifoSendObjectS(objects_fifo_t *ofp,
                                      void *objp) {
   msg_t msg;
 
+  chDbgCheck(ofp != NULL);
+
   msg = chMBPostTimeoutS(&ofp->mbx, (msg_t)objp, TIME_IMMEDIATE);
   chDbgAssert(msg == MSG_OK, "post failed");
 }
@@ -301,6 +328,8 @@ static inline void chFifoSendObjectS(objects_fifo_t *ofp,
 static inline void chFifoSendObject(objects_fifo_t *ofp, void *objp) {
 
   msg_t msg;
+
+  chDbgCheck(ofp != NULL);
 
   msg = chMBPostTimeout(&ofp->mbx, (msg_t)objp, TIME_IMMEDIATE);
   chDbgAssert(msg == MSG_OK, "post failed");
@@ -319,6 +348,8 @@ static inline void chFifoSendObjectAheadI(objects_fifo_t *ofp,
                                           void *objp) {
   msg_t msg;
 
+  chDbgCheck(ofp != NULL);
+
   msg = chMBPostAheadI(&ofp->mbx, (msg_t)objp);
   chDbgAssert(msg == MSG_OK, "post failed");
 }
@@ -336,6 +367,8 @@ static inline void chFifoSendObjectAheadS(objects_fifo_t *ofp,
                                           void *objp) {
   msg_t msg;
 
+  chDbgCheck(ofp != NULL);
+
   msg = chMBPostAheadTimeoutS(&ofp->mbx, (msg_t)objp, TIME_IMMEDIATE);
   chDbgAssert(msg == MSG_OK, "post failed");
 }
@@ -352,6 +385,8 @@ static inline void chFifoSendObjectAheadS(objects_fifo_t *ofp,
 static inline void chFifoSendObjectAhead(objects_fifo_t *ofp, void *objp) {
 
   msg_t msg;
+
+  chDbgCheck(ofp != NULL);
 
   msg = chMBPostAheadTimeout(&ofp->mbx, (msg_t)objp, TIME_IMMEDIATE);
   chDbgAssert(msg == MSG_OK, "post failed");
