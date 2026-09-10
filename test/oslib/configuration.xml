@@ -2011,7 +2011,8 @@ test_assert(chPoolAlloc(&mp1) == NULL, "provider returned memory");]]></value>
 #define HEAP_SIZE (ALLOC_SIZE * 8)
 
 static memory_heap_t test_heap;
-static uint8_t test_heap_buffer[HEAP_SIZE];]]></value>
+static uint8_t test_heap_buffer[HEAP_SIZE];
+static ALIGNED_VAR(CH_HEAP_ALIGNMENT) heap_header_t integrity_buffer[8];]]></value>
       </shared_code>
       <cases>
         <case>
@@ -2274,6 +2275,324 @@ chHeapFree(p1);]]></value>
               <code>
                 <value><![CDATA[p1 = chHeapAlloc(NULL, (size_t)-256);
 test_assert(p1 == NULL, "allocation not failed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Heap header bounds</value>
+          </brief>
+          <description>
+            <value>The integrity checker rejects headers outside the heap
+              or only partially contained in it. All test headers have valid
+              backing storage, so no fault or kernel assertion is expected.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chHeapObjectInit(&test_heap, &integrity_buffer[1],
+                 2U * sizeof (heap_header_t));
+integrity_buffer[0].free.next = NULL;
+integrity_buffer[0].free.pages = 0U;
+integrity_buffer[3].free.next = NULL;
+integrity_buffer[3].free.pages = 0U;]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chHeapObjectDispose(&test_heap);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[heap_header_t *saved;
+size_t saved_size;
+bool failed;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The initial heap must pass the integrity check.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(!chHeapIntegrityCheck(&test_heap), "initial integrity failure");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A header below the heap base must be rejected.
+                  Restore the link before checking the result.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[saved = test_heap.header.free.next;
+test_heap.header.free.next = &integrity_buffer[0];
+failed = chHeapIntegrityCheck(&test_heap);
+test_heap.header.free.next = saved;
+test_assert(failed, "header below base accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A header at the first address beyond the heap must
+                  be rejected. Restore the link before checking the result.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[saved = test_heap.header.free.next;
+test_heap.header.free.next = &integrity_buffer[3];
+failed = chHeapIntegrityCheck(&test_heap);
+test_heap.header.free.next = saved;
+test_assert(failed, "header beyond heap accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A header whose final byte is outside the heap must
+                  be rejected. Restore the area before checking the result.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[saved_size = test_heap.area.size;
+test_heap.area.size = sizeof (heap_header_t) - 1U;
+failed = chHeapIntegrityCheck(&test_heap);
+test_heap.area.size = saved_size;
+test_assert(failed, "partial header accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An out-of-area link after a valid header must also
+                  be rejected. Restore the link before checking the result.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[saved = integrity_buffer[1].free.next;
+integrity_buffer[1].free.next = &integrity_buffer[3];
+failed = chHeapIntegrityCheck(&test_heap);
+integrity_buffer[1].free.next = saved;
+test_assert(failed, "later out-of-area header accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Heap block sizes</value>
+          </brief>
+          <description>
+            <value>Block sizes must be representable in bytes and fit the
+              heap area. Invalid page counts are restored before checking
+              test results.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chHeapObjectInit(&test_heap, integrity_buffer,
+                 sizeof (integrity_buffer));]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chHeapObjectDispose(&test_heap);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[heap_header_t *hp;
+size_t saved_pages;
+bool failed;
+
+hp = test_heap.header.free.next;
+saved_pages = hp->free.pages;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The initial block ending exactly at the heap limit
+                  must pass the check.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(!chHeapIntegrityCheck(&test_heap), "exact-fit block rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A page count that would wrap the byte size to one
+                  header must be rejected.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[hp->free.pages = (SIZE_MAX / sizeof (heap_header_t)) + 1U;
+failed = chHeapIntegrityCheck(&test_heap);
+hp->free.pages = saved_pages;
+test_assert(failed, "wrapped block size accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A page count whose header addition would wrap must
+                  be rejected.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[hp->free.pages = SIZE_MAX;
+failed = chHeapIntegrityCheck(&test_heap);
+hp->free.pages = saved_pages;
+test_assert(failed, "wrapped page count accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The first page count whose full byte size cannot be
+                  represented must be rejected.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[hp->free.pages = SIZE_MAX / sizeof (heap_header_t);
+failed = chHeapIntegrityCheck(&test_heap);
+hp->free.pages = saved_pages;
+test_assert(failed, "unrepresentable block size accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A representable byte size that exceeds this heap
+                  must still be rejected.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[hp->free.pages = (SIZE_MAX / sizeof (heap_header_t)) - 1U;
+failed = chHeapIntegrityCheck(&test_heap);
+hp->free.pages = saved_pages;
+test_assert(failed, "block outside heap accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A block exceeding the heap by one page must be
+                  rejected.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[hp->free.pages = saved_pages + 1U;
+failed = chHeapIntegrityCheck(&test_heap);
+hp->free.pages = saved_pages;
+test_assert(failed, "block beyond heap limit accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Heap block overlap</value>
+          </brief>
+          <description>
+            <value>Free block extents must not overlap, while separated
+              blocks and zero-page fragments remain valid. Link-order and
+              loop checks must be preserved.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chHeapObjectInit(&test_heap, integrity_buffer,
+                 sizeof (integrity_buffer));]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chHeapObjectDispose(&test_heap);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[heap_header_t *hp, *next;
+heap_header_t saved;
+void *p;
+bool failed;
+
+hp = test_heap.header.free.next;
+next = &integrity_buffer[4];
+saved = *hp;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Ascending headers whose blocks overlap by one
+                  header must be rejected even though both blocks fit
+                  individually in the heap.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[hp->free.pages = 4U;
+hp->free.next = next;
+next->free.pages = 3U;
+next->free.next = NULL;
+failed = chHeapIntegrityCheck(&test_heap);
+*hp = saved;
+test_assert(failed, "overlapping blocks accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Separated free blocks, including one ending at the
+                  heap limit, must pass the check.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[hp->free.pages = 1U;
+hp->free.next = next;
+next->free.pages = 3U;
+next->free.next = NULL;
+failed = chHeapIntegrityCheck(&test_heap);
+*hp = saved;
+test_assert(!failed, "separated blocks rejected");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An allocation leaving a zero-page tail fragment
+                  must pass the check, as must the heap after freeing it.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = chHeapAlloc(&test_heap, 6U * sizeof (heap_header_t));
+test_assert(p != NULL, "allocation failed");
+test_assert(test_heap.header.free.next == &integrity_buffer[7], "wrong tail header");
+test_assert(integrity_buffer[7].free.pages == 0U, "tail is not zero-page");
+failed = chHeapIntegrityCheck(&test_heap);
+chHeapFree(p);
+test_assert(!failed, "zero-page fragment rejected");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Self-links and backward links must still be
+                  rejected without looping.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[hp->free.next = hp;
+failed = chHeapIntegrityCheck(&test_heap);
+*hp = saved;
+test_assert(failed, "self-link accepted");
+
+hp->free.pages = 0U;
+hp->free.next = next;
+next->free.pages = 0U;
+next->free.next = hp;
+failed = chHeapIntegrityCheck(&test_heap);
+*hp = saved;
+test_assert(failed, "backward link accepted");
+test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></value>
               </code>
             </step>
           </steps>
@@ -3055,6 +3374,291 @@ test_assert(dpp->element.refs == 1, "references mismatch");]]></value>
               <code>
                 <value><![CDATA[dpp = chFactoryFindPipe("mypipe");
 test_assert(dpp == NULL, "found");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>Core Memory</value>
+      </brief>
+      <description>
+        <value>This sequence tests core allocation boundaries and verifies
+          that failed requests leave the allocator unchanged.</value>
+      </description>
+      <condition>
+        <value>CH_CFG_USE_MEMCORE == TRUE</value>
+      </condition>
+      <shared_code>
+        <value><![CDATA[static ALIGNED_VAR(16) uint8_t core_buffer[64];
+
+/* The real allocator is restored before unlocking or checking test results.
+   No test assertion or rescheduling operation runs with the test arena
+   installed.*/
+static void *core_alloc(memgetfunc2_t allocp, size_t base, size_t top,
+                        size_t size, unsigned align, size_t offset,
+                        memcore_t *resultp) {
+  memcore_t saved;
+  void *p;
+
+  chSysLock();
+  saved = ch_memcore;
+  ch_memcore.basemem = &core_buffer[base];
+  ch_memcore.topmem = &core_buffer[top];
+  p = allocp(size, align, offset);
+  *resultp = ch_memcore;
+  ch_memcore = saved;
+  chSysUnlock();
+
+  return p;
+}]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Allocation from base</value>
+          </brief>
+          <description>
+            <value>Base allocation rejects oversized requests and accounts
+              for prefix and alignment space before accepting a block.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[memcore_t result;
+void *p;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A maximum-size request with a prefix must fail
+                  without changing either boundary.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromBaseI, 0U, 64U, SIZE_MAX,
+               8U, 8U, &result);
+test_assert(p == NULL, "oversized allocation accepted");
+test_assert(result.basemem == &core_buffer[0], "base changed");
+test_assert(result.topmem == &core_buffer[64], "top changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A maximum-size prefix must fail without changing
+                  either boundary.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromBaseI, 0U, 64U, 1U,
+               8U, SIZE_MAX, &result);
+test_assert(p == NULL, "oversized prefix accepted");
+test_assert(result.basemem == &core_buffer[0], "base changed");
+test_assert(result.topmem == &core_buffer[64], "top changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A request one byte larger than the arena must fail
+                  without changing either boundary.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromBaseI, 0U, 64U, 65U,
+               1U, 0U, &result);
+test_assert(p == NULL, "allocation beyond top accepted");
+test_assert(result.basemem == &core_buffer[0], "base changed");
+test_assert(result.topmem == &core_buffer[64], "top changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Alignment must leave room for both the returned
+                  pointer and the requested bytes.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromBaseI, 0U, 15U, 1U,
+               16U, 1U, &result);
+test_assert(p == NULL, "alignment beyond top accepted");
+test_assert(result.basemem == &core_buffer[0], "base changed");
+test_assert(result.topmem == &core_buffer[15], "top changed");
+
+p = core_alloc(chCoreAllocFromBaseI, 1U, 16U, 9U,
+               8U, 0U, &result);
+test_assert(p == NULL, "alignment padding ignored");
+test_assert(result.basemem == &core_buffer[1], "base changed");
+test_assert(result.topmem == &core_buffer[16], "top changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An exact fit including prefix and alignment
+                  padding must succeed.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromBaseI, 0U, 64U, 48U,
+               16U, 9U, &result);
+test_assert(p == &core_buffer[16], "wrong aligned pointer");
+test_assert(result.basemem == &core_buffer[64], "wrong base");
+test_assert(result.topmem == &core_buffer[64], "top changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An empty aligned arena accepts a zero-size request
+                  but rejects a nonzero request.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromBaseI, 16U, 16U, 0U,
+               16U, 0U, &result);
+test_assert(p == &core_buffer[16], "zero-size allocation failed");
+test_assert(result.basemem == &core_buffer[16], "base changed");
+test_assert(result.topmem == &core_buffer[16], "top changed");
+
+p = core_alloc(chCoreAllocFromBaseI, 16U, 16U, 1U,
+               16U, 0U, &result);
+test_assert(p == NULL, "empty arena allocation accepted");
+test_assert(result.basemem == &core_buffer[16], "base changed");
+test_assert(result.topmem == &core_buffer[16], "top changed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Allocation from top</value>
+          </brief>
+          <description>
+            <value>Top allocation rejects oversized requests and accounts
+              for prefix and alignment space before accepting a block.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[memcore_t result;
+void *p;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A near-maximum prefix must fail without changing
+                  either boundary.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromTopI, 0U, 64U, 8U,
+               8U, SIZE_MAX - 7U, &result);
+test_assert(p == NULL, "oversized prefix accepted");
+test_assert(result.basemem == &core_buffer[0], "base changed");
+test_assert(result.topmem == &core_buffer[64], "top changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A maximum-size request must fail without changing
+                  either boundary.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromTopI, 0U, 64U, SIZE_MAX,
+               8U, 0U, &result);
+test_assert(p == NULL, "oversized allocation accepted");
+test_assert(result.basemem == &core_buffer[0], "base changed");
+test_assert(result.topmem == &core_buffer[64], "top changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A prefix that exceeds the remaining space by one
+                  byte must fail without changing either boundary.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromTopI, 0U, 64U, 1U,
+               1U, 64U, &result);
+test_assert(p == NULL, "prefix beyond base accepted");
+test_assert(result.basemem == &core_buffer[0], "base changed");
+test_assert(result.topmem == &core_buffer[64], "top changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Alignment must leave room for both the returned
+                  pointer and the prefix.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromTopI, 1U, 16U, 9U,
+               8U, 0U, &result);
+test_assert(p == NULL, "alignment below base accepted");
+test_assert(result.basemem == &core_buffer[1], "base changed");
+test_assert(result.topmem == &core_buffer[16], "top changed");
+
+p = core_alloc(chCoreAllocFromTopI, 1U, 17U, 1U,
+               8U, 16U, &result);
+test_assert(p == NULL, "alignment padding ignored");
+test_assert(result.basemem == &core_buffer[1], "base changed");
+test_assert(result.topmem == &core_buffer[17], "top changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An exact fit including prefix and alignment
+                  padding must succeed.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromTopI, 0U, 64U, 17U,
+               16U, 32U, &result);
+test_assert(p == &core_buffer[32], "wrong aligned pointer");
+test_assert(result.basemem == &core_buffer[0], "base changed");
+test_assert(result.topmem == &core_buffer[0], "wrong top");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An empty aligned arena accepts a zero-size request
+                  but rejects a nonzero request.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[p = core_alloc(chCoreAllocFromTopI, 16U, 16U, 0U,
+               16U, 0U, &result);
+test_assert(p == &core_buffer[16], "zero-size allocation failed");
+test_assert(result.basemem == &core_buffer[16], "base changed");
+test_assert(result.topmem == &core_buffer[16], "top changed");
+
+p = core_alloc(chCoreAllocFromTopI, 16U, 16U, 1U,
+               16U, 0U, &result);
+test_assert(p == NULL, "empty arena allocation accepted");
+test_assert(result.basemem == &core_buffer[16], "base changed");
+test_assert(result.topmem == &core_buffer[16], "top changed");]]></value>
               </code>
             </step>
           </steps>
