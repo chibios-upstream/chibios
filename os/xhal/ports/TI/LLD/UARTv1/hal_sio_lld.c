@@ -45,6 +45,19 @@
  */
 #define SIO_LSR_STICKY                      (TI_UART_LSR_RX_ERRORS | SIO_LSR_CTI)
 
+/**
+ * @brief   Events backed by the receiver error status bits.
+ * @note    A break is one of them, and @p SIO_EV_RX_BREAK sits outside
+ *          @p SIO_EV_ALL_ERRORS: it is classified as a status event, while
+ *          the status bit carrying it is latched, reported and consumed
+ *          together with the error bits, here as in the reference driver.
+ *          Testing the enabled set against @p SIO_EV_ALL_ERRORS alone would
+ *          therefore leave the line status interrupt disabled for an
+ *          application that asked for breaks and nothing else, and the
+ *          break would only ever be noticed by a poll.
+ */
+#define SIO_EV_LINE_ERRORS                  (SIO_EV_ALL_ERRORS | SIO_EV_RX_BREAK)
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -210,7 +223,7 @@ static uint32_t uart_rx_ier(const SIODriver *siop) {
   if ((siop->enabled & (SIO_EV_RX_NOTEMPTY | SIO_EV_RX_IDLE)) != 0U) {
     ier |= TI_UART_IER_ERBFI;
   }
-  if ((siop->enabled & SIO_EV_ALL_ERRORS) != 0U) {
+  if ((siop->enabled & SIO_EV_LINE_ERRORS) != 0U) {
     ier |= TI_UART_IER_ELSI;
   }
 
