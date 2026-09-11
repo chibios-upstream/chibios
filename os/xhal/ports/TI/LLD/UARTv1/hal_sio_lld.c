@@ -255,6 +255,13 @@ static void uart_arm_rx(SIODriver *siop) {
   uart_set_ier(siop, siop->ier | uart_rx_ier(siop));
 
   if (sio_lld_is_rx_empty(siop)) {
+    /* The cycle this flag described ended with the frames that have just
+       been read. Clearing it here, before the line comes back, stops the
+       next burst from inheriting it: that burst may be shorter than the
+       FIFO trigger, so it would have no receiver interrupt of its own to
+       clear the flag and would report idle before its own timeout. The
+       latched event is left alone, it belongs to the application.*/
+    siop->rx_idle = false;
     siop->rx_masked = false;
     vimEnableInterrupt(siop->irq);
   }
@@ -688,6 +695,7 @@ void sio_lld_update_enable_flags(SIODriver *siop) {
   uart_set_ier(siop, uart_rx_ier(siop) | uart_tx_ier(siop));
 
   if (sio_lld_is_rx_empty(siop)) {
+    siop->rx_idle = false;
     siop->rx_masked = false;
     vimEnableInterrupt(siop->irq);
   }
