@@ -505,8 +505,9 @@ static thread_t *sb_start_unprivileged(sb_class_t *sbp,
      calling chThdRelease() on error.*/
   chThdSetCallbackX(utp, sb_release_memory, sbp);
 
-#if ((CORTEX_USE_FPU == TRUE) && (PORT_USE_FPU_FAST_SWITCHING <= 1))
-  /* Starting with a long frame, FPCA is set on thread start.*/
+#if CORTEX_USE_FPU == TRUE
+  /* Starting with a long frame, FPCA is enforced either by the port on
+     thread start or by sb_unprivileged_trampoline().*/
   {
     struct port_extctx *ectxp;
 
@@ -522,8 +523,7 @@ static thread_t *sb_start_unprivileged(sb_class_t *sbp,
     ectxp->fpscr = FPU->FPDSCR;
   }
 #else
-  /* Starting with a short frame, FPU disabled or FPCA cleared
-     on thread start.*/
+  /* Starting with a short frame, FPU disabled.*/
   {
     struct port_short_extctx *ectxp;
 
