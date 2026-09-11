@@ -71,6 +71,11 @@
 #error "SIO driver activated but no UART peripheral assigned"
 #endif
 
+#if !defined(__CHIBIOS_RT__)
+#error "the AM67 SIO driver requires ChibiOS/RT, see the TX-end and receive "\
+       "masking notes in this header"
+#endif
+
 #if !defined(AM67_MAIN_UART1_CLOCK)
 #error "AM67_MAIN_UART1_CLOCK not defined in board.h"
 #endif
@@ -89,20 +94,22 @@
  *          holding register, or the whole TX FIFO, gone empty, not the end
  *          of the transmission: when the THRE interrupt fires the last
  *          frame is normally still in the shift register and no further
- *          interrupt is coming. With the RT kernel the handler arms a
- *          polling virtual timer which watches @p TI_UART_LSR_TEMT, on
- *          detection threads suspended in @p sioSynchronizeTXEnd() are
- *          woken up and the driver callback is invoked. Without the RT
- *          kernel only the opportunistic detection performed by the
- *          handler is available, a transmission still in the shift
- *          register when the THRE interrupt fires is never signalled, so
- *          reliable TX-end operation requires the RT kernel.
+ *          interrupt is coming. The handler arms a polling virtual timer
+ *          which watches @p TI_UART_LSR_TEMT, on detection threads
+ *          suspended in @p sioSynchronizeTXEnd() are woken up and the
+ *          driver callback is invoked.
+ * @note    The same timer is what carries the transmitter while the vector
+ *          is masked for an unread receiver, so it is not an optional
+ *          refinement: without virtual timers a character timeout would
+ *          stop transmission until the application drained the receiver,
+ *          which deadlocks an application waiting on the end of a
+ *          transmission before reading. That is why this driver requires
+ *          the RT kernel outright rather than degrading.
  * @note    The polling timer is armed, re-armed and reset only from the
  *          UART interrupt handler, from the timer callback itself and
  *          from the stop and start-rollback paths, never from the write
  *          paths, as required by the virtual timers ownership rule.
  */
-#if defined(__CHIBIOS_RT__) || defined(__DOXYGEN__)
 #define sio_lld_driver_fields                                               \
   /* Pointer to the UARTx registers block.*/                                \
   TI_UART_TypeDef           *uart;                                          \
@@ -133,30 +140,6 @@
   virtual_timer_t           txend_vt;                                       \
   /* TX-end polling interval.*/                                             \
   sysinterval_t             txend_step
-#else
-#define sio_lld_driver_fields                                               \
-  /* Pointer to the UARTx registers block.*/                                \
-  TI_UART_TypeDef           *uart;                                          \
-  /* Interrupt line associated to the peripheral.*/                         \
-  uint32_t                  irq;                                            \
-  /* Functional clock frequency for the associated UART.*/                  \
-  uint32_t                  clock;                                          \
-  /* Shadow of the IER register, the peripheral overlays IER and DLH so a   \
-     read-modify-write is only safe while DLAB is known to be zero.*/       \
-  uint32_t                  ier;                                            \
-  /* Sticky line status bits captured by the handler, LSR clears on read    \
-     so the errors would otherwise be lost before the driver asks.*/        \
-  uint32_t                  lsr;                                            \
-  /* Set while the vector is masked because the receiver holds frames the   \
-     application has not read yet, see the character timeout in the         \
-     handler. Tracked rather than inferred: the transmitter shares the      \
-     vector and has to be kept moving while it is down.*/                   \
-  bool                      rx_masked;                                      \
-  /* State of the current receive cycle: set when the line goes quiet,      \
-     cleared when a frame arrives. Distinct from the latched RX-idle        \
-     event, which survives until the application consumes it.*/             \
-  bool                      rx_idle
-#endif
 
 /**
  * @brief   Low level fields of the SIO configuration structure.

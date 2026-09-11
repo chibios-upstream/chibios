@@ -194,9 +194,7 @@ static uint32_t uart_evt2lsr(sioevents_t events) {
   return lsr;
 }
 
-#if defined(__CHIBIOS_RT__)
 static void uart_txend_timer_cb(virtual_timer_t *vtp, void *p);
-#endif
 
 /**
  * @brief   Interrupt enables the receiver side asks for.
@@ -286,7 +284,6 @@ static void uart_arm_tx(SIODriver *siop) {
   uart_set_ier(siop, siop->ier | uart_tx_ier(siop));
 }
 
-#if defined(__CHIBIOS_RT__) || defined(__DOXYGEN__)
 /**
  * @brief   TX-end polling timer callback.
  * @details ETBEI reports the holding register empty, there is no
@@ -333,7 +330,6 @@ static void uart_txend_timer_cb(virtual_timer_t *vtp, void *p) {
     chSysUnlockFromISR();
   }
 }
-#endif /* defined(__CHIBIOS_RT__) */
 
 /**
  * @brief   UART deactivation.
@@ -356,9 +352,7 @@ static void uart_deactivate(SIODriver *siop) {
   vimDisableInterrupt(siop->irq);
   vimSetHandler(siop->irq, NULL, NULL);
 
-#if defined(__CHIBIOS_RT__)
   chVTReset(&siop->txend_vt);
-#endif
 }
 
 /**
@@ -407,9 +401,7 @@ void sio_lld_init(void) {
   SIOD1.rx_masked  = false;
   SIOD1.rx_idle    = false;
   SIOD1.txend_done = true;
-#if defined(__CHIBIOS_RT__)
   chVTObjectInit(&SIOD1.txend_vt);
-#endif
 #endif
 }
 
@@ -638,14 +630,12 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
   siop->rx_idle = false;
   vimEnableInterrupt(siop->irq);
 
-#if defined(__CHIBIOS_RT__)
   /* TX-end polling interval, about four character times assuming ten bits
      per frame, never less than one tick.*/
   siop->txend_step = chTimeUS2I((4U * 10U * 1000000U) / config->baud);
   if (siop->txend_step < (sysinterval_t)1) {
     siop->txend_step = (sysinterval_t)1;
   }
-#endif
 
   return config;
 }
@@ -947,7 +937,6 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
        uart_arm_rx() once the receiver has been emptied.*/
     vimDisableInterrupt(siop->irq);
 
-#if defined(__CHIBIOS_RT__)
     /* Masking the vector also silences the transmitter, which shares it, so
        the polling timer takes over for as long as the mask is up. It is
        started unconditionally rather than only for a transmission already
@@ -958,7 +947,6 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
     chVTSetI(&siop->txend_vt, siop->txend_step, uart_txend_timer_cb,
              (void *)siop);
     chSysUnlockFromISR();
-#endif
 
     __sio_wakeup_rxidle(siop);
     __sio_wakeup_rx(siop);
@@ -978,19 +966,16 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
        transmission: the last frame is normally still in the shift
        register here and no further interrupt is coming for it.*/
     if ((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) != 0U) {
-#if defined(__CHIBIOS_RT__)
       /* Legal from here, the polling timer is only ever manipulated from
          the handler and from its own callback.*/
       chSysLockFromISR();
       chVTResetI(&siop->txend_vt);
       chSysUnlockFromISR();
-#endif
       if (!siop->txend_done) {
         siop->txend_done = true;
         __sio_wakeup_txend(siop);
       }
     }
-#if defined(__CHIBIOS_RT__)
     else {
       /* Transmission still ongoing, TEMT is polled until the wire goes
          idle, otherwise sioSynchronizeTXEnd() would never be released.*/
@@ -999,7 +984,6 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
                (void *)siop);
       chSysUnlockFromISR();
     }
-#endif
     __sio_wakeup_tx(siop);
     break;
 
