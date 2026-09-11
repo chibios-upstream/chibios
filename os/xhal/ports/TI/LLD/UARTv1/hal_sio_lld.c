@@ -374,6 +374,7 @@ void sio_lld_init(void) {
   SIOD1.clock = AM67_MAIN_UART1_CLOCK;
   SIOD1.ier   = 0U;
   SIOD1.lsr   = 0U;
+  SIOD1.rx_idle   = false;
 #if defined(__CHIBIOS_RT__)
   chVTObjectInit(&SIOD1.txend_vt);
 #endif
@@ -397,15 +398,16 @@ bool sio_lld_is_rx_empty(SIODriver *siop) {
 
 /**
  * @brief   Determines the activity state of the receiver.
- * @note    A 16550 has no line-idle status bit. The closest honest answer
- *          is "nothing is waiting to be read".
- * @note    The latched character timeout is deliberately not consulted
- *          here. It records that a receive cycle ended, and it survives
- *          until the application acknowledges it, so reading it as current
- *          activity would report an idle receiver right through the next
- *          burst. The RX idle @e event is reported by the events getters,
- *          which is where a historical event belongs; this is the live
- *          state.
+ * @note    A 16550 has no line-idle status bit, so the answer is built
+ *          from two things: an empty FIFO, and the receive cycle state the
+ *          handler maintains. The latter is set when the line goes quiet
+ *          and cleared as soon as a frame arrives, which is what makes an
+ *          idle line with unread frames report as idle without reporting
+ *          the previous cycle's silence through the following burst.
+ * @note    The latched RX idle @e event is deliberately not consulted. It
+ *          survives until the application consumes it, so reading it as
+ *          current activity would go stale; it is reported by the events
+ *          getters, which is where a historical event belongs.
  *
  * @param[in] siop      pointer to the @p SIODriver object
  * @return              The RX activity state.
@@ -416,7 +418,8 @@ bool sio_lld_is_rx_empty(SIODriver *siop) {
  */
 bool sio_lld_is_rx_idle(SIODriver *siop) {
 
-  return (bool)((uart_latch_lsr(siop) & TI_UART_LSR_DR) == 0U);
+  return (bool)(((uart_latch_lsr(siop) & TI_UART_LSR_DR) == 0U) ||
+                siop->rx_idle);
 }
 
 /**
@@ -590,9 +593,12 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
      this function puts it back on a live reconfiguration: drvSetCfgX() and
      drvSelectCfgX() reach the LLD directly, only drvStart() goes on to
      apply the enabled set. Restoring it here keeps the peripheral in step
-     with the events the application has asked for. The vector is not
-     touched, that belongs to the receiver, see uart_arm_rx().*/
+     with the events the application has asked for.
+
+     The receive cycle state is dropped with them: the FIFOs were reset
+     above, so nothing of the previous cycle survives.*/
   uart_set_ier(siop, uart_rx_ier(siop) | uart_tx_ier(siop));
+  siop->rx_idle = false;
 
 #if defined(__CHIBIOS_RT__)
   /* TX-end polling interval, about four character times assuming ten bits
@@ -887,6 +893,7 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
 
   case TI_UART_IIR_INTID_CTI:
     siop->lsr |= SIO_LSR_CTI;
+    siop->rx_idle = true;
     uart_set_ier(siop, siop->ier & ~(TI_UART_IER_ERBFI | TI_UART_IER_ELSI));
 
     /* The character timeout is the one source this peripheral does not gate
@@ -919,6 +926,8 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
     break;
 
   case TI_UART_IIR_INTID_RDA:
+    /* Frames are arriving, the receive cycle is active again.*/
+    siop->rx_idle = false;
     uart_set_ier(siop, siop->ier & ~(TI_UART_IER_ERBFI | TI_UART_IER_ELSI));
     __sio_wakeup_rx(siop);
     break;

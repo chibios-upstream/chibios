@@ -116,6 +116,10 @@
   /* Sticky line status bits captured by the handler, LSR clears on read    \
      so the errors would otherwise be lost before the driver asks.*/        \
   uint32_t                  lsr;                                            \
+  /* State of the current receive cycle: set when the line goes quiet,      \
+     cleared when a frame arrives. Distinct from the latched RX-idle        \
+     event, which survives until the application consumes it.*/             \
+  bool                      rx_idle;                                        \
   /* TX-end polling virtual timer, see the notes above.*/                   \
   virtual_timer_t           txend_vt;                                       \
   /* TX-end polling interval.*/                                             \
@@ -133,7 +137,11 @@
   uint32_t                  ier;                                            \
   /* Sticky line status bits captured by the handler, LSR clears on read    \
      so the errors would otherwise be lost before the driver asks.*/        \
-  uint32_t                  lsr
+  uint32_t                  lsr;                                            \
+  /* State of the current receive cycle: set when the line goes quiet,      \
+     cleared when a frame arrives. Distinct from the latched RX-idle        \
+     event, which survives until the application consumes it.*/             \
+  bool                      rx_idle
 #endif
 
 /**
