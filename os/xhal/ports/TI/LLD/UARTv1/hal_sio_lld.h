@@ -116,6 +116,11 @@
   /* Sticky line status bits captured by the handler, LSR clears on read    \
      so the errors would otherwise be lost before the driver asks.*/        \
   uint32_t                  lsr;                                            \
+  /* Set while the vector is masked because the receiver holds frames the   \
+     application has not read yet, see the character timeout in the         \
+     handler. Tracked rather than inferred: the transmitter shares the      \
+     vector and has to be kept moving while it is down.*/                   \
+  bool                      rx_masked;                                      \
   /* State of the current receive cycle: set when the line goes quiet,      \
      cleared when a frame arrives. Distinct from the latched RX-idle        \
      event, which survives until the application consumes it.*/             \
@@ -138,6 +143,11 @@
   /* Sticky line status bits captured by the handler, LSR clears on read    \
      so the errors would otherwise be lost before the driver asks.*/        \
   uint32_t                  lsr;                                            \
+  /* Set while the vector is masked because the receiver holds frames the   \
+     application has not read yet, see the character timeout in the         \
+     handler. Tracked rather than inferred: the transmitter shares the      \
+     vector and has to be kept moving while it is down.*/                   \
+  bool                      rx_masked;                                      \
   /* State of the current receive cycle: set when the line goes quiet,      \
      cleared when a frame arrives. Distinct from the latched RX-idle        \
      event, which survives until the application consumes it.*/             \

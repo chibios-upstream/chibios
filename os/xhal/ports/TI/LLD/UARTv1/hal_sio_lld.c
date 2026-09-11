@@ -194,6 +194,10 @@ static uint32_t uart_evt2lsr(sioevents_t events) {
   return lsr;
 }
 
+#if defined(__CHIBIOS_RT__)
+static void uart_txend_timer_cb(virtual_timer_t *vtp, void *p);
+#endif
+
 /**
  * @brief   Interrupt enables the receiver side asks for.
  *
@@ -251,20 +255,31 @@ static void uart_arm_rx(SIODriver *siop) {
   uart_set_ier(siop, siop->ier | uart_rx_ier(siop));
 
   if (sio_lld_is_rx_empty(siop)) {
+    siop->rx_masked = false;
     vimEnableInterrupt(siop->irq);
   }
 }
 
 /**
  * @brief   Re-arms the transmitter side alone.
- * @note    Only IER is touched. The vector is the receiver's to release,
- *          see @p uart_arm_rx().
+ * @note    The vector is the receiver's to release, see @p uart_arm_rx().
+ *          While it is down the transmitter interrupt cannot run at all, so
+ *          a transmission started here is handed to the polling timer
+ *          instead. Without that a transmission begun while the receiver
+ *          holds unread frames would have nothing to report its progress.
  *
  * @param[in] siop      pointer to the @p SIODriver object
  */
 static void uart_arm_tx(SIODriver *siop) {
 
   uart_set_ier(siop, siop->ier | uart_tx_ier(siop));
+
+#if defined(__CHIBIOS_RT__)
+  if (siop->rx_masked) {
+    chVTSet(&siop->txend_vt, siop->txend_step, uart_txend_timer_cb,
+            (void *)siop);
+  }
+#endif
 }
 
 #if defined(__CHIBIOS_RT__) || defined(__DOXYGEN__)
@@ -374,6 +389,7 @@ void sio_lld_init(void) {
   SIOD1.clock = AM67_MAIN_UART1_CLOCK;
   SIOD1.ier   = 0U;
   SIOD1.lsr   = 0U;
+  SIOD1.rx_masked = false;
   SIOD1.rx_idle   = false;
 #if defined(__CHIBIOS_RT__)
   chVTObjectInit(&SIOD1.txend_vt);
@@ -595,10 +611,16 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
      apply the enabled set. Restoring it here keeps the peripheral in step
      with the events the application has asked for.
 
-     The receive cycle state is dropped with them: the FIFOs were reset
-     above, so nothing of the previous cycle survives.*/
+     The FIFOs were reset above, so whatever the receiver was holding is
+     gone and with it the reason the handler may have masked the vector.
+     Both the mask and the receive cycle state are dropped and the line is
+     brought back, otherwise a reconfiguration performed while frames were
+     unread would leave reception stalled until some unrelated operation
+     happened to re-enable it.*/
   uart_set_ier(siop, uart_rx_ier(siop) | uart_tx_ier(siop));
+  siop->rx_masked = false;
   siop->rx_idle = false;
+  vimEnableInterrupt(siop->irq);
 
 #if defined(__CHIBIOS_RT__)
   /* TX-end polling interval, about four character times assuming ten bits
@@ -657,6 +679,7 @@ void sio_lld_update_enable_flags(SIODriver *siop) {
   uart_set_ier(siop, uart_rx_ier(siop) | uart_tx_ier(siop));
 
   if (sio_lld_is_rx_empty(siop)) {
+    siop->rx_masked = false;
     vimEnableInterrupt(siop->irq);
   }
 }
@@ -894,6 +917,7 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
   case TI_UART_IIR_INTID_CTI:
     siop->lsr |= SIO_LSR_CTI;
     siop->rx_idle = true;
+    siop->rx_masked = true;
     uart_set_ier(siop, siop->ier & ~(TI_UART_IER_ERBFI | TI_UART_IER_ELSI));
 
     /* The character timeout is the one source this peripheral does not gate
