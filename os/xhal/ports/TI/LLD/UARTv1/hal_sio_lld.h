@@ -125,6 +125,10 @@
      cleared when a frame arrives. Distinct from the latched RX-idle        \
      event, which survives until the application consumes it.*/             \
   bool                      rx_idle;                                        \
+  /* Set once the end of the current transmission has been reported, so   \
+     that the polling timer, which keeps running while the vector is        \
+     masked, reports a completion once instead of every tick.*/            \
+  bool                      txend_done;                                     \
   /* TX-end polling virtual timer, see the notes above.*/                   \
   virtual_timer_t           txend_vt;                                       \
   /* TX-end polling interval.*/                                             \

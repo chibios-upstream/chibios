@@ -262,24 +262,21 @@ static void uart_arm_rx(SIODriver *siop) {
 
 /**
  * @brief   Re-arms the transmitter side alone.
- * @note    The vector is the receiver's to release, see @p uart_arm_rx().
- *          While it is down the transmitter interrupt cannot run at all, so
- *          a transmission started here is handed to the polling timer
- *          instead. Without that a transmission begun while the receiver
- *          holds unread frames would have nothing to report its progress.
+ * @note    Only IER is touched. The vector is the receiver's to release,
+ *          see @p uart_arm_rx(), and the polling timer is not manipulated
+ *          from here: this runs on the write paths, which are X-class and
+ *          may be entered from an interrupt or with the kernel already
+ *          locked, where the thread-only timer API is not usable. While the
+ *          vector is masked the timer is already running, the handler
+ *          starts it when it masks, so a transmission begun here is covered
+ *          without this function arming anything.
  *
  * @param[in] siop      pointer to the @p SIODriver object
  */
 static void uart_arm_tx(SIODriver *siop) {
 
+  siop->txend_done = false;
   uart_set_ier(siop, siop->ier | uart_tx_ier(siop));
-
-#if defined(__CHIBIOS_RT__)
-  if (siop->rx_masked) {
-    chVTSet(&siop->txend_vt, siop->txend_step, uart_txend_timer_cb,
-            (void *)siop);
-  }
-#endif
 }
 
 #if defined(__CHIBIOS_RT__) || defined(__DOXYGEN__)
@@ -300,19 +297,30 @@ static void uart_arm_tx(SIODriver *siop) {
  */
 static void uart_txend_timer_cb(virtual_timer_t *vtp, void *p) {
   SIODriver *siop = (SIODriver *)p;
+  bool ended;
 
-  /* Space in the FIFO is reported from here too. While the vector is
-     masked for an unread receiver the transmitter interrupt cannot run,
-     and a thread waiting for room would otherwise wait on nothing.*/
-  if (!sio_lld_is_tx_full(siop)) {
+  /* Space in the FIFO is reported from here too. While the vector is masked
+     for an unread receiver the transmitter interrupt cannot run, and a
+     thread waiting for room would otherwise wait on nothing. Only while
+     there is transmit work outstanding, so an idle transmitter under a
+     standing mask does not produce a wakeup on every tick.*/
+  if (!siop->txend_done && !sio_lld_is_tx_full(siop)) {
     __sio_wakeup_tx(siop);
   }
 
-  if ((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) != 0U) {
+  /* Reported on the transition, once per transmission, for the same
+     reason.*/
+  ended = (bool)((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) != 0U);
+  if (ended && !siop->txend_done) {
+    siop->txend_done = true;
     __sio_wakeup_txend(siop);
     __sio_callback(siop);
   }
-  else {
+
+  /* The timer outlives the transmission while the vector is masked: it is
+     the only thing that can carry the transmitter then, including for a
+     transmission the application has not started yet.*/
+  if (!ended || siop->rx_masked) {
     chSysLockFromISR();
     chVTSetI(vtp, siop->txend_step, uart_txend_timer_cb, p);
     chSysUnlockFromISR();
@@ -389,8 +397,9 @@ void sio_lld_init(void) {
   SIOD1.clock = AM67_MAIN_UART1_CLOCK;
   SIOD1.ier   = 0U;
   SIOD1.lsr   = 0U;
-  SIOD1.rx_masked = false;
-  SIOD1.rx_idle   = false;
+  SIOD1.rx_masked  = false;
+  SIOD1.rx_idle    = false;
+  SIOD1.txend_done = true;
 #if defined(__CHIBIOS_RT__)
   chVTObjectInit(&SIOD1.txend_vt);
 #endif
@@ -931,18 +940,16 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
     vimDisableInterrupt(siop->irq);
 
 #if defined(__CHIBIOS_RT__)
-    /* Masking the vector also silences the transmitter, which shares it.
-       If a transmission is still in flight its THRE interrupt may not have
-       run yet, so the polling timer is started here rather than left to an
-       interrupt that can no longer arrive: without this a thread waiting on
-       the end of an unrelated transmission would block until its timeout,
-       or forever.*/
-    if ((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) == 0U) {
-      chSysLockFromISR();
-      chVTSetI(&siop->txend_vt, siop->txend_step, uart_txend_timer_cb,
-               (void *)siop);
-      chSysUnlockFromISR();
-    }
+    /* Masking the vector also silences the transmitter, which shares it, so
+       the polling timer takes over for as long as the mask is up. It is
+       started unconditionally rather than only for a transmission already
+       in flight: the application may start one while the receiver is still
+       unread, and the write paths cannot arm the timer themselves, they are
+       X-class and may run from an interrupt or under the kernel lock.*/
+    chSysLockFromISR();
+    chVTSetI(&siop->txend_vt, siop->txend_step, uart_txend_timer_cb,
+             (void *)siop);
+    chSysUnlockFromISR();
 #endif
 
     __sio_wakeup_rxidle(siop);
@@ -970,7 +977,10 @@ void sio_lld_serve_interrupt(SIODriver *siop) {
       chVTResetI(&siop->txend_vt);
       chSysUnlockFromISR();
 #endif
-      __sio_wakeup_txend(siop);
+      if (!siop->txend_done) {
+        siop->txend_done = true;
+        __sio_wakeup_txend(siop);
+      }
     }
 #if defined(__CHIBIOS_RT__)
     else {
