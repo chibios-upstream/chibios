@@ -80,6 +80,16 @@ static void console_write(const char *s) {
 #define SELFTEST_TIMEOUT        TIME_MS2I(100)
 #define SELFTEST_PURGE_LIMIT    256U
 
+/* Shorter than the receive FIFO trigger level, so a burst of this size is
+   reported by the character timeout rather than by a receiver interrupt.
+   That is the state the driver masks the shared vector in, which is what
+   the later passes are about.*/
+#define SELFTEST_SHORT          4U
+
+/* Bounded spin used where the test has to sample a window between frames
+   arriving and the timeout that follows them.*/
+#define SELFTEST_SPIN_LIMIT     2000000U
+
 /*
  * Drains the receiver and drops whatever the line left behind, bounded so
  * that a stuck DR bit is reported rather than hanging the demo.
@@ -101,19 +111,59 @@ static bool selftest_purge(void) {
 }
 
 /*
+ * Waits, without interrupts, for the receiver to hold at least one frame.
+ * Used where the test has to observe the receiver between the arrival of a
+ * burst and its own timeout.
+ */
+static bool selftest_wait_rx(void) {
+  unsigned i;
+
+  for (i = 0U; i < SELFTEST_SPIN_LIMIT; i++) {
+    if (!sioIsRXEmptyX(&SIOD1)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/*
+ * Reads exactly n frames, synchronizing on the receiver, and discards them.
+ */
+static const char *selftest_drain(size_t n) {
+  uint8_t buf[16];
+  size_t left = n;
+  unsigned i;
+
+  /* Read in chunks and thrown away, so the amount drained is not bounded by
+     the size of anything on this stack.*/
+  for (i = 0U; (i < (unsigned)n) && (left > 0U); i++) {
+    size_t chunk = (left < sizeof (buf)) ? left : sizeof (buf);
+
+    if (sioSynchronizeRX(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+      return "drain-sync";
+    }
+    left -= sioAsyncReadX(&SIOD1, buf, chunk);
+  }
+
+  return (left > 0U) ? "drain-short" : NULL;
+}
+
+/*
  * Reads back the pattern, one synchronization at a time, and verifies it.
  * Bounded by frame count so that a receiver which never completes is
  * reported instead of blocking the demo.
  */
-static const char *selftest_readback(const uint8_t *pattern, size_t n) {
+static const char *selftest_readback(const char *pass, const uint8_t *pattern,
+                                    size_t n) {
   uint8_t rxbuf[sizeof (SELFTEST_PATTERN)];
   size_t rd = 0U;
   unsigned i;
 
   for (i = 0U; (i < (unsigned)n) && (rd < n); i++) {
     if (sioSynchronizeRX(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
-      trace_printf("  rx stalled with %u of %u frames\n",
-                   (unsigned)rd, (unsigned)n);
+      trace_printf("  %s: rx stalled with %u of %u frames\n",
+                   pass, (unsigned)rd, (unsigned)n);
       return "rx-sync";
     }
     rd += sioAsyncReadX(&SIOD1, &rxbuf[rd], n - rd);
@@ -156,7 +206,7 @@ static const char *selftest_body(void) {
     return "tx-ongoing";
   }
 
-  fail = selftest_readback(pattern, n);
+  fail = selftest_readback("pass1", pattern, n);
   if (fail != NULL) {
     return fail;
   }
@@ -167,7 +217,7 @@ static const char *selftest_body(void) {
     return "tx-write2";
   }
 
-  fail = selftest_readback(pattern, n);
+  fail = selftest_readback("pass2", pattern, n);
   if (fail != NULL) {
     return fail;
   }
@@ -181,7 +231,100 @@ static const char *selftest_body(void) {
     return "rx-errors";
   }
 
-  return NULL;
+  /* Third pass: a transmission started while the receiver is unread. The
+     short burst below the trigger level is reported by the character
+     timeout, which masks the shared vector; the longer transmission that
+     follows is then waited on before anything is read back. Nothing but the
+     polling timer can report its end, so this is where a driver that stops
+     the transmitter along with the receiver hangs.*/
+  if (sioAsyncWriteX(&SIOD1, pattern, SELFTEST_SHORT) != SELFTEST_SHORT) {
+    return "tx-short";
+  }
+  if (!selftest_wait_rx()) {
+    return "short-lost";
+  }
+  if (sioSynchronizeRXIdle(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "rx-idle-masked";
+  }
+  if (sioAsyncWriteX(&SIOD1, pattern, n) != n) {
+    return "tx-write3";
+  }
+  if (sioSynchronizeTXEnd(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "tx-end-masked";
+  }
+
+  /* Acknowledging events with the transmitter idle must not put a
+     transmitter interrupt back on an empty FIFO. Repeated, because the
+     failure mode is a source that re-raises immediately.*/
+  {
+    unsigned i;
+
+    for (i = 0U; i < 8U; i++) {
+      (void)sioGetAndClearEventsX(&SIOD1, SIO_EV_ALL_EVENTS);
+    }
+  }
+
+  fail = selftest_drain(SELFTEST_SHORT + n);
+  if (fail != NULL) {
+    return fail;
+  }
+
+  /* Fourth pass: configuration applied while the receiver is unread and the
+     vector therefore masked. Reconfiguration resets the FIFOs, which
+     destroys what the mask existed for, so interrupt-driven reception has to
+     work immediately afterwards.*/
+  if (sioAsyncWriteX(&SIOD1, pattern, SELFTEST_SHORT) != SELFTEST_SHORT) {
+    return "tx-short2";
+  }
+  if (!selftest_wait_rx()) {
+    return "short-lost2";
+  }
+  if (sioSynchronizeRXIdle(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "rx-idle-masked2";
+  }
+  if (drvSetCfgX(&SIOD1, &sio_config) != HAL_RET_SUCCESS) {
+    return "setcfg";
+  }
+  if (sioAsyncWriteX(&SIOD1, pattern, n) != n) {
+    return "tx-write4";
+  }
+  fail = selftest_readback("pass4", pattern, n);
+  if (fail != NULL) {
+    return fail;
+  }
+
+  /* Fifth pass: two receive cycles, the first one's idle event deliberately
+     left unconsumed. The second burst is sampled as soon as a frame has
+     arrived and before its own timeout, where a receiver that inherited the
+     previous cycle's state would wrongly claim to be idle.*/
+  if (sioAsyncWriteX(&SIOD1, pattern, SELFTEST_SHORT) != SELFTEST_SHORT) {
+    return "tx-short3";
+  }
+  if (!selftest_wait_rx()) {
+    return "short-lost3";
+  }
+  if (sioSynchronizeRXIdle(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "rx-idle-cycle1";
+  }
+  fail = selftest_drain(SELFTEST_SHORT);
+  if (fail != NULL) {
+    return fail;
+  }
+
+  if (sioAsyncWriteX(&SIOD1, pattern, SELFTEST_SHORT) != SELFTEST_SHORT) {
+    return "tx-short4";
+  }
+  if (!selftest_wait_rx()) {
+    return "short-lost4";
+  }
+  if (sioIsRXIdleX(&SIOD1)) {
+    return "rx-idle-stale";
+  }
+  if (sioSynchronizeRXIdle(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "rx-idle-cycle2";
+  }
+
+  return selftest_drain(SELFTEST_SHORT);
 }
 
 static const char *sio_selftest(void) {
