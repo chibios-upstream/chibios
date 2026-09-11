@@ -711,10 +711,20 @@ bool sdcConnect(SDCDriver *sdcp) {
     goto failed;
   }
 
-  /* Asks for the RCA.*/
-  if (sdc_lld_send_cmd_short_crc(sdcp, MMCSD_CMD_SEND_RELATIVE_ADDR,
-                                 0, &sdcp->rca)) {
-    goto failed;
+  if ((sdcp->cardmode & SDC_MODE_CARDTYPE_MASK) == SDC_MODE_CARDTYPE_MMC) {
+    /* MMC cards require a host-assigned RCA in argument bits 31:16.*/
+    sdcp->rca = 0x0002U << 16U;
+    if (sdc_lld_send_cmd_short_crc(sdcp, MMCSD_CMD_SET_RELATIVE_ADDR,
+                                   sdcp->rca, resp)) {
+      goto failed;
+    }
+  }
+  else {
+    /* SD cards return their RCA in the CMD3 response.*/
+    if (sdc_lld_send_cmd_short_crc(sdcp, MMCSD_CMD_SEND_RELATIVE_ADDR,
+                                   0, &sdcp->rca)) {
+      goto failed;
+    }
   }
 
   /* Reads CSD.*/
