@@ -90,6 +90,18 @@ static void console_write(const char *s) {
    arriving and the timeout that follows them.*/
 #define SELFTEST_SPIN_LIMIT     2000000U
 
+/* Break length, comfortably longer than the frame time the receiver needs
+   to see the line held low before it calls it a break.*/
+#define SELFTEST_BREAK_MS       2U
+
+/* More frames than the receiver holds, sent with nothing reading them, so
+   the ones past the end of the FIFO are overruns.*/
+#define SELFTEST_OVERRUN        (TI_UART_TX_FIFO_DEPTH + 8U)
+
+/* Bound on the loop that fills the transmitter, so a TX-full bit that never
+   sets is reported rather than spinning forever.*/
+#define SELFTEST_FILL_LIMIT     256U
+
 /*
  * Drains the receiver and drops whatever the line left behind, bounded so
  * that a stuck DR bit is reported rather than hanging the demo.
@@ -177,6 +189,216 @@ static const char *selftest_readback(const char *pass, const uint8_t *pattern,
   }
 
   return NULL;
+}
+
+/*
+ * Line errors and the recovery that has to follow them.
+ *
+ * Both conditions are produced on the port itself, no external stimulus is
+ * needed: a break is transmitted and, with the loopback closed, received as
+ * one, and an overrun is produced by putting more frames on the wire than
+ * the receiver holds with nothing reading them. Reporting them is only half
+ * of it. The handler masks the receiver sources when it latches an error,
+ * because neither the error nor the frame behind it clears by itself on a
+ * level-sensitive line, so it is the acknowledgement and the drain that have
+ * to bring reception back; a driver that reports the error and then stops
+ * receiving passes a test that only looks at the event mask.
+ */
+static const char *selftest_errors(void) {
+  static const uint8_t pattern[] = SELFTEST_PATTERN;
+  const size_t n = sizeof (pattern);
+  sioevents_t errors;
+  const char *fail;
+  unsigned i;
+
+  /* Break: the line is held low for longer than a frame and looped back
+     into the receiver, which reports it as a break and pushes one null
+     frame behind it.*/
+  SIOD1.uart->LCR |= TI_UART_LCR_BRK;
+  chThdSleepMilliseconds(SELFTEST_BREAK_MS);
+  SIOD1.uart->LCR &= ~TI_UART_LCR_BRK;
+  chThdSleepMilliseconds(1);
+
+  /* The synchronization API is the one that has to notice, a pending error
+     must come back from it rather than being left for a poll.*/
+  if (sioSynchronizeRX(&SIOD1, SELFTEST_TIMEOUT) != SIO_MSG_ERRORS) {
+    return "break-unreported";
+  }
+  errors = sioGetAndClearErrorsX(&SIOD1);
+  trace_printf("  pass6: break errors=%02x\n", (unsigned)errors);
+  if ((errors & SIO_EV_RX_BREAK) == 0U) {
+    return "break-event";
+  }
+  if (!selftest_purge()) {
+    return "break-stuck";
+  }
+
+  /* Consumed for good. The line status bits behind a framing error, a
+     parity error or a break belong to the frame at the head of the
+     receiver and come back as each such frame reaches it, so this is
+     asked once the receiver has been emptied and not before.*/
+  if (sioGetAndClearErrorsX(&SIOD1) != (sioevents_t)0) {
+    return "break-sticky";
+  }
+
+  /* A break is reported as an error but classified as a status event, so an
+     application can ask for it without asking for any of the error events.
+     The line status interrupt has to follow that request, otherwise the
+     break is only ever found by a poll and a thread waiting on the port
+     sleeps through it. Read from the driver's own register shadow, there is
+     no interface that exposes it.*/
+  sioWriteEnableFlagsX(&SIOD1, SIO_EV_RX_BREAK);
+  if ((SIOD1.ier & TI_UART_IER_ELSI) == 0U) {
+    trace_printf("  pass6: break-only ier=%02x\n", (unsigned)SIOD1.ier);
+    sioWriteEnableFlagsX(&SIOD1, SIO_EV_ALL_EVENTS);
+    return "break-enable";
+  }
+  sioWriteEnableFlagsX(&SIOD1, SIO_EV_ALL_EVENTS);
+
+  /* Overrun: written a frame at a time, so that the transmitter has to be
+     waited on once its FIFO is full, which is the case below.*/
+  for (i = 0U; i < SELFTEST_OVERRUN; i++) {
+    if (sioIsTXFullX(&SIOD1) &&
+        (sioSynchronizeTX(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK)) {
+      return "overrun-tx";
+    }
+    sioPutX(&SIOD1, (uint_fast16_t)'O');
+  }
+  if (sioSynchronizeTXEnd(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "overrun-txend";
+  }
+
+  errors = sioGetAndClearErrorsX(&SIOD1);
+  trace_printf("  pass6: overrun errors=%02x\n", (unsigned)errors);
+  if ((errors & SIO_EV_OVERRUN_ERR) == 0U) {
+    return "overrun-event";
+  }
+
+  /* The receiver is full and the vector is masked for it. Draining it is
+     the only thing that can lift the mask, and interrupt-driven reception
+     has to work immediately afterwards.*/
+  if (!selftest_purge()) {
+    return "overrun-stuck";
+  }
+  if (sioAsyncWriteX(&SIOD1, pattern, n) != n) {
+    return "tx-write6";
+  }
+
+  fail = selftest_readback("pass6", pattern, n);
+  if (fail != NULL) {
+    return fail;
+  }
+
+  return NULL;
+}
+
+/*
+ * Stop and restart.
+ *
+ * Performed from the state the driver has the most standing in: the
+ * receiver unread, the vector masked for it and the polling timer running.
+ * Stopping has to take all of that down, and starting again has to put a
+ * working port back rather than one that inherited half of the previous
+ * session.
+ */
+static const char *selftest_restart(void) {
+  static const uint8_t pattern[] = SELFTEST_PATTERN;
+  const size_t n = sizeof (pattern);
+
+  if (sioAsyncWriteX(&SIOD1, pattern, SELFTEST_SHORT) != SELFTEST_SHORT) {
+    return "tx-short5";
+  }
+  if (!selftest_wait_rx()) {
+    return "short-lost5";
+  }
+  if (sioSynchronizeRXIdle(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "rx-idle-stop";
+  }
+
+  drvStop(&SIOD1);
+  if (drvStart(&SIOD1, &sio_config) != HAL_RET_SUCCESS) {
+    return "restart";
+  }
+
+  /* The loopback bit lives in MCR, which neither path touches, but the test
+     states what it depends on instead of assuming it survived.*/
+  SIOD1.uart->MCR |= TI_UART_MCR_LPBK;
+
+  if (!selftest_purge()) {
+    return "restart-stuck";
+  }
+  if (sioAsyncWriteX(&SIOD1, pattern, n) != n) {
+    return "tx-write7";
+  }
+
+  return selftest_readback("pass7", pattern, n);
+}
+
+/*
+ * Transmitter space synchronization, both ways round.
+ *
+ * First with the vector live, where the transmitter interrupt reports the
+ * space, and then with it masked for an unread receiver, where the
+ * interrupt cannot run at all and the polling timer is the only thing that
+ * can release the waiter. The second one is the case a driver that only
+ * carries the end of a transmission through the mask fails.
+ */
+static const char *selftest_txspace(void) {
+  static const uint8_t pattern[] = SELFTEST_PATTERN;
+  const size_t n = sizeof (pattern);
+  unsigned i;
+
+  for (i = 0U; (i < SELFTEST_FILL_LIMIT) && !sioIsTXFullX(&SIOD1); i++) {
+    sioPutX(&SIOD1, (uint_fast16_t)'F');
+  }
+  if (!sioIsTXFullX(&SIOD1)) {
+    return "tx-fill";
+  }
+  if (sioSynchronizeTX(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "tx-space";
+  }
+  if (sioSynchronizeTXEnd(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "tx-space-end";
+  }
+  if (!selftest_purge()) {
+    return "tx-space-stuck";
+  }
+
+  /* Same again with the vector masked. The short burst below the trigger
+     level puts the mask up, then the transmitter is filled behind it.*/
+  if (sioAsyncWriteX(&SIOD1, pattern, SELFTEST_SHORT) != SELFTEST_SHORT) {
+    return "tx-short6";
+  }
+  if (!selftest_wait_rx()) {
+    return "short-lost6";
+  }
+  if (sioSynchronizeRXIdle(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "rx-idle-txspace";
+  }
+
+  for (i = 0U; (i < SELFTEST_FILL_LIMIT) && !sioIsTXFullX(&SIOD1); i++) {
+    sioPutX(&SIOD1, (uint_fast16_t)'F');
+  }
+  if (!sioIsTXFullX(&SIOD1)) {
+    return "tx-fill2";
+  }
+  if (sioSynchronizeTX(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "tx-space-masked";
+  }
+  if (sioSynchronizeTXEnd(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
+    return "tx-space-end2";
+  }
+
+  /* The receiver took more than it holds while the mask was up, so it is
+     drained and the port checked once more before the console gets it.*/
+  if (!selftest_purge()) {
+    return "tx-space-stuck2";
+  }
+  if (sioAsyncWriteX(&SIOD1, pattern, n) != n) {
+    return "tx-write8";
+  }
+
+  return selftest_readback("pass8", pattern, n);
 }
 
 /*
@@ -323,8 +545,25 @@ static const char *selftest_body(void) {
   if (sioSynchronizeRXIdle(&SIOD1, SELFTEST_TIMEOUT) != MSG_OK) {
     return "rx-idle-cycle2";
   }
+  fail = selftest_drain(SELFTEST_SHORT);
+  if (fail != NULL) {
+    return fail;
+  }
 
-  return selftest_drain(SELFTEST_SHORT);
+  /* Sixth pass: line errors and the recovery behind them.*/
+  fail = selftest_errors();
+  if (fail != NULL) {
+    return fail;
+  }
+
+  /* Seventh pass: the driver stopped and started again.*/
+  fail = selftest_restart();
+  if (fail != NULL) {
+    return fail;
+  }
+
+  /* Eighth pass: waiting for transmitter space, masked and unmasked.*/
+  return selftest_txspace();
 }
 
 static const char *sio_selftest(void) {
