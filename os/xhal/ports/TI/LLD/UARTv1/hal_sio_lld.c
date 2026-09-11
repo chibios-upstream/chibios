@@ -605,7 +605,35 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
      same write that enables the FIFOs.*/
   u->IIR_FCR = config->fcr | TI_UART_FCR_RXRST | TI_UART_FCR_TXRST;
 
-  /* Discards anything the previous owner left in the receiver.*/
+  /* Discards anything the previous owner left in the receiver. Resetting
+     the FIFOs is not enough on its own: a character timeout stands in the
+     interrupt identification until the receive register is read, and it
+     survives both the reset and a read of IIR. Left standing it fires the
+     moment the vector is enabled below, and the handler masks again on an
+     empty receiver, where nothing can ever lift the mask. The enables are
+     still down here, so IIR reports only what is genuinely latched.*/
+  {
+    unsigned i;
+
+    for (i = 0U; i < 16U; i++) {
+      uint32_t iir = u->IIR_FCR;
+      uint32_t id;
+
+      if ((iir & TI_UART_IIR_INTSTATUS) != 0U) {
+        break;
+      }
+      id = iir & TI_UART_IIR_INTID_MASK;
+      if ((id != TI_UART_IIR_INTID_CTI) && (id != TI_UART_IIR_INTID_RDA)) {
+        break;
+      }
+
+      /* Only on the peripheral's own word that the receiver has something
+         standing, never speculatively: an unsolicited read of an empty
+         receive register is not free of side effects.*/
+      (void)u->RBR_THR_DLL;
+    }
+  }
+
   (void)uart_latch_lsr(siop);
   siop->lsr = 0U;
 
@@ -628,6 +656,7 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
   uart_set_ier(siop, uart_rx_ier(siop) | uart_tx_ier(siop));
   siop->rx_masked = false;
   siop->rx_idle = false;
+
   vimEnableInterrupt(siop->irq);
 
   /* TX-end polling interval, about four character times assuming ten bits
