@@ -314,24 +314,36 @@ static void uart_arm_tx(SIODriver *siop) {
  */
 static void uart_txend_timer_cb(virtual_timer_t *vtp, void *p) {
   SIODriver *siop = (SIODriver *)p;
+  bool enabled;
   bool ended;
+
+  /* This poll tick stands in for ETBEI while the vector is masked, so it
+     must not notify anything ETBEI itself would not have: on this
+     peripheral TX_NOTFULL and TX_END share the one enable bit, see
+     uart_tx_ier(), so that is the predicate reused here. Without it an
+     application that disabled both transmitter events would still be
+     notified on them, just because the receiver happened to be unread.*/
+  enabled = (uart_tx_ier(siop) != 0U);
 
   /* Space in the FIFO is reported from here too. While the vector is masked
      for an unread receiver the transmitter interrupt cannot run, and a
      thread waiting for room would otherwise wait on nothing. Only while
      there is transmit work outstanding, so an idle transmitter under a
      standing mask does not produce a wakeup on every tick.*/
-  if (!siop->txend_done && !sio_lld_is_tx_full(siop)) {
+  if (enabled && !siop->txend_done && !sio_lld_is_tx_full(siop)) {
     __sio_wakeup_tx(siop);
   }
 
   /* Reported on the transition, once per transmission, for the same
-     reason.*/
+     reason. The transition is tracked regardless of the enabled set so a
+     later poll does not rediscover it, only the notification is gated.*/
   ended = (bool)((uart_latch_lsr(siop) & TI_UART_LSR_TEMT) != 0U);
   if (ended && !siop->txend_done) {
     siop->txend_done = true;
-    __sio_wakeup_txend(siop);
-    __sio_callback(siop);
+    if (enabled) {
+      __sio_wakeup_txend(siop);
+      __sio_callback(siop);
+    }
   }
 
   /* The timer outlives the transmission while the vector is masked: it is
