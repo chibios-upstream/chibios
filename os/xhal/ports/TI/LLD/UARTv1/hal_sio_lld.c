@@ -516,6 +516,12 @@ msg_t sio_lld_start(SIODriver *siop) {
      the core starves. Configuration leaves IER clear and the mode selected,
      so by the time the line is unmasked every source is known.
 
+     The state is still HAL_DRV_STATE_STARTING at this point, so
+     sio_lld_setcfg() knows better than to unmask the vector itself: doing
+     that here, before the handler below is installed, would be no better
+     than arming it first, the dispatcher would still find nothing to
+     acknowledge a standing source with.
+
      The returned pointer is what the base driver expects to find in the
      config field, including when the default configuration was selected by
      a NULL, and a rejected configuration must not leave the peripheral
@@ -529,6 +535,10 @@ msg_t sio_lld_start(SIODriver *siop) {
 
 #if AM67_SIO_USE_UART1 == TRUE
   if (&SIOD1 == siop) {
+    /* The handler and its priority are installed before the vector is
+       unmasked, not after: the VIM line is level sensitive, and a source
+       already standing from configuration above would otherwise dispatch
+       into a vector nothing has been told to run for.*/
     vimSetHandler(siop->irq, uart_irq_handler, (void *)siop);
     vimSetPriority(siop->irq, AM67_SIO_UART1_IRQ_PRIORITY);
     vimEnableInterrupt(siop->irq);
@@ -670,13 +680,27 @@ const SIOConfig *sio_lld_setcfg(SIODriver *siop, const SIOConfig *config) {
   siop->rx_masked = false;
   siop->rx_idle = false;
 
-  vimEnableInterrupt(siop->irq);
-
   /* TX-end polling interval, about four character times assuming ten bits
-     per frame, never less than one tick.*/
+     per frame, never less than one tick. Computed before the vector can
+     possibly come back below: a source standing the moment it is unmasked
+     is serviced by the handler synchronously, and the handler may start
+     the polling timer with this value before returning here.*/
   siop->txend_step = chTimeUS2I((4U * 10U * 1000000U) / config->baud);
   if (siop->txend_step < (sysinterval_t)1) {
     siop->txend_step = (sysinterval_t)1;
+  }
+
+  /* The vector is brought back here only for a driver that is already
+     live: drvSetCfgX() and drvSelectCfgX() reach this function directly
+     while the handler is already installed and the vector already
+     enabled, asserting HAL_DRV_STATE_READY, and a reconfiguration
+     performed while frames were unread must not leave the vector masked
+     for good, see the note above on restoring IER. During sio_lld_start()
+     the state is still HAL_DRV_STATE_STARTING and the handler has not
+     been installed yet, unmasking here would race it; that caller enables
+     the vector itself once the handler and its priority are in place.*/
+  if (siop->state == HAL_DRV_STATE_READY) {
+    vimEnableInterrupt(siop->irq);
   }
 
   return config;
