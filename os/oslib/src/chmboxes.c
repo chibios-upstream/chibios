@@ -154,10 +154,13 @@ void chMBReset(mailbox_t *mbp) {
  * @post    The mailbox is in reset state, all operations will fail and
  *          return @p MSG_RESET until the mailbox is enabled again using
  *          @p chMBResumeX().
+ * @note    This function does not reschedule. When called from thread context,
+ *          reschedule before unlocking the kernel. Interrupt handlers
+ *          reschedule on exit and must not explicitly reschedule here.
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  *
- * @api
+ * @iclass
  */
 void chMBResetI(mailbox_t *mbp) {
 
@@ -175,11 +178,16 @@ void chMBResetI(mailbox_t *mbp) {
 /**
  * @brief   Posts a message into a mailbox.
  * @details The invoking thread waits until an empty slot in the mailbox becomes
- *          available or the specified time runs out.
+ *          available or a wait times out.
+ * @note    A finite timeout applies to each individual wait, not to the
+ *          whole operation. A wakeup does not reserve a free slot. If a
+ *          competing poster uses it first, waiting restarts with the original
+ *          timeout. Repeated competition can therefore extend the total
+ *          operation time indefinitely.
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[in] msg       message to be posted on the mailbox
- * @param[in] timeout   number of ticks before the operation times out,
+ * @param[in] timeout   number of ticks per wait,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -203,11 +211,16 @@ msg_t chMBPostTimeout(mailbox_t *mbp, msg_t msg, sysinterval_t timeout) {
 /**
  * @brief   Posts a message into a mailbox.
  * @details The invoking thread waits until an empty slot in the mailbox becomes
- *          available or the specified time runs out.
+ *          available or a wait times out.
+ * @note    A finite timeout applies to each individual wait, not to the
+ *          whole operation. A wakeup does not reserve a free slot. If a
+ *          competing poster uses it first, waiting restarts with the original
+ *          timeout. Repeated competition can therefore extend the total
+ *          operation time indefinitely.
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[in] msg       message to be posted on the mailbox
- * @param[in] timeout   number of ticks before the operation times out,
+ * @param[in] timeout   number of ticks per wait,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -298,11 +311,16 @@ msg_t chMBPostI(mailbox_t *mbp, msg_t msg) {
 /**
  * @brief   Posts a high priority message into a mailbox.
  * @details The invoking thread waits until an empty slot in the mailbox becomes
- *          available or the specified time runs out.
+ *          available or a wait times out.
+ * @note    A finite timeout applies to each individual wait, not to the
+ *          whole operation. A wakeup does not reserve a free slot. If a
+ *          competing poster uses it first, waiting restarts with the original
+ *          timeout. Repeated competition can therefore extend the total
+ *          operation time indefinitely.
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[in] msg       message to be posted on the mailbox
- * @param[in] timeout   number of ticks before the operation times out,
+ * @param[in] timeout   number of ticks per wait,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -326,11 +344,16 @@ msg_t chMBPostAheadTimeout(mailbox_t *mbp, msg_t msg, sysinterval_t timeout) {
 /**
  * @brief   Posts a high priority message into a mailbox.
  * @details The invoking thread waits until an empty slot in the mailbox becomes
- *          available or the specified time runs out.
+ *          available or a wait times out.
+ * @note    A finite timeout applies to each individual wait, not to the
+ *          whole operation. A wakeup does not reserve a free slot. If a
+ *          competing poster uses it first, waiting restarts with the original
+ *          timeout. Repeated competition can therefore extend the total
+ *          operation time indefinitely.
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[in] msg       message to be posted on the mailbox
- * @param[in] timeout   number of ticks before the operation times out,
+ * @param[in] timeout   number of ticks per wait,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -355,8 +378,11 @@ msg_t chMBPostAheadTimeoutS(mailbox_t *mbp, msg_t msg, sysinterval_t timeout) {
 
     /* Is there a free message slot in queue? if so then post.*/
     if (chMBGetFreeCountI(mbp) > (size_t)0) {
-      if (--mbp->rdptr < mbp->buffer) {
+      if (mbp->rdptr == mbp->buffer) {
         mbp->rdptr = mbp->top - 1;
+      }
+      else {
+        mbp->rdptr--;
       }
       *mbp->rdptr = msg;
       mbp->cnt++;
@@ -402,8 +428,11 @@ msg_t chMBPostAheadI(mailbox_t *mbp, msg_t msg) {
 
   /* Is there a free message slot in queue? if so then post.*/
   if (chMBGetFreeCountI(mbp) > (size_t)0) {
-    if (--mbp->rdptr < mbp->buffer) {
+    if (mbp->rdptr == mbp->buffer) {
       mbp->rdptr = mbp->top - 1;
+    }
+    else {
+      mbp->rdptr--;
     }
     *mbp->rdptr = msg;
     mbp->cnt++;
@@ -421,11 +450,16 @@ msg_t chMBPostAheadI(mailbox_t *mbp, msg_t msg) {
 /**
  * @brief   Retrieves a message from a mailbox.
  * @details The invoking thread waits until a message is posted in the mailbox
- *          or the specified time runs out.
+ *          or a wait times out.
+ * @note    A finite timeout applies to each individual wait, not to the
+ *          whole operation. A wakeup does not reserve a message. If a
+ *          competing reader fetches it first, waiting restarts with the
+ *          original timeout. Repeated competition can therefore extend the
+ *          total operation time indefinitely.
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[out] msgp     pointer to a message variable for the received message
- * @param[in] timeout   the number of ticks before the operation times out,
+ * @param[in] timeout   number of ticks per wait,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
@@ -449,11 +483,16 @@ msg_t chMBFetchTimeout(mailbox_t *mbp, msg_t *msgp, sysinterval_t timeout) {
 /**
  * @brief   Retrieves a message from a mailbox.
  * @details The invoking thread waits until a message is posted in the mailbox
- *          or the specified time runs out.
+ *          or a wait times out.
+ * @note    A finite timeout applies to each individual wait, not to the
+ *          whole operation. A wakeup does not reserve a message. If a
+ *          competing reader fetches it first, waiting restarts with the
+ *          original timeout. Repeated competition can therefore extend the
+ *          total operation time indefinitely.
  *
  * @param[in] mbp       pointer to a @p mailbox_t object
  * @param[out] msgp     pointer to a message variable for the received message
- * @param[in] timeout   number of ticks before the operation times out,
+ * @param[in] timeout   number of ticks per wait,
  *                      the following special values are allowed:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.

@@ -143,12 +143,12 @@
 #endif
 
 /* System timer clock requirement atoms.*/
-#if defined(STM32_ST_USE_LPTIM) && (STM32_ST_USE_LPTIM == 1)
+#if defined(STM32_ST_LPTIM_BACKEND) && (STM32_ST_USE_TIMER == 1)
 #define STM32_LPTIM1_CLOCK_REQUIRED
 #endif
 
-#if defined(STM32_ST_USE_LPTIM) &&                                           \
-    ((STM32_ST_USE_LPTIM == 3) || (STM32_ST_USE_LPTIM == 4))
+#if defined(STM32_ST_LPTIM_BACKEND) &&                                    \
+    ((STM32_ST_USE_TIMER == 3) || (STM32_ST_USE_TIMER == 4))
 #define STM32_LPTIM34_CLOCK_REQUIRED
 #endif
 

@@ -28,7 +28,9 @@
 #if !defined(CH_CFG_USE_RFCU)
 #define CH_CFG_USE_RFCU                         TRUE
 #endif
+#if !defined(CH_CFG_HARDENING_LEVEL)
 #define CH_CFG_HARDENING_LEVEL                  0
+#endif
 #define CH_CFG_INTERVALS_SIZE                   32
 #define CH_CFG_ST_RESOLUTION                    32
 #define CH_CFG_ST_TIMEDELTA                     2
@@ -37,6 +39,7 @@
 #define CH_DBG_ENABLE_ASSERTS                   TRUE
 #endif
 #define PORT_CORES_NUMBER                       2
+#define PORT_NATURAL_ALIGN                      sizeof (uintptr_t)
 
 #define CH_RFCU_VT_INSUFFICIENT_DELTA           1U
 #define CH_RFCU_VT_SKIPPED_DEADLINE             2U
@@ -54,8 +57,9 @@ void testDbgAssert(bool condition, const char *reason);
 #endif
 #define chDbgCheck(c)                           assert(c)
 #define chDbgCheckClassI()                      ((void)0)
-#define chSftAssert(level, c, msg)               ((void)0)
-#define chSftValidateDataPointerX(level, p)      ((void)0)
+#define CH_CFG_SAFETY_CHECK_HOOK(l, f)           testDbgAssert(false, (f))
+
+#include "chsafety.h"
 
 typedef uint32_t sysinterval_t;
 typedef uint32_t systime_t;

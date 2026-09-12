@@ -38,24 +38,28 @@
  * <h2>Test Cases</h2>
  * - @subpage oslib_test_008_001
  * - @subpage oslib_test_008_002
+ * - @subpage oslib_test_008_003
+ * - @subpage oslib_test_008_004
+ * - @subpage oslib_test_008_005
  * .
  */
 
 #if (CH_CFG_USE_HEAP == TRUE) || defined(__DOXYGEN__)
 
-/****************************************************************************
- * Shared code.
- ****************************************************************************/
+/*===========================================================================*/
+/* Shared code.                                                              */
+/*===========================================================================*/
 
 #define ALLOC_SIZE 16
 #define HEAP_SIZE (ALLOC_SIZE * 8)
 
 static memory_heap_t test_heap;
 static uint8_t test_heap_buffer[HEAP_SIZE];
+static ALIGNED_VAR(CH_HEAP_ALIGNMENT) heap_header_t integrity_buffer[8];
 
-/****************************************************************************
- * Test cases.
- ****************************************************************************/
+/*===========================================================================*/
+/* Test cases.                                                               */
+/*===========================================================================*/
 
 /**
  * @page oslib_test_008_001 [8.1] Allocation and fragmentation
@@ -296,9 +300,342 @@ static const testcase_t oslib_test_008_002 = {
   oslib_test_008_002_execute
 };
 
-/****************************************************************************
- * Exported data.
- ****************************************************************************/
+/**
+ * @page oslib_test_008_003 [8.3] Heap header bounds
+ *
+ * <h2>Description</h2>
+ * The integrity checker rejects headers outside the heap or only
+ * partially contained in it. All test headers have valid backing
+ * storage, so no fault or kernel assertion is expected.
+ *
+ * <h2>Test Steps</h2>
+ * - [8.3.1] The initial heap must pass the integrity check.
+ * - [8.3.2] A header below the heap base must be rejected. Restore the
+ *   link before checking the result.
+ * - [8.3.3] A header at the first address beyond the heap must be
+ *   rejected. Restore the link before checking the result.
+ * - [8.3.4] A header whose final byte is outside the heap must be
+ *   rejected. Restore the area before checking the result.
+ * - [8.3.5] An out-of-area link after a valid header must also be
+ *   rejected. Restore the link before checking the result.
+ * .
+ */
+
+static void oslib_test_008_003_setup(void) {
+  chHeapObjectInit(&test_heap, &integrity_buffer[1],
+                   2U * sizeof (heap_header_t));
+  integrity_buffer[0].free.next = NULL;
+  integrity_buffer[0].free.pages = 0U;
+  integrity_buffer[3].free.next = NULL;
+  integrity_buffer[3].free.pages = 0U;
+}
+
+static void oslib_test_008_003_teardown(void) {
+  chHeapObjectDispose(&test_heap);
+}
+
+static void oslib_test_008_003_execute(void) {
+  heap_header_t *saved;
+  size_t saved_size;
+  bool failed;
+
+  /* [8.3.1] The initial heap must pass the integrity check.*/
+  test_set_step(1);
+  {
+    test_assert(!chHeapIntegrityCheck(&test_heap), "initial integrity failure");
+  }
+  test_end_step(1);
+
+  /* [8.3.2] A header below the heap base must be rejected. Restore the
+     link before checking the result.*/
+  test_set_step(2);
+  {
+    saved = test_heap.header.free.next;
+    test_heap.header.free.next = &integrity_buffer[0];
+    failed = chHeapIntegrityCheck(&test_heap);
+    test_heap.header.free.next = saved;
+    test_assert(failed, "header below base accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(2);
+
+  /* [8.3.3] A header at the first address beyond the heap must be
+     rejected. Restore the link before checking the result.*/
+  test_set_step(3);
+  {
+    saved = test_heap.header.free.next;
+    test_heap.header.free.next = &integrity_buffer[3];
+    failed = chHeapIntegrityCheck(&test_heap);
+    test_heap.header.free.next = saved;
+    test_assert(failed, "header beyond heap accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(3);
+
+  /* [8.3.4] A header whose final byte is outside the heap must be
+     rejected. Restore the area before checking the result.*/
+  test_set_step(4);
+  {
+    saved_size = test_heap.area.size;
+    test_heap.area.size = sizeof (heap_header_t) - 1U;
+    failed = chHeapIntegrityCheck(&test_heap);
+    test_heap.area.size = saved_size;
+    test_assert(failed, "partial header accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(4);
+
+  /* [8.3.5] An out-of-area link after a valid header must also be
+     rejected. Restore the link before checking the result.*/
+  test_set_step(5);
+  {
+    saved = integrity_buffer[1].free.next;
+    integrity_buffer[1].free.next = &integrity_buffer[3];
+    failed = chHeapIntegrityCheck(&test_heap);
+    integrity_buffer[1].free.next = saved;
+    test_assert(failed, "later out-of-area header accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(5);
+}
+
+static const testcase_t oslib_test_008_003 = {
+  "Heap header bounds",
+  oslib_test_008_003_setup,
+  oslib_test_008_003_teardown,
+  oslib_test_008_003_execute
+};
+
+/**
+ * @page oslib_test_008_004 [8.4] Heap block sizes
+ *
+ * <h2>Description</h2>
+ * Block sizes must be representable in bytes and fit the heap area.
+ * Invalid page counts are restored before checking test results.
+ *
+ * <h2>Test Steps</h2>
+ * - [8.4.1] The initial block ending exactly at the heap limit must
+ *   pass the check.
+ * - [8.4.2] A page count that would wrap the byte size to one header
+ *   must be rejected.
+ * - [8.4.3] A page count whose header addition would wrap must be
+ *   rejected.
+ * - [8.4.4] The first page count whose full byte size cannot be
+ *   represented must be rejected.
+ * - [8.4.5] A representable byte size that exceeds this heap must
+ *   still be rejected.
+ * - [8.4.6] A block exceeding the heap by one page must be rejected.
+ * .
+ */
+
+static void oslib_test_008_004_setup(void) {
+  chHeapObjectInit(&test_heap, integrity_buffer,
+                   sizeof (integrity_buffer));
+}
+
+static void oslib_test_008_004_teardown(void) {
+  chHeapObjectDispose(&test_heap);
+}
+
+static void oslib_test_008_004_execute(void) {
+  heap_header_t *hp;
+  size_t saved_pages;
+  bool failed;
+
+  hp = test_heap.header.free.next;
+  saved_pages = hp->free.pages;
+
+  /* [8.4.1] The initial block ending exactly at the heap limit must
+     pass the check.*/
+  test_set_step(1);
+  {
+    test_assert(!chHeapIntegrityCheck(&test_heap), "exact-fit block rejected");
+  }
+  test_end_step(1);
+
+  /* [8.4.2] A page count that would wrap the byte size to one header
+     must be rejected.*/
+  test_set_step(2);
+  {
+    hp->free.pages = (SIZE_MAX / sizeof (heap_header_t)) + 1U;
+    failed = chHeapIntegrityCheck(&test_heap);
+    hp->free.pages = saved_pages;
+    test_assert(failed, "wrapped block size accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(2);
+
+  /* [8.4.3] A page count whose header addition would wrap must be
+     rejected.*/
+  test_set_step(3);
+  {
+    hp->free.pages = SIZE_MAX;
+    failed = chHeapIntegrityCheck(&test_heap);
+    hp->free.pages = saved_pages;
+    test_assert(failed, "wrapped page count accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(3);
+
+  /* [8.4.4] The first page count whose full byte size cannot be
+     represented must be rejected.*/
+  test_set_step(4);
+  {
+    hp->free.pages = SIZE_MAX / sizeof (heap_header_t);
+    failed = chHeapIntegrityCheck(&test_heap);
+    hp->free.pages = saved_pages;
+    test_assert(failed, "unrepresentable block size accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(4);
+
+  /* [8.4.5] A representable byte size that exceeds this heap must
+     still be rejected.*/
+  test_set_step(5);
+  {
+    hp->free.pages = (SIZE_MAX / sizeof (heap_header_t)) - 1U;
+    failed = chHeapIntegrityCheck(&test_heap);
+    hp->free.pages = saved_pages;
+    test_assert(failed, "block outside heap accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(5);
+
+  /* [8.4.6] A block exceeding the heap by one page must be rejected.*/
+  test_set_step(6);
+  {
+    hp->free.pages = saved_pages + 1U;
+    failed = chHeapIntegrityCheck(&test_heap);
+    hp->free.pages = saved_pages;
+    test_assert(failed, "block beyond heap limit accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(6);
+}
+
+static const testcase_t oslib_test_008_004 = {
+  "Heap block sizes",
+  oslib_test_008_004_setup,
+  oslib_test_008_004_teardown,
+  oslib_test_008_004_execute
+};
+
+/**
+ * @page oslib_test_008_005 [8.5] Heap block overlap
+ *
+ * <h2>Description</h2>
+ * Free block extents must not overlap, while separated blocks and
+ * zero-page fragments remain valid. Link-order and loop checks must be
+ * preserved.
+ *
+ * <h2>Test Steps</h2>
+ * - [8.5.1] Ascending headers whose blocks overlap by one header must
+ *   be rejected even though both blocks fit individually in the heap.
+ * - [8.5.2] Separated free blocks, including one ending at the heap
+ *   limit, must pass the check.
+ * - [8.5.3] An allocation leaving a zero-page tail fragment must pass
+ *   the check, as must the heap after freeing it.
+ * - [8.5.4] Self-links and backward links must still be rejected
+ *   without looping.
+ * .
+ */
+
+static void oslib_test_008_005_setup(void) {
+  chHeapObjectInit(&test_heap, integrity_buffer,
+                   sizeof (integrity_buffer));
+}
+
+static void oslib_test_008_005_teardown(void) {
+  chHeapObjectDispose(&test_heap);
+}
+
+static void oslib_test_008_005_execute(void) {
+  heap_header_t *hp, *next;
+  heap_header_t saved;
+  void *p;
+  bool failed;
+
+  hp = test_heap.header.free.next;
+  next = &integrity_buffer[4];
+  saved = *hp;
+
+  /* [8.5.1] Ascending headers whose blocks overlap by one header must
+     be rejected even though both blocks fit individually in the
+     heap.*/
+  test_set_step(1);
+  {
+    hp->free.pages = 4U;
+    hp->free.next = next;
+    next->free.pages = 3U;
+    next->free.next = NULL;
+    failed = chHeapIntegrityCheck(&test_heap);
+    *hp = saved;
+    test_assert(failed, "overlapping blocks accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(1);
+
+  /* [8.5.2] Separated free blocks, including one ending at the heap
+     limit, must pass the check.*/
+  test_set_step(2);
+  {
+    hp->free.pages = 1U;
+    hp->free.next = next;
+    next->free.pages = 3U;
+    next->free.next = NULL;
+    failed = chHeapIntegrityCheck(&test_heap);
+    *hp = saved;
+    test_assert(!failed, "separated blocks rejected");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(2);
+
+  /* [8.5.3] An allocation leaving a zero-page tail fragment must pass
+     the check, as must the heap after freeing it.*/
+  test_set_step(3);
+  {
+    p = chHeapAlloc(&test_heap, 6U * sizeof (heap_header_t));
+    test_assert(p != NULL, "allocation failed");
+    test_assert(test_heap.header.free.next == &integrity_buffer[7], "wrong tail header");
+    test_assert(integrity_buffer[7].free.pages == 0U, "tail is not zero-page");
+    failed = chHeapIntegrityCheck(&test_heap);
+    chHeapFree(p);
+    test_assert(!failed, "zero-page fragment rejected");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(3);
+
+  /* [8.5.4] Self-links and backward links must still be rejected
+     without looping.*/
+  test_set_step(4);
+  {
+    hp->free.next = hp;
+    failed = chHeapIntegrityCheck(&test_heap);
+    *hp = saved;
+    test_assert(failed, "self-link accepted");
+
+    hp->free.pages = 0U;
+    hp->free.next = next;
+    next->free.pages = 0U;
+    next->free.next = hp;
+    failed = chHeapIntegrityCheck(&test_heap);
+    *hp = saved;
+    test_assert(failed, "backward link accepted");
+    test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");
+  }
+  test_end_step(4);
+}
+
+static const testcase_t oslib_test_008_005 = {
+  "Heap block overlap",
+  oslib_test_008_005_setup,
+  oslib_test_008_005_teardown,
+  oslib_test_008_005_execute
+};
+
+/*===========================================================================*/
+/* Exported data.                                                            */
+/*===========================================================================*/
 
 /**
  * @brief   Array of test cases.
@@ -306,6 +643,9 @@ static const testcase_t oslib_test_008_002 = {
 const testcase_t * const oslib_test_sequence_008_array[] = {
   &oslib_test_008_001,
   &oslib_test_008_002,
+  &oslib_test_008_003,
+  &oslib_test_008_004,
+  &oslib_test_008_005,
   NULL
 };
 

@@ -30,6 +30,7 @@
  * - @subpage oslib_test_sequence_007
  * - @subpage oslib_test_sequence_008
  * - @subpage oslib_test_sequence_009
+ * - @subpage oslib_test_sequence_010
  * .
  */
 
@@ -75,6 +76,9 @@ const testsequence_t * const oslib_test_suite_array[] = {
 #endif
 #if ((CH_CFG_USE_FACTORY == TRUE) && (CH_CFG_USE_MEMPOOLS == TRUE) && (CH_CFG_USE_HEAP == TRUE)) || defined(__DOXYGEN__)
   &oslib_test_sequence_009,
+#endif
+#if (CH_CFG_USE_MEMCORE == TRUE) || defined(__DOXYGEN__)
+  &oslib_test_sequence_010,
 #endif
   NULL
 };

@@ -81,13 +81,16 @@
  */
 /**
  * @brief   Safety-related condition assertion.
- * @details If the condition check fails then the kernel panics with a
- *          message and halts.
- * @note    The condition is tested only if the specified check level is
- *          equal or greater to @p CH_CFG_HARDENING_LEVEL setting specified
- *          in @p chconf.h else the macro does nothing.
+ * @details If an enabled check fails then @p CH_CFG_SAFETY_CHECK_HOOK is
+ *          invoked with @p l and the detecting function's name. The default
+ *          hook calls @p chSysHalt(). A replacement hook must not return to
+ *          the failed operation; there is no implicit halt after the hook.
+ * @note    The check is enabled when @p l is less than or equal to
+ *          @p CH_CFG_HARDENING_LEVEL specified in @p chconf.h. Level 0
+ *          checks are always enabled.
  * @note    Safety checks with levels from 0 to 2 are also activated when
  *          @p CH_DBG_ENABLE_ASSERTS is set to @p TRUE.
+ * @note    If the check is not enabled then @p c is not evaluated.
  * @note    The remark string is not currently used except for putting a
  *          comment in the code about the assertion.
  *
@@ -111,7 +114,7 @@
 #endif /* !defined(chSftAssert) */
 /** @} */
 
-#if CH_CFG_HARDENING_LEVEL < 1
+#if (CH_CFG_HARDENING_LEVEL < 1) && (CH_DBG_ENABLE_ASSERTS == FALSE)
 #define chSftCheckListX(p)
 #define chSftCheckQueueX(p)
 #endif
@@ -123,7 +126,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#if CH_CFG_HARDENING_LEVEL >= 1
+#if (CH_CFG_HARDENING_LEVEL >= 1) || (CH_DBG_ENABLE_ASSERTS != FALSE)
   void chSftCheckListX(const void *p);
   void chSftCheckQueueX(const void *p);
 #endif
@@ -141,9 +144,13 @@ extern "C" {
  * @details The purpose of this functionality is early detection of
  *          memory corruption by checking memory-fetched pointers
  *          before dereferencing.
- * @note    The pointer is checked for alignment to @p PORT_NATURAL_ALIGN, do
- *          not use this function to check pointers to less restrictive types.
- * @note    This check is enabled at hardening level 2 or higher.
+ * @note    The default validator rejects @p NULL and pointers not aligned
+ *          to @p PORT_NATURAL_ALIGN. Do not use it to check pointers to less
+ *          restrictive types. It does not establish that memory is readable.
+ * @note    Check activation follows @p chSftAssert() for the supplied level
+ *          @p l, including debug-assertion activation of levels 0 to 2.
+ *          Full integrity scans pass level 2; priority-ordered insertion
+ *          checks pass level 3.
  *
  * @param[in] l         check level in range 0..3
  * @param[in] p         pointer to be checked

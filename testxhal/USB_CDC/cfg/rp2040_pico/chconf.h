@@ -61,13 +61,21 @@
 
 /**
  * @brief   Kernel hardening level.
- * @details This option is the level of functional-safety checks enabled
- *          in the kernel. The meaning is:
- *          - 0: No checks, maximum performance.
- *          - 1: Reasonable checks.
- *          - 2: All checks except forward link pointer validation.
- *          - 3: All checks.
+ * @details The automatic hardening levels are cumulative:
+ *          - 0: No automatic hardening checks or object clearing.
+ *          - 1: Object integrity checks and clearing on disposal.
+ *          - 2: Also checks consistency of forward/backward link pairs during
+ *               insertion into ready lists and priority-ordered wait queues.
+ *          - 3: Also validates pointers before dereferencing them during
+ *               these insertions (NULL and alignment checks by default).
  *          .
+ * @note    @p CH_DBG_ENABLE_ASSERTS also enables level-0/1/2 checks,
+ *          including disposal list/queue checks, independently of this
+ *          setting. It does not enable level-3 checks or object clearing
+ *          at level 0.
+ * @note    Explicit @p chSftIntegrityCheckI() scans are available at all
+ *          levels. Their link-consistency checks always execute; pointer
+ *          validation requires level 2 or higher, or enabled debug assertions.
  */
 #if !defined(CH_CFG_HARDENING_LEVEL)
 #define CH_CFG_HARDENING_LEVEL              0
@@ -643,6 +651,7 @@
  * @brief   Trace buffer entries.
  * @note    The trace buffer is only allocated if @p CH_DBG_TRACE_MASK is
  *          different from @p CH_DBG_TRACE_MASK_DISABLED.
+ * @note    The allowed range is 1..65535 when the trace buffer is enabled.
  */
 #if !defined(CH_DBG_TRACE_BUFFER_SIZE)
 #define CH_DBG_TRACE_BUFFER_SIZE            128
@@ -859,8 +868,28 @@
 
 /**
  * @brief   Trace hook.
- * @details This hook is invoked each time a new record is written in the
- *          trace buffer.
+ * @details Invoked synchronously on the reporting core after the record fields
+ *          and timestamps are written, before the next-slot pointer advances.
+ *          It can run in thread or ISR context, during initialization and on
+ *          halt paths, including inside scheduler operations.
+ * @note    This is not a general I-class callback. IRQ tracing holds the port
+ *          lock but runs before ISR debug-state setup or after its teardown.
+ *          Halt tracing disables local interrupts but need not hold the shared
+ *          SMP kernel lock.
+ * @note    The hook must be bounded and nonblocking, preserve interrupt and
+ *          lock state, and must not acquire or release kernel locks, reschedule,
+ *          wake threads, or modify kernel objects or the trace buffer.
+ * @note    The record pointer is borrowed for this call. Copy needed fields to
+ *          application-owned storage and defer processing to a suitable context;
+ *          retaining the pointer does not preserve the record against overwrite.
+ * @note    Hook-owned storage must be initialized before the first possible
+ *          record. Application initialization and current-thread setup need not
+ *          be complete then. Shared storage must account for concurrent SMP
+ *          halt reporting without the shared kernel lock.
+ * @warning Direct or indirect tracing from the hook invokes it recursively
+ *          and must be avoided.
+ *
+ * @param[in] tep       pointer to the completed record, read-only for the hook
  */
 #define CH_CFG_TRACE_HOOK(tep) do {                                         \
   /* Trace code here.*/                                                     \
@@ -891,8 +920,29 @@
 
 /**
  * @brief   Safety checks hook.
- * @details This hook is invoked when there is a safety violation and the
- *          system is going to stop.
+ * @details Invoked synchronously in the detecting caller's context when an
+ *          enabled @p chSftAssert() check fails. This hook supplies the entire
+ *          failure action; the default calls @p chSysHalt().
+ * @note    The hook can run in thread or ISR context, inside kernel updates
+ *          or without a kernel lock, and during initialization. It is not a
+ *          general I-class callback.
+ * @note    Kernel objects may already be inconsistent. Diagnostic work before
+ *          stopping must be bounded and nonblocking, and must not lock or
+ *          unlock the kernel, reschedule, wake threads, or manipulate kernel
+ *          objects. Avoid triggering further checks from the hook.
+ * @note    Hook-owned diagnostic storage must be initialized before the first
+ *          possible failure. Application initialization need not be complete
+ *          then. In SMP, shared storage must not assume that the common
+ *          kernel lock is held.
+ * @note    The function name can identify a shared checking helper rather
+ *          than its caller. The assertion's remark string is not passed.
+ * @warning A replacement hook must stop execution without returning to the
+ *          failed operation, for example by calling @p chSysHalt(). There is
+ *          no implicit halt after the hook; continuing can dereference an
+ *          invalid pointer or modify inconsistent data.
+ *
+ * @param[in] l         failed check level, not the configured hardening level
+ * @param[in] f         detecting function's name, supplied through __func__
  */
 #define CH_CFG_SAFETY_CHECK_HOOK(l, f) do {                                 \
   /* Safety handling code here.*/                                           \

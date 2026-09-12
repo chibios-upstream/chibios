@@ -46,6 +46,8 @@
 
 #define MMCSD_CMD_ALL_SEND_CID              2U
 
+#define MMCSD_CMD_SET_RELATIVE_ADDR         3U
+
 #define MMCSD_CMD_SEND_RELATIVE_ADDR        3U
 
 #define MMCSD_CMD_SET_BUS_WIDTH             6U
@@ -1005,9 +1007,20 @@ bool sdcConnect(void *ip) {
     goto failed;
   }
 
-  if (sdc_lld_send_cmd_short_crc(self, MMCSD_CMD_SEND_RELATIVE_ADDR, 0U,
-                                 &self->rca)) {
-    goto failed;
+  if ((self->cardmode & SDC_MODE_CARDTYPE_MASK) == SDC_MODE_CARDTYPE_MMC) {
+    /* MMC cards require a host-assigned RCA in argument bits 31:16.*/
+    self->rca = 0x0002U << 16U;
+    if (sdc_lld_send_cmd_short_crc(self, MMCSD_CMD_SET_RELATIVE_ADDR,
+                                   self->rca, resp)) {
+      goto failed;
+    }
+  }
+  else {
+    /* SD cards return their RCA in the CMD3 response.*/
+    if (sdc_lld_send_cmd_short_crc(self, MMCSD_CMD_SEND_RELATIVE_ADDR, 0U,
+                                   &self->rca)) {
+      goto failed;
+    }
   }
 
   if (sdc_lld_send_cmd_long_crc(self, MMCSD_CMD_SEND_CSD, self->rca,

@@ -914,6 +914,11 @@ static inline void sbResetAlarm(void) {
 
 /**
  * @brief   VRQ @p wait pseudo-instruction.
+ * @details Returns when at least one individually enabled VRQ is pending,
+ *          even if VRQ delivery is globally disabled. Otherwise releases
+ *          the CPU to the host until such a VRQ becomes pending.
+ * @note    Waiting does not change the global delivery mask or acknowledge
+ *          pending VRQs. Handler delivery remains subject to that mask.
  *
  * @api
  */
