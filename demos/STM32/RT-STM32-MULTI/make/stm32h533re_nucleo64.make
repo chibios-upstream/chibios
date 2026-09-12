@@ -5,7 +5,7 @@
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -O2 -ggdb -fomit-frame-pointer -falign-functions=16
+  USE_OPT = -O2 -ggdb -fomit-frame-pointer --specs=nano.specs -falign-functions=16
 endif
 
 # C specific options here (added to USE_OPT).
@@ -90,9 +90,9 @@ MCU  = cortex-m33
 
 # Imported source files and paths.
 CHIBIOS  := ../../..
-CONFDIR  := ./cfg
-BUILDDIR := ./build
-DEPDIR   := ./.dep
+CONFDIR  := ./cfg/stm32h533re_nucleo64
+BUILDDIR := ./build/stm32h533re_nucleo64
+DEPDIR   := ./.dep/stm32h533re_nucleo64
 
 # Licensing files.
 include $(CHIBIOS)/os/license/license.mk
@@ -105,25 +105,25 @@ include $(CHIBIOS)/os/hal/boards/ST_NUCLEO64_H533RE/board.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
+#include $(CHIBIOS)/os/common/ports/ARMv8-M-ML/compilers/GCC/mk/port.mk
 include $(CHIBIOS)/os/common/ports/ARMv8-M-ML-ALT/compilers/GCC/mk/port.mk
-# Shell files (optional).
-include $(CHIBIOS)/os/various/shell/shell.mk
-# Streams library (required by the shell).
-include $(CHIBIOS)/os/hal/lib/streams/streams.mk
 # Auto-build files in ./source recursively.
 include $(CHIBIOS)/tools/mk/autobuild.mk
 # Other files (optional).
 include $(CHIBIOS)/os/test/test.mk
 include $(CHIBIOS)/test/rt/rt_test.mk
 include $(CHIBIOS)/test/oslib/oslib_test.mk
+#include $(CHIBIOS)/os/hal/lib/streams/streams.mk
+#include $(CHIBIOS)/os/various/shell/shell.mk
 
-# Define linker script file here
+# Define linker script file here.
 LDSCRIPT= $(STARTUPLD)/STM32H533xE.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
 CSRC = $(ALLCSRC) \
        $(TESTSRC) \
+       $(CONFDIR)/portab.c \
        main.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
@@ -140,7 +140,7 @@ ASMXSRC = $(ALLXASMSRC)
 INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
 
 # Define C warning options here.
-CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes
+CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -Wcast-align=strict
 
 # Define C++ warning options here.
 CPPWARN = -Wall -Wextra -Wundef
@@ -154,7 +154,7 @@ CPPWARN = -Wall -Wextra -Wundef
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS =
+UDEFS = -D__TEST_RT -D__TEST_OSLIB
 
 # Define ASM defines here
 UADEFS =
