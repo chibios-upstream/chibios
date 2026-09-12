@@ -614,6 +614,19 @@ static void echo_loop(void) {
         (void)sioAsyncWriteX(&SIOD1, &c, 1U);
       }
     }
+    else if (msg == SIO_MSG_ERRORS) {
+      /* An overrun, framing/parity error or break was latched. Neither the
+         error nor the frame behind it clears on its own, see
+         selftest_errors() above, so without acknowledging the error and
+         draining the receiver here sioSynchronizeRX() would keep returning
+         SIO_MSG_ERRORS immediately and echo would stop for good. The data
+         behind a line error is not trustworthy, so it is discarded rather
+         than echoed back.*/
+      (void)sioGetAndClearErrorsX(&SIOD1);
+      while (sioAsyncReadX(&SIOD1, &c, 1U) == 1U) {
+        /* Discarded.*/
+      }
+    }
   }
 }
 
