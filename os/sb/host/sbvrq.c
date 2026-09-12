@@ -132,6 +132,8 @@ CC_NO_INLINE
 static void vrq_pushctx_other(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   struct port_extctx *ectxp;
 
+  /* Any lazy FP save was completed when this thread was switched out.*/
+
   /* Current stack frame position.*/
 //  ectxp = (struct port_extctx *)sbp->u_psp;
 
@@ -157,6 +159,14 @@ static void vrq_pushctx_other(sb_class_t *sbp, sb_vrqnum_t nvrq) {
 CC_NO_INLINE
 static void vrq_pushctx_this(sb_class_t *sbp, uint32_t psp, sb_vrqnum_t nvrq) {
   struct port_extctx *ectxp;
+
+#if (CORTEX_USE_FPU == TRUE) && (PORT_USE_FPU_FAST_SWITCHING > 0)
+  /* Completing any lazy FP save before preserving the interrupted frame
+     and returning through a different one. FPCA only guarantees the frame
+     size, not that its FP registers have already been saved.*/
+  (void)__get_FPSCR();
+  asm volatile ("" : : : "memory");
+#endif
 
   /* Position of the new stack frame, it depends on FPU settings and state.*/
   ectxp = (struct port_extctx *)(psp - sizeof (struct port_extctx));
@@ -249,6 +259,7 @@ void sbVRQSetFlagsI(sb_class_t *sbp, sb_vrqnum_t nvrq, uint32_t flags) {
 void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   const sb_vrqnum_t vrq_num =
     (sb_vrqnum_t)(sizeof sbp->vrq.flags / sizeof sbp->vrq.flags[0]);
+  sb_vrqmask_t active_mask;
 
   chDbgCheckClassS();
 
@@ -264,13 +275,20 @@ void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   /* Adding VRQ mask to the pending mask.*/
   sbp->vrq.wtmask |= (sb_vrqmask_t)(1U << nvrq);
 
-  /* Only doing the following if VRQs are globally enabled.*/
-  if ((sbp->vrq.isr & SB_VRQ_ISR_DISABLED) == 0U) {
-    sb_vrqmask_t active_mask;
+  /* Per-VRQ enables control both wakeup and delivery.*/
+  active_mask = sbp->vrq.wtmask & sbp->vrq.enmask;
+  if (active_mask != 0U) {
 
-    /* Checking if there are VRQs to be served immediately.*/
-    active_mask = sbp->vrq.wtmask & sbp->vrq.enmask;
-    if (active_mask != 0U) {
+    /* Waking a VRQ waiter independently of the global delivery mask.
+       Returning immediately because the resumed sandbox may run here.*/
+    if (sbp->vrq.trp != NULL) {
+      chThdResumeS(&sbp->vrq.trp, MSG_OK);
+      return;
+    }
+
+    /* Only delivering handlers if VRQs are globally enabled. Privileged
+       contexts defer delivery until syscall return.*/
+    if ((sbp->vrq.isr & SB_VRQ_ISR_DISABLED) == 0U) {
 
       /* Checking if it has been called from this sandbox thread by
          a syscall handler.*/
@@ -287,12 +305,6 @@ void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq) {
           /* Unprivileged mode, creating a return context on the sandbox
              thread.*/
           vrq_pushctx_other(sbp, __CLZ(__RBIT(active_mask)));
-        }
-        else {
-          /* Privileged mode, so it will check for pending VRQs while
-             exiting the syscall. Just trying to wake up the thread
-             in case it is waiting for VRQs.*/
-          chThdResumeS(&sbp->vrq.trp, MSG_OK);
         }
       }
     }
@@ -315,6 +327,7 @@ void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq) {
 void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   const sb_vrqnum_t vrq_num =
     (sb_vrqnum_t)(sizeof sbp->vrq.flags / sizeof sbp->vrq.flags[0]);
+  sb_vrqmask_t active_mask;
 
   chDbgCheckClassI();
 
@@ -330,13 +343,20 @@ void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   /* Adding VRQ mask to the pending mask.*/
   sbp->vrq.wtmask |= (sb_vrqmask_t)(1U << nvrq);
 
-  /* Only doing the following if VRQs are globally enabled.*/
-  if ((sbp->vrq.isr & SB_VRQ_ISR_DISABLED) == 0U) {
-    sb_vrqmask_t active_mask;
+  /* Per-VRQ enables control both wakeup and delivery.*/
+  active_mask = sbp->vrq.wtmask & sbp->vrq.enmask;
+  if (active_mask != 0U) {
 
-    /* Checking if there are VRQs to be served immediately.*/
-    active_mask = sbp->vrq.wtmask & sbp->vrq.enmask;
-    if (active_mask != 0U) {
+    /* Waking a VRQ waiter independently of the global delivery mask.
+       Pending VRQs are checked when the resumed syscall returns.*/
+    if (sbp->vrq.trp != NULL) {
+      chThdResumeI(&sbp->vrq.trp, MSG_OK);
+      return;
+    }
+
+    /* Only delivering handlers if VRQs are globally enabled. Privileged
+       contexts defer delivery until syscall return.*/
+    if ((sbp->vrq.isr & SB_VRQ_ISR_DISABLED) == 0U) {
 
       /* Checking if it happened to preempt this sandbox thread.*/
       if (sbp->thread.state == CH_STATE_CURRENT) {
@@ -346,12 +366,6 @@ void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
 
           /* Creating a return context.*/
           vrq_pushctx_this(sbp, __get_PSP(), __CLZ(__RBIT(active_mask)));
-        }
-        else {
-          /* It is in privileged mode so it will check for pending VRQs
-             while exiting the syscall. Just trying to wake up the thread
-             in case it is waiting for VRQs.*/
-          chThdResumeI(&sbp->vrq.trp, MSG_OK);
         }
       }
       else {
@@ -363,12 +377,6 @@ void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
           /* Unprivileged mode, creating a return context on the sandbox
              thread.*/
           vrq_pushctx_other(sbp, __CLZ(__RBIT(active_mask)));
-        }
-        else {
-          /* Privileged mode, so it will check for pending VRQs while
-             exiting the syscall. Just trying to wake up the thread
-             in case it is waiting for VRQs.*/
-          chThdResumeI(&sbp->vrq.trp, MSG_OK);
         }
       }
     }
@@ -518,6 +526,12 @@ void sb_fastc_vrq_getisr(sb_class_t *sbp, struct port_extctx *ectxp) {
 
 void sb_fastc_vrq_return(sb_class_t *sbp, struct port_extctx *ectxp) {
   register sb_vrqmask_t active_mask;
+
+#if CORTEX_USE_FPU == TRUE
+  /* Discarding any lazy save of the completed handler. This also forces
+     FP unstacking from the restored or chained context below.*/
+  FPU->FPCCR &= ~FPU_FPCCR_LSPACT_Msk;
+#endif
 
   active_mask = sbp->vrq.wtmask & sbp->vrq.enmask;
   if (active_mask != 0U) {

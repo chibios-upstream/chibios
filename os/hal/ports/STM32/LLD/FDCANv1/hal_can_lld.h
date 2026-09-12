@@ -259,8 +259,7 @@ typedef struct {
       };
       uint32_t              _R2:16;
       uint32_t              DLC:4;      /**< @brief Data length code.       */
-      uint32_t              BPS:1;      /**< @brief Accepted non-matching
-                                                    frame.                  */
+      uint32_t              BRS:1;      /**< @brief Bit rate switch.        */
       uint32_t              FDF:1;      /**< @brief FDCAN frame format.     */
       uint32_t              _R3:1;
       uint32_t              EFC:1;      /**< @brief Event FIFO control.     */

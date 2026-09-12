@@ -472,7 +472,9 @@ size_t chHeapStatus(memory_heap_t *heapp, size_t *totalp, size_t *largestp) {
  */
 bool chHeapIntegrityCheck(memory_heap_t *heapp) {
   bool result = false;
-  heap_header_t *hp, *prevhp;
+  heap_header_t *hp;
+  uintptr_t prevend;
+  size_t size;
 
   /* If an heap is not specified then the default system header is used.*/
   if (heapp == NULL) {
@@ -489,12 +491,12 @@ bool chHeapIntegrityCheck(memory_heap_t *heapp) {
   /* Taking heap mutex.*/
   H_LOCK(heapp);
 
-  prevhp = NULL;
+  prevend = 0U;
   hp = &heapp->header;
   while ((hp = H_FREE_NEXT(hp)) != NULL) {
 
-    /* Order violation or loop.*/
-    if (hp <= prevhp) {
+    /* Order violation, loop or overlap with the previous block.*/
+    if ((uintptr_t)hp <= prevend) {
       result = true;
       break;
     }
@@ -505,15 +507,32 @@ bool chHeapIntegrityCheck(memory_heap_t *heapp) {
       break;
     }
 
-    /* Validating the found free block.*/
+    /* Validating the complete header before reading its fields.*/
     if (!chMemIsSpaceWithinX(&heapp->area,
                              (void *)hp,
-                             H_FREE_FULLSIZE(hp))) {
+                             sizeof (heap_header_t))) {
       result = true;
       break;
     }
 
-    prevhp = hp;
+    /* Checking the page count before adding the header page and converting
+       to bytes. Zero-page free blocks are valid.*/
+    if (H_FREE_PAGES(hp) >= (SIZE_MAX / sizeof (heap_header_t))) {
+      result = true;
+      break;
+    }
+    size = H_FREE_FULLSIZE(hp);
+
+    /* Validating the found free block.*/
+    if (!chMemIsSpaceWithinX(&heapp->area,
+                             (void *)hp,
+                             size)) {
+      result = true;
+      break;
+    }
+
+    /* Last byte of the validated block, avoiding a one-past-end address.*/
+    prevend = (uintptr_t)hp + (size - 1U);
   }
 
   /* Releasing the heap mutex.*/

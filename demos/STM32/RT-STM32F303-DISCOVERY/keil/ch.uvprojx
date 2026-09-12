@@ -1398,6 +1398,11 @@
               <FilePath>..\..\..\..\test\oslib\source\test\oslib_test_sequence_009.c</FilePath>
             </File>
             <File>
+              <FileName>oslib_test_sequence_010.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\test\oslib\source\test\oslib_test_sequence_010.c</FilePath>
+            </File>
+            <File>
               <FileName>ch_test.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\os\test\src\ch_test.c</FilePath>
