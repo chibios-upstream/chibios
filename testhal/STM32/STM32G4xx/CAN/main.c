@@ -54,7 +54,8 @@ static const CANConfig cancfg = {
   0,          /* TDCR */
   0,          /* CCCR */
   0,          /* TEST */
-  0           /* RXGFC */
+  0,          /* RXGFC */
+  0           /* TSCC */
 };
 
 /*
@@ -179,4 +180,3 @@ int main(void) {
     chThdSleepMilliseconds(500);
   }
 }
-

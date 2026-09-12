@@ -211,7 +211,7 @@ void stSetCallback(unsigned alarm, st_callback_t cb) {
 void stBindAlarmN(unsigned alarm) {
 
   chDbgCheck(alarm < (unsigned)ST_LLD_NUM_ALARMS);
-  chDbgAssert(stIsAlarmActive() == false, "already active");
+  chDbgAssert(stIsAlarmActiveN(alarm) == false, "already active");
 
   st_lld_bind_alarm_n(alarm);
 }

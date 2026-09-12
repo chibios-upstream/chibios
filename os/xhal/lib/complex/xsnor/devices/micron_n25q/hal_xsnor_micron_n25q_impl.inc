@@ -316,15 +316,45 @@ static const uint8_t n25q_memory_type_ids[] = {0xBA, 0xBB};
 
 static flash_error_t n25q_poll_status(hal_xsnor_micron_n25q_c *self) {
 
-  do {
-    if ((xsnorcfg->options & N25Q_OPT_NICE_WAITING) != 0U) {
-      chThdSleepMilliseconds(1);
-    }
+#if XSNOR_USE_WSPI == TRUE
+  if (xsnorcfg->bus_type != XSNOR_BUS_MODE_SPI) {
+    const uint8_t mask[1] = {FLAGS_PROGRAM_ERASE};
+    const uint8_t match[1] = {FLAGS_PROGRAM_ERASE};
+    wspi_command_t cmd;
+    wspi_status_poll_t poll;
 
-    /* Read status command.*/
-    __xsnor_bus_cmd_receive(self, CMD_READ_FLAG_STATUS_REGISTER,
-                            1U, &xsnorcfg->buffers->databuf[0]);
-  } while ((xsnorcfg->buffers->databuf[0] & FLAGS_PROGRAM_ERASE) == 0U);
+    cmd.cmd       = CMD_READ_FLAG_STATUS_REGISTER;
+    cmd.cfg       = self->commands->cmd_data;
+    cmd.addr      = 0U;
+    cmd.alt       = 0U;
+    cmd.dummy     = 0U;
+    poll.length   = 1U;
+    poll.statusp  = &xsnorcfg->buffers->databuf[0];
+    poll.maskp    = mask;
+    poll.matchp   = match;
+    /* Hardware polling already releases the CPU while waiting.*/
+    poll.interval = ((WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE) &&
+                     ((xsnorcfg->options & N25Q_OPT_NICE_WAITING) != 0U)) ?
+                    TIME_MS2I(1) : (sysinterval_t)0;
+
+    if (wspiPollStatusTimeout(xsnorcfg->bus.wspi.drv, &cmd, &poll,
+                              TIME_INFINITE) != MSG_OK) {
+      return FLASH_ERROR_HW_FAILURE;
+    }
+  }
+  else
+#endif
+  {
+    do {
+      if ((xsnorcfg->options & N25Q_OPT_NICE_WAITING) != 0U) {
+        chThdSleepMilliseconds(1);
+      }
+
+      /* Read status command.*/
+      __xsnor_bus_cmd_receive(self, CMD_READ_FLAG_STATUS_REGISTER,
+                              1U, &xsnorcfg->buffers->databuf[0]);
+    } while ((xsnorcfg->buffers->databuf[0] & FLAGS_PROGRAM_ERASE) == 0U);
+  }
 
   /* Checking for errors.*/
   if ((xsnorcfg->buffers->databuf[0] & FLAGS_ALL_ERRORS) != 0U) {

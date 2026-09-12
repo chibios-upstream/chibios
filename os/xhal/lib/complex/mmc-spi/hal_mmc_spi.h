@@ -27,12 +27,6 @@
 
 #include "hal.h"
 
-#if !defined(MMC_SPI_USE_MODULE) || defined(__DOXYGEN__)
-#define MMC_SPI_USE_MODULE               TRUE
-#endif
-
-#if (MMC_SPI_USE_MODULE == TRUE) || defined(__DOXYGEN__)
-
 /*===========================================================================*/
 /* Driver constants.                                                         */
 /*===========================================================================*/
@@ -331,8 +325,6 @@ static inline hal_mmc_spi_driver_c *mmcSpiObjectInit(hal_mmc_spi_driver_c *self,
 
   return self;
 }
-
-#endif /* MMC_SPI_USE_MODULE == TRUE */
 
 #endif /* HAL_MMC_SPI_H */
 

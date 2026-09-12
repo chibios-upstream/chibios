@@ -58,6 +58,51 @@
 /* Module local types.                                                       */
 /*===========================================================================*/
 
+/* The debugger layout record uses eight-bit sizes and offsets. */
+typedef char chdebug_layout_fits_uint8_t[
+  ((sizeof (chdebug_t) <= (size_t)UINT8_MAX) &&
+    (sizeof (void *) <= (size_t)UINT8_MAX) &&
+    (sizeof (systime_t) <= (size_t)UINT8_MAX) &&
+    (sizeof (sysinterval_t) <= (size_t)UINT8_MAX) &&
+    (sizeof (thread_t) <= (size_t)UINT8_MAX) &&
+    (sizeof (struct port_intctx) <= (size_t)UINT8_MAX) &&
+    (PORT_CORES_NUMBER <= (unsigned)UINT8_MAX) &&
+    (offsetof(thread_t, hdr.pqueue.prio) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, ctx) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, rqueue.next) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, rqueue.prev) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, name) <= (size_t)UINT8_MAX) &&
+#if (CH_DBG_ENABLE_STACK_CHECK == TRUE) || (CH_CFG_USE_DYNAMIC == TRUE)
+    (offsetof(thread_t, wabase) <= (size_t)UINT8_MAX) &&
+#endif
+    (offsetof(thread_t, state) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, flags) <= (size_t)UINT8_MAX) &&
+    (offsetof(thread_t, refs) <= (size_t)UINT8_MAX) &&
+#if CH_CFG_TIME_QUANTUM > 0
+    (offsetof(thread_t, ticks) <= (size_t)UINT8_MAX) &&
+#endif
+#if CH_DBG_THREADS_PROFILING == TRUE
+    (offsetof(thread_t, time) <= (size_t)UINT8_MAX) &&
+#endif
+    (offsetof(ch_system_t, state) <= (size_t)UINT8_MAX) &&
+    (offsetof(ch_system_t, instances[0]) <= (size_t)UINT8_MAX) &&
+#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == TRUE)
+    (offsetof(ch_system_t, reglist) <= (size_t)UINT8_MAX) &&
+#endif
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == TRUE)
+    (offsetof(ch_system_t, rfcu) <= (size_t)UINT8_MAX) &&
+#endif
+    (offsetof(os_instance_t, rlist.current) <= (size_t)UINT8_MAX) &&
+    (offsetof(os_instance_t, rlist) <= (size_t)UINT8_MAX) &&
+    (offsetof(os_instance_t, vtlist) <= (size_t)UINT8_MAX) &&
+#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == FALSE)
+    (offsetof(os_instance_t, reglist) <= (size_t)UINT8_MAX) &&
+#endif
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == FALSE)
+    (offsetof(os_instance_t, rfcu) <= (size_t)UINT8_MAX) &&
+#endif
+    (offsetof(os_instance_t, core_id) <= (size_t)UINT8_MAX)) ? 1 : -1];
+
 /*===========================================================================*/
 /* Module local variables.                                                   */
 /*===========================================================================*/
@@ -65,6 +110,14 @@
 /*===========================================================================*/
 /* Module local functions.                                                   */
 /*===========================================================================*/
+
+#if CH_DBG_ENABLE_ASSERTS == TRUE
+static bool reg_ranges_overlap(uintptr_t astart, uintptr_t aend,
+                               uintptr_t bstart, uintptr_t bend) {
+
+  return (astart < bend) && (bstart < aend);
+}
+#endif
 
 /*===========================================================================*/
 /* Module exported functions.                                                */
@@ -117,7 +170,7 @@ ROMCONST chdebug_t ch_debug = {
 #else
   .off_sys_reglist          = (uint8_t)0,
 #endif
-#if CH_CFG_SMP_MODE == TRUE
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == TRUE)
   .off_sys_rfcu             = (uint8_t)__CH_OFFSETOF(ch_system_t, rfcu),
 #else
   .off_sys_rfcu             = (uint8_t)0,
@@ -132,7 +185,7 @@ ROMCONST chdebug_t ch_debug = {
   .off_inst_reglist         = (uint8_t)0,
 #endif
   .off_inst_core_id         = (uint8_t)__CH_OFFSETOF(os_instance_t, core_id),
-#if CH_CFG_SMP_MODE == FALSE
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == FALSE)
   .off_inst_rfcu            = (uint8_t)__CH_OFFSETOF(os_instance_t, rfcu)
 #else
   .off_inst_rfcu            = (uint8_t)0
@@ -144,6 +197,8 @@ ROMCONST chdebug_t ch_debug = {
  * @details Returns the most ancient thread in the system, usually this is
  *          the main thread unless it terminated. A reference is added to the
  *          returned thread in order to make sure its status is not lost.
+ * @pre     The returned thread must have fewer than
+ *          @p THREAD_MAX_REFERENCES references.
  * @note    This function cannot return @p NULL because there is always at
  *          least one thread in the system.
  *
@@ -158,7 +213,7 @@ thread_t *chRegFirstThread(void) {
   chSysLock();
   p = (uint8_t *)REG_HEADER(currcore)->next;
   tp = __CH_OWNEROF(p, thread_t, rqueue);
-  chDbgAssert(tp->refs < (trefs_t)255, "too many references");
+  chDbgAssert(tp->refs < THREAD_MAX_REFERENCES, "too many references");
 
   tp->refs++;
   chSysUnlock();
@@ -170,6 +225,8 @@ thread_t *chRegFirstThread(void) {
  * @brief   Returns the thread next to the specified one.
  * @details The reference counter of the specified thread is decremented and
  *          the reference counter of the returned thread is incremented.
+ * @pre     If there is a next thread then it must have fewer than
+ *          @p THREAD_MAX_REFERENCES references.
  *
  * @param[in] tp        pointer to the thread
  * @return              A reference to the next thread.
@@ -192,7 +249,7 @@ thread_t *chRegNextThread(thread_t *tp) {
     uint8_t *p = (uint8_t *)nqp;
     ntp = __CH_OWNEROF(p, thread_t, rqueue);
 
-    chDbgAssert(ntp->refs < (trefs_t)255, "too many references");
+    chDbgAssert(ntp->refs < THREAD_MAX_REFERENCES, "too many references");
 
     ntp->refs++;
   }
@@ -207,6 +264,9 @@ thread_t *chRegNextThread(thread_t *tp) {
  * @note    The reference counter of the found thread is increased by one so
  *          it cannot be disposed incidentally after the pointer has been
  *          returned.
+ * @pre     The name must not be @p NULL.
+ * @pre     Each thread inspected by the registry scan must have fewer than
+ *          @p THREAD_MAX_REFERENCES references.
  *
  * @param[in] name      the thread name
  * @return              A pointer to the found thread.
@@ -215,12 +275,16 @@ thread_t *chRegNextThread(thread_t *tp) {
  * @api
  */
 thread_t *chRegFindThreadByName(const char *name) {
+  const char *tname;
   thread_t *ctp;
+
+  chDbgCheck(name != NULL);
 
   /* Scanning registry.*/
   ctp = chRegFirstThread();
   do {
-    if (strcmp(chRegGetThreadNameX(ctp), name) == 0) {
+    tname = chRegGetThreadNameX(ctp);
+    if ((tname != NULL) && (strcmp(tname, name) == 0)) {
       return ctp;
     }
     ctp = chRegNextThread(ctp);
@@ -231,9 +295,14 @@ thread_t *chRegFindThreadByName(const char *name) {
 
 /**
  * @brief   Confirms that a pointer is a valid thread pointer.
+ * @details Unlike @p chThdAddRef(), this function does not require the caller
+ *          to already own a reference. Registry membership is checked and a
+ *          reference is acquired while protected by the kernel lock.
  * @note    The reference counter of the found thread is increased by one so
  *          it cannot be disposed incidentally after the pointer has been
  *          returned.
+ * @pre     Each thread inspected by the registry scan must have fewer than
+ *          @p THREAD_MAX_REFERENCES references.
  *
  * @param[in] tp        pointer to the thread
  * @return              A pointer to the found thread.
@@ -261,6 +330,8 @@ thread_t *chRegFindThreadByPointer(thread_t *tp) {
  * @note    The reference counter of the found thread is increased by one so
  *          it cannot be disposed incidentally after the pointer has been
  *          returned.
+ * @pre     Each thread inspected by the registry scan must have fewer than
+ *          @p THREAD_MAX_REFERENCES references.
  *
  * @param[in] wa        pointer to a static working area
  * @return              A pointer to the found thread.
@@ -282,6 +353,57 @@ thread_t *chRegFindThreadByWorkingArea(stkline_t *wa) {
 
   return NULL;
 }
+
+#if CH_DBG_ENABLE_ASSERTS == TRUE
+/**
+ * @brief   Checks if a thread object or working area is already in use.
+ * @details The specified thread object is checked against registered thread
+ *          objects and the working area is checked against registered working
+ *          areas. Cross-type overlaps are permitted.
+ * @pre     The specified working area must be a valid non-empty interval.
+ *
+ * @param[in] tp        pointer to the candidate thread object
+ * @param[in] wbase     base of the candidate working area
+ * @param[in] wend      end of the candidate working area
+ * @retval true         if a conflicting thread has been found.
+ * @retval false        if a conflicting thread has not been found.
+ *
+ * @iclass
+ * @notapi
+ */
+bool __reg_is_thread_area_in_use_i(const thread_t *tp,
+                                   const stkline_t *wbase,
+                                   const stkline_t *wend) {
+  ch_queue_t *tqp;
+  uintptr_t tpstart, tpend, wastart, waend;
+
+  chDbgCheckClassI();
+
+  tpstart = (uintptr_t)(const void *)tp;
+  tpend   = (uintptr_t)(const void *)(tp + 1);
+  wastart = (uintptr_t)(const void *)wbase;
+  waend   = (uintptr_t)(const void *)wend;
+
+  /* Scanning registry.*/
+  tqp = REG_HEADER(currcore)->next;
+  while (tqp != REG_HEADER(currcore)) {
+    thread_t *ctp = __CH_OWNEROF((uint8_t *)tqp, thread_t, rqueue);
+    uintptr_t ctpstart = (uintptr_t)(void *)ctp;
+    uintptr_t ctpend   = (uintptr_t)(void *)(ctp + 1);
+    uintptr_t cwastart = (uintptr_t)(void *)ctp->wabase;
+    uintptr_t cwaend   = (uintptr_t)(void *)ctp->waend;
+
+    if (reg_ranges_overlap(tpstart, tpend, ctpstart, ctpend) ||
+        reg_ranges_overlap(wastart, waend, cwastart, cwaend)) {
+      return true;
+    }
+
+    tqp = tqp->next;
+  }
+
+  return false;
+}
+#endif /* CH_DBG_ENABLE_ASSERTS == TRUE */
 
 /**
  * @brief   Confirms that a working area is being used by some active thread.

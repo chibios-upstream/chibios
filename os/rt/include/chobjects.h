@@ -82,6 +82,16 @@ struct ch_virtual_timer {
    * @brief   Timer callback function parameter.
    */
   void                          *par;
+#if ((CH_DBG_ENABLE_ASSERTS != FALSE) && (PORT_CORES_NUMBER > 1)) ||          \
+    defined(__DOXYGEN__)
+  /**
+   * @brief   Owning OS instance.
+   * @note    This field is present only on multicore ports when assertions
+   *          are enabled and is used exclusively for detecting invalid
+   *          cross-instance access.
+   */
+  os_instance_t                 *owner;
+#endif
   /**
    * @brief   Current reload interval.
    */
@@ -166,6 +176,10 @@ typedef void (*thread_dispose_t)(thread_t *tp);
 struct ch_thread {
   /**
    * @brief   Shared list headers.
+   * @note    This union must remain the first field in @p thread_t because
+   *          queue and list pointers are converted by @p threadref().
+   * @note    The @p pqueue priority field must not overlap the @p queue link
+   *          fields because the priority remains valid in all queued states.
    */
   union {
     /**
@@ -211,6 +225,7 @@ struct ch_thread {
 #if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
   /**
    * @brief   References to this thread.
+   * @note    The maximum value is @p THREAD_MAX_REFERENCES.
    */
   trefs_t                       refs;
   /**
@@ -275,6 +290,12 @@ struct ch_thread {
      */
     void                        *wtobjp;
     /**
+     * @brief   Pointer to a threads queue object.
+     * @note    This field is valid when the thread is in
+     *          @p CH_STATE_QUEUED state.
+     */
+    threads_queue_t             *wtqueuep;
+    /**
      * @brief   Pointer to a generic thread reference object.
      * @note    This field is used to get a pointer to a synchronization
      *          object and is valid when the thread is in @p CH_STATE_SUSPENDED
@@ -283,16 +304,24 @@ struct ch_thread {
     thread_reference_t          *wttrp;
 #if (CH_CFG_USE_SEMAPHORES == TRUE) || defined(__DOXYGEN__)
     /**
-     * @brief   Pointer to a generic semaphore object.
+     * @brief   Pointer to a semaphore object.
      * @note    This field is used to get a pointer to a synchronization
      *          object and is valid when the thread is in @p CH_STATE_WTSEM
      *          state.
      */
     struct ch_semaphore         *wtsemp;
 #endif
+#if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
+    /**
+     * @brief   Pointer to a condition variable object.
+     * @note    This field is valid when the thread is in @p CH_STATE_WTCOND
+     *          state.
+     */
+    struct condition_variable   *wtcondp;
+#endif
 #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
     /**
-     * @brief   Pointer to a generic mutex object.
+     * @brief   Pointer to a mutex object.
      * @note    This field is used to get a pointer to a synchronization
      *          object and is valid when the thread is in @p CH_STATE_WTMTX
      *          state.
@@ -323,7 +352,7 @@ struct ch_thread {
    * @brief   Sent message.
    * @note    This field is intentionally placed outside the @p u union even
    *          though it is only valid while the thread is in the
-   *          @p CH_STATE_SNDMSG or @p CH_STATE_SNDMSGQ states.
+   *          @p CH_STATE_SNDMSGQ state.
    * @note    The reason for keeping it out of the union is that, when
    *          @p CH_CFG_USE_MESSAGES_PRIORITY is enabled, a thread blocked in
    *          @p CH_STATE_SNDMSGQ can be subject to priority inheritance: the
@@ -422,6 +451,12 @@ struct ch_os_instance {
    * @brief   Virtual timers delta list header.
    */
   virtual_timers_list_t         vtlist;
+#if (CH_CFG_USE_TM == TRUE) || defined(__DOXYGEN__)
+  /**
+   * @brief   Time measurement calibration data for this instance.
+   */
+  tm_calibration_t              tmc;
+#endif
 #if ((CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == FALSE)) ||        \
     defined(__DOXYGEN__)
   /**
@@ -434,10 +469,12 @@ struct ch_os_instance {
    * @brief   Core associated to this instance.
    */
   core_id_t                     core_id;
-#if (CH_CFG_SMP_MODE == FALSE) || defined(__DOXYGEN__)
+#if ((CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == FALSE)) ||           \
+    defined(__DOXYGEN__)
   /**
    * @brief   Runtime Faults Collection Unit for this instance.
-   * @note    This field is present only if the SMP mode is disabled.
+   * @note    This field is present only if RFCU is enabled and the SMP mode
+   *          is disabled.
    */
   rfcu_t                        rfcu;
 #endif
@@ -447,11 +484,15 @@ struct ch_os_instance {
   const os_instance_config_t    *config;
   /**
    * @brief   Idle thread descriptor.
+   * @note    When @p CH_CFG_NO_IDLE_THREAD is @p TRUE, the calling flow
+   *          becomes the idle thread and this descriptor is used for it.
    */
   thread_t                      idlethread;
 #if CH_CFG_NO_IDLE_THREAD == FALSE
   /**
    * @brief   Main thread descriptor.
+   * @note    This descriptor is required only when a separate idle thread is
+   *          spawned.
    */
   thread_t                      mainthread;
 #endif
@@ -491,12 +532,6 @@ typedef struct ch_system {
    * @brief   Initialized OS instances or @p NULL.
    */
   os_instance_t                 *instances[PORT_CORES_NUMBER];
-#if (CH_CFG_USE_TM == TRUE) || defined(__DOXYGEN__)
-  /**
-   * @brief   Time measurement calibration data.
-   */
-  tm_calibration_t              tmc;
-#endif
 #if ((CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == TRUE)) ||         \
     defined(__DOXYGEN__)
   /**
@@ -505,10 +540,11 @@ typedef struct ch_system {
    */
   registry_t                    reglist;
 #endif
-#if (CH_CFG_SMP_MODE == TRUE) || defined(__DOXYGEN__)
+#if ((CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == TRUE)) ||            \
+    defined(__DOXYGEN__)
   /**
    * @brief   Runtime Faults Collection Unit.
-   * @note    This field is present only if the SMP mode is enabled.
+   * @note    This field is present only if RFCU and the SMP mode are enabled.
    */
   rfcu_t                        rfcu;
 #endif

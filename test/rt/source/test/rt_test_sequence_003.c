@@ -33,22 +33,45 @@
  * - @subpage rt_test_003_001
  * - @subpage rt_test_003_002
  * - @subpage rt_test_003_003
+ * - @subpage rt_test_003_004
+ * - @subpage rt_test_003_005
+ * - @subpage rt_test_003_006
+ * - @subpage rt_test_003_007
  * .
  */
 
-/****************************************************************************
- * Shared code.
- ****************************************************************************/
+/*===========================================================================*/
+/* Shared code.                                                              */
+/*===========================================================================*/
 
 #include "ch.h"
 
+enum {
+  RTC_MS_CONSTEXPR = MS2RTC(32768U, 1000U),
+  RTC_2MS_CONSTEXPR = RTC2MS(32768U, 32768U)
+};
+
 #if CH_CFG_USE_TM || defined(__DOXYGEN__)
-static time_measurement_t tm1, tm2;
+static time_measurement_t tm1, tm2, tm3;
 #endif
 
-/****************************************************************************
- * Test cases.
- ****************************************************************************/
+#if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
+static virtual_timer_t timers_state_vt;
+#if (CH_CFG_USE_RFCU == TRUE) || defined(__DOXYGEN__)
+static virtual_timer_t timers_overflow_anchor;
+static virtual_timer_t timers_overflow_vt;
+#endif
+
+static void timers_state_cb(virtual_timer_t *vtp, void *param) {
+
+  (void)vtp;
+  (void)param;
+}
+#endif
+
+/*===========================================================================*/
+/* Test cases.                                                               */
+/*===========================================================================*/
 
 /**
  * @page rt_test_003_001 [3.1] System Tick Counter functionality
@@ -174,23 +197,30 @@ static const testcase_t rt_test_003_002 = {
  * <h2>Test Steps</h2>
  * - [3.3.1] The initialized measurement objects are verified.
  * - [3.3.2] A measurement is performed and its result is verified.
- * - [3.3.3] The first measurement is chained to the second one and
- *   both objects are verified.
+ * - [3.3.3] A measurement is chained to another object and both
+ *   objects are verified.
+ * - [3.3.4] A measurement is chained to itself and the object is
+ *   verified.
+ * - [3.3.5] A measurement shorter than the calibration offset is
+ *   verified to saturate at zero.
  * .
  */
 
 static void rt_test_003_003_setup(void) {
   chTMObjectInit(&tm1);
   chTMObjectInit(&tm2);
+  chTMObjectInit(&tm3);
 }
 
 static void rt_test_003_003_teardown(void) {
   chTMObjectDispose(&tm1);
   chTMObjectDispose(&tm2);
+  chTMObjectDispose(&tm3);
 }
 
 static void rt_test_003_003_execute(void) {
-  rtcnt_t first;
+  rttime_t cumulative;
+  rtcnt_t offset;
 
   /* [3.3.1] The initialized measurement objects are verified.*/
   test_set_step(1);
@@ -215,28 +245,83 @@ static void rt_test_003_003_execute(void) {
     test_assert(tm1.best == tm1.last, "invalid best");
     test_assert(tm1.worst == tm1.last, "invalid worst");
     test_assert(tm1.cumulative == (rttime_t)tm1.last, "invalid cumulative");
-    first = tm1.last;
   }
   test_end_step(2);
 
-  /* [3.3.3] The first measurement is chained to the second one and
-     both objects are verified.*/
+  /* [3.3.3] A measurement is chained to another object and both
+     objects are verified.*/
   test_set_step(3);
   {
-    chTMChainMeasurementToX(&tm1, &tm2);
+    chSysLock();
+    offset = currcore->tmc.offset;
+    currcore->tmc.offset = (rtcnt_t)-1;
+    chTMStartMeasurementX(&tm2);
+    chSysPolledDelayX((rtcnt_t)100);
+    chTMChainMeasurementToX(&tm2, &tm3);
     chSysPolledDelayX((rtcnt_t)10);
-    chTMStopMeasurementX(&tm2);
+    chTMStopMeasurementX(&tm3);
+    currcore->tmc.offset = offset;
+    chSysUnlock();
 
-    test_assert(tm1.n == (ucnt_t)2, "invalid counter");
-    test_assert(tm1.last > (rtcnt_t)0, "invalid last");
-    test_assert(tm1.best <= tm1.worst, "invalid range");
-    test_assert(tm1.cumulative >= (rttime_t)first, "invalid cumulative");
     test_assert(tm2.n == (ucnt_t)1, "invalid counter");
     test_assert(tm2.last > (rtcnt_t)0, "invalid last");
     test_assert(tm2.best == tm2.last, "invalid best");
     test_assert(tm2.worst == tm2.last, "invalid worst");
+    test_assert(tm2.cumulative == (rttime_t)tm2.last, "invalid cumulative");
+    test_assert(tm3.n == (ucnt_t)1, "invalid counter");
+    test_assert(tm3.last == (rtcnt_t)0, "invalid last");
+    test_assert(tm3.best == (rtcnt_t)0, "invalid best");
+    test_assert(tm3.worst == (rtcnt_t)0, "invalid worst");
+    test_assert(tm3.cumulative == (rttime_t)0, "invalid cumulative");
   }
   test_end_step(3);
+
+  /* [3.3.4] A measurement is chained to itself and the object is
+     verified.*/
+  test_set_step(4);
+  {
+    chTMObjectInit(&tm3);
+    chTMStartMeasurementX(&tm3);
+    chSysPolledDelayX((rtcnt_t)100);
+    chTMChainMeasurementToX(&tm3, &tm3);
+
+    test_assert(tm3.n == (ucnt_t)1, "invalid counter");
+    test_assert(tm3.best > (rtcnt_t)0, "invalid best");
+    test_assert(tm3.worst == tm3.best, "invalid worst");
+    test_assert(tm3.cumulative == (rttime_t)tm3.best, "invalid cumulative");
+    cumulative = tm3.cumulative;
+
+    chSysPolledDelayX((rtcnt_t)10);
+    chTMStopMeasurementX(&tm3);
+
+    test_assert(tm3.n == (ucnt_t)2, "invalid counter");
+    test_assert(tm3.last > (rtcnt_t)0, "invalid last");
+    test_assert(tm3.best <= tm3.worst, "invalid range");
+    test_assert(tm3.cumulative == cumulative + (rttime_t)tm3.last,
+                "invalid cumulative");
+  }
+  test_end_step(4);
+
+  /* [3.3.5] A measurement shorter than the calibration offset is
+     verified to saturate at zero.*/
+  test_set_step(5);
+  {
+    chTMObjectInit(&tm2);
+    chSysLock();
+    offset = currcore->tmc.offset;
+    currcore->tmc.offset = (rtcnt_t)-1;
+    chTMStartMeasurementX(&tm2);
+    chTMStopMeasurementX(&tm2);
+    currcore->tmc.offset = offset;
+    chSysUnlock();
+
+    test_assert(tm2.n == (ucnt_t)1, "invalid counter");
+    test_assert(tm2.last == (rtcnt_t)0, "invalid last");
+    test_assert(tm2.best == (rtcnt_t)0, "invalid best");
+    test_assert(tm2.worst == (rtcnt_t)0, "invalid worst");
+    test_assert(tm2.cumulative == (rttime_t)0, "invalid cumulative");
+  }
+  test_end_step(5);
 }
 
 static const testcase_t rt_test_003_003 = {
@@ -247,9 +332,275 @@ static const testcase_t rt_test_003_003 = {
 };
 #endif /* CH_CFG_USE_TM == TRUE */
 
-/****************************************************************************
- * Exported data.
- ****************************************************************************/
+#if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_003_004 [3.4] Tickless timers state boundaries
+ *
+ * <h2>Description</h2>
+ * The saturating boundary behavior of @p chVTGetTimersStateI() is
+ * tested.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_ST_TIMEDELTA > 0
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [3.4.1] A maximum-interval timer is queried. Addition of the
+ *   current tickless delta must saturate instead of wrapping to a
+ *   short interval.
+ * - [3.4.2] Timer processing is held past the tolerated deadline. The
+ *   reported remaining interval must saturate at zero instead of
+ *   wrapping.
+ * .
+ */
+
+static void rt_test_003_004_setup(void) {
+  chVTObjectInit(&timers_state_vt);
+}
+
+static void rt_test_003_004_teardown(void) {
+  chVTReset(&timers_state_vt);
+  chVTObjectDispose(&timers_state_vt);
+}
+
+static void rt_test_003_004_execute(void) {
+  sysinterval_t interval;
+  bool pending;
+
+  /* [3.4.1] A maximum-interval timer is queried. Addition of the
+     current tickless delta must saturate instead of wrapping to a
+     short interval.*/
+  test_set_step(1);
+  {
+    chSysLock();
+    chVTDoSetI(&timers_state_vt, TIME_INFINITE, timers_state_cb, NULL);
+    pending = chVTGetTimersStateI(&interval);
+    chVTDoResetI(&timers_state_vt);
+    chSysUnlock();
+
+    test_assert(pending, "timer not reported");
+    test_assert(interval > (TIME_MAX_INTERVAL / (sysinterval_t)2),
+                "interval addition wrapped");
+  }
+  test_end_step(1);
+
+  /* [3.4.2] Timer processing is held past the tolerated deadline. The
+     reported remaining interval must saturate at zero instead of
+     wrapping.*/
+  test_set_step(2);
+  {
+    chSysLock();
+    chVTDoSetI(&timers_state_vt, currcore->vtlist.lastdelta,
+               timers_state_cb, NULL);
+    do {
+      interval = chTimeDiffX(currcore->vtlist.lasttime, chVTGetSystemTimeX());
+    } while (interval <= (timers_state_vt.dlist.delta +
+                          currcore->vtlist.lastdelta));
+    pending = chVTGetTimersStateI(&interval);
+    chVTDoResetI(&timers_state_vt);
+    chSysUnlock();
+
+    test_assert(pending, "timer not reported");
+    test_assert(interval == (sysinterval_t)0, "interval subtraction wrapped");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t rt_test_003_004 = {
+  "Tickless timers state boundaries",
+  rt_test_003_004_setup,
+  rt_test_003_004_teardown,
+  rt_test_003_004_execute
+};
+#endif /* CH_CFG_ST_TIMEDELTA > 0 */
+
+#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_003_005 [3.5] Tickless timer interval overflow
+ *
+ * <h2>Description</h2>
+ * Overflow while converting a delay to an aged timer-list coordinate
+ * is reported and saturated.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - (CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [3.5.1] A timer is inserted after a nonempty list base has aged
+ *   enough to make its requested delay unrepresentable. The overflow
+ *   fault and saturated list coordinate are verified.
+ * .
+ */
+
+static void rt_test_003_005_setup(void) {
+  chVTObjectInit(&timers_overflow_anchor);
+  chVTObjectInit(&timers_overflow_vt);
+}
+
+static void rt_test_003_005_teardown(void) {
+  chVTReset(&timers_overflow_vt);
+  chVTReset(&timers_overflow_anchor);
+  chVTObjectDispose(&timers_overflow_vt);
+  chVTObjectDispose(&timers_overflow_anchor);
+}
+
+static void rt_test_003_005_execute(void) {
+  rfcu_mask_t mask;
+  sysinterval_t delay, listdelta, nowdelta;
+
+  /* [3.5.1] A timer is inserted after a nonempty list base has aged
+     enough to make its requested delay unrepresentable. The overflow
+     fault and saturated list coordinate are verified.*/
+  test_set_step(1);
+  {
+    chSysLock();
+    (void) chRFCUGetAndClearFaultsI(CH_RFCU_ALL_FAULTS);
+    chVTDoSetI(&timers_overflow_anchor, TIME_INFINITE,
+               timers_state_cb, NULL);
+    do {
+      nowdelta = chTimeDiffX(currcore->vtlist.lasttime,
+                             chVTGetSystemTimeX());
+    } while (nowdelta < (sysinterval_t)2);
+    delay = TIME_INFINITE - nowdelta + (sysinterval_t)1;
+    chVTDoSetI(&timers_overflow_vt, delay, timers_state_cb, NULL);
+    mask = chRFCUGetAndClearFaultsI(CH_RFCU_ALL_FAULTS);
+    listdelta = timers_overflow_vt.dlist.delta;
+    chVTDoResetI(&timers_overflow_vt);
+    chVTDoResetI(&timers_overflow_anchor);
+    chSysUnlock();
+
+    test_assert((mask & CH_RFCU_VT_INTERVAL_OVERFLOW) != (rfcu_mask_t)0,
+                "overflow fault not reported");
+    test_assert(listdelta == TIME_INFINITE,
+                "list coordinate not saturated");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t rt_test_003_005 = {
+  "Tickless timer interval overflow",
+  rt_test_003_005_setup,
+  rt_test_003_005_teardown,
+  rt_test_003_005_execute
+};
+#endif /* (CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE) */
+
+#if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_003_006 [3.6] Current tickless delta getter
+ *
+ * <h2>Description</h2>
+ * The thread-context current-delta API is exercised.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_ST_TIMEDELTA > 0
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [3.6.1] The current adaptive delta is read from thread context and
+ *   checked against its configured minimum.
+ * .
+ */
+
+static void rt_test_003_006_execute(void) {
+  sysinterval_t delta;
+
+  /* [3.6.1] The current adaptive delta is read from thread context and
+     checked against its configured minimum.*/
+  test_set_step(1);
+  {
+    delta = chVTGetCurrentDelta();
+    test_assert(delta >= (sysinterval_t)CH_CFG_ST_TIMEDELTA,
+                "invalid current delta");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t rt_test_003_006 = {
+  "Current tickless delta getter",
+  NULL,
+  NULL,
+  rt_test_003_006_execute
+};
+#endif /* CH_CFG_ST_TIMEDELTA > 0 */
+
+/**
+ * @page rt_test_003_007 [3.7] Realtime counter conversions
+ *
+ * <h2>Description</h2>
+ * Realtime counter conversion boundaries and rounding are tested.
+ *
+ * <h2>Test Steps</h2>
+ * - [3.7.1] Zero is converted in both directions.
+ * - [3.7.2] Exact and non-divisible frequencies are converted with
+ *   upward rounding.
+ * - [3.7.3] Constant arguments are usable as integer constant
+ *   expressions.
+ * .
+ */
+
+static void rt_test_003_007_execute(void) {
+
+  /* [3.7.1] Zero is converted in both directions.*/
+  test_set_step(1);
+  {
+    test_assert(S2RTC(1U, 0U) == (rtcnt_t)0, "S2RTC zero");
+    test_assert(MS2RTC(1000U, 0U) == (rtcnt_t)0, "MS2RTC zero");
+    test_assert(US2RTC(1000000U, 0U) == (rtcnt_t)0, "US2RTC zero");
+    test_assert(RTC2S(1U, 0U) == (rtcnt_t)0, "RTC2S zero");
+    test_assert(RTC2MS(1000U, 0U) == (rtcnt_t)0, "RTC2MS zero");
+    test_assert(RTC2US(1000000U, 0U) == (rtcnt_t)0, "RTC2US zero");
+  }
+  test_end_step(1);
+
+  /* [3.7.2] Exact and non-divisible frequencies are converted with
+     upward rounding.*/
+  test_set_step(2);
+  {
+    test_assert(MS2RTC(32768U, 1000U) == (rtcnt_t)32768,
+                "MS2RTC non-divisible");
+    test_assert(RTC2MS(32768U, 32768U) == (rtcnt_t)1000,
+                "RTC2MS non-divisible");
+    test_assert(MS2RTC(32768U, 1U) == (rtcnt_t)33,
+                "MS2RTC rounding");
+    test_assert(RTC2MS(32768U, 1U) == (rtcnt_t)1,
+                "RTC2MS rounding");
+    test_assert(US2RTC(1000001U, 1000000U) == (rtcnt_t)1000001,
+                "US2RTC non-divisible");
+    test_assert(RTC2US(1000001U, 1000001U) == (rtcnt_t)1000000,
+                "RTC2US non-divisible");
+  }
+  test_end_step(2);
+
+  /* [3.7.3] Constant arguments are usable as integer constant
+     expressions.*/
+  test_set_step(3);
+  {
+    test_assert(RTC_MS_CONSTEXPR == 32768,
+                "MS2RTC constant expression");
+    test_assert(RTC_2MS_CONSTEXPR == 1000,
+                "RTC2MS constant expression");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t rt_test_003_007 = {
+  "Realtime counter conversions",
+  NULL,
+  NULL,
+  rt_test_003_007_execute
+};
+
+/*===========================================================================*/
+/* Exported data.                                                            */
+/*===========================================================================*/
 
 /**
  * @brief   Array of test cases.
@@ -260,6 +611,16 @@ const testcase_t * const rt_test_sequence_003_array[] = {
 #if (CH_CFG_USE_TM == TRUE) || defined(__DOXYGEN__)
   &rt_test_003_003,
 #endif
+#if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
+  &rt_test_003_004,
+#endif
+#if ((CH_CFG_ST_TIMEDELTA > 0) && (CH_CFG_USE_RFCU == TRUE)) || defined(__DOXYGEN__)
+  &rt_test_003_005,
+#endif
+#if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
+  &rt_test_003_006,
+#endif
+  &rt_test_003_007,
   NULL
 };
 

@@ -427,6 +427,7 @@ bool can_lld_start(CANDriver *canp) {
   canp->fdcan->NBTP = canp->config->NBTP;
   canp->fdcan->DBTP = canp->config->DBTP;
   canp->fdcan->TDCR = canp->config->TDCR;
+  canp->fdcan->TSCC = canp->config->TSCC;
   canp->fdcan->CCCR |= canp->config->CCCR;
 
   /* TEST is only writable when FDCAN_CCCR_TEST is set and FDCAN is still in

@@ -589,6 +589,12 @@ static bool hal_lld_clock_check_tree(const halclkcfg_t *ccp) {
     pclktim = pclk * 2U;
   }
 
+#if HAL_USE_RTC == TRUE
+  if (pclk < (STM32_RTC_FREQ * 7U)) {
+    return true;
+  }
+#endif
+
   /* MCO clock.*/
   switch (ccp->rcc_cfgr & RCC_CFGR_MCO1SEL_Msk) {
   case RCC_CFGR_MCO1SEL_SYSCLK:

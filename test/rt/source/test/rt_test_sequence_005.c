@@ -37,17 +37,38 @@
  * - @subpage rt_test_005_005
  * - @subpage rt_test_005_006
  * - @subpage rt_test_005_007
+ * - @subpage rt_test_005_008
+ * - @subpage rt_test_005_009
  * .
  */
 
-/****************************************************************************
- * Shared code.
- ****************************************************************************/
+/*===========================================================================*/
+/* Shared code.                                                              */
+/*===========================================================================*/
 
 static THD_FUNCTION(thread, p) {
 
   test_emit_token(*(char *)p);
 }
+
+#if ((CH_CFG_USE_REGISTRY == TRUE) &&                                   \
+     (CH_DBG_ENABLE_ASSERTS == TRUE)) || defined(__DOXYGEN__)
+static THD_FUNCTION(registry_thread, p) {
+
+  (void)p;
+}
+#endif
+
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
+static MUTEX_DECL(priority_mtx);
+
+static THD_FUNCTION(priority_thread, p) {
+
+  (void)p;
+  chMtxLock(&priority_mtx);
+  chMtxUnlock(&priority_mtx);
+}
+#endif /* CH_CFG_USE_MUTEXES == TRUE */
 
 static void setup_thread_descriptor(thread_descriptor_t *tdp,
                                     const char *name,
@@ -65,9 +86,9 @@ static void setup_thread_descriptor(thread_descriptor_t *tdp,
   tdp->owner = NULL;
 }
 
-/****************************************************************************
- * Test cases.
- ****************************************************************************/
+/*===========================================================================*/
+/* Test cases.                                                               */
+/*===========================================================================*/
 
 /**
  * @page rt_test_005_001 [5.1] Thread Sleep functionality
@@ -91,6 +112,8 @@ static void setup_thread_descriptor(thread_descriptor_t *tdp,
  *   "now" + 100 ticks.
  * - [5.1.6] Function chThdSleepUntilWindowed() is tested with an
  *   active time window.
+ * - [5.1.7] With RFCU enabled, a missed window is reported and the
+ *   next deadline is returned.
  * .
  */
 
@@ -171,6 +194,34 @@ static void rt_test_005_001_execute(void) {
                             "out of time window");
   }
   test_end_step(6);
+
+  /* [5.1.7] With RFCU enabled, a missed window is reported and the
+     next deadline is returned.*/
+  test_set_step(7);
+  {
+#if CH_CFG_USE_RFCU == TRUE
+    rfcu_mask_t mask;
+    systime_t next;
+
+    chSysLock();
+    (void) chRFCUGetAndClearFaultsI(CH_RFCU_THD_MISSED_DEADLINE);
+    chSysUnlock();
+
+    time = chVTGetSystemTimeX();
+    next = chTimeAddX(time, (sysinterval_t)1);
+    chThdSleep((sysinterval_t)2);
+    time = chThdSleepUntilWindowed(time, next);
+
+    chSysLock();
+    mask = chRFCUGetAndClearFaultsI(CH_RFCU_THD_MISSED_DEADLINE);
+    chSysUnlock();
+
+    test_assert(time == next, "invalid returned deadline");
+    test_assert((mask & CH_RFCU_THD_MISSED_DEADLINE) != (rfcu_mask_t)0,
+                "missed deadline not reported");
+#endif
+  }
+  test_end_step(7);
 }
 
 static const testcase_t rt_test_005_001 = {
@@ -312,22 +363,34 @@ static const testcase_t rt_test_005_003 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [5.4.1] Simulating a priority boost situation (prio > realprio).
+ * - [5.4.1] Creating a priority boost situation (prio > realprio).
  * - [5.4.2] Raising thread priority above original priority but below
  *   the boosted level.
  * - [5.4.3] Raising thread priority above the boosted level.
- * - [5.4.4] Restoring original conditions.
+ * - [5.4.4] Restoring the original base priority while the donation is
+ *   active, then releasing the mutex.
  * .
  */
+
+static void rt_test_005_004_setup(void) {
+  chMtxObjectInit(&priority_mtx);
+}
+
+static void rt_test_005_004_teardown(void) {
+  test_wait_threads();
+  chMtxObjectDispose(&priority_mtx);
+}
 
 static void rt_test_005_004_execute(void) {
   tprio_t prio, p1;
 
-  /* [5.4.1] Simulating a priority boost situation (prio > realprio).*/
+  /* [5.4.1] Creating a priority boost situation (prio > realprio).*/
   test_set_step(1);
   {
     prio = chThdGetPriorityX();
-    chThdGetSelfX()->hdr.pqueue.prio += 2;
+    chMtxLock(&priority_mtx);
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio + 2,
+                                   priority_thread, NULL);
     test_assert(chThdGetPriorityX() == prio + 2, "unexpected priority level");
   }
   test_end_step(1);
@@ -353,21 +416,27 @@ static void rt_test_005_004_execute(void) {
   }
   test_end_step(3);
 
-  /* [5.4.4] Restoring original conditions.*/
+  /* [5.4.4] Restoring the original base priority while the donation is
+     active, then releasing the mutex.*/
   test_set_step(4);
   {
-    chSysLock();
-    chThdGetSelfX()->hdr.pqueue.prio = prio;
-    chThdGetSelfX()->realprio = prio;
-    chSysUnlock();
+    p1 = chThdSetPriority(prio);
+    test_assert(p1 == prio + 3, "unexpected returned priority level");
+    test_assert(chThdGetSelfX()->hdr.pqueue.prio == prio + 2,
+                "unexpected priority level");
+    test_assert(chThdGetSelfX()->realprio == prio,
+                "unexpected real priority level");
+    chMtxUnlock(&priority_mtx);
+    test_wait_threads();
+    test_assert(chThdGetPriorityX() == prio, "priority not restored");
   }
   test_end_step(4);
 }
 
 static const testcase_t rt_test_005_004 = {
   "Priority change test with Priority Inheritance",
-  NULL,
-  NULL,
+  rt_test_005_004_setup,
+  rt_test_005_004_teardown,
   rt_test_005_004_execute
 };
 #endif /* CH_CFG_USE_MUTEXES == TRUE */
@@ -582,8 +651,13 @@ static const testcase_t rt_test_005_006 = {
  * - [5.7.1] The current thread registry name is changed and then
  *   restored.
  * - [5.7.2] A static thread is created then retrieved by name, pointer
- *   and working area.
- * - [5.7.3] The registry is scanned forward until the end and the
+ *   and working area while an unnamed thread is in the registry. Its
+ *   initial reference is released and reacquired through the registry.
+ * - [5.7.3] When debug assertions are enabled, creation conflict
+ *   checks are exercised for a live thread object, a partially
+ *   overlapping working area, disjoint resources and permitted
+ *   cross-type overlaps.
+ * - [5.7.4] The registry is scanned forward until the end and the
  *   created thread is found in the scan.
  * .
  */
@@ -593,6 +667,9 @@ static void rt_test_005_007_teardown(void) {
 }
 
 static void rt_test_005_007_execute(void) {
+#if CH_DBG_ENABLE_ASSERTS == TRUE
+  thread_descriptor_t td;
+#endif
   thread_t *tp, *ntp;
   const char *oldname, *newname;
   bool found;
@@ -612,12 +689,28 @@ static void rt_test_005_007_execute(void) {
   test_end_step(1);
 
   /* [5.7.2] A static thread is created then retrieved by name, pointer
-     and working area.*/
+     and working area while an unnamed thread is in the registry. Its
+     initial reference is released and reacquired through the
+     registry.*/
   test_set_step(2);
   {
     threads[0] = chThdCreateStatic(wa[0], WA_SIZE, chThdGetPriorityX()-1, thread, "R");
     test_assert(threads[0] != NULL, "thread creation failed");
     chRegSetThreadNameX(threads[0], "registry-worker");
+
+    chRegSetThreadName(NULL);
+    tp = chRegFindThreadByName("registry-worker");
+    test_assert(tp == threads[0], "unnamed thread stopped name lookup");
+    chThdRelease(tp);
+    tp = chRegFindThreadByName("registry-missing");
+    test_assert(tp == NULL, "unexpected thread found");
+    chRegSetThreadName(oldname);
+
+    chThdRelease(threads[0]);
+    tp = chRegFindThreadByPointer(threads[0]);
+    test_assert(tp == threads[0], "detached thread not reacquired");
+    test_assert(tp->refs == (trefs_t)1, "wrong reference counter");
+    threads[0] = tp;
 
     tp = chThdAddRef(threads[0]);
     test_assert(tp == threads[0], "wrong referenced thread");
@@ -640,9 +733,63 @@ static void rt_test_005_007_execute(void) {
   }
   test_end_step(2);
 
-  /* [5.7.3] The registry is scanned forward until the end and the
-     created thread is found in the scan.*/
+  /* [5.7.3] When debug assertions are enabled, creation conflict
+     checks are exercised for a live thread object, a partially
+     overlapping working area, disjoint resources and permitted
+     cross-type overlaps.*/
   test_set_step(3);
+  {
+#if CH_DBG_ENABLE_ASSERTS == TRUE
+    test_assert_lock(
+      __reg_is_thread_area_in_use_i(threads[0],
+                                    TEST_THREAD_STACK_BASE(1),
+                                    TEST_THREAD_STACK_END(1)),
+      "live thread object not detected");
+    test_assert_lock(
+      __reg_is_thread_area_in_use_i(
+        TEST_THREAD_OBJECT(1),
+        (stkline_t *)(void *)((uint8_t *)TEST_THREAD_WA_BASE(0) +
+                              PORT_WORKING_AREA_ALIGN),
+        TEST_THREAD_WA_END(0)),
+      "working area overlap not detected");
+    test_assert_lock(
+      !__reg_is_thread_area_in_use_i(TEST_THREAD_OBJECT(1),
+                                     TEST_THREAD_STACK_BASE(1),
+                                     TEST_THREAD_STACK_END(1)),
+      "disjoint resources reported in use");
+
+    setup_thread_descriptor(&td, "registry-external",
+                            TEST_THREAD_STACK_BASE(2),
+                            TEST_THREAD_STACK_END(2),
+                            chThdGetPriorityX() + 1, NULL);
+    td.funcp = registry_thread;
+    chSysLock();
+    threads[1] = chThdSpawnSuspendedI(TEST_THREAD_OBJECT(2), &td);
+    chSysUnlock();
+
+    test_assert_lock(
+      !__reg_is_thread_area_in_use_i(
+        (thread_t *)(void *)TEST_THREAD_STACK_BASE(2),
+        TEST_THREAD_STACK_BASE(1), TEST_THREAD_STACK_END(1)),
+      "thread object in another working area rejected");
+    test_assert_lock(
+      !__reg_is_thread_area_in_use_i(
+        TEST_THREAD_OBJECT(1),
+        (stkline_t *)(void *)TEST_THREAD_OBJECT(2),
+        TEST_THREAD_WA_END(3)),
+      "working area containing another thread object rejected");
+
+    chThdStart(threads[1]);
+    (void) chThdWait(threads[1]);
+    threads[1] = NULL;
+    chThdObjectDispose(TEST_THREAD_OBJECT(2));
+#endif /* CH_DBG_ENABLE_ASSERTS == TRUE */
+  }
+  test_end_step(3);
+
+  /* [5.7.4] The registry is scanned forward until the end and the
+     created thread is found in the scan.*/
+  test_set_step(4);
   {
     found = false;
     tp = chRegFirstThread();
@@ -658,7 +805,7 @@ static void rt_test_005_007_execute(void) {
     test_wait_threads();
     test_assert_sequence("R", "invalid sequence");
   }
-  test_end_step(3);
+  test_end_step(4);
 }
 
 static const testcase_t rt_test_005_007 = {
@@ -669,9 +816,195 @@ static const testcase_t rt_test_005_007 = {
 };
 #endif /* CH_CFG_USE_REGISTRY == TRUE */
 
-/****************************************************************************
- * Exported data.
- ****************************************************************************/
+/**
+ * @page rt_test_005_008 [5.8] Arbitrary ready thread priority change
+ *
+ * <h2>Description</h2>
+ * A ready thread priority is raised above the current thread. The
+ * ready list must be reordered without a state transition and the
+ * operation must reschedule internally.
+ *
+ * <h2>Test Steps</h2>
+ * - [5.8.1] Two lower-priority threads are placed in the ready list.
+ * - [5.8.2] Thread B is raised above the current thread. It must run
+ *   before the locked operation returns.
+ * .
+ */
+
+static void rt_test_005_008_teardown(void) {
+  test_wait_threads();
+}
+
+static void rt_test_005_008_execute(void) {
+  bool switched;
+  tprio_t oldprio, prio;
+
+  /* [5.8.1] Two lower-priority threads are placed in the ready list.*/
+  test_set_step(1);
+  {
+    prio = chThdGetPriorityX();
+    threads[0] = chThdCreateStatic(wa[0], WA_SIZE, prio - 1, thread, "A");
+    threads[1] = chThdCreateStatic(wa[1], WA_SIZE, prio - 2, thread, "B");
+    test_assert(threads[0]->state == CH_STATE_READY, "thread A not ready");
+    test_assert(threads[1]->state == CH_STATE_READY, "thread B not ready");
+  }
+  test_end_step(1);
+
+  /* [5.8.2] Thread B is raised above the current thread. It must run
+     before the locked operation returns.*/
+  test_set_step(2);
+  {
+    chSysLock();
+    oldprio = __thd_set_priority(threads[1], prio + 1);
+    switched = threads[1]->state == CH_STATE_FINAL;
+    chSysUnlock();
+
+    test_assert(oldprio == prio - 2, "wrong old priority");
+    test_assert(switched, "thread B not scheduled internally");
+    test_wait_threads();
+    test_assert_sequence("BA", "ready list not reordered");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t rt_test_005_008 = {
+  "Arbitrary ready thread priority change",
+  NULL,
+  rt_test_005_008_teardown,
+  rt_test_005_008_execute
+};
+
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) && ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) && (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
+/**
+ * @page rt_test_005_009 [5.9] Lifecycle ready trace messages
+ *
+ * <h2>Description</h2>
+ * Lifecycle transitions into the ready state are verified to trace a
+ * defined MSG_OK ready message.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - (CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) && ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) && (CH_CFG_USE_WAITEXIT == TRUE)
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [5.9.1] A suspended external thread object is initialized and
+ *   started through I-class APIs. Its initialized and traced messages
+ *   are checked.
+ * - [5.9.2] A running external thread is spawned through an I-class
+ *   API and its ready trace is checked.
+ * - [5.9.3] A running embedded thread is created through an I-class
+ *   API and its ready trace is checked.
+ * - [5.9.4] A thread exit wakes its waiter and the waiter's ready
+ *   trace is checked.
+ * .
+ */
+
+static void rt_test_005_009_teardown(void) {
+  test_wait_threads();
+}
+
+static void rt_test_005_009_execute(void) {
+  thread_descriptor_t td;
+  thread_t *self;
+  msg_t initmsg, tracemsg = MSG_RESET;
+  bool found;
+
+  /* [5.9.1] A suspended external thread object is initialized and
+     started through I-class APIs. Its initialized and traced messages
+     are checked.*/
+  test_set_step(1);
+  {
+    setup_thread_descriptor(&td, "trace-start-i",
+                            TEST_THREAD_STACK_BASE(0), TEST_THREAD_STACK_END(0),
+                            chThdGetPriorityX() - 1, "A");
+    TEST_THREAD_OBJECT(0)->u.rdymsg = MSG_RESET;
+    chSysLock();
+    threads[0] = chThdSpawnSuspendedI(TEST_THREAD_OBJECT(0), &td);
+    initmsg = threads[0]->u.rdymsg;
+    chThdStartI(threads[0]);
+    found = test_find_ready_trace(threads[0], CH_STATE_WTSTART, &tracemsg);
+    chSysUnlock();
+    test_assert(initmsg == MSG_OK, "ready message not initialized");
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+    test_wait_threads();
+    test_assert_sequence("A", "invalid sequence");
+    chThdObjectDispose(TEST_THREAD_OBJECT(0));
+  }
+  test_end_step(1);
+
+  /* [5.9.2] A running external thread is spawned through an I-class
+     API and its ready trace is checked.*/
+  test_set_step(2);
+  {
+    setup_thread_descriptor(&td, "trace-spawn-i",
+                            TEST_THREAD_STACK_BASE(1), TEST_THREAD_STACK_END(1),
+                            chThdGetPriorityX() - 1, "B");
+    TEST_THREAD_OBJECT(1)->u.rdymsg = MSG_RESET;
+    chSysLock();
+    threads[1] = chThdSpawnRunningI(TEST_THREAD_OBJECT(1), &td);
+    found = test_find_ready_trace(threads[1], CH_STATE_WTSTART, &tracemsg);
+    chSysUnlock();
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+    test_wait_threads();
+    test_assert_sequence("B", "invalid sequence");
+    chThdObjectDispose(TEST_THREAD_OBJECT(1));
+  }
+  test_end_step(2);
+
+  /* [5.9.3] A running embedded thread is created through an I-class
+     API and its ready trace is checked.*/
+  test_set_step(3);
+  {
+    setup_thread_descriptor(&td, "trace-create-i",
+                            TEST_THREAD_WA_BASE(2), TEST_THREAD_WA_END(2),
+                            chThdGetPriorityX() - 1, "C");
+    TEST_THREAD_OBJECT(2)->u.rdymsg = MSG_RESET;
+    chSysLock();
+    threads[2] = chThdCreateI(&td);
+    found = test_find_ready_trace(threads[2], CH_STATE_WTSTART, &tracemsg);
+    chSysUnlock();
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid ready trace message");
+    test_wait_threads();
+    test_assert_sequence("C", "invalid sequence");
+  }
+  test_end_step(3);
+
+  /* [5.9.4] A thread exit wakes its waiter and the waiter's ready
+     trace is checked.*/
+  test_set_step(4);
+  {
+    self = chThdGetSelfX();
+    threads[3] = chThdCreateStatic(wa[3], WA_SIZE,
+                                   chThdGetPriorityX() - 1, thread, "D");
+    self->u.rdymsg = MSG_RESET;
+    (void) chThdWait(threads[3]);
+    threads[3] = NULL;
+    chSysLock();
+    found = test_find_ready_trace(self, CH_STATE_WTEXIT, &tracemsg);
+    chSysUnlock();
+    test_assert(found, "waiter ready trace not found");
+    test_assert(tracemsg == MSG_OK, "invalid waiter trace message");
+    test_assert_sequence("D", "invalid sequence");
+  }
+  test_end_step(4);
+}
+
+static const testcase_t rt_test_005_009 = {
+  "Lifecycle ready trace messages",
+  NULL,
+  rt_test_005_009_teardown,
+  rt_test_005_009_execute
+};
+#endif /* (CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) && ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) && (CH_CFG_USE_WAITEXIT == TRUE) */
+
+/*===========================================================================*/
+/* Exported data.                                                            */
+/*===========================================================================*/
 
 /**
  * @brief   Array of test cases.
@@ -687,6 +1020,10 @@ const testcase_t * const rt_test_sequence_005_array[] = {
   &rt_test_005_006,
 #if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
   &rt_test_005_007,
+#endif
+  &rt_test_005_008,
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) && ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U) && (CH_CFG_USE_WAITEXIT == TRUE)) || defined(__DOXYGEN__)
+  &rt_test_005_009,
 #endif
   NULL
 };

@@ -61,6 +61,9 @@
 
 /**
  * @brief   Spinlock to be used by the port layer.
+ * @details RP2350-E2 permits unrelated SIO writes to release certain
+ *          spinlocks on A2, A3, and A4 silicon. The default selects an
+ *          unconditionally safe lock number.
  */
 #if !defined(PORT_SPINLOCK_NUMBER)
 #define PORT_SPINLOCK_NUMBER            31
@@ -80,6 +83,9 @@
 
 /**
  * @brief   Spinlock serializing core-lockout requesters.
+ * @details RP2350-E2 permits unrelated SIO writes to release certain
+ *          spinlocks on A2, A3, and A4 silicon. The default selects an
+ *          unconditionally safe lock number.
  */
 #if !defined(PORT_LOCKOUT_SPINLOCK_NUMBER)
 #define PORT_LOCKOUT_SPINLOCK_NUMBER    30
@@ -138,8 +144,27 @@
   #error "invalid PORT_SPINLOCK_NUMBER value"
 #endif
 
+/* RP2350-E2: only these spinlocks are immune to false releases caused by
+   unrelated SIO writes on all affected mask revisions.*/
+#if (PORT_SPINLOCK_NUMBER != 5)  && (PORT_SPINLOCK_NUMBER != 6)  &&       \
+    (PORT_SPINLOCK_NUMBER != 7)  && (PORT_SPINLOCK_NUMBER != 10) &&       \
+    (PORT_SPINLOCK_NUMBER != 11) && (PORT_SPINLOCK_NUMBER < 18)
+  #error "PORT_SPINLOCK_NUMBER is unsafe on RP2350 A2/A3/A4 (RP2350-E2)"
+#endif
+
 #if (PORT_LOCKOUT_SPINLOCK_NUMBER < 0) || (PORT_LOCKOUT_SPINLOCK_NUMBER > 31)
   #error "invalid PORT_LOCKOUT_SPINLOCK_NUMBER value"
+#endif
+
+/* Applying the same restriction to the requester-serialization lock because
+   the erratum is in the SIO address decoder, independently of bus manager.*/
+#if (PORT_LOCKOUT_SPINLOCK_NUMBER != 5)  &&                           \
+    (PORT_LOCKOUT_SPINLOCK_NUMBER != 6)  &&                           \
+    (PORT_LOCKOUT_SPINLOCK_NUMBER != 7)  &&                           \
+    (PORT_LOCKOUT_SPINLOCK_NUMBER != 10) &&                           \
+    (PORT_LOCKOUT_SPINLOCK_NUMBER != 11) &&                           \
+    (PORT_LOCKOUT_SPINLOCK_NUMBER < 18)
+  #error "PORT_LOCKOUT_SPINLOCK_NUMBER is unsafe on RP2350 A2/A3/A4 (RP2350-E2)"
 #endif
 
 #if PORT_LOCKOUT_SPINLOCK_NUMBER == PORT_SPINLOCK_NUMBER
@@ -156,17 +181,23 @@
 
 /**
  * @brief   Panic notification.
- * @note    It is sent without polling for FIFO space because the other side
- *          could be unable to empty the FIFO after a catastrophic error.
+ * @note    The notification is durable even if the FIFO is full. It never
+ *          polls because the other side could be unable to empty the FIFO
+ *          after a catastrophic error.
  */
-#define PORT_SYSTEM_HALT_HOOK() do {                                        \
-    SIO->FIFO_WR = PORT_FIFO_PANIC_MESSAGE;                                 \
-  } while (false)
+#define PORT_SYSTEM_HALT_HOOK() __port_smp_notify_panic()
+
+/**
+ * @brief   Publishes flash-lockout readiness after the first IRQ unmask.
+ */
+#define PORT_UNLOCK_HOOK() __port_smp_startup_complete()
 
 /**
  * @brief   SMP-related port initialization.
  * @note    The port checks on presence of this macro so this
  *          must be a macro.
+ * @post    The global kernel lock is acquired and is released by the final
+ *          @p chSysUnlock() in the instance startup path.
  *
  * @param[in, out] oip  pointer to the @p os_instance_t structure
  */
@@ -176,10 +207,17 @@
 /* External declarations.                                                    */
 /*===========================================================================*/
 
+#if !defined(__DOXYGEN__)
+extern uint32_t __port_panic_pending[PORT_CORES_NUMBER];
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
   void __port_smp_init(os_instance_t *oip);
+  void __port_smp_startup_complete(void);
+  void __port_smp_notify_panic(void);
+  void __port_smp_halt_from_ram(void);
   void __port_spinlock_take(void);
   void __port_spinlock_release(void);
   void __port_flash_lockout(void);
@@ -192,6 +230,19 @@ extern "C" {
 /*===========================================================================*/
 /* Module inline functions.                                                  */
 /*===========================================================================*/
+
+/**
+ * @brief   Checks for a durable panic notification for this core.
+ * @note    This is kept inline because callers can be executing from RAM
+ *          while flash is unavailable.
+ *
+ * @return              @p true if a remote panic is pending.
+ */
+__STATIC_FORCEINLINE bool port_is_panic_pending(void) {
+
+  return __atomic_load_n(&__port_panic_pending[SIO->CPUID],
+                         __ATOMIC_ACQUIRE) != 0U;
+}
 
 /**
  * @brief   Triggers an inter-core notification.
@@ -215,6 +266,12 @@ __STATIC_INLINE void port_notify_instance(os_instance_t *oip) {
 __STATIC_INLINE void port_spinlock_take(void) {
 
   while (SIO->SPINLOCK[PORT_SPINLOCK_NUMBER] == 0U) {
+    if (port_is_panic_pending()) {
+      /* The owner can have halted while holding the lock. Interrupts are
+         masked here, therefore the FIFO handler cannot consume the panic
+         notification. This loop must remain safe with XIP unavailable.*/
+      __port_smp_halt_from_ram();
+    }
   }
   __DMB();
 }

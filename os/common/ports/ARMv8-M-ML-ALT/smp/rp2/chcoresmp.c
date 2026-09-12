@@ -36,6 +36,14 @@
 /* Module exported variables.                                                */
 /*===========================================================================*/
 
+/**
+ * @brief   Durable per-target panic notifications.
+ * @details The FIFO token is only a wakeup hint because a write is discarded
+ *          when the outbound FIFO is full. The target-owned latch makes the
+ *          notification persistent until the target observes it.
+ */
+uint32_t __port_panic_pending[PORT_CORES_NUMBER];
+
 /*===========================================================================*/
 /* Module local types.                                                       */
 /*===========================================================================*/
@@ -49,7 +57,7 @@
  * @note    A core which never started must not be waited for in the
  *          lockout handshake.
  */
-static volatile bool port_lockout_ready[PORT_CORES_NUMBER];
+static uint32_t port_lockout_ready[PORT_CORES_NUMBER];
 
 /**
  * @brief   Per-core lockout-in-progress flags.
@@ -94,15 +102,42 @@ static volatile uint32_t port_lockout_msg_count[PORT_CORES_NUMBER];
 /*===========================================================================*/
 
 static void port_local_halt(void) {
+  os_instance_t *oip;
   const char *reason = "remote panic";
 
   port_disable();
+  oip = currcore;
 
   __trace_halt("remote panic");
 
-  currcore->dbg.panic_msg = reason;
+  if (oip != NULL) {
+    oip->dbg.panic_msg = reason;
+  }
 
   CH_CFG_SYSTEM_HALT_HOOK(reason);
+
+  while (true) {
+  }
+}
+
+/**
+ * @brief   Halts this core from a path which cannot rely on flash.
+ * @details Records the remote-panic reason without invoking trace or user
+ *          hooks because either can reside in flash. This is used while
+ *          parked for XIP lockout and while waiting on a kernel spinlock
+ *          whose owner halted.
+ */
+CC_NO_INLINE CC_SECTION(".ramtext")
+void __port_smp_halt_from_ram(void) {
+  os_instance_t *oip;
+  const char *reason = "remote panic";
+
+  __disable_irq();
+  oip = currcore;
+
+  if (oip != NULL) {
+    oip->dbg.panic_msg = reason;
+  }
 
   while (true) {
   }
@@ -124,6 +159,9 @@ static void port_fifo_lockout_wait(void) {
   /* Acknowledging the lockout, the requester waits for this before
      touching XIP.*/
   while ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) == 0U) {
+    if (port_is_panic_pending()) {
+      __port_smp_halt_from_ram();
+    }
   }
   SIO->FIFO_WR = PORT_FIFO_LOCKOUT_ACK_MESSAGE;
   __SEV();
@@ -132,6 +170,11 @@ static void port_fifo_lockout_wait(void) {
   while (true) {
     uint32_t message;
 
+    /* The check stays inlined, XIP can be unavailable here.*/
+    if (port_is_panic_pending()) {
+      __port_smp_halt_from_ram();
+    }
+
     while ((SIO->FIFO_ST & SIO_FIFO_ST_VLD) == 0U) {
     }
     message = SIO->FIFO_RD;
@@ -139,10 +182,7 @@ static void port_fifo_lockout_wait(void) {
       break;
     }
     if (message == PORT_FIFO_PANIC_MESSAGE) {
-      /* Cannot reach the flash-resident halt path, parking here, the
-         other core is halting anyway.*/
-      while (true) {
-      }
+      __port_smp_halt_from_ram();
     }
 #if defined(PORT_HANDLE_FIFO_MESSAGE)
     /* Application messages cannot be delivered while flash handlers are
@@ -166,6 +206,9 @@ static void port_fifo_lockout_wait(void) {
 
   /* Acknowledging the unlock, XIP is available again at this point.*/
   while ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) == 0U) {
+    if (port_is_panic_pending()) {
+      __port_smp_halt_from_ram();
+    }
   }
   SIO->FIFO_WR = PORT_FIFO_LOCKOUT_ACK_MESSAGE;
   __SEV();
@@ -200,6 +243,9 @@ static bool port_lockout_handshake(uint32_t token) {
   uint32_t start = TIMER0->TIMERAWL;
 
   while ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) == 0U) {
+    if (port_is_panic_pending()) {
+      port_local_halt();
+    }
     if ((TIMER0->TIMERAWL - start) > PORT_LOCKOUT_TIMEOUT_US) {
       return false;
     }
@@ -212,6 +258,10 @@ static bool port_lockout_handshake(uint32_t token) {
       uint32_t message = SIO->FIFO_RD;
 
       if (message == PORT_FIFO_LOCKOUT_ACK_MESSAGE) {
+        __DMB();
+        if (port_is_panic_pending()) {
+          port_local_halt();
+        }
         return true;
       }
       if (message == PORT_FIFO_PANIC_MESSAGE) {
@@ -234,6 +284,9 @@ static bool port_lockout_handshake(uint32_t token) {
       /* Reschedule tokens are dropped here, a reschedule round is forced
          after the handshake.*/
     }
+    if (port_is_panic_pending()) {
+      port_local_halt();
+    }
     if ((TIMER0->TIMERAWL - start) > PORT_LOCKOUT_TIMEOUT_US) {
       return false;
     }
@@ -254,6 +307,10 @@ static bool port_lockout_handshake(uint32_t token) {
 CH_IRQ_HANDLER(VectorA4) {
 
   CH_IRQ_PROLOGUE();
+
+  if (port_is_panic_pending()) {
+    port_local_halt();
+  }
 
   SIO->FIFO_ST = SIO_FIFO_ST_ROE | SIO_FIFO_ST_WOF;
 
@@ -294,6 +351,13 @@ CH_IRQ_HANDLER(VectorA4) {
 #endif
   }
 
+  /* Pairs with the sender's release store and closes the race between
+     draining the FIFO and publication of a panic notification.*/
+  __DMB();
+  if (port_is_panic_pending()) {
+    port_local_halt();
+  }
+
   __SEV();
 
   CH_IRQ_EPILOGUE();
@@ -304,11 +368,34 @@ CH_IRQ_HANDLER(VectorA4) {
 /*===========================================================================*/
 
 /**
+ * @brief   Notifies the other core of a system halt.
+ * @details The latch provides eventual delivery to a responsive target. The
+ *          FIFO token is a best-effort wakeup hint and may be discarded when
+ *          the FIFO is full.
+ */
+void __port_smp_notify_panic(void) {
+  core_id_t target;
+
+  target = port_get_core_id() ^ 1U;
+  __atomic_store_n(&__port_panic_pending[target], 1U, __ATOMIC_RELEASE);
+  __DMB();
+
+  if ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) != 0U) {
+    SIO->FIFO_WR = PORT_FIFO_PANIC_MESSAGE;
+  }
+}
+
+/**
  * @brief   SMP-related port initialization.
+ * @details Acquires the global kernel lock which is released by the final
+ *          @p chSysUnlock() in the instance startup path.
  *
  * @param[in, out] oip  pointer to the @p os_instance_t structure
  */
 void __port_smp_init(os_instance_t *oip) {
+
+  /* Entering the initial global I-Lock state.*/
+  port_spinlock_take();
 
 #if CH_CFG_ST_TIMEDELTA > 0
   /* Activating timer for this instance.*/
@@ -320,10 +407,48 @@ void __port_smp_init(os_instance_t *oip) {
   NVIC_SetPriority(SIO_IRQ_FIFOn, CORTEX_MINIMUM_PRIORITY);
   NVIC_EnableIRQ(SIO_IRQ_FIFOn);
 
-  /* This core can now be parked by the other one.*/
-  port_lockout_ready[port_get_core_id()] = true;
+  if (port_is_panic_pending()) {
+    NVIC_SetPendingIRQ(SIO_IRQ_FIFOn);
+  }
 
   (void)oip;
+}
+
+/**
+ * @brief   Marks this core as able to service flash-lockout requests.
+ * @details Called after the first startup unlock has lowered the local
+ *          interrupt mask. Subsequent unlocks leave the one-shot state
+ *          unchanged.
+ */
+CC_NO_INLINE CC_SECTION(".ramtext")
+void __port_smp_startup_complete(void) {
+  core_id_t core_id;
+  uint32_t primask;
+
+  core_id = (core_id_t)SIO->CPUID;
+  if (__atomic_load_n(&port_lockout_ready[core_id],
+                      __ATOMIC_RELAXED) == 0U) {
+    primask = __get_PRIMASK();
+    __disable_irq();
+
+    if (__atomic_load_n(&port_lockout_ready[core_id],
+                        __ATOMIC_RELAXED) == 0U) {
+      /* Admission is held through the complete flash operation. Waiting
+         here in RAM keeps this core off XIP until the operation ends. It
+         is intentionally unbounded like port_fifo_lockout_wait(): the
+         holder can be completing a legitimate long flash operation.*/
+      while (SIO->SPINLOCK[PORT_LOCKOUT_SPINLOCK_NUMBER] == 0U) {
+      }
+      __DMB();
+
+      __atomic_store_n(&port_lockout_ready[core_id], 1U, __ATOMIC_RELEASE);
+
+      __DMB();
+      SIO->SPINLOCK[PORT_LOCKOUT_SPINLOCK_NUMBER] = (uint32_t)SIO;
+    }
+
+    __set_PRIMASK(primask);
+  }
 }
 
 /**
@@ -372,7 +497,7 @@ void __port_flash_lockout(void) {
   /* A core which never initialized cannot acknowledge and does not need
      parking. The decision is recorded for the unlock side, the flag may
      rise in the meantime.*/
-  if (!port_lockout_ready[port_get_core_id() ^ 1U]) {
+  if (!__port_lockout_other_ready()) {
     port_lockout_parked = false;
     return;
   }
@@ -456,7 +581,8 @@ void __port_flash_unlockout(void) {
  */
 bool __port_lockout_other_ready(void) {
 
-  return port_lockout_ready[port_get_core_id() ^ 1U];
+  return __atomic_load_n(&port_lockout_ready[port_get_core_id() ^ 1U],
+                         __ATOMIC_ACQUIRE) != 0U;
 }
 
 /**

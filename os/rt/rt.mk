@@ -15,13 +15,15 @@ CHCONF := $(strip $(shell cat $(CHCONFDIR)/chconf.h | grep -E "\#define"))
 
 KERNSRC := $(CHIBIOS)/os/rt/src/chsys.c \
            $(CHIBIOS)/os/rt/src/chsafety.c \
-           $(CHIBIOS)/os/rt/src/chrfcu.c \
            $(CHIBIOS)/os/rt/src/chdebug.c \
            $(CHIBIOS)/os/rt/src/chtrace.c \
            $(CHIBIOS)/os/rt/src/chvt.c \
            $(CHIBIOS)/os/rt/src/chschd.c \
            $(CHIBIOS)/os/rt/src/chinstances.c \
            $(CHIBIOS)/os/rt/src/chthreads.c
+ifneq ($(findstring CH_CFG_USE_RFCU TRUE,$(CHCONF)),)
+KERNSRC += $(CHIBIOS)/os/rt/src/chrfcu.c
+endif
 ifneq ($(findstring CH_CFG_USE_TM TRUE,$(CHCONF)),)
 KERNSRC += $(CHIBIOS)/os/rt/src/chtm.c
 endif

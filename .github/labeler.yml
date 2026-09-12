@@ -65,6 +65,7 @@ port/RP:
   - changed-files:
     - any-glob-to-any-file:
       - 'os/hal/ports/RP/**'
+      - 'os/xhal/ports/RP/**'
       - 'demos/RP/**'
       - 'testhal/RP/**'
 

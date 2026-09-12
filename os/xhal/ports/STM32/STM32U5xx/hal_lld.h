@@ -303,6 +303,9 @@
 #define STM32_RELAXED_TIMEOUT_FACTOR        5U
 #define STM32_REGULATORS_TRANSITION_TIME    (21U * STM32_RELAXED_TIMEOUT_FACTOR)
 #define STM32_OSCILLATORS_STARTUP_TIME      (2000U * STM32_RELAXED_TIMEOUT_FACTOR)
+#if !defined(STM32_LSE_STARTUP_TIME) || defined(__DOXYGEN__)
+#define STM32_LSE_STARTUP_TIME              5000000U
+#endif
 #define STM32_PLL_STARTUP_TIME              (800U * STM32_RELAXED_TIMEOUT_FACTOR)
 #define STM32_SYSCLK_SWITCH_TIME            (50U * STM32_RELAXED_TIMEOUT_FACTOR)
 /** @} */
@@ -536,7 +539,7 @@ typedef struct {
  * @note    The counter is the internal DWT cycles counter so it runs at the
  *          same frequency as the CPU.
  */
-#define HAL_LLD_GET_CNT_FREQUENCY()         hal_lld_get_clock_point(CLK_HCLK)
+#define HAL_LLD_GET_CNT_FREQUENCY()         SystemCoreClock
 
 /**
  * @brief   Real time counter value exported to the safety module.

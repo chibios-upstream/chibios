@@ -88,6 +88,45 @@ static void test_task_delete(void) {
     (void) OS_TaskDelay(1);
   }
   test_emit_token('B');
+}
+
+static void test_task_priority(void) {
+
+  while (!OS_TaskDeleteCheck()) {
+    (void) OS_TaskDelay(1);
+  }
+}
+
+static mutex_t priority_m1;
+static mutex_t priority_m2;
+static thread_reference_t priority_chain_ref;
+static uint32 priority_tid;
+static uint32 priority_tid_l;
+static uint32 priority_tid_m;
+static uint32 priority_tid_h;
+static uint32 priority_tid_c;
+
+static void test_task_priority_l(void) {
+
+  chMtxLock(&priority_m2);
+  chSysLock();
+  (void) chThdSuspendS(&priority_chain_ref);
+  chSysUnlock();
+  chMtxUnlock(&priority_m2);
+}
+
+static void test_task_priority_m(void) {
+
+  chMtxLock(&priority_m1);
+  chMtxLock(&priority_m2);
+  chMtxUnlock(&priority_m2);
+  chMtxUnlock(&priority_m1);
+}
+
+static void test_task_priority_h(void) {
+
+  chMtxLock(&priority_m1);
+  chMtxUnlock(&priority_m1);
 }]]></value>
       </shared_code>
       <cases>
@@ -633,6 +672,251 @@ test_assert(err == OS_SUCCESS, "deletable task creation failed");]]></value>
 err = OS_TaskDelete(tid);
 test_assert(err == OS_SUCCESS, "delete failed");
 test_assert_sequence("ABC", "events order violation");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>OS_TaskSetPriority() validation and conversion</value>
+          </brief>
+          <description>
+            <value>Target validation and OSAL-to-RT priority conversion are
+              tested, including the case where the caller already has the
+              requested priority.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[priority_tid = 0;]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[if (priority_tid != 0) {
+  (void) OS_TaskDelete(priority_tid);
+}]]></value>
+            </teardown_code>
+            <local_variables>
+              <value />
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Invalid priorities and an invalid target are rejected.
+                  The invalid-target request uses the caller's own priority.
+                </value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+
+err = OS_TaskSetPriority((uint32)-1, 0);
+test_assert(err == OS_ERR_INVALID_PRIORITY, "low priority accepted");
+err = OS_TaskSetPriority((uint32)-1, 256);
+test_assert(err == OS_ERR_INVALID_PRIORITY, "high priority accepted");
+err = OS_TaskSetPriority((uint32)-1, 128);
+test_assert(err == OS_ERR_INVALID_ID, "invalid target accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A lower-priority task is created then changed to the
+                  caller's priority.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+
+err = OS_TaskCreate(&priority_tid,
+                    "priority target",
+                    test_task_priority,
+                    (uint32 *)wa_test1,
+                    sizeof wa_test1,
+                    TASKS_BASE_PRIORITY,
+                    0);
+test_assert(err == OS_SUCCESS, "task creation failed");
+
+err = OS_TaskSetPriority(priority_tid, 128);
+test_assert(err == OS_SUCCESS, "priority change failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The task information reports the requested OSAL
+                  priority, then the task is deleted.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+OS_task_prop_t info;
+
+err = OS_TaskGetInfo(priority_tid, &info);
+test_assert(err == OS_SUCCESS, "task info failed");
+test_assert(info.priority == 128, "priority conversion failed");
+
+err = OS_TaskDelete(priority_tid);
+test_assert(err == OS_SUCCESS, "task deletion failed");
+priority_tid = 0;]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>OS_TaskSetPriority() transitive inheritance</value>
+          </brief>
+          <description>
+            <value>Priority changes to mutex waiters are propagated through
+              a two-owner chain while preserving a competing donation.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[priority_tid_l = 0;
+priority_tid_m = 0;
+priority_tid_h = 0;
+priority_tid_c = 0;
+priority_chain_ref = NULL;
+chMtxObjectInit(&priority_m1);
+chMtxObjectInit(&priority_m2);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chThdResume(&priority_chain_ref, MSG_RESET);
+if (priority_tid_l != 0) {
+  (void) OS_TaskWait(priority_tid_l);
+}
+if (priority_tid_m != 0) {
+  (void) OS_TaskWait(priority_tid_m);
+}
+if (priority_tid_h != 0) {
+  (void) OS_TaskWait(priority_tid_h);
+}
+if (priority_tid_c != 0) {
+  (void) OS_TaskWait(priority_tid_c);
+}
+chMtxObjectDispose(&priority_m1);
+chMtxObjectDispose(&priority_m2);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value />
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Four OSAL tasks form the chain H and C wait on M,
+                  M waits on L, and L is suspended.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+
+err = OS_TaskCreate(&priority_tid_l, "priority L", test_task_priority_l,
+                    (uint32 *)wa_test1, sizeof wa_test1, 127, 0);
+test_assert(err == OS_SUCCESS, "task L creation failed");
+test_assert(priority_chain_ref == (thread_t *)priority_tid_l,
+            "task L not suspended");
+
+err = OS_TaskCreate(&priority_tid_m, "priority M", test_task_priority_m,
+                    (uint32 *)wa_test2, sizeof wa_test2, 126, 0);
+test_assert(err == OS_SUCCESS, "task M creation failed");
+test_assert(((thread_t *)priority_tid_m)->state == CH_STATE_WTMTX,
+            "task M not waiting");
+
+err = OS_TaskCreate(&priority_tid_h, "priority H", test_task_priority_h,
+                    (uint32 *)wa_test3, sizeof wa_test3, 125, 0);
+test_assert(err == OS_SUCCESS, "task H creation failed");
+test_assert(((thread_t *)priority_tid_h)->state == CH_STATE_WTMTX,
+            "task H not waiting");
+
+err = OS_TaskCreate(&priority_tid_c, "priority C", test_task_priority_h,
+                    (uint32 *)wa_test4, sizeof wa_test4, 124, 0);
+test_assert(err == OS_SUCCESS, "task C creation failed");
+test_assert(((thread_t *)priority_tid_c)->state == CH_STATE_WTMTX,
+            "task C not waiting");
+
+test_assert(((thread_t *)priority_tid_l)->hdr.pqueue.prio == NORMALPRIO + 4,
+            "task L not initially boosted");
+test_assert(((thread_t *)priority_tid_m)->hdr.pqueue.prio == NORMALPRIO + 4,
+            "task M not initially boosted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Raising H above C propagates through both owners.
+                </value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+
+err = OS_TaskSetPriority(priority_tid_h, 123);
+test_assert(err == OS_SUCCESS, "task H raise failed");
+test_assert(((thread_t *)priority_tid_h)->hdr.pqueue.prio == NORMALPRIO + 5,
+            "task H not raised");
+test_assert(((thread_t *)priority_tid_m)->hdr.pqueue.prio == NORMALPRIO + 5,
+            "raise not propagated to M");
+test_assert(((thread_t *)priority_tid_l)->hdr.pqueue.prio == NORMALPRIO + 5,
+            "raise not propagated to L");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Lowering H preserves C's donation, then lowering C
+                  restores M's base priority throughout the chain.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+
+err = OS_TaskSetPriority(priority_tid_h, 127);
+test_assert(err == OS_SUCCESS, "task H lowering failed");
+test_assert(((thread_t *)priority_tid_m)->hdr.pqueue.prio == NORMALPRIO + 4,
+            "competing donation lost at M");
+test_assert(((thread_t *)priority_tid_l)->hdr.pqueue.prio == NORMALPRIO + 4,
+            "competing donation lost at L");
+
+err = OS_TaskSetPriority(priority_tid_c, 127);
+test_assert(err == OS_SUCCESS, "task C lowering failed");
+test_assert(((thread_t *)priority_tid_m)->hdr.pqueue.prio == NORMALPRIO + 2,
+            "drop not propagated to M");
+test_assert(((thread_t *)priority_tid_l)->hdr.pqueue.prio == NORMALPRIO + 2,
+            "drop not propagated to L");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>L is resumed and all tasks are reaped.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[chThdResume(&priority_chain_ref, MSG_OK);
+(void) OS_TaskWait(priority_tid_l);
+(void) OS_TaskWait(priority_tid_m);
+(void) OS_TaskWait(priority_tid_h);
+(void) OS_TaskWait(priority_tid_c);
+priority_tid_l = 0;
+priority_tid_m = 0;
+priority_tid_h = 0;
+priority_tid_c = 0;]]></value>
               </code>
             </step>
           </steps>
@@ -2499,7 +2783,7 @@ test_assert(err == OS_ERR_INVALID_ID, "wrong semaphore id not detected");]]></va
               </tags>
               <code>
                 <value><![CDATA[int32 err;
-uint32 msid1; /*, msid2;*/
+uint32 msid1;
 
 err = OS_MutSemCreate(&msid1, "my semaphore", 0);
 test_assert(err == OS_SUCCESS, "semaphore creation failed");
@@ -2661,6 +2945,111 @@ test_assert(err == OS_INVALID_POINTER, "NULL not detected");]]></value>
 
 err = OS_MutSemGetIdByName(&msid, "very very long semaphore name");
 test_assert(err == OS_ERR_NAME_TOO_LONG, "name limit not detected");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>OS_MutSemDelete() lifecycle</value>
+          </brief>
+          <description>
+            <value>Mutex deletion is restricted to the specified idle
+              mutex and preserves unrelated mutex ownership.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value />
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Deleting an idle mutex leaves an unrelated owned
+                  mutex locked by the invoking task.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+uint32 guard, target;
+
+err = OS_MutSemCreate(&guard, "guard", 0);
+test_assert(err == OS_SUCCESS, "guard creation failed");
+err = OS_MutSemCreate(&target, "target", 0);
+test_assert(err == OS_SUCCESS, "target creation failed");
+err = OS_MutSemTake(guard);
+test_assert(err == OS_SUCCESS, "guard take failed");
+
+err = OS_MutSemDelete(target);
+test_assert(err == OS_SUCCESS, "idle target deletion failed");
+err = OS_MutSemGive(guard);
+test_assert(err == OS_SUCCESS, "unrelated mutex was released");
+err = OS_MutSemDelete(guard);
+test_assert(err == OS_SUCCESS, "guard deletion failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Deleting an owned mutex fails without changing
+                  the ownership of it or other mutexes.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+uint32 guard, target;
+
+err = OS_MutSemCreate(&guard, "guard", 0);
+test_assert(err == OS_SUCCESS, "guard creation failed");
+err = OS_MutSemCreate(&target, "target", 0);
+test_assert(err == OS_SUCCESS, "target creation failed");
+err = OS_MutSemTake(guard);
+test_assert(err == OS_SUCCESS, "guard take failed");
+err = OS_MutSemTake(target);
+test_assert(err == OS_SUCCESS, "target take failed");
+
+err = OS_MutSemDelete(target);
+test_assert(err == OS_SEM_FAILURE, "owned target deletion accepted");
+err = OS_MutSemGive(target);
+test_assert(err == OS_SUCCESS, "target ownership changed");
+err = OS_MutSemGive(guard);
+test_assert(err == OS_SUCCESS, "guard ownership changed");
+err = OS_MutSemDelete(target);
+test_assert(err == OS_SUCCESS, "target deletion failed");
+err = OS_MutSemDelete(guard);
+test_assert(err == OS_SUCCESS, "guard deletion failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Deleting an already deleted mutex reports an
+                  invalid identifier.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[int32 err;
+uint32 target;
+
+err = OS_MutSemCreate(&target, "target", 0);
+test_assert(err == OS_SUCCESS, "target creation failed");
+err = OS_MutSemDelete(target);
+test_assert(err == OS_SUCCESS, "target deletion failed");
+err = OS_MutSemDelete(target);
+test_assert(err == OS_ERR_INVALID_ID, "deleted target accepted");]]></value>
               </code>
             </step>
           </steps>

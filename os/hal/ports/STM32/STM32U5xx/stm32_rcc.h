@@ -467,6 +467,14 @@
 #define rccEnableI2C4(lp) rccEnableAPB1R2(RCC_APB1ENR2_I2C4EN, lp)
 #define rccDisableI2C4() rccDisableAPB1R2(RCC_APB1ENR2_I2C4EN)
 #define rccResetI2C4() rccResetAPB1R2(RCC_APB1RSTR2_I2C4RST)
+
+#define rccEnableI2C5(lp) rccEnableAPB1R2(RCC_APB1ENR2_I2C5EN, lp)
+#define rccDisableI2C5() rccDisableAPB1R2(RCC_APB1ENR2_I2C5EN)
+#define rccResetI2C5() rccResetAPB1R2(RCC_APB1RSTR2_I2C5RST)
+
+#define rccEnableI2C6(lp) rccEnableAPB1R2(RCC_APB1ENR2_I2C6EN, lp)
+#define rccDisableI2C6() rccDisableAPB1R2(RCC_APB1ENR2_I2C6EN)
+#define rccResetI2C6() rccResetAPB1R2(RCC_APB1RSTR2_I2C6RST)
 /** @} */
 
 /**
@@ -494,6 +502,10 @@
  * @name    OCTOSPI peripherals specific RCC operations
  * @{
  */
+#define rccEnableOCTOSPIM(lp) rccEnableAHB2R1(RCC_AHB2ENR1_OCTOSPIMEN, lp)
+#define rccDisableOCTOSPIM() rccDisableAHB2R1(RCC_AHB2ENR1_OCTOSPIMEN)
+#define rccResetOCTOSPIM() rccResetAHB2R1(RCC_AHB2RSTR1_OCTOSPIMRST)
+
 #define rccEnableOCTOSPI1(lp) rccEnableAHB2R2(RCC_AHB2ENR2_OCTOSPI1EN, lp)
 #define rccDisableOCTOSPI1() rccDisableAHB2R2(RCC_AHB2ENR2_OCTOSPI1EN)
 #define rccResetOCTOSPI1() rccResetAHB2R2(RCC_AHB2RSTR2_OCTOSPI1RST)
@@ -656,6 +668,10 @@
 #define rccEnableUART5(lp) rccEnableAPB1R1(RCC_APB1ENR1_UART5EN, lp)
 #define rccDisableUART5() rccDisableAPB1R1(RCC_APB1ENR1_UART5EN)
 #define rccResetUART5() rccResetAPB1R1(RCC_APB1RSTR1_UART5RST)
+
+#define rccEnableUSART6(lp) rccEnableAPB1R1(RCC_APB1ENR1_USART6EN, lp)
+#define rccDisableUSART6() rccDisableAPB1R1(RCC_APB1ENR1_USART6EN)
+#define rccResetUSART6() rccResetAPB1R1(RCC_APB1RSTR1_USART6RST)
 
 #define rccEnableLPUART1(lp) rccEnableAPB3(RCC_APB3ENR_LPUART1EN, lp)
 #define rccDisableLPUART1() rccDisableAPB3(RCC_APB3ENR_LPUART1EN)

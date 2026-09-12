@@ -347,8 +347,9 @@ void sduSuspendHookI(SerialUSBDriver *sdup) {
 
 /**
  * @brief   USB device wakeup handler.
- * @details Generates a @p CHN_CONNECT event and resumes normal queues
- *          operations.
+ * @details Generates a @p CHN_CONNECT event, resumes normal queues
+ *          operations and restarts the bulk OUT receive operation which
+ *          is terminated on suspend by the USB driver.
  *
  * @note    If this function is not called from an ISR then an explicit call
  *          to @p osalOsRescheduleS() is necessary afterward.
@@ -362,6 +363,15 @@ void sduWakeupHookI(SerialUSBDriver *sdup) {
   chnAddFlagsI(sdup, CHN_CONNECTED);
   bqResumeX(&sdup->ibqueue);
   bqResumeX(&sdup->obqueue);
+
+  /* Re-arming the bulk OUT receive transaction. The generic USB driver
+     declares all pending transactions terminated on suspend and some
+     LLDs (notably STM32 OTG) also disable all endpoints in hardware,
+     destroying the previously armed OUT transfer, without this call the
+     host-to-device direction would remain inactive after wakeup. On ports
+     retaining endpoint state across suspend this is harmless, the receive
+     operation is re-armed using the same buffer.*/
+  (void) sdu_start_receive(sdup);
 }
 
 /**

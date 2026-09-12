@@ -1,0 +1,63 @@
+/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/
+
+/**
+ * @file    portab.h
+ * @brief   Application portability macros and structures.
+ *
+ * @addtogroup application_portability
+ * @{
+ */
+
+#ifndef PORTAB_H
+#define PORTAB_H
+
+#define PORTAB_LINE_LED1            25U
+#define PORTAB_LED_OFF              PAL_LOW
+#define PORTAB_LED_ON               PAL_HIGH
+
+/* The Pico 2 board has no user button, GP22 is configured as a pulled-down
+   input by portab_setup() so the line reads as not pressed unless it is
+   externally driven high.*/
+#define PORTAB_LINE_BUTTON          22U
+#define PORTAB_BUTTON_PRESSED       PAL_HIGH
+
+#define PORTAB_SIO1                 SIOD0
+#define PORTAB_UART_TX_PIN          0U
+#define PORTAB_UART_RX_PIN          1U
+
+/*
+ * The RP2350 external QSPI flash on the 4MB Pico 2 is uniform 4KB sectors
+ * (1024 in total), reserve the final two sectors of the device for the two
+ * 4KB MFS banks used by the test suite.
+ */
+#define MFS_BANK_SIZE               4096U
+#define MFS_BANK0_START             (RP_FLASH_SECTORS_COUNT - 2U)
+#define MFS_BANK0_SECTORS           1U
+#define MFS_BANK1_START             (RP_FLASH_SECTORS_COUNT - 1U)
+#define MFS_BANK1_SECTORS           1U
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+  void portab_setup(void);
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* PORTAB_H */
+
+/** @} */

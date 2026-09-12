@@ -21,6 +21,14 @@
  * @brief   Lists and Queues header.
  *
  * @addtogroup os_lists
+ * @details Linked-element access is centralized in the next/previous
+ *          accessors. At hardening level 2 or higher, or with debug assertions
+ *          enabled, doubly-linked accesses check reciprocal link consistency.
+ *          At level 3, fetched pointers are also validated before dereferencing.
+ *          Single-link accesses provide only the level-3 pointer check.
+ * @note    Operations require readable input objects and stable links during
+ *          access. Mutation functions check the affected links before
+ *          updating them; these are local checks, not full integrity scans.
  * @{
  */
 
@@ -79,7 +87,10 @@ typedef struct ch_priority_queue ch_priority_queue_t;
 /**
  * @brief   Structure representing a generic priority-ordered bidirectional
  *          linked list header and element.
- * @note    Link fields are void pointers in order to avoid aliasing issues.
+ * @note    The link fields must have the same layout as those in
+ *          @p ch_queue_t and @p prio must follow them. Thread queue elements
+ *          overlay the two structures and priority inheritance reads
+ *          @p prio while an element is linked through @p ch_queue_t.
  */
 struct ch_priority_queue {
   ch_priority_queue_t   *next;      /**< @brief Next in the queue.          */
@@ -127,6 +138,7 @@ struct ch_delta_list {
 
 /**
  * @brief   Iterate over a queue list forwards
+ * @pre     The cursor element must remain linked until the loop advances.
  *
  * @param[in] pos       pointer to @p ch_queue_t object to use as a loop cursor
  * @param[in] head      pointer to @p ch_queue_t head of queue
@@ -134,10 +146,11 @@ struct ch_delta_list {
  * @notapi
  */
 #define ch_queue_for_each(pos, head)                                        \
-  for (pos = (head)->next; pos != (head); pos = pos->next)
+  for (pos = ch_queue_next(head); pos != (head); pos = ch_queue_next(pos))
 
 /**
  * @brief   Iterate over a queue list backwards
+ * @pre     The cursor element must remain linked until the loop advances.
  *
  * @param[in] pos       pointer to @p ch_queue_t object to use as a loop cursor
  * @param[in] head      pointer to @p ch_queue_t head of queue
@@ -145,7 +158,7 @@ struct ch_delta_list {
  * @notapi
  */
 #define ch_queue_for_each_reverse(pos, head)                                \
-  for (pos = (head)->prev; pos != (head); pos = pos->prev)
+  for (pos = ch_queue_prev(head); pos != (head); pos = ch_queue_prev(pos))
 
 /**
  * @brief   Get the enclosing object of a queue object
@@ -170,7 +183,7 @@ struct ch_delta_list {
  * @notapi
  */
 #define ch_queue_first_owner(head, type, member)                            \
-  __CH_OWNEROF((head)->next, type, member)
+  __CH_OWNEROF(ch_queue_next(head), type, member)
 
 /**
  * @brief   Get the last entry of a queue
@@ -183,7 +196,7 @@ struct ch_delta_list {
  * @notapi
  */
 #define ch_queue_last_owner(head, type, member)                             \
-  __CH_OWNEROF((head)->prev, type, member)
+  __CH_OWNEROF(ch_queue_prev(head), type, member)
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -215,6 +228,27 @@ static inline void ch_list_init(ch_list_t *lp) {
 }
 
 /**
+ * @brief   Returns the next element in a single link list.
+ * @pre     @p lp must point to a readable header or element.
+ *          The link must remain stable during this operation.
+ * @note    At hardening level 3 the fetched pointer is validated
+ *          (NULL and alignment checks by default). Debug assertions alone
+ *          do not enable this pointer check.
+ *
+ * @param[in] lp        pointer to the list header or element
+ * @return              The next element pointer, possibly the header.
+ *
+ * @notapi
+ */
+static inline ch_list_t *ch_list_next(const ch_list_t *lp) {
+  ch_list_t *next = lp->next;
+
+  chSftValidateDataPointerX(3, next);
+
+  return next;
+}
+
+/**
  * @brief   Evaluates to @p true if the specified list is empty.
  *
  * @param[in] lp        pointer to the list header
@@ -224,7 +258,7 @@ static inline void ch_list_init(ch_list_t *lp) {
  */
 static inline bool ch_list_isempty(ch_list_t *lp) {
 
-  return (bool)(lp->next == lp);
+  return (bool)(ch_list_next(lp) == lp);
 }
 
 /**
@@ -237,7 +271,7 @@ static inline bool ch_list_isempty(ch_list_t *lp) {
  */
 static inline bool ch_list_notempty(ch_list_t *lp) {
 
-  return (bool)(lp->next != lp);
+  return (bool)(ch_list_next(lp) != lp);
 }
 
 /**
@@ -250,7 +284,7 @@ static inline bool ch_list_notempty(ch_list_t *lp) {
  */
 static inline void ch_list_link(ch_list_t *lp, ch_list_t *p) {
 
-  p->next = lp->next;
+  p->next = ch_list_next(lp);
   lp->next = p;
 }
 
@@ -264,11 +298,12 @@ static inline void ch_list_link(ch_list_t *lp, ch_list_t *p) {
  * @notapi
  */
 static inline ch_list_t *ch_list_unlink(ch_list_t *lp) {
+  ch_list_t *p;
 
   chDbgAssert(ch_list_notempty(lp), "empty list");
 
-  ch_list_t *p = lp->next;
-  lp->next = p->next;
+  p = ch_list_next(lp);
+  lp->next = ch_list_next(p);
 
   return p;
 }
@@ -287,6 +322,56 @@ static inline void ch_queue_init(ch_queue_t *qp) {
 }
 
 /**
+ * @brief   Returns the next element in a queue.
+ * @pre     @p qp must point to a readable header or linked element.
+ *          The links must remain stable during this operation.
+ * @note    At hardening level 2 or higher, or when @p CH_DBG_ENABLE_ASSERTS
+ *          is enabled, the traversed forward/backward link pair is checked
+ *          for consistency.
+ * @note    At hardening level 3 the fetched pointer is validated before
+ *          dereferencing it (NULL and alignment checks by default).
+ *          Debug assertions alone do not enable this pointer check.
+ *
+ * @param[in] qp        pointer to the queue header or element
+ * @return              The next element pointer, possibly the header.
+ *
+ * @notapi
+ */
+static inline ch_queue_t *ch_queue_next(const ch_queue_t *qp) {
+  ch_queue_t *next = qp->next;
+
+  chSftValidateDataPointerX(3, next);
+  chSftAssert(2, next->prev == qp, "link back");
+
+  return next;
+}
+
+/**
+ * @brief   Returns the previous element in a queue.
+ * @pre     @p qp must point to a readable header or linked element.
+ *          The links must remain stable during this operation.
+ * @note    At hardening level 2 or higher, or when @p CH_DBG_ENABLE_ASSERTS
+ *          is enabled, the traversed forward/backward link pair is checked
+ *          for consistency.
+ * @note    At hardening level 3 the fetched pointer is validated before
+ *          dereferencing it (NULL and alignment checks by default).
+ *          Debug assertions alone do not enable this pointer check.
+ *
+ * @param[in] qp        pointer to the queue header or element
+ * @return              The previous element pointer, possibly the header.
+ *
+ * @notapi
+ */
+static inline ch_queue_t *ch_queue_prev(const ch_queue_t *qp) {
+  ch_queue_t *prev = qp->prev;
+
+  chSftValidateDataPointerX(3, prev);
+  chSftAssert(2, prev->next == qp, "link back");
+
+  return prev;
+}
+
+/**
  * @brief   Evaluates to @p true if the specified queue is empty.
  *
  * @param[in] qp        pointer to the queue header
@@ -296,7 +381,7 @@ static inline void ch_queue_init(ch_queue_t *qp) {
  */
 static inline bool ch_queue_isempty(const ch_queue_t *qp) {
 
-  return (bool)(qp->next == qp);
+  return (bool)(ch_queue_next(qp) == qp);
 }
 
 /**
@@ -309,7 +394,7 @@ static inline bool ch_queue_isempty(const ch_queue_t *qp) {
  */
 static inline bool ch_queue_notempty(const ch_queue_t *qp) {
 
-  return (bool)(qp->next != qp);
+  return (bool)(ch_queue_next(qp) != qp);
 }
 
 /**
@@ -321,11 +406,12 @@ static inline bool ch_queue_notempty(const ch_queue_t *qp) {
  * @notapi
  */
 static inline void ch_queue_insert(ch_queue_t *qp, ch_queue_t *p) {
+  ch_queue_t *prev = ch_queue_prev(qp);
 
-  p->next       = qp;
-  p->prev       = qp->prev;
-  p->prev->next = p;
-  qp->prev      = p;
+  p->next    = qp;
+  p->prev    = prev;
+  prev->next = p;
+  qp->prev   = p;
 }
 
 /**
@@ -339,13 +425,15 @@ static inline void ch_queue_insert(ch_queue_t *qp, ch_queue_t *p) {
  * @notapi
  */
 static inline ch_queue_t *ch_queue_fifo_remove(ch_queue_t *qp) {
+  ch_queue_t *p, *next;
 
   chDbgAssert(ch_queue_notempty(qp), "empty queue");
 
-  ch_queue_t *p = qp->next;
+  p    = ch_queue_next(qp);
+  next = ch_queue_next(p);
 
-  qp->next       = p->next;
-  qp->next->prev = qp;
+  qp->next   = next;
+  next->prev = qp;
 
   return p;
 }
@@ -361,10 +449,11 @@ static inline ch_queue_t *ch_queue_fifo_remove(ch_queue_t *qp) {
  * @notapi
  */
 static inline ch_queue_t *ch_queue_lifo_remove(ch_queue_t *qp) {
-  ch_queue_t *p = qp->prev;
+  ch_queue_t *p = ch_queue_prev(qp);
+  ch_queue_t *prev = ch_queue_prev(p);
 
-  qp->prev       = p->prev;
-  qp->prev->next = qp;
+  qp->prev   = prev;
+  prev->next = qp;
 
   return p;
 }
@@ -380,9 +469,11 @@ static inline ch_queue_t *ch_queue_lifo_remove(ch_queue_t *qp) {
  * @notapi
  */
 static inline ch_queue_t *ch_queue_dequeue(ch_queue_t *p) {
+  ch_queue_t *prev = ch_queue_prev(p);
+  ch_queue_t *next = ch_queue_next(p);
 
-  p->prev->next = p->next;
-  p->next->prev = p->prev;
+  prev->next = next;
+  next->prev = prev;
 
   return p;
 }
@@ -405,6 +496,56 @@ static inline void ch_pqueue_init(ch_priority_queue_t *pqp) {
 }
 
 /**
+ * @brief   Returns the next element in a priority queue.
+ * @pre     @p pqp must point to a readable header or linked element.
+ *          The links must remain stable during this operation.
+ * @note    At hardening level 2 or higher, or when @p CH_DBG_ENABLE_ASSERTS
+ *          is enabled, the traversed forward/backward link pair is checked
+ *          for consistency.
+ * @note    At hardening level 3 the fetched pointer is validated before
+ *          dereferencing it (NULL and alignment checks by default).
+ *          Debug assertions alone do not enable this pointer check.
+ *
+ * @param[in] pqp       pointer to the priority queue header or element
+ * @return              The next element pointer, possibly the header.
+ *
+ * @notapi
+ */
+static inline ch_priority_queue_t *ch_pqueue_next(const ch_priority_queue_t *pqp) {
+  ch_priority_queue_t *next = pqp->next;
+
+  chSftValidateDataPointerX(3, next);
+  chSftAssert(2, next->prev == pqp, "link back");
+
+  return next;
+}
+
+/**
+ * @brief   Returns the previous element in a priority queue.
+ * @pre     @p pqp must point to a readable header or linked element.
+ *          The links must remain stable during this operation.
+ * @note    At hardening level 2 or higher, or when @p CH_DBG_ENABLE_ASSERTS
+ *          is enabled, the traversed forward/backward link pair is checked
+ *          for consistency.
+ * @note    At hardening level 3 the fetched pointer is validated before
+ *          dereferencing it (NULL and alignment checks by default).
+ *          Debug assertions alone do not enable this pointer check.
+ *
+ * @param[in] pqp       pointer to the priority queue header or element
+ * @return              The previous element pointer, possibly the header.
+ *
+ * @notapi
+ */
+static inline ch_priority_queue_t *ch_pqueue_prev(const ch_priority_queue_t *pqp) {
+  ch_priority_queue_t *prev = pqp->prev;
+
+  chSftValidateDataPointerX(3, prev);
+  chSftAssert(2, prev->next == pqp, "link back");
+
+  return prev;
+}
+
+/**
  * @brief   Removes the highest priority element from a priority queue and
  *          returns it.
  *
@@ -414,10 +555,11 @@ static inline void ch_pqueue_init(ch_priority_queue_t *pqp) {
  * @notapi
  */
 static inline ch_priority_queue_t *ch_pqueue_remove_highest(ch_priority_queue_t *pqp) {
-  ch_priority_queue_t *p = pqp->next;
+  ch_priority_queue_t *p = ch_pqueue_next(pqp);
+  ch_priority_queue_t *next = ch_pqueue_next(p);
 
-  pqp->next       = p->next;
-  pqp->next->prev = pqp;
+  pqp->next  = next;
+  next->prev = pqp;
 
   return p;
 }
@@ -427,6 +569,12 @@ static inline ch_priority_queue_t *ch_pqueue_remove_highest(ch_priority_queue_t 
  *          its peers.
  * @details The element is positioned behind all elements with higher or
  *          equal priority.
+ * @note    At hardening level 2 or higher, or when @p CH_DBG_ENABLE_ASSERTS
+ *          is enabled, consistency of forward/backward link pairs is checked
+ *          while traversing the list.
+ * @note    At hardening level 3 pointers are also validated before
+ *          dereferencing them (NULL and alignment checks by default).
+ *          Debug assertions alone do not enable this check.
  *
  * @param[in] pqp       the pointer to the priority queue list header
  * @param[in] p         the pointer to the element to be inserted in the queue
@@ -436,23 +584,19 @@ static inline ch_priority_queue_t *ch_pqueue_remove_highest(ch_priority_queue_t 
  */
 static inline ch_priority_queue_t *ch_pqueue_insert_behind(ch_priority_queue_t *pqp,
                                                            ch_priority_queue_t *p) {
+  ch_priority_queue_t *prev;
 
   /* Scanning priority queue, the list is assumed to be mostly empty.*/
   do {
-    ch_priority_queue_t *next = pqp->next;
-
-    /* Safety checks.*/
-    chSftValidateDataPointerX(3, next);
-    chSftAssert(2, next->prev == pqp, "link back");
-
-    pqp = next;
+    pqp = ch_pqueue_next(pqp);
   } while (unlikely(pqp->prio >= p->prio));
 
   /* Insertion on prev.*/
-  p->next       = pqp;
-  p->prev       = pqp->prev;
-  p->prev->next = p;
-  pqp->prev     = p;
+  prev = ch_pqueue_prev(pqp);
+  p->next    = pqp;
+  p->prev    = prev;
+  prev->next = p;
+  pqp->prev  = p;
 
   return p;
 }
@@ -462,10 +606,12 @@ static inline ch_priority_queue_t *ch_pqueue_insert_behind(ch_priority_queue_t *
  *          its peers.
  * @details The element is positioned ahead of all elements with higher or
  *          equal priority.
- * @note    At hardening level 2 the back-link is checked while traversing
- *          the list.
- * @note    At hardening level 3 the forward link is verified before
- *          de-referencing it while traversing the list.
+ * @note    At hardening level 2 or higher, or when @p CH_DBG_ENABLE_ASSERTS
+ *          is enabled, consistency of forward/backward link pairs is checked
+ *          while traversing the list.
+ * @note    At hardening level 3 pointers are also validated before
+ *          dereferencing them (NULL and alignment checks by default).
+ *          Debug assertions alone do not enable this check.
  *
  * @param[in] pqp       the pointer to the priority queue list header
  * @param[in] p         the pointer to the element to be inserted in the queue
@@ -475,23 +621,19 @@ static inline ch_priority_queue_t *ch_pqueue_insert_behind(ch_priority_queue_t *
  */
 static inline ch_priority_queue_t *ch_pqueue_insert_ahead(ch_priority_queue_t *pqp,
                                                           ch_priority_queue_t *p) {
+  ch_priority_queue_t *prev;
 
   /* Scanning priority queue, the list is assumed to be mostly empty.*/
   do {
-    ch_priority_queue_t *next = pqp->next;
-
-    /* Safety checks.*/
-    chSftValidateDataPointerX(3, next);
-    chSftAssert(2, next->prev == pqp, "link back");
-
-    pqp = next;
+    pqp = ch_pqueue_next(pqp);
   } while (unlikely(pqp->prio > p->prio));
 
   /* Insertion on prev.*/
-  p->next       = pqp;
-  p->prev       = pqp->prev;
-  p->prev->next = p;
-  pqp->prev     = p;
+  prev = ch_pqueue_prev(pqp);
+  p->next    = pqp;
+  p->prev    = prev;
+  prev->next = p;
+  pqp->prev  = p;
 
   return p;
 }
@@ -511,6 +653,56 @@ static inline void ch_dlist_init(ch_delta_list_t *dlhp) {
 }
 
 /**
+ * @brief   Returns the next element in a delta list.
+ * @pre     @p dlp must point to a readable header or linked element.
+ *          The links must remain stable during this operation.
+ * @note    At hardening level 2 or higher, or when @p CH_DBG_ENABLE_ASSERTS
+ *          is enabled, the traversed forward/backward link pair is checked
+ *          for consistency.
+ * @note    At hardening level 3 the fetched pointer is validated before
+ *          dereferencing it (NULL and alignment checks by default).
+ *          Debug assertions alone do not enable this pointer check.
+ *
+ * @param[in] dlp       pointer to the delta list header or element
+ * @return              The next element pointer, possibly the header.
+ *
+ * @notapi
+ */
+static inline ch_delta_list_t *ch_dlist_next(const ch_delta_list_t *dlp) {
+  ch_delta_list_t *next = dlp->next;
+
+  chSftValidateDataPointerX(3, next);
+  chSftAssert(2, next->prev == dlp, "link back");
+
+  return next;
+}
+
+/**
+ * @brief   Returns the previous element in a delta list.
+ * @pre     @p dlp must point to a readable header or linked element.
+ *          The links must remain stable during this operation.
+ * @note    At hardening level 2 or higher, or when @p CH_DBG_ENABLE_ASSERTS
+ *          is enabled, the traversed forward/backward link pair is checked
+ *          for consistency.
+ * @note    At hardening level 3 the fetched pointer is validated before
+ *          dereferencing it (NULL and alignment checks by default).
+ *          Debug assertions alone do not enable this pointer check.
+ *
+ * @param[in] dlp       pointer to the delta list header or element
+ * @return              The previous element pointer, possibly the header.
+ *
+ * @notapi
+ */
+static inline ch_delta_list_t *ch_dlist_prev(const ch_delta_list_t *dlp) {
+  ch_delta_list_t *prev = dlp->prev;
+
+  chSftValidateDataPointerX(3, prev);
+  chSftAssert(2, prev->next == dlp, "link back");
+
+  return prev;
+}
+
+/**
  * @brief   Evaluates to @p true if the specified delta list is empty.
  *
  * @param[in] dlhp      pointer to the delta list header
@@ -520,7 +712,7 @@ static inline void ch_dlist_init(ch_delta_list_t *dlhp) {
  */
 static inline bool ch_dlist_isempty(ch_delta_list_t *dlhp) {
 
-  return (bool)(dlhp == dlhp->next);
+  return (bool)(dlhp == ch_dlist_next(dlhp));
 }
 
 /**
@@ -533,7 +725,7 @@ static inline bool ch_dlist_isempty(ch_delta_list_t *dlhp) {
  */
 static inline bool ch_dlist_notempty(ch_delta_list_t *dlhp) {
 
-  return (bool)(dlhp != dlhp->next);
+  return (bool)(dlhp != ch_dlist_next(dlhp));
 }
 
 /**
@@ -547,7 +739,7 @@ static inline bool ch_dlist_notempty(ch_delta_list_t *dlhp) {
 static inline bool ch_dlist_islast(ch_delta_list_t *dlhp,
                                    ch_delta_list_t *dlp) {
 
-  return (bool)(dlp->next == dlhp);
+  return (bool)(ch_dlist_next(dlp) == dlhp);
 }
 
 /**
@@ -561,7 +753,7 @@ static inline bool ch_dlist_islast(ch_delta_list_t *dlhp,
 static inline bool ch_dlist_isfirst(ch_delta_list_t *dlhp,
                                     ch_delta_list_t *dlp) {
 
-  return (bool)(dlhp->next == dlp);
+  return (bool)(ch_dlist_next(dlhp) == dlp);
 }
 
 /**
@@ -576,12 +768,13 @@ static inline bool ch_dlist_isfirst(ch_delta_list_t *dlhp,
 static inline void ch_dlist_insert_after(ch_delta_list_t *dlhp,
                                          ch_delta_list_t *dlp,
                                          sysinterval_t delta) {
+  ch_delta_list_t *next = ch_dlist_next(dlhp);
 
-  dlp->delta      = delta;
-  dlp->prev       = dlhp;
-  dlp->next       = dlp->prev->next;
-  dlp->next->prev = dlp;
-  dlhp->next      = dlp;
+  dlp->delta = delta;
+  dlp->prev  = dlhp;
+  dlp->next  = next;
+  next->prev = dlp;
+  dlhp->next = dlp;
 }
 
 /**
@@ -596,12 +789,13 @@ static inline void ch_dlist_insert_after(ch_delta_list_t *dlhp,
 static inline void ch_dlist_insert_before(ch_delta_list_t *dlhp,
                                           ch_delta_list_t *dlp,
                                           sysinterval_t delta) {
+  ch_delta_list_t *prev = ch_dlist_prev(dlhp);
 
-  dlp->delta      = delta;
-  dlp->next       = dlhp;
-  dlp->prev       = dlp->next->prev;
-  dlp->prev->next = dlp;
-  dlhp->prev      = dlp;
+  dlp->delta = delta;
+  dlp->next  = dlhp;
+  dlp->prev  = prev;
+  prev->next = dlp;
+  dlhp->prev = dlp;
 }
 
 /**
@@ -620,13 +814,13 @@ static inline void ch_dlist_insert(ch_delta_list_t *dlhp,
 
   /* The delta list is scanned in order to find the correct position for
      this element. */
-  dlp = dlhp->next;
+  dlp = ch_dlist_next(dlhp);
   while (likely(dlp->delta < delta)) {
     /* Debug assert if the element is already in the list.*/
     chDbgAssert(dlp != dlep, "element already in list");
 
     delta -= dlp->delta;
-    dlp = dlp->next;
+    dlp = ch_dlist_next(dlp);
   }
 
   /* The timer is inserted in the delta list.*/
@@ -649,10 +843,11 @@ static inline void ch_dlist_insert(ch_delta_list_t *dlhp,
  * @notapi
  */
 static inline ch_delta_list_t *ch_dlist_remove_first(ch_delta_list_t *dlhp) {
-  ch_delta_list_t *dlp = dlhp->next;
+  ch_delta_list_t *dlp = ch_dlist_next(dlhp);
+  ch_delta_list_t *next = ch_dlist_next(dlp);
 
-  dlhp->next       = dlp->next;
-  dlhp->next->prev = dlhp;
+  dlhp->next = next;
+  next->prev = dlhp;
 
   return dlp;
 }
@@ -674,9 +869,11 @@ static inline ch_delta_list_t *ch_dlist_remove_first(ch_delta_list_t *dlhp) {
  * @notapi
  */
 static inline ch_delta_list_t *ch_dlist_dequeue(ch_delta_list_t *dlp) {
+  ch_delta_list_t *prev = ch_dlist_prev(dlp);
+  ch_delta_list_t *next = ch_dlist_next(dlp);
 
-  dlp->prev->next = dlp->next;
-  dlp->next->prev = dlp->prev;
+  prev->next = next;
+  next->prev = prev;
 
   return dlp;
 }

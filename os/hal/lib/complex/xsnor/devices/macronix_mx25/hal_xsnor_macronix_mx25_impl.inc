@@ -333,22 +333,45 @@ static bool mx25_find_id(const uint8_t *set, size_t size, uint8_t element) {
 
 static flash_error_t mx25_poll_status(hal_xsnor_macronix_mx25_c *self) {
 
-  do {
-    if ((self->config->options & MX25_OPT_NICE_WAITING) != 0U) {
-      osalThreadSleepMilliseconds(1);
-    }
+#if XSNOR_USE_WSPI == TRUE
+  if (self->config->bus_type != XSNOR_BUS_MODE_SPI) {
+    const uint8_t mask[2] = {1U, 0U};
+    const uint8_t match[2] = {0U, 0U};
+    wspi_command_t cmd;
+    wspi_status_poll_t poll;
 
-    /* Read status command.*/
-    if (self->config->bus_type == XSNOR_BUS_MODE_SPI) {
+    cmd.cmd       = CMD_OPI_RDSR;
+    cmd.cfg       = self->commands->cmd_addr_data;
+    cmd.addr      = 0U;
+    cmd.alt       = 0U;
+    cmd.dummy     = 4U;
+    poll.length   = 2U;
+    poll.statusp  = &self->config->buffers->databuf[0];
+    poll.maskp    = mask;
+    poll.matchp   = match;
+    /* Hardware polling already releases the CPU while waiting.*/
+    poll.interval = ((WSPI_LLD_SUPPORTS_STATUS_POLL == FALSE) &&
+                     ((self->config->options & MX25_OPT_NICE_WAITING) != 0U)) ?
+                    OSAL_MS2I(1) : (sysinterval_t)0;
+
+    if (wspiPollStatusTimeout(self->config->bus.wspi.drv, &cmd, &poll,
+                              TIME_INFINITE) != MSG_OK) {
+      return FLASH_ERROR_HW_FAILURE;
+    }
+  }
+  else
+#endif
+  {
+    do {
+      if ((self->config->options & MX25_OPT_NICE_WAITING) != 0U) {
+        osalThreadSleepMilliseconds(1);
+      }
+
+      /* Read status command.*/
       __xsnor_bus_cmd_receive(self, CMD_SPI_RDSR,
-                            1U, &self->config->buffers->databuf[0]);
-    }
-    else {
-      __xsnor_bus_cmd_addr_dummy_receive(self, CMD_OPI_RDSR,
-                                         0U, 4U, 2U,
-                                         &self->config->buffers->databuf[0]);
-    }
-  } while ((self->config->buffers->databuf[0] & 1U) != 0U);
+                              1U, &self->config->buffers->databuf[0]);
+    } while ((self->config->buffers->databuf[0] & 1U) != 0U);
+  }
 
   /* Reading security register and checking for errors.*/
   if (self->config->bus_type == XSNOR_BUS_MODE_SPI) {

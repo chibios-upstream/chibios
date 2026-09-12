@@ -78,6 +78,12 @@ static void __idle_thread(void *p) {
 
 /**
  * @brief   Initializes a system instance.
+ * @details Invoked by @p chSysInit() for the boot core and directly during
+ *          startup for each secondary core in SMP mode.
+ * @pre     Must be invoked only once on each core, using an instance object
+ *          not already in use.
+ * @pre     Secondary cores must first wait for @p ch_sys_running using
+ *          @p chSysWaitSystemState().
  * @note    The system instance is in I-Lock state after initialization.
  *
  * @param[out] oip      pointer to an @p os_instance_t object
@@ -89,23 +95,36 @@ void chInstanceObjectInit(os_instance_t *oip,
                           const os_instance_config_t *oicp) {
   core_id_t core_id;
 
-  /* Registering into the global system structure.*/
+  chDbgCheck(oip != NULL);
+  chDbgCheck(oicp != NULL);
+
+  /* Core associated to this instance.*/
 #if CH_CFG_SMP_MODE == TRUE
   core_id = port_get_core_id();
 #else
   core_id = 0U;
 #endif
-  chDbgAssert(ch_system.instances[core_id] == NULL, "instance already registered");
-  ch_system.instances[core_id] = oip;
-
-  /* Core associated to this instance.*/
   oip->core_id = core_id;
 
   /* Keeping a reference to the configuration data.*/
   oip->config = oicp;
 
-  /* Port initialization for the current instance.*/
+  /* Port initialization and entering the initial physical I-Lock state.*/
   port_init(oip);
+
+  /* Registering into the global system structure.*/
+  chDbgAssert(ch_system.instances[core_id] == NULL,
+              "instance already registered");
+#if CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED
+  /* Volatile stores keep trace readiness reset before instance publication.*/
+  *(trace_event_t * volatile *)&oip->trace_buffer.ptr = NULL;
+#endif
+  *(os_instance_t * volatile *)&ch_system.instances[core_id] = oip;
+
+#if CH_CFG_USE_TM == TRUE
+  /* Time Measurement calibration for this instance.*/
+  __tm_calibration_object_init(oip);
+#endif
 
   /* Ready list initialization.*/
   ch_pqueue_init(&oip->rlist.pqueue);
@@ -115,7 +134,7 @@ void chInstanceObjectInit(os_instance_t *oip,
   __reg_object_init(&oip->reglist);
 #endif
 
-#if CH_CFG_SMP_MODE == FALSE
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == FALSE)
   /* RFCU initialization when SMP mode is disabled.*/
   __rfcu_object_init(&oip->rfcu);
 #endif
@@ -173,6 +192,8 @@ void chInstanceObjectInit(os_instance_t *oip,
 
 #if CH_CFG_NO_IDLE_THREAD == FALSE
   {
+    thread_t *tp;
+
     const THD_DECL(idle_thd_desc,
                    "idle", oicp->idlestack_base, oicp->idlestack_end,
                    IDLEPRIO, __idle_thread, NULL, oip
@@ -186,7 +207,9 @@ void chInstanceObjectInit(os_instance_t *oip,
     /* This thread has the lowest priority in the system, its role is just to
        serve interrupts in its context while keeping the lowest energy saving
        mode compatible with the system status.*/
-    (void) chThdSpawnRunningI(&oip->idlethread, &idle_thd_desc);
+    tp = __thd_spawn_suspended(&oip->idlethread, &idle_thd_desc);
+    tp->u.rdymsg = MSG_OK;
+    (void) chSchReadyI(tp);
   }
 #endif /* CH_CFG_NO_IDLE_THREAD == FALSE */
 }

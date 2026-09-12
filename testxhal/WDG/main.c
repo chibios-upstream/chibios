@@ -19,17 +19,6 @@
 
 #include "portab.h"
 
-/*
- * Watchdog deadline set to more than one second (LSI=40000 / (64 * 1000)).
- */
-static const WDGConfig wdgcfg = {
-  .pr           = STM32_IWDG_PR_64,
-  .rlr          = STM32_IWDG_RL(1000),
-#if STM32_IWDG_IS_WINDOWED
-  .winr         = STM32_IWDG_WIN_DISABLED,
-#endif
-};
-
 int main(void) {
 
   halInit();
@@ -37,7 +26,7 @@ int main(void) {
 
   portab_setup();
 
-  drvStart(&WDGD1, &wdgcfg);
+  drvStart(&WDGD1, &portab_wdgcfg);
 
   while (true) {
     wdgReset(&WDGD1);

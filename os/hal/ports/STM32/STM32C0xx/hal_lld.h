@@ -990,6 +990,7 @@
  */
 #define STM32_PCLK1                         STM32_PCLK
 #define STM32_PCLK2                         STM32_PCLK
+#define STM32_PCLK1_FREQ                    STM32_PCLK1
 
 /**
  * @brief   MCO divider clock frequency.
@@ -1108,15 +1109,19 @@
  */
 #if (STM32_RTCSEL == RCC_CSR1_RTCSEL_NOCLOCK) || defined(__DOXYGEN__)
   #define STM32_RTCCLK                      0
+  #define STM32_RTC_FREQ                    0U
 
 #elif STM32_RTCSEL == RCC_CSR1_RTCSEL_LSE
   #define STM32_RTCCLK                      STM32_LSECLK
+  #define STM32_RTC_FREQ                    STM32_LSECLK
 
 #elif STM32_RTCSEL == RCC_CSR1_RTCSEL_LSI
   #define STM32_RTCCLK                      STM32_LSICLK
+  #define STM32_RTC_FREQ                    STM32_LSICLK
 
 #elif STM32_RTCSEL == RCC_CSR1_RTCSEL_HSEDIV
   #define STM32_RTCCLK                      (hal_lld_get_clock_point(CLK_HSE) / 32)
+  #define STM32_RTC_FREQ                    (STM32_HSECLK / 32U)
 
 #else
   #error "invalid STM32_RTCSEL value specified"

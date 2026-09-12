@@ -50,6 +50,21 @@ void c1_main(void) {
   pio_validation_barrier();         /* Free's effects before the flag.*/
   c1_free_done = 1U;
 
+  /* Waiting for core 0 to request an allocation from this core.*/
+  while (c1_do_alloc == 0U) {
+  }
+  pio_validation_barrier();
+
+  /* Cross-core allocation, the mask query on core 0 must report it as
+     part of the union of both cores' allocations.*/
+  chSysLock();
+  xcore_alloc_smp = pioSmAllocI(RP_PIO0_BLOCK, 1U, TEST_IRQ_PRIORITY,
+                                NULL, NULL);
+  chSysUnlock();
+
+  pio_validation_barrier();         /* Alloc's effects before the flag.*/
+  c1_alloc_done = 1U;
+
   while (true) {
   }
 }

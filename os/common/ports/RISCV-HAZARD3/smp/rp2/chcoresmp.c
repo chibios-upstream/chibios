@@ -35,6 +35,18 @@
 /* Module exported variables.                                                */
 /*===========================================================================*/
 
+/**
+ * @brief   Durable per-target panic notifications.
+ * @details The FIFO token is only a wakeup hint because a write is discarded
+ *          when the outbound FIFO is full. The target-owned latch makes the
+ *          notification persistent until the target observes it.
+ * @note    This shared latch is zeroed once by the primary startup. It is
+ *          deliberately not cleared during per-core initialization because
+ *          doing so could erase a panic raised while the target core is
+ *          starting.
+ */
+uint32_t __port_panic_pending[PORT_CORES_NUMBER];
+
 /*===========================================================================*/
 /* Module local types.                                                       */
 /*===========================================================================*/
@@ -43,34 +55,47 @@
 /* Module local variables.                                                   */
 /*===========================================================================*/
 
-/* This shared latch is zeroed once by the primary startup. It is deliberately
-   not cleared during per-core initialization because doing so could erase a
-   panic raised while the target core is starting. */
-static uint32_t port_panic_pending[PORT_CORES_NUMBER];
-
 /*===========================================================================*/
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
-static bool port_is_panic_pending(void) {
-  core_id_t core_id;
-
-  core_id = port_get_core_id();
-
-  return __atomic_load_n(&port_panic_pending[core_id],
-                         __ATOMIC_ACQUIRE) != 0U;
-}
-
 static void port_local_halt(void) {
+  os_instance_t *oip;
   const char *reason = "remote panic";
 
   port_disable();
+  oip = currcore;
 
   __trace_halt("remote panic");
 
-  currcore->dbg.panic_msg = reason;
+  if (oip != NULL) {
+    oip->dbg.panic_msg = reason;
+  }
 
   CH_CFG_SYSTEM_HALT_HOOK(reason);
+
+  while (true) {
+  }
+}
+
+/**
+ * @brief   Halts this core from a path which cannot run the full halt
+ *          machinery.
+ * @details Records the remote-panic reason without invoking trace or user
+ *          hooks. This is used while waiting on a kernel spinlock whose
+ *          owner halted, with interrupts masked.
+ */
+CC_NO_INLINE CC_SECTION(".ramtext")
+void __port_smp_halt_from_ram(void) {
+  os_instance_t *oip;
+  const char *reason = "remote panic";
+
+  port_disable();
+  oip = currcore;
+
+  if (oip != NULL) {
+    oip->dbg.panic_msg = reason;
+  }
 
   while (true) {
   }
@@ -152,7 +177,7 @@ void __port_smp_notify_panic(void) {
   target = port_get_core_id() ^ 1U;
 
   /* Publish the durable indication before interacting with the FIFO. */
-  __atomic_store_n(&port_panic_pending[target], 1U, __ATOMIC_RELEASE);
+  __atomic_store_n(&__port_panic_pending[target], 1U, __ATOMIC_RELEASE);
   __asm__ volatile ("fence rw, io" : : : "memory");
 
   if ((SIO->FIFO_ST & SIO_FIFO_ST_RDY) != 0U) {
@@ -162,10 +187,15 @@ void __port_smp_notify_panic(void) {
 
 /**
  * @brief   SMP-related port initialization.
+ * @details Acquires the global kernel lock which is released by the final
+ *          @p chSysUnlock() in the instance startup path.
  *
  * @param[in, out] oip  pointer to the @p os_instance_t structure
  */
 void __port_smp_init(os_instance_t *oip) {
+
+  /* Entering the initial global I-Lock state.*/
+  port_spinlock_take();
 
 #if CH_CFG_ST_TIMEDELTA > 0
   /* Activating timer for this instance.*/

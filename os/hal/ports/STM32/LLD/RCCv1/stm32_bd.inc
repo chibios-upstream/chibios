@@ -74,7 +74,8 @@ __STATIC_INLINE void bd_init(void) {
 __STATIC_INLINE void bd_reset(void) {
 
   /* Reset BKP domain if different clock source selected.*/
-  if ((RCC->BDCR & RCC_BDCR_RTCSEL_Msk) != STM32_RTCSEL) {
+  if ((RCC->BDCR & RCC_BDCR_RTCSEL_Msk) !=
+      (STM32_RTCSEL & RCC_BDCR_RTCSEL_Msk)) {
     /* Backup domain reset.*/
 #if defined(RCC_BDCR_BDRST)
     RCC->BDCR = RCC_BDCR_BDRST;

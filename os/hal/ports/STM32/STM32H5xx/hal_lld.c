@@ -427,7 +427,8 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
 
   /* Waiting for all enabled clocks to become stable.*/
   wtmask = (ccp->rcc_cr & (RCC_CR_HSEON | RCC_CR_HSI48ON | RCC_CR_CSION)) << 1;
-  if (halRegWaitAllSet32X(&RCC->CR, wtmask, STM32_OSCILLATORS_STARTUP_TIME, NULL)) {
+  if (halRegWaitAllSet32X(&RCC->CR, wtmask,
+                          STM32_CFG_OSCILLATORS_STARTUP_TIME, NULL)) {
     return true;
   }
 

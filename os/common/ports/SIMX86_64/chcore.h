@@ -264,7 +264,7 @@ extern "C" {
 #endif
   /*lint -save -e950 [Dir-2.1] Non-ANSI keywords are fine in the port layer.*/
   void port_switch(thread_t *ntp, thread_t *otp);
-  __attribute__((noreturn)) void _port_thread_start(msg_t (*pf)(void *p),
+  __attribute__((noreturn)) void _port_thread_start(void (*pf)(void *p),
                                                     void *p);
   /*lint -restore*/
   rtcnt_t port_rt_get_counter_value(void);

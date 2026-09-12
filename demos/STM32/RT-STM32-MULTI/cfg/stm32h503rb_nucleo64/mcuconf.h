@@ -38,6 +38,7 @@
  * HAL driver general settings.
  */
 #define STM32_NO_INIT                       FALSE
+#define STM32_CFG_OSCILLATORS_STARTUP_TIME STM32_OSCILLATORS_STARTUP_TIME
 #define STM32_CLOCK_DYNAMIC                 FALSE
 
 /*

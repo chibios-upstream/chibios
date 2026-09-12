@@ -45,12 +45,14 @@
 
 /*
  * IRQ system settings.
+ * Priorities zero and one are reserved as fast by PORT_FAST_PRIORITIES,
+ * therefore kernel-aware system timer IRQs start at priority three.
  */
-#define RP_IRQ_SYSTICK_PRIORITY             2
-#define RP_IRQ_TIMER0_ALARM0_PRIORITY       2
-#define RP_IRQ_TIMER0_ALARM1_PRIORITY       2
-#define RP_IRQ_TIMER0_ALARM2_PRIORITY       2
-#define RP_IRQ_TIMER0_ALARM3_PRIORITY       2
+#define RP_IRQ_SYSTICK_PRIORITY             3
+#define RP_IRQ_TIMER0_ALARM0_PRIORITY       3
+#define RP_IRQ_TIMER0_ALARM1_PRIORITY       3
+#define RP_IRQ_TIMER0_ALARM2_PRIORITY       3
+#define RP_IRQ_TIMER0_ALARM3_PRIORITY       3
 #define RP_IRQ_UART0_PRIORITY               3
 #define RP_IRQ_UART1_PRIORITY               3
 #define RP_IRQ_SPI0_PRIORITY                2

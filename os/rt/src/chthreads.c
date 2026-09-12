@@ -72,6 +72,29 @@
 /* Module local types.                                                       */
 /*===========================================================================*/
 
+/* Layout invariants required by generic queue owner conversions. */
+typedef char ch_kernel_layout_is_valid_t[
+  ((offsetof(thread_t, hdr) == (size_t)0) &&
+    (offsetof(virtual_timer_t, dlist) == (size_t)0) &&
+    (offsetof(virtual_timers_list_t, dlist) == (size_t)0) &&
+#if CH_CFG_USE_MUTEXES == TRUE
+    (offsetof(mutex_t, queue) == (size_t)0) &&
+#endif
+#if CH_CFG_USE_SEMAPHORES == TRUE
+    (offsetof(semaphore_t, queue) == (size_t)0) &&
+#endif
+#if CH_CFG_USE_CONDVARS == TRUE
+    (offsetof(condition_variable_t, queue) == (size_t)0) &&
+#endif
+    (offsetof(threads_queue_t, queue) == (size_t)0) &&
+    (offsetof(registry_t, queue) == (size_t)0) &&
+    (offsetof(ready_list_t, pqueue) == (size_t)0) &&
+    (offsetof(ch_priority_queue_t, next) ==
+     offsetof(ch_queue_t, next)) &&
+    (offsetof(ch_priority_queue_t, prev) ==
+     offsetof(ch_queue_t, prev)) &&
+    (offsetof(ch_priority_queue_t, prio) >= sizeof (ch_queue_t))) ? 1 : -1];
+
 /*===========================================================================*/
 /* Module local variables.                                                   */
 /*===========================================================================*/
@@ -118,6 +141,14 @@ thread_t *chThdObjectInit(thread_t *tp,
   chDbgCheck(tp != NULL);
   chDbgCheck(tdp != NULL);
 
+#if (CH_DBG_ENABLE_ASSERTS == TRUE) && (CH_CFG_SMP_MODE == TRUE)
+  if (tdp->owner != NULL) {
+    chDbgAssert((tdp->owner->core_id < (core_id_t)PORT_CORES_NUMBER) &&
+                (ch_system.instances[tdp->owner->core_id] == tdp->owner),
+                "instance not registered");
+  }
+#endif
+
   /* Stack boundaries.*/
   tp->wabase = (void *)tdp->wbase;
   tp->waend  = (void *)tdp->wend;
@@ -131,6 +162,7 @@ thread_t *chThdObjectInit(thread_t *tp,
   tp->hdr.pqueue.prio   = tdp->prio;
   tp->state             = CH_STATE_WTSTART;
   tp->flags             = (tmode_t)0;
+  tp->u.rdymsg          = MSG_OK;
   if (tdp->owner != NULL) {
     tp->owner           = tdp->owner;
   }
@@ -188,6 +220,7 @@ thread_t *chThdObjectInit(thread_t *tp,
 
 /**
  * @brief   Disposes a thread.
+ * @pre     The thread must be in the @p CH_STATE_FINAL state.
  * @note    Objects disposing does not involve freeing memory but just
  *          performing checks that make sure that the object is in a
  *          state compatible with operations stop.
@@ -204,6 +237,7 @@ thread_t *chThdObjectInit(thread_t *tp,
 void chThdObjectDispose(thread_t *tp) {
 
   chDbgCheck(tp != NULL);
+  chSftAssert(1, tp->state == CH_STATE_FINAL, "not terminated");
 
 #if CH_CFG_USE_WAITEXIT == TRUE
   chSftCheckListX(&tp->waiting);
@@ -231,40 +265,22 @@ void chThdObjectDispose(thread_t *tp) {
 }
 
 /**
- * @brief   Spawns a suspended thread.
- * @details The spawned thread is in the @p CH_STATE_WTSTART state and can
- *          be subsequently started using @p chThdStart(), @p chThdStartI() or
- *           @p chSchWakeupS() depending on the execution context.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
- * @note    Threads created using this function do not honor the
- *          @p CH_DBG_FILL_THREADS debug option because it would stay
- *          in a critical section for too long while filling.
+ * @brief   Spawns a suspended thread without parameter validation.
+ * @details This internal operation also supports creation of the idle thread
+ *          at the reserved @p IDLEPRIO priority.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
- * @api
+ * @notapi
  */
-thread_t *chThdSpawnSuspendedI(thread_t *tp,
-                               const thread_descriptor_t *tdp) {
+thread_t *__thd_spawn_suspended(thread_t *tp,
+                                const thread_descriptor_t *tdp) {
 
-  chDbgCheck(tp != NULL);
-  chDbgCheck(tdp != NULL);
-
-  /* Checks related to the working area geometry.*/
-  chDbgCheck((tdp != NULL) &&
-             MEM_IS_ALIGNED(tdp->wbase, PORT_WORKING_AREA_ALIGN) &&
-             MEM_IS_ALIGNED(tdp->wend, PORT_STACK_ALIGN) &&
-             (tdp->wend > tdp->wbase) &&
-             (((size_t)tdp->wend - (size_t)tdp->wbase) >= THD_STACK_SIZE(0)));
-
-#if CH_CFG_USE_REGISTRY == TRUE
-  chDbgAssert(!chRegIsWorkingAreaInUseI(tdp->wbase),
-              "working area in use");
+#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_DBG_ENABLE_ASSERTS == TRUE)
+  chDbgAssert(!__reg_is_thread_area_in_use_i(tp, tdp->wbase, tdp->wend),
+              "thread or working area in use");
 #endif
 
   /* Thread object initialization.*/
@@ -286,14 +302,68 @@ thread_t *chThdSpawnSuspendedI(thread_t *tp,
  * @details The spawned thread is in the @p CH_STATE_WTSTART state and can
  *          be subsequently started using @p chThdStart(), @p chThdStartI() or
  *           @p chSchWakeupS() depending on the execution context.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
+ * @note    Threads created using this function do not honor the
+ *          @p CH_DBG_FILL_THREADS debug option because it would stay
+ *          in a critical section for too long while filling.
+ * @pre     The thread object and its working area must not overlap each other.
+ *          Neither resource may overlap a resource of the same type belonging
+ *          to an active thread.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
+ *
+ * @iclass
+ */
+thread_t *chThdSpawnSuspendedI(thread_t *tp,
+                               const thread_descriptor_t *tdp) {
+
+  chDbgCheckClassI();
+  chDbgCheck(tp != NULL);
+  chDbgCheck(tdp != NULL);
+
+  /* Checks related to the working area geometry.*/
+  chDbgCheck((tdp != NULL) &&
+             MEM_IS_ALIGNED(tdp->wbase, PORT_WORKING_AREA_ALIGN) &&
+             MEM_IS_ALIGNED(tdp->wend, PORT_STACK_ALIGN) &&
+             (tdp->wend > tdp->wbase) &&
+             (((size_t)tdp->wend - (size_t)tdp->wbase) >= THD_STACK_SIZE(0)));
+
+  /* The external thread object cannot be part of its working area.*/
+  chDbgCheck(((uintptr_t)(void *)(tp + 1) <=
+              (uintptr_t)(void *)tdp->wbase) ||
+             ((uintptr_t)(void *)tp >= (uintptr_t)(void *)tdp->wend));
+
+  /* Other checks.*/
+  chDbgCheck((tdp->prio >= LOWPRIO) &&
+             (tdp->prio <= HIGHPRIO) &&
+             (tdp->funcp != NULL));
+
+  return __thd_spawn_suspended(tp, tdp);
+}
+
+/**
+ * @brief   Spawns a suspended thread.
+ * @details The spawned thread is in the @p CH_STATE_WTSTART state and can
+ *          be subsequently started using @p chThdStart(), @p chThdStartI() or
+ *           @p chSchWakeupS() depending on the execution context.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
+ * @pre     The thread object and its working area must not overlap each other.
+ *          Neither resource may overlap a resource of the same type belonging
+ *          to an active thread.
+ *
+ * @param[out] tp       pointer to a @p thread_t object
+ * @param[in] tdp       pointer to a @p thread_descriptor_t object
+ * @return              Pointer to the @p thread_t object.
  *
  * @api
  */
@@ -312,38 +382,51 @@ thread_t *chThdSpawnSuspended(thread_t *tp,
 /**
  * @brief   Spawns a running thread.
  * @details The spawned thread is run immediately.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @note    Threads created using this function do not honor the
  *          @p CH_DBG_FILL_THREADS debug option because it would keep
  *          the kernel locked for too much time.
+ * @pre     The thread object and its working area must not overlap each other.
+ *          Neither resource may overlap a resource of the same type belonging
+ *          to an active thread.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @iclass
  */
 thread_t *chThdSpawnRunningI(thread_t *tp, const thread_descriptor_t *tdp) {
 
-  return chSchReadyI(chThdSpawnSuspendedI(tp, tdp));
+  chDbgCheckClassI();
+
+  tp = chThdSpawnSuspendedI(tp, tdp);
+  tp->u.rdymsg = MSG_OK;
+
+  return chSchReadyI(tp);
 }
 
 /**
  * @brief   Spawns a running thread.
  * @details The spawned thread is run immediately.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
+ * @pre     The thread object and its working area must not overlap each other.
+ *          Neither resource may overlap a resource of the same type belonging
+ *          to an active thread.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
- * @iclass
+ * @api
  */
 thread_t *chThdSpawnRunning(thread_t *tp, const thread_descriptor_t *tdp) {
 
@@ -361,10 +444,11 @@ thread_t *chThdSpawnRunning(thread_t *tp, const thread_descriptor_t *tdp) {
  * @brief   Creates a non-running thread.
  * @details The created thread is in the @p CH_STATE_WTSTART state and can
  *          be subsequently started.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @post    The initialized thread can be subsequently started by invoking
  *          @p chThdStart(), @p chThdStartI() or @p chSchWakeupS()
  *          depending on the execution context.
@@ -373,7 +457,7 @@ thread_t *chThdSpawnRunning(thread_t *tp, const thread_descriptor_t *tdp) {
  *          in a critical section for too long while filling.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @iclass
  */
@@ -389,7 +473,9 @@ thread_t *chThdCreateSuspendedI(const thread_descriptor_t *tdp) {
              (((size_t)tdp->wend - (size_t)tdp->wbase) >= THD_WORKING_AREA_SIZE(0)));
 
   /* Other checks.*/
-  chDbgCheck((tdp->prio <= HIGHPRIO) && (tdp->funcp != NULL));
+  chDbgCheck((tdp->prio >= LOWPRIO) &&
+             (tdp->prio <= HIGHPRIO) &&
+             (tdp->funcp != NULL));
 
   /* Stack area addresses.
      The thread structure is laid out in the upper part of the thread
@@ -401,13 +487,15 @@ thread_t *chThdCreateSuspendedI(const thread_descriptor_t *tdp) {
   chDbgCheck(MEM_IS_ALIGNED(stkbase, PORT_WORKING_AREA_ALIGN) &&
              MEM_IS_ALIGNED(stktop, PORT_STACK_ALIGN));
 
-#if CH_CFG_USE_REGISTRY == TRUE
-  chDbgAssert(!chRegIsWorkingAreaInUseI(tdp->wbase),
-              "working area in use");
+  tp = threadref(stktop);
+
+#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_DBG_ENABLE_ASSERTS == TRUE)
+  chDbgAssert(!__reg_is_thread_area_in_use_i(tp, tdp->wbase, tdp->wend),
+              "thread or working area in use");
 #endif
 
   /* The thread object is initialized but not started.*/
-  tp = chThdObjectInit(threadref(stktop), tdp);
+  tp = chThdObjectInit(tp, tdp);
 
   /* Setting up the port-dependent part of the working area.*/
   port_setup_context(&tp->ctx, stkbase, tp, tdp->funcp, tdp->arg);
@@ -423,16 +511,17 @@ thread_t *chThdCreateSuspendedI(const thread_descriptor_t *tdp) {
  * @brief   Creates a non-running thread.
  * @details The new thread is initialized but not inserted in the ready list,
  *          the initial state is @p CH_STATE_WTSTART.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @post    The initialized thread can be subsequently started by invoking
  *          @p chThdStart(), @p chThdStartI() or @p chSchWakeupS()
  *          depending on the execution context.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @api
  */
@@ -453,10 +542,11 @@ thread_t *chThdCreateSuspended(const thread_descriptor_t *tdp) {
 /**
  * @brief   Creates a new thread.
  * @details The new thread is initialized and made ready to execute.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @note    A thread can terminate by calling @p chThdExit() or by simply
  *          returning from its main function.
  * @note    Threads created using this function do not honor the
@@ -464,27 +554,34 @@ thread_t *chThdCreateSuspended(const thread_descriptor_t *tdp) {
  *          the kernel locked for too much time.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
  * @iclass
  */
 thread_t *chThdCreateI(const thread_descriptor_t *tdp) {
+  thread_t *tp;
 
-  return chSchReadyI(chThdCreateSuspendedI(tdp));
+  chDbgCheckClassI();
+
+  tp = chThdCreateSuspendedI(tdp);
+  tp->u.rdymsg = MSG_OK;
+
+  return chSchReadyI(tp);
 }
 
 /**
  * @brief   Creates a new thread.
  * @details The new thread is initialized and made ready to execute.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
- * @return              Reference to the @p thread_t object.
+ * @return              Pointer to the @p thread_t object.
  *
- * @iclass
+ * @api
  */
 thread_t *chThdCreate(const thread_descriptor_t *tdp) {
   thread_t *tp;
@@ -503,16 +600,18 @@ thread_t *chThdCreate(const thread_descriptor_t *tdp) {
 
 /**
  * @brief   Creates a new thread.
- * @post    The created thread has a reference counter set to one, it is
- *          the caller's responsibility to call @p chThdRelease() or @p chThdWait()
- *          in order to release the reference. The thread persists in the
- *          registry until its reference counter reaches zero.
+ * @post    If @p CH_CFG_USE_REGISTRY is @p TRUE then the created thread has
+ *          a reference counter set to one. It is the caller's responsibility
+ *          to eventually release that reference using @p chThdRelease() or,
+ *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
+ *          persists in the registry until its reference counter reaches zero.
  * @note    A thread can terminate by calling @p chThdExit() or by simply
  *          returning from its main function.
  *
  * @param[out] wbase    working area base address
  * @param[in] wsize     working area size
- * @param[in] prio      priority level for the new thread
+ * @param[in] prio      priority level for the new thread, from @p LOWPRIO
+ *                      through @p HIGHPRIO
  * @param[in] func      thread function
  * @param[in] arg       an argument passed to the thread function. It can be
  *                      @p NULL.
@@ -531,7 +630,9 @@ thread_t *chThdCreateStatic(stkline_t *wbase, size_t wsize,
              (wsize >= THD_WORKING_AREA_SIZE(0)));
 
   /* Other checks.*/
-  chDbgCheck((prio <= HIGHPRIO) && (func != NULL));
+  chDbgCheck((prio >= LOWPRIO) &&
+             (prio <= HIGHPRIO) &&
+             (func != NULL));
 
   /* Working area end address.*/
   wend = (uint8_t *)wbase + wsize;
@@ -559,12 +660,15 @@ thread_t *chThdCreateStatic(stkline_t *wbase, size_t wsize,
 
   chSysLock();
 
-#if CH_CFG_USE_REGISTRY == TRUE
+#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_DBG_ENABLE_ASSERTS == TRUE)
   /* Special situation where the working area is already in use by an
      active thread.*/
-  chDbgAssert(!chRegIsWorkingAreaInUseI(wbase),
-              "working area in use");
+  chDbgAssert(!__reg_is_thread_area_in_use_i(tp, wbase,
+                                             (stkline_t *)(void *)wend),
+              "thread or working area in use");
+#endif
 
+#if CH_CFG_USE_REGISTRY == TRUE
   REG_INSERT(tp->owner, tp);
 #endif
 
@@ -595,20 +699,26 @@ thread_t *chThdStart(thread_t *tp) {
 
 #if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
 /**
- * @brief   Adds a reference to a thread object.
+ * @brief   Duplicates an owned reference to a thread object.
+ * @details A non-owning thread identity must be reacquired using
+ *          @p chRegFindThreadByPointer() instead.
  * @pre     The configuration option @p CH_CFG_USE_REGISTRY must be enabled in
  *          order to use this function.
+ * @pre     The caller must own a valid reference to the thread.
+ * @pre     The thread must have fewer than @p THREAD_MAX_REFERENCES
+ *          references.
  *
  * @param[in] tp        pointer to the thread
- * @return              The same thread pointer passed as parameter
- *                      representing the new reference.
+ * @return              The same thread pointer passed as parameter,
+ *                      representing the duplicated reference.
  *
  * @api
  */
 thread_t *chThdAddRef(thread_t *tp) {
 
   chSysLock();
-  chDbgAssert(tp->refs < (trefs_t)255, "too many references");
+  chDbgAssert(tp->refs > (trefs_t)0, "not referenced");
+  chDbgAssert(tp->refs < THREAD_MAX_REFERENCES, "too many references");
   tp->refs++;
   chSysUnlock();
 
@@ -627,6 +737,7 @@ thread_t *chThdAddRef(thread_t *tp) {
  *          removed by performing a registry scan operation.
  * @pre     The configuration option @p CH_CFG_USE_REGISTRY must be enabled in
  *          order to use this function.
+ * @pre     The caller must own the reference being released.
  * @note    Static threads are not affected, only removed from the registry.
  *
  * @param[in] tp        pointer to the thread
@@ -670,6 +781,14 @@ void chThdRelease(thread_t *tp) {
  *          this function never returns. The compiler has no way to
  *          know this so do not assume that the compiler would remove
  *          the dead code.
+ * @pre     If mutexes are enabled then the invoking thread must not own
+ *          any mutex.
+ * @pre     If messages are enabled then the invoking thread must not have
+ *          pending messages.
+ * @pre     If events are enabled then listeners registered by the invoking
+ *          thread must be unregistered before exit, unless their event
+ *          sources, listener storage, and the thread object are kept valid
+ *          until another thread unregisters them.
  *
  * @param[in] msg       thread exit code
  *
@@ -694,13 +813,32 @@ void chThdExit(msg_t msg) {
  *          this function never returns. The compiler has no way to
  *          know this so do not assume that the compiler would remove
  *          the dead code.
+ * @pre     If mutexes are enabled then the invoking thread must not own
+ *          any mutex.
+ * @pre     If messages are enabled then the invoking thread must not have
+ *          pending messages.
+ * @pre     If events are enabled then listeners registered by the invoking
+ *          thread must be unregistered before exit, unless their event
+ *          sources, listener storage, and the thread object are kept valid
+ *          until another thread unregisters them.
  *
  * @param[in] msg       thread exit code
  *
  * @sclass
  */
 void chThdExitS(msg_t msg) {
-  thread_t *currtp = chThdGetSelfX();
+  thread_t *currtp;
+
+  chDbgCheckClassS();
+
+  currtp = chThdGetSelfX();
+
+#if CH_CFG_USE_MUTEXES == TRUE
+  chDbgAssert(currtp->mtxlist == NULL, "owning mutexes");
+#endif
+#if CH_CFG_USE_MESSAGES == TRUE
+  chDbgAssert(ch_queue_isempty(&currtp->msgqueue), "pending messages");
+#endif
 
   /* Storing exit message.*/
   currtp->u.exitcode = msg;
@@ -711,7 +849,10 @@ void chThdExitS(msg_t msg) {
 #if CH_CFG_USE_WAITEXIT == TRUE
   /* Waking up any waiting thread.*/
   while (unlikely(ch_list_notempty(&currtp->waiting))) {
-    (void) chSchReadyI(threadref(ch_list_unlink(&currtp->waiting)));
+    thread_t *tp = threadref(ch_list_unlink(&currtp->waiting));
+
+    tp->u.rdymsg = MSG_OK;
+    (void) chSchReadyI(tp);
   }
 #endif
 
@@ -740,10 +881,13 @@ void chThdExitS(msg_t msg) {
 /**
  * @brief   Blocks the execution of the invoking thread until the specified
  *          thread terminates then the exit code is returned.
- * @details The thread reference counter is not affected by this function,
- *          the caller is responsible for eventually releasing its reference.
+ * @details This function does not modify thread reference ownership. If
+ *          @p CH_CFG_USE_REGISTRY is @p TRUE then the caller remains
+ *          responsible for eventually releasing its reference.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
+ * @pre     If @p CH_CFG_USE_REGISTRY is @p TRUE then the caller must own a
+ *          valid reference to the thread.
  * @post    Enabling @p chThdSyncS() requires 2-4 (depending on the
  *          architecture) extra bytes in the @p thread_t structure.
  *
@@ -753,10 +897,12 @@ void chThdExitS(msg_t msg) {
  * @sclass
  */
 msg_t chThdSyncS(thread_t *tp) {
-  thread_t *currtp = chThdGetSelfX();
+  thread_t *currtp;
 
   chDbgCheckClassS();
   chDbgCheck(tp != NULL);
+
+  currtp = chThdGetSelfX();
 
   chDbgAssert(tp != currtp, "waiting self");
 #if CH_CFG_USE_REGISTRY == TRUE
@@ -774,10 +920,13 @@ msg_t chThdSyncS(thread_t *tp) {
 /**
  * @brief   Blocks the execution of the invoking thread until the specified
  *          thread terminates then the exit code is returned.
- * @details The thread reference counter is not affected by this function,
- *          the caller is responsible for eventually releasing its reference.
+ * @details This function does not modify thread reference ownership. If
+ *          @p CH_CFG_USE_REGISTRY is @p TRUE then the caller remains
+ *          responsible for eventually releasing its reference.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
+ * @pre     If @p CH_CFG_USE_REGISTRY is @p TRUE then the caller must own a
+ *          valid reference to the thread.
  * @post    Enabling @p chThdSync() requires 2-4 (depending on the
  *          architecture) extra bytes in the @p thread_t structure.
  *
@@ -799,16 +948,21 @@ msg_t chThdSync(thread_t *tp) {
 /**
  * @brief   Blocks the execution of the invoking thread until the specified
  *          thread terminates then the exit code is returned.
- * @details This function synchronizes with the specified thread then
- *          decrements its reference counter, if the counter reaches zero then
- *          the thread working area is returned to the proper allocator and
- *          the thread is removed from the registry.
+ * @details This function synchronizes with the specified thread. If
+ *          @p CH_CFG_USE_REGISTRY is @p TRUE then it also decrements the
+ *          thread reference counter. If the counter reaches zero then the
+ *          thread working area is returned to the proper allocator and the
+ *          thread is removed from the registry.
  * @pre     The configuration option @p CH_CFG_USE_WAITEXIT must be enabled in
  *          order to use this function.
+ * @pre     If @p CH_CFG_USE_REGISTRY is @p TRUE then the caller must own the
+ *          reference consumed by this function.
  * @post    Enabling @p chThdWait() requires 2-4 (depending on the
  *          architecture) extra bytes in the @p thread_t structure.
- * @note    If @p CH_CFG_USE_DYNAMIC is not specified this function just waits
- *          for the thread termination, no memory allocators are involved.
+ * @note    If @p CH_CFG_USE_REGISTRY is @p FALSE then this function only
+ *          waits for thread termination, there is no reference to release.
+ * @note    If @p CH_CFG_USE_DYNAMIC is @p FALSE then no memory allocators are
+ *          involved.
  *
  * @param[in] tp        pointer to the thread
  * @return              The exit code from the terminated thread.
@@ -830,13 +984,120 @@ msg_t chThdWait(thread_t *tp) {
 #endif /* CH_CFG_USE_WAITEXIT */
 
 /**
+ * @brief   Changes the base priority of a thread.
+ * @details The effective priority is recomputed and the thread is repositioned
+ *          in its current priority queue. If the thread is waiting on a mutex
+ *          then priority changes are propagated through the owner chain.
+ * @post    A local reschedule is performed before returning. Remote instances
+ *          affected by a ready or current thread priority change are notified.
+ *
+ * @param[in] tp        pointer to the thread
+ * @param[in] newprio   the new base priority level, from @p LOWPRIO through
+ *                      @p HIGHPRIO
+ * @return              The old base priority level.
+ *
+ * @notapi
+ * @sclass
+ */
+tprio_t __thd_set_priority(thread_t *tp, tprio_t newprio) {
+  thread_t *nexttp;
+  ch_queue_t *qp;
+  tprio_t neweffective;
+  tprio_t oldeffective;
+  tprio_t oldprio;
+
+  chDbgCheckClassS();
+  chDbgCheck((tp != NULL) &&
+             (newprio >= LOWPRIO) && (newprio <= HIGHPRIO));
+
+#if CH_CFG_USE_MUTEXES == TRUE
+  oldprio = tp->realprio;
+  tp->realprio = newprio;
+#else
+  oldprio = tp->hdr.pqueue.prio;
+#endif
+
+  while (true) {
+    oldeffective = tp->hdr.pqueue.prio;
+#if CH_CFG_USE_MUTEXES == TRUE
+    neweffective = __mtx_get_effective_priority(tp);
+#else
+    neweffective = newprio;
+#endif
+    if (neweffective == oldeffective) {
+      break;
+    }
+
+    tp->hdr.pqueue.prio = neweffective;
+    nexttp = NULL;
+    qp = NULL;
+
+    /* The following states need priority queues reordering.*/
+    switch (tp->state) {
+#if CH_CFG_USE_MUTEXES == TRUE
+    case CH_STATE_WTMTX:
+      chDbgAssert((tp->u.wtmtxp != NULL) &&
+                  (tp->u.wtmtxp->owner != NULL),
+                  "mutex not owned");
+      qp = &tp->u.wtmtxp->queue;
+      nexttp = tp->u.wtmtxp->owner;
+      break;
+#endif
+#if CH_CFG_USE_CONDVARS == TRUE
+    case CH_STATE_WTCOND:
+      qp = &tp->u.wtcondp->queue;
+      break;
+#endif
+#if (CH_CFG_USE_SEMAPHORES == TRUE) &&                                     \
+    (CH_CFG_USE_SEMAPHORES_PRIORITY == TRUE)
+    case CH_STATE_WTSEM:
+      qp = &tp->u.wtsemp->queue;
+      break;
+#endif
+#if (CH_CFG_USE_MESSAGES == TRUE) &&                                       \
+    (CH_CFG_USE_MESSAGES_PRIORITY == TRUE)
+    case CH_STATE_SNDMSGQ:
+      qp = (ch_queue_t *)tp->u.wtobjp;
+      break;
+#endif
+    case CH_STATE_READY:
+      __sch_requeue_behind(tp);
+      break;
+    case CH_STATE_CURRENT:
+#if CH_CFG_SMP_MODE == TRUE
+      if (tp->owner != currcore) {
+        chSysNotifyInstance(tp->owner);
+      }
+#endif
+      break;
+    default:
+      /* Nothing to do for other states.*/
+      break;
+    }
+
+    if (qp != NULL) {
+      ch_sch_prio_insert(qp, ch_queue_dequeue(&tp->hdr.queue));
+    }
+    if (nexttp == NULL) {
+      break;
+    }
+    tp = nexttp;
+  }
+
+  chSchRescheduleS();
+
+  return oldprio;
+}
+
+/**
  * @brief   Changes the running thread priority level then reschedules if
  *          necessary.
  * @note    The function returns the real thread priority regardless of the
  *          current priority that could be higher than the real priority
  *          because the priority inheritance mechanism.
  *
- * @param[in] newprio   the new priority level of the running thread
+ * @param[in] newprio   the new priority level of the running thread, from
+ *                      @p LOWPRIO through @p HIGHPRIO
  * @return              The old priority level.
  *
  * @api
@@ -845,21 +1106,10 @@ tprio_t chThdSetPriority(tprio_t newprio) {
   thread_t *currtp = chThdGetSelfX();
   tprio_t oldprio;
 
-  chDbgCheck(newprio <= HIGHPRIO);
+  chDbgCheck((newprio >= LOWPRIO) && (newprio <= HIGHPRIO));
 
   chSysLock();
-#if CH_CFG_USE_MUTEXES == TRUE
-  oldprio = currtp->realprio;
-  if ((currtp->hdr.pqueue.prio == currtp->realprio) ||
-      (newprio > currtp->hdr.pqueue.prio)) {
-    currtp->hdr.pqueue.prio = newprio;
-  }
-  currtp->realprio = newprio;
-#else
-  oldprio = currtp->hdr.pqueue.prio;
-  currtp->hdr.pqueue.prio = newprio;
-#endif
-  chSchRescheduleS();
+  oldprio = __thd_set_priority(currtp, newprio);
   chSysUnlock();
 
   return oldprio;
@@ -932,6 +1182,8 @@ void chThdSleepUntil(systime_t time) {
  * @note    The system time is assumed to be between @p prev and @p next
  *          else the call is assumed to have been called outside the
  *          allowed time interval, in this case no sleep is performed.
+ * @note    If @p CH_CFG_USE_RFCU is @p TRUE then a call outside the allowed
+ *          time interval reports @p CH_RFCU_THD_MISSED_DEADLINE.
  * @see     chThdSleepUntil()
  *
  * @param[in] prev      absolute system time of the previous deadline
@@ -948,6 +1200,11 @@ systime_t chThdSleepUntilWindowed(systime_t prev, systime_t next) {
   if (likely(chTimeIsInRangeX(time, prev, next))) {
     chThdSleepS(chTimeDiffX(time, next));
   }
+#if CH_CFG_USE_RFCU == TRUE
+  else {
+    chRFCUCollectFaultsI(CH_RFCU_THD_MISSED_DEADLINE);
+  }
+#endif
   chSysUnlock();
 
   return next;
@@ -978,7 +1235,11 @@ void chThdYield(void) {
  * @sclass
  */
 msg_t chThdSuspendS(thread_reference_t *trp) {
-  thread_t *tp = chThdGetSelfX();
+  thread_t *tp;
+
+  chDbgCheckClassS();
+
+  tp = chThdGetSelfX();
 
   chDbgAssert(*trp == NULL, "not NULL");
 
@@ -1008,7 +1269,11 @@ msg_t chThdSuspendS(thread_reference_t *trp) {
  * @sclass
  */
 msg_t chThdSuspendTimeoutS(thread_reference_t *trp, sysinterval_t timeout) {
-  thread_t *tp = chThdGetSelfX();
+  thread_t *tp;
+
+  chDbgCheckClassS();
+
+  tp = chThdGetSelfX();
 
   chDbgAssert(*trp == NULL, "not NULL");
 
@@ -1034,6 +1299,8 @@ msg_t chThdSuspendTimeoutS(thread_reference_t *trp, sysinterval_t timeout) {
  */
 void chThdResumeI(thread_reference_t *trp, msg_t msg) {
 
+  chDbgCheckClassI();
+
   if (*trp != NULL) {
     thread_t *tp = *trp;
 
@@ -1053,9 +1320,11 @@ void chThdResumeI(thread_reference_t *trp, msg_t msg) {
  * @param[in] trp       a pointer to a thread reference object
  * @param[in] msg       the message code
  *
- * @iclass
+ * @sclass
  */
 void chThdResumeS(thread_reference_t *trp, msg_t msg) {
+
+  chDbgCheckClassS();
 
   if (*trp != NULL) {
     thread_t *tp = *trp;
@@ -1140,8 +1409,8 @@ void chThdQueueObjectDispose(threads_queue_t *tqp) {
  *                      - @a TIME_IMMEDIATE the thread is not enqueued and
  *                        the function returns @p MSG_TIMEOUT as if a timeout
  *                        occurred.
- * @return              The message from @p osalQueueWakeupOneI() or
- *                      @p osalQueueWakeupAllI() functions.
+ * @return              The message passed to @p chThdDequeueNextI() or
+ *                      @p chThdDequeueAllI().
  * @retval MSG_TIMEOUT  if the thread has not been dequeued within the
  *                      specified timeout or if the function has been
  *                      invoked with @p TIME_IMMEDIATE as timeout
@@ -1150,12 +1419,17 @@ void chThdQueueObjectDispose(threads_queue_t *tqp) {
  * @sclass
  */
 msg_t chThdEnqueueTimeoutS(threads_queue_t *tqp, sysinterval_t timeout) {
-  thread_t *currtp = chThdGetSelfX();
+  thread_t *currtp;
+
+  chDbgCheckClassS();
+  chDbgCheck(tqp != NULL);
 
   if (unlikely(TIME_IMMEDIATE == timeout)) {
     return MSG_TIMEOUT;
   }
 
+  currtp = chThdGetSelfX();
+  currtp->u.wtqueuep = tqp;
   ch_queue_insert(&tqp->queue, (ch_queue_t *)currtp);
 
   return chSchGoSleepTimeoutS(CH_STATE_QUEUED, timeout);
@@ -1172,6 +1446,9 @@ msg_t chThdEnqueueTimeoutS(threads_queue_t *tqp, sysinterval_t timeout) {
  */
 void chThdDequeueNextI(threads_queue_t *tqp, msg_t msg) {
 
+  chDbgCheckClassI();
+  chDbgCheck(tqp != NULL);
+
   if (ch_queue_notempty(&tqp->queue)) {
     chThdDoDequeueNextI(tqp, msg);
   }
@@ -1186,6 +1463,9 @@ void chThdDequeueNextI(threads_queue_t *tqp, msg_t msg) {
  * @iclass
  */
 void chThdDequeueAllI(threads_queue_t *tqp, msg_t msg) {
+
+  chDbgCheckClassI();
+  chDbgCheck(tqp != NULL);
 
   while (ch_queue_notempty(&tqp->queue)) {
     chThdDoDequeueNextI(tqp, msg);

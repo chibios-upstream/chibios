@@ -1,0 +1,47 @@
+<clocktree>
+  <settings>
+    <prefixes clock_points="TCLK_" macros="TST_" cfgs="TST_CFG_" />
+    <suffixes frequency="_FREQ" values="_VALUE" bits="_BITS"
+              selector="_SEL" enable="_ENABLE" enabled="_ENABLED" />
+    <configs>
+      <config name="CLOCK_DYNAMIC" type="bool" default="FALSE"
+              role="dynamic_mode">
+        <description>Enables dynamic clock handling.</description>
+      </config>
+      <config name="CONSUMER_REQUIRED" type="bool" default="FALSE">
+        <description>Requires the consumer clock.</description>
+      </config>
+      <config name="ROOT_REQUIRED" type="bool" default="FALSE">
+        <description>Requires the root clock for the consumer.</description>
+      </config>
+    </configs>
+  </settings>
+  <variants>
+    <variant name="extended" condition="defined(TEST_EXTENDED)" />
+  </variants>
+  <clocks>
+    <clock point="ROOT" enable="manual" dynamic="no">
+      <description>root clock conditionally required by the consumer</description>
+      <bits enabled="RCC_ROOT_ON" disabled="0U" />
+      <derived frequency="1000000U" />
+    </clock>
+    <clock point="CONSUMER" enable="auto" dynamic="no">
+      <description>consumer with an independently modeled root dependency</description>
+      <derived frequency="1000000U" />
+    </clock>
+  </clocks>
+  <sinks>
+    <sink name="CONSUMER_DRIVER" input="CONSUMER"
+          condition="TST_CFG_CONSUMER_REQUIRED == TRUE">
+      <description>External software demands the consumer clock.</description>
+    </sink>
+    <sink name="CONSUMER_ROOT" input="ROOT"
+          condition="(TST_CONSUMER_ENABLED == TRUE) &amp;&amp; (TST_CFG_ROOT_REQUIRED == TRUE)">
+      <description>The enabled consumer conditionally demands its root clock.</description>
+    </sink>
+    <sink name="CONSUMER_VARIANT_ROOT" input="ROOT" variants="extended"
+          condition="(TST_CONSUMER_ENABLED == TRUE) &amp;&amp; (TST_CFG_ROOT_REQUIRED == TRUE)">
+      <description>The enabled variant consumer conditionally demands its root clock.</description>
+    </sink>
+  </sinks>
+</clocktree>

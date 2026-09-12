@@ -8,11 +8,11 @@ generation. It does not need to support the old XML format.
 - Main template: `tools/ftl/processors/clocktree/clocktree.h.ftl`
 - Codegen library: `tools/ftl/libs/libclocks.ftlc`
 - Schema: `tools/ftl/schema/clocks/clocktree.xsd`
-- G4 test XML: `os/hal/ports/STM32/STM32G4xx_TEST/cfg/clocktree.xml`
-- Generated header: `os/hal/ports/STM32/STM32G4xx_TEST/clocktree.h`
-- Prototype HAL port: `os/hal/ports/STM32/STM32G4xx_TEST`
+- G4 XML: `os/xhal/ports/STM32/STM32G4xx/cfg/clocktree.xml`
+- Generated header: `os/xhal/ports/STM32/STM32G4xx/clocktree.h`
+- XHAL port: `os/xhal/ports/STM32/STM32G4xx`
 - Stable build target:
-  `demos/STM32/RT-STM32-MULTI/make/stm32g474re_nucleo64_clocktree.make`
+  `demos/STM32/RT-XHAL-STM32-MULTI/make/stm32g474re_nucleo64.make`
 
 ## Template Setup
 
@@ -73,6 +73,10 @@ jar.
   demanded; add sinks only when demand has a condition. Sinks can also
   specify optional `<limits ref="..."/>` references when a peripheral imposes
   a frequency range on the consumed clock.
+- A sink condition may reference a generated `<POINT>_ENABLED` state when an
+  internal dependency cannot be represented directly by the clock topology.
+  Such conditions are emitted as deferred demand expressions. Do not combine
+  `defined()` with a generated enable-state reference in the same condition.
 - `settings/states`, `settings/limit-set`, and `settings/limit-values` define
   the selectable frequency limit states, the final limit macro set, and the
   state-specific values. The generator validates that each state provides all
@@ -334,38 +338,32 @@ When converting an existing clock point to conditional demand:
 
 ## Validation Commands
 
-Regenerate the test header:
+Regenerate the G4 header:
 
 ```sh
-fmpp -C os/hal/ports/STM32/STM32G4xx_TEST/cfg/config.fmpp
+fmpp -C os/xhal/ports/STM32/STM32G4xx/cfg/config.fmpp
 ```
 
 Validate the XML:
 
 ```sh
 xmllint --noout --schema tools/ftl/schema/clocks/clocktree.xsd \
-  os/hal/ports/STM32/STM32G4xx_TEST/cfg/clocktree.xml
+  os/xhal/ports/STM32/STM32G4xx/cfg/clocktree.xml
 ```
 
 Build the stable compile target:
 
 ```sh
-make -C demos/STM32/RT-STM32-MULTI \
-  -f make/stm32g474re_nucleo64_clocktree.make -j2
-make -C demos/STM32/RT-STM32-MULTI \
-  -f make/stm32g474re_nucleo64_clocktree.make clean
+make -C demos/STM32/RT-XHAL-STM32-MULTI \
+  -f make/stm32g474re_nucleo64.make -j2
+make -C demos/STM32/RT-XHAL-STM32-MULTI \
+  -f make/stm32g474re_nucleo64.make clean
 ```
 
-The Eclipse configuration is named:
-`Build for STM32G474RE-Nucleo64 Clocktree`.
+## G4 Integration
 
-## Current Prototype State
-
-`STM32G4xx_TEST/hal_lld.h` includes the generated `clocktree.h` after static
+`STM32G4xx/hal_lld.h` includes the generated `clocktree.h` after static
 RCC/PWR/platform definitions and provides compatibility aliases expected by
-existing STM32 LLD drivers. `STM32G4xx_TEST/hal_lld.c` is only a compile/link
-stub for now; it is not execution-ready.
-
-The immediate goal is to make the generated header progressively replace the
-handwritten clock macro layer while preserving the legacy macro interface that
-drivers consume.
+existing STM32 LLD drivers. The generated clock model is the default G4 model
+for XHAL; the previous handwritten implementation is retained in
+`os/xhal/ports/STM32/STM32G4xx_OLD`.

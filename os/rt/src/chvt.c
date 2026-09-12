@@ -33,12 +33,6 @@
 /* Module local definitions.                                                 */
 /*===========================================================================*/
 
-#if CH_CFG_INTERVALS_SIZE > CH_CFG_ST_RESOLUTION
-#define VT_MAX_DELAY                                                        \
-  (((sysinterval_t)TIME_MAX_SYSTIME) &                                      \
-   ~(sysinterval_t)(((sysinterval_t)1 << (CH_CFG_ST_RESOLUTION / 2)) - (sysinterval_t)1))
-#endif
-
 /*===========================================================================*/
 /* Module exported variables.                                                */
 /*===========================================================================*/
@@ -54,6 +48,34 @@
 /*===========================================================================*/
 /* Module local functions.                                                   */
 /*===========================================================================*/
+
+#if (CH_DBG_ENABLE_ASSERTS != FALSE) && (PORT_CORES_NUMBER > 1)
+static inline void vt_assert_access(const virtual_timer_t *vtp) {
+
+  chDbgAssert((vtp->owner == NULL) || (vtp->owner == currcore),
+              "invalid core");
+}
+
+static inline void vt_assert_owner(const virtual_timer_t *vtp) {
+
+  chDbgAssert(vtp->owner == currcore, "invalid core");
+}
+
+static inline void vt_claim(virtual_timer_t *vtp) {
+
+  vtp->owner = currcore;
+}
+
+static inline void vt_release(virtual_timer_t *vtp) {
+
+  vtp->owner = NULL;
+}
+#else /* VT ownership checks disabled */
+#define vt_assert_access(vtp)               ((void)0)
+#define vt_assert_owner(vtp)                ((void)0)
+#define vt_claim(vtp)                       ((void)0)
+#define vt_release(vtp)                     ((void)0)
+#endif /* VT ownership checks disabled */
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
 /**
@@ -115,16 +137,16 @@ static void vt_set_alarm(virtual_timers_list_t *vtlp,
     delay = currdelta;
   }
 
-#if !defined(CH_VT_RFCU_DISABLED)
   /* Checking if a skip occurred.*/
   if (currdelta > vtlp->lastdelta) {
     vtlp->lastdelta = currdelta;
+#if CH_CFG_USE_RFCU == TRUE
     chRFCUCollectFaultsI(CH_RFCU_VT_INSUFFICIENT_DELTA);
-  }
 #else
-  /* Assertions as fallback.*/
-  chDbgAssert(currdelta <= CH_CFG_ST_TIMEDELTA, "insufficient delta");
+    /* Assertions as fallback.*/
+    chDbgAssert(false, "insufficient delta");
 #endif
+  }
 }
 
 /**
@@ -187,24 +209,49 @@ static void vt_insert_first(virtual_timers_list_t *vtlp,
     /* Trying again with a more relaxed minimum delta.*/
     currdelta += (sysinterval_t)1;
 
-    /* Setting up the alarm on the next deadline.*/
-    port_timer_set_alarm(chTimeAddX(now, currdelta));
-
     /* Current time becomes the new "base" time.*/
     now = newnow;
     delay = currdelta;
+
+    /* Programming and checking the alarm must use the same time base.*/
+    port_timer_set_alarm(chTimeAddX(now, delay));
   }
 
-#if !defined(CH_VT_RFCU_DISABLED)
   /* Checking if a skip occurred.*/
   if (currdelta > vtlp->lastdelta) {
     vtlp->lastdelta = currdelta;
+#if CH_CFG_USE_RFCU == TRUE
     chRFCUCollectFaultsI(CH_RFCU_VT_INSUFFICIENT_DELTA);
-  }
 #else
-  /* Assertions as fallback.*/
-  chDbgAssert(currdelta <= CH_CFG_ST_TIMEDELTA, "insufficient delta");
+    /* Assertions as fallback.*/
+    chDbgAssert(false, "insufficient delta");
 #endif
+  }
+}
+
+/**
+ * @brief   Converts a delay to a delta-list coordinate.
+ * @note    An RFCU fault is registered if the addition is not representable,
+ *          the result is saturated to the furthest representable deadline.
+ *
+ * @param[in] nowdelta  delta between the list base and current time
+ * @param[in] delay     delay over current time
+ * @return              The delta from the list base.
+ */
+static sysinterval_t vt_add_delta(sysinterval_t nowdelta,
+                                  sysinterval_t delay) {
+
+  if (unlikely(delay > (TIME_INFINITE - nowdelta))) {
+#if CH_CFG_USE_RFCU == TRUE
+    chRFCUCollectFaultsI(CH_RFCU_VT_INTERVAL_OVERFLOW);
+#else
+    chDbgAssert(false, "interval overflow");
+#endif
+
+    return TIME_INFINITE;
+  }
+
+  return nowdelta + delay;
 }
 #endif /* CH_CFG_ST_TIMEDELTA > 0 */
 
@@ -224,30 +271,23 @@ static void vt_enqueue(virtual_timers_list_t *vtlp,
   {
     sysinterval_t nowdelta;
     systime_t now = chVTGetSystemTimeX();
+    ch_delta_list_t *first = ch_dlist_next(&vtlp->dlist);
 
     /* Special case where the timers list is empty.*/
-    if (ch_dlist_isempty(&vtlp->dlist)) {
+    if (first == &vtlp->dlist) {
 
       vt_insert_first(vtlp, vtp, now, delay);
 
       return;
     }
 
-    /* Delay as delta from 'lasttime'. Note, it can overflow and the value
-       becomes lower than 'deltanow'.*/
+    /* Delay as delta from 'lasttime'.*/
     nowdelta = chTimeDiffX(vtlp->lasttime, now);
-    delta    = nowdelta + delay;
-
-    /* Scenario where a very large delay exceeded the numeric range, the
-       delta is shortened to make it fit the numeric range, the timer
-       will be triggered "deltanow" cycles earlier.*/
-    if (delta < nowdelta) {
-      delta = delay;
-    }
+    delta    = vt_add_delta(nowdelta, delay);
 
     /* Checking if this timer would become the first in the delta list, this
        requires changing the current alarm setting.*/
-    if (delta < vtlp->dlist.next->delta) {
+    if (delta < first->delta) {
 
       vt_set_alarm(vtlp, now, delay);
     }
@@ -267,10 +307,13 @@ static void vt_enqueue(virtual_timers_list_t *vtlp,
 
 /**
  * @brief   Initializes a @p virtual_timer_t object.
- * @note    Initializing a timer object is not strictly required because
- *          the function @p chVTSetI() initializes the object too. This
- *          function is only useful if you need to perform a @p chVTIsArmed()
- *          check before calling @p chVTSetI().
+ * @note    Explicit initialization is not required before calling
+ *          @p chVTDoSetI() or @p chVTDoSetContinuousI() because those
+ *          functions initialize a disarmed object before inserting it.
+ * @note    A fully disarmed timer has no instance affinity.
+ * @note    The replacing forms @p chVTSetI(), @p chVTSet(),
+ *          @p chVTSetContinuousI(), and @p chVTSetContinuous() require an
+ *          initialized object because they first check and reset it if armed.
  *
  * @param[out] vtp      pointer to a @p virtual_timer_t object
  *
@@ -279,10 +322,13 @@ static void vt_enqueue(virtual_timers_list_t *vtlp,
 void chVTObjectInit(virtual_timer_t *vtp) {
 
   vtp->dlist.next = NULL;
+  vt_release(vtp);
 }
 
 /**
  * @brief   Disposes a virtual timer.
+ * @pre     The timer must not be armed.
+ * @note    A callback-active timer is still bound to its owning OS instance.
  * @note    Objects disposing does not involve freeing memory but just
  *          performing checks that make sure that the object is in a
  *          state compatible with operations stop.
@@ -300,9 +346,9 @@ void chVTObjectDispose(virtual_timer_t *vtp) {
 
   chDbgCheck(vtp != NULL);
 
-  chSftCheckQueueX(&vtp->dlist);
+  vt_assert_access(vtp);
 
-  /* The timer must not be armed when disposed.*/
+  /* A disarmed timer uses a null sentinel, it is not a circular queue.*/
   chDbgAssert(vtp->dlist.next == NULL, "object in use");
 
 #if CH_CFG_HARDENING_LEVEL > 0
@@ -316,6 +362,14 @@ void chVTObjectDispose(virtual_timer_t *vtp) {
  *          specified as parameter.
  * @pre     The timer must not be already armed before calling this function.
  * @note    The callback function is invoked from interrupt context.
+ * @note    A callback-active timer may only be rearmed from its owning OS
+ *          instance. A fully disarmed timer may be armed on any instance.
+ * @note    In tickless mode, a delay that cannot be represented relative to
+ *          the current timer-list base reports
+ *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
+ *          @p TIME_INFINITE from that base.
+ *          If VT RFCU collection is disabled, a debug assertion is used
+ *          instead.
  *
  * @param[out] vtp      pointer to a @p virtual_timer_t object
  * @param[in] delay     the number of ticks before the operation times out, the
@@ -338,6 +392,9 @@ void chVTDoSetI(virtual_timer_t *vtp, sysinterval_t delay,
   chDbgCheckClassI();
   chDbgCheck((vtp != NULL) && (vtfunc != NULL) && (delay != TIME_IMMEDIATE));
 
+  /* Claiming the timer for this instance.*/
+  vt_claim(vtp);
+
   /* Timer initialization.*/
   vtp->par     = par;
   vtp->func    = vtfunc;
@@ -353,6 +410,14 @@ void chVTDoSetI(virtual_timer_t *vtp, sysinterval_t delay,
  *          specified as parameter.
  * @pre     The timer must not be already armed before calling this function.
  * @note    The callback function is invoked from interrupt context.
+ * @note    A callback-active timer may only be rearmed from its owning OS
+ *          instance. A fully disarmed timer may be armed on any instance.
+ * @note    In tickless mode, a delay that cannot be represented relative to
+ *          the current timer-list base reports
+ *          @p CH_RFCU_VT_INTERVAL_OVERFLOW and saturates the deadline at
+ *          @p TIME_INFINITE from that base.
+ *          If VT RFCU collection is disabled, a debug assertion is used
+ *          instead.
  *
  * @param[out] vtp      pointer to a @p virtual_timer_t object
  * @param[in] delay     the number of ticks before the operation times out, the
@@ -374,6 +439,9 @@ void chVTDoSetContinuousI(virtual_timer_t *vtp, sysinterval_t delay,
   chDbgCheckClassI();
   chDbgCheck((vtp != NULL) && (vtfunc != NULL) && (delay != TIME_IMMEDIATE));
 
+  /* Claiming the timer for this instance.*/
+  vt_claim(vtp);
+
   /* Timer initialization.*/
   vtp->par     = par;
   vtp->func    = vtfunc;
@@ -386,6 +454,8 @@ void chVTDoSetContinuousI(virtual_timer_t *vtp, sysinterval_t delay,
 /**
  * @brief   Disables a Virtual Timer.
  * @pre     The timer must be in armed state before calling this function.
+ * @pre     The timer must be owned by the current OS instance.
+ * @post    The timer reload interval is cleared.
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
  *
@@ -393,17 +463,31 @@ void chVTDoSetContinuousI(virtual_timer_t *vtp, sysinterval_t delay,
  */
 void chVTDoResetI(virtual_timer_t *vtp) {
   virtual_timers_list_t *vtlp = &currcore->vtlist;
+  ch_delta_list_t *next;
+#if CH_CFG_ST_TIMEDELTA > 0
+  systime_t now;
+  sysinterval_t nowdelta, delta;
+#endif
 
   chDbgCheckClassI();
   chDbgCheck(vtp != NULL);
   chDbgAssert(chVTIsArmedI(vtp), "timer not armed");
 
+  vt_assert_owner(vtp);
+
+  /* Fetching the successor while the timer is still linked.*/
+  next = ch_dlist_next(&vtp->dlist);
+
+  /* An explicit reset also cancels any pending automatic reload.*/
+  vtp->reload = (sysinterval_t)0;
+  vt_release(vtp);
+
 #if CH_CFG_ST_TIMEDELTA == 0
 
   /* The delta of the timer is added to the next timer.*/
-  vtp->dlist.next->delta += vtp->dlist.delta;
+  next->delta += vtp->dlist.delta;
 
- /* Removing the element from the delta list, marking it as not armed.*/
+  /* Removing the element from the delta list, marking it as not armed.*/
   (void) ch_dlist_dequeue(&vtp->dlist);
   vtp->dlist.next = NULL;
 
@@ -411,8 +495,6 @@ void chVTDoResetI(virtual_timer_t *vtp) {
      is the last of the list, restoring it.*/
   vtlp->dlist.delta = (sysinterval_t)-1;
 #else /* CH_CFG_ST_TIMEDELTA > 0 */
-  systime_t now;
-  sysinterval_t nowdelta, delta;
 
   /* If the timer is not the first of the list then it is simply unlinked
      else the operation is more complex.*/
@@ -422,7 +504,7 @@ void chVTDoResetI(virtual_timer_t *vtp) {
     (void) ch_dlist_dequeue(&vtp->dlist);
 
     /* Adding delta to the next element, if it is not the last one.*/
-    vtp->dlist.next->delta += vtp->dlist.delta;
+    next->delta += vtp->dlist.delta;
 
     /* Marking timer as not armed.*/
     vtp->dlist.next = NULL;
@@ -440,7 +522,7 @@ void chVTDoResetI(virtual_timer_t *vtp) {
   vtp->dlist.next = NULL;
 
   /* If the list become empty then the alarm timer is stopped and done.*/
-  if (ch_dlist_isempty(&vtlp->dlist)) {
+  if (next == &vtlp->dlist) {
 
     port_timer_stop_alarm();
 
@@ -448,7 +530,7 @@ void chVTDoResetI(virtual_timer_t *vtp) {
   }
 
   /* The delta of the removed timer is added to the new first timer.*/
-  vtlp->dlist.next->delta += vtp->dlist.delta;
+  next->delta += vtp->dlist.delta;
 
   /* Distance in ticks between the last alarm event and current time.*/
   now = chVTGetSystemTimeX();
@@ -456,12 +538,12 @@ void chVTDoResetI(virtual_timer_t *vtp) {
 
   /* If the current time surpassed the time of the next element in list
      then the event interrupt is already pending, just return.*/
-  if (nowdelta >= vtlp->dlist.next->delta) {
+  if (nowdelta >= next->delta) {
     return;
   }
 
   /* Distance from the next scheduled event and now.*/
-  delta = vtlp->dlist.next->delta - nowdelta;
+  delta = next->delta - nowdelta;
 
   /* Setting up the alarm.*/
   vt_set_alarm(vtlp, now, delta);
@@ -471,6 +553,7 @@ void chVTDoResetI(virtual_timer_t *vtp) {
 /**
  * @brief   Returns the remaining time interval before next timer trigger.
  * @note    This function can be called while the timer is active.
+ * @pre     The timer must be owned by the current OS instance.
  *
  * @param[in] vtp       pointer to a @p virtual_timer_t object
  * @return              The remaining time interval.
@@ -484,8 +567,10 @@ sysinterval_t chVTGetRemainingIntervalI(virtual_timer_t *vtp) {
 
   chDbgCheckClassI();
 
+  vt_assert_owner(vtp);
+
   delta = (sysinterval_t)0;
-  dlp = vtlp->dlist.next;
+  dlp = ch_dlist_next(&vtlp->dlist);
   do {
     delta += dlp->delta;
     if (dlp == &vtp->dlist) {
@@ -500,7 +585,7 @@ sysinterval_t chVTGetRemainingIntervalI(virtual_timer_t *vtp) {
       return delta;
 #endif
     }
-    dlp = dlp->next;
+    dlp = ch_dlist_next(dlp);
   } while (dlp != &vtlp->dlist);
 
   chDbgAssert(false, "timer not in list");
@@ -519,38 +604,62 @@ sysinterval_t chVTGetRemainingIntervalI(virtual_timer_t *vtp) {
  */
 void chVTDoTickI(void) {
   virtual_timers_list_t *vtlp = &currcore->vtlist;
+#if CH_CFG_ST_TIMEDELTA == 0
+  ch_delta_list_t *dlp;
+#else
+  virtual_timer_t *vtp;
+  vtfunc_t func;
+  void *par;
+  sysinterval_t nowdelta;
+  systime_t now;
+#endif
 
   chDbgCheckClassI();
 
 #if CH_CFG_ST_TIMEDELTA == 0
   vtlp->systime++;
-  if (ch_dlist_notempty(&vtlp->dlist)) {
+  dlp = ch_dlist_next(&vtlp->dlist);
+  if (dlp != &vtlp->dlist) {
     /* The list is not empty, processing elements on top.*/
-    --vtlp->dlist.next->delta;
-    while (vtlp->dlist.next->delta == (sysinterval_t)0) {
+    --dlp->delta;
+    while (dlp->delta == (sysinterval_t)0) {
       virtual_timer_t *vtp;
+      vtfunc_t func;
+      void *par;
 
       /* Triggered timer.*/
-      vtp = (virtual_timer_t *)vtlp->dlist.next;
+      vtp = (virtual_timer_t *)dlp;
+
+      vt_assert_owner(vtp);
+
+      /* Preserving callback information while still protected.*/
+      func = vtp->func;
+      par  = vtp->par;
 
       /* Removing the element from the delta list, marking it as not armed.*/
       (void) ch_dlist_dequeue(&vtp->dlist);
       vtp->dlist.next = NULL;
 
       chSysUnlockFromISR();
-      vtp->func(vtp, vtp->par);
+      func(vtp, par);
       chSysLockFromISR();
 
-      /* If a reload is defined the timer needs to be restarted.*/
-      if (vtp->reload > (sysinterval_t)0) {
+      /* If a reload is defined and the callback left the timer disarmed then
+         it needs to be restarted.*/
+      if ((vtp->reload > (sysinterval_t)0) && !chVTIsArmedI(vtp)) {
+        vt_assert_owner(vtp);
         ch_dlist_insert(&vtlp->dlist, &vtp->dlist, vtp->reload);
       }
+#if (CH_DBG_ENABLE_ASSERTS != FALSE) && (PORT_CORES_NUMBER > 1)
+      else if (!chVTIsArmedI(vtp)) {
+        vt_release(vtp);
+      }
+#endif
+      /* The callback and reload processing can change the first timer.*/
+      dlp = ch_dlist_next(&vtlp->dlist);
     }
   }
 #else /* CH_CFG_ST_TIMEDELTA > 0 */
-  virtual_timer_t *vtp;
-  sysinterval_t nowdelta;
-  systime_t now;
 
   /* Looping through timers consuming all timers with deltas lower or equal
      than the interval between "now" and "lasttime".*/
@@ -558,7 +667,7 @@ void chVTDoTickI(void) {
     systime_t lasttime;
 
     /* First timer in the delta list.*/
-    vtp = (virtual_timer_t *)vtlp->dlist.next;
+    vtp = (virtual_timer_t *)ch_dlist_next(&vtlp->dlist);
 
     /* Delta between current time and last execution time.*/
     now = chVTGetSystemTimeX();
@@ -572,9 +681,15 @@ void chVTDoTickI(void) {
       break;
     }
 
+    vt_assert_owner(vtp);
+
     /* Last time deadline is updated to the next timer's time.*/
     lasttime = chTimeAddX(vtlp->lasttime, vtp->dlist.delta);
     vtlp->lasttime = lasttime;
+
+    /* Preserving callback information while still protected.*/
+    func = vtp->func;
+    par  = vtp->par;
 
     /* Removing the timer from the list, marking it as not armed.*/
     (void) ch_dlist_dequeue(&vtp->dlist);
@@ -590,41 +705,45 @@ void chVTDoTickI(void) {
        modified within the callback if some timer function is called.*/
     chSysUnlockFromISR();
 
-    vtp->func(vtp, vtp->par);
+    func(vtp, par);
 
     chSysLockFromISR();
 
-    /* If a reload is defined the timer needs to be restarted.*/
-    if (unlikely(vtp->reload > (sysinterval_t)0)) {
-      sysinterval_t delta, delay;
+    /* If a reload is defined and the callback left the timer disarmed then
+       it needs to be restarted.*/
+    if (unlikely((vtp->reload > (sysinterval_t)0) && !chVTIsArmedI(vtp))) {
+      sysinterval_t basedelta, delay, delta, elapsed;
+      bool postponed;
 
-      /* Refreshing the now delta after spending time in the callback for
+      vt_assert_owner(vtp);
+
+      /* Refreshing the elapsed time after spending time in the callback for
          a more accurate detection of too fast reloads.*/
       now = chVTGetSystemTimeX();
-      nowdelta = chTimeDiffX(lasttime, now);
+      elapsed = chTimeDiffX(lasttime, now);
 
-#if !defined(CH_VT_RFCU_DISABLED)
+#if CH_CFG_USE_RFCU == TRUE
       /* Checking if the required reload is feasible.*/
-      if (nowdelta > vtp->reload) {
+      if (elapsed > vtp->reload) {
         /* System time is already past the deadline, logging the fault and
            proceeding with a minimum delay.*/
-
-        chDbgAssert(false, "skipped deadline");
         chRFCUCollectFaultsI(CH_RFCU_VT_SKIPPED_DEADLINE);
+      }
+#else /* CH_CFG_USE_RFCU == FALSE */
+      /* Assertions as fallback.*/
+      chDbgAssert(elapsed <= vtp->reload, "skipped deadline");
+#endif /* CH_CFG_USE_RFCU == TRUE */
 
-        delay = (sysinterval_t)0;
+      /* A reached or skipped phase deadline is deferred by the physical
+         minimum delta. The ticker returns after insertion so the callback
+         cannot be invoked repeatedly from the same interrupt.*/
+      postponed = elapsed >= vtp->reload;
+      if (postponed) {
+        delay = vtlp->lastdelta;
       }
       else {
-        /* Enqueuing the timer again using the calculated delta.*/
-        delay = vtp->reload - nowdelta;
+        delay = vtp->reload - elapsed;
       }
-#else
-      /* Assertions as fallback.*/
-      chDbgAssert(nowdelta <= vtp->reload, "skipped deadline");
-
-      /* Enqueuing the timer again using the calculated delta.*/
-      delay = vtp->reload - nowdelta;
-#endif
 
       /* Special case where the timers list is empty.*/
       if (ch_dlist_isempty(&vtlp->dlist)) {
@@ -634,18 +753,26 @@ void chVTDoTickI(void) {
         return;
       }
 
-      /* Delay as delta from 'lasttime'. Note, it can overflow and the value
-         becomes lower than 'nowdelta'. In that case the delta is shortened
-         to make it fit the numeric range and the timer will be triggered
-         "nowdelta" cycles earlier.*/
-      delta = nowdelta + delay;
-      if (delta < nowdelta) {
-        delta = delay;
-      }
+      /* Delay as delta from the current list base, which could have been
+         replaced by timer operations performed within the callback.*/
+      basedelta = chTimeDiffX(vtlp->lasttime, now);
+      delta = vt_add_delta(basedelta, delay);
 
       /* Insert into delta list. */
       ch_dlist_insert(&vtlp->dlist, &vtp->dlist, delta);
+
+      /* Deferred reloads give all due timers another interrupt opportunity.*/
+      if (postponed) {
+        vt_set_alarm(vtlp, now, delay);
+
+        return;
+      }
     }
+#if (CH_DBG_ENABLE_ASSERTS != FALSE) && (PORT_CORES_NUMBER > 1)
+    else if (!chVTIsArmedI(vtp)) {
+      vt_release(vtp);
+    }
+#endif
   }
 
   /* If the list is empty, nothing else to do.*/

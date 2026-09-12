@@ -24,7 +24,8 @@
  * @{
  */
 
-#include <sys/time.h>
+#include <stdlib.h>
+#include <time.h>
 
 #include "ch.h"
 
@@ -105,7 +106,7 @@ static void __dummy(thread_t *ntp, thread_t *otp) {
  *          invoked.
  */
 __attribute__((noreturn))
-void _port_thread_start(msg_t (*pf)(void *), void *p) {
+void _port_thread_start(void (*pf)(void *), void *p) {
 
   chSysUnlock();
   pf(p);
@@ -119,10 +120,14 @@ void _port_thread_start(msg_t (*pf)(void *), void *p) {
  * @return              The realtime counter value.
  */
 rtcnt_t port_rt_get_counter_value(void) {
-  struct timeval tv;
+  struct timespec ts;
 
-  gettimeofday(&tv, NULL);
-  return ((rtcnt_t)tv.tv_sec * (rtcnt_t)1000000) + (rtcnt_t)tv.tv_usec;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+    abort();
+  }
+
+  return ((rtcnt_t)ts.tv_sec * (rtcnt_t)1000000) +
+         (rtcnt_t)(ts.tv_nsec / 1000L);
 }
 
 /** @} */

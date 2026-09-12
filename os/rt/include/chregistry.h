@@ -47,6 +47,9 @@
 
 /**
  * @brief   ChibiOS/RT memory signature record.
+ * @note    The legacy names @p off_newer, @p off_older and @p off_stklimit
+ *          are retained for debugger compatibility. They contain the offsets
+ *          of @p rqueue.next, @p rqueue.prev and @p wabase respectively.
  */
 typedef struct {
   char      identifier[4];          /**< @brief Always set to "main".       */
@@ -128,6 +131,11 @@ extern "C" {
   thread_t *chRegNextThread(thread_t *tp);
   thread_t *chRegFindThreadByName(const char *name);
   thread_t *chRegFindThreadByPointer(thread_t *tp);
+#if (CH_DBG_ENABLE_ASSERTS == TRUE) || defined(__DOXYGEN__)
+  bool __reg_is_thread_area_in_use_i(const thread_t *tp,
+                                     const stkline_t *wbase,
+                                     const stkline_t *wend);
+#endif
   bool chRegIsWorkingAreaInUseI(stkline_t *wa);
   thread_t *chRegFindThreadByWorkingArea(stkline_t *wa);
 #ifdef __cplusplus

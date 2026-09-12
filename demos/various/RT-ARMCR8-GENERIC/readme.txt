@@ -18,7 +18,5 @@ Run make from this directory.
 
 ** Notes **
 
-The RTOS-related Makefile includes and main.c code are intentionally commented
-out until the ARMv7-R port is available. The generic linker script can be
-overridden by defining FLASH_ORIGIN, FLASH_LEN, RAM_ORIGIN and RAM_LEN from
-the Makefile or command line.
+The generic linker script can be overridden by defining FLASH_ORIGIN,
+FLASH_LEN, RAM_ORIGIN and RAM_LEN from the Makefile or command line.

@@ -425,7 +425,8 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
 
   /* Waiting for all enabled clocks to become stable.*/
   wtmask = (ccp->rcc_cr & (RCC_CR_HSEON | RCC_CR_HSI48ON | RCC_CR_CSION)) << 1;
-  if (halRegWaitAllSet32X(&RCC->CR, wtmask, STM32_OSCILLATORS_STARTUP_TIME, NULL)) {
+  if (halRegWaitAllSet32X(&RCC->CR, wtmask,
+                          STM32_CFG_OSCILLATORS_STARTUP_TIME, NULL)) {
     return true;
   }
 
@@ -1043,7 +1044,6 @@ void stm32_clock_init(void) {
   /* Switching to the configured SYSCLK source if it is different from HSI.*/
 #if STM32_SW != RCC_CFGR1_SW_HSI
   RCC->CFGR1 |= STM32_SW;       /* Switches on the selected clock source.   */
-//  while(1);
   while ((RCC->CFGR1 & RCC_CFGR1_SWS_Msk) != (STM32_SW << RCC_CFGR1_SWS_Pos)) {
     /* Wait until SYSCLK is stable.*/
   }

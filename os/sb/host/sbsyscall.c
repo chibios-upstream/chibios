@@ -926,6 +926,10 @@ void __sb_abort(msg_t msg) {
 #if CH_CFG_USE_EVENTS == TRUE
   chEvtBroadcastI(&sb.termination_es);
 #endif
+#if CH_CFG_USE_MESSAGES == TRUE
+  sbp->base.msg_tp = NULL;
+  chMsgReleaseAllI();
+#endif
   chThdExitS(msg);
   chSysHalt("zombies");
 }

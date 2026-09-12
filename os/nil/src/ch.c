@@ -830,6 +830,10 @@ thread_t *chThdCreate(const thread_descriptor_t *tdp) {
  *          this function never returns. The compiler has no way to
  *          know this so do not assume that the compiler would remove
  *          the dead code.
+ * @pre     If events are enabled then listeners registered by the invoking
+ *          thread must be unregistered before exit, unless their event
+ *          sources, listener storage, and the thread object are kept valid
+ *          until another thread unregisters them.
  *
  * @param[in] msg       thread exit code
  *
@@ -1013,8 +1017,8 @@ void chThdSleepUntil(systime_t abstime) {
  *                      handled as follows:
  *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
- * @return              The message from @p osalQueueWakeupOneI() or
- *                      @p osalQueueWakeupAllI() functions.
+ * @return              The message passed to @p chThdDequeueNextI() or
+ *                      @p chThdDequeueAllI().
  * @retval MSG_TIMEOUT  if the thread has not been dequeued within the
  *                      specified timeout or if the function has been
  *                      invoked with @p TIME_IMMEDIATE as timeout

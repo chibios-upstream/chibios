@@ -51,10 +51,15 @@
 
 /**
  * @brief   Type of a kernel statistics structure.
+ * @note    The event counters are modular and wrap on overflow. Long-running
+ *          monitoring must periodically snapshot them and account for wrap,
+ *          or reset the statistics while synchronized with all writers.
  */
 typedef struct {
-  ucnt_t                n_irq;      /**< @brief Number of IRQs.             */
-  ucnt_t                n_ctxswc;   /**< @brief Number of context switches. */
+  ucnt_t                n_irq;      /**< @brief Number of IRQs, wraps on
+                                                overflow.                   */
+  ucnt_t                n_ctxswc;   /**< @brief Number of context switches,
+                                                wraps on overflow.          */
   time_measurement_t    m_crit_thd; /**< @brief Measurement of threads
                                                 critical zones duration.    */
   time_measurement_t    m_crit_isr; /**< @brief Measurement of ISRs critical
@@ -72,7 +77,6 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-  void __stats_init(void);
   void __stats_increase_irq(void);
   void __stats_ctxswc(thread_t *ntp, thread_t *otp);
   void __stats_start_measure_crit_thd(void);

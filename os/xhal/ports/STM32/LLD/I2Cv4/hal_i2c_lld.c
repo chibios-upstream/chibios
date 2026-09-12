@@ -36,6 +36,8 @@
 #define STM32_I2C_I2C2_DMA_CHANNEL          STM32_I2C_I2C2_DMA3_CHANNEL
 #define STM32_I2C_I2C3_DMA_CHANNEL          STM32_I2C_I2C3_DMA3_CHANNEL
 #define STM32_I2C_I2C4_DMA_CHANNEL          STM32_I2C_I2C4_DMA3_CHANNEL
+#define STM32_I2C_I2C5_DMA_CHANNEL          STM32_I2C_I2C5_DMA3_CHANNEL
+#define STM32_I2C_I2C6_DMA_CHANNEL          STM32_I2C_I2C6_DMA3_CHANNEL
 #endif
 
 /* Common GPDMA CR settings.*/
@@ -58,6 +60,21 @@
 /*===========================================================================*/
 /* Driver constants.                                                         */
 /*===========================================================================*/
+
+/* Devices without SMBus support (STM32U0xx) do not define the SMBus
+   related flags; defining them as zero allows the related error paths
+   to be compiled out.*/
+#if !defined(I2C_ISR_PECERR)
+#define I2C_ISR_PECERR      0U
+#endif
+
+#if !defined(I2C_ISR_TIMEOUT)
+#define I2C_ISR_TIMEOUT     0U
+#endif
+
+#if !defined(I2C_ISR_ALERT)
+#define I2C_ISR_ALERT       0U
+#endif
 
 #define I2C_ERROR_MASK                                                      \
   ((uint32_t)(I2C_ISR_BERR | I2C_ISR_ARLO | I2C_ISR_OVR | I2C_ISR_PECERR |  \
@@ -91,6 +108,16 @@ hal_i2c_driver_c I2CD3;
 /** @brief I2C4 driver identifier.*/
 #if STM32_I2C_USE_I2C4 || defined(__DOXYGEN__)
 hal_i2c_driver_c I2CD4;
+#endif
+
+/** @brief I2C5 driver identifier.*/
+#if STM32_I2C_USE_I2C5 || defined(__DOXYGEN__)
+hal_i2c_driver_c I2CD5;
+#endif
+
+/** @brief I2C6 driver identifier.*/
+#if STM32_I2C_USE_I2C6 || defined(__DOXYGEN__)
+hal_i2c_driver_c I2CD6;
 #endif
 
 /*===========================================================================*/
@@ -543,6 +570,38 @@ void i2c_lld_init(void) {
 #endif
 #endif /* STM32_I2C_USE_DMA == TRUE */
 #endif /* STM32_I2C_USE_I2C4 */
+
+#if STM32_I2C_USE_I2C5
+  i2cObjectInit(&I2CD5);
+  I2CD5.i2c    = I2C5;
+#if STM32_I2C_USE_DMA == TRUE
+  I2CD5.dma    = NULL;
+  I2CD5.dprio  = STM32_I2C_I2C5_DMA_PRIORITY;
+#if defined(STM32_DMA3_PRESENT)
+  I2CD5.dreqtx = STM32_DMA3_REQ_I2C5_TX;
+  I2CD5.dreqrx = STM32_DMA3_REQ_I2C5_RX;
+#else /* Assuming old DMAs.*/
+  I2CD5.dreqtx = STM32_DMAMUX1_I2C5_TX;
+  I2CD5.dreqrx = STM32_DMAMUX1_I2C5_RX;
+#endif
+#endif /* STM32_I2C_USE_DMA == TRUE */
+#endif /* STM32_I2C_USE_I2C5 */
+
+#if STM32_I2C_USE_I2C6
+  i2cObjectInit(&I2CD6);
+  I2CD6.i2c    = I2C6;
+#if STM32_I2C_USE_DMA == TRUE
+  I2CD6.dma    = NULL;
+  I2CD6.dprio  = STM32_I2C_I2C6_DMA_PRIORITY;
+#if defined(STM32_DMA3_PRESENT)
+  I2CD6.dreqtx = STM32_DMA3_REQ_I2C6_TX;
+  I2CD6.dreqrx = STM32_DMA3_REQ_I2C6_RX;
+#else /* Assuming old DMAs.*/
+  I2CD6.dreqtx = STM32_DMAMUX1_I2C6_TX;
+  I2CD6.dreqrx = STM32_DMAMUX1_I2C6_RX;
+#endif
+#endif /* STM32_I2C_USE_DMA == TRUE */
+#endif /* STM32_I2C_USE_I2C6 */
 }
 
 /**
@@ -631,6 +690,36 @@ msg_t i2c_lld_start(hal_i2c_driver_c *i2cp) {
 #endif
     }
 #endif /* STM32_I2C_USE_I2C4 */
+
+#if STM32_I2C_USE_I2C5
+    if (&I2CD5 == i2cp) {
+
+      rccResetI2C5();
+      rccEnableI2C5(true);
+
+#if STM32_I2C_USE_DMA == TRUE
+      i2c_dma_alloc(i2cp, STM32_I2C_I2C5_DMA_CHANNEL, STM32_IRQ_I2C5_PRIORITY);
+      if (i2cp->dma == NULL) {
+        return HAL_RET_NO_RESOURCE;
+      }
+#endif
+    }
+#endif /* STM32_I2C_USE_I2C5 */
+
+#if STM32_I2C_USE_I2C6
+    if (&I2CD6 == i2cp) {
+
+      rccResetI2C6();
+      rccEnableI2C6(true);
+
+#if STM32_I2C_USE_DMA == TRUE
+      i2c_dma_alloc(i2cp, STM32_I2C_I2C6_DMA_CHANNEL, STM32_IRQ_I2C6_PRIORITY);
+      if (i2cp->dma == NULL) {
+        return HAL_RET_NO_RESOURCE;
+      }
+#endif
+    }
+#endif /* STM32_I2C_USE_I2C6 */
   }
 
   /* Reset i2c peripheral, the TCIE bit will be handled separately.*/
@@ -692,6 +781,20 @@ void i2c_lld_stop(hal_i2c_driver_c *i2cp) {
     if (&I2CD4 == i2cp) {
 
       rccDisableI2C4();
+    }
+#endif
+
+#if STM32_I2C_USE_I2C5
+    if (&I2CD5 == i2cp) {
+
+      rccDisableI2C5();
+    }
+#endif
+
+#if STM32_I2C_USE_I2C6
+    if (&I2CD6 == i2cp) {
+
+      rccDisableI2C6();
     }
 #endif
   }

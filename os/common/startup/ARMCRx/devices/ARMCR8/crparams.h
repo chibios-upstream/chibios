@@ -32,73 +32,54 @@
 #define CORTEX_MODEL            8
 
 /**
+ * @brief   Vector Base Address Register presence.
+ */
+#define CORTEX_HAS_VBAR         0
+
+/**
  * @brief   Floating Point unit presence.
  */
-#if !defined(ARMCR8_HAS_FPU) || defined(__DOXYGEN__)
-#define ARMCR8_HAS_FPU          0
-#endif
-
-#define CORTEX_HAS_FPU          ARMCR8_HAS_FPU
+#define CORTEX_HAS_FPU          1
 
 /**
  * @brief   Generic Interrupt Controller presence.
  */
-#if !defined(ARMCR8_HAS_GIC) || defined(__DOXYGEN__)
-#define ARMCR8_HAS_GIC          0
-#endif
+#define CORTEX_HAS_GIC          0
 
 /**
  * @brief   Vectored Interrupt Controller presence.
  */
-#if !defined(ARMCR8_HAS_VIC) || defined(__DOXYGEN__)
-#define ARMCR8_HAS_VIC          0
-#endif
+#define CORTEX_HAS_VIC          0
 
 /**
  * @brief   MPU presence.
  */
-#if !defined(ARMCR8_HAS_MPU) || defined(__DOXYGEN__)
-#define ARMCR8_HAS_MPU          0
-#endif
-
-#define CORTEX_HAS_MPU          ARMCR8_HAS_MPU
+#define CORTEX_HAS_MPU          0
 
 /**
  * @brief   Number of MPU regions.
  */
-#if !defined(ARMCR8_MPU_REGIONS) || defined(__DOXYGEN__)
-#define ARMCR8_MPU_REGIONS      24
-#endif
-
-#define CORTEX_MPU_REGIONS      ARMCR8_MPU_REGIONS
+#define CORTEX_MPU_REGIONS      24
 
 /**
  * @brief   Instruction cache presence.
  */
-#if !defined(ARMCR8_HAS_ICACHE) || defined(__DOXYGEN__)
-#define ARMCR8_HAS_ICACHE       0
-#endif
+#define CORTEX_HAS_ICACHE       0
 
 /**
  * @brief   Data cache presence.
  */
-#if !defined(ARMCR8_HAS_DCACHE) || defined(__DOXYGEN__)
-#define ARMCR8_HAS_DCACHE       0
-#endif
+#define CORTEX_HAS_DCACHE       0
 
 /**
  * @brief   DTCM presence.
  */
-#if !defined(ARMCR8_HAS_DTCM) || defined(__DOXYGEN__)
-#define ARMCR8_HAS_DTCM         0
-#endif
+#define CORTEX_HAS_DTCM         0
 
 /**
  * @brief   ECC presence.
  */
-#if !defined(ARMCR8_HAS_ECC) || defined(__DOXYGEN__)
-#define ARMCR8_HAS_ECC          0
-#endif
+#define CORTEX_HAS_ECC          0
 
 #endif /* CRPARAMS_H */
 

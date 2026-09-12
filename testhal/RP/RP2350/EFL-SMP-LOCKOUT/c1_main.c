@@ -30,6 +30,8 @@ void c1_main(void) {
    * system initialization on the other side.
    */
   chSysWaitSystemState(ch_sys_running);
+  while (c0_delay_armed == 0U) {
+  }
   chInstanceObjectInit(&ch1, &ch_core1_cfg);
 
   /* It is alive now.*/

@@ -471,6 +471,7 @@ extern "C" {
   osThreadId osThreadCreate(const osThreadDef_t *thread_def, void *argument);
   osStatus osThreadTerminate(osThreadId thread_id);
   osStatus osThreadSetPriority(osThreadId thread_id, osPriority newprio);
+  osPriority osThreadGetPriority(osThreadId thread_id);
   /*osEvent osWait(uint32_t millisec);*/
   osTimerId osTimerCreate(const osTimerDef_t *timer_def,
                           os_timer_type type,
@@ -548,14 +549,6 @@ static inline osStatus osThreadYield(void) {
   chThdYield();
 
   return osOK;
-}
-
-/**
- * @brief   Returns priority of a thread.
- */
-static inline osPriority osThreadGetPriority(osThreadId thread_id) {
-
-  return (osPriority)(NORMALPRIO - thread_id->hdr.pqueue.prio);
 }
 
 /**

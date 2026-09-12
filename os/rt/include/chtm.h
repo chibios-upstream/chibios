@@ -74,12 +74,22 @@ typedef struct {
  *          of few cycles depending on the compiler and target architecture.
  * @note    Interrupts can affect measurement if the measurement is performed
  *          with interrupts enabled.
+ * @note    On SMP systems, cross-core measurements require realtime counters
+ *          coherent across all cores. A shared coherent hardware counter is
+ *          the preferred port implementation. With non-coherent per-core
+ *          counters, each measured segment must begin and end, by stopping or
+ *          chaining, on the same core.
+ * @note    The measurements counter @p n is modular and wraps on overflow.
+ *          Long-running users requiring valid averages must periodically
+ *          snapshot and reinitialize the object before this occurs. Such
+ *          operations must be synchronized with measurement updates.
  */
 typedef struct {
   rtcnt_t               best;           /**< @brief Best measurement.       */
   rtcnt_t               worst;          /**< @brief Worst measurement.      */
   rtcnt_t               last;           /**< @brief Last measurement.       */
-  ucnt_t                n;              /**< @brief Number of measurements. */
+  ucnt_t                n;              /**< @brief Number of measurements,
+                                                wraps on overflow.          */
   rttime_t              cumulative;     /**< @brief Cumulative measurement. */
 } time_measurement_t;
 
@@ -94,6 +104,7 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
+  void __tm_calibration_object_init(os_instance_t *oip);
   void chTMObjectInit(time_measurement_t *tmp);
   void chTMObjectDispose(time_measurement_t *tmp);
   NOINLINE void chTMStartMeasurementX(time_measurement_t *tmp);
@@ -103,36 +114,6 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-/*===========================================================================*/
-/* Module inline functions.                                                  */
-/*===========================================================================*/
-
-/**
- * @brief   Time measurement initialization.
- * @note    Internal use only.
- *
- * @param[out] tcp      pointer to a @p tm_calibration_t object
- *
- * @notapi
- */
-static inline void __tm_calibration_object_init(tm_calibration_t *tcp) {
-  unsigned i;
-  time_measurement_t tm;
-
-  /* Time Measurement subsystem calibration, it does a null measurement
-     and calculates the call overhead which is subtracted to real
-     measurements.*/
-  tcp->offset = (rtcnt_t)0;
-  chTMObjectInit(&tm);
-  i = TM_CALIBRATION_LOOP;
-  do {
-    chTMStartMeasurementX(&tm);
-    chTMStopMeasurementX(&tm);
-    i--;
-  } while (i > 0U);
-  tcp->offset = tm.best;
-}
 
 #endif /* CH_CFG_USE_TM == TRUE */
 

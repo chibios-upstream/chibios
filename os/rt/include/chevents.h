@@ -109,7 +109,7 @@ typedef void (*evhandler_t)(eventid_t id);
 /**
  * @brief   Static event source initializer.
  * @details Statically initialized event sources require no explicit
- *          initialization using @p chEvtInit().
+ *          initialization using @p chEvtObjectInit().
  *
  * @param name          the name of the event source variable
  */
@@ -173,6 +173,14 @@ extern "C" {
  *          will be notified of all events broadcasted there.
  * @note    Multiple Event Listeners can specify the same bits to be ORed to
  *          different threads.
+ * @note    The event source and listener are borrowed by the registration
+ *          and must remain valid until the listener is unregistered.
+ * @note    This function does not acquire a reference to the listening
+ *          thread. The registrant is responsible for keeping the thread
+ *          object valid while the listener is registered, acquiring a
+ *          reference if required.
+ * @pre     The event listener must not already be registered on any event
+ *          source.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[out] elp      pointer to an @p event_listener_t structure
@@ -192,6 +200,14 @@ static inline void chEvtRegisterMask(event_source_t *esp,
  * @brief   Registers an Event Listener on an Event Source.
  * @note    Multiple Event Listeners can use the same event identifier, the
  *          listener will share the callback function.
+ * @note    The event source and listener are borrowed by the registration
+ *          and must remain valid until the listener is unregistered.
+ * @note    This function does not acquire a reference to the listening
+ *          thread. The registrant is responsible for keeping the thread
+ *          object valid while the listener is registered, acquiring a
+ *          reference if required.
+ * @pre     The event listener must not already be registered on any event
+ *          source.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[out] elp      pointer to an @p event_listener_t structure
@@ -205,6 +221,9 @@ static inline void chEvtRegister(event_source_t *esp,
                                  event_listener_t *elp,
                                  eventid_t event) {
 
+  chDbgCheck((event >= (eventid_t)0) &&
+             (event < (eventid_t)(sizeof (eventmask_t) * 8U)));
+
   chEvtRegisterMask(esp, elp, EVENT_MASK(event));
 }
 
@@ -217,6 +236,9 @@ static inline void chEvtRegister(event_source_t *esp,
  * @iclass
  */
 static inline bool chEvtIsListeningI(event_source_t *esp) {
+
+  chDbgCheckClassI();
+  chDbgCheck(esp != NULL);
 
   return (bool)(esp != (event_source_t *)esp->next);
 }
@@ -262,20 +284,26 @@ static inline void chEvtBroadcastI(event_source_t *esp) {
  */
 static inline eventmask_t chEvtAddEventsI(eventmask_t events) {
 
+  chDbgCheckClassI();
+
   return __sch_get_currthread()->epending |= events;
 }
 
 /**
  * @brief   Returns the events mask.
  * @details The pending events mask is returned but not altered in any way.
+ * @note    The events mask is read through a volatile-qualified access
+ *          because it can be modified by another core.
  *
  * @return              The pending events mask.
  *
- * @api
+ * @xclass
  */
 static inline eventmask_t chEvtGetEventsX(void) {
+  const volatile eventmask_t *eventsp =
+    &__sch_get_currthread()->epending;
 
-  return __sch_get_currthread()->epending;
+  return *eventsp;
 }
 
 #endif /* CH_CFG_USE_EVENTS == TRUE */

@@ -68,7 +68,7 @@ static const flash_descriptor_t efl_lld_descriptor = {
                       STM32_FLASH_SECTORS_PER_BANK,
  .sectors           = NULL,
  .sectors_size      = STM32_FLASH_SECTOR_SIZE,
- .address           = (uint8_t *)0x08000000U,
+ .address           = (uint8_t *)FLASH_BASE,
  .size              = STM32_FLASH_NUMBER_OF_BANKS *
                       STM32_FLASH_SECTORS_PER_BANK *
                       STM32_FLASH_SECTOR_SIZE

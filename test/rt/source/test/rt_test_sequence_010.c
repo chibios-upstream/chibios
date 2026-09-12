@@ -48,9 +48,9 @@
 
 #if (CH_CFG_USE_EVENTS == TRUE) || defined(__DOXYGEN__)
 
-/****************************************************************************
- * Shared code.
- ****************************************************************************/
+/*===========================================================================*/
+/* Shared code.                                                              */
+/*===========================================================================*/
 
 static EVENTSOURCE_DECL(es1);
 static EVENTSOURCE_DECL(es2);
@@ -74,9 +74,9 @@ static THD_FUNCTION(evt_thread7, p) {
   chEvtBroadcast(&es2);
 }
 
-/****************************************************************************
- * Test cases.
- ****************************************************************************/
+/*===========================================================================*/
+/* Test cases.                                                               */
+/*===========================================================================*/
 
 /**
  * @page rt_test_010_001 [10.1] Events registration
@@ -690,8 +690,8 @@ static void rt_test_010_008_execute(void) {
   {
     chEvtUnregister(&es1, &el1);
     chEvtUnregister(&es2, &el2);
-    test_assert(!chEvtIsListeningI(&es1), "stuck listener");
-    test_assert(!chEvtIsListeningI(&es2), "stuck listener");
+    test_assert_lock(!chEvtIsListeningI(&es1), "stuck listener");
+    test_assert_lock(!chEvtIsListeningI(&es2), "stuck listener");
   }
   test_end_step(4);
 }
@@ -703,9 +703,9 @@ static const testcase_t rt_test_010_008 = {
   rt_test_010_008_execute
 };
 
-/****************************************************************************
- * Exported data.
- ****************************************************************************/
+/*===========================================================================*/
+/* Exported data.                                                            */
+/*===========================================================================*/
 
 /**
  * @brief   Array of test cases.

@@ -38,6 +38,7 @@
  * HAL driver general settings.
  */
 #define STM32_NO_INIT                       FALSE
+#define STM32_CFG_OSCILLATORS_STARTUP_TIME STM32_OSCILLATORS_STARTUP_TIME
 #define STM32_CLOCK_DYNAMIC                 FALSE
 
 /*
@@ -183,10 +184,15 @@
  * SPI driver system settings.
  */
 #define STM32_SPI_USE_SPI1                  FALSE
+#define STM32_SPI_USE_SPI2                  FALSE
 #define STM32_SPI_SPI1_RX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_SPI_SPI1_TX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
+#define STM32_SPI_SPI2_RX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
+#define STM32_SPI_SPI2_TX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
+#define STM32_SPI_SPI2_DMA_PRIORITY         1
 #define STM32_SPI_SPI1_IRQ_PRIORITY         2
+#define STM32_SPI_SPI2_IRQ_PRIORITY         2
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      osalSysHalt("DMA failure")
 
 /*
@@ -194,6 +200,7 @@
  */
 #define STM32_ST_IRQ_PRIORITY               2
 #define STM32_ST_USE_TIMER                  16
+#define STM32_ST_FREQUENCY_TOLERANCE        0
 
 /*
  * UART driver system settings.

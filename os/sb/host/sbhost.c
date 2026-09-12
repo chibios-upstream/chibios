@@ -982,18 +982,23 @@ msg_t sbSendMessageTimeout(sb_class_t *sbp,
 
   chSysLock();
 
+  if (unlikely(sbp->thread.state == CH_STATE_FINAL)) {
+    chSysUnlock();
+    return MSG_RESET;
+  }
+
   /* Sending the message.*/
   ctp->sentmsg = msg;
+  ctp->u.wtobjp = (void *)&sbp->thread.msgqueue;
   __ch_msg_insert(&sbp->thread.msgqueue, ctp);
   if (sbp->thread.state == CH_STATE_WTMSG) {
     (void) chSchReadyI(&sbp->thread);
   }
   msg = chSchGoSleepTimeoutS(CH_STATE_SNDMSGQ, timeout);
 
-  /* If a timeout occurred while the boxed thread already received the message
-     then this thread needs to "unregister" as sender, the boxed error will
-     get SB_ERR_EBUSY when/if trying to reply.*/
-  if ((msg == MSG_TIMEOUT) && (sbp->base.msg_tp == ctp)) {
+  /* Unregistering the sender if the exchange ended without a reply path
+     clearing it first.*/
+  if (sbp->base.msg_tp == ctp) {
     sbp->base.msg_tp = NULL;
   }
 

@@ -18,10 +18,10 @@
  * @file    rt/templates/chconf.h
  * @brief   Configuration file template.
  * @details A copy of this file must be placed in each project directory, it
- *          contains the application specific kernel settings.
+ *          contains the application-specific kernel settings.
  *
  * @addtogroup config
- * @details Kernel related settings and hooks.
+ * @details Kernel-related settings and hooks.
  * @{
  */
 
@@ -41,7 +41,7 @@
 /**
  * @brief   Handling of instances.
  * @note    If enabled then threads assigned to various instances can
- *          interact each other using the same synchronization objects.
+ *          interact with each other using the same synchronization objects.
  *          If disabled then each OS instance is a separate world, no
  *          direct interactions are handled by the OS.
  */
@@ -50,13 +50,32 @@
 #endif
 
 /**
+ * @brief   Runtime Faults Collection Unit.
+ * @details If enabled then detected runtime faults are collected and made
+ *          available to the application.
+ * @note    The default is @p TRUE.
+ */
+#if !defined(CH_CFG_USE_RFCU)
+#define CH_CFG_USE_RFCU                     TRUE
+#endif
+
+/**
  * @brief   Kernel hardening level.
- * @details This option is the level of functional-safety checks enabled
- *          in the kerkel. The meaning is:
- *          - 0: No checks, maximum performance.
- *          - 1: Reasonable checks.
- *          - 2: All checks.
+ * @details The automatic hardening levels are cumulative:
+ *          - 0: No automatic hardening checks or object clearing.
+ *          - 1: Object integrity checks and clearing on disposal.
+ *          - 2: Also checks consistency of forward/backward link pairs during
+ *               insertion into ready lists and priority-ordered wait queues.
+ *          - 3: Also validates pointers before dereferencing them during
+ *               these insertions (NULL and alignment checks by default).
  *          .
+ * @note    @p CH_DBG_ENABLE_ASSERTS also enables level-0/1/2 checks,
+ *          including disposal list/queue checks, independently of this
+ *          setting. It does not enable level-3 checks or object clearing
+ *          at level 0.
+ * @note    Explicit @p chSftIntegrityCheckI() scans are available at all
+ *          levels. Their link-consistency checks always execute; pointer
+ *          validation requires level 2 or higher, or enabled debug assertions.
  */
 #if !defined(CH_CFG_HARDENING_LEVEL)
 #define CH_CFG_HARDENING_LEVEL              0
@@ -85,6 +104,8 @@
  * @brief   System tick frequency.
  * @details Frequency of the system timer that drives the system ticks. This
  *          setting also defines the system tick time unit.
+ * @note    This must be a frequency that is obtainable from the system tick
+ *          timer frequency.
  * @note    MTIME runs at 1 MHz.
  */
 #if !defined(CH_CFG_ST_FREQUENCY)
@@ -630,6 +651,7 @@
  * @brief   Trace buffer entries.
  * @note    The trace buffer is only allocated if @p CH_DBG_TRACE_MASK is
  *          different from @p CH_DBG_TRACE_MASK_DISABLED.
+ * @note    The allowed range is 1..65535 when the trace buffer is enabled.
  */
 #if !defined(CH_DBG_TRACE_BUFFER_SIZE)
 #define CH_DBG_TRACE_BUFFER_SIZE            128
@@ -664,7 +686,7 @@
 /**
  * @brief   Debug option, threads profiling.
  * @details If enabled then a field is added to the @p thread_t structure that
- *          counts the system ticks occurred while executing the thread.
+ *          counts the system ticks that occurred while executing the thread.
  *
  * @note    The default is @p FALSE.
  * @note    This debug option is not currently compatible with the
@@ -691,9 +713,14 @@
   /* Add system custom fields here.*/
 
 /**
- * @brief   System initialization hook.
- * @details User initialization code added to the @p chSysInit() function
- *          just before interrupts are enabled globally.
+ * @brief   System extra fields initialization hook.
+ * @details Initializes the fields added to @p ch_system_t by
+ *          @p CH_CFG_SYSTEM_EXTRA_FIELDS. Invoked by @p chSysInit() before
+ *          the OS library and the default OS instance are initialized.
+ * @note    Runs with interrupts disabled and no current OS instance. In SMP
+ *          mode the shared kernel lock has not yet been acquired.
+ * @note    Must preserve the interrupt and lock state and must not use
+ *          services requiring an initialized OS instance or OS library.
  */
 #define CH_CFG_SYSTEM_INIT_HOOK() do {                                      \
   /* Add system initialization code here.*/                                 \
@@ -707,7 +734,15 @@
   /* Add OS instance custom fields here.*/
 
 /**
- * @brief   OS instance initialization hook.
+ * @brief   OS instance extra fields initialization hook.
+ * @details Initializes the fields added to @p os_instance_t by
+ *          @p CH_CFG_OS_INSTANCE_EXTRA_FIELDS. Invoked by
+ *          @p chInstanceObjectInit() after the local kernel objects and the
+ *          current thread are initialized, before creating a separate idle
+ *          thread, if configured.
+ * @note    Runs on the instance's core in the initial I-Lock state. Must
+ *          preserve the interrupt and lock state and must not make threads
+ *          ready or invoke the scheduler while initialization is incomplete.
  *
  * @param[in] oip       pointer to the @p os_instance_t structure
  */
@@ -723,11 +758,14 @@
   /* Add threads custom fields here.*/
 
 /**
- * @brief   Threads initialization hook.
- * @details User initialization code added to the @p _thread_init() function.
- *
- * @note    It is invoked from within @p _thread_init() and implicitly from all
- *          the threads creation APIs.
+ * @brief   Thread extra fields initialization hook.
+ * @details Initializes the fields added to @p thread_t by
+ *          @p CH_CFG_THREAD_EXTRA_FIELDS. Invoked by @p chThdObjectInit(),
+ *          including during system initialization and thread creation.
+ * @note    Inherits the caller's context and lock state. During system
+ *          initialization the current thread may not yet be established.
+ * @note    Must preserve the interrupt and lock state and must not make
+ *          threads ready or invoke the scheduler.
  *
  * @param[in] tp        pointer to the @p thread_t structure
  */
@@ -748,6 +786,10 @@
 /**
  * @brief   Context switch hook.
  * @details This hook is invoked just before switching between threads.
+ *          It is intended for bounded bookkeeping or instrumentation.
+ * @note    Runs with the kernel locked, after the scheduler has selected
+ *          the next thread. Must preserve the interrupt and lock state and
+ *          must not change runnable state or invoke the scheduler.
  *
  * @param[in] ntp       thread being switched in
  * @param[in] otp       thread being switched out
@@ -758,6 +800,10 @@
 
 /**
  * @brief   ISR enter hook.
+ * @details Invoked after the ISR trace entry and debug state setup.
+ * @note    This hook runs in ISR context outside the kernel lock. I-class
+ *          APIs require a balanced @p chSysLockFromISR() and
+ *          @p chSysUnlockFromISR() pair. The hook must return unlocked.
  */
 #define CH_CFG_IRQ_PROLOGUE_HOOK() do {                                     \
   /* IRQ prologue code here.*/                                              \
@@ -765,6 +811,10 @@
 
 /**
  * @brief   ISR exit hook.
+ * @details Invoked before the debug state teardown and ISR trace exit.
+ * @note    This hook runs in ISR context outside the kernel lock. I-class
+ *          APIs require a balanced @p chSysLockFromISR() and
+ *          @p chSysUnlockFromISR() pair. The hook must return unlocked.
  */
 #define CH_CFG_IRQ_EPILOGUE_HOOK() do {                                     \
   /* IRQ epilogue code here.*/                                              \
@@ -818,8 +868,28 @@
 
 /**
  * @brief   Trace hook.
- * @details This hook is invoked each time a new record is written in the
- *          trace buffer.
+ * @details Invoked synchronously on the reporting core after the record fields
+ *          and timestamps are written, before the next-slot pointer advances.
+ *          It can run in thread or ISR context, during initialization and on
+ *          halt paths, including inside scheduler operations.
+ * @note    This is not a general I-class callback. IRQ tracing holds the port
+ *          lock but runs before ISR debug-state setup or after its teardown.
+ *          Halt tracing disables local interrupts but need not hold the shared
+ *          SMP kernel lock.
+ * @note    The hook must be bounded and nonblocking, preserve interrupt and
+ *          lock state, and must not acquire or release kernel locks, reschedule,
+ *          wake threads, or modify kernel objects or the trace buffer.
+ * @note    The record pointer is borrowed for this call. Copy needed fields to
+ *          application-owned storage and defer processing to a suitable context;
+ *          retaining the pointer does not preserve the record against overwrite.
+ * @note    Hook-owned storage must be initialized before the first possible
+ *          record. Application initialization and current-thread setup need not
+ *          be complete then. Shared storage must account for concurrent SMP
+ *          halt reporting without the shared kernel lock.
+ * @warning Direct or indirect tracing from the hook invokes it recursively
+ *          and must be avoided.
+ *
+ * @param[in] tep       pointer to the completed record, read-only for the hook
  */
 #define CH_CFG_TRACE_HOOK(tep) do {                                         \
   /* Trace code here.*/                                                     \
@@ -827,7 +897,22 @@
 
 /**
  * @brief   Runtime Faults Collection Unit hook.
- * @details This hook is invoked each time new faults are collected and stored.
+ * @details Invoked synchronously after storing fault flags, on the reporting
+ *          core with the caller's kernel lock still held. It can run in thread
+ *          or ISR context, including during kernel updates that are not
+ *          general callback boundaries. In SMP the common kernel lock is held.
+ *          Every collection invokes the hook, including repeated flags and
+ *          a zero mask; pending fault flags coalesce repeated occurrences.
+ * @note    The hook must be bounded and nonblocking, preserve interrupt and
+ *          lock state, and must not reschedule, wake threads, or modify timer
+ *          lists or other kernel objects. Use application-owned storage to
+ *          record information and defer processing to a suitable context.
+ * @note    Hook-owned storage must be initialized before the first possible
+ *          collection; application initialization need not be complete then.
+ * @warning Collecting faults from the hook invokes it recursively and must
+ *          be avoided.
+ *
+ * @param[in] mask      supplied fault flags, not just newly set bits
  */
 #define CH_CFG_RUNTIME_FAULTS_HOOK(mask) do {                               \
   /* Faults handling code here.*/                                           \
@@ -835,8 +920,29 @@
 
 /**
  * @brief   Safety checks hook.
- * @details This hook is invoked when there is a safety violation and the
- *          system is going to stop.
+ * @details Invoked synchronously in the detecting caller's context when an
+ *          enabled @p chSftAssert() check fails. This hook supplies the entire
+ *          failure action; the default calls @p chSysHalt().
+ * @note    The hook can run in thread or ISR context, inside kernel updates
+ *          or without a kernel lock, and during initialization. It is not a
+ *          general I-class callback.
+ * @note    Kernel objects may already be inconsistent. Diagnostic work before
+ *          stopping must be bounded and nonblocking, and must not lock or
+ *          unlock the kernel, reschedule, wake threads, or manipulate kernel
+ *          objects. Avoid triggering further checks from the hook.
+ * @note    Hook-owned diagnostic storage must be initialized before the first
+ *          possible failure. Application initialization need not be complete
+ *          then. In SMP, shared storage must not assume that the common
+ *          kernel lock is held.
+ * @note    The function name can identify a shared checking helper rather
+ *          than its caller. The assertion's remark string is not passed.
+ * @warning A replacement hook must stop execution without returning to the
+ *          failed operation, for example by calling @p chSysHalt(). There is
+ *          no implicit halt after the hook; continuing can dereference an
+ *          invalid pointer or modify inconsistent data.
+ *
+ * @param[in] l         failed check level, not the configured hardening level
+ * @param[in] f         detecting function's name, supplied through __func__
  */
 #define CH_CFG_SAFETY_CHECK_HOOK(l, f) do {                                 \
   /* Safety handling code here.*/                                           \

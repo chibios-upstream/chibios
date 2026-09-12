@@ -233,6 +233,9 @@ __STATIC_INLINE void dmaChannelSetDestinationX(const rp_dma_channel_t *dmachp,
 
 /**
  * @brief   Setup of the DMA transfer counter.
+ * @note    The value is the RELOAD value: it is copied into the live
+ *          transfer counter each time the channel is triggered, it does
+ *          not affect a sequence already in progress.
  * @note    On the RP2350 the @p TRANS_COUNT bits [31:28] are the count MODE
  *          field (NORMAL, TRIGGER_SELF, ENDLESS), the count is limited to
  *          28 bits and the mode is enforced to NORMAL so that an oversized
@@ -255,6 +258,31 @@ __STATIC_INLINE void dmaChannelSetCounterX(const rp_dma_channel_t *dmachp,
                                  DMA_TRANS_COUNT_MODE_NORMAL;
 #else
   dmachp->channel->TRANS_COUNT = n;
+#endif
+}
+
+/**
+ * @brief   Returns the DMA transfer counter.
+ * @details Reads the live transfer counter: the number of transfers
+ *          remaining in the current sequence while the channel runs,
+ *          zero after a completed sequence. A value written through
+ *          @p dmaChannelSetCounterX() is the reload value and is not
+ *          visible here until the channel is next triggered.
+ * @note    On a busy channel the value is a moving snapshot.
+ * @note    On the RP2350 the @p TRANS_COUNT bits [31:28] are the count
+ *          MODE field; it is masked off so only the count is returned.
+ *
+ * @param[in] dmachp    pointer to a rp_dma_channel_t structure
+ * @return              The remaining transfer count.
+ *
+ * @special
+ */
+__STATIC_INLINE uint32_t dmaChannelGetCounterX(const rp_dma_channel_t *dmachp) {
+
+#if defined(RP2350)
+  return dmachp->channel->TRANS_COUNT & ~DMA_TRANS_COUNT_MODE_Msk;
+#else
+  return dmachp->channel->TRANS_COUNT;
 #endif
 }
 

@@ -35,9 +35,9 @@
  * .
  */
 
-/****************************************************************************
- * Shared code.
- ****************************************************************************/
+/*===========================================================================*/
+/* Shared code.                                                              */
+/*===========================================================================*/
 
 static thread_reference_t tr1;
 static threads_queue_t tq1;
@@ -77,9 +77,9 @@ static THD_FUNCTION(queue_thread2, p) {
   test_emit_token(*(char *)p);
 }
 
-/****************************************************************************
- * Test cases.
- ****************************************************************************/
+/*===========================================================================*/
+/* Test cases.                                                               */
+/*===========================================================================*/
 
 /**
  * @page rt_test_006_001 [6.1] Suspend and Resume functionality
@@ -181,7 +181,9 @@ static const testcase_t rt_test_006_001 = {
  * - [6.2.1] A threads queue is initialized, tested as empty, then
  *   touched with empty dequeue operations.
  * - [6.2.2] Immediate timeout enqueue is tested on an empty queue.
- * - [6.2.3] One queued thread is resumed using chThdDequeueNextI().
+ * - [6.2.3] One queued thread's queue owner is verified, then it is
+ *   resumed using chThdDequeueNextI() and, when enabled, its ready
+ *   trace message is tested.
  * - [6.2.4] Two queued threads are resumed using chThdDequeueAllI().
  * .
  */
@@ -200,6 +202,12 @@ static void rt_test_006_002_teardown(void) {
 static void rt_test_006_002_execute(void) {
   msg_t msg;
   bool empty;
+  bool owned;
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+       ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+  msg_t tracemsg;
+  bool found;
+#endif
 
   /* [6.2.1] A threads queue is initialized, tested as empty, then
      touched with empty dequeue operations.*/
@@ -226,7 +234,9 @@ static void rt_test_006_002_execute(void) {
   }
   test_end_step(2);
 
-  /* [6.2.3] One queued thread is resumed using chThdDequeueNextI().*/
+  /* [6.2.3] One queued thread's queue owner is verified, then it is
+     resumed using chThdDequeueNextI() and, when enabled, its ready
+     trace message is tested.*/
   test_set_step(3);
   {
     qmsg1 = MSG_OK;
@@ -235,9 +245,21 @@ static void rt_test_006_002_execute(void) {
     chThdYield();
     chSysLock();
     empty = chThdQueueIsEmptyI(&tq1);
+    owned = (threads[0]->state == CH_STATE_QUEUED) &&
+            (threads[0]->u.wtqueuep == &tq1);
     chThdDequeueNextI(&tq1, MSG_RESET);
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+         ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+    found = test_find_ready_trace(threads[0], CH_STATE_QUEUED, &tracemsg);
+#endif
     chSysUnlock();
     test_assert(!empty, "queue empty");
+    test_assert(owned, "invalid queue owner");
+#if ((CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) &&                 \
+         ((CH_DBG_TRACE_MASK & CH_DBG_TRACE_MASK_READY) != 0U))
+    test_assert(found, "ready trace not found");
+    test_assert(tracemsg == MSG_RESET, "invalid ready trace message");
+#endif
     test_wait_threads();
     test_assert(qmsg1 == MSG_RESET, "wrong returned message");
     test_assert_sequence("C", "invalid sequence");
@@ -274,9 +296,9 @@ static const testcase_t rt_test_006_002 = {
   rt_test_006_002_execute
 };
 
-/****************************************************************************
- * Exported data.
- ****************************************************************************/
+/*===========================================================================*/
+/* Exported data.                                                            */
+/*===========================================================================*/
 
 /**
  * @brief   Array of test cases.

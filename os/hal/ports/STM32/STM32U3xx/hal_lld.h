@@ -1711,6 +1711,9 @@
 #include "stm32_apb2.inc"
 #include "stm32_apb3.inc"
 
+/* Static frequency exported for compile-time checks.*/
+#define STM32_PCLK1_FREQ                    STM32_PCLK1
+
 /* STOPWUCK setting check.*/
 #if (STM32_STOPWUCK == RCC_CFGR1_STOPWUCK_MSIS) || defined(__DOXYGEN__)
 
@@ -1869,15 +1872,19 @@
  */
 #if (STM32_RTCSEL == RCC_BDCR_RTCSEL_NOCLOCK) || defined(__DOXYGEN__)
   #define STM32_RTCCLK                      0U
+  #define STM32_RTC_FREQ                    0U
 
 #elif STM32_RTCSEL == RCC_BDCR_RTCSEL_LSE
   #define STM32_RTCCLK                      STM32_LSECLK
+  #define STM32_RTC_FREQ                    STM32_LSECLK
 
 #elif STM32_RTCSEL == RCC_BDCR_RTCSEL_LSI
   #define STM32_RTCCLK                      STM32_LSICLK
+  #define STM32_RTC_FREQ                    STM32_LSICLK
 
 #elif STM32_RTCSEL == RCC_BDCR_RTCSEL_HSEDIV
   #define STM32_RTCCLK                      (hal_lld_get_clock_point(CLK_HSE) / 32U)
+  #define STM32_RTC_FREQ                    (STM32_HSECLK / 32U)
 
 #else
   #error "invalid STM32_RTCSEL value specified"
@@ -2432,7 +2439,7 @@ typedef uint32_t halcnt_t;
  * @note    The counter is the internal DWS cycles counter so in runs at
  *          the same frequency of CPU.
  */
-#define HAL_LLD_GET_CNT_FREQUENCY()         hal_lld_get_clock_point(CLK_HCLK)
+#define HAL_LLD_GET_CNT_FREQUENCY()         SystemCoreClock
 
 /**
  * @brief   Real time counter value exported to the safety module.
@@ -2475,7 +2482,6 @@ typedef uint32_t halcnt_t;
 /* Various helpers.*/
 #include "nvic.h"
 #include "cache.h"
-//#include "mpu_v8m.h"
 #include "stm32_isr.h"
 #include "stm32_dma3.h"
 #include "stm32_exti.h"

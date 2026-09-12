@@ -54,9 +54,16 @@
 static inline void tm_stop(time_measurement_t *tmp,
                            rtcnt_t now,
                            rtcnt_t offset) {
+  rtcnt_t delta;
 
   tmp->n++;
-  tmp->last = (now - tmp->last) - offset;
+  delta = now - tmp->last;
+  if (delta > offset) {
+    tmp->last = delta - offset;
+  }
+  else {
+    tmp->last = (rtcnt_t)0;
+  }
   tmp->cumulative += (rttime_t)tmp->last;
   if (tmp->last > tmp->worst) {
     tmp->worst = tmp->last;
@@ -69,6 +76,35 @@ static inline void tm_stop(time_measurement_t *tmp,
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
+
+/**
+ * @brief   Initializes the time measurement calibration for an OS instance.
+ * @pre     The port must be initialized and @p oip must be registered as the
+ *          current core's OS instance.
+ *
+ * @param[in,out] oip   pointer to the current @p os_instance_t object
+ *
+ * @notapi
+ */
+void __tm_calibration_object_init(os_instance_t *oip) {
+  unsigned i;
+  time_measurement_t tm;
+
+  chDbgAssert(oip == currcore, "invalid instance");
+
+  /* Time Measurement subsystem calibration, it does a null measurement
+     and calculates the call overhead which is subtracted to real
+     measurements.*/
+  oip->tmc.offset = (rtcnt_t)0;
+  chTMObjectInit(&tm);
+  i = TM_CALIBRATION_LOOP;
+  do {
+    chTMStartMeasurementX(&tm);
+    chTMStopMeasurementX(&tm);
+    i--;
+  } while (i > 0U);
+  oip->tmc.offset = tm.best;
+}
 
 /**
  * @brief   Initializes a @p time_measurement_t object.
@@ -113,6 +149,8 @@ void chTMObjectDispose(time_measurement_t *tmp) {
 /**
  * @brief   Starts a measurement.
  * @pre     The @p time_measurement_t object must be initialized.
+ * @pre     On SMP systems with non-coherent per-core realtime counters, the
+ *          matching stop or chain operation must execute on the same core.
  *
  * @param[in,out] tmp   pointer to a @p time_measurement_t object
  *
@@ -125,7 +163,11 @@ NOINLINE void chTMStartMeasurementX(time_measurement_t *tmp) {
 
 /**
  * @brief   Stops a measurement.
+ * @note    A raw interval not exceeding the calibrated measurement overhead
+ *          is recorded as zero.
  * @pre     The @p time_measurement_t object must be initialized.
+ * @pre     On SMP systems with non-coherent per-core realtime counters, the
+ *          measurement must have been started on the same core.
  *
  * @param[in,out] tmp   pointer to a @p time_measurement_t object
  *
@@ -133,18 +175,30 @@ NOINLINE void chTMStartMeasurementX(time_measurement_t *tmp) {
  */
 NOINLINE void chTMStopMeasurementX(time_measurement_t *tmp) {
 
-  tm_stop(tmp, chSysGetRealtimeCounterX(), ch_system.tmc.offset);
+  tm_stop(tmp, chSysGetRealtimeCounterX(), currcore->tmc.offset);
 }
 
 /**
  * @brief   Stops a measurement and chains to the next one using the same time
  *          stamp.
+ * @note    No calibration offset is subtracted from the measurement stopped
+ *          in @p tmp1, this preserves continuity between chained
+ *          measurements.
+ * @note    Ordinary stopped measurements and chained measurements have
+ *          different calibration semantics, mixing them in the same object
+ *          makes the collected statistics non-homogeneous.
+ * @note    @p tmp1 and @p tmp2 may point to the same object.
+ * @pre     @p tmp1 must contain an active measurement started using
+ *          @p chTMStartMeasurementX() or a preceding chain operation.
+ * @pre     @p tmp2 must be an initialized @p time_measurement_t object.
+ * @pre     The measurement objects must not be modified concurrently.
+ * @pre     On SMP systems with non-coherent per-core realtime counters, the
+ *          measurement in @p tmp1 must have been started on the same core.
  *
  * @param[in,out] tmp1  pointer to the @p time_measurement_t object to be
  *                      stopped
  * @param[in,out] tmp2  pointer to the @p time_measurement_t object to be
  *                      started
- *
  *
  * @xclass
  */

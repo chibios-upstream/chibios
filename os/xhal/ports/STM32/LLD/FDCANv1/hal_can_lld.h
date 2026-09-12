@@ -238,8 +238,7 @@ typedef struct {
       };
       uint32_t              _R2:16;
       uint32_t              DLC:4;      /**< @brief Data length code.       */
-      uint32_t              BPS:1;      /**< @brief Accepted non-matching
-                                                    frame.                  */
+      uint32_t              BRS:1;      /**< @brief Bit rate switch.        */
       uint32_t              FDF:1;      /**< @brief FDCAN frame format.     */
       uint32_t              _R3:1;
       uint32_t              EFC:1;      /**< @brief Event FIFO control.     */
@@ -284,7 +283,7 @@ typedef struct {
           uint32_t          ESI:1;      /**< @brief Error state indicator.  */
         } common;
       };
-      uint32_t              RXTS:16;    /**< @brief TX time stamp.          */
+      uint32_t              RXTS:16;    /**< @brief Receive timestamp.      */
       uint32_t              DLC:4;      /**< @brief Data length code.       */
       uint32_t              BRS:1;      /**< @brief Bit rate switch.        */
       uint32_t              FDF:1;      /**< @brief FDCAN frame format.     */
@@ -437,7 +436,8 @@ typedef struct {
   uint32_t                  TDCR;                                           \
   uint32_t                  CCCR;                                           \
   uint32_t                  TEST;                                           \
-  uint32_t                  RXGFC
+  uint32_t                  RXGFC;                                          \
+  uint32_t                  TSCC
 
 /**
  * @brief   Platform-dependent CAN driver fields.

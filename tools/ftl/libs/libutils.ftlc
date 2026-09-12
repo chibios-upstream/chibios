@@ -27,12 +27,12 @@ function WithDot(s)
   local s = s?trim
   if s == ""
     return s
-  endif
+  end
   if s?ends_with(".")
     return s
-  endif
+  end
   return s + "."
-endfunction
+end
 
 /*
   -- Returns the trimmed text "s" making sure it is not terminated by a dot.
@@ -41,9 +41,9 @@ function WithoutDot(s)
   local s = s?trim
   if s?ends_with(".")
     return s?substring(0, s?length - 1)
-  endif
+  end
   return s
-endfunction
+end
 
 /*
   -- Returns the trimmed text "s" making sure it is terminated by a dot if the
@@ -57,9 +57,9 @@ function IntelligentDot(s)
   local s = s?trim
   if s?contains(". ")
     return WithDot(s)
-  endif
+  end
   return WithoutDot(s)
-endfunction
+end
 
 /*
   -- Formats a text string in a sequence of strings no longer than "len" (first
@@ -76,19 +76,19 @@ function StringToText(len1, lenn, s)
       local len = len1
     else
       local len = lenn
-    endif
+    end
     if (line?length + word?length + 1 > len)
       local lines = lines + [line?trim]
       local line = word + " "
     else
       local line = line + word + " "
-    endif
-  endlist
+    end
+  end
   if line != ""
     local lines = lines + [line?trim]
-  endif
+  end
   return lines
-endfunction
+end
 
 /*
   -- Emits a string "s" as a formatted text, the first line is prefixed by the
@@ -103,9 +103,9 @@ macro FormatStringAsText(p1, pn, s, len)
       emit "${p1}${line}\n"
     else
       emit "${pn}${line}\n"
-    endif
-  endlist
-endmacro
+    end
+  end
+end
 
 /*
   -- Emits a C function body code reformatting the indentation using the
@@ -120,10 +120,10 @@ macro EmitIndentedCCode(start, tab, ccode)
           emit "${line?chop_linebreak}\n"
         else
           emit "${start + line?chop_linebreak}\n"
-        endif
+        end
       else
         emit "\n"
-      endif
-    endif
-  endlist
-endmacro
+      end
+    end
+  end
+end

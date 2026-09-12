@@ -76,7 +76,7 @@
  *   }
  * 
  *   class tm_calibration_t {
- *     ~ offset : sysinterval_t
+ *     ~ offset : rtcnt_t
  *     ~ __tm_calibration_object_init()
  *   }
  * 
@@ -126,7 +126,6 @@
  *   class ch_system_t {
  *     + state : ch_system_state_t
  *     - reglist : registry_t
- *     - tmc : tm_calibration_t
  *     - instances[] : os_instance_t *
  *     + {static} chSysInit()
  *     + {static} chSysLock()
@@ -137,13 +136,13 @@
  *   }
  *   ch_system_t .u.> "Port Layer" : use
  *   ch_system_t *-- "1" registry_t : SMP\nonly
- *   ch_system_t *-r- "1" tm_calibration_t
  *   ch_system_t "1" o-- "1..*" os_instance_t : registered\ninstances\none for\neach core
  * 
  *   class os_instance_t {
  *     ~ core_id : core_id_t
  *     ~ rlist : ready_list_t
  *     ~ vtlist : virtual_timers_list_t
+ *     ~ tmc : tm_calibration_t
  *     ~ reglist : registry_t
  *     ~ mainthread : thread_t
  *     ~ dbg : system_debug_t
@@ -155,6 +154,7 @@
  *   }
  *   os_instance_t *-- "1" thread_t : Main\nThread
  *   os_instance_t *-- "1" registry_t : Non-SMP\nonly
+ *   os_instance_t *-- "1" tm_calibration_t
  *   os_instance_t *-- "1" system_debug_t
  *   os_instance_t *-- "1" trace_buffer_t
  *   os_instance_t *-- "1" kernel_stats_t

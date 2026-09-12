@@ -106,6 +106,24 @@
 #endif
 
 /**
+ * @brief   I2C5 driver enable switch.
+ * @details If set to @p TRUE the support for I2C5 is included.
+ * @note    The default is @p FALSE.
+ */
+#if !defined(STM32_I2C_USE_I2C5) || defined(__DOXYGEN__)
+#define STM32_I2C_USE_I2C5                  FALSE
+#endif
+
+/**
+ * @brief   I2C6 driver enable switch.
+ * @details If set to @p TRUE the support for I2C6 is included.
+ * @note    The default is @p FALSE.
+ */
+#if !defined(STM32_I2C_USE_I2C6) || defined(__DOXYGEN__)
+#define STM32_I2C_USE_I2C6                  FALSE
+#endif
+
+/**
  * @brief   I2C timeout on busy condition in milliseconds.
  */
 #if !defined(STM32_I2C_BUSY_TIMEOUT) || defined(__DOXYGEN__)
@@ -148,6 +166,20 @@
 #endif
 
 /**
+ * @brief   I2C5 DMA priority (0..3|lowest..highest).
+ */
+#if !defined(STM32_I2C_I2C5_DMA_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_I2C_I2C5_DMA_PRIORITY         1
+#endif
+
+/**
+ * @brief   I2C6 DMA priority (0..3|lowest..highest).
+ */
+#if !defined(STM32_I2C_I2C6_DMA_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_I2C_I2C6_DMA_PRIORITY         1
+#endif
+
+/**
  * @brief   I2C DMA error hook.
  * @note    The default action for DMA errors is a system halt because DMA
  *          error can only happen because programming errors.
@@ -161,7 +193,15 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
-/* Registry checks.*/
+/* Registry checks. Older registries predate the optional I2C5/I2C6
+   instances, missing definitions mean that the instances are not present.*/
+#if !defined(STM32_HAS_I2C5)
+#define STM32_HAS_I2C5                      FALSE
+#endif
+#if !defined(STM32_HAS_I2C6)
+#define STM32_HAS_I2C6                      FALSE
+#endif
+
 #if !defined(STM32_HAS_I2C1) || !defined(STM32_HAS_I2C2) ||                 \
     !defined(STM32_HAS_I2C3) || !defined(STM32_HAS_I2C4)
 #error "STM32_HAS_I2Cx not defined in registry"
@@ -184,8 +224,16 @@
 #error "I2C4 not present in the selected device"
 #endif
 
+#if STM32_I2C_USE_I2C5 && !STM32_HAS_I2C5
+#error "I2C5 not present in the selected device"
+#endif
+
+#if STM32_I2C_USE_I2C6 && !STM32_HAS_I2C6
+#error "I2C6 not present in the selected device"
+#endif
+
 #if !STM32_I2C_USE_I2C1 && !STM32_I2C_USE_I2C2 && !STM32_I2C_USE_I2C3 &&    \
-    !STM32_I2C_USE_I2C4
+    !STM32_I2C_USE_I2C4 && !STM32_I2C_USE_I2C5 && !STM32_I2C_USE_I2C6
 #error "I2C driver activated but no I2C peripheral assigned"
 #endif
 
@@ -221,6 +269,22 @@
 #endif
 #endif
 
+#if STM32_I2C_USE_I2C5
+#if defined(STM32_I2C5_IS_USED)
+#error "I2CD5 requires I2C5 but it is already used"
+#else
+#define STM32_I2C5_IS_USED
+#endif
+#endif
+
+#if STM32_I2C_USE_I2C6
+#if defined(STM32_I2C6_IS_USED)
+#error "I2CD6 requires I2C6 but it is already used"
+#else
+#define STM32_I2C6_IS_USED
+#endif
+#endif
+
 /* IRQ-related checks.*/
 #if !defined(STM32_I2C_SINGLE_IRQ)
 #error "STM32_I2C_SINGLE_IRQ not defined in registry"
@@ -251,6 +315,14 @@
 #error "I2C4 GPDMA channels not defined"
 #endif
 
+#if STM32_I2C_USE_I2C5 && (!defined(STM32_I2C_I2C5_DMA3_CHANNEL))
+#error "I2C5 GPDMA channels not defined"
+#endif
+
+#if STM32_I2C_USE_I2C6 && (!defined(STM32_I2C_I2C6_DMA3_CHANNEL))
+#error "I2C6 GPDMA channels not defined"
+#endif
+
 /* Check on DMA channels assignment.*/
 #if STM32_I2C_USE_I2C1 &&                                                   \
     !STM32_DMA3_ARE_VALID_CHANNELS(STM32_I2C_I2C1_DMA3_CHANNEL)
@@ -270,6 +342,16 @@
 #if STM32_I2C_USE_I2C4 &&                                                   \
     !STM32_DMA3_ARE_VALID_CHANNELS(STM32_I2C_I2C4_DMA3_CHANNEL)
 #error "Invalid GPDMA channel assigned to I2C4"
+#endif
+
+#if STM32_I2C_USE_I2C5 &&                                                   \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_I2C_I2C5_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to I2C5"
+#endif
+
+#if STM32_I2C_USE_I2C6 &&                                                   \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_I2C_I2C6_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to I2C6"
 #endif
 
 #if STM32_I2C_USE_I2C1 &&                                                   \
@@ -292,8 +374,18 @@
 #error "Invalid GPDMA priority assigned to I2C4"
 #endif
 
+#if STM32_I2C_USE_I2C5 &&                                                   \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_I2C_I2C5_DMA_PRIORITY)
+#error "Invalid GPDMA priority assigned to I2C5"
+#endif
+
+#if STM32_I2C_USE_I2C6 &&                                                   \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_I2C_I2C6_DMA_PRIORITY)
+#error "Invalid GPDMA priority assigned to I2C6"
+#endif
+
 #if STM32_I2C_USE_I2C1 || STM32_I2C_USE_I2C2 || STM32_I2C_USE_I2C3 ||       \
-    STM32_I2C_USE_I2C4
+    STM32_I2C_USE_I2C4 || STM32_I2C_USE_I2C5 || STM32_I2C_USE_I2C6
 #if !defined(STM32_DMA3_REQUIRED)
 #define STM32_DMA3_REQUIRED
 #endif
@@ -316,6 +408,14 @@
 
 #if STM32_I2C_USE_I2C4 && !defined(STM32_I2C_I2C4_DMA_CHANNEL)
 #error "I2C4 DMA channel not defined"
+#endif
+
+#if STM32_I2C_USE_I2C5 && !defined(STM32_I2C_I2C5_DMA_CHANNEL)
+#error "I2C5 DMA channel not defined"
+#endif
+
+#if STM32_I2C_USE_I2C6 && !defined(STM32_I2C_I2C6_DMA_CHANNEL)
+#error "I2C6 DMA channel not defined"
 #endif
 
 /* Check on DMA channel assignment.*/
@@ -342,6 +442,16 @@
 #error "Invalid DMA channel assigned to I2C4"
 #endif
 
+#if STM32_I2C_USE_I2C5 &&                                                   \
+    !STM32_DMA_IS_VALID_STREAM(STM32_I2C_I2C5_DMA_CHANNEL)
+#error "Invalid DMA channel assigned to I2C5"
+#endif
+
+#if STM32_I2C_USE_I2C6 &&                                                   \
+    !STM32_DMA_IS_VALID_STREAM(STM32_I2C_I2C6_DMA_CHANNEL)
+#error "Invalid DMA channel assigned to I2C6"
+#endif
+
 #if STM32_I2C_USE_I2C1 &&                                                   \
     !STM32_DMA_IS_VALID_PRIORITY(STM32_I2C_I2C1_DMA_PRIORITY)
 #error "Invalid DMA priority assigned to I2C1"
@@ -362,8 +472,18 @@
 #error "Invalid DMA priority assigned to I2C4"
 #endif
 
+#if STM32_I2C_USE_I2C5 &&                                                   \
+    !STM32_DMA_IS_VALID_PRIORITY(STM32_I2C_I2C5_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to I2C5"
+#endif
+
+#if STM32_I2C_USE_I2C6 &&                                                   \
+    !STM32_DMA_IS_VALID_PRIORITY(STM32_I2C_I2C6_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to I2C6"
+#endif
+
 #if STM32_I2C_USE_I2C1 || STM32_I2C_USE_I2C2 || STM32_I2C_USE_I2C3 ||       \
-    STM32_I2C_USE_I2C4
+    STM32_I2C_USE_I2C4 || STM32_I2C_USE_I2C5 || STM32_I2C_USE_I2C6
 #if !defined(STM32_DMA_REQUIRED)
 #define STM32_DMA_REQUIRED
 #endif
@@ -558,6 +678,14 @@ extern I2CDriver I2CD3;
 
 #if STM32_I2C_USE_I2C4
 extern I2CDriver I2CD4;
+#endif
+
+#if STM32_I2C_USE_I2C5
+extern I2CDriver I2CD5;
+#endif
+
+#if STM32_I2C_USE_I2C6
+extern I2CDriver I2CD6;
 #endif
 
 #endif /* !defined(__DOXYGEN__) */

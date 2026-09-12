@@ -1,0 +1,20 @@
+:name: ChibiOS ARMCR8 headless smoke test
+:description: Runs the demo for 5 virtual seconds and dumps the counters.
+
+include @renode.resc
+
+emulation RunFor "5"
+
+echo "=== counters after 5 virtual seconds ==="
+echo "fpu_error_counter:"
+sysbus ReadDoubleWord 0x00102690
+echo "fpu_main_counter:"
+sysbus ReadDoubleWord 0x00102694
+echo "fpu_thread_counter:"
+sysbus ReadDoubleWord 0x00102698
+echo "main_counter:"
+sysbus ReadDoubleWord 0x0010269c
+echo "thread_counter:"
+sysbus ReadDoubleWord 0x001026a0
+
+quit

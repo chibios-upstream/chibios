@@ -30,9 +30,13 @@ extern volatile uint32_t c1_cycles;
 extern volatile uint32_t c1_errors;
 extern volatile uint32_t c1_go;
 extern volatile uint32_t c1_done;
+extern volatile uint32_t c0_delay_armed;
+extern volatile uint32_t c1_init_entered;
+extern volatile uint32_t c1_init_release;
 
 extern semaphore_t c1_ready_sem;
 
+void eflSmpInstanceInitHook(void *oip);
 uint32_t flash_cycle(uint8_t pattern);
 
 #endif /* EFL_SMP_LOCKOUT_H */

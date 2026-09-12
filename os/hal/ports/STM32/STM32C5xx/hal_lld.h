@@ -183,7 +183,7 @@ typedef struct {
 /**
  * @brief   Real time counter frequency exported to the safety module.
  */
-#define HAL_LLD_GET_CNT_FREQUENCY()         STM32_HCLK_CLOCK
+#define HAL_LLD_GET_CNT_FREQUENCY()         SystemCoreClock
 
 /**
  * @brief   Real time counter value exported to the safety module.

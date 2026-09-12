@@ -30,6 +30,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+  extern const WDGConfig portab_wdgcfg;
   void portab_setup(void);
 #ifdef __cplusplus
 }

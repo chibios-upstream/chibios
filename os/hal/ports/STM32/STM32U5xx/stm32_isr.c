@@ -76,6 +76,8 @@
 #include "stm32_i2c2.inc"
 #include "stm32_i2c3.inc"
 #include "stm32_i2c4.inc"
+#include "stm32_i2c5.inc"
+#include "stm32_i2c6.inc"
 
 #include "stm32_spi1.inc"
 #include "stm32_spi2.inc"
@@ -83,6 +85,9 @@
 
 #include "stm32_sdmmc1.inc"
 #include "stm32_sdmmc2.inc"
+
+#include "stm32_octospi1.inc"
+#include "stm32_octospi2.inc"
 
 #include "stm32_tim1.inc"
 #include "stm32_tim2.inc"
@@ -144,6 +149,8 @@ void irqInit(void) {
   i2c2_irq_init();
   i2c3_irq_init();
   i2c4_irq_init();
+  i2c5_irq_init();
+  i2c6_irq_init();
 
   spi1_irq_init();
   spi2_irq_init();
@@ -151,6 +158,9 @@ void irqInit(void) {
 
   sdmmc1_irq_init();
   sdmmc2_irq_init();
+
+  octospi1_irq_init();
+  octospi2_irq_init();
 
   tim1_irq_init();
   tim2_irq_init();
@@ -209,6 +219,8 @@ void irqDeinit(void) {
   i2c2_irq_deinit();
   i2c3_irq_deinit();
   i2c4_irq_deinit();
+  i2c5_irq_deinit();
+  i2c6_irq_deinit();
 
   spi1_irq_deinit();
   spi2_irq_deinit();
@@ -216,6 +228,9 @@ void irqDeinit(void) {
 
   sdmmc1_irq_deinit();
   sdmmc2_irq_deinit();
+
+  octospi1_irq_deinit();
+  octospi2_irq_deinit();
 
   tim1_irq_deinit();
   tim2_irq_deinit();

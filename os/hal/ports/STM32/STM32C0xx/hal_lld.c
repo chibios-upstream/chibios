@@ -49,6 +49,9 @@
 #define STM32_RELAXED_TIMEOUT_FACTOR        5U
 #define STM32_HSI_STARTUP_TIME              (4U * STM32_RELAXED_TIMEOUT_FACTOR)
 #define STM32_OSCILLATORS_STARTUP_TIME      (2000U * STM32_RELAXED_TIMEOUT_FACTOR)
+#if !defined(STM32_CFG_OSCILLATORS_STARTUP_TIME) || defined(__DOXYGEN__)
+#define STM32_CFG_OSCILLATORS_STARTUP_TIME  STM32_OSCILLATORS_STARTUP_TIME
+#endif
 #define STM32_SYSCLK_SWITCH_TIME            (50U * STM32_RELAXED_TIMEOUT_FACTOR)
 /** @} */
 
@@ -258,7 +261,7 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
 #endif
   if (halRegWaitAllSet32X(&RCC->CR,
                           wtmask,
-                          STM32_OSCILLATORS_STARTUP_TIME,
+                          STM32_CFG_OSCILLATORS_STARTUP_TIME,
                           NULL)) {
     return true;
   }
@@ -364,6 +367,12 @@ static bool hal_lld_clock_check_tree(const halclkcfg_t *ccp) {
   else {
     pclktim = pclk * 2U;
   }
+
+#if HAL_USE_RTC == TRUE
+  if (pclk < (STM32_RTC_FREQ * 7U)) {
+    return true;
+  }
+#endif
 
   /* MCO clock.*/
   switch (ccp->rcc_cfgr & RCC_CFGR_MCOSEL_Msk) {
@@ -508,7 +517,6 @@ void stm32_clock_init(void) {
     div = 0;
   }
   halRegWrite32X(&TIM17->PSC, (uint32_t)div, true);
-//  halRegWrite32X(&TIM7->ARR, 0xFFFFU, true);
   halRegWrite32X(&TIM17->EGR, TIM_EGR_UG, false);
   halRegWrite32X(&TIM17->CR1, TIM_CR1_CEN, true);
 

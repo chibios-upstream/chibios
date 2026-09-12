@@ -33,6 +33,14 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+#if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Maximum number of references to a thread.
+ */
+#define THREAD_MAX_REFERENCES                                               \
+  ((trefs_t)-1)
+#endif
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -67,7 +75,8 @@ typedef struct {
    */
   stkline_t                     *wend;
   /**
-   * @brief   Thread priority.
+   * @brief   Thread priority, from @p LOWPRIO through @p HIGHPRIO for
+   *          user threads.
    */
   tprio_t                       prio;
   /**
@@ -80,6 +89,8 @@ typedef struct {
   void                          *arg;
   /**
    * @brief         OS instance affinity or @p NULL for current one.
+   * @note          A non-NULL pointer must reference an initialized instance
+   *                registered in @p ch_system.instances[].
    */
   os_instance_t                 *owner;
 } thread_descriptor_t;
@@ -239,7 +250,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] towner    thread owner OS instance or @p NULL
+ * @param[in] towner    initialized OS instance owning the thread or @p NULL
+ *                      for the current one
  */
 #define __THD_DECL_DATA(tname, twbase, twend, tprio, tfunc, targ, towner) { \
   .name         = (tname),                                                  \
@@ -261,7 +273,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] towner    thread owner OS instance or @p NULL
+ * @param[in] towner    initialized OS instance owning the thread or @p NULL
+ *                      for the current one
  */
 #define THD_DECL(var, tname, twbase, twend, tprio,                          \
                  tfunc, targ, towner)                                       \
@@ -282,7 +295,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] towner    thread owner OS instance or @p NULL
+ * @param[in] towner    initialized OS instance owning the thread or @p NULL
+ *                      for the current one
  */
 #define THD_DECL_STATIC(var, tname, twname, tprio,                          \
                         tfunc, targ, towner)                                \
@@ -303,7 +317,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] towner    thread owner OS instance or @p NULL
+ * @param[in] towner    initialized OS instance owning the thread or @p NULL
+ *                      for the current one
  *
  * @deprecated
  */
@@ -328,7 +343,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] towner    thread owner OS instance or @p NULL
+ * @param[in] towner    initialized OS instance owning the thread or @p NULL
+ *                      for the current one
  *
  * @deprecated
  */
@@ -361,7 +377,8 @@ typedef struct {
  * @param[in] tprio     thread priority
  * @param[in] tfunc     thread function pointer
  * @param[in] targ      thread function argument
- * @param[in] oip       owner OS instance or @p NULL
+ * @param[in] oip       initialized owner OS instance or @p NULL for the
+ *                      current one
  *
  * @deprecated
  */
@@ -428,13 +445,11 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-   thread_t *__thd_object_init(os_instance_t *oip,
-                               thread_t *tp,
-                               const char *name,
-                               tprio_t prio);
 #if CH_DBG_FILL_THREADS == TRUE
   void __thd_stackfill(uint8_t *startp, uint8_t *endp);
 #endif
+  thread_t *__thd_spawn_suspended(thread_t *tp,
+                                  const thread_descriptor_t *tdp);
   thread_t *chThdObjectInit(thread_t *tp, const thread_descriptor_t *tdp);
   void chThdObjectDispose(thread_t *tp);
   thread_t *chThdSpawnSuspendedI(thread_t *tp,
@@ -461,6 +476,7 @@ extern "C" {
   msg_t chThdSync(thread_t *tp);
   msg_t chThdWait(thread_t *tp);
 #endif
+  tprio_t __thd_set_priority(thread_t *tp, tprio_t newprio);
   tprio_t chThdSetPriority(tprio_t newprio);
   void chThdTerminate(thread_t *tp);
   msg_t chThdSuspendS(thread_reference_t *trp);
@@ -578,12 +594,15 @@ static inline stkline_t *chThdGetWorkingAreaX(thread_t *tp) {
  * @param[in] tp        pointer to the thread
  * @retval true         thread terminated.
  * @retval false        thread not terminated.
+ * @note    The state is read through a volatile-qualified access because it
+ *          can be modified by another core.
  *
  * @xclass
  */
 static inline bool chThdTerminatedX(thread_t *tp) {
+  const volatile tstate_t *statep = &tp->state;
 
-  return (bool)(tp->state == CH_STATE_FINAL);
+  return (bool)(*statep == CH_STATE_FINAL);
 }
 
 /**
@@ -591,16 +610,21 @@ static inline bool chThdTerminatedX(thread_t *tp) {
  *
  * @retval true         termination request pending.
  * @retval false        termination request not pending.
+ * @note    The flags are read through a volatile-qualified access because
+ *          they can be modified by another core.
  *
  * @xclass
  */
 static inline bool chThdShouldTerminateX(void) {
+  const volatile tmode_t *flagsp = &chThdGetSelfX()->flags;
 
-  return (bool)((chThdGetSelfX()->flags & CH_FLAGS_TERMINATE) != (tmode_t)0);
+  return (bool)((*flagsp & CH_FLAGS_TERMINATE) != (tmode_t)0);
 }
 
 /**
- * @brief   Resumes a thread created with @p chThdCreateI().
+ * @brief   Starts a thread created in the suspended state.
+ * @details The thread must have been created using one of the suspended
+ *          create or spawn functions.
  *
  * @param[in] tp        pointer to the thread
  * @return              The pointer to the @p thread_t structure allocated for
@@ -610,7 +634,11 @@ static inline bool chThdShouldTerminateX(void) {
  */
 static inline thread_t *chThdStartI(thread_t *tp) {
 
+  chDbgCheckClassI();
+
   chDbgAssert(tp->state == CH_STATE_WTSTART, "wrong state");
+
+  tp->u.rdymsg = MSG_OK;
 
   return chSchReadyI(tp);
 }
@@ -627,6 +655,8 @@ static inline thread_t *chThdStartI(thread_t *tp) {
  * @sclass
  */
 static inline void chThdSleepS(sysinterval_t ticks) {
+
+  chDbgCheckClassS();
 
   chDbgCheck(ticks != TIME_IMMEDIATE);
 
@@ -646,6 +676,7 @@ static inline void chThdSleepS(sysinterval_t ticks) {
 static inline bool chThdQueueIsEmptyI(threads_queue_t *tqp) {
 
   chDbgCheckClassI();
+  chDbgCheck(tqp != NULL);
 
   return ch_queue_isempty(&tqp->queue);
 }
@@ -664,11 +695,15 @@ static inline bool chThdQueueIsEmptyI(threads_queue_t *tqp) {
 static inline void chThdDoDequeueNextI(threads_queue_t *tqp, msg_t msg) {
   thread_t *tp;
 
+  chDbgCheckClassI();
+  chDbgCheck(tqp != NULL);
+
   chDbgAssert(ch_queue_notempty(&tqp->queue), "empty queue");
 
   tp = threadref(ch_queue_fifo_remove(&tqp->queue));
 
   chDbgAssert(tp->state == CH_STATE_QUEUED, "invalid state");
+  chDbgAssert(tp->u.wtqueuep == tqp, "invalid queue");
 
   tp->u.rdymsg = msg;
   (void) chSchReadyI(tp);

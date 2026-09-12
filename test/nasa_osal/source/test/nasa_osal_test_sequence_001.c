@@ -20,6 +20,8 @@
  * - @subpage nasa_osal_test_001_002
  * - @subpage nasa_osal_test_001_003
  * - @subpage nasa_osal_test_001_004
+ * - @subpage nasa_osal_test_001_005
+ * - @subpage nasa_osal_test_001_006
  * .
  */
 
@@ -62,6 +64,45 @@ static void test_task_delete(void) {
     (void) OS_TaskDelay(1);
   }
   test_emit_token('B');
+}
+
+static void test_task_priority(void) {
+
+  while (!OS_TaskDeleteCheck()) {
+    (void) OS_TaskDelay(1);
+  }
+}
+
+static mutex_t priority_m1;
+static mutex_t priority_m2;
+static thread_reference_t priority_chain_ref;
+static uint32 priority_tid;
+static uint32 priority_tid_l;
+static uint32 priority_tid_m;
+static uint32 priority_tid_h;
+static uint32 priority_tid_c;
+
+static void test_task_priority_l(void) {
+
+  chMtxLock(&priority_m2);
+  chSysLock();
+  (void) chThdSuspendS(&priority_chain_ref);
+  chSysUnlock();
+  chMtxUnlock(&priority_m2);
+}
+
+static void test_task_priority_m(void) {
+
+  chMtxLock(&priority_m1);
+  chMtxLock(&priority_m2);
+  chMtxUnlock(&priority_m2);
+  chMtxUnlock(&priority_m1);
+}
+
+static void test_task_priority_h(void) {
+
+  chMtxLock(&priority_m1);
+  chMtxUnlock(&priority_m1);
 }
 
 /****************************************************************************
@@ -557,6 +598,241 @@ static const testcase_t nasa_osal_test_001_004 = {
   nasa_osal_test_001_004_execute
 };
 
+/**
+ * @page nasa_osal_test_001_005 [1.5] OS_TaskSetPriority() validation and conversion
+ *
+ * <h2>Description</h2>
+ * Target validation and OSAL-to-RT priority conversion are tested,
+ * including the case where the caller already has the requested
+ * priority.
+ *
+ * <h2>Test Steps</h2>
+ * - [1.5.1] Invalid priorities and an invalid target are rejected. The
+ *   invalid-target request uses the caller's own priority.
+ * - [1.5.2] A lower-priority task is created then changed to the
+ *   caller's priority.
+ * - [1.5.3] The task information reports the requested OSAL priority,
+ *   then the task is deleted.
+ * .
+ */
+
+static void nasa_osal_test_001_005_setup(void) {
+  priority_tid = 0;
+}
+
+static void nasa_osal_test_001_005_teardown(void) {
+  if (priority_tid != 0) {
+    (void) OS_TaskDelete(priority_tid);
+  }
+}
+
+static void nasa_osal_test_001_005_execute(void) {
+
+  /* [1.5.1] Invalid priorities and an invalid target are rejected. The
+     invalid-target request uses the caller's own priority.*/
+  test_set_step(1);
+  {
+    int32 err;
+
+    err = OS_TaskSetPriority((uint32)-1, 0);
+    test_assert(err == OS_ERR_INVALID_PRIORITY, "low priority accepted");
+    err = OS_TaskSetPriority((uint32)-1, 256);
+    test_assert(err == OS_ERR_INVALID_PRIORITY, "high priority accepted");
+    err = OS_TaskSetPriority((uint32)-1, 128);
+    test_assert(err == OS_ERR_INVALID_ID, "invalid target accepted");
+  }
+  test_end_step(1);
+
+  /* [1.5.2] A lower-priority task is created then changed to the
+     caller's priority.*/
+  test_set_step(2);
+  {
+    int32 err;
+
+    err = OS_TaskCreate(&priority_tid,
+                        "priority target",
+                        test_task_priority,
+                        (uint32 *)wa_test1,
+                        sizeof wa_test1,
+                        TASKS_BASE_PRIORITY,
+                        0);
+    test_assert(err == OS_SUCCESS, "task creation failed");
+
+    err = OS_TaskSetPriority(priority_tid, 128);
+    test_assert(err == OS_SUCCESS, "priority change failed");
+  }
+  test_end_step(2);
+
+  /* [1.5.3] The task information reports the requested OSAL priority,
+     then the task is deleted.*/
+  test_set_step(3);
+  {
+    int32 err;
+    OS_task_prop_t info;
+
+    err = OS_TaskGetInfo(priority_tid, &info);
+    test_assert(err == OS_SUCCESS, "task info failed");
+    test_assert(info.priority == 128, "priority conversion failed");
+
+    err = OS_TaskDelete(priority_tid);
+    test_assert(err == OS_SUCCESS, "task deletion failed");
+    priority_tid = 0;
+  }
+  test_end_step(3);
+}
+
+static const testcase_t nasa_osal_test_001_005 = {
+  "OS_TaskSetPriority() validation and conversion",
+  nasa_osal_test_001_005_setup,
+  nasa_osal_test_001_005_teardown,
+  nasa_osal_test_001_005_execute
+};
+
+/**
+ * @page nasa_osal_test_001_006 [1.6] OS_TaskSetPriority() transitive inheritance
+ *
+ * <h2>Description</h2>
+ * Priority changes to mutex waiters are propagated through a two-owner
+ * chain while preserving a competing donation.
+ *
+ * <h2>Test Steps</h2>
+ * - [1.6.1] Four OSAL tasks form the chain H and C wait on M, M waits
+ *   on L, and L is suspended.
+ * - [1.6.2] Raising H above C propagates through both owners.
+ * - [1.6.3] Lowering H preserves C's donation, then lowering C
+ *   restores M's base priority throughout the chain.
+ * - [1.6.4] L is resumed and all tasks are reaped.
+ * .
+ */
+
+static void nasa_osal_test_001_006_setup(void) {
+  priority_tid_l = 0;
+  priority_tid_m = 0;
+  priority_tid_h = 0;
+  priority_tid_c = 0;
+  priority_chain_ref = NULL;
+  chMtxObjectInit(&priority_m1);
+  chMtxObjectInit(&priority_m2);
+}
+
+static void nasa_osal_test_001_006_teardown(void) {
+  chThdResume(&priority_chain_ref, MSG_RESET);
+  if (priority_tid_l != 0) {
+    (void) OS_TaskWait(priority_tid_l);
+  }
+  if (priority_tid_m != 0) {
+    (void) OS_TaskWait(priority_tid_m);
+  }
+  if (priority_tid_h != 0) {
+    (void) OS_TaskWait(priority_tid_h);
+  }
+  if (priority_tid_c != 0) {
+    (void) OS_TaskWait(priority_tid_c);
+  }
+  chMtxObjectDispose(&priority_m1);
+  chMtxObjectDispose(&priority_m2);
+}
+
+static void nasa_osal_test_001_006_execute(void) {
+
+  /* [1.6.1] Four OSAL tasks form the chain H and C wait on M, M waits
+     on L, and L is suspended.*/
+  test_set_step(1);
+  {
+    int32 err;
+
+    err = OS_TaskCreate(&priority_tid_l, "priority L", test_task_priority_l,
+                        (uint32 *)wa_test1, sizeof wa_test1, 127, 0);
+    test_assert(err == OS_SUCCESS, "task L creation failed");
+    test_assert(priority_chain_ref == (thread_t *)priority_tid_l,
+                "task L not suspended");
+
+    err = OS_TaskCreate(&priority_tid_m, "priority M", test_task_priority_m,
+                        (uint32 *)wa_test2, sizeof wa_test2, 126, 0);
+    test_assert(err == OS_SUCCESS, "task M creation failed");
+    test_assert(((thread_t *)priority_tid_m)->state == CH_STATE_WTMTX,
+                "task M not waiting");
+
+    err = OS_TaskCreate(&priority_tid_h, "priority H", test_task_priority_h,
+                        (uint32 *)wa_test3, sizeof wa_test3, 125, 0);
+    test_assert(err == OS_SUCCESS, "task H creation failed");
+    test_assert(((thread_t *)priority_tid_h)->state == CH_STATE_WTMTX,
+                "task H not waiting");
+
+    err = OS_TaskCreate(&priority_tid_c, "priority C", test_task_priority_h,
+                        (uint32 *)wa_test4, sizeof wa_test4, 124, 0);
+    test_assert(err == OS_SUCCESS, "task C creation failed");
+    test_assert(((thread_t *)priority_tid_c)->state == CH_STATE_WTMTX,
+                "task C not waiting");
+
+    test_assert(((thread_t *)priority_tid_l)->hdr.pqueue.prio == NORMALPRIO + 4,
+                "task L not initially boosted");
+    test_assert(((thread_t *)priority_tid_m)->hdr.pqueue.prio == NORMALPRIO + 4,
+                "task M not initially boosted");
+  }
+  test_end_step(1);
+
+  /* [1.6.2] Raising H above C propagates through both owners.*/
+  test_set_step(2);
+  {
+    int32 err;
+
+    err = OS_TaskSetPriority(priority_tid_h, 123);
+    test_assert(err == OS_SUCCESS, "task H raise failed");
+    test_assert(((thread_t *)priority_tid_h)->hdr.pqueue.prio == NORMALPRIO + 5,
+                "task H not raised");
+    test_assert(((thread_t *)priority_tid_m)->hdr.pqueue.prio == NORMALPRIO + 5,
+                "raise not propagated to M");
+    test_assert(((thread_t *)priority_tid_l)->hdr.pqueue.prio == NORMALPRIO + 5,
+                "raise not propagated to L");
+  }
+  test_end_step(2);
+
+  /* [1.6.3] Lowering H preserves C's donation, then lowering C
+     restores M's base priority throughout the chain.*/
+  test_set_step(3);
+  {
+    int32 err;
+
+    err = OS_TaskSetPriority(priority_tid_h, 127);
+    test_assert(err == OS_SUCCESS, "task H lowering failed");
+    test_assert(((thread_t *)priority_tid_m)->hdr.pqueue.prio == NORMALPRIO + 4,
+                "competing donation lost at M");
+    test_assert(((thread_t *)priority_tid_l)->hdr.pqueue.prio == NORMALPRIO + 4,
+                "competing donation lost at L");
+
+    err = OS_TaskSetPriority(priority_tid_c, 127);
+    test_assert(err == OS_SUCCESS, "task C lowering failed");
+    test_assert(((thread_t *)priority_tid_m)->hdr.pqueue.prio == NORMALPRIO + 2,
+                "drop not propagated to M");
+    test_assert(((thread_t *)priority_tid_l)->hdr.pqueue.prio == NORMALPRIO + 2,
+                "drop not propagated to L");
+  }
+  test_end_step(3);
+
+  /* [1.6.4] L is resumed and all tasks are reaped.*/
+  test_set_step(4);
+  {
+    chThdResume(&priority_chain_ref, MSG_OK);
+    (void) OS_TaskWait(priority_tid_l);
+    (void) OS_TaskWait(priority_tid_m);
+    (void) OS_TaskWait(priority_tid_h);
+    (void) OS_TaskWait(priority_tid_c);
+    priority_tid_l = 0;
+    priority_tid_m = 0;
+    priority_tid_h = 0;
+    priority_tid_c = 0;
+  }
+  test_end_step(4);
+}
+
+static const testcase_t nasa_osal_test_001_006 = {
+  "OS_TaskSetPriority() transitive inheritance",
+  nasa_osal_test_001_006_setup,
+  nasa_osal_test_001_006_teardown,
+  nasa_osal_test_001_006_execute
+};
+
 /****************************************************************************
  * Exported data.
  ****************************************************************************/
@@ -569,6 +845,8 @@ const testcase_t * const nasa_osal_test_sequence_001_array[] = {
   &nasa_osal_test_001_002,
   &nasa_osal_test_001_003,
   &nasa_osal_test_001_004,
+  &nasa_osal_test_001_005,
+  &nasa_osal_test_001_006,
   NULL
 };
 

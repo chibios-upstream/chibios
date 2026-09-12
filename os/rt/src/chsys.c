@@ -129,8 +129,11 @@ const os_instance_config_t ch_core1_cfg = {
 
 /**
  * @brief   Waits for the system state to be equal to the specified one.
- * @note    Can be called before @p chSchObjectInit() in order to wait
+ * @note    Can be called before @p chInstanceObjectInit() in order to wait
  *          for system initialization by another core.
+ * @note    This operation does not enter a critical section. During SMP
+ *          startup, @p chInstanceObjectInit() establishes the initial I-Lock
+ *          state before shared kernel objects are accessed.
  *
  * @special
  */
@@ -138,19 +141,18 @@ void chSysWaitSystemState(system_state_t state) {
 
   while (ch_system.state != state) {
   }
-
-#if defined(PORT_SYSTEM_STATE_ACQUIRE)
-  /* Pairs with the publishing core's release operation so that observing the
-     requested state also makes the preceding system initialization visible.*/
-  PORT_SYSTEM_STATE_ACQUIRE();
-#endif
 }
 
 /**
  * @brief   System initialization.
  * @details After executing this function the current instruction stream
  *          becomes the main thread.
+ * @pre     Must be invoked exactly once by the boot core, before secondary
+ *          cores initialize their OS instances.
  * @pre     Interrupts must be disabled before invoking this function.
+ * @note    In SMP mode, secondary cores must wait for @p ch_sys_running using
+ *          @p chSysWaitSystemState(), then invoke @p chInstanceObjectInit()
+ *          instead of this function.
  * @post    The main thread is created with priority @p NORMALPRIO and
  *          interrupts are enabled.
  * @post    the system is in @p ch_sys_running state.
@@ -166,17 +168,12 @@ void chSysInit(void) {
     ch_system.instances[i] = NULL;
   }
 
-#if CH_CFG_USE_TM == TRUE
-  /* Time Measurement calibration.*/
-  __tm_calibration_object_init(&ch_system.tmc);
-#endif
-
 #if (CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == TRUE)
   /* Registry initialization when SMP mode is enabled.*/
   __reg_object_init(&ch_system.reglist);
 #endif
 
-#if CH_CFG_SMP_MODE == TRUE
+#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == TRUE)
   /* RFCU initialization when SMP mode is enabled.*/
   __rfcu_object_init(&ch_system.rfcu);
 #endif
@@ -191,10 +188,6 @@ void chSysInit(void) {
   chInstanceObjectInit(&ch0, &ch_core0_cfg);
 
   /* It is alive now.*/
-#if defined(PORT_SYSTEM_STATE_RELEASE)
-  /* Publish all preceding initialization before changing the shared state.*/
-  PORT_SYSTEM_STATE_RELEASE();
-#endif
   ch_system.state = ch_sys_running;
   chSysUnlock();
 }
@@ -212,14 +205,18 @@ void chSysInit(void) {
  * @special
  */
 void chSysHalt(const char *reason) {
+  os_instance_t *oip;
 
   port_disable();
+  oip = currcore;
 
   /* Logging the event.*/
   __trace_halt(reason);
 
   /* Pointing to the passed message.*/
-  currcore->dbg.panic_msg = reason;
+  if (oip != NULL) {
+    oip->dbg.panic_msg = reason;
+  }
 
   /* Halt hook code, usually empty.*/
   CH_CFG_SYSTEM_HALT_HOOK(reason);

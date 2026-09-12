@@ -50,14 +50,12 @@
 #if (CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED) || defined(__DOXYGEN__)
 /**
  * @brief   Writes a time stamp and increases the trace buffer pointer.
- * @note    The @p NOINLINE attribute is intentional and load-bearing.
- *          Callers write the event-specific fields into the current slot
- *          before calling this function to stamp @p time/@p rtstamp and
- *          advance @p ptr. If this function were inlined the compiler could
- *          legally reorder those field stores past the pointer advance,
- *          leaving a partially-written record visible to external readers.
- *          The out-of-line call boundary acts as a compiler sequencing point
- *          that prevents such reordering.
+ * @details Callers have written the event-specific fields into the current
+ *          slot. This function adds timestamps, invokes the synchronous trace
+ *          hook, then advances the next-slot pointer.
+ * @note    The @p NOINLINE attribute keeps this common path out of callers;
+ *          it does not provide a memory publication protocol for asynchronous
+ *          readers. Buffer inspection requires exclusion of all its writers.
  *
  * @notapi
  */
@@ -97,10 +95,12 @@ void __trace_object_init(trace_buffer_t *tbp) {
 
   tbp->suspended = (uint16_t)~CH_DBG_TRACE_MASK;
   tbp->size      = CH_DBG_TRACE_BUFFER_SIZE;
-  tbp->ptr       = &tbp->buffer[0];
   for (i = 0U; i < (unsigned)CH_DBG_TRACE_BUFFER_SIZE; i++) {
     tbp->buffer[i].type = CH_TRACE_TYPE_UNUSED;
   }
+
+  /* Marking the trace buffer as initialized.*/
+  tbp->ptr = &tbp->buffer[0];
 }
 
 /**
@@ -193,8 +193,9 @@ void __trace_isr_leave(const char *isr) {
 void __trace_halt(const char *reason) {
   os_instance_t *oip = currcore;
 
-  /* Halt can be reached before trace buffer initialization.*/
-  if ((ch_system.state == ch_sys_running) &&
+  /* Halt can be reached before instance and trace buffer initialization.*/
+  if ((oip != NULL) &&
+      (oip->trace_buffer.ptr != NULL) &&
       ((oip->trace_buffer.suspended & CH_DBG_TRACE_MASK_HALT) == 0U)) {
     oip->trace_buffer.ptr->type          = CH_TRACE_TYPE_HALT;
     oip->trace_buffer.ptr->state         = 0;

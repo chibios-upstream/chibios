@@ -27,6 +27,7 @@
  *          .
  *          One of the following macros must also be defined:
  *          - STM32H503xx.
+ *          - STM32H533xx.
  *          - STM32H562xx, STM32H563xx, STM32H573xx.
  *          .
  *
@@ -53,6 +54,9 @@
  * @{
  */
 #if defined(STM32H503xx) || defined(__DOXYGEN__)
+  #define PLATFORM_NAME         "STM32H5 High-performance"
+
+#elif defined(STM32H533xx) || defined(__DOXYGEN__)
   #define PLATFORM_NAME         "STM32H5 High-performance"
 
 #elif defined(STM32H562xx) || defined(STM32H563xx)
@@ -1417,6 +1421,9 @@
 
 #if defined(STM32H503xx) && !defined(STM32H503_XMCUCONF)
 #error "Using a wrong mcuconf.h file, STM32H503_XMCUCONF not defined"
+
+#elif defined(STM32H533xx) && !defined(STM32H533_XMCUCONF)
+#error "Using a wrong mcuconf.h file, STM32H533_XMCUCONF not defined"
 
 #elif defined(STM32H562xx) && !defined(STM32H562_XMCUCONF)
 #error "Using a wrong mcuconf.h file, STM32H562_XMCUCONF not defined"
@@ -3612,7 +3619,7 @@ typedef uint32_t halcnt_t;
  * @note    The counter is the internal DWS cycles counter so in runs at
  *          the same frequency of CPU.
  */
-#define HAL_LLD_GET_CNT_FREQUENCY()         hal_lld_get_clock_point(CLK_HCLK)
+#define HAL_LLD_GET_CNT_FREQUENCY()         SystemCoreClock
 
 /**
  * @brief   Real time counter value exported to the safety module.
@@ -3681,7 +3688,6 @@ typedef uint32_t halcnt_t;
 /* Various helpers.*/
 #include "nvic.h"
 #include "cache.h"
-//#include "mpu_v8m.h"
 #include "stm32_isr.h"
 #include "stm32_dma3.h"
 #include "stm32_exti.h"

@@ -300,6 +300,10 @@ void port_init(os_instance_t *oip) {
 
   (void)oip;
 
+#if defined(port_smp_init)
+  port_smp_init(oip);
+#endif
+
   /* Starting in a known IRQ configuration.*/
   port_suspend();
 
@@ -365,9 +369,6 @@ void port_init(os_instance_t *oip) {
   }
 #endif
 
-#if defined(port_smp_init)
-  port_smp_init(oip);
-#endif
 }
 
 #if (CH_DBG_ENABLE_STACK_CHECK == TRUE) && (PORT_ENABLE_GUARD_PAGES == TRUE)

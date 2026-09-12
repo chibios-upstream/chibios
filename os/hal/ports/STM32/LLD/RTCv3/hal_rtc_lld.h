@@ -174,11 +174,19 @@
 #error "RTC clock not exported by HAL layer"
 #endif
 
-#if STM32_RTCCLK == 0
+#if defined(STM32_RTC_FREQ)
+#if STM32_RTC_FREQ == 0U
+#error "RTC has no clock source selected"
+#endif
+#elif STM32_RTCCLK == 0
 #error "RTC has no clock source selected"
 #endif
 
-#if STM32_PCLK1 < (STM32_RTCCLK * 7)
+#if defined(STM32_PCLK1_FREQ) && defined(STM32_RTC_FREQ)
+#if STM32_PCLK1_FREQ < (STM32_RTC_FREQ * 7U)
+#error "STM32_PCLK1 frequency is too low for RTC"
+#endif
+#elif STM32_PCLK1 < (STM32_RTCCLK * 7)
 #error "STM32_PCLK1 frequency is too low for RTC"
 #endif
 

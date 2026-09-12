@@ -82,11 +82,16 @@ namespace chibios_rt {
      * @details Performs an integrity check of the important ChibiOS/RT data
      *          structures.
      * @note    The reaction in case of failure is to invoke the
-     *          @p CH_CFG_INTEGRITY_HOOK which, by default, halts the system.
+     *          @p CH_CFG_SAFETY_CHECK_HOOK which, by default, halts the system.
+     *          A replacement hook must not return to the failed operation.
      * @note    This functionality is available at any hardening level.
-     * @note    Pointers validation is enabled at hardening level 2 or greater,
-     *          at lower levels a corrupted pointer can cause an exception.
-     *          Exceptions should be monitored as well as possible outcomes.
+     * @note    Forward/backward link consistency checks always execute. Pointer
+     *          validation before dereferencing is enabled at hardening level 2
+     *          or higher, or when @p CH_DBG_ENABLE_ASSERTS is enabled.
+     * @note    The default pointer validator checks only @p NULL and natural
+     *          alignment. An aligned invalid address can still cause an
+     *          exception, even at hardening level 3. Applications should also
+     *          monitor exceptions as possible outcomes of an integrity scan.
      * @note    This function is not used internally, it is up to the
      *          application to define if and where to perform system
      *          checking.
@@ -944,7 +949,8 @@ namespace chibios_rt {
     /**
      * @brief   Creates and starts a system thread.
      *
-     * @param[in] prio          thread priority
+     * @param[in] prio          thread priority, from @p LOWPRIO through
+     *                          @p HIGHPRIO
      * @return                  A reference to the created thread with
      *                          reference counter set to one.
      *
@@ -985,7 +991,8 @@ namespace chibios_rt {
      *          current priority that could be higher than the real priority
      *          because the priority inheritance mechanism.
      *
-     * @param[in] newprio   the new priority level of the running thread
+     * @param[in] newprio   the new priority level of the running thread, from
+     *                      @p LOWPRIO through @p HIGHPRIO
      * @return              The old priority level.
      *
      * @api
@@ -1017,6 +1024,8 @@ namespace chibios_rt {
      *          this function never returns. The compiler has no way to
      *          know this so do not assume that the compiler would remove
      *          the dead code.
+     * @pre     If mutexes are enabled then the invoking thread must not own
+     *          any mutex.
      *
      * @param[in] msg       thread exit code
      *
@@ -1036,6 +1045,8 @@ namespace chibios_rt {
      *          this function never returns. The compiler has no way to
      *          know this so do not assume that the compiler would remove
      *          the dead code.
+     * @pre     If mutexes are enabled then the invoking thread must not own
+     *          any mutex.
      *
      * @param[in] msg       thread exit code
      *
@@ -1346,7 +1357,8 @@ namespace chibios_rt {
     /**
      * @brief   Starts a static thread.
      *
-     * @param[in] prio          thread priority
+     * @param[in] prio          thread priority, from @p LOWPRIO through
+     *                          @p HIGHPRIO
      * @return                  A reference to the created thread with
      *                          reference counter set to one.
      *
@@ -2000,6 +2012,9 @@ namespace chibios_rt {
      * @details This function attempts to lock a mutex, if the mutex is already
      *          locked by another thread then the function exits without
      *          waiting.
+     * @pre     In recursive mode, a mutex already owned by the invoking
+     *          thread must have a lock depth lower than
+     *          @p MUTEX_MAX_RECURSION.
      * @post    The mutex is locked and inserted in the per-thread stack of
      *          owned mutexes.
      * @note    This function does not have any overhead related to the
@@ -2022,6 +2037,9 @@ namespace chibios_rt {
      * @details This function attempts to lock a mutex, if the mutex is already
      *          taken by another thread then the function exits without
      *          waiting.
+     * @pre     In recursive mode, a mutex already owned by the invoking
+     *          thread must have a lock depth lower than
+     *          @p MUTEX_MAX_RECURSION.
      * @post    The mutex is locked and inserted in the per-thread stack of
      *          owned mutexes.
      * @note    This function does not have any overhead related to the
@@ -2041,6 +2059,9 @@ namespace chibios_rt {
 
     /**
      * @brief   Locks the specified mutex.
+     * @pre     In recursive mode, a mutex already owned by the invoking
+     *          thread must have a lock depth lower than
+     *          @p MUTEX_MAX_RECURSION.
      * @post    The mutex is locked and inserted in the per-thread stack of
      *          owned mutexes.
      *
@@ -2053,6 +2074,9 @@ namespace chibios_rt {
 
     /**
      * @brief   Locks the specified mutex.
+     * @pre     In recursive mode, a mutex already owned by the invoking
+     *          thread must have a lock depth lower than
+     *          @p MUTEX_MAX_RECURSION.
      * @post    The mutex is locked and inserted in the per-thread stack of
      *          owned mutexes.
      *
@@ -2065,7 +2089,7 @@ namespace chibios_rt {
 
     /**
      * @brief   Unlocks the next owned mutex in reverse lock order.
-     * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+     * @pre     The invoking thread <b>must</b> own this mutex.
      * @post    The mutex is unlocked and removed from the per-thread stack of
      *          owned mutexes.
      *
@@ -2078,11 +2102,10 @@ namespace chibios_rt {
 
     /**
      * @brief   Unlocks the next owned mutex in reverse lock order.
-     * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+     * @pre     The invoking thread <b>must</b> own this mutex.
      * @post    The mutex is unlocked and removed from the per-thread stack of
      *          owned mutexes.
-     * @post    This function does not reschedule so a call to a rescheduling
-     *          function must be performed before unlocking the kernel.
+     * @post    The function reschedules internally if required.
      *
      * @sclass
      */
@@ -2093,7 +2116,7 @@ namespace chibios_rt {
 
     /**
      * @brief   Unlocks the next owned mutex in reverse lock order.
-     * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+     * @pre     The invoking thread <b>must</b> own this mutex.
      * @post    The mutex is unlocked and removed from the per-thread stack of
      *          owned mutexes.
      *
@@ -2108,11 +2131,10 @@ namespace chibios_rt {
 
     /**
      * @brief   Unlocks the next owned mutex in reverse lock order.
-     * @pre     The invoking thread <b>must</b> have at least one owned mutex.
+     * @pre     The invoking thread <b>must</b> own this mutex.
      * @post    The mutex is unlocked and removed from the per-thread stack of
      *          owned mutexes.
-     * @post    This function does not reschedule so a call to a rescheduling
-     *          function must be performed before unlocking the kernel.
+     * @post    The function reschedules internally if required.
      *
      * @return              A pointer to the unlocked mutex.
      *
@@ -2160,6 +2182,8 @@ namespace chibios_rt {
   protected:
     /**
      * @brief   Waits on the condition variable releasing the mutex lock.
+     * @pre     In recursive mode, the controlling mutex must have a lock
+     *          depth of one.
      *
      * @param[in] var       the condition variable index
      * @return              A message specifying how the invoking thread has
@@ -2180,6 +2204,8 @@ namespace chibios_rt {
 
     /**
      * @brief   Waits on the condition variable releasing the mutex lock.
+     * @pre     In recursive mode, the controlling mutex must have a lock
+     *          depth of one.
      *
      * @param[in] var       the condition variable index
      * @return              A message specifying how the invoking thread has
@@ -2201,6 +2227,8 @@ namespace chibios_rt {
 #if (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE) || defined(__DOXYGEN__)
     /**
      * @brief   Waits on the CondVar while releasing the controlling mutex.
+     * @pre     In recursive mode, the controlling mutex must have a lock
+     *          depth of one.
      *
      * @param[in] var       the condition variable index
      * @param[in] timeout   the number of ticks before the operation fails
@@ -2223,6 +2251,8 @@ namespace chibios_rt {
 
     /**
      * @brief   Waits on the CondVar while releasing the controlling mutex.
+     * @pre     In recursive mode, the controlling mutex must have a lock
+     *          depth of one.
      *
      * @param[in] var       the condition variable index
      * @param[in] timeout   the number of ticks before the operation fails
@@ -3042,7 +3072,8 @@ namespace chibios_rt {
     /**
      * @brief   Starts a dynamic thread from the pool.
      *
-     * @param[in] prio          thread priority
+     * @param[in] prio          thread priority, from @p LOWPRIO through
+     *                          @p HIGHPRIO
      * @return                  A reference to the created thread with
      *                          reference counter set to one.
      *

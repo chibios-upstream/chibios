@@ -259,6 +259,7 @@ void sbVRQSetFlagsI(sb_class_t *sbp, sb_vrqnum_t nvrq, uint32_t flags) {
 void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   const sb_vrqnum_t vrq_num =
     (sb_vrqnum_t)(sizeof sbp->vrq.flags / sizeof sbp->vrq.flags[0]);
+  sb_vrqmask_t active_mask;
 
   chDbgCheckClassS();
 
@@ -274,13 +275,20 @@ void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   /* Adding VRQ mask to the pending mask.*/
   sbp->vrq.wtmask |= (sb_vrqmask_t)(1U << nvrq);
 
-  /* Only doing the following if VRQs are globally enabled.*/
-  if ((sbp->vrq.isr & SB_VRQ_ISR_DISABLED) == 0U) {
-    sb_vrqmask_t active_mask;
+  /* Per-VRQ enables control both wakeup and delivery.*/
+  active_mask = sbp->vrq.wtmask & sbp->vrq.enmask;
+  if (active_mask != 0U) {
 
-    /* Checking if there are VRQs to be served immediately.*/
-    active_mask = sbp->vrq.wtmask & sbp->vrq.enmask;
-    if (active_mask != 0U) {
+    /* Waking a VRQ waiter independently of the global delivery mask.
+       Returning immediately because the resumed sandbox may run here.*/
+    if (sbp->vrq.trp != NULL) {
+      chThdResumeS(&sbp->vrq.trp, MSG_OK);
+      return;
+    }
+
+    /* Only delivering handlers if VRQs are globally enabled. Privileged
+       contexts defer delivery until syscall return.*/
+    if ((sbp->vrq.isr & SB_VRQ_ISR_DISABLED) == 0U) {
 
       /* Checking if it has been called from this sandbox thread by
          a syscall handler.*/
@@ -297,12 +305,6 @@ void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq) {
           /* Unprivileged mode, creating a return context on the sandbox
              thread.*/
           vrq_pushctx_other(sbp, __CLZ(__RBIT(active_mask)));
-        }
-        else {
-          /* Privileged mode, so it will check for pending VRQs while
-             exiting the syscall. Just trying to wake up the thread
-             in case it is waiting for VRQs.*/
-          chThdResumeS(&sbp->vrq.trp, MSG_OK);
         }
       }
     }
@@ -325,6 +327,7 @@ void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq) {
 void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   const sb_vrqnum_t vrq_num =
     (sb_vrqnum_t)(sizeof sbp->vrq.flags / sizeof sbp->vrq.flags[0]);
+  sb_vrqmask_t active_mask;
 
   chDbgCheckClassI();
 
@@ -340,13 +343,20 @@ void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   /* Adding VRQ mask to the pending mask.*/
   sbp->vrq.wtmask |= (sb_vrqmask_t)(1U << nvrq);
 
-  /* Only doing the following if VRQs are globally enabled.*/
-  if ((sbp->vrq.isr & SB_VRQ_ISR_DISABLED) == 0U) {
-    sb_vrqmask_t active_mask;
+  /* Per-VRQ enables control both wakeup and delivery.*/
+  active_mask = sbp->vrq.wtmask & sbp->vrq.enmask;
+  if (active_mask != 0U) {
 
-    /* Checking if there are VRQs to be served immediately.*/
-    active_mask = sbp->vrq.wtmask & sbp->vrq.enmask;
-    if (active_mask != 0U) {
+    /* Waking a VRQ waiter independently of the global delivery mask.
+       Pending VRQs are checked when the resumed syscall returns.*/
+    if (sbp->vrq.trp != NULL) {
+      chThdResumeI(&sbp->vrq.trp, MSG_OK);
+      return;
+    }
+
+    /* Only delivering handlers if VRQs are globally enabled. Privileged
+       contexts defer delivery until syscall return.*/
+    if ((sbp->vrq.isr & SB_VRQ_ISR_DISABLED) == 0U) {
 
       /* Checking if it happened to preempt this sandbox thread.*/
       if (sbp->thread.state == CH_STATE_CURRENT) {
@@ -356,12 +366,6 @@ void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
 
           /* Creating a return context.*/
           vrq_pushctx_this(sbp, __get_PSP(), __CLZ(__RBIT(active_mask)));
-        }
-        else {
-          /* It is in privileged mode so it will check for pending VRQs
-             while exiting the syscall. Just trying to wake up the thread
-             in case it is waiting for VRQs.*/
-          chThdResumeI(&sbp->vrq.trp, MSG_OK);
         }
       }
       else {
@@ -373,12 +377,6 @@ void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
           /* Unprivileged mode, creating a return context on the sandbox
              thread.*/
           vrq_pushctx_other(sbp, __CLZ(__RBIT(active_mask)));
-        }
-        else {
-          /* Privileged mode, so it will check for pending VRQs while
-             exiting the syscall. Just trying to wake up the thread
-             in case it is waiting for VRQs.*/
-          chThdResumeI(&sbp->vrq.trp, MSG_OK);
         }
       }
     }
