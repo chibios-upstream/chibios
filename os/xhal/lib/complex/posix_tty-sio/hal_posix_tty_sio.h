@@ -30,18 +30,25 @@
  *              a second. Reads return when the requested byte count is reached
  *              even if it is smaller than VMIN. A read timeout returns zero
  *              bytes if no input was transferred; stmGet() reports STM_TIMEOUT
- *              instead of STM_RESET. Canonical reads ignore VMIN and VTIME;
- *              the data format is fixed to CS8, CREAD, and CLOCAL. Speed
- *              fields report the SIO default and are not used to reconfigure
- *              the transport. Received transport errors are cleared and
- *              ignored, error-related input flags are not supported. A blocked
- *              read returns zero bytes when the driver is stopped or when a
- *              terminal signal flushes the input queue, pending signal flags
- *              allow distinguishing an interrupted read from an end-of-file
- *              condition. Only one drain operation can be active at a time.
- *              Stopping the driver during active blocking I/O operations is
- *              not supported. Erasing a tabulation character does not restore
- *              the previous column.
+ *              instead of STM_RESET. Each read snapshots its completion policy
+ *              on entry; attribute changes affect subsequent reads and
+ *              incoming character processing, not the active read's minimum or
+ *              timeout. Canonical reads ignore VMIN and VTIME; the data format
+ *              is fixed to CS8, CREAD, and CLOCAL. Speed fields report the SIO
+ *              default and are not used to reconfigure the transport. Received
+ *              transport errors are cleared and ignored, error-related input
+ *              flags are not supported. A blocked read returns zero bytes when
+ *              the driver is stopped or when a terminal signal flushes the
+ *              input queue, pending signal flags allow distinguishing an
+ *              interrupted read from an end-of-file condition. Concurrent
+ *              drain operations wait for the same physical TX-idle condition
+ *              and are all released on completion or reset. Stopping the
+ *              driver during active blocking I/O operations is not supported.
+ *              Erasing a tabulation character does not restore the previous
+ *              column. Editing is byte-oriented, IUTF8 is not supported.
+ *              Buffered canonical records retain their boundaries after
+ *              switching to non-canonical mode and can end a read before its
+ *              minimum is reached.
  * @{
  */
 
@@ -71,9 +78,9 @@
 #define PTTY_SUPPORTED_OFLAGS               (OPOST | ONLCR)
 
 /**
- * @brief       Supported control attribute bits; all are required.
+ * @brief       Required control attribute value.
  */
-#define PTTY_SUPPORTED_CFLAGS               (CSIZE | CREAD | CLOCAL)
+#define PTTY_REQUIRED_CFLAGS                (CS8 | CREAD | CLOCAL)
 
 /**
  * @brief       Supported local attribute flags.
@@ -242,8 +249,16 @@ typedef struct {
  *              from ISR context outside system locks. Echo is generated
  *              without blocking in ISR context, therefore @p
  *              PTTY_ECHO_BUFFER_SIZE should cover the longest editing sequence
- *              that must be preserved. All queue storage is embedded in each
- *              instance and sized by module configuration options.
+ *              that must be preserved. If this queue is full, additional echo
+ *              bytes are discarded; the received input is not discarded for
+ *              that reason. TX backpressure can therefore leave the displayed
+ *              line out of sync with the input buffer. The SIO transport must
+ *              re-arm enabled TX-space and TX-end events when new frames are
+ *              written, even if its logical enabled-event mask is unchanged.
+ *              TX-idle state must remain observable until another transmission
+ *              starts; this wrapper does not clear TX-end events. All queue
+ *              storage is embedded in each instance and sized by module
+ *              configuration options.
  *
  * @name        Class @p hal_posix_tty_sio_c structures
  * @{
@@ -336,13 +351,17 @@ struct hal_posix_tty_sio {
    */
   struct termios            attributes;
   /**
+   * @brief       Selected read handler, called with the system locked.
+   */
+  size_t (*readf)(hal_posix_tty_sio_c *self, uint8_t *bp, size_t n, msg_t *msgp);
+  /**
    * @brief       Active terminal window size.
    */
   struct winsize            winsize;
   /**
-   * @brief       Thread waiting for output drain completion.
+   * @brief       Threads waiting for output drain completion.
    */
-  thread_reference_t        drainsync;
+  threads_queue_t           drainsync;
   /**
    * @brief       Pending terminal signal flags.
    */

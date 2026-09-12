@@ -3,7 +3,7 @@ POSIXTTYSIOSRC := $(CHIBIOS)/os/xhal/lib/complex/posix_tty-sio/hal_posix_tty_sio
 
 # Required include directories.
 POSIXTTYSIOINC := $(CHIBIOS)/os/xhal/lib/complex/posix_tty-sio \
-                  $(CHIBIOS)/os/sb/common
+                  $(CHIBIOS)/os/common/posix/include
 
 # Shared variables.
 ALLCSRC += $(POSIXTTYSIOSRC)

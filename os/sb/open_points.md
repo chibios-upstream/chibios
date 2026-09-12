@@ -49,6 +49,10 @@ The following work is complete and must not be reintroduced as an open item:
   restoration. Nucleo testing confirmed interactive editing, fragmented
   escape sequences, standalone Escape, read-only save errors, canonical
   input after editor exit, and multi-byte/inter-byte timing.
+- Shared terminal headers live under `os/common/posix/include` with an
+  Apache-2.0 license, retaining the existing host/guest ABI. The XHAL TTY
+  no longer depends on the sandbox header directory. Concurrent drains use
+  a thread queue, including reset/stop wakeups and delayed-caller handling.
 
 ## Priority 1: security and isolation
 
@@ -103,6 +107,9 @@ transport are in [note_sb_tty.md](note_sb_tty.md).
   bytes are transferred must have a distinct outcome mapped to `EINTR`,
   not the current queue-reset result that appears as EOF. Define partial
   transfer, ignored/blocked signal, restart and `NOFLSH` behavior too.
+- Include software-flow-control restart in the signal policy. Currently a
+  signal character clears `output_stopped` only when `NOFLSH` is clear;
+  resuming output independently of flushing must be an explicit decision.
 - Provide a guest dispatcher and active-application handling across nested
   `sbRunElf()` calls. Define default actions and shell prompt behavior;
   suspend/resume and full job control are not implied by the transport.

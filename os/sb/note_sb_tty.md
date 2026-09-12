@@ -6,6 +6,15 @@ Implementation status, pending decisions and validation work are tracked in
 the [Sandbox TTY integration section of open_points.md](open_points.md#sandbox-tty-integration).
 This note records context and design rationale, not a separate backlog.
 
+## Shared terminal definitions
+
+The terminal and window-control headers are Apache-2.0 shared definitions in
+`os/common/posix/include/sys/`, used by XHAL and sandbox host/user builds.
+The TTY make fragment no longer adds `os/sb/common` to its include path.
+Structure layouts, flag values and ioctl request numbers are unchanged.
+Native applications retain their system headers; the embedded POSIX include
+directory is deliberately opt-in, not part of the generic common include path.
+
 ## Aligned operation results
 
 HAL and XHAL define identical status values directly in their respective
@@ -66,9 +75,27 @@ Canonical reads ignore these settings and retain their record/EOF handling.
 The existing thread-queue timed wait supplies the timer; no additional
 per-instance timer, queue or buffer is allocated. Data is accumulated in the
 caller's buffer, so `VMIN` can exceed the input-ring capacity. Bare wakeups
-do not restart a deadline. Changes to effective read settings are adopted
-before the first byte; after a partial transfer, the read returns its data
-and subsequent reads use the new settings.
+do not restart a deadline.
+
+Each instance stores a read-function pointer, selected when attributes are
+applied or defaults are restored. Four handlers implement the timing cases;
+canonical input shares the untimed blocking handler with an effective minimum
+of one because the queue already supplies committed records and EOF markers.
+Each read snapshots its handler, minimum and timeout under the system lock
+before waiting. Attribute changes do not reselect an active read's handler,
+change its minimum, restart its timer or return its partial data early.
+Subsequent reads use the new policy. Incoming character processing (including
+echo, editing, translations and canonical record commitment) uses the current
+attributes immediately; this is not a snapshot of all terminal behavior.
+Queue reset and driver stop still terminate waiting reads, retaining any
+already transferred bytes. Applications must finish or otherwise interrupt
+an outstanding read before relying on a new minimum or timeout.
+
+Canonical records already committed to the input queue keep their boundaries
+after a switch to noncanonical mode. Such a boundary can complete a read
+before its new noncanonical minimum is reached. Editing is byte-oriented;
+`IUTF8` is unsupported and a multibyte UTF-8 character is not erased as one
+character. Erasing a tab does not restore its original display width.
 
 The internal read result distinguishes timeout from reset/EOF so `stmGet()`
 can return `STM_TIMEOUT`. The POSIX byte-count read path still returns zero
@@ -83,6 +110,28 @@ because its screen renderer emits CRLF itself, and restores saved terminal
 attributes with `TCSADRAIN` on normal/error exit, without flushing typeahead.
 The ROMFS-only demo supports editing in memory and reports save failures
 for read-only paths; it does not provide writable storage.
+
+## Output drain and transport contract
+
+Concurrent drains wait on a thread queue for all application, echo and pending
+flow-control output to reach physical TX idle. Completion wakes every waiter;
+each rechecks the condition if new output arrived before it ran. Reset and
+stop release all queued drain callers. A caller returning from an older drain
+must not clear the synchronization state of a newer drain.
+
+The transport must re-arm enabled TX-space and TX-end events when new frames
+are written, even if the logical event mask is unchanged. Physical TX-idle
+state must remain observable until another transmission starts. The wrapper
+does not clear TX-end events and writes the enable mask only when it changes:
+re-enabling an asserted completion source on every callback could repeatedly
+interrupt while queued output is flow-stopped. The STM32 USARTv2/v3 ports
+re-arm on writes; RP has corresponding TX-end tracking.
+
+Echo generation cannot block in the RX interrupt. If its bounded queue is
+full, extra echo bytes are dropped without dropping the corresponding input.
+Under TX backpressure the display can therefore diverge from the edited input;
+size `PTTY_ECHO_BUFFER_SIZE` for the bursts that must be preserved. No drop
+counter or UTF-8 editing state is currently maintained.
 
 ## Proposed transport: one VRQ and its flags
 

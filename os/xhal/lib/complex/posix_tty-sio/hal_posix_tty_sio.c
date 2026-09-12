@@ -43,6 +43,7 @@
 
 static void __ptty_update_tx_i(hal_posix_tty_sio_c *self);
 static void __ptty_push_output_i(hal_posix_tty_sio_c *self);
+static void __ptty_select_read(hal_posix_tty_sio_c *self);
 
 static void __ptty_input_init(ptty_input_queue_t *iqp) {
   size_t i;
@@ -57,12 +58,14 @@ static void __ptty_input_init(ptty_input_queue_t *iqp) {
   }
 }
 
-static void __ptty_attributes_default(struct termios *attrp) {
+static void __ptty_attributes_default(hal_posix_tty_sio_c *self) {
+  struct termios *attrp;
   size_t i;
 
+  attrp = &self->attributes;
   attrp->c_iflag  = ICRNL | IXON | IMAXBEL;
   attrp->c_oflag  = OPOST | ONLCR;
-  attrp->c_cflag  = CS8 | CREAD | CLOCAL;
+  attrp->c_cflag  = PTTY_REQUIRED_CFLAGS;
   attrp->c_lflag  = ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHOCTL;
   for (i = 0U; i < NCCS; i++) {
     attrp->c_cc[i] = 0U;
@@ -79,6 +82,14 @@ static void __ptty_attributes_default(struct termios *attrp) {
   attrp->c_cc[VSUSP]  = 0x1AU;
   attrp->c_ispeed     = (speed_t)SIO_DEFAULT_BITRATE;
   attrp->c_ospeed     = (speed_t)SIO_DEFAULT_BITRATE;
+  __ptty_select_read(self);
+}
+
+/* Validation must see the full result even with 16-bit RT time types and
+   a high timer frequency; only validated read intervals may be narrowed.*/
+static uint64_t __ptty_vtime_interval(const struct termios *attrp) {
+
+  return ((uint64_t)attrp->c_cc[VTIME] * CH_CFG_ST_FREQUENCY + 9U) / 10U;
 }
 
 static bool __ptty_attributes_valid(hal_posix_tty_sio_c *self,
@@ -90,7 +101,7 @@ static bool __ptty_attributes_valid(hal_posix_tty_sio_c *self,
   if ((attrp->c_oflag & ~PTTY_SUPPORTED_OFLAGS) != 0U) {
     return false;
   }
-  if (attrp->c_cflag != (CS8 | CREAD | CLOCAL)) {
+  if (attrp->c_cflag != PTTY_REQUIRED_CFLAGS) {
     return false;
   }
   if ((attrp->c_lflag & ~PTTY_SUPPORTED_LFLAGS) != 0U) {
@@ -99,8 +110,7 @@ static bool __ptty_attributes_valid(hal_posix_tty_sio_c *self,
   /* Canonical input ignores VTIME. Non-canonical intervals must fit
      in the RT timer without becoming TIME_IMMEDIATE or TIME_INFINITE.*/
   if (((attrp->c_lflag & ICANON) == 0U) &&
-      ((((time_conv_t)attrp->c_cc[VTIME] * CH_CFG_ST_FREQUENCY + 9U) /
-        10U) > (time_conv_t)TIME_MAX_INTERVAL)) {
+      (__ptty_vtime_interval(attrp) > (uint64_t)TIME_MAX_INTERVAL)) {
     return false;
   }
   if ((attrp->c_ispeed != self->attributes.c_ispeed) ||
@@ -474,8 +484,16 @@ static void __ptty_update_tx_i(hal_posix_tty_sio_c *self) {
     mask |= SIO_EV_TX_END;
   }
   if (mask != current) {
+    /* Do not re-arm an unchanged TX-end source while TC is still asserted:
+       queued but flow-stopped output could otherwise cause an IRQ storm.*/
     sioWriteEnableFlagsX(self->siop, mask);
   }
+}
+
+static void __ptty_reset_drain_i(hal_posix_tty_sio_c *self) {
+
+  self->drain_waiting = false;
+  chThdDequeueAllI(&self->drainsync, MSG_RESET);
 }
 
 static void __ptty_resume_drain_i(hal_posix_tty_sio_c *self) {
@@ -486,7 +504,7 @@ static void __ptty_resume_drain_i(hal_posix_tty_sio_c *self) {
       oqIsEmptyI(&self->oqueue) &&
       !sioIsTXOngoingX(self->siop)) {
     self->drain_waiting = false;
-    chThdResumeI(&self->drainsync, MSG_OK);
+    chThdDequeueAllI(&self->drainsync, MSG_OK);
   }
 }
 
@@ -603,20 +621,187 @@ static size_t __ptty_write(hal_posix_tty_sio_c *self,
   return done;
 }
 
+/* Copies committed input, stopping at a record boundary or a full caller
+   buffer. A true result includes an empty EOF record.*/
+static bool __ptty_input_read_i(ptty_input_queue_t *iqp,
+                                uint8_t **bpp,
+                                size_t *np) {
+
+  while ((*np > 0U) && (iqp->committed > 0U)) {
+    bool boundary;
+    uint8_t b;
+
+    boundary = __ptty_input_is_boundary_i(iqp, iqp->read);
+    b = iqp->buffer[iqp->read];
+    __ptty_input_clear_boundary_i(iqp, iqp->read);
+    iqp->read = __ptty_input_advance(iqp->read);
+    iqp->committed--;
+
+    if (boundary && (b == 0U)) {
+      return true;
+    }
+    *(*bpp)++ = b;
+    (*np)--;
+    if (boundary) {
+      return true;
+    }
+  }
+  /* An exact-sized EOF record must not leave a spurious empty read.*/
+  if ((*np == 0U) && (iqp->committed > 0U) &&
+      __ptty_input_is_boundary_i(iqp, iqp->read) &&
+      (iqp->buffer[iqp->read] == 0U)) {
+    __ptty_input_clear_boundary_i(iqp, iqp->read);
+    iqp->read = __ptty_input_advance(iqp->read);
+    iqp->committed--;
+  }
+
+  return *np == 0U;
+}
+
+/* Waits against an existing deadline; bare wakeups never rearm it.*/
+static msg_t __ptty_read_wait_s(hal_posix_tty_sio_c *self,
+                                systime_t started,
+                                sysinterval_t interval) {
+  sysinterval_t timeout;
+  msg_t msg;
+
+  timeout = interval;
+  if (interval != TIME_INFINITE) {
+    sysinterval_t elapsed;
+
+    elapsed = chTimeDiffX(started, chVTGetSystemTimeX());
+    if (elapsed >= interval) {
+      return MSG_TIMEOUT;
+    }
+    timeout -= elapsed;
+  }
+  msg = chThdEnqueueTimeoutS(&self->iqueue.waiting, timeout);
+  if (self->state != HAL_DRV_STATE_READY) {
+    return MSG_RESET;
+  }
+
+  return msg;
+}
+
+/* MIN = 0, TIME = 0: never waits.*/
+static size_t __ptty_read_poll_s(hal_posix_tty_sio_c *self,
+                                 uint8_t *bp,
+                                 size_t n,
+                                 msg_t *msgp) {
+  uint8_t *startp;
+
+  startp = bp;
+  if (!__ptty_input_read_i(&self->iqueue, &bp, &n) && (bp == startp)) {
+    *msgp = MSG_TIMEOUT;
+  }
+
+  return (size_t)(bp - startp);
+}
+
+/* MIN > 0, TIME = 0, or canonical input with an effective minimum of one.
+   The input queue supplies canonical record boundaries in either case.*/
+static size_t __ptty_read_blocking_s(hal_posix_tty_sio_c *self,
+                                     uint8_t *bp,
+                                     size_t n,
+                                     msg_t *msgp) {
+  uint8_t *startp;
+  size_t minimum;
+
+  startp = bp;
+  minimum = (self->attributes.c_lflag & ICANON) != 0U ?
+            1U : (size_t)self->attributes.c_cc[VMIN];
+  while (!__ptty_input_read_i(&self->iqueue, &bp, &n) &&
+         ((size_t)(bp - startp) < minimum)) {
+    *msgp = __ptty_read_wait_s(self, 0U, TIME_INFINITE);
+    if (*msgp != MSG_OK) {
+      break;
+    }
+  }
+
+  return (size_t)(bp - startp);
+}
+
+/* MIN = 0, TIME > 0: one deadline starting at read entry.*/
+static size_t __ptty_read_timed_s(hal_posix_tty_sio_c *self,
+                                  uint8_t *bp,
+                                  size_t n,
+                                  msg_t *msgp) {
+  uint8_t *startp;
+  sysinterval_t interval;
+  systime_t started;
+
+  startp = bp;
+  interval = (sysinterval_t)__ptty_vtime_interval(&self->attributes);
+  started = chVTGetSystemTimeX();
+  while (!__ptty_input_read_i(&self->iqueue, &bp, &n) && (bp == startp)) {
+    *msgp = __ptty_read_wait_s(self, started, interval);
+    if (*msgp != MSG_OK) {
+      break;
+    }
+  }
+
+  return (size_t)(bp - startp);
+}
+
+/* MIN > 0, TIME > 0: no first-byte deadline, then an inter-byte timer.*/
+static size_t __ptty_read_interbyte_s(hal_posix_tty_sio_c *self,
+                                      uint8_t *bp,
+                                      size_t n,
+                                      msg_t *msgp) {
+  uint8_t *startp;
+  size_t minimum;
+  sysinterval_t interval;
+  systime_t started;
+
+  startp = bp;
+  minimum = (size_t)self->attributes.c_cc[VMIN];
+  interval = (sysinterval_t)__ptty_vtime_interval(&self->attributes);
+  started = 0U;
+  while (true) {
+    size_t previous;
+
+    previous = n;
+    if (__ptty_input_read_i(&self->iqueue, &bp, &n) ||
+        ((size_t)(bp - startp) >= minimum)) {
+      break;
+    }
+    if (n < previous) {
+      started = chVTGetSystemTimeX();
+    }
+    *msgp = __ptty_read_wait_s(self, started,
+                               bp == startp ? TIME_INFINITE : interval);
+    if (*msgp != MSG_OK) {
+      break;
+    }
+  }
+
+  return (size_t)(bp - startp);
+}
+
+/* Called during object initialization or with the system locked.*/
+static void __ptty_select_read(hal_posix_tty_sio_c *self) {
+
+  if (((self->attributes.c_lflag & ICANON) != 0U) ||
+      ((self->attributes.c_cc[VMIN] > 0U) &&
+       (self->attributes.c_cc[VTIME] == 0U))) {
+    self->readf = __ptty_read_blocking_s;
+  }
+  else if (self->attributes.c_cc[VTIME] == 0U) {
+    self->readf = __ptty_read_poll_s;
+  }
+  else if (self->attributes.c_cc[VMIN] == 0U) {
+    self->readf = __ptty_read_timed_s;
+  }
+  else {
+    self->readf = __ptty_read_interbyte_s;
+  }
+}
+
 static size_t __ptty_read(hal_posix_tty_sio_c *self,
                           uint8_t *bp,
                           size_t n,
                           msg_t *msgp) {
-  ptty_input_queue_t *iqp;
-  bool canonical;
-  bool configured;
-  bool timed;
-  bool record_ended;
-  size_t minimum;
-  sysinterval_t interval;
-  systime_t started;
   size_t done;
-  msg_t msg;
 
   chDbgCheck((bp != NULL) || (n == 0U));
   *msgp = MSG_OK;
@@ -624,114 +809,23 @@ static size_t __ptty_read(hal_posix_tty_sio_c *self,
     return 0U;
   }
 
-  iqp = &self->iqueue;
-  canonical = false;
-  configured = false;
-  timed = false;
-  minimum = 0U;
-  interval = TIME_IMMEDIATE;
   done = 0U;
-  record_ended = false;
-  msg = MSG_OK;
   chSysLock();
-  started = chVTGetSystemTimeX();
-  while (true) {
-    bool new_canonical;
-    size_t new_minimum;
-    sysinterval_t new_interval;
-    sysinterval_t timeout;
-    size_t previous;
-
-    if (self->state != HAL_DRV_STATE_READY) {
-      msg = MSG_RESET;
-      break;
-    }
-
-    new_canonical = (self->attributes.c_lflag & ICANON) != 0U;
-    new_minimum = new_canonical ? 1U : (size_t)self->attributes.c_cc[VMIN];
-    if (new_minimum > n) {
-      new_minimum = n;
-    }
-    new_interval = new_canonical ? TIME_IMMEDIATE :
-                   TIME_MS2I((time_conv_t)self->attributes.c_cc[VTIME] * 100U);
-    if (!configured || (canonical != new_canonical) ||
-        (minimum != new_minimum) || (interval != new_interval)) {
-      /* Adopt changed read settings before the first byte, otherwise let
-         the next read use them. Unrelated attribute changes do not rearm
-         a running timeout.*/
-      if (done > 0U) {
-        break;
-      }
-      configured = true;
-      canonical = new_canonical;
-      minimum = new_minimum;
-      interval = new_interval;
-      timed = !canonical && (minimum == 0U);
-      started = chVTGetSystemTimeX();
-    }
-
-    previous = done;
-    while ((done < n) && (iqp->committed > 0U)) {
-      bool boundary;
-      uint8_t b;
-
-      boundary = __ptty_input_is_boundary_i(iqp, iqp->read);
-      b = iqp->buffer[iqp->read];
-      __ptty_input_clear_boundary_i(iqp, iqp->read);
-      iqp->read = __ptty_input_advance(iqp->read);
-      iqp->committed--;
-
-      if (boundary && (b == 0U)) {
-        record_ended = true;
-        break;
-      }
-      bp[done++] = b;
-      if (boundary) {
-        record_ended = true;
-        break;
-      }
-    }
-    if (record_ended || (done == n) ||
-        ((done > 0U) && (canonical || (done >= minimum)))) {
-      break;
-    }
-
-    /* MIN > 0 has no first-byte deadline. Only actual input progress
-       starts/restarts its inter-byte timer, never a bare wakeup.*/
-    if ((done > previous) && (interval != TIME_IMMEDIATE)) {
-      timed = true;
-      started = chVTGetSystemTimeX();
-    }
-    timeout = TIME_INFINITE;
-    if (timed) {
-      sysinterval_t elapsed;
-
-      elapsed = chTimeDiffX(started, chVTGetSystemTimeX());
-      if (elapsed >= interval) {
-        msg = MSG_TIMEOUT;
-        break;
-      }
-      timeout = interval - elapsed;
-    }
-    msg = chThdEnqueueTimeoutS(&iqp->waiting, timeout);
-    if (msg != MSG_OK) {
-      break;
+  if (self->state == HAL_DRV_STATE_READY) {
+    done = self->readf(self, bp, n, msgp);
+    if (self->iqueue.committed > 0U) {
+      __ptty_input_wakeup_i(self);
     }
   }
-  if (!record_ended && (done == n) && (iqp->committed > 0U) &&
-      __ptty_input_is_boundary_i(iqp, iqp->read) &&
-      (iqp->buffer[iqp->read] == 0U)) {
-    __ptty_input_clear_boundary_i(iqp, iqp->read);
-    iqp->read = __ptty_input_advance(iqp->read);
-    iqp->committed--;
-  }
-  if (iqp->committed > 0U) {
-    __ptty_input_wakeup_i(self);
+  else {
+    *msgp = MSG_RESET;
   }
   chSchRescheduleS();
   chSysUnlock();
 
-  *msgp = ((done == 0U) && (msg == MSG_OK)) ? MSG_RESET : msg;
+  if ((done == 0U) && (*msgp == MSG_OK)) {
+    *msgp = MSG_RESET;
+  }
   return done;
 }
 
@@ -743,8 +837,6 @@ static msg_t __ptty_drain(hal_posix_tty_sio_c *self) {
     chSysUnlock();
     return HAL_RET_INV_STATE;
   }
-  chDbgAssert(!self->drain_waiting, "another drain operation is active");
-
   while (self->flow_pending ||
          !qIsEmptyI(&self->equeue) ||
          !oqIsEmptyI(&self->oqueue) ||
@@ -754,8 +846,9 @@ static msg_t __ptty_drain(hal_posix_tty_sio_c *self) {
     if (!self->drain_waiting) {
       continue;
     }
-    msg = chThdSuspendS(&self->drainsync);
-    self->drain_waiting = false;
+    msg = chThdEnqueueTimeoutS(&self->drainsync, TIME_INFINITE);
+    /* Completion/reset owns drain_waiting. Another caller may already
+       have started a new drain before this waiter gets to run again.*/
     if (msg != MSG_OK) {
       chSysUnlock();
       return HAL_RET_INV_STATE;
@@ -779,6 +872,7 @@ static void __ptty_apply_attributes_i(hal_posix_tty_sio_c *self,
 
   was_canonical = (self->attributes.c_lflag & ICANON) != 0U;
   self->attributes = *attrp;
+  __ptty_select_read(self);
 
   if (was_canonical && ((attrp->c_lflag & ICANON) == 0U)) {
     __ptty_input_commit_i(self);
@@ -1166,14 +1260,14 @@ void *__ptty_objinit_impl(void *ip, const void *vmt, hal_sio_driver_c *siop) {
   oqObjectInit(&self->oqueue, self->obuffer, sizeof self->obuffer,
                __ptty_onotify, self);
   qObjectInit(&self->equeue, self->ebuffer, sizeof self->ebuffer);
+  chThdQueueObjectInit(&self->drainsync);
   self->siop           = siop;
-  self->drainsync      = NULL;
   self->signals        = PTTY_SIGNAL_NONE;
   self->output_stopped = false;
   self->drain_waiting  = false;
   self->flow_pending   = false;
   self->flow_char      = 0U;
-  __ptty_attributes_default(&self->attributes);
+  __ptty_attributes_default(self);
   self->winsize.ws_row    = PTTY_DEFAULT_ROWS;
   self->winsize.ws_col    = PTTY_DEFAULT_COLUMNS;
   self->winsize.ws_xpixel = 0U;
@@ -1219,12 +1313,11 @@ msg_t __ptty_start_impl(void *ip, const void *config) {
   __ptty_input_reset_i(self);
   oqResetI(&self->oqueue);
   qResetI(&self->equeue);
+  __ptty_reset_drain_i(self);
   self->config         = self->siop->config;
   self->signals        = PTTY_SIGNAL_NONE;
   self->output_stopped = false;
-  self->drain_waiting  = false;
   self->flow_pending   = false;
-  self->drainsync      = NULL;
   drvSetArgumentX(self->siop, self);
   drvSetCallbackX(self->siop, __ptty_sio_cb);
   sioWriteEnableFlagsX(self->siop,
@@ -1252,10 +1345,7 @@ void __ptty_stop_impl(void *ip) {
   __ptty_input_reset_i(self);
   oqResetI(&self->oqueue);
   qResetI(&self->equeue);
-  if (self->drain_waiting) {
-    self->drain_waiting = false;
-    chThdResumeI(&self->drainsync, MSG_RESET);
-  }
+  __ptty_reset_drain_i(self);
   self->signals        = PTTY_SIGNAL_NONE;
   self->output_stopped = false;
   self->flow_pending   = false;
@@ -1341,10 +1431,7 @@ msg_t pttyReset(void *ip) {
   __ptty_input_reset_i(self);
   oqResetI(&self->oqueue);
   qResetI(&self->equeue);
-  if (self->drain_waiting) {
-    self->drain_waiting = false;
-    chThdResumeI(&self->drainsync, MSG_RESET);
-  }
+  __ptty_reset_drain_i(self);
   while (!sioIsRXEmptyX(self->siop)) {
     (void)sioGetX(self->siop);
   }
@@ -1355,7 +1442,7 @@ msg_t pttyReset(void *ip) {
   self->output_stopped = false;
   self->flow_pending   = false;
   self->flow_char      = 0U;
-  __ptty_attributes_default(&self->attributes);
+  __ptty_attributes_default(self);
   self->winsize.ws_row    = PTTY_DEFAULT_ROWS;
   self->winsize.ws_col    = PTTY_DEFAULT_COLUMNS;
   self->winsize.ws_xpixel = 0U;
