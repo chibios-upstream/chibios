@@ -25,18 +25,23 @@
  *              line discipline layered over a generic SIO driver. It provides
  *              canonical input editing, local echo, buffered output, software
  *              flow control, and typed terminal control operations without
- *              dynamic memory allocation. The initial non-canonical mode
- *              implements VMIN=1 and VTIME=0; the data format is fixed to CS8,
- *              CREAD, and CLOCAL. Speed fields report the SIO default and are
- *              not used to reconfigure the transport. Received transport
- *              errors are cleared and ignored, error-related input flags are
- *              not supported. A blocked read returns zero bytes when the
- *              driver is stopped or when a terminal signal flushes the input
- *              queue, pending signal flags allow distinguishing an interrupted
- *              read from an end-of-file condition. Only one drain operation
- *              can be active at a time. Stopping the driver during active
- *              blocking I/O operations is not supported. Erasing a tabulation
- *              character does not restore the previous column.
+ *              dynamic memory allocation. Non-canonical input supports all
+ *              four VMIN/VTIME combinations, with VTIME expressed in tenths of
+ *              a second. Reads return when the requested byte count is reached
+ *              even if it is smaller than VMIN. A read timeout returns zero
+ *              bytes if no input was transferred; stmGet() reports STM_TIMEOUT
+ *              instead of STM_RESET. Canonical reads ignore VMIN and VTIME;
+ *              the data format is fixed to CS8, CREAD, and CLOCAL. Speed
+ *              fields report the SIO default and are not used to reconfigure
+ *              the transport. Received transport errors are cleared and
+ *              ignored, error-related input flags are not supported. A blocked
+ *              read returns zero bytes when the driver is stopped or when a
+ *              terminal signal flushes the input queue, pending signal flags
+ *              allow distinguishing an interrupted read from an end-of-file
+ *              condition. Only one drain operation can be active at a time.
+ *              Stopping the driver during active blocking I/O operations is
+ *              not supported. Erasing a tabulation character does not restore
+ *              the previous column.
  * @{
  */
 

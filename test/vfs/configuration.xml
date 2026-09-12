@@ -959,6 +959,7 @@ test_assert(vfs_test_stat_optional_is_clear(&stat),
 #include "vfs.h"
 
 #if VFS_CFG_ENABLE_DRV_STREAMS == TRUE
+#include "hal.h"
 #include "hal_tty.h"
 
 static size_t vfs_test_stream_write(void *ip, const uint8_t *bp, size_t n) {
@@ -995,13 +996,22 @@ static uint32_t vfs_test_stream_seek(void *ip, uint32_t offset, int whence) {
 }
 
 static unsigned vfs_test_tty_drains;
+static msg_t vfs_test_tty_status = HAL_RET_SUCCESS;
 
 static msg_t vfs_test_tty_drain(void *ip) {
 
   (void)ip;
   vfs_test_tty_drains++;
 
-  return MSG_OK;
+  return vfs_test_tty_status;
+}
+
+static msg_t vfs_test_tty_action(void *ip, int action) {
+
+  (void)ip;
+  (void)action;
+
+  return vfs_test_tty_status;
 }
 
 static const struct sequential_stream_vmt vfs_test_stream_vmt = {
@@ -1021,7 +1031,9 @@ static const struct tty_vmt vfs_test_tty_vmt = {
   .instance_offset = 0U,
   .write = vfs_test_stream_write,
   .read = vfs_test_stream_read,
-  .drain = vfs_test_tty_drain
+  .drain = vfs_test_tty_drain,
+  .flush = vfs_test_tty_action,
+  .flow = vfs_test_tty_action
 };
 
 static sequential_stream_i vfs_test_stream = {
@@ -1476,6 +1488,7 @@ test_assert(vfsGetFilePosition(fnp) == (vfs_offset_t)7,
 (void)roRelease(fnp);
 
 vfs_test_tty_drains = 0U;
+vfs_test_tty_status = HAL_RET_SUCCESS;
 ret = vfsFSOpenFile(&streams, "/tty", VO_RDWR, &fnp);
 test_assert(ret == CH_RET_SUCCESS, "TTY open failed");
 ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, NULL);
@@ -1489,6 +1502,108 @@ ret = vfsControlFile(fnp, VFS_CTL_TTY_BASE + 99U, NULL);
 test_assert(ret == CH_RET_ENOTTY, "TTY accepted unknown control");
 ret = vfsSetFilePosition(fnp, 0, VFS_SEEK_SET);
 test_assert(ret == CH_RET_ESPIPE, "TTY seek accepted");
+(void)roRelease(fnp);]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>TTY return-code translation.</value>
+          </brief>
+          <description>
+            <value>HAL and XHAL share stable return-code values. TTY
+              configuration failures become EINVAL while other failures
+              retain the EIO fallback.</value>
+          </description>
+          <condition>
+            <value><![CDATA[VFS_CFG_ENABLE_DRV_STREAMS == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[vfs_test_tty_status = HAL_RET_SUCCESS;]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[vfs_streams_driver_c streams;
+vfs_file_node_c *fnp;
+int action;
+msg_t ret;
+size_t i;
+static const msg_t failures[] = {
+  HAL_RET_INV_STATE, HAL_RET_NO_RESOURCE, HAL_RET_HW_BUSY,
+  HAL_RET_HW_FAILURE, HAL_RET_UNKNOWN_CTL, HAL_RET_IS_INVALID,
+  MSG_RESET, MSG_TIMEOUT, (msg_t)-100
+};]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Shared status values preserve HAL compatibility and
+                  distinguish invalid state from an invalid instance.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_assert(HAL_RET_SUCCESS == MSG_OK, "success value changed");
+test_assert(HAL_RET_CONFIG_ERROR == (msg_t)-16, "configuration value changed");
+test_assert(HAL_RET_NO_RESOURCE == (msg_t)-17, "resource value changed");
+test_assert(HAL_RET_HW_BUSY == (msg_t)-18, "busy value changed");
+test_assert(HAL_RET_HW_FAILURE == (msg_t)-19, "failure value changed");
+test_assert(HAL_RET_UNKNOWN_CTL == (msg_t)-20, "control value changed");
+test_assert(HAL_RET_IS_INVALID == (msg_t)-21, "instance value changed");
+test_assert(HAL_RET_INV_STATE == (msg_t)-22, "state value changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Flush and flow configuration failures translate to
+                  EINVAL; successful operations still return success.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[(void)stmdrvObjectInit(&streams, &vfs_test_streams[0]);
+ret = vfsFSOpenFile(&streams, "/tty", VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "TTY open failed");
+action = -1;
+vfs_test_tty_status = HAL_RET_CONFIG_ERROR;
+ret = vfsControlFile(fnp, VFS_CTL_TTY_FLUSH, &action);
+test_assert(ret == CH_RET_EINVAL, "flush configuration error lost");
+ret = vfsControlFile(fnp, VFS_CTL_TTY_FLOW, &action);
+test_assert(ret == CH_RET_EINVAL, "flow configuration error lost");
+vfs_test_tty_status = HAL_RET_SUCCESS;
+ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+test_assert(ret == CH_RET_SUCCESS, "successful drain changed");
+(void)roRelease(fnp);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Unavailable drivers and other failures remain EIO,
+                  and non-terminal streams still reject TTY controls.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[ret = vfsFSOpenFile(&streams, "/tty", VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "TTY reopen failed");
+for (i = 0U; i < sizeof failures / sizeof failures[0]; i++) {
+  vfs_test_tty_status = failures[i];
+  ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+  test_assert(ret == CH_RET_EIO, "non-configuration failure misclassified");
+}
+(void)roRelease(fnp);
+ret = vfsFSOpenFile(&streams, "/console", VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FIFO open failed");
+ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+test_assert(ret == CH_RET_ENOTTY, "FIFO accepted terminal control");
 (void)roRelease(fnp);]]></value>
               </code>
             </step>

@@ -285,6 +285,7 @@ self->streams = streams;]]></implementation>
       <include style="regular">vfs.h</include>
     </includes_always>
     <includes>
+      <include style="regular">hal.h</include>
       <include style="regular">hal_tty.h</include>
     </includes>
     <types>

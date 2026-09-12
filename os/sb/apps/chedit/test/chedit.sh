@@ -27,3 +27,5 @@ if "$chedit_exe" one two >/dev/null 2>&1; then
 fi
 
 echo "chedit command-line checks passed"
+
+python3 "$test_dir/terminal.py" "$chedit_exe"

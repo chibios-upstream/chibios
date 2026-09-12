@@ -27,6 +27,7 @@
 
 #if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
 
+#include "hal.h"
 #include "hal_tty.h"
 
 /*===========================================================================*/

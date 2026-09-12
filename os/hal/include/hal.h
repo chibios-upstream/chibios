@@ -88,12 +88,16 @@
 
 /**
  * @name    Return codes for HAL functions
+ * @note    Keep these values aligned in HAL and XHAL. New errors must be
+ *          appended without renumbering existing values because these codes
+ *          are also transferred across sandbox VIO interfaces.
  * @{
  */
 #define HAL_RET_SUCCESS         MSG_OK
 /**
  * @brief   Configuration error.
- * @details An error has been detected in the driver configuration structure.
+ * @details An error has been detected in the driver configuration structure
+ *          or in the requested operation parameters.
  */
 #define HAL_RET_CONFIG_ERROR    (msg_t)-16
 /**
@@ -121,6 +125,11 @@
  * @brief   Invalid instance pointer.
  */
 #define HAL_RET_IS_INVALID      (msg_t)-21
+/**
+ * @brief   Operation requested during invalid driver state.
+ * @details The driver cannot accept the request in its current state.
+ */
+#define HAL_RET_INV_STATE       (msg_t)-22
 /** @} */
 
 /*===========================================================================*/

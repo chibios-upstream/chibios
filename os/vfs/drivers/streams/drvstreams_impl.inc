@@ -48,8 +48,11 @@ streams_file_stream(const drv_streams_element_t *dsep) {
 
 static msg_t streams_tty_result(msg_t msg) {
 
-  if (msg == MSG_OK) {
+  if (msg == HAL_RET_SUCCESS) {
     return CH_RET_SUCCESS;
+  }
+  if (msg == HAL_RET_CONFIG_ERROR) {
+    return CH_RET_EINVAL;
   }
 
   return CH_RET_EIO;

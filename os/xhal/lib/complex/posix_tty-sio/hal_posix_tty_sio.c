@@ -96,7 +96,11 @@ static bool __ptty_attributes_valid(hal_posix_tty_sio_c *self,
   if ((attrp->c_lflag & ~PTTY_SUPPORTED_LFLAGS) != 0U) {
     return false;
   }
-  if ((attrp->c_cc[VMIN] != 1U) || (attrp->c_cc[VTIME] != 0U)) {
+  /* Canonical input ignores VTIME. Non-canonical intervals must fit
+     in the RT timer without becoming TIME_IMMEDIATE or TIME_INFINITE.*/
+  if (((attrp->c_lflag & ICANON) == 0U) &&
+      ((((time_conv_t)attrp->c_cc[VTIME] * CH_CFG_ST_FREQUENCY + 9U) /
+        10U) > (time_conv_t)TIME_MAX_INTERVAL)) {
     return false;
   }
   if ((attrp->c_ispeed != self->attributes.c_ispeed) ||
@@ -601,51 +605,116 @@ static size_t __ptty_write(hal_posix_tty_sio_c *self,
 
 static size_t __ptty_read(hal_posix_tty_sio_c *self,
                           uint8_t *bp,
-                          size_t n) {
+                          size_t n,
+                          msg_t *msgp) {
   ptty_input_queue_t *iqp;
+  bool canonical;
+  bool configured;
+  bool timed;
   bool record_ended;
+  size_t minimum;
+  sysinterval_t interval;
+  systime_t started;
   size_t done;
+  msg_t msg;
 
   chDbgCheck((bp != NULL) || (n == 0U));
+  *msgp = MSG_OK;
   if (n == 0U) {
     return 0U;
   }
 
   iqp = &self->iqueue;
-  chSysLock();
-  while (iqp->committed == 0U) {
-    msg_t msg;
-
-    if (self->state != HAL_DRV_STATE_READY) {
-      chSysUnlock();
-      return 0U;
-    }
-    msg = chThdEnqueueTimeoutS(&iqp->waiting, TIME_INFINITE);
-    if (msg != MSG_OK) {
-      chSysUnlock();
-      return 0U;
-    }
-  }
-
+  canonical = false;
+  configured = false;
+  timed = false;
+  minimum = 0U;
+  interval = TIME_IMMEDIATE;
   done = 0U;
   record_ended = false;
-  while ((done < n) && (iqp->committed > 0U)) {
-    bool boundary;
-    uint8_t b;
+  msg = MSG_OK;
+  chSysLock();
+  started = chVTGetSystemTimeX();
+  while (true) {
+    bool new_canonical;
+    size_t new_minimum;
+    sysinterval_t new_interval;
+    sysinterval_t timeout;
+    size_t previous;
 
-    boundary = __ptty_input_is_boundary_i(iqp, iqp->read);
-    b = iqp->buffer[iqp->read];
-    __ptty_input_clear_boundary_i(iqp, iqp->read);
-    iqp->read = __ptty_input_advance(iqp->read);
-    iqp->committed--;
-
-    if (boundary && (b == 0U)) {
-      record_ended = true;
+    if (self->state != HAL_DRV_STATE_READY) {
+      msg = MSG_RESET;
       break;
     }
-    bp[done++] = b;
-    if (boundary) {
-      record_ended = true;
+
+    new_canonical = (self->attributes.c_lflag & ICANON) != 0U;
+    new_minimum = new_canonical ? 1U : (size_t)self->attributes.c_cc[VMIN];
+    if (new_minimum > n) {
+      new_minimum = n;
+    }
+    new_interval = new_canonical ? TIME_IMMEDIATE :
+                   TIME_MS2I((time_conv_t)self->attributes.c_cc[VTIME] * 100U);
+    if (!configured || (canonical != new_canonical) ||
+        (minimum != new_minimum) || (interval != new_interval)) {
+      /* Adopt changed read settings before the first byte, otherwise let
+         the next read use them. Unrelated attribute changes do not rearm
+         a running timeout.*/
+      if (done > 0U) {
+        break;
+      }
+      configured = true;
+      canonical = new_canonical;
+      minimum = new_minimum;
+      interval = new_interval;
+      timed = !canonical && (minimum == 0U);
+      started = chVTGetSystemTimeX();
+    }
+
+    previous = done;
+    while ((done < n) && (iqp->committed > 0U)) {
+      bool boundary;
+      uint8_t b;
+
+      boundary = __ptty_input_is_boundary_i(iqp, iqp->read);
+      b = iqp->buffer[iqp->read];
+      __ptty_input_clear_boundary_i(iqp, iqp->read);
+      iqp->read = __ptty_input_advance(iqp->read);
+      iqp->committed--;
+
+      if (boundary && (b == 0U)) {
+        record_ended = true;
+        break;
+      }
+      bp[done++] = b;
+      if (boundary) {
+        record_ended = true;
+        break;
+      }
+    }
+    if (record_ended || (done == n) ||
+        ((done > 0U) && (canonical || (done >= minimum)))) {
+      break;
+    }
+
+    /* MIN > 0 has no first-byte deadline. Only actual input progress
+       starts/restarts its inter-byte timer, never a bare wakeup.*/
+    if ((done > previous) && (interval != TIME_IMMEDIATE)) {
+      timed = true;
+      started = chVTGetSystemTimeX();
+    }
+    timeout = TIME_INFINITE;
+    if (timed) {
+      sysinterval_t elapsed;
+
+      elapsed = chTimeDiffX(started, chVTGetSystemTimeX());
+      if (elapsed >= interval) {
+        msg = MSG_TIMEOUT;
+        break;
+      }
+      timeout = interval - elapsed;
+    }
+    msg = chThdEnqueueTimeoutS(&iqp->waiting, timeout);
+    if (msg != MSG_OK) {
       break;
     }
   }
@@ -662,6 +731,7 @@ static size_t __ptty_read(hal_posix_tty_sio_c *self,
   chSchRescheduleS();
   chSysUnlock();
 
+  *msgp = ((done == 0U) && (msg == MSG_OK)) ? MSG_RESET : msg;
   return done;
 }
 
@@ -765,7 +835,9 @@ static size_t __ptty_tty_write_impl(void *ip, const uint8_t *bp, size_t n) {
 static size_t __ptty_tty_read_impl(void *ip, uint8_t *bp, size_t n) {
   hal_posix_tty_sio_c *self = oopIfGetOwner(hal_posix_tty_sio_c, ip);
 
-  return __ptty_read(self, bp, n);
+  msg_t msg;
+
+  return __ptty_read(self, bp, n, &msg);
 }
 
 /**
@@ -794,12 +866,13 @@ static int __ptty_tty_put_impl(void *ip, uint8_t b) {
 static int __ptty_tty_get_impl(void *ip) {
   hal_posix_tty_sio_c *self = oopIfGetOwner(hal_posix_tty_sio_c, ip);
   uint8_t b;
+  msg_t msg;
 
-  if (__ptty_read(self, &b, 1U) == 1U) {
+  if (__ptty_read(self, &b, 1U, &msg) == 1U) {
     return (int)b;
   }
 
-  return STM_RESET;
+  return msg == MSG_TIMEOUT ? STM_TIMEOUT : STM_RESET;
 }
 
 /**

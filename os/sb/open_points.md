@@ -31,6 +31,24 @@ The following work is complete and must not be reintroduced as an open item:
   (PR #144). VRQs are accepted only in `RUNNING`.
 - Invalid guest ranges detected by host services return `CH_RET_EFAULT`;
   actual processor protection faults terminate the sandbox.
+- The null stream uses the VFS FIFO stream mapping (`S_IFIFO`), not the TTY
+  interface. `/dev/null` therefore reports false from `isatty()` and rejects
+  terminal controls. This classification is intentional, not pending work.
+  Reads return zero bytes, `stmGet()` returns `STM_RESET`, and writes succeed
+  while discarding data.
+- HAL and XHAL define identical operation status values in their respective
+  `hal.h` files, preserving the legacy HAL values and adding invalid driver
+  state at -22. The VFS TTY adapter maps configuration errors to `EINVAL`
+  and retains `EIO` for other failures. XHAL hosts and VIO guests must be
+  rebuilt together after this status-ABI alignment; see
+  [note_sb_tty.md](note_sb_tty.md).
+- The SIO-backed TTY supports all four noncanonical `VMIN`/`VTIME` read
+  modes. `chedit` configures and restores terminal attributes in both native
+  and sandbox builds. Deterministic input tests cover timing, partial reads,
+  resets and canonical EOF; native PTY tests cover editing and normal/error
+  restoration. Nucleo testing confirmed interactive editing, fragmented
+  escape sequences, standalone Escape, read-only save errors, canonical
+  input after editor exit, and multi-byte/inter-byte timing.
 
 ## Priority 1: security and isolation
 
@@ -71,30 +89,6 @@ Review recorded 2026-09-12 for the SIO-backed TTY and
 `RT-SB-DYNAMIC-RAMBOX-MULTI` demo. Design context and the proposed signal
 transport are in [note_sb_tty.md](note_sb_tty.md).
 
-#### 1. Terminal-control error reporting
-
-- Map rejected terminal configurations to `CH_RET_EINVAL` in
-  `../vfs/drivers/streams/drvstreams_impl.inc`. Currently
-  `streams_tty_result()` maps every driver failure to `CH_RET_EIO`, including
-  `HAL_RET_CONFIG_ERROR` for unsupported attributes.
-- Add negative-path tests distinguishing invalid settings from actual I/O
-  failures. The host already rejects invalid `tcsetattr()` actions with
-  `EINVAL`; preserve that behavior.
-- Treat this as a small pre-PR correctness fix.
-
-#### 2. Interactive chedit on sandbox TTYs
-
-- Extend raw-mode setup and restoration in `apps/chedit/main.c` to sandbox
-  builds; they are currently enabled only for `SBAPP_NATIVE`.
-- Resolve its timed-read requirement: the editor uses `VMIN=0`, `VTIME=1`
-  to distinguish a standalone Escape key from an escape sequence, while
-  the TTY currently accepts only `VMIN=1`, `VTIME=0`. Adapt the editor or
-  implement the required noncanonical timing before removing the guards.
-- Validate interactive editing, escape sequences, standalone Escape and
-  terminal restoration on exit/error on the Nucleo target. Building the
-  ELF or running `--version` does not establish interactive support.
-- Resolve this before claiming interactive support for all bundled apps.
-
 #### 3. TTY signals through a VRQ
 
 - Reserve one signal-delivery VRQ and define its sandbox-visible pending
@@ -114,20 +108,6 @@ transport are in [note_sb_tty.md](note_sb_tty.md).
   suspend/resume and full job control are not implied by the transport.
 - Test signals during input waits and application execution, repeated and
   combined bits, masked delivery, nested commands, and sandbox restart.
-
-#### 4. Character devices versus terminal capability
-
-- Separate the VFS stream interface kind from the file type. Currently
-  `S_IFCHR` selects a `tty_i` interface, and `_isatty_r()` treats every
-  character device as a terminal.
-- Represent `/dev/null` as a non-terminal character device once that
-  distinction is supported; it currently uses the FIFO stream mapping.
-  Make `isatty()` test terminal capability and reject terminal controls on
-  non-TTY character devices without an invalid interface cast.
-- Preserve the corrected null-stream semantics: reads return zero bytes,
-  `stmGet()` returns `STM_RESET`, and writes succeed while discarding data.
-  Test both `/dev/null` and `/dev/ttyS0` classification and control paths.
-- This is architectural follow-up, not a blocker for the current EOF demo.
 
 ### Async VFS
 

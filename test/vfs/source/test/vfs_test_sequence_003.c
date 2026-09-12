@@ -40,6 +40,7 @@
  * - @subpage vfs_test_003_001
  * - @subpage vfs_test_003_002
  * - @subpage vfs_test_003_003
+ * - @subpage vfs_test_003_004
  * .
  */
 
@@ -54,6 +55,7 @@
 #include "vfs.h"
 
 #if VFS_CFG_ENABLE_DRV_STREAMS == TRUE
+#include "hal.h"
 #include "hal_tty.h"
 
 static size_t vfs_test_stream_write(void *ip, const uint8_t *bp, size_t n) {
@@ -90,13 +92,22 @@ static uint32_t vfs_test_stream_seek(void *ip, uint32_t offset, int whence) {
 }
 
 static unsigned vfs_test_tty_drains;
+static msg_t vfs_test_tty_status = HAL_RET_SUCCESS;
 
 static msg_t vfs_test_tty_drain(void *ip) {
 
   (void)ip;
   vfs_test_tty_drains++;
 
-  return MSG_OK;
+  return vfs_test_tty_status;
+}
+
+static msg_t vfs_test_tty_action(void *ip, int action) {
+
+  (void)ip;
+  (void)action;
+
+  return vfs_test_tty_status;
 }
 
 static const struct sequential_stream_vmt vfs_test_stream_vmt = {
@@ -116,7 +127,9 @@ static const struct tty_vmt vfs_test_tty_vmt = {
   .instance_offset = 0U,
   .write = vfs_test_stream_write,
   .read = vfs_test_stream_read,
-  .drain = vfs_test_tty_drain
+  .drain = vfs_test_tty_drain,
+  .flush = vfs_test_tty_action,
+  .flow = vfs_test_tty_action
 };
 
 static sequential_stream_i vfs_test_stream = {
@@ -556,6 +569,7 @@ static void vfs_test_003_003_execute(void) {
     (void)roRelease(fnp);
 
     vfs_test_tty_drains = 0U;
+    vfs_test_tty_status = HAL_RET_SUCCESS;
     ret = vfsFSOpenFile(&streams, "/tty", VO_RDWR, &fnp);
     test_assert(ret == CH_RET_SUCCESS, "TTY open failed");
     ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, NULL);
@@ -582,6 +596,110 @@ static const testcase_t vfs_test_003_003 = {
 };
 #endif /* VFS_CFG_ENABLE_DRV_STREAMS == TRUE */
 
+#if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page vfs_test_003_004 [3.4] TTY return-code translation
+ *
+ * <h2>Description</h2>
+ * HAL and XHAL share stable return-code values. TTY configuration
+ * failures become EINVAL while other failures retain the EIO fallback.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - VFS_CFG_ENABLE_DRV_STREAMS == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [3.4.1] Shared status values preserve HAL compatibility and
+ *   distinguish invalid state from an invalid instance.
+ * - [3.4.2] Flush and flow configuration failures translate to EINVAL;
+ *   successful operations still return success.
+ * - [3.4.3] Unavailable drivers and other failures remain EIO, and
+ *   non-terminal streams still reject TTY controls.
+ * .
+ */
+
+static void vfs_test_003_004_teardown(void) {
+  vfs_test_tty_status = HAL_RET_SUCCESS;
+}
+
+static void vfs_test_003_004_execute(void) {
+  vfs_streams_driver_c streams;
+  vfs_file_node_c *fnp;
+  int action;
+  msg_t ret;
+  size_t i;
+  static const msg_t failures[] = {
+    HAL_RET_INV_STATE, HAL_RET_NO_RESOURCE, HAL_RET_HW_BUSY,
+    HAL_RET_HW_FAILURE, HAL_RET_UNKNOWN_CTL, HAL_RET_IS_INVALID,
+    MSG_RESET, MSG_TIMEOUT, (msg_t)-100
+  };
+
+  /* [3.4.1] Shared status values preserve HAL compatibility and
+     distinguish invalid state from an invalid instance.*/
+  test_set_step(1);
+  {
+    test_assert(HAL_RET_SUCCESS == MSG_OK, "success value changed");
+    test_assert(HAL_RET_CONFIG_ERROR == (msg_t)-16, "configuration value changed");
+    test_assert(HAL_RET_NO_RESOURCE == (msg_t)-17, "resource value changed");
+    test_assert(HAL_RET_HW_BUSY == (msg_t)-18, "busy value changed");
+    test_assert(HAL_RET_HW_FAILURE == (msg_t)-19, "failure value changed");
+    test_assert(HAL_RET_UNKNOWN_CTL == (msg_t)-20, "control value changed");
+    test_assert(HAL_RET_IS_INVALID == (msg_t)-21, "instance value changed");
+    test_assert(HAL_RET_INV_STATE == (msg_t)-22, "state value changed");
+  }
+  test_end_step(1);
+
+  /* [3.4.2] Flush and flow configuration failures translate to EINVAL;
+     successful operations still return success.*/
+  test_set_step(2);
+  {
+    (void)stmdrvObjectInit(&streams, &vfs_test_streams[0]);
+    ret = vfsFSOpenFile(&streams, "/tty", VO_RDWR, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "TTY open failed");
+    action = -1;
+    vfs_test_tty_status = HAL_RET_CONFIG_ERROR;
+    ret = vfsControlFile(fnp, VFS_CTL_TTY_FLUSH, &action);
+    test_assert(ret == CH_RET_EINVAL, "flush configuration error lost");
+    ret = vfsControlFile(fnp, VFS_CTL_TTY_FLOW, &action);
+    test_assert(ret == CH_RET_EINVAL, "flow configuration error lost");
+    vfs_test_tty_status = HAL_RET_SUCCESS;
+    ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+    test_assert(ret == CH_RET_SUCCESS, "successful drain changed");
+    (void)roRelease(fnp);
+  }
+  test_end_step(2);
+
+  /* [3.4.3] Unavailable drivers and other failures remain EIO, and
+     non-terminal streams still reject TTY controls.*/
+  test_set_step(3);
+  {
+    ret = vfsFSOpenFile(&streams, "/tty", VO_RDWR, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "TTY reopen failed");
+    for (i = 0U; i < sizeof failures / sizeof failures[0]; i++) {
+      vfs_test_tty_status = failures[i];
+      ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+      test_assert(ret == CH_RET_EIO, "non-configuration failure misclassified");
+    }
+    (void)roRelease(fnp);
+    ret = vfsFSOpenFile(&streams, "/console", VO_RDWR, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FIFO open failed");
+    ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+    test_assert(ret == CH_RET_ENOTTY, "FIFO accepted terminal control");
+    (void)roRelease(fnp);
+  }
+  test_end_step(3);
+}
+
+static const testcase_t vfs_test_003_004 = {
+  "TTY return-code translation",
+  NULL,
+  vfs_test_003_004_teardown,
+  vfs_test_003_004_execute
+};
+#endif /* VFS_CFG_ENABLE_DRV_STREAMS == TRUE */
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -598,6 +716,9 @@ const testcase_t * const vfs_test_sequence_003_array[] = {
 #endif
 #if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
   &vfs_test_003_003,
+#endif
+#if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_003_004,
 #endif
   NULL
 };
