@@ -37,6 +37,16 @@
 #define SHELL_DEFAULT_PATH          "/bin"
 #define SHELL_EXECUTABLE_EXTENSION  ".elf"
 
+/* Maximum canonical record payload, excluding a terminating newline.
+   Must cover the host TTY's limit; room for the delimiter is added below.*/
+#if !defined(SHELL_MAX_CANONICAL_LENGTH)
+#define SHELL_MAX_CANONICAL_LENGTH  256U
+#endif
+
+#if SHELL_MAX_CANONICAL_LENGTH < SHELL_MAX_LINE_LENGTH
+#error "SHELL_MAX_CANONICAL_LENGTH must cover SHELL_MAX_LINE_LENGTH"
+#endif
+
 #define CTRL(c) (char)((c) - 0x40)
 
 static struct {
@@ -138,42 +148,40 @@ static void shell_reset_line(void) {
 }
 
 /*
- * Reading canonical records. Echo and editing belong to the TTY; a short
- * record without newline is input committed by VEOF, not a shell exit.
+ * Read a complete canonical record. A full-buffer read does not tell us
+ * whether VEOF ended that record, so the buffer must cover the TTY's limit.
+ * Echo and editing belong to the TTY; nonempty VEOF is not a shell exit.
  */
 static bool shell_getline_canonical(char *line, size_t size) {
-  bool overflow = false;
+  char record[SHELL_MAX_CANONICAL_LENGTH + 1U];
+  ssize_t n;
+  size_t length;
+  bool newline;
 
-  while (true) {
-    ssize_t n;
-    bool newline;
+  do {
+    n = read(STDIN_FILENO, record, sizeof record);
+  } while ((n < (ssize_t)0) && (errno == EINTR));
+  if (n <= (ssize_t)0) {
+    return true;
+  }
 
-    n = read(STDIN_FILENO, line, size);
-    if (n < (ssize_t)0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      return true;
-    }
-    if (n == (ssize_t)0) {
-      return true;
-    }
-
-    newline = line[n - 1] == '\n';
-    if (((size_t)n == size) && !newline) {
-      /* Discard the rest of an overlong record, never execute fragments.*/
-      overflow = true;
-      continue;
-    }
-    if (overflow) {
-      shell_errorln("line too long");
-      line[0] = '\0';
-    }
-    else {
-      line[(size_t)n - (newline ? 1U : 0U)] = '\0';
-    }
+  newline = record[n - 1] == '\n';
+  if (((size_t)n == sizeof record) && !newline) {
+    /* The configured TTY bound was exceeded. Resynchronizing through read()
+       is ambiguous; exit instead of executing fragments or discarding a
+       subsequent command. The host must reset the TTY before restarting.*/
+    shell_errorln("canonical record limit exceeded");
+    return true;
+  }
+  length = (size_t)n - (newline ? 1U : 0U);
+  if (length >= size) {
+    shell_errorln("line too long");
+    line[0] = '\0';
     return false;
   }
+  memcpy(line, record, length);
+  line[length] = '\0';
+  return false;
 }
 
 static bool shell_getline_stream(char *line, size_t size) {

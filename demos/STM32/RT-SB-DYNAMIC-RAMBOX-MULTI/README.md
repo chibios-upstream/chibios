@@ -16,6 +16,14 @@ Sandbox termios calls are not yet wired up, so this detection does not query or
 change terminal attributes; TTY descriptors are expected to use canonical input
 and the default output processing.
 
+`msh` reads complete canonical records into a bounded temporary buffer before
+checking its 127-character command limit. `SHELL_MAX_CANONICAL_LENGTH` defaults
+to 256 payload bytes and must cover the host TTY's maximum record size. The
+default TTY input ring holds 127 payload bytes plus a delimiter. If a different
+host exceeds the configured shell bound, `msh` reports an error and exits;
+the host must reset the TTY before restarting it. Native Linux tests use a
+larger bound.
+
 ## Build
 
 From this directory:

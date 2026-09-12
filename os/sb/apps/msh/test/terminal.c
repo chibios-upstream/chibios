@@ -95,7 +95,7 @@ static void setup(bool tty, const char *data) {
 
 int main(int argc, char *argv[]) {
   char line[SHELL_MAX_LINE_LENGTH];
-  char data[SHELL_MAX_LINE_LENGTH + 32];
+  char data[SHELL_MAX_CANONICAL_LENGTH + 32U];
 
   if ((argc == 2) && (strcmp(argv[1], "--shell") == 0)) {
     native_io = true;
@@ -140,6 +140,29 @@ int main(int argc, char *argv[]) {
   assert(strcmp(output[STDERR_FILENO], "line too long\n") == 0);
   assert(!shell_getline(line, sizeof line));
   assert(strcmp(line, "echo next") == 0);
+
+  /* An overlong record committed by VEOF must not trigger another read.*/
+  memset(data, 'x', SHELL_MAX_LINE_LENGTH);
+  data[SHELL_MAX_LINE_LENGTH] = '\0';
+  setup(true, data);
+  assert(!shell_getline(line, sizeof line));
+  assert(line[0] == '\0');
+  assert(strcmp(output[STDERR_FILENO], "line too long\n") == 0);
+
+  /* A record at the configured limit is still read completely.*/
+  memset(data, 'x', SHELL_MAX_CANONICAL_LENGTH);
+  data[SHELL_MAX_CANONICAL_LENGTH] = '\0';
+  setup(true, data);
+  assert(!shell_getline(line, sizeof line));
+  assert(line[0] == '\0');
+  assert(strcmp(output[STDERR_FILENO], "line too long\n") == 0);
+
+  /* If the host exceeds that limit, stop rather than interpreting fragments.*/
+  memset(data, 'x', SHELL_MAX_CANONICAL_LENGTH + 1U);
+  strcpy(data + SHELL_MAX_CANONICAL_LENGTH + 1U, "\necho next\n");
+  setup(true, data);
+  assert(shell_getline(line, sizeof line));
+  assert(strcmp(output[STDERR_FILENO], "canonical record limit exceeded\n") == 0);
 
   for (unsigned tty = 0U; tty < 2U; tty++) {
     setup(tty != 0U, tty ? "echo retry\n" : "echo retry\r");

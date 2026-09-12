@@ -56,6 +56,18 @@ try:
     os.write(master, b"echo partial\x04")
     output = read_until(master, b"test> ")
     assert output == b"echo partialpartial \r\ntest> ", output
+
+    # Read records larger than the shell's command buffer in one operation,
+    # including full-buffer Ctrl-D boundaries. A queued valid command survives.
+    attrs[3] &= ~(termios.ECHO | termios.ECHONL)
+    termios.tcsetattr(slave, termios.TCSANOW, attrs)
+    for length in (128, 129, 255, 256, 4095):
+        for delimiter in (b"\x04", b"\n"):
+            data = b"x" * length + delimiter + b"echo next\n"
+            assert os.write(master, data) == len(data)
+            output = read_until(master, b"next \r\ntest> ")
+            assert output == b"line too long\r\ntest> next \r\ntest> ", output
+
     os.write(master, b"\x04")
     output = read_until(master, b"exit\r\n")
     assert output == b"exit\r\n", output
