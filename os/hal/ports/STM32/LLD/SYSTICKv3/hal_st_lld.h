@@ -16,22 +16,11 @@
 
 /**
  * @file    SYSTICKv3/hal_st_lld.h
- * @brief   STM32 ST low level driver header with optional LPTIM backend.
+ * @brief   STM32 LPTIM-based ST low level driver header.
  *
  * @addtogroup ST
  * @{
  */
-
-#if !defined(STM32_ST_USE_LPTIM) || defined(__DOXYGEN__)
-#define STM32_ST_USE_LPTIM                  0
-#endif
-
-/* The compatibility backend is exactly SYSTICKv1.*/
-#if STM32_ST_USE_LPTIM == 0
-
-#include "../SYSTICKv1/hal_st_lld.h"
-
-#else /* STM32_ST_USE_LPTIM != 0 */
 
 #ifndef HAL_ST_LLD_H
 #define HAL_ST_LLD_H
@@ -41,10 +30,7 @@
 /*===========================================================================*/
 
 #define ST_LLD_NUM_ALARMS                   1
-
-#if !defined(OSAL_ST_USE_TIMESTAMP)
-#define OSAL_ST_USE_TIMESTAMP               FALSE
-#endif
+#define STM32_ST_LPTIM_MINIMUM_DELTA        8U
 
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */
@@ -57,113 +43,80 @@
 #define STM32_ST_IRQ_PRIORITY               8
 #endif
 
-/**
- * @brief   LPTIM input clock prescaler.
- * @note    Valid values are 1, 2, 4, 8, 16, 32, 64 and 128.
- */
-#if !defined(STM32_ST_LPTIM_PRESCALER) || defined(__DOXYGEN__)
-#define STM32_ST_LPTIM_PRESCALER            4
-#endif
-
-/**
- * @brief   Minimum safe kernel time delta in ST ticks.
- * @note    The default includes margin for asynchronous LPTIM register
- *          updates and interrupt latency. A lower target-specific value must
- *          only be selected after validation across counter wraps and low
- *          power wake-up paths.
- */
-#if !defined(STM32_ST_LPTIM_MINIMUM_DELTA) || defined(__DOXYGEN__)
-#define STM32_ST_LPTIM_MINIMUM_DELTA         8
-#endif
-
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
-#if (STM32_ST_USE_LPTIM != 1) && (STM32_ST_USE_LPTIM != 2) &&               \
-    (STM32_ST_USE_LPTIM != 3) && (STM32_ST_USE_LPTIM != 4)
-#error "invalid STM32_ST_USE_LPTIM value"
-#endif
+#if STM32_ST_USE_TIMER == 1
 
-#if STM32_ST_USE_LPTIM == 1
-#define STM32_ST_LPTIM                     LPTIM1
-#define STM32_ST_LPTIM_CHANNELS            STM32_LPTIM1_CHANNELS
-#define STM32_ST_LPTIM_IS_SRD              STM32_LPTIM1_IS_SRD
-#elif STM32_ST_USE_LPTIM == 2
-#define STM32_ST_LPTIM                     LPTIM2
-#define STM32_ST_LPTIM_CHANNELS            STM32_LPTIM2_CHANNELS
-#define STM32_ST_LPTIM_IS_SRD              STM32_LPTIM2_IS_SRD
-#elif STM32_ST_USE_LPTIM == 3
-#define STM32_ST_LPTIM                     LPTIM3
-#define STM32_ST_LPTIM_CHANNELS            STM32_LPTIM3_CHANNELS
-#define STM32_ST_LPTIM_IS_SRD              STM32_LPTIM3_IS_SRD
-#elif STM32_ST_USE_LPTIM == 4
-#define STM32_ST_LPTIM                     LPTIM4
-#define STM32_ST_LPTIM_CHANNELS            STM32_LPTIM4_CHANNELS
-#define STM32_ST_LPTIM_IS_SRD              STM32_LPTIM4_IS_SRD
+#if !STM32_HAS_LPTIM1
+#error "LPTIM1 not present in the selected device"
 #endif
-
-#if !defined(STM32_ST_LPTIM_CHANNELS) || !defined(STM32_ST_LPTIM_IS_SRD)
-#error "selected LPTIM registry attributes are incomplete"
+#if !STM32_LPTIM1_IS_SRD
+#error "LPTIM1 is not available in the SmartRun domain"
 #endif
+#define STM32_ST_LPTIM_DEVICE               LPTIM1
+#define STM32_ST_LPTIM_CLOCK                STM32_LPTIM1_FREQ
 
-#if STM32_ST_LPTIM_IS_SRD != TRUE
-#error "the LPTIM backend requires an SRD-capable instance"
+#elif STM32_ST_USE_TIMER == 3
+
+#if !STM32_HAS_LPTIM3
+#error "LPTIM3 not present in the selected device"
 #endif
+#if !STM32_LPTIM3_IS_SRD
+#error "LPTIM3 is not available in the SmartRun domain"
+#endif
+#define STM32_ST_LPTIM_DEVICE               LPTIM3
+#define STM32_ST_LPTIM_CLOCK                STM32_LPTIM34_FREQ
 
-/**
- * @brief   Automatic timestamp maintenance capability.
- * @details A second LPTIM compare channel extends the 16-bit system timer
- *          automatically. A single-channel instance remains usable but
- *          requires an application half-range timestamp-update virtual timer.
- */
-#if (OSAL_ST_USE_TIMESTAMP == TRUE) && (STM32_ST_LPTIM_CHANNELS >= 2)
-#define ST_LLD_HAS_AUTOMATIC_TIMESTAMP      TRUE
-#define ST_LLD_REQUIRES_APPLICATION_TIMESTAMP FALSE
-#define STM32_ST_LPTIM_TIMESTAMP_DIER       LPTIM_DIER_CC2IE
-#elif (OSAL_ST_USE_TIMESTAMP == TRUE)
-#define ST_LLD_HAS_AUTOMATIC_TIMESTAMP      FALSE
-#define ST_LLD_REQUIRES_APPLICATION_TIMESTAMP TRUE
-#define STM32_ST_LPTIM_TIMESTAMP_DIER       0U
+#elif STM32_ST_USE_TIMER == 4
+
+#if !STM32_HAS_LPTIM4
+#error "LPTIM4 not present in the selected device"
+#endif
+#if !STM32_LPTIM4_IS_SRD
+#error "LPTIM4 is not available in the SmartRun domain"
+#endif
+#define STM32_ST_LPTIM_DEVICE               LPTIM4
+#define STM32_ST_LPTIM_CLOCK                STM32_LPTIM34_FREQ
+
 #else
-#define ST_LLD_HAS_AUTOMATIC_TIMESTAMP      FALSE
-#define ST_LLD_REQUIRES_APPLICATION_TIMESTAMP FALSE
-#define STM32_ST_LPTIM_TIMESTAMP_DIER       0U
+#error "the LPTIM backend requires STM32_ST_USE_TIMER to be 1, 3 or 4"
 #endif
 
-#if (STM32_ST_LPTIM_PRESCALER == 1)
+#if (STM32_ST_LPTIM_CLOCK % OSAL_ST_FREQUENCY) != 0
+#error "LPTIM clock is not an integer multiple of OSAL_ST_FREQUENCY"
+#endif
+
+#define STM32_ST_LPTIM_DIVIDER              (STM32_ST_LPTIM_CLOCK /         \
+                                             OSAL_ST_FREQUENCY)
+
+#if STM32_ST_LPTIM_DIVIDER == 1
 #define STM32_ST_LPTIM_PRESC_BITS           (0U << LPTIM_CFGR_PRESC_Pos)
-#elif (STM32_ST_LPTIM_PRESCALER == 2)
+#elif STM32_ST_LPTIM_DIVIDER == 2
 #define STM32_ST_LPTIM_PRESC_BITS           (1U << LPTIM_CFGR_PRESC_Pos)
-#elif (STM32_ST_LPTIM_PRESCALER == 4)
+#elif STM32_ST_LPTIM_DIVIDER == 4
 #define STM32_ST_LPTIM_PRESC_BITS           (2U << LPTIM_CFGR_PRESC_Pos)
-#elif (STM32_ST_LPTIM_PRESCALER == 8)
+#elif STM32_ST_LPTIM_DIVIDER == 8
 #define STM32_ST_LPTIM_PRESC_BITS           (3U << LPTIM_CFGR_PRESC_Pos)
-#elif (STM32_ST_LPTIM_PRESCALER == 16)
+#elif STM32_ST_LPTIM_DIVIDER == 16
 #define STM32_ST_LPTIM_PRESC_BITS           (4U << LPTIM_CFGR_PRESC_Pos)
-#elif (STM32_ST_LPTIM_PRESCALER == 32)
+#elif STM32_ST_LPTIM_DIVIDER == 32
 #define STM32_ST_LPTIM_PRESC_BITS           (5U << LPTIM_CFGR_PRESC_Pos)
-#elif (STM32_ST_LPTIM_PRESCALER == 64)
+#elif STM32_ST_LPTIM_DIVIDER == 64
 #define STM32_ST_LPTIM_PRESC_BITS           (6U << LPTIM_CFGR_PRESC_Pos)
-#elif (STM32_ST_LPTIM_PRESCALER == 128)
+#elif STM32_ST_LPTIM_DIVIDER == 128
 #define STM32_ST_LPTIM_PRESC_BITS           (7U << LPTIM_CFGR_PRESC_Pos)
 #else
-#error "invalid STM32_ST_LPTIM_PRESCALER value"
+#error "LPTIM clock cannot produce OSAL_ST_FREQUENCY"
 #endif
 
-#if (OSAL_ST_MODE != OSAL_ST_MODE_FREERUNNING)
+#if OSAL_ST_MODE != OSAL_ST_MODE_FREERUNNING
 #error "the LPTIM backend requires free-running ST mode"
 #endif
 
-#if (OSAL_ST_RESOLUTION != 16)
+#if OSAL_ST_RESOLUTION != 16
 #error "the LPTIM backend requires 16-bit ST resolution"
-#endif
-
-#if (ST_LLD_HAS_AUTOMATIC_TIMESTAMP == TRUE) &&                         \
-    (!defined(LPTIM_ISR_CC2IF) || !defined(LPTIM_ICR_CC2CF) ||          \
-     !defined(LPTIM_ISR_CMP2OK) || !defined(LPTIM_ICR_CMP2OKCF) ||      \
-     !defined(LPTIM_DIER_CC2IE))
-#error "automatic timestamp maintenance requires LPTIM compare channel 2"
 #endif
 
 /*===========================================================================*/
@@ -182,7 +135,7 @@
 extern "C" {
 #endif
   void st_lld_init(void);
-  void st_lld_serve_interrupt(uint32_t pending);
+  void st_lld_serve_interrupt(void);
   void st_lld_set_compare(systime_t abstime);
   void st_lld_set_dier(uint32_t dier);
 #ifdef __cplusplus
@@ -203,24 +156,28 @@ static inline systime_t st_lld_get_counter(void) {
   uint32_t cnt2;
 
   do {
-    cnt1 = STM32_ST_LPTIM->CNT;
-    cnt2 = STM32_ST_LPTIM->CNT;
+    cnt1 = STM32_ST_LPTIM_DEVICE->CNT;
+    cnt2 = STM32_ST_LPTIM_DEVICE->CNT;
   } while (cnt1 != cnt2);
 
   return (systime_t)cnt1;
 }
 
 static inline void st_lld_start_alarm(systime_t abstime) {
+  uint32_t dier;
 
-  st_lld_set_dier(STM32_ST_LPTIM_TIMESTAMP_DIER);
-  STM32_ST_LPTIM->ICR  = LPTIM_ICR_CC1CF;
+  dier = STM32_ST_LPTIM_DEVICE->DIER & ~LPTIM_DIER_CC1IE;
+  st_lld_set_dier(dier);
+  STM32_ST_LPTIM_DEVICE->ICR = LPTIM_ICR_CC1CF;
   st_lld_set_compare(abstime);
-  st_lld_set_dier(LPTIM_DIER_CC1IE | STM32_ST_LPTIM_TIMESTAMP_DIER);
+  st_lld_set_dier(dier | LPTIM_DIER_CC1IE);
 }
 
 static inline void st_lld_stop_alarm(void) {
+  uint32_t dier;
 
-  st_lld_set_dier(STM32_ST_LPTIM_TIMESTAMP_DIER);
+  dier = STM32_ST_LPTIM_DEVICE->DIER & ~LPTIM_DIER_CC1IE;
+  st_lld_set_dier(dier);
 }
 
 static inline void st_lld_set_alarm(systime_t abstime) {
@@ -230,16 +187,14 @@ static inline void st_lld_set_alarm(systime_t abstime) {
 
 static inline systime_t st_lld_get_alarm(void) {
 
-  return (systime_t)STM32_ST_LPTIM->CCR1;
+  return (systime_t)STM32_ST_LPTIM_DEVICE->CCR1;
 }
 
 static inline bool st_lld_is_alarm_active(void) {
 
-  return (bool)((STM32_ST_LPTIM->DIER & LPTIM_DIER_CC1IE) != 0U);
+  return (bool)((STM32_ST_LPTIM_DEVICE->DIER & LPTIM_DIER_CC1IE) != 0U);
 }
 
 #endif /* HAL_ST_LLD_H */
-
-#endif /* STM32_ST_USE_LPTIM != 0 */
 
 /** @} */
