@@ -1,13 +1,13 @@
 # STM32U575ZI NUCLEO144 Smart Run Domain demo
 
 This demo exercises the SYSTICKv3 LPTIM backend on a NUCLEO-U575ZI-Q. It uses
-LPTIM4, clocked from LSE through the divide-by-32 prescaler, as a 1024 Hz,
+LPTIM3, clocked from LSE through the divide-by-32 prescaler, as a 1024 Hz,
 16-bit ChibiOS system timer.
 
 `CH_CFG_ST_TIMEDELTA` is eight ST ticks. This satisfies the SYSTICKv3 default
 minimum margin for asynchronous LPTIM register updates and interrupt latency.
 
-The user button starts a two-second STOP2 interval. The LPTIM4 compare wakes
+The user button starts a two-second STOP2 interval. The LPTIM3 CCR1 compare wakes
 the core, and the common ChibiOS IRQ-prologue hook restores the default RUN
 clock tree before the SYSTICKv3 driver dispatches the virtual-timer callback.
 The callback turns on the green LED and wakes the application thread. Results
@@ -15,10 +15,10 @@ are reported over SD1 at the ChibiOS demo default of 38400 baud.
 
 The common hook runs after ChibiOS has entered its statistics, trace and debug
 state, but before any normal IRQ driver body. It therefore covers system-timer
-and other kernel-aware wake sources without a driver-specific hook. If a
-two-channel LPTIM is selected for a test build, the hook detects and leaves a
-CCR2-only timestamp-maintenance interrupt on the lightweight STOP wake clock;
-simultaneous CCR1 and CCR2 flags restore the RUN clocks normally.
+and other kernel-aware wake sources without a driver-specific hook. The demo
+also owns LPTIM3 CCR2 in this application hook. A CCR2-only timestamp-
+maintenance interrupt remains on the lightweight STOP wake clock; simultaneous
+enabled CCR1 and CCR2 flags restore the RUN clocks normally.
 
 The clock-restore hook masks all maskable interrupts with PRIMASK. A ChibiOS
 kernel lock uses BASEPRI and does not mask priority-zero autonomous interrupts;
@@ -32,12 +32,16 @@ Application elapsed time is measured with `systimestamp_t`,
 `chVTGetTimeStamp()`, and `chTimeStampDiffX()`. The wrapping 16-bit system-time
 counter is not used as an application clock.
 
-The SYSTICKv3 registry capability check reports that the one-channel LPTIM4
-requires application timestamp maintenance. The demo therefore runs a
-mandatory continuous virtual timer at `TIME_MAX_SYSTIME / 2`. Its I-class
-callback calls `chVTGetTimeStampI()` before the 16-bit system timer can wrap,
-preserving the monotonic timestamp extension even when the application does
-not request a timestamp for a long period.
+The reduced SYSTICKv3 driver owns only CCR1. The application independently
+enables CCR2 at `TIME_MAX_SYSTIME / 2` and services its enabled match from
+`CH_CFG_IRQ_PROLOGUE_HOOK()`. The hook calls `chVTGetTimeStampI()` under a
+balanced ISR lock before the 16-bit timer can wrap. Each next match is derived
+from the previous compare to remain phase-locked; a late or invalid compare is
+recovered relative to the current counter and reported in the diagnostics.
+
+This split also demonstrates why SYSTICKv3 alarm operations preserve non-CCR1
+`DIER` bits and why its ISR qualifies `CC1IF` with `CC1IE`: the application can
+use CCR2 without the system-timer driver enabling, disabling or dispatching it.
 
 ## Autonomous activity probe
 

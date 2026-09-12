@@ -39,6 +39,9 @@
 #define DEMO_RESTORE_CONFIRMED             (1U << 0)
 #define DEMO_RESTORE_FAILED                (1U << 1)
 
+#define DEMO_ST_IRQ_NUMBER                 STM32_LPTIM3_NUMBER
+#define DEMO_TIMESTAMP_INTERVAL            (TIME_MAX_SYSTIME / 2U)
+
 #define DEMO_SRAM4_DATA \
   __attribute__((section(".ram3"), aligned(32)))
 
@@ -50,24 +53,12 @@
 #error "this demo requires a 1024 Hz system timer"
 #endif
 
-#if STM32_ST_USE_LPTIM != 4
-#error "this demo requires the SYSTICKv3 LPTIM4 backend"
+#if !defined(STM32_ST_LPTIM_BACKEND)
+#error "this demo requires the SYSTICKv3 LPTIM backend"
 #endif
 
-#if ST_LLD_REQUIRES_APPLICATION_TIMESTAMP != TRUE
-#error "this one-channel LPTIM4 demo requires application timestamp maintenance"
-#endif
-
-#if ST_LLD_HAS_AUTOMATIC_TIMESTAMP == TRUE
-#if STM32_ST_USE_LPTIM == 1
-#define DEMO_ST_IRQ_NUMBER                 STM32_LPTIM1_NUMBER
-#elif STM32_ST_USE_LPTIM == 2
-#define DEMO_ST_IRQ_NUMBER                 STM32_LPTIM2_NUMBER
-#elif STM32_ST_USE_LPTIM == 3
-#define DEMO_ST_IRQ_NUMBER                 STM32_LPTIM3_NUMBER
-#elif STM32_ST_USE_LPTIM == 4
-#define DEMO_ST_IRQ_NUMBER                 STM32_LPTIM4_NUMBER
-#endif
+#if STM32_ST_USE_TIMER != 3
+#error "this demo requires the SYSTICKv3 LPTIM3 backend"
 #endif
 
 /*===========================================================================*/
@@ -87,12 +78,13 @@ typedef struct __attribute__((aligned(32))) {
 DEMO_SRAM4_DATA static demo_lpdma_node_t probe_node;
 DEMO_SRAM4_DATA static uint32_t probe_words[2];
 
-static virtual_timer_t timestamp_vt;
 static virtual_timer_t stop2_wake_vt;
 static binary_semaphore_t stop2_wake_sem;
 
 static volatile bool stop2_armed;
+static systime_t timestamp_compare;
 static volatile uint32_t timestamp_refreshes;
+static volatile uint32_t timestamp_recoveries;
 static volatile uint32_t timer_wakes;
 static volatile uint32_t stop2_resumes;
 static volatile uint32_t restore_failures;
@@ -136,17 +128,6 @@ static uint32_t restoreRunClocksAtomic(void) {
   return result;
 }
 
-/** @brief Maintains the timestamp extension before the 16-bit ST wraps. */
-static void timestampCallback(virtual_timer_t *vtp, void *p) {
-
-  (void)vtp;
-  (void)p;
-
-  (void)chVTGetTimeStampI();
-  timestamp_refreshes++;
-  palToggleLine(PORTAB_LINE_LED3);
-}
-
 /** @brief Completes the timed STOP2 demonstration. */
 static void stop2WakeCallback(virtual_timer_t *vtp, void *p) {
 
@@ -158,13 +139,56 @@ static void stop2WakeCallback(virtual_timer_t *vtp, void *p) {
   chBSemSignalI(&stop2_wake_sem);
 }
 
-/** @brief Starts the mandatory timestamp-maintenance virtual timer. */
-static void timestampMaintenanceStart(void) {
+/** @brief Writes CCR2 after the preceding asynchronous update completes. */
+static void timestampSetCompare(systime_t compare) {
 
-  chVTObjectInit(&timestamp_vt);
-  (void)chVTGetTimeStamp();
-  chVTSetContinuous(&timestamp_vt, TIME_MAX_SYSTIME / 2,
-                    timestampCallback, NULL);
+  while ((STM32_ST_LPTIM_DEVICE->ISR & LPTIM_ISR_CMP2OK) == 0U) {
+  }
+  STM32_ST_LPTIM_DEVICE->ICR = LPTIM_ICR_CMP2OKCF;
+  STM32_ST_LPTIM_DEVICE->CCR2 = (uint32_t)compare;
+}
+
+/** @brief Starts the application-owned timestamp-maintenance compare. */
+static void timestampMaintenanceStart(void) {
+  uint32_t dier;
+  systime_t now;
+
+  chSysLock();
+  now = st_lld_get_counter();
+  timestamp_compare = (systime_t)(now + DEMO_TIMESTAMP_INTERVAL);
+  STM32_ST_LPTIM_DEVICE->CCR2 = (uint32_t)timestamp_compare;
+  while ((STM32_ST_LPTIM_DEVICE->ISR & LPTIM_ISR_CMP2OK) == 0U) {
+  }
+  STM32_ST_LPTIM_DEVICE->ICR = LPTIM_ICR_CC2CF;
+  dier = STM32_ST_LPTIM_DEVICE->DIER | LPTIM_DIER_CC2IE;
+  st_lld_set_dier(dier);
+  chSysUnlock();
+}
+
+/** @brief Services an enabled CCR2 match from the common IRQ hook. */
+static void timestampServeFromIrq(void) {
+  sysinterval_t until_next;
+  systime_t next_compare;
+  systime_t now;
+
+  STM32_ST_LPTIM_DEVICE->ICR = LPTIM_ICR_CC2CF;
+  chSysLockFromISR();
+  (void)chVTGetTimeStampI();
+  chSysUnlockFromISR();
+
+  next_compare = (systime_t)(timestamp_compare +
+                             DEMO_TIMESTAMP_INTERVAL);
+  now = st_lld_get_counter();
+  until_next = chTimeDiffX(now, next_compare);
+  if ((until_next == 0U) ||
+      (until_next > (sysinterval_t)DEMO_TIMESTAMP_INTERVAL)) {
+    next_compare = (systime_t)(now + DEMO_TIMESTAMP_INTERVAL);
+    timestamp_recoveries++;
+  }
+  timestamp_compare = next_compare;
+  timestamp_refreshes++;
+  timestampSetCompare(next_compare);
+  palToggleLine(PORTAB_LINE_LED3);
 }
 
 #if DEMO_USE_AUTONOMOUS_PROBE == TRUE
@@ -274,13 +298,15 @@ static void runStop2Cycle(BaseSequentialStream *chp) {
   chprintf(chp, "STOP2: resumed, timestamp=%08lX%08lX\r\n",
            (unsigned long)end_hi, (unsigned long)end_lo);
   chprintf(chp, "elapsed=%lu ticks (%lu ms), timer-wakes=%lu, "
-                "STOPF=%lu, restore-failures=%lu, timestamp-refreshes=%lu\r\n",
+                "STOPF=%lu, restore-failures=%lu, timestamp-refreshes=%lu, "
+                "timestamp-recoveries=%lu\r\n",
            (unsigned long)elapsed,
            (unsigned long)TIME_I2MS(elapsed),
            (unsigned long)timer_wakes,
            (unsigned long)stop2_resumes,
            (unsigned long)restore_failures,
-           (unsigned long)timestamp_refreshes);
+           (unsigned long)timestamp_refreshes,
+           (unsigned long)timestamp_recoveries);
 }
 
 /*===========================================================================*/
@@ -323,24 +349,37 @@ void demoStop2IdleLeaveHook(void) {
  *          clock. Simultaneous CCR1 and CCR2 flags take the restore path.
  */
 void demoStop2KernelIrqPrologueHook(void) {
+  bool cc1_pending;
+  bool cc2_pending;
+  bool stop_confirmed;
+  uint32_t active_exception;
+  uint32_t dier;
+  uint32_t isr;
   uint32_t result;
 
-  if ((PWR->SR & PWR_SR_STOPF) == 0U) {
+  stop_confirmed = (PWR->SR & PWR_SR_STOPF) != 0U;
+  cc1_pending = false;
+  cc2_pending = false;
+  active_exception = SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk;
+  if (active_exception == (16U + (uint32_t)DEMO_ST_IRQ_NUMBER)) {
+    isr = STM32_ST_LPTIM_DEVICE->ISR;
+    dier = STM32_ST_LPTIM_DEVICE->DIER;
+    cc1_pending = ((isr & LPTIM_ISR_CC1IF) != 0U) &&
+                  ((dier & LPTIM_DIER_CC1IE) != 0U);
+    cc2_pending = ((isr & LPTIM_ISR_CC2IF) != 0U) &&
+                  ((dier & LPTIM_DIER_CC2IE) != 0U);
+    if (cc2_pending) {
+      timestampServeFromIrq();
+    }
+  }
+
+  if (!stop_confirmed) {
     return;
   }
 
-#if ST_LLD_HAS_AUTOMATIC_TIMESTAMP == TRUE
-  if ((SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ==
-      (16U + (uint32_t)DEMO_ST_IRQ_NUMBER)) {
-    uint32_t pending;
-
-    pending = STM32_ST_LPTIM->ISR & STM32_ST_LPTIM->DIER;
-    if (((pending & LPTIM_ISR_CC1IF) == 0U) &&
-        ((pending & LPTIM_ISR_CC2IF) != 0U)) {
-      return;
-    }
+  if (cc2_pending && !cc1_pending) {
+    return;
   }
-#endif
 
   result = restoreRunClocksAtomic();
   if ((result & DEMO_RESTORE_CONFIRMED) != 0U) {
@@ -368,6 +407,7 @@ int main(void) {
 
   chVTObjectInit(&stop2_wake_vt);
   chBSemObjectInit(&stop2_wake_sem, true);
+  (void)chVTGetTimeStamp();
   timestampMaintenanceStart();
 
 #if DEMO_USE_AUTONOMOUS_PROBE == TRUE
@@ -376,11 +416,11 @@ int main(void) {
 
   initial = chVTGetTimeStamp();
   chprintf(chp, "\r\nSTM32U575 SYSTICKv3 Smart Run Domain demo\r\n");
-  chprintf(chp, "ST: LPTIM4/LSE/32, 1024 Hz, 16-bit\r\n");
+  chprintf(chp, "ST: LPTIM3/LSE/32, 1024 Hz, 16-bit\r\n");
   chprintf(chp, "timestamp=%08lX%08lX; refresh interval=%lu ticks\r\n",
            (unsigned long)(uint32_t)(initial >> 32),
            (unsigned long)(uint32_t)initial,
-           (unsigned long)(TIME_MAX_SYSTIME / 2));
+           (unsigned long)DEMO_TIMESTAMP_INTERVAL);
 #if DEMO_USE_AUTONOMOUS_PROBE == TRUE
   chprintf(chp, "PA1: LPTIM1-paced LPDMA/LPGPIO 1 Hz probe active\r\n");
 #endif

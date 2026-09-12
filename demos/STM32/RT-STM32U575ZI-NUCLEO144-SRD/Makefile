@@ -7,6 +7,7 @@ USE_OPT = -O2 -ggdb -fomit-frame-pointer --specs=nano.specs \
 USE_LINK_GC = yes
 USE_LTO = yes
 USE_SMART_BUILD = yes
+USE_ST_LPTIM = yes
 
 ##############################################################################
 # Architecture or project specific options
