@@ -53,6 +53,11 @@
 /*===========================================================================*/
 
 /**
+ * @brief   Type of a generic non-blocking byte queue structure.
+ */
+typedef struct plain_queue plain_queue_t;
+
+/**
  * @brief   Type of a generic I/O queue structure.
  */
 typedef struct io_queue io_queue_t;
@@ -65,6 +70,20 @@ typedef struct io_queue io_queue_t;
 typedef void (*qnotify_t)(io_queue_t *qp);
 
 /**
+ * @brief   Generic non-blocking byte queue structure.
+ * @details Access synchronization is delegated to the queue owner. All
+ *          operations except initialization are I-class functions.
+ */
+struct plain_queue {
+  volatile size_t       q_counter;  /**< @brief Stored bytes counter.       */
+  uint8_t               *q_buffer;  /**< @brief Pointer to the queue buffer.*/
+  uint8_t               *q_top;     /**< @brief Pointer to the first
+                                         location after the buffer.         */
+  uint8_t               *q_wrptr;   /**< @brief Write pointer.              */
+  uint8_t               *q_rdptr;   /**< @brief Read pointer.               */
+};
+
+/**
  * @brief   Generic I/O queue structure.
  * @details This structure represents a generic Input or Output asymmetrical
  *          queue. The queue is asymmetrical because one end is meant to be
@@ -73,13 +92,8 @@ typedef void (*qnotify_t)(io_queue_t *qp);
  *          lock zone and is non-blocking.
  */
 struct io_queue {
+  plain_queue_t         q_queue;    /**< @brief Embedded byte queue.        */
   threads_queue_t       q_waiting;  /**< @brief Queue of waiting threads.   */
-  volatile size_t       q_counter;  /**< @brief Resources counter.          */
-  uint8_t               *q_buffer;  /**< @brief Pointer to the queue buffer.*/
-  uint8_t               *q_top;     /**< @brief Pointer to the first
-                                         location after the buffer.         */
-  uint8_t               *q_wrptr;   /**< @brief Write pointer.              */
-  uint8_t               *q_rdptr;   /**< @brief Read pointer.               */
   qnotify_t             q_notify;   /**< @brief Data notification callback. */
   void                  *q_link;    /**< @brief Application defined field.  */
 };
@@ -119,7 +133,7 @@ typedef io_queue_t output_queue_t;
 /**
  * @brief   Returns the queue's buffer size.
  *
- * @param[in] qp        pointer to a @p io_queue_t structure
+ * @param[in] qp        pointer to a @p plain_queue_t structure
  * @return              The buffer size.
  *
  * @xclass
@@ -130,16 +144,50 @@ typedef io_queue_t output_queue_t;
   /*lint -restore*/
 
 /**
- * @brief   Queue space.
- * @details Returns the used space if used on an input queue or the empty
- *          space if used on an output queue.
+ * @brief   Returns the filled space in a queue.
  *
- * @param[in] qp        pointer to a @p io_queue_t structure
- * @return              The buffer space.
+ * @param[in] qp        pointer to a @p plain_queue_t structure
+ * @return              The number of full bytes in the queue.
+ * @retval 0            if the queue is empty.
  *
  * @iclass
  */
-#define qSpaceI(qp) ((qp)->q_counter)
+#define qGetFullI(qp) ((qp)->q_counter)
+
+/**
+ * @brief   Returns the empty space in a queue.
+ *
+ * @param[in] qp        pointer to a @p plain_queue_t structure
+ * @return              The number of empty bytes in the queue.
+ * @retval 0            if the queue is full.
+ *
+ * @iclass
+ */
+#define qGetEmptyI(qp) (qSizeX(qp) - qGetFullI(qp))
+
+/**
+ * @brief   Evaluates to @p true if the specified queue is empty.
+ *
+ * @param[in] qp        pointer to a @p plain_queue_t structure
+ * @return              The queue status.
+ * @retval false        if the queue is not empty.
+ * @retval true         if the queue is empty.
+ *
+ * @iclass
+ */
+#define qIsEmptyI(qp) ((bool)(qGetFullI(qp) == 0U))
+
+/**
+ * @brief   Evaluates to @p true if the specified queue is full.
+ *
+ * @param[in] qp        pointer to a @p plain_queue_t structure
+ * @return              The queue status.
+ * @retval false        if the queue is not full.
+ * @retval true         if the queue is full.
+ *
+ * @iclass
+ */
+#define qIsFullI(qp) ((bool)(qGetEmptyI(qp) == 0U))
 
 /**
  * @brief   Returns the queue application-defined link.
@@ -172,7 +220,7 @@ typedef io_queue_t output_queue_t;
  *
  * @iclass
  */
-#define iqGetFullI(iqp) qSpaceI(iqp)
+#define iqGetFullI(iqp) qGetFullI(&(iqp)->q_queue)
 
 /**
  * @brief   Returns the empty space into an input queue.
@@ -183,7 +231,7 @@ typedef io_queue_t output_queue_t;
  *
  * @iclass
  */
-#define iqGetEmptyI(iqp) (qSizeX(iqp) - qSpaceI(iqp))
+#define iqGetEmptyI(iqp) qGetEmptyI(&(iqp)->q_queue)
 
 /**
  * @brief   Evaluates to @p true if the specified input queue is empty.
@@ -195,7 +243,7 @@ typedef io_queue_t output_queue_t;
  *
  * @iclass
  */
-#define iqIsEmptyI(iqp) ((bool)(qSpaceI(iqp) == 0U))
+#define iqIsEmptyI(iqp) qIsEmptyI(&(iqp)->q_queue)
 
 /**
  * @brief   Evaluates to @p true if the specified input queue is full.
@@ -207,10 +255,7 @@ typedef io_queue_t output_queue_t;
  *
  * @iclass
  */
-#define iqIsFullI(iqp)                                                      \
-  /*lint -save -e9007 [13.5] No side effects, a pointer is passed.*/        \
-  ((bool)(((iqp)->q_wrptr == (iqp)->q_rdptr) && ((iqp)->q_counter != 0U)))  \
-  /*lint -restore*/
+#define iqIsFullI(iqp) qIsFullI(&(iqp)->q_queue)
 
 /**
  * @brief   Input queue read.
@@ -235,7 +280,7 @@ typedef io_queue_t output_queue_t;
  *
  * @iclass
  */
-#define oqGetFullI(oqp) (qSizeX(oqp) - qSpaceI(oqp))
+#define oqGetFullI(oqp) qGetFullI(&(oqp)->q_queue)
 
 /**
  * @brief   Returns the empty space into an output queue.
@@ -246,7 +291,7 @@ typedef io_queue_t output_queue_t;
  *
  * @iclass
  */
-#define oqGetEmptyI(oqp) qSpaceI(oqp)
+#define oqGetEmptyI(oqp) qGetEmptyI(&(oqp)->q_queue)
 
 /**
  * @brief   Evaluates to @p true if the specified output queue is empty.
@@ -258,10 +303,7 @@ typedef io_queue_t output_queue_t;
  *
  * @iclass
  */
-#define oqIsEmptyI(oqp)                                                     \
-  /*lint -save -e9007 [13.5] No side effects, a pointer is passed.*/        \
-  ((bool)(((oqp)->q_wrptr == (oqp)->q_rdptr) && ((oqp)->q_counter != 0U)))  \
-  /*lint -restore*/
+#define oqIsEmptyI(oqp) qIsEmptyI(&(oqp)->q_queue)
 
 /**
  * @brief   Evaluates to @p true if the specified output queue is full.
@@ -273,7 +315,7 @@ typedef io_queue_t output_queue_t;
  *
  * @iclass
  */
-#define oqIsFullI(oqp) ((bool)(qSpaceI(oqp) == 0U))
+#define oqIsFullI(oqp) qIsFullI(&(oqp)->q_queue)
 
 /**
  * @brief   Output queue write.
@@ -299,6 +341,13 @@ typedef io_queue_t output_queue_t;
 #ifdef __cplusplus
 extern "C" {
 #endif
+  void qObjectInit(plain_queue_t *qp, uint8_t *bp, size_t size);
+  void qResetI(plain_queue_t *qp);
+  msg_t qPutI(plain_queue_t *qp, uint8_t b);
+  msg_t qGetI(plain_queue_t *qp);
+  size_t qReadI(plain_queue_t *qp, uint8_t *bp, size_t n);
+  size_t qWriteI(plain_queue_t *qp, const uint8_t *bp, size_t n);
+
   void iqObjectInit(input_queue_t *iqp, uint8_t *bp, size_t size,
                     qnotify_t infy, void *link);
   void iqResetI(input_queue_t *iqp);

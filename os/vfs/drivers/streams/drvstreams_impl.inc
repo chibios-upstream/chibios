@@ -28,8 +28,31 @@ static vfs_mode_t streams_directory_mode(void) {
 
 static vfs_mode_t streams_file_mode(const drv_streams_element_t *dsep) {
 
-  return (dsep->mode & VFS_MODE_S_IFMT) |
-         VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR;
+  return dsep->mode;
+}
+
+static sequential_stream_i *
+streams_file_stream(const drv_streams_element_t *dsep) {
+
+  switch (dsep->mode & VFS_MODE_S_IFMT) {
+  case VFS_MODE_S_IFIFO:
+    return dsep->interface.stream;
+  case VFS_MODE_S_IFREG:
+    return (sequential_stream_i *)dsep->interface.rstream;
+  case VFS_MODE_S_IFCHR:
+    return (sequential_stream_i *)dsep->interface.tty;
+  default:
+    return NULL;
+  }
+}
+
+static msg_t streams_tty_result(msg_t msg) {
+
+  if (msg == MSG_OK) {
+    return CH_RET_SUCCESS;
+  }
+
+  return CH_RET_EIO;
 }
 
 /*===========================================================================*/
@@ -209,19 +232,16 @@ const struct vfs_streams_dir_node_vmt __vfs_streams_dir_node_vmt = {
  *                              instance to be initialized.
  * @param[in]     vmt           VMT pointer for the new object.
  * @param[in]     driver        Pointer to the controlling driver.
- * @param[in]     mode          Node mode flags.
- * @param[in]     stream        Stream to be associated.
+ * @param[in]     element       Element descriptor to be associated.
  * @return                      A new reference to the object.
  */
 void *__stmfile_objinit_impl(void *ip, const void *vmt, vfs_fs_c *driver,
-                             vfs_mode_t mode, sequential_stream_i *stream,
-                             random_stream_i *rstream) {
+                             const drv_streams_element_t *element) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsfile_objinit_impl(self, vmt, (vfs_fs_c *)driver, mode);
-  self->stream  = stream;
-  self->rstream = rstream;
+  self = __vfsfile_objinit_impl(self, vmt, (vfs_fs_c *)driver, element->mode);
+  self->element = element;
 
   return self;
 }
@@ -275,8 +295,13 @@ msg_t __stmfile_stat_impl(void *ip, vfs_stat_t *sp) {
  */
 ssize_t __stmfile_read_impl(void *ip, uint8_t *buf, size_t n) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
+  sequential_stream_i *stream = streams_file_stream(self->element);
 
-  return stmRead(self->stream, buf, n);
+  if (stream != NULL) {
+    return stmRead(stream, buf, n);
+  }
+
+  return CH_RET_EIO;
 }
 
 /**
@@ -293,8 +318,13 @@ ssize_t __stmfile_read_impl(void *ip, uint8_t *buf, size_t n) {
  */
 ssize_t __stmfile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
+  sequential_stream_i *stream = streams_file_stream(self->element);
 
-  return stmWrite(self->stream, buf, n);
+  if (stream != NULL) {
+    return stmWrite(stream, buf, n);
+  }
+
+  return CH_RET_EIO;
 }
 
 /**
@@ -312,14 +342,20 @@ ssize_t __stmfile_write_impl(void *ip, const uint8_t *buf, size_t n) {
 msg_t __stmfile_setpos_impl(void *ip, vfs_offset_t offset,
                             vfs_seekmode_t whence) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
+  random_stream_i *rstream;
 
-  if (self->rstream != NULL) {
-    rstmSeek(self->rstream, (uint32_t)offset, (int)whence);
-
-    return CH_RET_SUCCESS;
+  if ((self->element->mode & VFS_MODE_S_IFMT) != VFS_MODE_S_IFREG) {
+    return CH_RET_ESPIPE;
   }
 
-  return CH_RET_ENOSYS;
+  rstream = self->element->interface.rstream;
+  if (rstream == NULL) {
+    return CH_RET_EIO;
+  }
+
+  rstmSeek(rstream, (uint32_t)offset, (int)whence);
+
+  return CH_RET_SUCCESS;
 }
 
 /**
@@ -334,12 +370,103 @@ msg_t __stmfile_setpos_impl(void *ip, vfs_offset_t offset,
  */
 vfs_offset_t __stmfile_getpos_impl(void *ip) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
+  random_stream_i *rstream;
 
-  if (self->rstream != NULL) {
-    return (vfs_offset_t)rstmSeek(self->rstream, 0U, RSTM_SEEK_CUR);
+  if ((self->element->mode & VFS_MODE_S_IFMT) != VFS_MODE_S_IFREG) {
+    return CH_RET_ESPIPE;
   }
 
-  return CH_RET_ENOSYS;
+  rstream = self->element->interface.rstream;
+  if (rstream == NULL) {
+    return CH_RET_EIO;
+  }
+
+  return (vfs_offset_t)rstmSeek(rstream, 0U, RSTM_SEEK_CUR);
+}
+
+/**
+ * @memberof    vfs_streams_file_node_c
+ * @protected
+ *
+ * @brief       Override of method @p vfsFileControl().
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_streams_file_node_c
+ *                              instance.
+ * @param[in]     operation     Control operation code.
+ * @param[in,out] arg           Pointer to operation-specific arguments.
+ * @return                      The operation result.
+ */
+msg_t __stmfile_control_impl(void *ip, vfs_control_op_t operation, void *arg) {
+  vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
+  tty_i *tty;
+  msg_t msg;
+
+  if ((self->element->mode & VFS_MODE_S_IFMT) != VFS_MODE_S_IFCHR) {
+    return CH_RET_ENOTTY;
+  }
+
+  tty = self->element->interface.tty;
+  if (tty == NULL) {
+    return CH_RET_EIO;
+  }
+
+  switch (operation) {
+  case VFS_CTL_TTY_ISATTY:
+    if (arg != NULL) {
+      return CH_RET_EINVAL;
+    }
+    return CH_RET_SUCCESS;
+  case VFS_CTL_TTY_GETATTR:
+    if (arg == NULL) {
+      return CH_RET_EINVAL;
+    }
+    msg = ttyGetAttributes(tty, (struct termios *)arg);
+    break;
+  case VFS_CTL_TTY_SETATTR:
+    if ((arg == NULL) ||
+        (((const vfs_tty_setattr_args_t *)arg)->attrp == NULL)) {
+      return CH_RET_EINVAL;
+    }
+    msg = ttySetAttributes(
+        tty,
+        ((const vfs_tty_setattr_args_t *)arg)->action,
+        ((const vfs_tty_setattr_args_t *)arg)->attrp);
+    break;
+  case VFS_CTL_TTY_DRAIN:
+    if (arg != NULL) {
+      return CH_RET_EINVAL;
+    }
+    msg = ttyDrain(tty);
+    break;
+  case VFS_CTL_TTY_FLUSH:
+    if (arg == NULL) {
+      return CH_RET_EINVAL;
+    }
+    msg = ttyFlush(tty, *(const int *)arg);
+    break;
+  case VFS_CTL_TTY_FLOW:
+    if (arg == NULL) {
+      return CH_RET_EINVAL;
+    }
+    msg = ttyFlow(tty, *(const int *)arg);
+    break;
+  case VFS_CTL_TTY_GETWINSIZE:
+    if (arg == NULL) {
+      return CH_RET_EINVAL;
+    }
+    msg = ttyGetWindowSize(tty, (struct winsize *)arg);
+    break;
+  case VFS_CTL_TTY_SETWINSIZE:
+    if (arg == NULL) {
+      return CH_RET_EINVAL;
+    }
+    msg = ttySetWindowSize(tty, (const struct winsize *)arg);
+    break;
+  default:
+    return CH_RET_ENOTTY;
+  }
+
+  return streams_tty_result(msg);
 }
 
 /** @} */
@@ -357,7 +484,7 @@ const struct vfs_streams_file_node_vmt __vfs_streams_file_node_vmt = {
   .write                    = __stmfile_write_impl,
   .setpos                   = __stmfile_setpos_impl,
   .getpos                   = __stmfile_getpos_impl,
-  .control                  = __vfsfile_control_impl
+  .control                  = __stmfile_control_impl
 };
 
 /*===========================================================================*/
@@ -568,9 +695,7 @@ msg_t __stmdrv_openfile_impl(void *ip, const char *path, int flags,
           /* Node object initialization.*/
           (void) stmfileObjectInit(sfnp,
                                    (vfs_fs_c *)self,
-                                   streams_file_mode(dsep),
-                                   dsep->stm,
-                                   dsep->rstm);
+                                   dsep);
 
           *vfnpp = (vfs_file_node_c *)sfnp;
           return CH_RET_SUCCESS;

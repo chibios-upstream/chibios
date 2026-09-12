@@ -944,6 +944,13 @@ void __port_do_syscall_entry(uint32_t n, struct port_extctx *ectxp) {
   sb_class_t *sbp = (sb_class_t *)tp->object;
   struct port_extctx *newctxp;
 
+#if (CORTEX_USE_FPU == TRUE) && (PORT_USE_FPU_FAST_SWITCHING > 0)
+  /* Completing any lazy FP save to the caller frame before switching
+     to the privileged stack.*/
+  (void)__get_FPSCR();
+  asm volatile ("" : : : "memory");
+#endif
+
   /* Saving caller context in unprivileged memory.*/
   sbp->u_psp = (uint32_t)ectxp;
 
@@ -983,6 +990,12 @@ void __port_do_syscall_return(void) {
   tp = __sch_get_currthread();
   sbp = (sb_class_t *)tp->object;
   ectxp = (struct port_extctx *)sbp->u_psp;
+
+#if CORTEX_USE_FPU == TRUE
+  /* Discarding the privileged lazy FP save and forcing FP unstacking
+     from the sandbox frame, including on the initial trampoline return.*/
+  FPU->FPCCR &= ~FPU_FPCCR_LSPACT_Msk;
+#endif
 
 #if SB_CFG_ENABLE_VRQ == TRUE
   __sb_vrq_check_pending(sbp, ectxp);

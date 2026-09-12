@@ -55,7 +55,7 @@ static unsigned cnt;
  * @notapi
  */
 static void tmrfunc(virtual_timer_t *vtp, void *p) {
-  BaseBlockDevice *bbdp = p;
+  block_io_i *bbdp = p;
 
   chSysLockFromISR();
 
@@ -92,7 +92,9 @@ void sdmonInit(void) {
   static event_listener_t el0, el1;
 
   /* Activates the  SDC driver using default configuration.*/
-  sdcStart(&SDCD1, NULL);
+  if (drvStart(&SDCD1, NULL) != HAL_RET_SUCCESS) {
+    chSysHalt("SDC");
+  }
 
   chEvtObjectInit(&sdmon_inserted_event);
   chEvtObjectInit(&sdmon_removed_event);
@@ -102,7 +104,8 @@ void sdmonInit(void) {
 
   sdmon_ready = false;
   cnt = POLLING_INTERVAL;
-  chVTSet(&tmr, TIME_MS2I(POLLING_DELAY), tmrfunc, (void *)&SDCD1);
+  chVTSet(&tmr, TIME_MS2I(POLLING_DELAY), tmrfunc,
+          oopGetIf(&SDCD1, blk));
 }
 
 /*
@@ -114,7 +117,7 @@ void sdmonInsertHandler(eventid_t id) {
   (void)id;
 
 #if HAL_USE_SDC
-  if (sdcConnect(&SDCD1)) {
+  if (blkConnect(oopGetIf(&SDCD1, blk))) {
     return;
   }
 #else
@@ -126,7 +129,7 @@ void sdmonInsertHandler(eventid_t id) {
   err = ffdrvMount("0:", 1);
   if (CH_RET_IS_ERROR(err)) {
 #if HAL_USE_SDC
-    sdcDisconnect(&SDCD1);
+    (void)blkDisconnect(oopGetIf(&SDCD1, blk));
 #else
   if (mmcDisconnect(&MMCD1)) {
 #endif
@@ -143,7 +146,7 @@ void sdmonRemoveHandler(eventid_t id) {
   (void)id;
 
 #if HAL_USE_SDC
-  sdcDisconnect(&SDCD1);
+  (void)blkDisconnect(oopGetIf(&SDCD1, blk));
 #else
   mmcDisconnect(&MMCD1);
 #endif

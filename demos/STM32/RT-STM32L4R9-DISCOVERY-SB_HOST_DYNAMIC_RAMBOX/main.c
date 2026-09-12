@@ -18,8 +18,10 @@
 #include "hal.h"
 #include "sb.h"
 
-#include "chprintf.h"
-#include "nullstreams.h"
+#include "oop_chprintf.h"
+#include "oop_nullstreams.h"
+
+#include "hal_posix_tty_sio.h"
 
 #include "startup_defs.h"
 #include "sdmon.h"
@@ -46,14 +48,21 @@ static vfs_streams_driver_c sb1_dev_driver;
    symbol is expected.*/
 vfs_root_c *vfs_root = &root_driver;
 
+/* POSIX TTY layered over the ST-LINK USART.*/
+static hal_posix_tty_sio_c ttyS0;
+
 /* Used for /dev/null.*/
-static NullStream nullstream;
+static null_stream_c nullstream;
 
 /* Streams to be exposed under /dev as files.*/
 static const drv_streams_element_t sb1_streams[] = {
-  {"VSD1", (sequential_stream_i *)&SD2, NULL, VFS_MODE_S_IFCHR},
-  {"null", (sequential_stream_i *)&nullstream, NULL, VFS_MODE_S_IFCHR},
-  {NULL, NULL, NULL, 0}
+  DRV_STREAMS_ELEMENT_TTY("ttyS0",
+                          VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                          (tty_i *)oopGetIf(&ttyS0, tty)),
+  DRV_STREAMS_ELEMENT_FIFO("null",
+                           VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                           (sequential_stream_i *)oopGetIf(&nullstream, stm)),
+  DRV_STREAMS_ELEMENT_END()
 };
 
 /*===========================================================================*/
@@ -108,7 +117,8 @@ static void SBHandler(eventid_t id) {
       chSysHalt("SBX1 finalize");
     }
 
-    chprintf((BaseSequentialStream *)&SD2, "SBX1 terminated (%08lx)\r\n", msg);
+    chprintf((sequential_stream_i *)oopGetIf(&ttyS0, tty),
+             "SBX1 terminated (%08lx)\n", msg);
   }
 }
 
@@ -139,9 +149,14 @@ int main(void) {
   vfsInit();
   sbHostInit();
 
-  /* Starting a serial ports for I/O, initializing other streams too.*/
-  sdStart(&SD2, NULL);
-  nullObjectInit(&nullstream);
+  /* Starting the POSIX TTY over the ST-LINK SIO port and initializing the
+     other streams.*/
+  pttyObjectInit(&ttyS0, &SIOD2);
+  ret = drvStart(&ttyS0, NULL);
+  if (ret != HAL_RET_SUCCESS) {
+    chSysHalt("TTY");
+  }
+  nullstmObjectInit(&nullstream);
 
   /* Activating the card insertion monitor.*/
   sdmonInit();
@@ -185,11 +200,19 @@ int main(void) {
       /* Small delay before relaunching.*/
       chThdSleepMilliseconds(500);
 
+      /* Restoring the terminal defaults and discarding state left by the
+         previous sandbox instance.*/
+      ret = pttyReset(&ttyS0);
+      if (ret != HAL_RET_SUCCESS) {
+        chSysHalt("TTY reset");
+      }
+
       /* Associating standard input, output and error to sandbox 1.*/
       ret = vfsFSOpen((vfs_fs_c *)sbGetRoot(&sbx1),
-                      "/dev/VSD1", VO_RDWR, &np);
+                      "/dev/ttyS0", VO_RDWR, &np);
       if (CH_RET_IS_ERROR(ret)) {
-        chprintf((BaseSequentialStream *)&SD2, "Opening /dev/VSD1 failed (%08lx)\r\n", ret);
+        chprintf((sequential_stream_i *)oopGetIf(&ttyS0, tty),
+                 "Opening /dev/ttyS0 failed (%08lx)\n", ret);
         continue;
       }
       sbRegisterDescriptor(&sbx1, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
@@ -201,7 +224,8 @@ int main(void) {
       ret = sbExecDynamic(&sbx1, NORMALPRIO-10, 56*1024,
                           "/bin/msh.elf", sbx1_argv, sbx1_envp);
       if (CH_RET_IS_ERROR(ret)) {
-        chprintf((BaseSequentialStream *)&SD2, "SBX1 launch failed (%08lx)\r\n", ret);
+        chprintf((sequential_stream_i *)oopGetIf(&ttyS0, tty),
+                 "SBX1 launch failed (%08lx)\n", ret);
       }
     }
   }

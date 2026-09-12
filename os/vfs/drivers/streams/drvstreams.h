@@ -75,9 +75,88 @@
 /* Module macros.                                                            */
 /*===========================================================================*/
 
+/**
+ * @name    Streams element initializers
+ * @{
+ */
+/**
+ * @brief       Initializes an element backed by a sequential stream.
+ *
+ * @param[in]     n             Exposed file name.
+ * @param[in]     p             Node permission bits.
+ * @param[in]     ip            Pointer to a @p sequential_stream_i.
+ * @return                      An initializer for a FIFO stream element.
+ *
+ * @api
+ */
+#define DRV_STREAMS_ELEMENT_FIFO(n, p, ip)                                  \
+  {                                                                         \
+    .name = (n),                                                            \
+    .mode = VFS_MODE_S_IFIFO |                                              \
+            ((vfs_mode_t)(p) & ~VFS_MODE_S_IFMT),                           \
+    .interface.stream = (ip)                                                \
+  }
+
+/**
+ * @brief       Initializes an element backed by a random stream.
+ *
+ * @param[in]     n             Exposed file name.
+ * @param[in]     p             Node permission bits.
+ * @param[in]     ip            Pointer to a @p random_stream_i.
+ * @return                      An initializer for a regular-file stream
+ *                              element.
+ *
+ * @api
+ */
+#define DRV_STREAMS_ELEMENT_REGULAR(n, p, ip)                               \
+  {                                                                         \
+    .name = (n),                                                            \
+    .mode = VFS_MODE_S_IFREG |                                              \
+            ((vfs_mode_t)(p) & ~VFS_MODE_S_IFMT),                           \
+    .interface.rstream = (ip)                                               \
+  }
+
+/**
+ * @brief       Initializes an element backed by a terminal interface.
+ *
+ * @param[in]     n             Exposed file name.
+ * @param[in]     p             Node permission bits.
+ * @param[in]     ip            Pointer to a @p tty_i.
+ * @return                      An initializer for a terminal stream element.
+ *
+ * @api
+ */
+#define DRV_STREAMS_ELEMENT_TTY(n, p, ip)                                   \
+  {                                                                         \
+    .name = (n),                                                            \
+    .mode = VFS_MODE_S_IFCHR |                                              \
+            ((vfs_mode_t)(p) & ~VFS_MODE_S_IFMT),                           \
+    .interface.tty = (ip)                                                   \
+  }
+
+/**
+ * @brief       Initializes the terminating entry of an element table.
+ *
+ * @return                      An initializer for a table terminator.
+ *
+ * @api
+ */
+#define DRV_STREAMS_ELEMENT_END()                                           \
+  {                                                                         \
+    .name = NULL                                                            \
+  }
+/** @} */
+
 /*===========================================================================*/
 /* Module data structures and types.                                         */
 /*===========================================================================*/
+
+struct tty;
+
+/**
+ * @brief       Type of a stream interface association.
+ */
+typedef union drv_streams_interface drv_streams_interface_t;
 
 /**
  * @brief       Type of a stream association structure.
@@ -85,7 +164,30 @@
 typedef struct drv_streams_element drv_streams_element_t;
 
 /**
+ * @brief       Interface exposed by a streams driver element.
+ */
+union drv_streams_interface {
+  /**
+   * @brief       Sequential stream selected by @p VFS_MODE_S_IFIFO.
+   */
+  sequential_stream_i       *stream;
+  /**
+   * @brief       Random stream selected by @p VFS_MODE_S_IFREG.
+   */
+  random_stream_i           *rstream;
+  /**
+   * @brief       Terminal interface selected by @p VFS_MODE_S_IFCHR.
+   */
+  struct tty                *tty;
+};
+
+/**
  * @brief       Structure representing a stream association.
+ * @details     Applications should initialize element tables using the @p
+ *              DRV_STREAMS_ELEMENT_FIFO, @p DRV_STREAMS_ELEMENT_REGULAR, @p
+ *              DRV_STREAMS_ELEMENT_TTY, and @p DRV_STREAMS_ELEMENT_END macros
+ *              so that the node type and active interface member cannot
+ *              diverge.
  */
 struct drv_streams_element {
   /**
@@ -93,17 +195,13 @@ struct drv_streams_element {
    */
   const char                *name;
   /**
-   * @brief       Pointer to the sequential stream.
-   */
-  sequential_stream_i       *stm;
-  /**
-   * @brief       Pointer to the random stream or @p NULL.
-   */
-  random_stream_i           *rstm;
-  /**
-   * @brief       Stream mode.
+   * @brief       Node type and permissions.
    */
   vfs_mode_t                mode;
+  /**
+   * @brief       Interface selected by the node type in @p mode.
+   */
+  drv_streams_interface_t   interface;
 };
 
 /**
@@ -219,13 +317,9 @@ struct vfs_streams_file_node {
    */
   vfs_mode_t                mode;
   /**
-   * @brief       Pointer to the associated sequential stream.
+   * @brief       Pointer to the associated element descriptor.
    */
-  sequential_stream_i       *stream;
-  /**
-   * @brief       Pointer to the associated random stream or @p NULL.
-   */
-  random_stream_i           *rstream;
+  const drv_streams_element_t *element;
 };
 /** @} */
 
@@ -291,8 +385,7 @@ extern "C" {
   msg_t __stmdir_next_impl(void *ip, vfs_direntry_info_t *dip);
   /* Methods of vfs_streams_file_node_c.*/
   void *__stmfile_objinit_impl(void *ip, const void *vmt, vfs_fs_c *driver,
-                               vfs_mode_t mode, sequential_stream_i *stream,
-                               random_stream_i *rstream);
+                               const drv_streams_element_t *element);
   void __stmfile_dispose_impl(void *ip);
   msg_t __stmfile_stat_impl(void *ip, vfs_stat_t *sp);
   ssize_t __stmfile_read_impl(void *ip, uint8_t *buf, size_t n);
@@ -300,6 +393,7 @@ extern "C" {
   msg_t __stmfile_setpos_impl(void *ip, vfs_offset_t offset,
                               vfs_seekmode_t whence);
   vfs_offset_t __stmfile_getpos_impl(void *ip);
+  msg_t __stmfile_control_impl(void *ip, vfs_control_op_t operation, void *arg);
   /* Methods of vfs_streams_driver_c.*/
   void *__stmdrv_objinit_impl(void *ip, const void *vmt,
                               const drv_streams_element_t *streams);
@@ -359,9 +453,7 @@ static inline vfs_streams_dir_node_c *stmdirObjectInit(vfs_streams_dir_node_c *s
  * @param[out]    self          Pointer to a @p vfs_streams_file_node_c
  *                              instance to be initialized.
  * @param[in]     driver        Pointer to the controlling driver.
- * @param[in]     mode          Node mode flags.
- * @param[in]     stream        Sequential stream to be associated.
- * @param[in]     rstream       Random stream to be associated or @p NULL.
+ * @param[in]     element       Element descriptor to be associated.
  * @return                      Pointer to the initialized object.
  *
  * @objinit
@@ -369,13 +461,11 @@ static inline vfs_streams_dir_node_c *stmdirObjectInit(vfs_streams_dir_node_c *s
 CC_FORCE_INLINE
 static inline vfs_streams_file_node_c *stmfileObjectInit(vfs_streams_file_node_c *self,
                                                          vfs_fs_c *driver,
-                                                         vfs_mode_t mode,
-                                                         sequential_stream_i *stream,
-                                                         random_stream_i *rstream) {
+                                                         const drv_streams_element_t *element) {
   extern const struct vfs_streams_file_node_vmt __vfs_streams_file_node_vmt;
 
   return __stmfile_objinit_impl(self, &__vfs_streams_file_node_vmt, driver,
-                                mode, stream, rstream);
+                                element);
 }
 /** @} */
 

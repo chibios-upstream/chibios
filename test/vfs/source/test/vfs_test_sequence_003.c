@@ -54,9 +54,98 @@
 #include "vfs.h"
 
 #if VFS_CFG_ENABLE_DRV_STREAMS == TRUE
+#include "hal_tty.h"
+
+static size_t vfs_test_stream_write(void *ip, const uint8_t *bp, size_t n) {
+
+  (void)ip;
+  (void)bp;
+
+  return n;
+}
+
+static size_t vfs_test_stream_read(void *ip, uint8_t *bp, size_t n) {
+
+  (void)ip;
+  (void)bp;
+  (void)n;
+
+  return 0U;
+}
+
+static uint32_t vfs_test_stream_position;
+
+static uint32_t vfs_test_stream_seek(void *ip, uint32_t offset, int whence) {
+
+  (void)ip;
+
+  if (whence == RSTM_SEEK_SET) {
+    vfs_test_stream_position = offset;
+  }
+  else if (whence == RSTM_SEEK_CUR) {
+    vfs_test_stream_position += offset;
+  }
+
+  return vfs_test_stream_position;
+}
+
+static unsigned vfs_test_tty_drains;
+
+static msg_t vfs_test_tty_drain(void *ip) {
+
+  (void)ip;
+  vfs_test_tty_drains++;
+
+  return MSG_OK;
+}
+
+static const struct sequential_stream_vmt vfs_test_stream_vmt = {
+  .instance_offset = 0U,
+  .write = vfs_test_stream_write,
+  .read = vfs_test_stream_read
+};
+
+static const struct random_stream_vmt vfs_test_random_stream_vmt = {
+  .instance_offset = 0U,
+  .write = vfs_test_stream_write,
+  .read = vfs_test_stream_read,
+  .seek = vfs_test_stream_seek
+};
+
+static const struct tty_vmt vfs_test_tty_vmt = {
+  .instance_offset = 0U,
+  .write = vfs_test_stream_write,
+  .read = vfs_test_stream_read,
+  .drain = vfs_test_tty_drain
+};
+
+static sequential_stream_i vfs_test_stream = {
+  .vmt = &vfs_test_stream_vmt
+};
+
+static random_stream_i vfs_test_random_stream = {
+  .vmt = &vfs_test_random_stream_vmt
+};
+
+static tty_i vfs_test_tty = {
+  .vmt = &vfs_test_tty_vmt
+};
+
+/* Conflicting type bits verify that initializer macros keep type and
+   interface selection coupled.*/
 static const drv_streams_element_t vfs_test_streams[] = {
-  {"console", NULL, NULL, VFS_MODE_S_IFCHR},
-  {NULL, NULL, NULL, (vfs_mode_t)0}
+  DRV_STREAMS_ELEMENT_FIFO("console",
+                           VFS_MODE_S_IFCHR |
+                           VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                           &vfs_test_stream),
+  DRV_STREAMS_ELEMENT_REGULAR("file",
+                              VFS_MODE_S_IFIFO | VFS_MODE_S_IRUSR,
+                              &vfs_test_random_stream),
+  DRV_STREAMS_ELEMENT_TTY("tty",
+                          VFS_MODE_S_IFREG |
+                          VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                          &vfs_test_tty),
+  DRV_STREAMS_ELEMENT_END()
 };
 #endif
 
@@ -322,11 +411,12 @@ static const testcase_t vfs_test_003_002 = {
 
 #if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_003_003 [3.3] Streams metadata
+ * @page vfs_test_003_003 [3.3] Streams interface dispatch
  *
  * <h2>Description</h2>
- * The streams driver exposes consistent synthetic modes and sizes
- * while leaving storage and time metadata unavailable.
+ * The streams driver exposes consistent synthetic modes and sizes,
+ * selects one backend interface from each element mode, and routes
+ * terminal controls only to TTY nodes.
  *
  * <h2>Conditions</h2>
  * This test is only executed if the following preprocessor condition
@@ -340,6 +430,9 @@ static const testcase_t vfs_test_003_002 = {
  * - [3.3.2] Opened nodes and directory entries report the same
  *   synthetic metadata as path queries, and unsupported control
  *   operations return ENOTTY.
+ * - [3.3.3] FIFO and random-stream operations use the selected
+ *   interface, while TTY controls are dispatched only to the terminal
+ *   interface.
  * .
  */
 
@@ -350,6 +443,8 @@ static void vfs_test_003_003_execute(void) {
   vfs_direntry_info_t direntry;
   vfs_stat_t stat;
   vfs_stat_t expected;
+  uint8_t byte;
+  ssize_t n;
   msg_t ret;
 
   /* [3.3.1] Path queries expose the synthetic directory and stream
@@ -371,11 +466,20 @@ static void vfs_test_003_003_execute(void) {
     ret = vfsFSStat(&streams, "/console", &stat);
     test_assert(ret == CH_RET_SUCCESS, "stream stat failed");
     expected = (vfs_stat_t) {
-      .mode = VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+      .mode = VFS_MODE_S_IFIFO | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
       .size = (vfs_offset_t)0
     };
     test_assert(vfs_test_stat_equal(&stat, &expected),
                 "stream metadata changed");
+    ret = vfsFSStat(&streams, "/file", &stat);
+    test_assert(ret == CH_RET_SUCCESS, "random stream stat failed");
+    test_assert(stat.mode == (VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR),
+                "random stream mode changed");
+    ret = vfsFSStat(&streams, "/tty", &stat);
+    test_assert(ret == CH_RET_SUCCESS, "TTY stat failed");
+    test_assert(stat.mode ==
+                (VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR),
+                "TTY mode changed");
     ret = vfsFSStat(&streams, "/console/child", &stat);
     test_assert(ret == CH_RET_ENOENT, "nested stream path accepted");
   }
@@ -399,7 +503,7 @@ static void vfs_test_003_003_execute(void) {
     test_assert(vfs_test_stat_equal(&stat, &expected),
                 "streams directory node metadata changed");
     expected = (vfs_stat_t) {
-      .mode = VFS_MODE_S_IFCHR | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+      .mode = VFS_MODE_S_IFIFO | VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
       .size = (vfs_offset_t)0
     };
     ret = vfsDirReadFirst(dnp, &direntry);
@@ -424,10 +528,54 @@ static void vfs_test_003_003_execute(void) {
     (void)roRelease(fnp);
   }
   test_end_step(2);
+
+  /* [3.3.3] FIFO and random-stream operations use the selected
+     interface, while TTY controls are dispatched only to the terminal
+     interface.*/
+  test_set_step(3);
+  {
+    (void)stmdrvObjectInit(&streams, &vfs_test_streams[0]);
+    ret = vfsFSOpenFile(&streams, "/console", VO_RDWR, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FIFO open failed");
+    byte = 0x5AU;
+    n = vfsWriteFile(fnp, &byte, sizeof byte);
+    test_assert(n == (ssize_t)sizeof byte, "FIFO write not dispatched");
+    ret = vfsSetFilePosition(fnp, 0, VFS_SEEK_SET);
+    test_assert(ret == CH_RET_ESPIPE, "FIFO seek accepted");
+    test_assert(vfsGetFilePosition(fnp) == CH_RET_ESPIPE,
+                "FIFO position reported");
+    (void)roRelease(fnp);
+
+    vfs_test_stream_position = 0U;
+    ret = vfsFSOpenFile(&streams, "/file", VO_RDONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "random stream open failed");
+    ret = vfsSetFilePosition(fnp, 7, VFS_SEEK_SET);
+    test_assert(ret == CH_RET_SUCCESS, "random stream seek failed");
+    test_assert(vfsGetFilePosition(fnp) == (vfs_offset_t)7,
+                "random stream position changed");
+    (void)roRelease(fnp);
+
+    vfs_test_tty_drains = 0U;
+    ret = vfsFSOpenFile(&streams, "/tty", VO_RDWR, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "TTY open failed");
+    ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, NULL);
+    test_assert(ret == CH_RET_SUCCESS, "TTY not recognized");
+    ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+    test_assert(ret == CH_RET_SUCCESS, "TTY drain failed");
+    test_assert(vfs_test_tty_drains == 1U, "TTY drain not dispatched");
+    ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, &ret);
+    test_assert(ret == CH_RET_EINVAL, "TTY accepted invalid control argument");
+    ret = vfsControlFile(fnp, VFS_CTL_TTY_BASE + 99U, NULL);
+    test_assert(ret == CH_RET_ENOTTY, "TTY accepted unknown control");
+    ret = vfsSetFilePosition(fnp, 0, VFS_SEEK_SET);
+    test_assert(ret == CH_RET_ESPIPE, "TTY seek accepted");
+    (void)roRelease(fnp);
+  }
+  test_end_step(3);
 }
 
 static const testcase_t vfs_test_003_003 = {
-  "Streams metadata",
+  "Streams interface dispatch",
   NULL,
   NULL,
   vfs_test_003_003_execute

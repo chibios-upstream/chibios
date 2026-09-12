@@ -128,9 +128,13 @@ static NullStream nullstream;
 
 /* Stream to be exposed under /dev as files.*/
 static const drv_streams_element_t streams[] = {
-  {"VSIOD1", (sequential_stream_i *)&PORTAB_SIOD1, NULL, VFS_MODE_S_IFCHR},
-  {"null", (sequential_stream_i *)&nullstream, NULL, VFS_MODE_S_IFCHR},
-  {NULL, NULL, NULL, 0}
+  DRV_STREAMS_ELEMENT_FIFO("VSIOD1",
+                           VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                           (sequential_stream_i *)&PORTAB_SIOD1),
+  DRV_STREAMS_ELEMENT_FIFO("null",
+                           VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                           (sequential_stream_i *)&nullstream),
+  DRV_STREAMS_ELEMENT_END()
 };
 
 /*===========================================================================*/

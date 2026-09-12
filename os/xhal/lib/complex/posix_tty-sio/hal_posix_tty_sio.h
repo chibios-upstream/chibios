@@ -321,7 +321,7 @@ struct hal_posix_tty_sio {
   /**
    * @brief       High-priority echo and control output queue.
    */
-  output_queue_t            equeue;
+  plain_queue_t             equeue;
   /**
    * @brief       Associated SIO transport.
    */
@@ -387,6 +387,7 @@ extern "C" {
   void __ptty_stop_impl(void *ip);
   const void *__ptty_setcfg_impl(void *ip, const void *config);
   const void *__ptty_selcfg_impl(void *ip, unsigned cfgnum);
+  msg_t pttyReset(void *ip);
 #ifdef __cplusplus
 }
 #endif

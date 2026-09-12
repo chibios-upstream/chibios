@@ -132,6 +132,8 @@ CC_NO_INLINE
 static void vrq_pushctx_other(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   struct port_extctx *ectxp;
 
+  /* Any lazy FP save was completed when this thread was switched out.*/
+
   /* Current stack frame position.*/
 //  ectxp = (struct port_extctx *)sbp->u_psp;
 
@@ -157,6 +159,14 @@ static void vrq_pushctx_other(sb_class_t *sbp, sb_vrqnum_t nvrq) {
 CC_NO_INLINE
 static void vrq_pushctx_this(sb_class_t *sbp, uint32_t psp, sb_vrqnum_t nvrq) {
   struct port_extctx *ectxp;
+
+#if (CORTEX_USE_FPU == TRUE) && (PORT_USE_FPU_FAST_SWITCHING > 0)
+  /* Completing any lazy FP save before preserving the interrupted frame
+     and returning through a different one. FPCA only guarantees the frame
+     size, not that its FP registers have already been saved.*/
+  (void)__get_FPSCR();
+  asm volatile ("" : : : "memory");
+#endif
 
   /* Position of the new stack frame, it depends on FPU settings and state.*/
   ectxp = (struct port_extctx *)(psp - sizeof (struct port_extctx));
@@ -518,6 +528,12 @@ void sb_fastc_vrq_getisr(sb_class_t *sbp, struct port_extctx *ectxp) {
 
 void sb_fastc_vrq_return(sb_class_t *sbp, struct port_extctx *ectxp) {
   register sb_vrqmask_t active_mask;
+
+#if CORTEX_USE_FPU == TRUE
+  /* Discarding any lazy save of the completed handler. This also forces
+     FP unstacking from the restored or chained context below.*/
+  FPU->FPCCR &= ~FPU_FPCCR_LSPACT_Msk;
+#endif
 
   active_mask = sbp->vrq.wtmask & sbp->vrq.enmask;
   if (active_mask != 0U) {

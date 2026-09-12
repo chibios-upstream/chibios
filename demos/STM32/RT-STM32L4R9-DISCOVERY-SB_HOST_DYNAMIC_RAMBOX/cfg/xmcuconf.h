@@ -19,7 +19,7 @@
  * The following settings override the default settings present in
  * the various device driver implementation headers.
  * Note that the settings for each driver only have effect if the whole
- * driver is enabled in halconf.h.
+ * driver is enabled in xhalconf.h.
  *
  * IRQ priorities:
  * 15...0       Lowest...Highest.
@@ -28,18 +28,18 @@
  * 0...3        Lowest...Highest.
  */
 
-#ifndef MCUCONF_H
-#define MCUCONF_H
+#ifndef XMCUCONF_H
+#define XMCUCONF_H
 
-#define STM32L4xx_MCUCONF
-#define STM32L4P5_MCUCONF
-#define STM32L4Q5_MCUCONF
-#define STM32L4R5_MCUCONF
-#define STM32L4S5_MCUCONF
-#define STM32L4R7_MCUCONF
-#define STM32L4S7_MCUCONF
-#define STM32L4R9_MCUCONF
-#define STM32L4S9_MCUCONF
+#define STM32L4xx_XMCUCONF
+#define STM32L4P5_XMCUCONF
+#define STM32L4Q5_XMCUCONF
+#define STM32L4R5_XMCUCONF
+#define STM32L4S5_XMCUCONF
+#define STM32L4R7_XMCUCONF
+#define STM32L4S7_XMCUCONF
+#define STM32L4R9_XMCUCONF
+#define STM32L4S9_XMCUCONF
 
 /*
  * HAL driver system settings.
@@ -152,6 +152,9 @@
 #define STM32_IRQ_I2C2_PRIORITY             5
 #define STM32_IRQ_I2C3_PRIORITY             5
 #define STM32_IRQ_I2C4_PRIORITY             5
+
+#define STM32_IRQ_OCTOSPI1_PRIORITY         10
+#define STM32_IRQ_OCTOSPI2_PRIORITY         10
 
 #define STM32_IRQ_SDMMC1_PRIORITY           9
 
@@ -288,17 +291,17 @@
  * SERIAL driver system settings.
  */
 #define STM32_SERIAL_USE_USART1             FALSE
-#define STM32_SERIAL_USE_USART2             TRUE
+#define STM32_SERIAL_USE_USART2             FALSE
 #define STM32_SERIAL_USE_USART3             FALSE
 #define STM32_SERIAL_USE_UART4              FALSE
 #define STM32_SERIAL_USE_UART5              FALSE
-#define STM32_SERIAL_USE_LPUART1            TRUE
+#define STM32_SERIAL_USE_LPUART1            FALSE
 
 /*
  * SIO driver system settings.
  */
 #define STM32_SIO_USE_USART1                FALSE
-#define STM32_SIO_USE_USART2                FALSE
+#define STM32_SIO_USE_USART2                TRUE
 #define STM32_SIO_USE_USART3                FALSE
 #define STM32_SIO_USE_UART4                 FALSE
 #define STM32_SIO_USE_UART5                 FALSE
@@ -384,8 +387,6 @@
 #define STM32_WSPI_OCTOSPI2_SSHIFT          FALSE
 #define STM32_WSPI_OCTOSPI1_DHQC            FALSE
 #define STM32_WSPI_OCTOSPI2_DHQC            FALSE
-#define STM32_WSPI_OCTOSPI1_IRQ_PRIORITY    10
-#define STM32_WSPI_OCTOSPI2_IRQ_PRIORITY    10
 #define STM32_WSPI_OCTOSPI1_DMA_STREAM      STM32_DMA_STREAM_ID_ANY
 #define STM32_WSPI_OCTOSPI2_DMA_STREAM      STM32_DMA_STREAM_ID_ANY
 #define STM32_WSPI_OCTOSPI1_DMA_PRIORITY    1
@@ -394,4 +395,4 @@
 #define STM32_WSPI_OCTOSPI2_DMA_IRQ_PRIORITY 10
 #define STM32_WSPI_DMA_ERROR_HOOK(wspip)    osalSysHalt("DMA failure")
 
-#endif /* MCUCONF_H */
+#endif /* XMCUCONF_H */

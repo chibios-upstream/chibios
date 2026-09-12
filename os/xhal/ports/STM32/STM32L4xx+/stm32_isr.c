@@ -64,6 +64,9 @@
 #include "stm32_exti20.inc"
 #include "stm32_exti21_22.inc"
 
+#include "stm32_sdmmc1.inc"
+#include "stm32_sdmmc2.inc"
+
 #include "stm32_usart1.inc"
 #include "stm32_usart2.inc"
 #include "stm32_usart3.inc"
@@ -106,6 +109,9 @@ void irqInit(void) {
   exti19_irq_init();
   exti21_22_irq_init();
 
+  sdmmc1_irq_init();
+  sdmmc2_irq_init();
+
   tim1_tim15_tim16_tim17_irq_init();
   tim2_irq_init();
   tim3_irq_init();
@@ -144,6 +150,9 @@ void irqDeinit(void) {
   exti18_irq_deinit();
   exti19_irq_deinit();
   exti21_22_irq_deinit();
+
+  sdmmc1_irq_deinit();
+  sdmmc2_irq_deinit();
 
   tim1_tim15_tim16_tim17_irq_deinit();
   tim2_irq_deinit();

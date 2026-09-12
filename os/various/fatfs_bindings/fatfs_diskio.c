@@ -26,6 +26,18 @@ extern SDCDriver FATFS_HAL_DEVICE;
 #error "MMC_SPI or SDC driver must be specified"
 #endif
 
+#if defined(__CHIBIOS_XHAL_CONF__)
+#define FATFS_BLOCK_DEVICE                oopGetIf(&FATFS_HAL_DEVICE, blk)
+#define FATFS_DEVICE_IS_READY()           \
+  (drvGetStateX(&FATFS_HAL_DEVICE) == HAL_DRV_STATE_READY)
+typedef hal_blk_info_t fatfs_blk_info_t;
+#else
+#define FATFS_BLOCK_DEVICE                (&FATFS_HAL_DEVICE)
+#define FATFS_DEVICE_IS_READY()           \
+  (blkGetDriverState(&FATFS_HAL_DEVICE) == BLK_READY)
+typedef BlockDeviceInfo fatfs_blk_info_t;
+#endif
+
 #if HAL_USE_RTC
 extern RTCDriver RTCD1;
 #endif
@@ -47,9 +59,9 @@ DSTATUS disk_initialize (
   case 0:
     stat = 0;
     /* It is initialized externally, just reads the status.*/
-    if (blkGetDriverState(&FATFS_HAL_DEVICE) != BLK_READY)
+    if (!FATFS_DEVICE_IS_READY())
       stat |= STA_NOINIT;
-    if (blkIsWriteProtected(&FATFS_HAL_DEVICE))
+    if (blkIsWriteProtected(FATFS_BLOCK_DEVICE))
       stat |= STA_PROTECT;
     return stat;
   }
@@ -71,9 +83,9 @@ DSTATUS disk_status (
   case 0:
     stat = 0;
     /* It is initialized externally, just reads the status.*/
-    if (blkGetDriverState(&FATFS_HAL_DEVICE) != BLK_READY)
+    if (!FATFS_DEVICE_IS_READY())
       stat |= STA_NOINIT;
-    if (blkIsWriteProtected(&FATFS_HAL_DEVICE))
+    if (blkIsWriteProtected(FATFS_BLOCK_DEVICE))
       stat |= STA_PROTECT;
     return stat;
   }
@@ -94,9 +106,9 @@ DRESULT disk_read (
 {
   switch (pdrv) {
   case 0:
-    if (blkGetDriverState(&FATFS_HAL_DEVICE) != BLK_READY)
+    if (!FATFS_DEVICE_IS_READY())
       return RES_NOTRDY;
-    if (blkRead(&FATFS_HAL_DEVICE, sector, buff, count))
+    if (blkRead(FATFS_BLOCK_DEVICE, sector, buff, count))
       return RES_ERROR;
     return RES_OK;
   }
@@ -118,9 +130,9 @@ DRESULT disk_write (
 {
   switch (pdrv) {
   case 0:
-    if (blkGetDriverState(&FATFS_HAL_DEVICE) != BLK_READY)
+    if (!FATFS_DEVICE_IS_READY())
       return RES_NOTRDY;
-    if (blkWrite(&FATFS_HAL_DEVICE, sector, buff, count))
+    if (blkWrite(FATFS_BLOCK_DEVICE, sector, buff, count))
       return RES_ERROR;
     return RES_OK;
   }
@@ -139,7 +151,7 @@ DRESULT disk_ioctl (
     void *buff        /* Buffer to send/receive control data */
 )
 {
-  BlockDeviceInfo bdi;
+  fatfs_blk_info_t bdi;
 
   (void)buff;
 
@@ -149,14 +161,14 @@ DRESULT disk_ioctl (
     case CTRL_SYNC:
       return RES_OK;
     case GET_SECTOR_COUNT:
-      if (blkGetInfo(&FATFS_HAL_DEVICE, &bdi)) {
+      if (blkGetInfo(FATFS_BLOCK_DEVICE, &bdi)) {
         return RES_ERROR;
       }
       *((DWORD *)buff) = bdi.blk_num;
       return RES_OK;
 #if FF_MAX_SS > FF_MIN_SS
     case GET_SECTOR_SIZE:
-      if (blkGetInfo(&FATFS_HAL_DEVICE, &bdi)) {
+      if (blkGetInfo(FATFS_BLOCK_DEVICE, &bdi)) {
         return RES_ERROR;
       }
       *((WORD *)buff) = bdi.blk_size;

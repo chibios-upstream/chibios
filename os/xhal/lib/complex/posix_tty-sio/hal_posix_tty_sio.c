@@ -221,7 +221,7 @@ static void __ptty_input_commit_i(hal_posix_tty_sio_c *self) {
 
 static void __ptty_echo_raw_i(hal_posix_tty_sio_c *self, uint8_t b) {
 
-  (void)oqPutI(&self->equeue, b);
+  (void)qPutI(&self->equeue, b);
 }
 
 static void __ptty_echo_output_i(hal_posix_tty_sio_c *self, uint8_t b) {
@@ -334,7 +334,7 @@ static void __ptty_flush_signal_i(hal_posix_tty_sio_c *self) {
   if ((self->attributes.c_lflag & NOFLSH) == 0U) {
     __ptty_input_reset_i(self);
     oqResetI(&self->oqueue);
-    oqResetI(&self->equeue);
+    qResetI(&self->equeue);
     self->output_stopped = false;
   }
 }
@@ -450,7 +450,7 @@ static bool __ptty_output_pending_i(const hal_posix_tty_sio_c *self) {
     return true;
   }
   if (!self->output_stopped &&
-      (!oqIsEmptyI(&self->equeue) || !oqIsEmptyI(&self->oqueue))) {
+      (!qIsEmptyI(&self->equeue) || !oqIsEmptyI(&self->oqueue))) {
     return true;
   }
 
@@ -478,7 +478,7 @@ static void __ptty_resume_drain_i(hal_posix_tty_sio_c *self) {
 
   if (self->drain_waiting &&
       !self->flow_pending &&
-      oqIsEmptyI(&self->equeue) &&
+      qIsEmptyI(&self->equeue) &&
       oqIsEmptyI(&self->oqueue) &&
       !sioIsTXOngoingX(self->siop)) {
     self->drain_waiting = false;
@@ -505,7 +505,7 @@ static void __ptty_push_output_i(hal_posix_tty_sio_c *self) {
     if (self->output_stopped) {
       break;
     }
-    msg = oqGetI(&self->equeue);
+    msg = qGetI(&self->equeue);
     if (msg < MSG_OK) {
       msg = oqGetI(&self->oqueue);
     }
@@ -541,6 +541,7 @@ static void __ptty_sio_cb(void *ip) {
 
   while (!sioIsRXEmptyX(siop)) {
     signals = __ptty_process_input_i(self, (uint8_t)sioGetX(siop));
+    __ptty_push_output_i(self);
     if (signals != PTTY_SIGNAL_NONE) {
       self->signals |= signals;
       chSysUnlockFromISR();
@@ -673,7 +674,7 @@ static msg_t __ptty_drain(hal_posix_tty_sio_c *self) {
   chDbgAssert(!self->drain_waiting, "another drain operation is active");
 
   while (self->flow_pending ||
-         !oqIsEmptyI(&self->equeue) ||
+         !qIsEmptyI(&self->equeue) ||
          !oqIsEmptyI(&self->oqueue) ||
          sioIsTXOngoingX(self->siop)) {
     self->drain_waiting = true;
@@ -924,7 +925,7 @@ static msg_t __ptty_tty_flush_impl(void *ip, int queues) {
   }
   if ((queues == TCOFLUSH) || (queues == TCIOFLUSH)) {
     oqResetI(&self->oqueue);
-    oqResetI(&self->equeue);
+    qResetI(&self->equeue);
     __ptty_push_output_i(self);
   }
   chSchRescheduleS();
@@ -1089,8 +1090,7 @@ void *__ptty_objinit_impl(void *ip, const void *vmt, hal_sio_driver_c *siop) {
   __ptty_input_init(&self->iqueue);
   oqObjectInit(&self->oqueue, self->obuffer, sizeof self->obuffer,
                __ptty_onotify, self);
-  oqObjectInit(&self->equeue, self->ebuffer, sizeof self->ebuffer,
-               __ptty_onotify, self);
+  qObjectInit(&self->equeue, self->ebuffer, sizeof self->ebuffer);
   self->siop           = siop;
   self->drainsync      = NULL;
   self->signals        = PTTY_SIGNAL_NONE;
@@ -1143,7 +1143,7 @@ msg_t __ptty_start_impl(void *ip, const void *config) {
   chSysLock();
   __ptty_input_reset_i(self);
   oqResetI(&self->oqueue);
-  oqResetI(&self->equeue);
+  qResetI(&self->equeue);
   self->config         = self->siop->config;
   self->signals        = PTTY_SIGNAL_NONE;
   self->output_stopped = false;
@@ -1176,7 +1176,7 @@ void __ptty_stop_impl(void *ip) {
   drvSetArgumentX(self->siop, NULL);
   __ptty_input_reset_i(self);
   oqResetI(&self->oqueue);
-  oqResetI(&self->equeue);
+  qResetI(&self->equeue);
   if (self->drain_waiting) {
     self->drain_waiting = false;
     chThdResumeI(&self->drainsync, MSG_RESET);
@@ -1233,5 +1233,62 @@ const struct hal_posix_tty_sio_vmt __hal_posix_tty_sio_vmt = {
   .selcfg                   = __ptty_selcfg_impl,
   .oncbset                  = __cbdrv_oncbset_impl
 };
+
+/**
+ * @name        Regular methods of hal_posix_tty_sio_c
+ * @{
+ */
+/**
+ * @brief       Restores the terminal to its initial state.
+ * @details     All pending input, output, echo, flow-control, and signal state
+ *              is discarded. Terminal attributes and window size are restored
+ *              to their configured defaults. The associated SIO driver remains
+ *              started and configured.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_posix_tty_sio_c instance.
+ * @return                      The operation status.
+ * @retval HAL_RET_SUCCESS      If the terminal was reset.
+ * @retval HAL_RET_INV_STATE    If the terminal is not started.
+ *
+ * @api
+ */
+msg_t pttyReset(void *ip) {
+  hal_posix_tty_sio_c *self = (hal_posix_tty_sio_c *)ip;
+
+  chDbgCheck(self != NULL);
+
+  chSysLock();
+  if (self->state != HAL_DRV_STATE_READY) {
+    chSysUnlock();
+    return HAL_RET_INV_STATE;
+  }
+
+  __ptty_input_reset_i(self);
+  oqResetI(&self->oqueue);
+  qResetI(&self->equeue);
+  if (self->drain_waiting) {
+    self->drain_waiting = false;
+    chThdResumeI(&self->drainsync, MSG_RESET);
+  }
+  while (!sioIsRXEmptyX(self->siop)) {
+    (void)sioGetX(self->siop);
+  }
+  (void)sioGetAndClearEventsX(self->siop, SIO_EV_ALL_EVENTS);
+  self->signals        = PTTY_SIGNAL_NONE;
+  self->output_stopped = false;
+  self->flow_pending   = false;
+  self->flow_char      = 0U;
+  __ptty_attributes_default(&self->attributes);
+  self->winsize.ws_row    = PTTY_DEFAULT_ROWS;
+  self->winsize.ws_col    = PTTY_DEFAULT_COLUMNS;
+  self->winsize.ws_xpixel = 0U;
+  self->winsize.ws_ypixel = 0U;
+  __ptty_update_tx_i(self);
+  chSchRescheduleS();
+  chSysUnlock();
+
+  return HAL_RET_SUCCESS;
+}
+/** @} */
 
 /** @} */
