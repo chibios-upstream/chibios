@@ -31,6 +31,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <termios.h>
 
 #include "errcodes.h"
 #include "dirent.h"
@@ -328,6 +329,34 @@ static inline msg_t sbDup2(int oldfd, int newfd) {
 static inline msg_t sbFstat(int fd, struct stat *statbuf) {
 
   __syscall3r(128, SB_POSIX_FSTAT, fd, statbuf);
+  return (msg_t)r0;
+}
+
+/**
+ * @brief   Retrieves terminal attributes.
+ *
+ * @param[in] fd        file descriptor
+ * @param[out] attrp    terminal attributes
+ * @return              Operation result.
+ */
+static inline msg_t sbTcgetattr(int fd, struct termios *attrp) {
+
+  __syscall3r(128, SB_POSIX_TCGETATTR, fd, attrp);
+  return (msg_t)r0;
+}
+
+/**
+ * @brief   Changes terminal attributes.
+ *
+ * @param[in] fd        file descriptor
+ * @param[in] action    TCSANOW, TCSADRAIN, or TCSAFLUSH
+ * @param[in] attrp     terminal attributes
+ * @return              Operation result.
+ */
+static inline msg_t sbTcsetattr(int fd, int action,
+                               const struct termios *attrp) {
+
+  __syscall4r(128, SB_POSIX_TCSETATTR, fd, action, attrp);
   return (msg_t)r0;
 }
 

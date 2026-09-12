@@ -27,6 +27,7 @@
 #include "dirent.h"
 #include "sglob.h"
 #include "elfexec.h"
+#include "../common/shelltty.h"
 
 #define SHELL_HISTORY_DEPTH         8
 #define SHELL_MAX_LINE_LENGTH       128
@@ -37,17 +38,7 @@
 #define SHELL_DEFAULT_PATH          "/bin"
 #define SHELL_EXECUTABLE_EXTENSION  ".elf"
 
-/* Maximum canonical record payload, excluding a terminating newline.
-   Must cover the host TTY's limit; room for the delimiter is added below.*/
-#if !defined(SHELL_MAX_CANONICAL_LENGTH)
-#define SHELL_MAX_CANONICAL_LENGTH  256U
-#endif
-
-#if SHELL_MAX_CANONICAL_LENGTH < SHELL_MAX_LINE_LENGTH
-#error "SHELL_MAX_CANONICAL_LENGTH must cover SHELL_MAX_LINE_LENGTH"
-#endif
-
-#define CTRL(c) (char)((c) - 0x40)
+#define SHELL_CTRL(c) (char)((c) - 0x40)
 
 static struct {
   const char        *prompt;
@@ -147,43 +138,6 @@ static void shell_reset_line(void) {
   shell_write("\033[K");
 }
 
-/*
- * Read a complete canonical record. A full-buffer read does not tell us
- * whether VEOF ended that record, so the buffer must cover the TTY's limit.
- * Echo and editing belong to the TTY; nonempty VEOF is not a shell exit.
- */
-static bool shell_getline_canonical(char *line, size_t size) {
-  char record[SHELL_MAX_CANONICAL_LENGTH + 1U];
-  ssize_t n;
-  size_t length;
-  bool newline;
-
-  do {
-    n = read(STDIN_FILENO, record, sizeof record);
-  } while ((n < (ssize_t)0) && (errno == EINTR));
-  if (n <= (ssize_t)0) {
-    return true;
-  }
-
-  newline = record[n - 1] == '\n';
-  if (((size_t)n == sizeof record) && !newline) {
-    /* The configured TTY bound was exceeded. Resynchronizing through read()
-       is ambiguous; exit instead of executing fragments or discarding a
-       subsequent command. The host must reset the TTY before restarting.*/
-    shell_errorln("canonical record limit exceeded");
-    return true;
-  }
-  length = (size_t)n - (newline ? 1U : 0U);
-  if (length >= size) {
-    shell_errorln("line too long");
-    line[0] = '\0';
-    return false;
-  }
-  memcpy(line, record, length);
-  line[length] = '\0';
-  return false;
-}
-
 static bool shell_getline_stream(char *line, size_t size) {
   char *p = line;
   int seq;
@@ -250,18 +204,24 @@ static bool shell_getline_stream(char *line, size_t size) {
       }
     }
 
-    if ((c == CTRL('D')) && (p == line)) {
+    if ((c == SHELL_CTRL('D')) && (p == line)) {
       return true;
     }
 
-    if ((c == CTRL('H')) || (c == 127)) {
+    if (c == SHELL_CTRL('U')) {
+      shell_reset_line();
+      p = line;
+      continue;
+    }
+
+    if ((c == SHELL_CTRL('H')) || (c == 127)) {
       if (p != line) {
         shell_write("\010 \010");
         p--;
       }
       continue;
     }
-    if (c == '\r') {
+    if ((c == '\r') || (c == '\n')) {
       shell_newline(STDOUT_FILENO);
       *p = 0;
       if (strlen(line) != 0) {
@@ -281,13 +241,20 @@ static bool shell_getline_stream(char *line, size_t size) {
 }
 
 static bool shell_getline(char *line, size_t size) {
+  shell_tty_t tty;
+  bool eof;
 
-  /* Typed VFS terminals use canonical defaults. Plain serial streams retain
-     the mini shell's original character-at-a-time editor and history.*/
-  if (isatty(STDIN_FILENO)) {
-    return shell_getline_canonical(line, size);
+  if (shell_tty_begin(&tty) < 0) {
+    shell_errorln("msh: cannot prepare terminal");
+    return true;
   }
-  return shell_getline_stream(line, size);
+  shell_write(state.prompt);
+  eof = shell_getline_stream(line, size);
+  if (shell_tty_end(&tty) < 0) {
+    shell_errorln("msh: cannot restore terminal");
+    return true;
+  }
+  return eof;
 }
 
 static char *fetch_argument(char **pp) {
@@ -666,9 +633,6 @@ int main(int argc, char *argv[], char *envp[]) {
     char *args[SHELL_MAX_ARGUMENTS + 1];
     char *ap, *tokp;
     sglob_t sglob;
-
-    /* Prompt.*/
-    shell_write(state.prompt);
 
     /* Reading input line.*/
     if (shell_getline(line, SHELL_MAX_LINE_LENGTH)) {

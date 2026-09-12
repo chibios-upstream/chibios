@@ -551,7 +551,9 @@ static void __ptty_sio_cb(void *ip) {
   }
 
   __ptty_push_output_i(self);
-  (void)sioGetAndClearEventsX(siop, SIO_EV_ALL_EVENTS);
+  /* Do not clear physical TX completion: later drain calls must still see
+     idle. The TX_END interrupt is disabled when no drain is waiting.*/
+  (void)sioGetAndClearEventsX(siop, SIO_EV_ALL_EVENTS & ~SIO_EV_TX_END);
   __ptty_resume_drain_i(self);
   __ptty_update_tx_i(self);
 
@@ -1273,7 +1275,9 @@ msg_t pttyReset(void *ip) {
   while (!sioIsRXEmptyX(self->siop)) {
     (void)sioGetX(self->siop);
   }
-  (void)sioGetAndClearEventsX(self->siop, SIO_EV_ALL_EVENTS);
+  /* TX_END also represents the physical idle state on some SIO ports. It
+     must remain observable by drain until the next transmit starts.*/
+  (void)sioGetAndClearEventsX(self->siop, SIO_EV_ALL_EVENTS & ~SIO_EV_TX_END);
   self->signals        = PTTY_SIGNAL_NONE;
   self->output_stopped = false;
   self->flow_pending   = false;

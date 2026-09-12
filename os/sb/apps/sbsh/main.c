@@ -22,8 +22,9 @@
 #include <unistd.h>
 
 #include "sbsh.h"
+#include "../common/shelltty.h"
 
-#define CTRL(c) ((char)((c) - 0x40))
+#define SBSH_CTRL(c) ((char)((c) - 0x40))
 
 typedef struct {
   int                   fd;
@@ -144,7 +145,7 @@ static void reset_interactive_line(sbsh_state_t *shell) {
   sbsh_write_fd(STDOUT_FILENO, "\033[K");
 }
 
-static bool read_interactive_line(sbsh_state_t *shell,
+static bool read_interactive_stream(sbsh_state_t *shell,
                                   char *line,
                                   size_t size) {
   char *p;
@@ -216,10 +217,16 @@ static bool read_interactive_line(sbsh_state_t *shell,
       break;
     }
 
-    if ((c == CTRL('D')) && (p == line)) {
+    if ((c == SBSH_CTRL('D')) && (p == line)) {
       return true;
     }
-    if ((c == CTRL('H')) || (c == 127)) {
+    if (c == SBSH_CTRL('U')) {
+      reset_interactive_line(shell);
+      p = line;
+      *p = '\0';
+      continue;
+    }
+    if ((c == SBSH_CTRL('H')) || (c == 127)) {
       if (p != line) {
         sbsh_write_fd(STDOUT_FILENO, "\010 \010");
         *--p = '\0';
@@ -247,6 +254,27 @@ static bool read_interactive_line(sbsh_state_t *shell,
       sbsh_write_fd(STDOUT_FILENO, out);
     }
   }
+}
+
+static bool read_interactive_line(sbsh_state_t *shell,
+                                  char *line,
+                                  size_t size) {
+  shell_tty_t tty;
+  bool eof;
+
+  if (shell_tty_begin(&tty) < 0) {
+    sbsh_errorln("sbsh: cannot prepare terminal");
+    shell->last_status = 1;
+    return true;
+  }
+  sbsh_write_fd(STDOUT_FILENO, shell->prompt);
+  eof = read_interactive_stream(shell, line, size);
+  if (shell_tty_end(&tty) < 0) {
+    sbsh_errorln("sbsh: cannot restore terminal");
+    shell->last_status = 1;
+    return true;
+  }
+  return eof;
 }
 
 static int read_script_byte(script_source_t *source, char *cp) {
@@ -412,7 +440,6 @@ static int run_interactive(sbsh_state_t *shell) {
   sbsh_writeln_fd(STDOUT_FILENO,
                   SBSH_NEWLINE_STR SBSH_WELCOME_STR);
   while (true) {
-    sbsh_write_fd(STDOUT_FILENO, shell->prompt);
     if (read_interactive_line(shell,
                               shell->line,
                               sizeof shell->line)) {

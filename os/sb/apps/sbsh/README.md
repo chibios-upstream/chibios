@@ -24,7 +24,16 @@ sbsh script
 With no operands, `sbsh` displays a prompt and reads commands interactively.
 The `PROMPT` environment variable overrides the default `sbsh> ` prompt.
 Up-arrow and down-arrow recall the eight most recent non-empty lines,
-Backspace edits the current line, and Ctrl-D on an empty line exits.
+Backspace edits the current line, Ctrl-U clears it, and Ctrl-D on an empty
+line exits. CR or LF submits a command.
+
+On a TTY, each prompt temporarily uses noncanonical input without driver echo
+for the shell's own editor. Saved terminal settings are restored before any
+command runs and on reader EOF/error. Commands inherit the pre-editing mode,
+normally canonical, and their terminal changes persist across prompts. Output
+processing, signals and flow control remain enabled if originally enabled.
+No input is flushed during mode changes. Plain streams retain the same editor
+without changing attributes; script and `-c` modes do not change attributes.
 
 The `-c` form executes one command list without displaying the interactive
 banner. The script form reads and executes one line at a time. Both LF and

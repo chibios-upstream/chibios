@@ -1,23 +1,53 @@
-/*
- * Terminal regression tests. Compile the actual shell with controllable I/O;
- * --shell instead uses native I/O for pseudo-terminal integration tests.
- */
+/* Actual shell with controllable I/O; --shell uses native PTY I/O. */
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <termios.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
-static bool native_io;
-static bool tty_fd[3];
+static bool native_io, terminal;
+static struct termios attributes, original;
 static const char *input;
 static size_t input_left;
-static int input_error;
+static int input_error, get_error, set_error;
+static unsigned set_calls, fail_set_call;
 static char output[3][4096];
 
-static int test_isatty(int fd) {
-  return native_io ? isatty(fd) : tty_fd[fd];
+static int test_tcgetattr(int fd, struct termios *attrp) {
+
+  if (native_io) {
+    return tcgetattr(fd, attrp);
+  }
+  assert(fd == STDIN_FILENO);
+  if (get_error != 0) {
+    errno = get_error;
+    get_error = 0;
+    return -1;
+  }
+  if (!terminal) {
+    errno = ENOTTY;
+    return -1;
+  }
+  *attrp = attributes;
+  return 0;
+}
+
+static int test_tcsetattr(int fd, int action, const struct termios *attrp) {
+
+  if (native_io) {
+    return tcsetattr(fd, action, attrp);
+  }
+  assert(fd == STDIN_FILENO);
+  assert(action == TCSADRAIN);
+  if (++set_calls == fail_set_call) {
+    errno = set_error;
+    return -1;
+  }
+  attributes = *attrp;
+  return 0;
 }
 
 static ssize_t test_read(int fd, void *buf, size_t size) {
@@ -27,21 +57,21 @@ static ssize_t test_read(int fd, void *buf, size_t size) {
     return read(fd, buf, size);
   }
   assert(fd == STDIN_FILENO);
+  assert(size == 1U);
+  if (terminal) {
+    assert((attributes.c_lflag & (ICANON | ECHO | ECHONL | IEXTEN)) == 0);
+    assert((attributes.c_iflag & (ICRNL | INLCR | IGNCR)) == 0);
+    assert(attributes.c_oflag == original.c_oflag);
+    assert((attributes.c_lflag & ISIG) == (original.c_lflag & ISIG));
+    assert(attributes.c_cc[VMIN] == 1);
+    assert(attributes.c_cc[VTIME] == 0);
+  }
   if (input_error != 0) {
     errno = input_error;
     input_error = 0;
     return -1;
   }
   n = size < input_left ? size : input_left;
-  /* Model one canonical record per read, including partial reads. A final
-     record without LF models nonempty VEOF, zero bytes model empty VEOF.*/
-  if (tty_fd[fd] && (n != 0U)) {
-    const char *eol = memchr(input, '\n', n);
-
-    if (eol != NULL) {
-      n = (size_t)(eol - input) + 1U;
-    }
-  }
   memcpy(buf, input, n);
   input += n;
   input_left -= n;
@@ -61,7 +91,8 @@ static ssize_t test_write(int fd, const void *buf, size_t size) {
   return (ssize_t)size;
 }
 
-#define isatty test_isatty
+#define tcgetattr test_tcgetattr
+#define tcsetattr test_tcsetattr
 #define read test_read
 #define write test_write
 #define main msh_main
@@ -69,16 +100,38 @@ static ssize_t test_write(int fd, const void *buf, size_t size) {
 #undef main
 #undef write
 #undef read
-#undef isatty
+#undef tcsetattr
+#undef tcgetattr
 
-/* Native tests exercise builtins, not ARM sandbox ELF loading.*/
+/* Substitute native cat/stty only; production retains sandbox ELF loading. */
 int sbRunElf(int argc, char *argv[], char *envp[]) {
+  const char *path;
+  pid_t pid;
+  int status;
 
   (void)argc;
-  (void)argv;
   (void)envp;
-  errno = ENOENT;
-  return -1;
+  path = NULL;
+  if (strcmp(argv[0], "/bin/cat.elf") == 0) {
+    path = "/bin/cat";
+  }
+  if (strcmp(argv[0], "/bin/stty.elf") == 0) {
+    path = "/bin/stty";
+  }
+  if (!native_io || (path == NULL)) {
+    errno = ENOENT;
+    return -1;
+  }
+  pid = fork();
+  assert(pid >= 0);
+  if (pid == 0) {
+    execv(path, argv);
+    _exit(127);
+  }
+  while (waitpid(pid, &status, 0) < 0) {
+    assert(errno == EINTR);
+  }
+  return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
 }
 
 static void setup(bool tty, const char *data) {
@@ -87,120 +140,116 @@ static void setup(bool tty, const char *data) {
   state.prompt = "> ";
   state.history_head = state.history_buffer[0];
   memset(output, 0, sizeof output);
-  tty_fd[0] = tty_fd[1] = tty_fd[2] = tty;
+  memset(&attributes, 0, sizeof attributes);
+  attributes.c_iflag = ICRNL | IXON;
+  attributes.c_oflag = OPOST | ONLCR;
+  attributes.c_lflag = ICANON | ECHO | ECHONL | ISIG | IEXTEN;
+  attributes.c_cc[VMIN] = 7;
+  attributes.c_cc[VTIME] = 3;
+  original = attributes;
+  terminal = tty;
   input = data;
   input_left = strlen(data);
-  input_error = 0;
+  input_error = get_error = set_error = 0;
+  set_calls = fail_set_call = 0U;
+}
+
+static void assert_restored(void) {
+
+  assert(memcmp(&attributes, &original, sizeof original) == 0);
 }
 
 int main(int argc, char *argv[]) {
   char line[SHELL_MAX_LINE_LENGTH];
-  char data[SHELL_MAX_CANONICAL_LENGTH + 32U];
+  unsigned tty;
 
   if ((argc == 2) && (strcmp(argv[1], "--shell") == 0)) {
     native_io = true;
     return msh_main(argc, argv, environ);
   }
 
-  setup(true, "echo hello\necho next\n");
-  assert(!shell_getline(line, sizeof line));
-  assert(strcmp(line, "echo hello") == 0);
-  assert(!shell_getline(line, sizeof line));
-  assert(strcmp(line, "echo next") == 0);
-  assert(output[STDOUT_FILENO][0] == '\0');
+  for (tty = 0U; tty < 2U; tty++) {
+    setup(tty != 0U, "abc\177d\recho next\n");
+    assert(!shell_getline(line, sizeof line));
+    assert(strcmp(line, "abd") == 0);
+    assert(strcmp(output[STDOUT_FILENO], "> abc\010 \010d\n") == 0);
+    assert_restored();
+    assert(!shell_getline(line, sizeof line));
+    assert(strcmp(line, "echo next") == 0);
+    assert_restored();
+    input = "\033[A\r";
+    input_left = strlen(input);
+    assert(!shell_getline(line, sizeof line));
+    assert(strcmp(line, "echo next") == 0);
+    assert_restored();
 
-  setup(true, "");
-  assert(shell_getline(line, sizeof line));
-
-  setup(true, "echo eof");
-  assert(!shell_getline(line, sizeof line));
-  assert(strcmp(line, "echo eof") == 0);
-  assert(shell_getline(line, sizeof line));
-
-  setup(true, "\n");
-  assert(!shell_getline(line, sizeof line));
-  assert(line[0] == '\0');
-
-  setup(true, "a\tb\033[A\n");
-  assert(!shell_getline(line, sizeof line));
-  assert(strcmp(line, "a\tb\033[A") == 0);
-  assert(output[STDOUT_FILENO][0] == '\0');
-
-  memset(data, 'x', SHELL_MAX_LINE_LENGTH - 1U);
-  strcpy(data + SHELL_MAX_LINE_LENGTH - 1U, "\n");
-  setup(true, data);
-  assert(!shell_getline(line, sizeof line));
-  assert(strlen(line) == SHELL_MAX_LINE_LENGTH - 1U);
-
-  memset(data, 'x', SHELL_MAX_LINE_LENGTH + 5U);
-  strcpy(data + SHELL_MAX_LINE_LENGTH + 5U, "\necho next\n");
-  setup(true, data);
-  assert(!shell_getline(line, sizeof line));
-  assert(line[0] == '\0');
-  assert(strcmp(output[STDERR_FILENO], "line too long\n") == 0);
-  assert(!shell_getline(line, sizeof line));
-  assert(strcmp(line, "echo next") == 0);
-
-  /* An overlong record committed by VEOF must not trigger another read.*/
-  memset(data, 'x', SHELL_MAX_LINE_LENGTH);
-  data[SHELL_MAX_LINE_LENGTH] = '\0';
-  setup(true, data);
-  assert(!shell_getline(line, sizeof line));
-  assert(line[0] == '\0');
-  assert(strcmp(output[STDERR_FILENO], "line too long\n") == 0);
-
-  /* A record at the configured limit is still read completely.*/
-  memset(data, 'x', SHELL_MAX_CANONICAL_LENGTH);
-  data[SHELL_MAX_CANONICAL_LENGTH] = '\0';
-  setup(true, data);
-  assert(!shell_getline(line, sizeof line));
-  assert(line[0] == '\0');
-  assert(strcmp(output[STDERR_FILENO], "line too long\n") == 0);
-
-  /* If the host exceeds that limit, stop rather than interpreting fragments.*/
-  memset(data, 'x', SHELL_MAX_CANONICAL_LENGTH + 1U);
-  strcpy(data + SHELL_MAX_CANONICAL_LENGTH + 1U, "\necho next\n");
-  setup(true, data);
-  assert(shell_getline(line, sizeof line));
-  assert(strcmp(output[STDERR_FILENO], "canonical record limit exceeded\n") == 0);
-
-  for (unsigned tty = 0U; tty < 2U; tty++) {
-    setup(tty != 0U, tty ? "echo retry\n" : "echo retry\r");
+    setup(tty != 0U, "echo retry\n");
     input_error = EINTR;
     assert(!shell_getline(line, sizeof line));
     assert(strcmp(line, "echo retry") == 0);
+    assert_restored();
 
     setup(tty != 0U, "unused");
     input_error = EIO;
     assert(shell_getline(line, sizeof line));
-    assert(output[STDOUT_FILENO][0] == '\0');
+    assert_restored();
+    setup(tty != 0U, "\004");
+    assert(shell_getline(line, sizeof line));
+    assert_restored();
+    setup(tty != 0U, "");
+    assert(shell_getline(line, sizeof line));
+    assert_restored();
+
+    setup(tty != 0U, "echo par\004tial\r");
+    assert(!shell_getline(line, sizeof line));
+    assert(strcmp(line, "echo partial") == 0);
+    assert_restored();
+    setup(tty != 0U, "discard\025kept\r");
+    assert(!shell_getline(line, sizeof line));
+    assert(strcmp(line, "kept") == 0);
+    assert_restored();
   }
 
-  setup(false, "abc\177d\r");
+  /* Noncanonical/no-echo input and command changes must not be reset. */
+  setup(true, "one\ntwo\n");
+  attributes.c_lflag &= ~(ICANON | ECHO | ISIG);
+  original = attributes;
   assert(!shell_getline(line, sizeof line));
-  assert(strcmp(line, "abd") == 0);
-  assert(strcmp(output[STDOUT_FILENO], "abc\010 \010d\n") == 0);
-  input = "\033[A\r";
-  input_left = strlen(input);
+  assert_restored();
+  attributes.c_iflag = IXOFF;
+  attributes.c_oflag = 0;
+  original = attributes;
   assert(!shell_getline(line, sizeof line));
-  assert(strcmp(line, "abd") == 0);
+  assert_restored();
 
-  setup(false, "\004");
+  setup(true, "retry\n");
+  get_error = EINTR;
+  fail_set_call = 1U;
+  set_error = EINTR;
+  assert(!shell_getline(line, sizeof line));
+  assert_restored();
+  setup(true, "retry\n");
+  fail_set_call = 2U;
+  set_error = EINTR;
+  assert(!shell_getline(line, sizeof line));
+  assert_restored();
+
+  setup(true, "unread\n");
+  get_error = EBADF;
   assert(shell_getline(line, sizeof line));
-
-  setup(true, "");
-  tty_fd[STDERR_FILENO] = false;
-  shell_writeln("out");
-  shell_errorln("err");
-  assert(strcmp(output[STDOUT_FILENO], "out\n") == 0);
-  assert(strcmp(output[STDERR_FILENO], "err\n") == 0);
-
-  setup(false, "");
-  tty_fd[STDERR_FILENO] = true;
-  shell_writeln("out");
-  shell_errorln("err");
-  assert(strcmp(output[STDOUT_FILENO], "out\n") == 0);
-  assert(strcmp(output[STDERR_FILENO], "err\n") == 0);
+  assert(input_left == 7U);
+  assert_restored();
+  setup(true, "unread\n");
+  fail_set_call = 1U;
+  set_error = EIO;
+  assert(shell_getline(line, sizeof line));
+  assert(input_left == 7U);
+  assert_restored();
+  setup(true, "not executed\n");
+  fail_set_call = 2U;
+  set_error = EIO;
+  assert(shell_getline(line, sizeof line));
+  assert(strcmp(output[STDERR_FILENO], "msh: cannot restore terminal\n") == 0);
 
   puts("msh terminal unit tests passed");
   return 0;

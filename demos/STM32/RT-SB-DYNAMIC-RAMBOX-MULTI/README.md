@@ -6,23 +6,20 @@ Multi-target XHAL sandbox host requiring no SD card. The host dynamically loads
 Before each launch, `pttyReset()` restores terminal defaults and discards pending
 input, EOF records, output, signals and flow-control state.
 
-`msh` detects the typed TTY through `isatty()` and uses its canonical defaults:
-the driver handles echo and line editing, LF ends a command, and an empty Ctrl-D
-record exits the shell. The shell's own arrow-key history/editor remains available
-on plain serial streams, but is not active on the canonical TTY. The shell and
-commands emit LF text line endings, expanded to CRLF by the TTY driver.
-Plain-stream output also uses LF, without application-side translation.
-Sandbox termios calls are not yet wired up, so this detection does not query or
-change terminal attributes; TTY descriptors are expected to use canonical input
-and the default output processing.
+`msh` and interactive `sbsh` save terminal attributes before each prompt and
+temporarily disable canonical input and driver echo. Their own editors handle
+Backspace, Ctrl-U, and arrow-key history; CR or LF submits a command. Ctrl-D
+exits only on an empty command line; on a nonempty line it does not submit it.
+The saved attributes are restored before parsing or executing commands and on
+reader EOF/error. A terminal preparation/restoration failure stops the shell.
 
-`msh` reads complete canonical records into a bounded temporary buffer before
-checking its 127-character command limit. `SHELL_MAX_CANONICAL_LENGTH` defaults
-to 256 payload bytes and must cover the host TTY's maximum record size. The
-default TTY input ring holds 127 payload bytes plus a delimiter. If a different
-host exceeds the configured shell bound, `msh` reports an error and exits;
-the host must reset the TTY before restarting it. Native Linux tests use a
-larger bound.
+Commands therefore inherit the pre-editing mode, normally the canonical
+defaults established by the host. Intentional attribute changes made by a
+command persist across subsequent prompts. Mode changes do not flush input.
+Sandbox `tcgetattr()` and `tcsetattr()` use validated host VFS controls.
+Plain streams keep the shell editor without terminal attribute changes.
+The shell and commands emit LF text line endings, expanded to CRLF by the
+TTY's preserved output processing. Plain-stream output also uses LF.
 
 ## Build
 
@@ -62,7 +59,8 @@ make -C ../../../os/sb/apps clean
 ## STM32G474RE Nucleo-64
 
 - Console: ST-LINK virtual COM port, LPUART1 on PA2/PA3 (AF12), 38400 baud, 8N1.
-  Disable local echo in the terminal emulator; the TTY supplies echo.
+  Disable local echo in the terminal emulator; the shell editor or canonical
+  TTY supplies echo.
 - LED: the board's green LED blinks while the host runs.
 - Flash: the complete app set and host share the 512 KiB internal flash.
 - RAM: the local linker script uses the contiguous 128 KiB SRAM1/SRAM2/CCM
@@ -89,7 +87,11 @@ Suggested on-board checks:
 3. Run `cat`, type text without Enter and press Ctrl-D: pending text should be
    delivered without including the Ctrl-D byte. Press Ctrl-D again to finish.
 4. Exit the shell, including after using an app that changes terminal settings,
-   and check that the restarted shell has canonical input and echo restored.
+   and check that commands in the restarted shell inherit canonical input and
+   echo. At the shell prompt, check Up-arrow history and Backspace editing.
+5. Run `cat /dev/null` and `hexdump /dev/null`: both should return immediately
+   without output. `sbsh -c "echo discarded > /dev/null"` should also return
+   without command output; null-stream writes succeed and discard all data.
 
 ## Host-side shell regression tests
 
@@ -101,11 +103,12 @@ make -C ../../../os/sb/apps/msh/test clean
 ```
 
 These compile the actual shell code against native test shims and cover
-canonical records, EOF, overflow, interrupted/error reads, plain-stream editing
-and history, and LF output independently of descriptor type. A Linux
-pseudo-terminal test checks driver echo/editing and Ctrl-D with the shell's
-actual builtins. ARM ELF execution and board hardware are not exercised by
-these native tests.
+editing, history, EOF/error restoration, interrupted terminal calls and reads,
+plain streams, and preservation of noncanonical settings. A shared Linux
+pseudo-terminal test verifies command-mode restoration using native `cat`,
+Ctrl-D at both prompts and command input, and persistent `stty` changes.
+`make -C ../../../os/sb/apps/sbsh check` runs the same PTY checks for `sbsh`.
+ARM ELF execution and board hardware are not exercised by these native tests.
 
 ## Adding targets
 

@@ -9,6 +9,7 @@ not separate backlogs:
 - [Async VFS](note_sb_async_vfs.md)
 - [Lifecycle and restart protocol](note_sb_lifecycle.md)
 - [SVC and MPU optimizations](note_svc_mpu_optimizations.md)
+- [TTY integration and signal delivery](note_sb_tty.md)
 
 ## Completed baseline
 
@@ -63,6 +64,70 @@ This is the highest-priority live security surface.
   `PORT_USE_FPU_FAST_SWITCHING >= 2` case.
 
 ## Priority 2: functional features
+
+### Sandbox TTY integration
+
+Review recorded 2026-09-12 for the SIO-backed TTY and
+`RT-SB-DYNAMIC-RAMBOX-MULTI` demo. Design context and the proposed signal
+transport are in [note_sb_tty.md](note_sb_tty.md).
+
+#### 1. Terminal-control error reporting
+
+- Map rejected terminal configurations to `CH_RET_EINVAL` in
+  `../vfs/drivers/streams/drvstreams_impl.inc`. Currently
+  `streams_tty_result()` maps every driver failure to `CH_RET_EIO`, including
+  `HAL_RET_CONFIG_ERROR` for unsupported attributes.
+- Add negative-path tests distinguishing invalid settings from actual I/O
+  failures. The host already rejects invalid `tcsetattr()` actions with
+  `EINVAL`; preserve that behavior.
+- Treat this as a small pre-PR correctness fix.
+
+#### 2. Interactive chedit on sandbox TTYs
+
+- Extend raw-mode setup and restoration in `apps/chedit/main.c` to sandbox
+  builds; they are currently enabled only for `SBAPP_NATIVE`.
+- Resolve its timed-read requirement: the editor uses `VMIN=0`, `VTIME=1`
+  to distinguish a standalone Escape key from an escape sequence, while
+  the TTY currently accepts only `VMIN=1`, `VTIME=0`. Adapt the editor or
+  implement the required noncanonical timing before removing the guards.
+- Validate interactive editing, escape sequences, standalone Escape and
+  terminal restoration on exit/error on the Nucleo target. Building the
+  ELF or running `--version` does not establish interactive support.
+- Resolve this before claiming interactive support for all bundled apps.
+
+#### 3. TTY signals through a VRQ
+
+- Reserve one signal-delivery VRQ and define its sandbox-visible pending
+  signal bits. The proposed transport reuses `sbVRQSetFlagsI()`,
+  `sbVRQTriggerI()` and `__sb_vrq_gcsts()`; no additional event queue is
+  required. A name such as `SB_VRQ_SIGNALS` is provisional.
+- Connect the TTY callback to this transport, mapping `INTR`, `QUIT` and
+  `SUSP` into the common signal ABI. Preserve callback context, VRQ masking
+  and lifecycle rules described in the design note.
+- Define interruptible syscall behavior. A VRQ alone does not release an
+  arbitrary host-side wait. A signal that interrupts a read before any
+  bytes are transferred must have a distinct outcome mapped to `EINTR`,
+  not the current queue-reset result that appears as EOF. Define partial
+  transfer, ignored/blocked signal, restart and `NOFLSH` behavior too.
+- Provide a guest dispatcher and active-application handling across nested
+  `sbRunElf()` calls. Define default actions and shell prompt behavior;
+  suspend/resume and full job control are not implied by the transport.
+- Test signals during input waits and application execution, repeated and
+  combined bits, masked delivery, nested commands, and sandbox restart.
+
+#### 4. Character devices versus terminal capability
+
+- Separate the VFS stream interface kind from the file type. Currently
+  `S_IFCHR` selects a `tty_i` interface, and `_isatty_r()` treats every
+  character device as a terminal.
+- Represent `/dev/null` as a non-terminal character device once that
+  distinction is supported; it currently uses the FIFO stream mapping.
+  Make `isatty()` test terminal capability and reject terminal controls on
+  non-TTY character devices without an invalid interface cast.
+- Preserve the corrected null-stream semantics: reads return zero bytes,
+  `stmGet()` returns `STM_RESET`, and writes succeed while discarding data.
+  Test both `/dev/null` and `/dev/ttyS0` classification and control paths.
+- This is architectural follow-up, not a blocker for the current EOF demo.
 
 ### Async VFS
 

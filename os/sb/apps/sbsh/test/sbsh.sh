@@ -17,6 +17,8 @@ esac
 work_dir=$(mktemp -d)
 trap 'rm -rf -- "$work_dir"' EXIT HUP INT TERM
 
+python3 "$test_dir/../../common/test/shelltty.py" "$sbsh_exe" sbsh
+
 output=$("$sbsh_exe" -c 'echo one; echo "two words"; echo three\ four')
 expected=$(printf 'one\ntwo words\nthree four')
 sbtest_equals "$output" "$expected" "sequential command output"

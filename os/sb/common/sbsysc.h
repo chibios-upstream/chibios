@@ -106,6 +106,8 @@
 #define SB_POSIX_MKDIR          14
 #define SB_POSIX_RMDIR          15
 #define SB_POSIX_STAT           16
+#define SB_POSIX_TCGETATTR      17
+#define SB_POSIX_TCSETATTR      18
 /** @} */
 
 /**

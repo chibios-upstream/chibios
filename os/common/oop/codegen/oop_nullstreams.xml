@@ -18,7 +18,10 @@
         namespace="nullstm" ancestorname="base_object"
         descr="null stream">
         <brief>Null streams class.</brief>
-        <details><![CDATA[This class implements a null stream.]]></details>
+        <details><![CDATA[This class implements a null stream. Writes discard
+          all data and succeed. Reads immediately report end-of-file without
+          modifying the destination buffer: stmRead() returns zero and
+          stmGet() returns STM_RESET.]]></details>
         <implements>
           <if name="sequential_stream">
             <method shortname="write">
@@ -34,8 +37,9 @@ return n;]]></implementation>
 
 (void)self;
 (void)bp;
+(void)n;
 
-return n;]]></implementation>
+return 0U;]]></implementation>
             </method>
             <method shortname="put">
               <implementation><![CDATA[
@@ -50,7 +54,7 @@ return STM_OK;]]></implementation>
 
 (void)self;
 
-return 4;]]></implementation>
+return STM_RESET;]]></implementation>
             </method>
             <method shortname="unget">
               <implementation><![CDATA[

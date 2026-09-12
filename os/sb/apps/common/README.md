@@ -28,6 +28,16 @@ positioning in `chedit`'s raw-mode renderer are not text line endings and
 remain unchanged. Raw-mode applications must arrange their required terminal
 settings separately.
 
+Interactive `msh` and `sbsh` save terminal attributes before each prompt,
+disable canonical input and echo while their own line editors run, and restore
+the saved attributes before executing commands or leaving the reader. They
+preserve output processing, signals and flow control, and do not flush queued
+input. Commands inherit the pre-editing mode (normally canonical), not forced
+defaults; changes made by commands persist. Plain streams require no termios
+operations. Shell input uses a fixed command buffer, not canonical records.
+At the prompt Ctrl-D exits an empty line; it does not submit a nonempty line.
+Inside commands with canonical input, Ctrl-D retains the TTY's EOF semantics.
+
 ## Command execution model
 
 A relocatable command is linked at address zero using `ram_sandbox.ld`. The
