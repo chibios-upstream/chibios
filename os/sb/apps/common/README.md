@@ -13,6 +13,21 @@ The maintained command set currently includes:
 - `sbsh` as the enhanced shell with scripts, quoting, redirection, and
   serialized pipelines.
 
+## Text and terminal output
+
+Commands emit LF (`\n`) line endings on stdout and stderr, including when
+redirected to files or plain streams. On a serial console, the TTY supplies
+CRLF translation through `OPOST | ONLCR`; a plain serial stream requires
+equivalent terminal-side handling. Applications do not select output line
+endings based on `isatty()`.
+
+Commands that copy file or standard-input data, such as `cat`, `cp`, and
+`head`, preserve the payload bytes. CRLF input handling is unchanged.
+Explicit cursor-control CR characters in the shell editors and CRLF screen
+positioning in `chedit`'s raw-mode renderer are not text line endings and
+remain unchanged. Raw-mode applications must arrange their required terminal
+settings separately.
+
 ## Command execution model
 
 A relocatable command is linked at address zero using `ram_sandbox.ld`. The

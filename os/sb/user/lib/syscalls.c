@@ -141,6 +141,14 @@ int _isatty_r(struct _reent *r, int fd) {
   return 1;
 }
 
+/* Some newlib configurations route isatty() through this non-reentrant
+   entry point rather than calling _isatty_r() directly.*/
+__attribute__((used))
+int _isatty(int fd) {
+
+  return _isatty_r(_REENT, fd);
+}
+
 __attribute__((used))
 caddr_t _sbrk_r(struct _reent *r, int incr) {
   uint8_t *prevp;

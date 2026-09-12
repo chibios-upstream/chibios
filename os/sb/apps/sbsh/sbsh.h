@@ -34,7 +34,7 @@
 #define SBSH_GLOB_MASK_SIZE         ((SBSH_MAX_LINE_LENGTH + 7U) / 8U)
 
 #define SBSH_PROMPT_STR             "sbsh> "
-#define SBSH_NEWLINE_STR            "\r\n"
+#define SBSH_NEWLINE_STR            "\n"
 #define SBSH_WELCOME_STR            "ChibiOS/SB Shell"
 #define SBSH_DEFAULT_PATH           "/bin"
 #define SBSH_EXECUTABLE_EXTENSION   ".elf"

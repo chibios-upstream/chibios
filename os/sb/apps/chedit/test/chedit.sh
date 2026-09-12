@@ -14,11 +14,11 @@ case $1 in
 *)  chedit_exe=$(pwd)/$1 ;;
 esac
 
-version=$("$chedit_exe" --version | tr -d '\r')
+version=$("$chedit_exe" --version)
 [ "$version" = "chedit 0.1.0" ] ||
   sbtest_fail "unexpected version output"
 
-"$chedit_exe" --help | tr -d '\r' |
+"$chedit_exe" --help |
   grep -q '^usage: chedit \[file\]$' ||
   sbtest_fail "help output lacks usage"
 

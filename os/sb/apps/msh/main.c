@@ -14,10 +14,12 @@
     limitations under the License.
 */
 
+#include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "sbuser.h"
 #include "paths.h"
@@ -30,7 +32,7 @@
 #define SHELL_MAX_LINE_LENGTH       128
 #define SHELL_MAX_ARGUMENTS         20
 #define SHELL_PROMPT_STR            "> "
-#define SHELL_NEWLINE_STR           "\r\n"
+#define SHELL_NEWLINE_STR           "\n"
 #define SHELL_WELCOME_STR           "ChibiOS/SB Mini Shell"
 #define SHELL_DEFAULT_PATH          "/bin"
 #define SHELL_EXECUTABLE_EXTENSION  ".elf"
@@ -56,11 +58,16 @@ static void shell_write(const char *s) {
   (void) write(STDOUT_FILENO, s, n);
 }
 
+static void shell_newline(int fd) {
+
+  (void) write(fd, SHELL_NEWLINE_STR, sizeof(SHELL_NEWLINE_STR) - 1U);
+}
+
 static void shell_writeln(const char *s) {
   size_t n = strlen(s);
 
   (void) write(STDOUT_FILENO, s, n);
-  (void) write(STDOUT_FILENO, SHELL_NEWLINE_STR, 2);
+  shell_newline(STDOUT_FILENO);
 }
 
 static void shell_error(const char *s) {
@@ -73,7 +80,7 @@ static void shell_errorln(const char *s) {
   size_t n = strlen(s);
 
   (void) write(STDERR_FILENO, s, n);
-  (void) write(STDERR_FILENO, SHELL_NEWLINE_STR, 2);
+  shell_newline(STDERR_FILENO);
 }
 
 static void shell_usage(const char *s) {
@@ -130,17 +137,65 @@ static void shell_reset_line(void) {
   shell_write("\033[K");
 }
 
-static bool shell_getline(char *line, size_t size) {
+/*
+ * Reading canonical records. Echo and editing belong to the TTY; a short
+ * record without newline is input committed by VEOF, not a shell exit.
+ */
+static bool shell_getline_canonical(char *line, size_t size) {
+  bool overflow = false;
+
+  while (true) {
+    ssize_t n;
+    bool newline;
+
+    n = read(STDIN_FILENO, line, size);
+    if (n < (ssize_t)0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      return true;
+    }
+    if (n == (ssize_t)0) {
+      return true;
+    }
+
+    newline = line[n - 1] == '\n';
+    if (((size_t)n == size) && !newline) {
+      /* Discard the rest of an overlong record, never execute fragments.*/
+      overflow = true;
+      continue;
+    }
+    if (overflow) {
+      shell_errorln("line too long");
+      line[0] = '\0';
+    }
+    else {
+      line[(size_t)n - (newline ? 1U : 0U)] = '\0';
+    }
+    return false;
+  }
+}
+
+static bool shell_getline_stream(char *line, size_t size) {
   char *p = line;
   int seq;
 
   state.history_current = state.history_head;
-  seq = 0;;
+  seq = 0;
   while (true) {
     char c;
+    ssize_t n;
 
-    if (read(STDIN_FILENO, &c, 1) == 0)
+    n = read(STDIN_FILENO, &c, 1);
+    if (n < (ssize_t)0) {
+      if (errno == EINTR) {
+        continue;
+      }
       return true;
+    }
+    if (n == (ssize_t)0) {
+      return true;
+    }
 
     /* Escape sequences decoding.*/
     switch (seq) {
@@ -199,7 +254,7 @@ static bool shell_getline(char *line, size_t size) {
       continue;
     }
     if (c == '\r') {
-      shell_write(SHELL_NEWLINE_STR);
+      shell_newline(STDOUT_FILENO);
       *p = 0;
       if (strlen(line) != 0) {
         shell_save_history(line);
@@ -215,6 +270,16 @@ static bool shell_getline(char *line, size_t size) {
       *p++ = c;
     }
   }
+}
+
+static bool shell_getline(char *line, size_t size) {
+
+  /* Typed VFS terminals use canonical defaults. Plain serial streams retain
+     the mini shell's original character-at-a-time editor and history.*/
+  if (isatty(STDIN_FILENO)) {
+    return shell_getline_canonical(line, size);
+  }
+  return shell_getline_stream(line, size);
 }
 
 static char *fetch_argument(char **pp) {
@@ -290,7 +355,7 @@ static void cmd_echo(int argc, char *argv[]) {
     shell_write(argv[i]);
     shell_write(" ");
   }
-  shell_write(SHELL_NEWLINE_STR);
+  shell_newline(STDOUT_FILENO);
 }
 
 static void cmd_env(int argc, char *argv[]) {
@@ -353,7 +418,7 @@ static void cmd_dir(int argc, char *argv[]) {
     shell_write(dep->d_name);
     shell_write(" ");
   }
-  shell_write(SHELL_NEWLINE_STR);
+  shell_newline(STDOUT_FILENO);
 
   closedir(dirp);
 }
@@ -471,7 +536,7 @@ static void cmd_help(int argc, char *argv[]) {
     shell_write(" ");
     bip++;
   }
-  shell_write(SHELL_NEWLINE_STR);
+  shell_newline(STDOUT_FILENO);
 }
 
 static bool shell_execute(int argc, char *argv[]) {
@@ -583,7 +648,8 @@ int main(int argc, char *argv[], char *envp[]) {
   }
 
   /* Welcome.*/
-  shell_writeln(SHELL_NEWLINE_STR SHELL_WELCOME_STR);
+  shell_newline(STDOUT_FILENO);
+  shell_writeln(SHELL_WELCOME_STR);
 
   state.history_head = state.history_buffer[0];
   while (true) {
@@ -665,4 +731,6 @@ outofmem:
     shell_errorln("msh: out of memory");
     sglob_free(&sglob);
   }
+
+  return 0;
 }

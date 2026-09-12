@@ -14,22 +14,32 @@
     limitations under the License.
 */
 
-#ifndef CMDUTIL_H
-#define CMDUTIL_H
+/**
+ * @file    portab.h
+ * @brief   Application portability macros and structures.
+ *
+ * @addtogroup application_portability
+ * @{
+ */
 
-#include <stddef.h>
+#ifndef PORTAB_H
+#define PORTAB_H
 
-#define CMD_NEWLINE_STR     "\n"
+#define PORTAB_LINE_LED1                    LINE_LED_GREEN
+
+#define PORTAB_SIO1                         LPSIOD1
+
+/* Rounded to a 64KiB region including the shell image and environment.*/
+#define PORTAB_SHELL_HEAP_SIZE              (48U * 1024U)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-  int cmdWriteAll(int fd, const void *buf, size_t count);
-  void cmdReportError(const char *command, const char *operand);
-  int cmdParseUnsigned(const char *text, unsigned long maximum,
-                       unsigned long *valuep);
+  void portab_setup(void);
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CMDUTIL_H */
+#endif /* PORTAB_H */
+
+/** @} */
