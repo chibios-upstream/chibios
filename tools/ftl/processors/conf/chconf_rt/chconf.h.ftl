@@ -963,6 +963,12 @@
 /* Port-specific settings (override port settings defaulted in chcore.h).    */
 /*===========================================================================*/
 
+[#-- Preserve application port overrides collected by update_chconf_rt.sh. --]
+[#list doc?keys?sort as name]
+  [#if name?starts_with("PORT_")]
+#define ${name?right_pad(35)} ${doc[name]}
+  [/#if]
+[/#list]
 #endif  /* CHCONF_H */
 
 /** @} */
