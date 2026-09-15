@@ -48,6 +48,10 @@
 
 /*
  * Defaults on the best synchronization mechanism available.
+ * The common lock serializes transfers and reset/resume operations. Writes
+ * to cnt and reset also hold the system lock, allowing the wait paths to
+ * check both fields atomically with waiter registration. Copies remain
+ * outside the system lock, and the count is published after each copy.
  */
 #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
 #define PC_INIT(p)       chMtxObjectInit(&(p)->cmtx)
@@ -106,11 +110,16 @@ static size_t pipe_write(pipe_t *pp, const uint8_t *bp, size_t n) {
 
   PC_LOCK(pp);
 
+  /* Reset is rechecked after acquiring the common lock.*/
+  if (pp->reset) {
+    PC_UNLOCK(pp);
+    return (size_t)0;
+  }
+
   /* Number of bytes that can be written in a single atomic operation.*/
   if (n > chPipeGetFreeCount(pp)) {
     n = chPipeGetFreeCount(pp);
   }
-  pp->cnt += n;
 
   /* Number of bytes before buffer limit.*/
   /*lint -save -e9033 [10.8] Checked to be safe.*/
@@ -132,6 +141,12 @@ static size_t pipe_write(pipe_t *pp, const uint8_t *bp, size_t n) {
     memcpy((void *)pp->wrptr, (const void *)bp, n);
     pp->wrptr = pp->buffer;
   }
+
+  /* Publishing the completed transfer also synchronizes with waiters which
+     recheck the count under the system lock before suspending.*/
+  chSysLock();
+  pp->cnt += n;
+  chSysUnlock();
 
   PC_UNLOCK(pp);
 
@@ -157,11 +172,16 @@ static size_t pipe_read(pipe_t *pp, uint8_t *bp, size_t n) {
 
   PC_LOCK(pp);
 
+  /* Reset is rechecked after acquiring the common lock.*/
+  if (pp->reset) {
+    PC_UNLOCK(pp);
+    return (size_t)0;
+  }
+
   /* Number of bytes that can be read in a single atomic operation.*/
   if (n > chPipeGetUsedCount(pp)) {
     n = chPipeGetUsedCount(pp);
   }
-  pp->cnt -= n;
 
   /* Number of bytes before buffer limit.*/
   /*lint -save -e9033 [10.8] Checked to be safe.*/
@@ -183,6 +203,12 @@ static size_t pipe_read(pipe_t *pp, uint8_t *bp, size_t n) {
     memcpy((void *)bp, (void *)pp->rdptr, n);
     pp->rdptr = pp->buffer;
   }
+
+  /* Publishing the completed transfer also synchronizes with waiters which
+     recheck the count under the system lock before suspending.*/
+  chSysLock();
+  pp->cnt -= n;
+  chSysUnlock();
 
   PC_UNLOCK(pp);
 
@@ -222,11 +248,13 @@ void chPipeObjectInit(pipe_t *pp, uint8_t *buf, size_t n) {
 
 /**
  * @brief   Resets a @p pipe_t object.
- * @details All the waiting threads are resumed with status @p MSG_RESET and
- *          the queued data is lost.
- * @post    The pipe is in reset state, all operations will fail and
- *          return @p MSG_RESET until the pipe is enabled again using
- *          @p chPipeResumeX().
+ * @details The queued data is discarded. Threads suspended waiting for data
+ *          or space are resumed with the internal status @p MSG_RESET.
+ *          Interrupted read/write operations return the number of bytes
+ *          already transferred, not the internal wakeup status.
+ * @post    While the pipe is in reset state, new read/write calls return
+ *          zero without transferring data. The reset state is cleared using
+ *          @p chPipeResume().
  *
  * @param[in] pp        pointer to an initialized @p pipe_t object
  *
@@ -240,10 +268,10 @@ void chPipeReset(pipe_t *pp) {
 
   pp->wrptr = pp->buffer;
   pp->rdptr = pp->buffer;
-  pp->cnt   = (size_t)0;
-  pp->reset = true;
 
   chSysLock();
+  pp->cnt   = (size_t)0;
+  pp->reset = true;
   chThdResumeI(&pp->wtr, MSG_RESET);
   chThdResumeI(&pp->rtr, MSG_RESET);
   chSchRescheduleS();
@@ -253,19 +281,45 @@ void chPipeReset(pipe_t *pp) {
 }
 
 /**
+ * @brief   Terminates the reset state.
+ * @note    Serialized with transfers and reset operations.
+ *
+ * @param[in] pp        the pointer to an initialized @p pipe_t object
+ *
+ * @api
+ */
+void chPipeResume(pipe_t *pp) {
+
+  chDbgCheck(pp != NULL);
+
+  PC_LOCK(pp);
+  chSysLock();
+  pp->reset = false;
+  chSysUnlock();
+  PC_UNLOCK(pp);
+}
+
+/**
  * @brief   Pipe write with timeout.
  * @details The function writes data from a buffer to a pipe. The
  *          operation completes when the specified amount of data has been
- *          transferred or after the specified timeout or if the pipe has
- *          been reset.
+ *          transferred, a wait for space times out, or the operation is
+ *          interrupted by a reset.
+ * @note    A finite timeout applies to each individual wait for space, not
+ *          to the whole operation. Each later wait starts with the full
+ *          timeout again, so partial progress can extend the total duration.
+ * @note    Acquiring the internal locks is not covered by the timeout.
+ *          Contention with other pipe operations can block this call
+ *          indefinitely, even with @p TIME_IMMEDIATE. This value only
+ *          prevents waiting for space.
  *
  * @param[in] pp        pointer to an initialized @p pipe_t object
  * @param[in] bp        pointer to the data buffer
  * @param[in] n         number of bytes to be written, the value 0 is
  *                      reserved
- * @param[in] timeout   number of ticks before the operation times out,
+ * @param[in] timeout   number of ticks allowed for each wait for space,
  *                      the following special values are allowed:
- *                      - @a TIME_IMMEDIATE immediate timeout.
+ *                      - @a TIME_IMMEDIATE do not wait for space.
  *                      - @a TIME_INFINITE no timeout.
  * @return              The number of bytes effectively transferred. A number
  *                      lower than @p n means that a timeout occurred or the
@@ -277,12 +331,15 @@ size_t chPipeWriteTimeout(pipe_t *pp, const uint8_t *bp,
                           size_t n, sysinterval_t timeout) {
   size_t max = n;
 
-  chDbgCheck(n > 0U);
+  chDbgCheck((pp != NULL) && (bp != NULL) && (n > 0U));
 
   /* If the pipe is in reset state then returns immediately.*/
+  chSysLock();
   if (pp->reset) {
+    chSysUnlock();
     return (size_t)0;
   }
+  chSysUnlock();
 
   PW_LOCK(pp);
 
@@ -292,9 +349,21 @@ size_t chPipeWriteTimeout(pipe_t *pp, const uint8_t *bp,
     done = pipe_write(pp, bp, n);
     if (done == (size_t)0) {
       msg_t msg;
+      size_t size;
 
+      size = chPipeGetSize(pp);
       chSysLock();
-      msg = chThdSuspendTimeoutS(&pp->wtr, timeout);
+      /* The common lock release can reschedule. Rechecking the published
+         state here closes the gap before waiter registration.*/
+      if (pp->reset) {
+        msg = MSG_RESET;
+      }
+      else if (pp->cnt == size) {
+        msg = chThdSuspendTimeoutS(&pp->wtr, timeout);
+      }
+      else {
+        msg = MSG_OK;
+      }
       chSysUnlock();
 
       /* Anything except MSG_OK causes the operation to stop.*/
@@ -320,16 +389,23 @@ size_t chPipeWriteTimeout(pipe_t *pp, const uint8_t *bp,
  * @brief   Pipe read with timeout.
  * @details The function reads data from a pipe into a buffer. The
  *          operation completes when the specified amount of data has been
- *          transferred or after the specified timeout or if the pipe has
- *          been reset.
+ *          transferred, a wait for data times out, or the operation is
+ *          interrupted by a reset.
+ * @note    A finite timeout applies to each individual wait for data, not
+ *          to the whole operation. Each later wait starts with the full
+ *          timeout again, so partial progress can extend the total duration.
+ * @note    Acquiring the internal locks is not covered by the timeout.
+ *          Contention with other pipe operations can block this call
+ *          indefinitely, even with @p TIME_IMMEDIATE. This value only
+ *          prevents waiting for data.
  *
  * @param[in] pp        pointer to an initialized @p pipe_t object
  * @param[out] bp       pointer to the data buffer
  * @param[in] n         number of bytes to be read, the value 0 is
  *                      reserved
- * @param[in] timeout   number of ticks before the operation times out,
+ * @param[in] timeout   number of ticks allowed for each wait for data,
  *                      the following special values are allowed:
- *                      - @a TIME_IMMEDIATE immediate timeout.
+ *                      - @a TIME_IMMEDIATE do not wait for data.
  *                      - @a TIME_INFINITE no timeout.
  * @return              The number of bytes effectively transferred. A number
  *                      lower than @p n means that a timeout occurred or the
@@ -341,12 +417,15 @@ size_t chPipeReadTimeout(pipe_t *pp, uint8_t *bp,
                          size_t n, sysinterval_t timeout) {
   size_t max = n;
 
-  chDbgCheck(n > 0U);
+  chDbgCheck((pp != NULL) && (bp != NULL) && (n > 0U));
 
   /* If the pipe is in reset state then returns immediately.*/
+  chSysLock();
   if (pp->reset) {
+    chSysUnlock();
     return (size_t)0;
   }
+  chSysUnlock();
 
   PR_LOCK(pp);
 
@@ -358,7 +437,17 @@ size_t chPipeReadTimeout(pipe_t *pp, uint8_t *bp,
       msg_t msg;
 
       chSysLock();
-      msg = chThdSuspendTimeoutS(&pp->rtr, timeout);
+      /* The common lock release can reschedule. Rechecking the published
+         state here closes the gap before waiter registration.*/
+      if (pp->reset) {
+        msg = MSG_RESET;
+      }
+      else if (pp->cnt == (size_t)0) {
+        msg = chThdSuspendTimeoutS(&pp->rtr, timeout);
+      }
+      else {
+        msg = MSG_OK;
+      }
       chSysUnlock();
 
       /* Anything except MSG_OK causes the operation to stop.*/

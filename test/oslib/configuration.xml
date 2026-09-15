@@ -1009,7 +1009,46 @@ test_assert(received == &fifo1, "output changed on finite timeout");]]></value>
 static uint8_t buffer[PIPE_SIZE];
 static PIPE_DECL(pipe1, buffer, PIPE_SIZE);
 
-static const uint8_t pipe_pattern[] = "0123456789ABCDEF";]]></value>
+static const uint8_t pipe_pattern[] = "0123456789ABCDEF";
+
+#if defined(__CHIBIOS_RT__) && (CH_CFG_USE_WAITEXIT == TRUE)
+typedef struct {
+  bool writer;
+  size_t size;
+  size_t done;
+  uint8_t data[PIPE_SIZE];
+} pipe_test_context_t;
+
+static THD_WORKING_AREA(waPipe1, 256);
+static THD_WORKING_AREA(waPipe2, 256);
+
+static THD_FUNCTION(pipe_thread, arg) {
+  pipe_test_context_t *ctx = arg;
+
+  if (ctx->writer) {
+    ctx->done = chPipeWriteTimeout(&pipe1, ctx->data, ctx->size,
+                                   TIME_MS2I(100));
+  }
+  else {
+    ctx->done = chPipeReadTimeout(&pipe1, ctx->data, ctx->size,
+                                  TIME_MS2I(100));
+  }
+}
+
+static thread_t *pipe_start(stkline_t *wbase, stkline_t *wend,
+                            tprio_t prio, pipe_test_context_t *ctx) {
+  thread_descriptor_t td = {
+    .name  = "pipe",
+    .wbase = wbase,
+    .wend  = wend,
+    .prio  = prio,
+    .funcp = pipe_thread,
+    .arg   = ctx
+  };
+
+  return chThdCreate(&td);
+}
+#endif]]></value>
       </shared_code>
       <cases>
         <case>
@@ -1354,6 +1393,227 @@ test_assert((pipe1.rdptr == pipe1.wrptr) &&
             (pipe1.wrptr == pipe1.buffer) &&
             (pipe1.cnt == PIPE_SIZE / 2),
             "invalid pipe state");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Concurrent pipe transfers.</value>
+          </brief>
+          <description>
+            <value>Readers and writers exchange data through a pipe smaller
+              than the request. All waits are bounded.</value>
+          </description>
+          <condition>
+            <value><![CDATA[defined(__CHIBIOS_RT__) && (CH_CFG_USE_WAITEXIT == TRUE)]]></value>
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A waiting reader receives a multi-chunk write.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx = {false, PIPE_SIZE, 0, {0}};
+thread_t *tp;
+size_t n;
+
+chPipeObjectInit(&pipe1, buffer, 3);
+tp = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                chThdGetPriorityX() + 1, &ctx);
+n = chPipeWriteTimeout(&pipe1, pipe_pattern, PIPE_SIZE, TIME_MS2I(100));
+(void)chThdWait(tp);
+test_assert(n == PIPE_SIZE, "incomplete write");
+test_assert(ctx.done == PIPE_SIZE, "incomplete read");
+test_assert(memcmp(ctx.data, pipe_pattern, PIPE_SIZE) == 0,
+            "content mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A waiting writer completes a multi-chunk read.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx = {true, PIPE_SIZE, 0, {0}};
+thread_t *tp;
+size_t n;
+uint8_t data[PIPE_SIZE];
+
+chPipeObjectInit(&pipe1, buffer, 3);
+memcpy(ctx.data, pipe_pattern, PIPE_SIZE);
+tp = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                chThdGetPriorityX() + 1, &ctx);
+n = chPipeReadTimeout(&pipe1, data, PIPE_SIZE, TIME_MS2I(100));
+(void)chThdWait(tp);
+test_assert(n == PIPE_SIZE, "incomplete read");
+test_assert(ctx.done == PIPE_SIZE, "incomplete write");
+test_assert(memcmp(data, pipe_pattern, PIPE_SIZE) == 0,
+            "content mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Reset with queued pipe callers.</value>
+          </brief>
+          <description>
+            <value>Reset aborts the current waiter and prevents a caller
+              queued on the direction lock from transferring or waiting again.
+              Cleanup precedes assertions, and worker waits are bounded.</value>
+          </description>
+          <condition>
+            <value><![CDATA[defined(__CHIBIOS_RT__) && (CH_CFG_USE_WAITEXIT == TRUE)]]></value>
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Both a suspended reader and a queued reader stop
+                  after one reset.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx1 = {false, 1, 0, {0}};
+pipe_test_context_t ctx2 = {false, 1, 0, {0}};
+thread_t *tp1, *tp2;
+bool registered, stopped;
+
+chPipeObjectInit(&pipe1, buffer, 1);
+tp1 = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                 chThdGetPriorityX() + 1, &ctx1);
+tp2 = pipe_start(waPipe2, THD_WORKING_AREA_END(waPipe2),
+                 chThdGetPriorityX() + 1, &ctx2);
+chSysLock();
+registered = pipe1.rtr == tp1;
+chSysUnlock();
+chPipeReset(&pipe1);
+stopped = chThdTerminatedX(tp1) && chThdTerminatedX(tp2);
+chPipeReset(&pipe1);
+(void)chThdWait(tp1);
+(void)chThdWait(tp2);
+test_assert(registered, "reader was not suspended");
+test_assert(stopped, "queued reader waited after reset");
+test_assert((ctx1.done == 0) && (ctx2.done == 0),
+            "unexpected transfer after reset");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A queued writer cannot repopulate a reset pipe.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx1 = {true, 1, 0, {1}};
+pipe_test_context_t ctx2 = {true, 1, 0, {2}};
+thread_t *tp1, *tp2;
+size_t n, used;
+bool registered, stopped;
+
+chPipeObjectInit(&pipe1, buffer, 1);
+n = chPipeWriteTimeout(&pipe1, pipe_pattern, 1, TIME_IMMEDIATE);
+tp1 = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                 chThdGetPriorityX() + 1, &ctx1);
+tp2 = pipe_start(waPipe2, THD_WORKING_AREA_END(waPipe2),
+                 chThdGetPriorityX() + 1, &ctx2);
+chSysLock();
+registered = pipe1.wtr == tp1;
+chSysUnlock();
+chPipeReset(&pipe1);
+stopped = chThdTerminatedX(tp1) && chThdTerminatedX(tp2);
+used = chPipeGetUsedCount(&pipe1);
+chPipeReset(&pipe1);
+(void)chThdWait(tp1);
+(void)chThdWait(tp2);
+test_assert(n == 1, "pipe was not filled");
+test_assert(registered, "writer was not suspended");
+test_assert(stopped, "queued writer waited after reset");
+test_assert((ctx1.done == 0) && (ctx2.done == 0) && (used == 0),
+            "queued writer transferred after reset");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Partial pipe transfers interrupted by reset.</value>
+          </brief>
+          <description>
+            <value>An already-suspended caller returns its partial count,
+              even when the pipe is resumed before the caller runs.</value>
+          </description>
+          <condition>
+            <value><![CDATA[defined(__CHIBIOS_RT__) && (CH_CFG_USE_WAITEXIT == TRUE)]]></value>
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Reset preserves the partial read count.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx = {false, 2, 0, {0}};
+thread_t *tp;
+size_t n;
+bool registered;
+
+chPipeObjectInit(&pipe1, buffer, 1);
+n = chPipeWriteTimeout(&pipe1, pipe_pattern, 1, TIME_IMMEDIATE);
+tp = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                chThdGetPriorityX() - 1, &ctx);
+chThdSleepMilliseconds(10);
+chSysLock();
+registered = pipe1.rtr == tp;
+chSysUnlock();
+chPipeReset(&pipe1);
+chPipeResume(&pipe1);
+(void)chThdWait(tp);
+test_assert(n == 1, "pipe was not filled");
+test_assert(registered, "reader was not suspended");
+test_assert(ctx.done == 1, "partial count lost");
+test_assert(ctx.data[0] == pipe_pattern[0], "content mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Reset preserves the partial write count.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx = {true, 2, 0, {1, 2}};
+thread_t *tp;
+bool registered;
+
+chPipeObjectInit(&pipe1, buffer, 1);
+tp = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                chThdGetPriorityX() - 1, &ctx);
+chThdSleepMilliseconds(10);
+chSysLock();
+registered = pipe1.wtr == tp;
+chSysUnlock();
+chPipeReset(&pipe1);
+chPipeResume(&pipe1);
+(void)chThdWait(tp);
+test_assert(registered, "writer was not suspended");
+test_assert(ctx.done == 1, "partial count lost");
+test_assert(chPipeGetUsedCount(&pipe1) == 0,
+            "data written after reset");]]></value>
               </code>
             </step>
           </steps>
