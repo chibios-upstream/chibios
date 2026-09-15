@@ -35,6 +35,8 @@
  * - @subpage oslib_test_011_003
  * - @subpage oslib_test_011_004
  * - @subpage oslib_test_011_005
+ * - @subpage oslib_test_011_006
+ * - @subpage oslib_test_011_007
  * .
  */
 
@@ -442,6 +444,149 @@ static const testcase_t oslib_test_011_005 = {
 };
 #endif /* CH_CFG_USE_MEMCHECKS == FALSE */
 
+/**
+ * @page oslib_test_011_006 [11.6] Scans of separate objects
+ *
+ * <h2>Description</h2>
+ * Strings and pointer arrays in separate objects are rejected in both
+ * address orders without ordering pointers.
+ *
+ * <h2>Test Steps</h2>
+ * - [11.6.1] A string in another object is outside the area, in either
+ *   argument order.
+ * - [11.6.2] A pointer array in another object is outside the area, in
+ *   either argument order.
+ * .
+ */
+
+static void oslib_test_011_006_execute(void) {
+  char text1[] = "abc";
+  char text2[] = "def";
+  const void *pointers1[2];
+  const void *pointers2[2];
+  memory_area_t map;
+
+  /* [11.6.1] A string in another object is outside the area, in either
+     argument order.*/
+  test_set_step(1);
+  {
+    map.base = (uint8_t *)text1;
+    map.size = sizeof text1;
+    test_assert(chMemIsStringWithinX(&map, text2, SIZE_MAX) == 0U,
+                "separate string accepted");
+    map.base = (uint8_t *)text2;
+    map.size = sizeof text2;
+    test_assert(chMemIsStringWithinX(&map, text1, SIZE_MAX) == 0U,
+                "reverse separate string accepted");
+  }
+  test_end_step(1);
+
+  /* [11.6.2] A pointer array in another object is outside the area, in
+     either argument order.*/
+  test_set_step(2);
+  {
+    pointers1[0] = text1;
+    pointers1[1] = NULL;
+    pointers2[0] = text2;
+    pointers2[1] = NULL;
+    map.base = (uint8_t *)pointers1;
+    map.size = sizeof pointers1;
+    test_assert(chMemIsPointersArrayWithinX(&map, pointers2, SIZE_MAX) == 0U,
+                "separate pointer array accepted");
+    map.base = (uint8_t *)pointers2;
+    map.size = sizeof pointers2;
+    test_assert(chMemIsPointersArrayWithinX(&map, pointers1, SIZE_MAX) == 0U,
+                "reverse separate pointer array accepted");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t oslib_test_011_006 = {
+  "Scans of separate objects",
+  NULL,
+  NULL,
+  oslib_test_011_006_execute
+};
+
+/**
+ * @page oslib_test_011_007 [11.7] Scan byte boundaries
+ *
+ * <h2>Description</h2>
+ * Scans obey finite byte-area boundaries without forming typed
+ * pointers from those boundaries.
+ *
+ * <h2>Test Steps</h2>
+ * - [11.7.1] A string suffix must fit the area and budget, including
+ *   the terminating byte.
+ * - [11.7.2] Byte-area boundaries need not have pointer alignment, but
+ *   each scanned pointer must fit completely.
+ * .
+ */
+
+static void oslib_test_011_007_execute(void) {
+  char text[] = "abc";
+  const void *pointers[4];
+  memory_area_t map;
+
+  /* [11.7.1] A string suffix must fit the area and budget, including
+     the terminating byte.*/
+  test_set_step(1);
+  {
+    map.base = (uint8_t *)&text[1];
+    map.size = sizeof text - 1U;
+    test_assert(chMemIsStringWithinX(&map, text, SIZE_MAX) == 0U,
+                "string before area accepted");
+    test_assert(chMemIsStringWithinX(&map, &text[1], SIZE_MAX) == 3U,
+                "contained suffix rejected");
+    test_assert(chMemIsStringWithinX(&map, &text[1], 0U) == 0U,
+                "zero string budget accepted");
+    test_assert(chMemIsStringWithinX(&map, &text[1], 2U) == 0U,
+                "short suffix budget accepted");
+    test_assert(chMemIsStringWithinX(&map, &text[3], 1U) == 1U,
+                "final byte rejected");
+    test_assert(chMemIsStringWithinX(&map, &text[sizeof text], SIZE_MAX) == 0U,
+                "string past area accepted");
+    map.size--;
+    test_assert(chMemIsStringWithinX(&map, &text[1], SIZE_MAX) == 0U,
+                "string terminator outside area accepted");
+  }
+  test_end_step(1);
+
+  /* [11.7.2] Byte-area boundaries need not have pointer alignment, but
+     each scanned pointer must fit completely.*/
+  test_set_step(2);
+  {
+    pointers[0] = text;
+    pointers[1] = NULL;
+    pointers[2] = text;
+    pointers[3] = NULL;
+    map.base = (uint8_t *)pointers + 1U;
+    map.size = 3U * sizeof (void *) - 2U;
+    test_assert(chMemIsPointersArrayWithinX(&map, pointers, SIZE_MAX) == 0U,
+                "pointer array before area accepted");
+    test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1], SIZE_MAX) ==
+                sizeof (void *), "contained pointer rejected");
+    test_assert(chMemIsPointersArrayWithinX(&map, &pointers[2], SIZE_MAX) == 0U,
+                "incomplete final pointer accepted");
+    test_assert(chMemIsPointersArrayWithinX(&map, &pointers[3], SIZE_MAX) == 0U,
+                "pointer array past area accepted");
+    map.size = 2U * sizeof (void *) - 1U;
+    test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1], SIZE_MAX) ==
+                sizeof (void *), "pointer at exact boundary rejected");
+    map.size--;
+    test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1], SIZE_MAX) == 0U,
+                "partial terminator accepted");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t oslib_test_011_007 = {
+  "Scan byte boundaries",
+  NULL,
+  NULL,
+  oslib_test_011_007_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -457,6 +602,8 @@ const testcase_t * const oslib_test_sequence_011_array[] = {
 #if (CH_CFG_USE_MEMCHECKS == FALSE) || defined(__DOXYGEN__)
   &oslib_test_011_005,
 #endif
+  &oslib_test_011_006,
+  &oslib_test_011_007,
   NULL
 };
 

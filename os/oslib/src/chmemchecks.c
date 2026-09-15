@@ -103,14 +103,14 @@ CC_WEAK const memory_area_t __ch_mem_executable_areas[] = {
 size_t chMemIsStringWithinX(const memory_area_t *map,
                             const char *s,
                             size_t max) {
-  const char *base = (const char *)map->base;
+  uintptr_t base = (uintptr_t)map->base;
 
-  if ((map->size > (size_t)0) && (s >= base)) {
-    const char *end = (const char *)base + map->size - (size_t)1;
+  if ((map->size > (size_t)0) && ((uintptr_t)s >= base)) {
+    uintptr_t end = base + (uintptr_t)map->size - (uintptr_t)1;
     size_t n;
 
     n = (size_t)0;
-    while ((s <= end) && (n < max)) {
+    while (((uintptr_t)s <= end) && (n < max)) {
       n++;
       if (*s++ == '\0') {
         return n;
@@ -139,14 +139,14 @@ size_t chMemIsStringWithinX(const memory_area_t *map,
 size_t chMemIsPointersArrayWithinX(const memory_area_t *map,
                                    const void *pp[],
                                    size_t max) {
-  const void **base = (const void **)(void *)map->base;
+  uintptr_t base = (uintptr_t)map->base;
 
-  if ((map->size >= sizeof (void *)) && (pp >= base)) {
-    const void **end = (const void **)(void *)(map->base + map->size - sizeof (void *));
+  if ((map->size >= sizeof (void *)) && ((uintptr_t)pp >= base)) {
+    uintptr_t end = base + (uintptr_t)map->size - sizeof (void *);
     size_t n;
 
     n = (size_t)0;
-    while ((pp <= end) && ((max - n) >= sizeof (void *))) {
+    while (((uintptr_t)pp <= end) && ((max - n) >= sizeof (void *))) {
       n += sizeof (void *);
       if (*pp++ == NULL) {
         return n;

@@ -4763,6 +4763,143 @@ test_assert(chMemIsAddressExecutableX(area_buffer),
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Scans of separate objects</value>
+          </brief>
+          <description>
+            <value>Strings and pointer arrays in separate objects are
+              rejected in both address orders without ordering pointers.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[char text1[] = "abc";
+char text2[] = "def";
+const void *pointers1[2];
+const void *pointers2[2];
+memory_area_t map;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A string in another object is outside the area,
+                  in either argument order.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map.base = (uint8_t *)text1;
+map.size = sizeof text1;
+test_assert(chMemIsStringWithinX(&map, text2, SIZE_MAX) == 0U,
+            "separate string accepted");
+map.base = (uint8_t *)text2;
+map.size = sizeof text2;
+test_assert(chMemIsStringWithinX(&map, text1, SIZE_MAX) == 0U,
+            "reverse separate string accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A pointer array in another object is outside the
+                  area, in either argument order.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers1[0] = text1;
+pointers1[1] = NULL;
+pointers2[0] = text2;
+pointers2[1] = NULL;
+map.base = (uint8_t *)pointers1;
+map.size = sizeof pointers1;
+test_assert(chMemIsPointersArrayWithinX(&map, pointers2, SIZE_MAX) == 0U,
+            "separate pointer array accepted");
+map.base = (uint8_t *)pointers2;
+map.size = sizeof pointers2;
+test_assert(chMemIsPointersArrayWithinX(&map, pointers1, SIZE_MAX) == 0U,
+            "reverse separate pointer array accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Scan byte boundaries</value>
+          </brief>
+          <description>
+            <value>Scans obey finite byte-area boundaries without forming
+              typed pointers from those boundaries.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[char text[] = "abc";
+const void *pointers[4];
+memory_area_t map;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A string suffix must fit the area and budget,
+                  including the terminating byte.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map.base = (uint8_t *)&text[1];
+map.size = sizeof text - 1U;
+test_assert(chMemIsStringWithinX(&map, text, SIZE_MAX) == 0U,
+            "string before area accepted");
+test_assert(chMemIsStringWithinX(&map, &text[1], SIZE_MAX) == 3U,
+            "contained suffix rejected");
+test_assert(chMemIsStringWithinX(&map, &text[1], 0U) == 0U,
+            "zero string budget accepted");
+test_assert(chMemIsStringWithinX(&map, &text[1], 2U) == 0U,
+            "short suffix budget accepted");
+test_assert(chMemIsStringWithinX(&map, &text[3], 1U) == 1U,
+            "final byte rejected");
+test_assert(chMemIsStringWithinX(&map, &text[sizeof text], SIZE_MAX) == 0U,
+            "string past area accepted");
+map.size--;
+test_assert(chMemIsStringWithinX(&map, &text[1], SIZE_MAX) == 0U,
+            "string terminator outside area accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Byte-area boundaries need not have pointer
+                  alignment, but each scanned pointer must fit completely.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers[0] = text;
+pointers[1] = NULL;
+pointers[2] = text;
+pointers[3] = NULL;
+map.base = (uint8_t *)pointers + 1U;
+map.size = 3U * sizeof (void *) - 2U;
+test_assert(chMemIsPointersArrayWithinX(&map, pointers, SIZE_MAX) == 0U,
+            "pointer array before area accepted");
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1], SIZE_MAX) ==
+            sizeof (void *), "contained pointer rejected");
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[2], SIZE_MAX) == 0U,
+            "incomplete final pointer accepted");
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[3], SIZE_MAX) == 0U,
+            "pointer array past area accepted");
+map.size = 2U * sizeof (void *) - 1U;
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1], SIZE_MAX) ==
+            sizeof (void *), "pointer at exact boundary rejected");
+map.size--;
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1], SIZE_MAX) == 0U,
+            "partial terminator accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
   </sequences>
