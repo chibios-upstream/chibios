@@ -382,15 +382,24 @@ static inline msg_t chJobDispatch(jobs_queue_t *jqp) {
 
 /**
  * @brief   Waits for a job then executes it.
+ * @note    The timeout applies only to waiting for a job in the internal
+ *          mailbox, not to callback execution. Once a job is obtained, its
+ *          callback runs to completion, including when @p TIME_IMMEDIATE is
+ *          specified. Blocking operations inside the callback are not
+ *          limited by this timeout.
+ * @note    A finite timeout applies to each individual mailbox wait. If a
+ *          competing dispatcher obtains the job first, waiting restarts with
+ *          the original timeout. This is not a total operation deadline;
+ *          repeated competition can extend the total wait indefinitely.
  *
  * @param[in] jqp       pointer to a @p jobs_queue_t object
- * @param[in] timeout   the number of ticks before the operation times out,
+ * @param[in] timeout   the number of ticks per wait for a job,
  *                      the following special values are allowed:
- *                      - @a TIME_IMMEDIATE immediate timeout.
+ *                      - @a TIME_IMMEDIATE only poll for a pending job.
  *                      - @a TIME_INFINITE no timeout.
  * @return              The function outcome.
  * @retval MSG_OK       if a job has been executed.
- * @retval MSG_TIMEOUT  if a timeout occurred.
+ * @retval MSG_TIMEOUT  if waiting timed out or an immediate poll found no job.
  * @retval MSG_RESET    if the internal mailbox has been reset.
  * @retval MSG_JOB_NULL if a @p JOB_NULL has been received.
  */

@@ -1884,6 +1884,22 @@ static THD_FUNCTION(Thread1, arg) {
 
   chThdExit(0x0FA5);
 }
+
+#if CH_CFG_USE_WAITEXIT == TRUE
+typedef struct {
+  thread_t      *receiver;
+  sysinterval_t delay;
+} delegate_test_context_t;
+
+static THD_FUNCTION(delegate_caller, arg) {
+  delegate_test_context_t *ctx = (delegate_test_context_t *)arg;
+
+  if (ctx->delay > 0U) {
+    chThdSleep(ctx->delay);
+  }
+  chThdExit(chDelegateCallDirect1(ctx->receiver, dis_func1, 'P'));
+}
+#endif
 ]]></value>
       </shared_code>
       <cases>
@@ -1981,6 +1997,112 @@ test_assert_sequence("0ABCDEFGHIJZ", "unexpected tokens");
 msg_t msg = chThdWait(tp);
 test_assert(msg == 0x0FA5, "invalid exit code");
 ]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Dispatcher timeouts.</value>
+          </brief>
+          <description>
+            <value>Empty immediate and finite delegate waits return timeout.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Polling with no pending call returns immediately.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[msg_t msg = chDelegateDispatchTimeout(TIME_IMMEDIATE);
+
+test_assert(msg == MSG_TIMEOUT, "unexpected poll result");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A finite wait with no caller expires.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[systime_t start = chVTGetSystemTimeX();
+msg_t msg = chDelegateDispatchTimeout(TIME_MS2I(20));
+sysinterval_t elapsed = chTimeDiffX(start, chVTGetSystemTimeX());
+
+test_assert(msg == MSG_TIMEOUT, "unexpected timeout result");
+test_assert(elapsed >= TIME_MS2I(20), "early timeout");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Pending and delayed delegate calls.</value>
+          </brief>
+          <description>
+            <value>Immediate dispatch processes a queued call, and finite and
+              infinite waits process calls arriving later. Each caller receives
+              the callback result.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_WAITEXIT == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Dispatching calls with immediate, finite and infinite
+                  waits, then joining the callers before checking results.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[const sysinterval_t timeouts[] = {
+  TIME_IMMEDIATE, TIME_MS2I(100), TIME_INFINITE
+};
+unsigned i;
+
+for (i = 0; i < 3U; i++) {
+  delegate_test_context_t ctx = {
+    chThdGetSelfX(), i == 0U ? 0U : TIME_MS2I(10)
+  };
+  thread_descriptor_t td = {
+    .name  = "delegate caller",
+    .wbase = waThread1,
+    .wend  = THD_WORKING_AREA_END(waThread1),
+#if defined(__CHIBIOS_RT__)
+    .prio  = chThdGetPriorityX() + 1,
+#else
+    .prio  = chThdGetPriorityX() - 1,
+#endif
+    .funcp = delegate_caller,
+    .arg   = &ctx
+  };
+  thread_t *tp = chThdCreate(&td);
+  msg_t msg = chDelegateDispatchTimeout(timeouts[i]);
+  msg_t reply;
+
+  /* Release the caller even if dispatch unexpectedly timed out.*/
+  if (msg == MSG_TIMEOUT) {
+    chDelegateDispatch();
+  }
+  reply = chThdWait(tp);
+  test_assert(msg == MSG_OK, "call not dispatched");
+  test_assert(reply == (msg_t)'P', "invalid callback result");
+  msg = chDelegateDispatchTimeout(TIME_IMMEDIATE);
+  test_assert(msg == MSG_TIMEOUT, "call still pending");
+}
+test_assert_sequence("PPP", "unexpected callbacks");]]></value>
               </code>
             </step>
           </steps>
