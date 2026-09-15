@@ -4357,5 +4357,413 @@ test_assert(result.topmem == &core_buffer[16], "top changed");]]></value>
         </case>
       </cases>
     </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>Memory areas</value>
+      </brief>
+      <description>
+        <value>Memory area intersections, bounded scans and API availability
+          are tested independently of the optional system memory checks.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[static uint8_t area_buffer[64];
+
+static bool intersection_matches(const memory_area_t *map1,
+                                 const memory_area_t *map2,
+                                 bool expected) {
+
+  return (chMemIsAreaIntersectingX(map1, map2) == expected) &&
+         (chMemIsAreaIntersectingX(map2, map1) == expected) &&
+         (chMemIsSpaceIntersectingX(map1, map2->base,
+                                   map2->size) == expected) &&
+         (chMemIsSpaceIntersectingX(map2, map1->base,
+                                   map1->size) == expected);
+}]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Symmetric intersections</value>
+          </brief>
+          <description>
+            <value>Both intersection APIs are checked in both argument
+              orders for nested, overlapping, equal and disjoint areas.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[memory_area_t map1, map2;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Strict enclosure intersects in both directions.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map1.base = &area_buffer[16];
+map1.size = 16U;
+map2.base = &area_buffer[8];
+map2.size = 32U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "enclosure not symmetric");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Partial overlap intersects in both directions.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.size = 16U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "partial overlap missed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Equal areas intersect.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2 = map1;
+test_assert(intersection_matches(&map1, &map2, true),
+            "equal areas missed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Separated and adjacent areas do not intersect.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.base = &area_buffer[0];
+map2.size = 8U;
+test_assert(intersection_matches(&map1, &map2, false),
+            "separated areas intersect");
+map2.size = 16U;
+test_assert(intersection_matches(&map1, &map2, false),
+            "adjacent areas intersect");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The last byte is included but the following byte
+                  is not.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.base = &area_buffer[31];
+map2.size = 1U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "last byte excluded");
+map2.base = &area_buffer[32];
+test_assert(intersection_matches(&map1, &map2, false),
+            "following byte included");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Address space boundaries</value>
+          </brief>
+          <description>
+            <value>Whole-address-space and boundary ranges preserve
+              symmetric intersection semantics without accessing memory.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[memory_area_t map1, map2;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The whole address space intersects an ordinary
+                  area and itself.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map1.base = NULL;
+map1.size = 0U;
+map2.base = &area_buffer[16];
+map2.size = 16U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "whole space missed");
+map2 = map1;
+test_assert(intersection_matches(&map1, &map2, true),
+            "whole spaces missed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The byte at address zero is part of the whole
+                  address space.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.size = 1U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "address zero missed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Nested areas ending at the highest address
+                  intersect.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map1.base = (uint8_t *)(UINTPTR_MAX - 15U);
+map1.size = 16U;
+map2.base = (uint8_t *)(UINTPTR_MAX - 7U);
+map2.size = 8U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "upper boundary overlap missed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Adjacent areas near the highest address do not
+                  intersect.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.base = (uint8_t *)(UINTPTR_MAX - 31U);
+map2.size = 16U;
+test_assert(intersection_matches(&map1, &map2, false),
+            "upper adjacent areas intersect");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An area ending at the highest address intersects
+                  the whole address space.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.base = NULL;
+map2.size = 0U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "upper area missed by whole space");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Pointer-array byte limits</value>
+          </brief>
+          <description>
+            <value>A pointer-array scan must fit complete pointer slots
+              inside both the byte budget and the containing area.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[const void *pointers[3];
+memory_area_t map;
+size_t max;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Even an empty array needs a complete NULL pointer
+                  within the byte budget.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers[0] = NULL;
+pointers[1] = &area_buffer[1];
+pointers[2] = NULL;
+map.base = (uint8_t *)pointers;
+map.size = sizeof pointers;
+for (max = 0U; max < sizeof (void *); max++) {
+  test_assert(chMemIsPointersArrayWithinX(&map, pointers, max) == 0U,
+              "partial NULL pointer accepted");
+}
+test_assert(chMemIsPointersArrayWithinX(&map, pointers,
+                                       sizeof (void *)) == sizeof (void *),
+            "complete NULL pointer rejected");
+test_assert(chMemIsPointersArrayWithinX(&map, pointers,
+                                       SIZE_MAX) == sizeof (void *),
+            "maximum budget rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Every budget ending before the complete terminator
+                  is rejected, including non-multiples of pointer size.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers[0] = &area_buffer[0];
+for (max = 0U; max < sizeof pointers; max++) {
+  test_assert(chMemIsPointersArrayWithinX(&map, pointers, max) == 0U,
+              "pointer-array byte limit exceeded");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An exact or larger budget returns the complete
+                  array size, including its terminator.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsPointersArrayWithinX(&map, pointers,
+                                       sizeof pointers) == sizeof pointers,
+            "exact budget rejected");
+test_assert(chMemIsPointersArrayWithinX(&map, pointers,
+                                       sizeof pointers + 1U) == sizeof pointers,
+            "larger budget rejected");
+test_assert(chMemIsPointersArrayWithinX(&map, pointers,
+                                       SIZE_MAX) == sizeof pointers,
+            "maximum budget rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The byte budget is relative to the candidate
+                  array, not the containing area's base.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1],
+                                       2U * sizeof (void *) - 1U) == 0U,
+            "partial suffix terminator accepted");
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1],
+                                       2U * sizeof (void *)) ==
+            2U * sizeof (void *), "complete suffix rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A large budget cannot admit a partial terminator
+                  or an unterminated array at the area boundary.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map.size = sizeof pointers - 1U;
+test_assert(chMemIsPointersArrayWithinX(&map, pointers, SIZE_MAX) == 0U,
+            "partial pointer outside area accepted");
+map.size = sizeof pointers;
+pointers[2] = &area_buffer[2];
+test_assert(chMemIsPointersArrayWithinX(&map, pointers, SIZE_MAX) == 0U,
+            "unterminated array accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Generic memory-check APIs</value>
+          </brief>
+          <description>
+            <value>String and area-table checks remain available when
+              system memory checks are disabled.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[char text[] = "abc";
+memory_area_t areas[2];]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A string check includes the terminator and rejects
+                  a byte budget that is too short.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[areas[0].base = (uint8_t *)text;
+areas[0].size = sizeof text;
+areas[1].base = (uint8_t *)-1;
+areas[1].size = 0U;
+test_assert(chMemIsStringWithinX(&areas[0], text, sizeof text) ==
+            sizeof text, "string check unavailable or incorrect");
+test_assert(chMemIsStringWithinX(&areas[0], text, sizeof text - 1U) == 0U,
+            "short string budget accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The terminated area table accepts a contained
+                  range and rejects a larger one.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsSpaceContainedX(areas, text, sizeof text),
+            "area-table check unavailable or incorrect");
+test_assert(!chMemIsSpaceContainedX(areas, text, sizeof text + 1U),
+            "oversized area accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Disabled memory-check fallbacks</value>
+          </brief>
+          <description>
+            <value>The public permission-check APIs remain callable and
+              return true when system memory checks are disabled.</value>
+          </description>
+          <condition>
+            <value>CH_CFG_USE_MEMCHECKS == FALSE</value>
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Read, write and executable-address fallbacks use
+                  the same public names as the enabled APIs.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsSpaceReadableX(area_buffer, sizeof area_buffer, 1U),
+            "readable fallback failed");
+test_assert(chMemIsSpaceWritableX(area_buffer, sizeof area_buffer, 1U),
+            "writable fallback failed");
+test_assert(chMemIsAddressExecutableX(area_buffer),
+            "executable fallback failed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
   </sequences>
 </instance>

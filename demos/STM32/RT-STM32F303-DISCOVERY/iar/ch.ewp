@@ -2904,6 +2904,12 @@
                 <file>
                     <name>$PROJ_DIR$\..\..\..\..\test\oslib\source\test\oslib_test_sequence_010.h</name>
                 </file>
+                <file>
+                    <name>$PROJ_DIR$\..\..\..\..\test\oslib\source\test\oslib_test_sequence_011.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\..\..\..\test\oslib\source\test\oslib_test_sequence_011.h</name>
+                </file>
             </group>
             <group>
                 <name>rt</name>

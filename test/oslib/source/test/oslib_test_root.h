@@ -34,6 +34,7 @@
 #include "oslib_test_sequence_008.h"
 #include "oslib_test_sequence_009.h"
 #include "oslib_test_sequence_010.h"
+#include "oslib_test_sequence_011.h"
 
 #if !defined(__DOXYGEN__)
 

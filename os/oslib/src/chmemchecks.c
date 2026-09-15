@@ -128,8 +128,8 @@ size_t chMemIsStringWithinX(const memory_area_t *map,
  *
  * @param[in] map       pointer to a @p memory_area_t structure
  * @param[in] pp        zero-terminated pointers array to be checked
- * @param[in] max       maximum expected size of the pointers array inclusive
- *                      of the final zero
+ * @param[in] max       maximum expected size in bytes of the pointers array,
+ *                      inclusive of the final @p NULL pointer
  * @return              The pointers array size in bytes inclusive of the
  *                      final @p NULL pointer.
  * @retval 0            if the pointers array check failed.
@@ -146,7 +146,7 @@ size_t chMemIsPointersArrayWithinX(const memory_area_t *map,
     size_t n;
 
     n = (size_t)0;
-    while ((pp <= end) && (n < max)) {
+    while ((pp <= end) && ((max - n) >= sizeof (void *))) {
       n += sizeof (void *);
       if (*pp++ == NULL) {
         return n;

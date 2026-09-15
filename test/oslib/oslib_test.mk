@@ -9,7 +9,8 @@ TESTSRC += ${CHIBIOS}/test/oslib/source/test/oslib_test_root.c \
            ${CHIBIOS}/test/oslib/source/test/oslib_test_sequence_007.c \
            ${CHIBIOS}/test/oslib/source/test/oslib_test_sequence_008.c \
            ${CHIBIOS}/test/oslib/source/test/oslib_test_sequence_009.c \
-           ${CHIBIOS}/test/oslib/source/test/oslib_test_sequence_010.c
+           ${CHIBIOS}/test/oslib/source/test/oslib_test_sequence_010.c \
+           ${CHIBIOS}/test/oslib/source/test/oslib_test_sequence_011.c
 
 # Required include directories
 TESTINC += ${CHIBIOS}/test/oslib/source/test
