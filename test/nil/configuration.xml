@@ -1639,6 +1639,138 @@ test_assert_sequence("ABCD", "invalid sequence");]]></value>
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Message polling and wait timeouts.</value>
+          </brief>
+          <description>
+            <value>Empty polls and immediate waits in normal and S-class
+              context return NULL, and a finite wait expires normally.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Polling and waiting immediately with no pending sender
+                  in both contexts.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[thread_t *tp = chMsgPoll();
+
+test_assert(tp == NULL, "unexpected polled sender");
+chSysLock();
+tp = chMsgPollS();
+chSysUnlock();
+test_assert(tp == NULL, "unexpected polled sender in S-class");
+tp = chMsgWaitTimeout(TIME_IMMEDIATE);
+
+test_assert(tp == NULL, "unexpected sender");
+chSysLock();
+tp = chMsgWaitTimeoutS(TIME_IMMEDIATE);
+chSysUnlock();
+test_assert(tp == NULL, "unexpected sender in S-class");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A finite wait expires with no sender.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[systime_t start = chVTGetSystemTimeX();
+thread_t *tp = chMsgWaitTimeout(TIME_MS2I(20));
+sysinterval_t elapsed = chTimeDiffX(start, chVTGetSystemTimeX());
+
+test_assert(tp == NULL, "unexpected sender");
+test_assert(elapsed >= TIME_MS2I(20), "early timeout");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Polling pending messages.</value>
+          </brief>
+          <description>
+            <value>Polls in normal and S-class context return a queued sender
+              without consuming the message. The sender remains available
+              until explicitly released.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Polling four queued messages, alternating contexts
+                  and polling again before release, then joining the sender
+                  before checking results.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[thread_descriptor_t td = {
+  .name  = "messenger",
+  .wbase = wa_common,
+  .wend  = THD_WORKING_AREA_END(wa_common),
+  .prio  = chThdGetPriorityX() - 1,
+  .funcp = messenger,
+  .arg   = chThdGetSelfX()
+};
+thread_t *sender = chThdCreate(&td);
+bool all_pending = true;
+bool all_retained = true;
+unsigned i;
+
+for (i = 0; i < 4U; i++) {
+  thread_t *tp;
+  msg_t msg;
+
+  if ((i & 1U) == 0U) {
+    tp = chMsgPoll();
+  }
+  else {
+    chSysLock();
+    tp = chMsgPollS();
+    chSysUnlock();
+  }
+  if (tp == NULL) {
+    all_pending = false;
+    tp = chMsgWait();
+  }
+  msg = chMsgGet(tp);
+  if (chMsgPoll() != tp) {
+    all_retained = false;
+  }
+  chSysLock();
+  if (chMsgPollS() != tp) {
+    all_retained = false;
+  }
+  chSysUnlock();
+  chMsgRelease(tp, msg);
+  test_emit_token(msg);
+}
+(void)chThdWait(sender);
+test_assert(all_pending, "queued sender missed");
+test_assert(all_retained, "polled sender not retained");
+test_assert_sequence("ABCD", "invalid sequence");
+test_assert(chMsgPoll() == NULL, "released sender still pending");
+chSysLock();
+sender = chMsgPollS();
+chSysUnlock();
+test_assert(sender == NULL, "released sender still pending in S-class");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
     <sequence>
