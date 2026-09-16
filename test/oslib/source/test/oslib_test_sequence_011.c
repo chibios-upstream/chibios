@@ -37,6 +37,9 @@
  * - @subpage oslib_test_011_005
  * - @subpage oslib_test_011_006
  * - @subpage oslib_test_011_007
+ * - @subpage oslib_test_011_008
+ * - @subpage oslib_test_011_009
+ * - @subpage oslib_test_011_010
  * .
  */
 
@@ -587,6 +590,225 @@ static const testcase_t oslib_test_011_007 = {
   oslib_test_011_007_execute
 };
 
+/**
+ * @page oslib_test_011_008 [11.8] Whole-address-space scans
+ *
+ * <h2>Description</h2>
+ * A whole-address-space map accepts valid strings and pointer arrays
+ * while preserving their byte budgets.
+ *
+ * <h2>Test Steps</h2>
+ * - [11.8.1] Strings still require a budget large enough for the
+ *   terminator, including with a whole-space map.
+ * - [11.8.2] A missing string terminator is rejected at the byte
+ *   budget without reading beyond the backing array.
+ * - [11.8.3] Pointer arrays require complete slots within the budget,
+ *   including the NULL terminator.
+ * - [11.8.4] A missing NULL pointer is rejected at the byte budget
+ *   without reading beyond the backing array.
+ * .
+ */
+
+static void oslib_test_011_008_execute(void) {
+  char text[] = "abc";
+  const void *pointers[2];
+  memory_area_t whole = {NULL, 0U};
+  size_t max;
+
+  /* [11.8.1] Strings still require a budget large enough for the
+     terminator, including with a whole-space map.*/
+  test_set_step(1);
+  {
+    for (max = 0U; max < sizeof text; max++) {
+      test_assert(chMemIsStringWithinX(&whole, text, max) == 0U,
+                  "short whole-space string budget accepted");
+    }
+    test_assert(chMemIsStringWithinX(&whole, text, sizeof text) == sizeof text,
+                "whole-space string rejected");
+    test_assert(chMemIsStringWithinX(&whole, text, SIZE_MAX) == sizeof text,
+                "maximum string budget rejected");
+    test_assert(chMemIsStringWithinX(&whole, &text[3], 1U) == 1U,
+                "empty whole-space string rejected");
+  }
+  test_end_step(1);
+
+  /* [11.8.2] A missing string terminator is rejected at the byte
+     budget without reading beyond the backing array.*/
+  test_set_step(2);
+  {
+    text[3] = 'x';
+    test_assert(chMemIsStringWithinX(&whole, text, sizeof text) == 0U,
+                "unterminated whole-space string accepted");
+  }
+  test_end_step(2);
+
+  /* [11.8.3] Pointer arrays require complete slots within the budget,
+     including the NULL terminator.*/
+  test_set_step(3);
+  {
+    pointers[0] = text;
+    pointers[1] = NULL;
+    for (max = 0U; max < sizeof pointers; max++) {
+      test_assert(chMemIsPointersArrayWithinX(&whole, pointers, max) == 0U,
+                  "short whole-space pointer budget accepted");
+    }
+    test_assert(chMemIsPointersArrayWithinX(&whole, pointers,
+                                           sizeof pointers) == sizeof pointers,
+                "whole-space pointer array rejected");
+    test_assert(chMemIsPointersArrayWithinX(&whole, pointers,
+                                           SIZE_MAX) == sizeof pointers,
+                "maximum pointer budget rejected");
+    test_assert(chMemIsPointersArrayWithinX(&whole, &pointers[1],
+                                           sizeof (void *)) == sizeof (void *),
+                "empty whole-space pointer array rejected");
+  }
+  test_end_step(3);
+
+  /* [11.8.4] A missing NULL pointer is rejected at the byte budget
+     without reading beyond the backing array.*/
+  test_set_step(4);
+  {
+    pointers[1] = text;
+    test_assert(chMemIsPointersArrayWithinX(&whole, pointers,
+                                           sizeof pointers) == 0U,
+                "unterminated whole-space pointer array accepted");
+  }
+  test_end_step(4);
+}
+
+static const testcase_t oslib_test_011_008 = {
+  "Whole-address-space scans",
+  NULL,
+  NULL,
+  oslib_test_011_008_execute
+};
+
+/**
+ * @page oslib_test_011_009 [11.9] Whole-space and address-zero queries
+ *
+ * <h2>Description</h2>
+ * Address zero is a valid range-query value, while zero size denotes
+ * the whole space only when the address is zero.
+ *
+ * <h2>Test Steps</h2>
+ * - [11.9.1] A whole-space table entry contains the whole space and
+ *   the first and last addressable bytes.
+ * - [11.9.2] Zero size with a nonzero base is not a whole-space query,
+ *   and a range crossing the address limit is rejected.
+ * - [11.9.3] A finite area at address zero contains that byte but
+ *   cannot contain the whole address space.
+ * .
+ */
+
+static void oslib_test_011_009_execute(void) {
+  memory_area_t areas[2] = {
+    {NULL, 0U},
+    {(uint8_t *)-1, 0U}
+  };
+
+  /* [11.9.1] A whole-space table entry contains the whole space and
+     the first and last addressable bytes.*/
+  test_set_step(1);
+  {
+    test_assert(chMemIsSpaceContainedX(areas, NULL, 0U),
+                "whole-space query rejected");
+    test_assert(chMemIsSpaceContainedX(areas, NULL, 1U),
+                "address-zero query rejected");
+    test_assert(chMemIsSpaceContainedX(areas, (void *)UINTPTR_MAX, 1U),
+                "last-address query rejected");
+  }
+  test_end_step(1);
+
+  /* [11.9.2] Zero size with a nonzero base is not a whole-space query,
+     and a range crossing the address limit is rejected.*/
+  test_set_step(2);
+  {
+    test_assert(!chMemIsSpaceContainedX(areas, &area_buffer[0], 0U),
+                "nonzero base with zero size accepted");
+    test_assert(!chMemIsSpaceContainedX(areas, (void *)UINTPTR_MAX, 2U),
+                "wrapped query accepted");
+  }
+  test_end_step(2);
+
+  /* [11.9.3] A finite area at address zero contains that byte but
+     cannot contain the whole address space.*/
+  test_set_step(3);
+  {
+    areas[0].size = 1U;
+    test_assert(chMemIsSpaceContainedX(areas, NULL, 1U),
+                "finite address-zero query rejected");
+    test_assert(!chMemIsSpaceContainedX(areas, NULL, 0U),
+                "whole-space query accepted by finite area");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t oslib_test_011_009 = {
+  "Whole-space and address-zero queries",
+  NULL,
+  NULL,
+  oslib_test_011_009_execute
+};
+
+#if (CH_CFG_USE_MEMCHECKS == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page oslib_test_011_010 [11.10] System address-zero queries
+ *
+ * <h2>Description</h2>
+ * Enabled read/write wrappers accept address-zero queries and use the
+ * configured permission tables.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - CH_CFG_USE_MEMCHECKS == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [11.10.1] Whole-space queries agree with the configured readable
+ *   and writable area tables.
+ * - [11.10.2] Single-byte address-zero queries agree with the
+ *   configured readable and writable area tables.
+ * .
+ */
+
+static void oslib_test_011_010_execute(void) {
+
+  /* [11.10.1] Whole-space queries agree with the configured readable
+     and writable area tables.*/
+  test_set_step(1);
+  {
+    test_assert(chMemIsSpaceReadableX(NULL, 0U, 1U) ==
+                chMemIsSpaceContainedX(__ch_mem_readable_areas, NULL, 0U),
+                "whole-space readable query mismatch");
+    test_assert(chMemIsSpaceWritableX(NULL, 0U, 1U) ==
+                chMemIsSpaceContainedX(__ch_mem_writable_areas, NULL, 0U),
+                "whole-space writable query mismatch");
+  }
+  test_end_step(1);
+
+  /* [11.10.2] Single-byte address-zero queries agree with the
+     configured readable and writable area tables.*/
+  test_set_step(2);
+  {
+    test_assert(chMemIsSpaceReadableX(NULL, 1U, 1U) ==
+                chMemIsSpaceContainedX(__ch_mem_readable_areas, NULL, 1U),
+                "address-zero readable query mismatch");
+    test_assert(chMemIsSpaceWritableX(NULL, 1U, 1U) ==
+                chMemIsSpaceContainedX(__ch_mem_writable_areas, NULL, 1U),
+                "address-zero writable query mismatch");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t oslib_test_011_010 = {
+  "System address-zero queries",
+  NULL,
+  NULL,
+  oslib_test_011_010_execute
+};
+#endif /* CH_CFG_USE_MEMCHECKS == TRUE */
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -604,6 +826,11 @@ const testcase_t * const oslib_test_sequence_011_array[] = {
 #endif
   &oslib_test_011_006,
   &oslib_test_011_007,
+  &oslib_test_011_008,
+  &oslib_test_011_009,
+#if (CH_CFG_USE_MEMCHECKS == TRUE) || defined(__DOXYGEN__)
+  &oslib_test_011_010,
+#endif
   NULL
 };
 

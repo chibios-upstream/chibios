@@ -4900,6 +4900,207 @@ test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1], SIZE_MAX) == 0U,
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Whole-address-space scans</value>
+          </brief>
+          <description>
+            <value>A whole-address-space map accepts valid strings and
+              pointer arrays while preserving their byte budgets.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[char text[] = "abc";
+const void *pointers[2];
+memory_area_t whole = {NULL, 0U};
+size_t max;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Strings still require a budget large enough for
+                  the terminator, including with a whole-space map.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[for (max = 0U; max < sizeof text; max++) {
+  test_assert(chMemIsStringWithinX(&whole, text, max) == 0U,
+              "short whole-space string budget accepted");
+}
+test_assert(chMemIsStringWithinX(&whole, text, sizeof text) == sizeof text,
+            "whole-space string rejected");
+test_assert(chMemIsStringWithinX(&whole, text, SIZE_MAX) == sizeof text,
+            "maximum string budget rejected");
+test_assert(chMemIsStringWithinX(&whole, &text[3], 1U) == 1U,
+            "empty whole-space string rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A missing string terminator is rejected at the
+                  byte budget without reading beyond the backing array.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[text[3] = 'x';
+test_assert(chMemIsStringWithinX(&whole, text, sizeof text) == 0U,
+            "unterminated whole-space string accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Pointer arrays require complete slots within the
+                  budget, including the NULL terminator.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers[0] = text;
+pointers[1] = NULL;
+for (max = 0U; max < sizeof pointers; max++) {
+  test_assert(chMemIsPointersArrayWithinX(&whole, pointers, max) == 0U,
+              "short whole-space pointer budget accepted");
+}
+test_assert(chMemIsPointersArrayWithinX(&whole, pointers,
+                                       sizeof pointers) == sizeof pointers,
+            "whole-space pointer array rejected");
+test_assert(chMemIsPointersArrayWithinX(&whole, pointers,
+                                       SIZE_MAX) == sizeof pointers,
+            "maximum pointer budget rejected");
+test_assert(chMemIsPointersArrayWithinX(&whole, &pointers[1],
+                                       sizeof (void *)) == sizeof (void *),
+            "empty whole-space pointer array rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A missing NULL pointer is rejected at the byte
+                  budget without reading beyond the backing array.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers[1] = text;
+test_assert(chMemIsPointersArrayWithinX(&whole, pointers,
+                                       sizeof pointers) == 0U,
+            "unterminated whole-space pointer array accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Whole-space and address-zero queries</value>
+          </brief>
+          <description>
+            <value>Address zero is a valid range-query value, while zero
+              size denotes the whole space only when the address is zero.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[memory_area_t areas[2] = {
+  {NULL, 0U},
+  {(uint8_t *)-1, 0U}
+};]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A whole-space table entry contains the whole
+                  space and the first and last addressable bytes.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsSpaceContainedX(areas, NULL, 0U),
+            "whole-space query rejected");
+test_assert(chMemIsSpaceContainedX(areas, NULL, 1U),
+            "address-zero query rejected");
+test_assert(chMemIsSpaceContainedX(areas, (void *)UINTPTR_MAX, 1U),
+            "last-address query rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Zero size with a nonzero base is not a whole-space
+                  query, and a range crossing the address limit is rejected.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(!chMemIsSpaceContainedX(areas, &area_buffer[0], 0U),
+            "nonzero base with zero size accepted");
+test_assert(!chMemIsSpaceContainedX(areas, (void *)UINTPTR_MAX, 2U),
+            "wrapped query accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A finite area at address zero contains that byte
+                  but cannot contain the whole address space.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[areas[0].size = 1U;
+test_assert(chMemIsSpaceContainedX(areas, NULL, 1U),
+            "finite address-zero query rejected");
+test_assert(!chMemIsSpaceContainedX(areas, NULL, 0U),
+            "whole-space query accepted by finite area");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>System address-zero queries</value>
+          </brief>
+          <description>
+            <value>Enabled read/write wrappers accept address-zero queries
+              and use the configured permission tables.</value>
+          </description>
+          <condition><value>CH_CFG_USE_MEMCHECKS == TRUE</value></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Whole-space queries agree with the configured
+                  readable and writable area tables.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsSpaceReadableX(NULL, 0U, 1U) ==
+            chMemIsSpaceContainedX(__ch_mem_readable_areas, NULL, 0U),
+            "whole-space readable query mismatch");
+test_assert(chMemIsSpaceWritableX(NULL, 0U, 1U) ==
+            chMemIsSpaceContainedX(__ch_mem_writable_areas, NULL, 0U),
+            "whole-space writable query mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Single-byte address-zero queries agree with the
+                  configured readable and writable area tables.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsSpaceReadableX(NULL, 1U, 1U) ==
+            chMemIsSpaceContainedX(__ch_mem_readable_areas, NULL, 1U),
+            "address-zero readable query mismatch");
+test_assert(chMemIsSpaceWritableX(NULL, 1U, 1U) ==
+            chMemIsSpaceContainedX(__ch_mem_writable_areas, NULL, 1U),
+            "address-zero writable query mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
   </sequences>
