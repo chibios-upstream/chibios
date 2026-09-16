@@ -1400,7 +1400,6 @@ chThdWait(tp);]]></value>
             <teardown_code>
               <value />
             </teardown_code>
-            F
             <local_variables>
               <value><![CDATA[eventmask_t m;]]></value>
             </local_variables>

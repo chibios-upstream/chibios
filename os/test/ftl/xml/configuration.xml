@@ -51,10 +51,10 @@
       <brief>
         <value>This is a sequence.</value>
       </brief>
-      <details>
+      <description>
         <value>A sequence is a collection of test cases executed in sequence
 sharing static code and data.</value>
-      </details>
+      </description>
       <condition>
         <value />
       </condition>
@@ -68,16 +68,16 @@ sharing static code and data.</value>
           <brief>
             <value>This is a test case.</value>
           </brief>
-          <details>
+          <description>
             <value>A test case is a small program testing a specific feature
 of the system under test. Test cases should not depend on things done in
 previous test cases because those could have failed leaving an unexpected
 state.</value>
-          </details>
+          </description>
           <condition>
             <value />
           </condition>
-          <wrappers>
+          <various_code>
             <setup_code>
               <value><![CDATA[
 /* Put here code that prepares for the test case execution, this code is
@@ -97,13 +97,13 @@ state.</value>
    to not initialize values here.*/
 ]]></value>
             </local_variables>
-          </wrappers>
+          </various_code>
           <steps>
             <step>
-              <details>
+              <description>
                 <value>This is a test case step. A step is an elementary
 piece of code part of a test case.</value>
-              </details>
+              </description>
               <tags>
                 <value />
               </tags>
