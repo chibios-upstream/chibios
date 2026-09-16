@@ -31,6 +31,8 @@ make -j8
 # Or select one target:
 make -j8 -f make/stm32g474re_nucleo64.make mkfs
 make -j8 -f make/stm32g474re_nucleo64.make
+# Or build the H5 target using the same ROMFS:
+make -j8 -f make/stm32h563zi_nucleo144.make
 ```
 
 Requires the normal ARM GCC toolchain and Python 3 for `tools/mkromfs`.
@@ -70,6 +72,23 @@ make -C ../../../os/sb/apps clean
   aligned allocation. No DMA peripherals are used by this demo.
 - The shell and commands execute within that same sandbox region. Larger
   applications, nested shells and editor buffers are limited by its remaining RAM.
+
+## STM32H563ZI Nucleo-144
+
+- Console: ST-LINK virtual COM port, USART3 on PD8/PD9 (AF7), 38400 baud, 8N1.
+  Disable local echo in the terminal emulator, as for the G474 target.
+- LED: the board's green LED blinks while the host runs.
+- Uses the ARMv8-M Mainline alternate port with syscalls and one switched MPU
+  region. The target runs without TrustZone, as in the existing H563 demos.
+- The standard `STM32H563xI.ld` linker script provides 2 MiB of flash and a
+  contiguous 640 KiB SRAM heap/data region; no fixed sandbox partition is needed.
+- The default extra shell heap request is 128 KiB, plus the shell image and
+  environment. ARMv8-M sandbox allocations use 32-byte alignment, without the
+  G474's power-of-two region constraint. Commands and editor buffers share this
+  sandbox allocation; adjust `PORTAB_SHELL_HEAP_SIZE` in the target's `portab.h`
+  if more space is needed.
+- The same ROMFS and `/dev/ttyS0` interface are used on both targets. Each target
+  makefile provides `mkfs`; only one invocation is needed for the shared image.
 
 ## File systems and TTY checks
 
