@@ -47,6 +47,27 @@ os_instance_t nil;
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+/**
+ * @brief   Makes a thread ready after its timeout expires.
+ * @details Repairs the wait object before the thread's union is overwritten
+ *          with the timeout message. The caller must hold the system lock.
+ *
+ * @param[in] tp        pointer to the thread
+ */
+static void nil_ready_timeout(thread_t *tp) {
+
+  if (NIL_THD_IS_WTQUEUE(tp)) {
+    tp->u1.tqp->cnt++;
+  }
+  else if (NIL_THD_IS_SUSPENDED(tp)) {
+    *tp->u1.trp = NULL;
+  }
+  else {
+    /* No wait object to update.*/
+  }
+  (void) chSchReadyI(tp, MSG_TIMEOUT);
+}
+
 /*===========================================================================*/
 /* Module interrupt handlers.                                                */
 /*===========================================================================*/
@@ -351,8 +372,16 @@ void chSysHalt(const char *reason) {
 
 /**
  * @brief   Time management handler.
- * @note    This handler has to be invoked by a periodic ISR in order to
- *          reschedule the waiting threads.
+ * @note    Invoked by the periodic tick or tickless alarm ISR to process
+ *          thread timeouts.
+ * @note    In tickless mode the system timer frequency and interrupt latency
+ *          must allow alarm programming to finish before the selected deadline.
+ *          This includes time spent in higher-priority interrupts and the
+ *          timeout scan. Consecutive deadlines can be only one tick apart.
+ * @note    Missed alarm deadlines are diagnosed when assertions are enabled;
+ *          no recovery is attempted. The timing requirement also applies with
+ *          assertions disabled. Delays of a full counter cycle or more cannot
+ *          be detected by the modular time comparison.
  *
  * @iclass
  */
@@ -371,17 +400,7 @@ void chSysTimerHandlerI(void) {
 
       /* Did the timer reach zero?*/
       if (--tp->timeout == (sysinterval_t)0) {
-        /* Timeout on queues/semaphores requires a special handling because
-           the counter must be incremented.*/
-        /*lint -save -e9013 [15.7] There is no else because it is not needed.*/
-        if (NIL_THD_IS_WTQUEUE(tp)) {
-          tp->u1.tqp->cnt++;
-        }
-        else if (NIL_THD_IS_SUSPENDED(tp)) {
-          *tp->u1.trp = NULL;
-        }
-        /*lint -restore*/
-        (void) chSchReadyI(tp, MSG_TIMEOUT);
+        nil_ready_timeout(tp);
       }
     }
     /* Lock released in order to give a preemption chance on those
@@ -392,9 +411,10 @@ void chSysTimerHandlerI(void) {
   } while (tp < &nil.threads[CH_CFG_MAX_THREADS]);
 #else
   thread_t *tp = &nil.threads[0];
+  systime_t nexttime = port_timer_get_alarm();
   sysinterval_t next = (sysinterval_t)0;
 
-  chDbgAssert(nil.nexttime == port_timer_get_alarm(), "time mismatch");
+  chDbgAssert(nil.started, "alarm not started");
 
   do {
     sysinterval_t timeout = tp->timeout;
@@ -403,25 +423,15 @@ void chSysTimerHandlerI(void) {
     if (timeout > (sysinterval_t)0) {
 
       chDbgAssert(!NIL_THD_IS_READY(tp), "is ready");
-      chDbgAssert(timeout >= chTimeDiffX(nil.lasttime, nil.nexttime),
+      chDbgAssert(timeout >= chTimeDiffX(nil.lasttime, nexttime),
                   "skipped one");
 
       /* The volatile field is updated once, here.*/
-      timeout -= chTimeDiffX(nil.lasttime, nil.nexttime);
+      timeout -= chTimeDiffX(nil.lasttime, nexttime);
       tp->timeout = timeout;
 
       if (timeout == (sysinterval_t)0) {
-        /* Timeout on thread queues requires a special handling because the
-           counter must be incremented.*/
-        if (NIL_THD_IS_WTQUEUE(tp)) {
-          tp->u1.tqp->cnt++;
-        }
-        else {
-          if (NIL_THD_IS_SUSPENDED(tp)) {
-            *tp->u1.trp = NULL;
-          }
-        }
-        (void) chSchReadyI(tp, MSG_TIMEOUT);
+        nil_ready_timeout(tp);
       }
       else {
         if (timeout <= (sysinterval_t)(next - (sysinterval_t)1)) {
@@ -437,14 +447,16 @@ void chSysTimerHandlerI(void) {
     chSysLockFromISR();
   } while (tp < &nil.threads[CH_CFG_MAX_THREADS]);
 
-  nil.lasttime = nil.nexttime;
+  nil.lasttime = nexttime;
   if (next > (sysinterval_t)0) {
-    nil.nexttime = chTimeAddX(nil.nexttime, next);
-    port_timer_set_alarm(nil.nexttime);
+    port_timer_set_alarm(chTimeAddX(nexttime, next));
+    chDbgAssert(chTimeDiffX(nexttime, chVTGetSystemTimeX()) < next,
+                "alarm deadline skipped");
   }
   else {
     /* No tick event needed.*/
     port_timer_stop_alarm();
+    nil.started = false;
   }
 #endif
 }
@@ -656,6 +668,9 @@ void chSchRescheduleS(void) {
  * @details The thread goes into a sleeping state, if it is not awakened
  *          explicitly within the specified system time then it is forcibly
  *          awakened with a @p MSG_TIMEOUT low level message.
+ * @note    In tickless mode alarm programming must complete before the selected
+ *          deadline, including when rebasing existing waits. See the timing
+ *          requirements documented in @p chSysTimerHandlerI().
  *
  * @param[in] newstate  the new thread state or a semaphore pointer
  * @param[in] timeout   the number of ticks before the operation times out.
@@ -679,6 +694,7 @@ msg_t chSchGoSleepTimeoutS(tstate_t newstate, sysinterval_t timeout) {
 
 #if CH_CFG_ST_TIMEDELTA > 0
   if (timeout != TIME_INFINITE) {
+    systime_t now = chVTGetSystemTimeX();
     systime_t abstime;
 
     /* TIMEDELTA makes sure to have enough time to reprogram the timer
@@ -688,19 +704,59 @@ msg_t chSchGoSleepTimeoutS(tstate_t newstate, sysinterval_t timeout) {
     }
 
     /* Absolute time of the timeout event.*/
-    abstime = chTimeAddX(chVTGetSystemTimeX(), timeout);
+    abstime = chTimeAddX(now, timeout);
 
-    if (nil.lasttime == nil.nexttime) {
-      /* Special case, first thread asking for a timeout.*/
+    if (!nil.started) {
+      /* First timed wait: both the deadline and its accounting origin
+         must use the same counter sample, even after a long idle period.*/
+      nil.lasttime = now;
       port_timer_start_alarm(abstime);
-      nil.nexttime = abstime;
+      chDbgAssert(chTimeDiffX(now, chVTGetSystemTimeX()) < timeout,
+                  "alarm deadline skipped");
+      nil.started = true;
     }
     else {
-      /* Special case, there are already other threads with a timeout
-         activated, evaluating the order.*/
-      if (chTimeIsInRangeX(abstime, nil.lasttime, nil.nexttime)) {
+      /* A full-range interval may not fit relative to the old origin.
+         Rebase existing waits only in this case, before storing the new one.*/
+      if (chTimeDiffX(nil.lasttime, abstime) < timeout) {
+        sysinterval_t elapsed = chTimeDiffX(nil.lasttime, now);
+        sysinterval_t next = timeout;
+
+        ntp = nil.threads;
+        do {
+          sysinterval_t remaining = ntp->timeout;
+
+          if (remaining > (sysinterval_t)0) {
+            if (remaining <= elapsed) {
+              nil_ready_timeout(ntp);
+            }
+            else {
+              remaining -= elapsed;
+              ntp->timeout = remaining;
+              if (remaining < next) {
+                next = remaining;
+              }
+            }
+          }
+          ntp++;
+        } while (ntp < &nil.threads[CH_CFG_MAX_THREADS]);
+
+        nil.lasttime = now;
+        /* Restarting also clears any pending alarm from the old origin.
+           It must not account the new waits before their deadline.*/
+        port_timer_stop_alarm();
+        port_timer_start_alarm(chTimeAddX(now, next));
+        chDbgAssert(chTimeDiffX(now, chVTGetSystemTimeX()) < next,
+                    "alarm deadline skipped");
+      }
+      else if (chTimeIsInRangeX(abstime, nil.lasttime,
+                              port_timer_get_alarm())) {
         port_timer_set_alarm(abstime);
-        nil.nexttime = abstime;
+        chDbgAssert(chTimeDiffX(now, chVTGetSystemTimeX()) < timeout,
+                    "alarm deadline skipped");
+      }
+      else {
+        /* The existing alarm is still the earliest deadline.*/
       }
     }
 
