@@ -958,6 +958,9 @@ msg_t chThdWait(thread_t *tp) {
  */
 msg_t chThdSuspendTimeoutS(thread_reference_t *trp, sysinterval_t timeout) {
 
+  chDbgCheckClassS();
+  chDbgCheck(trp != NULL);
+
   chDbgAssert(*trp == NULL, "not NULL");
 
   if (TIME_IMMEDIATE == timeout) {
@@ -980,6 +983,9 @@ msg_t chThdSuspendTimeoutS(thread_reference_t *trp, sysinterval_t timeout) {
  * @iclass
  */
 void chThdResumeI(thread_reference_t *trp, msg_t msg) {
+
+  chDbgCheckClassI();
+  chDbgCheck(trp != NULL);
 
   if (*trp != NULL) {
     thread_reference_t tr = *trp;
@@ -1086,6 +1092,9 @@ msg_t chThdEnqueueTimeoutS(threads_queue_t *tqp, sysinterval_t timeout) {
  */
 void chThdDoDequeueNextI(threads_queue_t *tqp, msg_t msg) {
   thread_t *tp;
+
+  chDbgCheckClassI();
+  chDbgCheck(tqp != NULL);
 
   chDbgAssert(tqp->cnt < (cnt_t)0, "empty queue");
 

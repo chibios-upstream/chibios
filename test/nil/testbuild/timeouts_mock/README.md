@@ -28,7 +28,8 @@ sources with a deterministic port boundary. It controls the counter,
 compare register, register-write latency and nested-ISR interleavings.
 Context switches are intercepted; this is not a hardware timing simulation.
 The shell runner builds in a temporary directory and removes its executable
-on exit. Host GCC (or a compatible compiler selected using `CC`) is required.
+on exit. Host GCC (or a compatible compiler selected using `CC`) and GNU Make
+are required.
 
 The matrix covers 16/32-bit time, periodic/tickless operation (delta 0/2/10),
 and assertions enabled/disabled, with parameter and state checks enabled.
@@ -79,9 +80,33 @@ resets the kernel model before continuing.
 
 The former recovery-only expectations (automatically handling arbitrary scan
 and write delays, retries, and 8,000 additional mixed-delay schedules) are not
-part of this contract. That earlier implementation and fixture remain in
-`os/rt/NIL-1-2-FIRST-FIX.patch` for comparison; current tests exercise diagnostic
-detection instead of claiming recovery from missed deadlines.
+part of this contract. Current tests exercise diagnostic detection instead of
+claiming recovery from missed deadlines.
+
+## Time helpers, context diagnostics and source selection
+
+The same runner also covers NIL-3 through NIL-5:
+
+- `chTimeAddX()` wrapping is checked as a direct expression and as a wider
+  static initializer, so destination narrowing cannot hide an incorrect sum.
+  Tests also check the result type, constant-expression initialization and
+  single evaluation of both arguments.
+- S-class entry checks are tested from an unlocked thread and a locked ISR.
+  I-class entry checks are tested from unlocked thread/ISR contexts. Immediate
+  suspension and empty-reference resume are included. After every expected
+  halt the fixture verifies that references, queue counts, thread state,
+  timeouts and scheduler selection were not modified.
+- NULL reference/queue parameters are rejected before dereferencing. These
+  context/parameter tests add 20 intercepted halts per configuration, 240 in
+  total. Parameter and state checking remain enabled independently of the
+  assertion setting. The full suite therefore intercepts 384 expected halts
+  when combined with the 144 deadline-skip probes above.
+- Valid I-class resume/dequeue calls retain deferred scheduling; S-class
+  wakeup/resume still reschedule. Immediate suspension and empty-reference
+  resume remain valid in their documented contexts.
+- `sources.mk` parses the real `os/nil/nil.mk` with smart build both enabled
+  and disabled and verifies the four selected kernel sources. This catches
+  source-list continuation regressions without needing an ARM compiler.
 
 These tests are hand-written and independent of the generated NIL suite;
 do not change the generated suite sources to maintain this fixture.

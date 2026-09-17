@@ -12,6 +12,17 @@
   }                                                                        \
 } while (false)
 
+/* Expected diagnostics must not enter the kernel's infinite halt loop. */
+#define EXPECT_HALT(call, caller) do {                                     \
+  expected_halt = (caller);                                                \
+  if (setjmp(halt_escape) == 0) {                                           \
+    call;                                                                 \
+    CHECK(false);                                                         \
+  }                                                                       \
+  expected_halt = NULL;                                                    \
+  trap_switch = false;                                                     \
+} while (false)
+
 static jmp_buf escape;
 static jmp_buf halt_escape;
 static const char *expected_halt;
@@ -226,20 +237,151 @@ static void nested_cancel(void) {
   CHECK(nil.threads[1].u1.msg == MSG_OK);
 }
 
+static void time_addition(void) {
+  /* A static, wider initializer also checks constant-expression support
+     without hiding a missing cast through an assignment to systime_t. */
+  static const uint64_t wrapped = chTimeAddX(TIME_MAX_SYSTIME, 1U);
+  systime_t base = TIME_MAX_SYSTIME;
+  sysinterval_t interval = 1;
+
+  CHECK(wrapped == 0);
+  CHECK(chTimeAddX(TIME_MAX_SYSTIME, 1U) == 0);
+  CHECK(chTimeAddX(TIME_MAX_SYSTIME - 5U, 10U) == 4U);
+  CHECK(sizeof(chTimeAddX(0, 0)) == sizeof(systime_t));
+  CHECK(chTimeAddX(base--, interval++) == 0);
+  CHECK(base == TIME_MAX_SYSTIME - 1U && interval == 2);
+}
+
+static void sclass_diagnostics(unsigned isr) {
+  /* Static objects retain defined values across the diagnostic longjmp,
+     including if a regression mutates them before halting. */
+  static thread_reference_t ref;
+  thread_t *tp = &nil.threads[0];
+
+  reset();
+  ref = NULL;
+  nil.isr_cnt = (cnt_t)isr;
+  nil.lock_cnt = (cnt_t)isr;
+  EXPECT_HALT((void)chThdSuspendTimeoutS(&ref, TIME_IMMEDIATE), "SV#11");
+  CHECK(ref == NULL && nil.current->u1.trp == NULL);
+  EXPECT_HALT((void)chThdSuspendTimeoutS(&ref, TIME_INFINITE), "SV#11");
+  CHECK(ref == NULL && nil.current->u1.trp == NULL);
+  CHECK(NIL_THD_IS_READY(nil.current) && alarm_writes == 0);
+
+  reset();
+  tp->state = NIL_STATE_SLEEPING;
+  tp->timeout = 20;
+  tp->u1.msg = 55;
+  nil.isr_cnt = (cnt_t)isr;
+  nil.lock_cnt = (cnt_t)isr;
+  EXPECT_HALT(chSchWakeupS(tp, 73), "SV#11");
+  CHECK(NIL_THD_IS_SLEEPING(tp) && tp->timeout == 20 && tp->u1.msg == 55);
+  CHECK(nil.next == nil.current);
+
+  reset();
+  ref = tp;
+  tp->state = NIL_STATE_SUSPENDED;
+  tp->timeout = 20;
+  tp->u1.trp = &ref;
+  nil.isr_cnt = (cnt_t)isr;
+  nil.lock_cnt = (cnt_t)isr;
+  EXPECT_HALT(chThdResumeS(&ref, 73), "SV#11");
+  CHECK(ref == tp && tp->u1.trp == &ref);
+  CHECK(NIL_THD_IS_SUSPENDED(tp) && tp->timeout == 20);
+  CHECK(nil.next == nil.current);
+  ref = NULL;
+  EXPECT_HALT(chThdResumeS(&ref, 73), "SV#11");
+  CHECK(ref == NULL && nil.next == nil.current);
+}
+
+static void iclass_diagnostics(unsigned isr) {
+  static thread_reference_t ref;
+  static threads_queue_t q;
+  thread_t *tp = &nil.threads[0];
+
+  reset();
+  ref = NULL;
+  nil.isr_cnt = (cnt_t)isr;
+  nil.lock_cnt = 0;
+  EXPECT_HALT(chThdResumeI(&ref, 73), "SV#10");
+  CHECK(ref == NULL);
+  ref = tp;
+  tp->state = NIL_STATE_SUSPENDED;
+  tp->timeout = 20;
+  tp->u1.trp = &ref;
+  EXPECT_HALT(chThdResumeI(&ref, 73), "SV#10");
+  CHECK(ref == tp && tp->u1.trp == &ref);
+  CHECK(NIL_THD_IS_SUSPENDED(tp) && tp->timeout == 20);
+  CHECK(nil.next == nil.current);
+
+  reset();
+  q.cnt = -1;
+  tp->state = NIL_STATE_WTQUEUE;
+  tp->timeout = 20;
+  tp->u1.tqp = &q;
+  nil.isr_cnt = (cnt_t)isr;
+  nil.lock_cnt = 0;
+  EXPECT_HALT(chThdDoDequeueNextI(&q, 73), "SV#10");
+  CHECK(q.cnt == -1 && tp->u1.tqp == &q);
+  CHECK(NIL_THD_IS_WTQUEUE(tp) && tp->timeout == 20);
+  CHECK(nil.next == nil.current);
+}
+
+static void parameter_diagnostics(void) {
+
+  reset();
+  EXPECT_HALT((void)chThdSuspendTimeoutS(NULL, TIME_IMMEDIATE),
+              "chThdSuspendTimeoutS");
+  EXPECT_HALT((void)chThdSuspendTimeoutS(NULL, TIME_INFINITE),
+              "chThdSuspendTimeoutS");
+  EXPECT_HALT(chThdResumeI(NULL, 73), "chThdResumeI");
+  EXPECT_HALT(chThdDoDequeueNextI(NULL, 73), "chThdDoDequeueNextI");
+}
+
+static void valid_contexts(void) {
+  thread_reference_t ref = NULL;
+  threads_queue_t q = {0};
+
+  reset();
+  CHECK(chThdSuspendTimeoutS(&ref, TIME_IMMEDIATE) == MSG_TIMEOUT);
+  CHECK(ref == NULL && NIL_THD_IS_READY(nil.current));
+  chThdResumeI(&ref, 73);
+  nil.isr_cnt = 1;
+  chThdResumeI(&ref, 73);
+  CHECK(ref == NULL && nil.next == nil.current);
+
+  reset();
+  arm(0, 0, 20, NIL_STATE_SUSPENDED, &ref);
+  nil.isr_cnt = 1;
+  chThdResumeI(&ref, 73);
+  CHECK(ref == NULL && NIL_THD_IS_READY(&nil.threads[0]));
+  CHECK(nil.current == &nil.threads[CH_CFG_MAX_THREADS]);
+  CHECK(nil.next == &nil.threads[0] && nil.threads[0].u1.msg == 73);
+  nil.isr_cnt = 0;
+  chSchRescheduleS();
+  CHECK(nil.current == &nil.threads[0]);
+
+  reset();
+  arm(0, 0, 20, NIL_STATE_SLEEPING, NULL);
+  chSchWakeupS(&nil.threads[0], 73);
+  CHECK(nil.current == &nil.threads[0] && nil.next == nil.current);
+  CHECK(nil.current->timeout == 0 && nil.current->u1.msg == 73);
+
+  reset();
+  arm(0, 0, 20, NIL_STATE_WTQUEUE, &q);
+  chThdDoDequeueNextI(&q, 73);
+  CHECK(q.cnt == 0 && NIL_THD_IS_READY(&nil.threads[0]));
+  CHECK(nil.current == &nil.threads[CH_CFG_MAX_THREADS]);
+  chSchRescheduleS();
+  CHECK(nil.current == &nil.threads[0] && nil.current->u1.msg == 73);
+}
+
 #if CH_CFG_ST_TIMEDELTA > 0
 /* Expected failures are isolated here, never in the generated board suite.
    With assertions off, verify only that diagnostics are compiled out; the
    deliberately missed deadlines are outside the supported timing contract. */
 #if CH_DBG_ENABLE_ASSERTS == TRUE
-#define EXPECT_SKIP(call, caller) do {                                     \
-  expected_halt = (caller);                                                \
-  if (setjmp(halt_escape) == 0) {                                           \
-    call;                                                                 \
-    CHECK(false);                                                         \
-  }                                                                       \
-  expected_halt = NULL;                                                    \
-  trap_switch = false;                                                     \
-} while (false)
+#define EXPECT_SKIP(call, caller) EXPECT_HALT(call, caller)
 #else
 #define EXPECT_SKIP(call, caller) do { call; } while (false)
 #endif
@@ -627,6 +769,14 @@ int main(int argc, char *argv[]) {
   bool rebase_only = argc == 2 && strcmp(argv[1], "--rebase-only") == 0;
 
   CHECK(argc == 1 || restart_only || rebase_only);
+  time_addition();
+  sclass_diagnostics(0);
+  sclass_diagnostics(1);
+  iclass_diagnostics(0);
+  iclass_diagnostics(1);
+  parameter_diagnostics();
+  CHECK(expected_halts == 20);
+  valid_contexts();
   nominal();
   nested_cancel();
 #if CH_CFG_ST_TIMEDELTA > 0
@@ -654,7 +804,7 @@ int main(int argc, char *argv[]) {
       skipped_alarms(origins[i], 0);
       skipped_alarms(origins[i], 1);
     }
-    CHECK(expected_halts == 36U * CH_DBG_ENABLE_ASSERTS);
+    CHECK(expected_halts == 20U + 36U * CH_DBG_ENABLE_ASSERTS);
   }
 #endif
   printf("PASS: NIL timeouts (%s), %u-bit, delta=%u, assertions=%u, "
