@@ -30,6 +30,9 @@
  *          Allocated OS objects are handled using a reference counter, only
  *          when all references have been released then the object memory is
  *          freed in a pool.<br>
+ * @note    An object can have at most @p FACTORY_MAX_REFERENCES references.
+ *          Acquiring a reference when this limit is reached is a programming
+ *          error, diagnosed when @p CH_DBG_ENABLE_ASSERTS is enabled.
  * @pre     This subsystem requires the @p CH_CFG_USE_MEMCORE and
  *          @p CH_CFG_USE_MEMPOOLS options to be set to @p TRUE. The
  *          option @p CH_CFG_USE_HEAP is also required if the support
@@ -317,6 +320,9 @@ static dyn_element_t *dyn_find_object(const char *name, dyn_list_t *dlp) {
   /* Checking if an object with this name has already been created.*/
   dep = dyn_list_find(name, dlp);
   if (dep != NULL) {
+    chDbgAssert(dep->refs > (ucnt_t)0, "invalid references number");
+    chDbgAssert(dep->refs < FACTORY_MAX_REFERENCES, "too many references");
+
     /* Increasing references counter.*/
     dep->refs++;
   }
@@ -370,6 +376,8 @@ void __factory_init(void) {
 /**
  * @brief   Duplicates an object reference.
  * @note    This function can be used on any kind of dynamic object.
+ * @pre     The object must have fewer than @p FACTORY_MAX_REFERENCES
+ *          references.
  *
  * @param[in] dep       pointer to the element field of the object
  * @return              The duplicated object reference.
@@ -383,6 +391,7 @@ dyn_element_t *chFactoryDuplicateReference(dyn_element_t *dep) {
   FACTORY_LOCK();
 
   chDbgAssert(dep->refs > (ucnt_t)0, "invalid references number");
+  chDbgAssert(dep->refs < FACTORY_MAX_REFERENCES, "too many references");
   dep->refs++;
 
   FACTORY_UNLOCK();
@@ -426,6 +435,8 @@ registered_object_t *chFactoryRegisterObject(const char *name,
 
 /**
  * @brief   Retrieves a registered object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the registered object is returned with the
  *          reference counter increased by one.
  *
@@ -451,6 +462,8 @@ registered_object_t *chFactoryFindObject(const char *name) {
 
 /**
  * @brief   Retrieves a registered object by pointer.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the registered object is returned with the
  *          reference counter increased by one.
  *
@@ -471,6 +484,10 @@ registered_object_t *chFactoryFindObjectByPointer(void *objp) {
 
   while ((void *)rop != (void *)&ch_factory.obj_list) {
     if (rop->objp == objp) {
+      chDbgAssert(rop->element.refs > (ucnt_t)0, "invalid references number");
+      chDbgAssert(rop->element.refs < FACTORY_MAX_REFERENCES,
+                  "too many references");
+
       rop->element.refs++;
 
       FACTORY_UNLOCK();
@@ -558,6 +575,8 @@ dyn_buffer_t *chFactoryCreateBuffer(const char *name, size_t size) {
 
 /**
  * @brief   Retrieves a dynamic buffer object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the dynamic buffer object is returned with the
  *          reference counter increased by one.
  *
@@ -643,6 +662,8 @@ dyn_semaphore_t *chFactoryCreateSemaphore(const char *name, cnt_t n) {
 
 /**
  * @brief   Retrieves a dynamic semaphore object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the dynamic semaphore object is returned with the
  *          reference counter increased by one.
  *
@@ -737,6 +758,8 @@ dyn_mailbox_t *chFactoryCreateMailbox(const char *name, size_t n) {
 
 /**
  * @brief   Retrieves a dynamic mailbox object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the dynamic mailbox object is returned with the
  *          reference counter increased by one.
  *
@@ -848,6 +871,8 @@ dyn_objects_fifo_t *chFactoryCreateObjectsFIFO(const char *name,
 
 /**
  * @brief   Retrieves a dynamic "objects FIFO" object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the dynamic "objects FIFO" object is returned with
  *          the reference counter increased by one.
  *
@@ -942,6 +967,8 @@ dyn_pipe_t *chFactoryCreatePipe(const char *name, size_t size) {
 
 /**
  * @brief   Retrieves a dynamic pipe object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the dynamic pipe object is returned with
  *          the reference counter increased by one.
  *

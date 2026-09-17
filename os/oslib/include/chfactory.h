@@ -33,6 +33,12 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   Maximum number of references to a factory object.
+ */
+#define FACTORY_MAX_REFERENCES                                              \
+  ((ucnt_t)-1)
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -167,6 +173,7 @@ typedef struct ch_dyn_element {
   struct ch_dyn_element *next;
   /**
    * @brief   Number of references to this object.
+   * @note    The maximum value is @p FACTORY_MAX_REFERENCES.
    */
   ucnt_t                refs;
 #if (CH_CFG_FACTORY_MAX_NAMES_LENGTH > 0) || defined(__DOXYGEN__)
