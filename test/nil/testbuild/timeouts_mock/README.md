@@ -33,6 +33,8 @@ are required.
 
 The matrix covers 16/32-bit time, periodic/tickless operation (delta 0/2/10),
 and assertions enabled/disabled, with parameter and state checks enabled.
+It runs once with passthrough branch-hint macros and once with port-provided
+compiler hints (24 configurations total). Counts below are per hint mode.
 Cases include:
 
 - Simultaneous expiration, priority selection and S-class rescheduling.
@@ -110,3 +112,16 @@ The same runner also covers NIL-3 through NIL-5:
 
 These tests are hand-written and independent of the generated NIL suite;
 do not change the generated suite sources to maintain this fixture.
+
+## Selection-only scheduling and branch hints
+
+The fixture also checks that `chSchSelectFirst()` updates the selected thread
+without switching, invokes the idle-leave hook exactly once when leaving idle,
+and lets the hook observe the new current thread. Ordinary preemption still
+switches exactly once with the correct incoming/outgoing pair; a no-op
+reschedule invokes neither the switch nor the hook. These checks preserve the
+locked context and exercise both idle-to-thread and thread-to-thread cases.
+
+`likely()` and `unlikely()` are tested with zero, positive and negative inputs
+and side effects, in both passthrough and port-hint configurations. Each
+expression must be evaluated exactly once, preserving its truth value.

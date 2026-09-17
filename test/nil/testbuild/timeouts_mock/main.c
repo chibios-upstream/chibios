@@ -34,6 +34,8 @@ static unsigned alarm_writes, alarms_cleared;
 static sysinterval_t write_cost, scan_cost;
 static void (*nested_irq)(void);
 static semaphore_t *nested_sem;
+static unsigned switch_count, idle_leave_count;
+static thread_t *switched_in, *switched_out, *idle_leave_current;
 const thread_descriptor_t nil_thd_configs[] = {{0}};
 
 void test_halt(const char *reason) {
@@ -49,11 +51,18 @@ void test_halt(const char *reason) {
 
 void port_switch(thread_t *ntp, thread_t *otp) {
 
-  (void)ntp;
-  (void)otp;
+  switch_count++;
+  switched_in = ntp;
+  switched_out = otp;
   if (trap_switch) {
     longjmp(escape, 1);
   }
+}
+
+void test_idle_leave(void) {
+
+  idle_leave_count++;
+  idle_leave_current = nil.current;
 }
 
 systime_t test_time(void) { time_reads++; return now; }
@@ -116,12 +125,82 @@ static void reset(void) {
   write_cost = scan_cost = 0;
   time_reads = 0;
   nested_irq = NULL;
+  switch_count = idle_leave_count = 0U;
+  switched_in = switched_out = idle_leave_current = NULL;
   nil.current = nil.next = &nil.threads[CH_CFG_MAX_THREADS];
   nil.current->state = NIL_STATE_READY;
   nil.lock_cnt = 1;
 #if CH_CFG_ST_TIMEDELTA > 0
   CHECK(!nil.started);
 #endif
+}
+
+static void scheduler_selection(void) {
+  thread_t *selected;
+
+  /* Selecting from idle updates the scheduler and hook, but does not switch. */
+  reset();
+  nil.next = &nil.threads[1];
+  nil.next->state = NIL_STATE_READY;
+  CHECK(chSchIsPreemptionRequired());
+  selected = chSchSelectFirst();
+  CHECK(selected == &nil.threads[1]);
+  CHECK(nil.current == selected && nil.next == selected);
+  CHECK(idle_leave_count == 1U && idle_leave_current == selected);
+  CHECK(switch_count == 0U);
+  CHECK(nil.lock_cnt == 1 && nil.isr_cnt == 0);
+  CHECK(!chSchIsPreemptionRequired());
+
+  /* Thread-to-thread selection does not invoke the idle-leave hook. */
+  nil.next = &nil.threads[0];
+  nil.next->state = NIL_STATE_READY;
+  selected = chSchSelectFirst();
+  CHECK(selected == &nil.threads[0] && nil.current == selected);
+  CHECK(NIL_THD_IS_READY(&nil.threads[1]));
+  CHECK(idle_leave_count == 1U && switch_count == 0U);
+
+  /* The existing preemption entry point still switches exactly once. */
+  reset();
+  nil.next = &nil.threads[1];
+  nil.next->state = NIL_STATE_READY;
+  chSchDoPreemption();
+  CHECK(nil.current == &nil.threads[1]);
+  CHECK(switched_in == nil.current);
+  CHECK(switched_out == &nil.threads[CH_CFG_MAX_THREADS]);
+  CHECK(switch_count == 1U && idle_leave_count == 1U);
+  CHECK(idle_leave_current == nil.current);
+  CHECK(nil.lock_cnt == 1 && nil.isr_cnt == 0);
+
+  nil.next = &nil.threads[0];
+  nil.next->state = NIL_STATE_READY;
+  chSchDoPreemption();
+  CHECK(nil.current == &nil.threads[0]);
+  CHECK(switched_in == nil.current && switched_out == &nil.threads[1]);
+  CHECK(switch_count == 2U && idle_leave_count == 1U);
+
+  /* No reschedule means no selection, no switch, and no additional hook. */
+  chSchRescheduleS();
+  CHECK(switch_count == 2U && idle_leave_count == 1U);
+}
+
+static void branch_hints(void) {
+  int value;
+
+  value = 0;
+  CHECK(!likely(value++));
+  CHECK(value == 1);
+  CHECK(likely(value++));
+  CHECK(value == 2);
+  value = -1;
+  CHECK(likely(value++));
+  CHECK(value == 0);
+  CHECK(!unlikely(value++));
+  CHECK(value == 1);
+  CHECK(unlikely(value++));
+  CHECK(value == 2);
+  value = -1;
+  CHECK(unlikely(value++));
+  CHECK(value == 0);
 }
 
 static void arm(unsigned slot, systime_t time, sysinterval_t delay,
@@ -769,6 +848,8 @@ int main(int argc, char *argv[]) {
   bool rebase_only = argc == 2 && strcmp(argv[1], "--rebase-only") == 0;
 
   CHECK(argc == 1 || restart_only || rebase_only);
+  scheduler_selection();
+  branch_hints();
   time_addition();
   sclass_diagnostics(0);
   sclass_diagnostics(1);
@@ -808,9 +889,10 @@ int main(int argc, char *argv[]) {
   }
 #endif
   printf("PASS: NIL timeouts (%s), %u-bit, delta=%u, assertions=%u, "
-         "expected halts=%u\n",
+         "port hints=%u, expected halts=%u\n",
          restart_only ? "restart-only" : rebase_only ? "rebase-only" : "full",
          CH_CFG_ST_RESOLUTION,
-         CH_CFG_ST_TIMEDELTA, CH_DBG_ENABLE_ASSERTS, expected_halts);
+         CH_CFG_ST_TIMEDELTA, CH_DBG_ENABLE_ASSERTS,
+         TEST_PORT_BRANCH_HINTS, expected_halts);
   return 0;
 }

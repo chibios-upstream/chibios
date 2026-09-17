@@ -632,6 +632,27 @@ bool chSchIsPreemptionRequired(void) {
 }
 
 /**
+ * @brief   Selects the next runnable thread without switching context.
+ * @note    Not a user function, it is meant to be invoked by the scheduler
+ *          itself or from within the port layer.
+ * @pre     The system must be locked and preemption must be required.
+ *
+ * @return              The pointer to the thread being switched in.
+ *
+ * @special
+ */
+thread_t *chSchSelectFirst(void) {
+  thread_t *otp = nil.current;
+
+  nil.current = nil.next;
+  if (otp == &nil.threads[CH_CFG_MAX_THREADS]) {
+    CH_CFG_IDLE_LEAVE_HOOK();
+  }
+
+  return nil.current;
+}
+
+/**
  * @brief   Switches to the first thread on the runnable queue.
  * @note    Not a user function, it is meant to be invoked by the scheduler
  *          itself or from within the port layer.
@@ -640,12 +661,10 @@ bool chSchIsPreemptionRequired(void) {
  */
 void chSchDoPreemption(void) {
   thread_t *otp = nil.current;
+  thread_t *ntp;
 
-  nil.current = nil.next;
-  if (otp == &nil.threads[CH_CFG_MAX_THREADS]) {
-    CH_CFG_IDLE_LEAVE_HOOK();
-  }
-  port_switch(nil.next, otp);
+  ntp = chSchSelectFirst();
+  port_switch(ntp, otp);
 }
 
 /**

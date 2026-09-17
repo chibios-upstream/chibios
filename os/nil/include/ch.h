@@ -625,6 +625,32 @@ struct nil_os_instance {
 #define __CH_STRINGIFY(a) #a
 
 /**
+ * @brief   Marks a boolean expression as likely true.
+ * @note    No namespace prefix for this macro because it is commonly defined
+ *          by operating systems.
+ *
+ * @param[in] x         a valid expression
+ */
+#if defined(PORT_LIKELY) || defined(__DOXYGEN__)
+#define likely(x)       PORT_LIKELY(x)
+#else
+#define likely(x)       x
+#endif
+
+/**
+ * @brief   Marks a boolean expression as likely false.
+ * @note    No namespace prefix for this macro because it is commonly defined
+ *          by operating systems.
+ *
+ * @param[in] x         a valid expression
+ */
+#if defined(PORT_UNLIKELY) || defined(__DOXYGEN__)
+#define unlikely(x)     PORT_UNLIKELY(x)
+#else
+#define unlikely(x)     x
+#endif
+
+/**
  * @name    Threads tables definition macros
  * @{
  */
@@ -1427,6 +1453,7 @@ extern "C" {
   void chSysRestoreStatusX(syssts_t sts);
   thread_t *chSchReadyI(thread_t *tp, msg_t msg);
   bool chSchIsPreemptionRequired(void);
+  thread_t *chSchSelectFirst(void);
   void chSchDoPreemption(void);
   void chSchRescheduleS(void);
   msg_t chSchGoSleepTimeoutS(tstate_t newstate, sysinterval_t timeout);

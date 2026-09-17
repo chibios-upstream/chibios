@@ -1,13 +1,16 @@
-/* Standalone configuration for the deterministic NIL timeout tests. */
+/* Standalone configuration for the ARMv8-M-ML-ALT NIL link test.
+   Hand-written fixture, independent of generated demo configurations. */
 #ifndef CHCONF_H
 #define CHCONF_H
 
 #define _CHIBIOS_NIL_CONF_
 #define _CHIBIOS_NIL_CONF_VER_4_0_
-#define CH_CFG_MAX_THREADS                  4
+#define CH_CFG_MAX_THREADS                  1
 #define CH_CFG_AUTOSTART_THREADS            TRUE
+#define CH_CFG_ST_RESOLUTION                32
 #define CH_CFG_ST_FREQUENCY                 1000
-/* Resolution, time delta and assertion setting are supplied by the runner. */
+#define CH_CFG_ST_TIMEDELTA                 0
+#define CH_CFG_SMP_MODE                     FALSE
 #define CH_CFG_USE_WAITEXIT                 TRUE
 #define CH_CFG_USE_SEMAPHORES               TRUE
 #define CH_CFG_USE_MUTEXES                  FALSE
@@ -34,16 +37,14 @@
 #define CH_DBG_STATISTICS                   FALSE
 #define CH_DBG_SYSTEM_STATE_CHECK           TRUE
 #define CH_DBG_ENABLE_CHECKS                TRUE
-#define CH_DBG_ENABLE_STACK_CHECK           FALSE
+#define CH_DBG_ENABLE_ASSERTS               TRUE
+#define CH_DBG_ENABLE_STACK_CHECK           TRUE
 #define CH_CFG_SYSTEM_INIT_HOOK()           do { } while (false)
 #define CH_CFG_THREAD_EXT_FIELDS
 #define CH_CFG_THREAD_EXT_INIT_HOOK(tp)     do { (void)(tp); } while (false)
-#define CH_CFG_THREAD_EXIT_HOOK(tp)         do { (void)(tp); } while (false)
+#define CH_CFG_THREAD_EXIT_HOOK(tp)          do { (void)(tp); } while (false)
 #define CH_CFG_IDLE_ENTER_HOOK()            do { } while (false)
-#define CH_CFG_IDLE_LEAVE_HOOK()            test_idle_leave()
-#define CH_CFG_SYSTEM_HALT_HOOK(reason)     test_halt(reason)
-
-void test_halt(const char *reason);
-void test_idle_leave(void);
+#define CH_CFG_IDLE_LEAVE_HOOK()            do { } while (false)
+#define CH_CFG_SYSTEM_HALT_HOOK(reason)      do { (void)(reason); } while (false)
 
 #endif /* CHCONF_H */

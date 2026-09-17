@@ -15,22 +15,25 @@ for smart in yes no; do
     CHIBIOS="$root_dir" CHCONFDIR="$mock_dir/cfg" USE_SMART_BUILD="$smart" check
 done
 
-for assertions in TRUE FALSE; do
-  for bits in 16 32; do
-    for delta in 0 2 10; do
-      "$cc" -std=c99 -O2 -Wall -Wextra -Werror \
-        -ffunction-sections -fdata-sections \
-        -DCH_DBG_ENABLE_ASSERTS="$assertions" \
-        -DCH_CFG_ST_RESOLUTION="$bits" -DCH_CFG_ST_TIMEDELTA="$delta" \
-        -I "$mock_dir/cfg" -I "$mock_dir" \
-        -I "$root_dir/os/nil/include" \
-        -I "$root_dir/os/common/ports/SIMX86_64/compilers/GCC" \
-        -I "$root_dir/os/common/portability/GCC" \
-        -I "$root_dir/os/license" -I "$root_dir/os/oslib/include" \
-        "$root_dir/os/nil/src/ch.c" "$root_dir/os/nil/src/chsem.c" \
-        "$root_dir/os/nil/src/chevt.c" "$root_dir/os/nil/src/chmsg.c" \
-        "$mock_dir/main.c" -Wl,--gc-sections -o "$build_dir/timeouts"
-      "$build_dir/timeouts" "$@"
+for hints in FALSE TRUE; do
+  for assertions in TRUE FALSE; do
+    for bits in 16 32; do
+      for delta in 0 2 10; do
+        "$cc" -std=c99 -O2 -Wall -Wextra -Werror \
+          -ffunction-sections -fdata-sections \
+          -DCH_DBG_ENABLE_ASSERTS="$assertions" \
+          -DTEST_PORT_BRANCH_HINTS="$hints" \
+          -DCH_CFG_ST_RESOLUTION="$bits" -DCH_CFG_ST_TIMEDELTA="$delta" \
+          -I "$mock_dir/cfg" -I "$mock_dir" \
+          -I "$root_dir/os/nil/include" \
+          -I "$root_dir/os/common/ports/SIMX86_64/compilers/GCC" \
+          -I "$root_dir/os/common/portability/GCC" \
+          -I "$root_dir/os/license" -I "$root_dir/os/oslib/include" \
+          "$root_dir/os/nil/src/ch.c" "$root_dir/os/nil/src/chsem.c" \
+          "$root_dir/os/nil/src/chevt.c" "$root_dir/os/nil/src/chmsg.c" \
+          "$mock_dir/main.c" -Wl,--gc-sections -o "$build_dir/timeouts"
+        "$build_dir/timeouts" "$@"
+      done
     done
   done
 done

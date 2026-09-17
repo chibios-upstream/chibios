@@ -2,6 +2,11 @@
 #ifndef CHCORE_H
 #define CHCORE_H
 
+#if TEST_PORT_BRANCH_HINTS == TRUE
+#define PORT_LIKELY(x) CC_LIKELY(x)
+#define PORT_UNLIKELY(x) CC_UNLIKELY(x)
+#endif
+
 typedef uint64_t stkline_t;
 struct port_context { void *sp; };
 #define PORT_SUPPORTS_RT FALSE
