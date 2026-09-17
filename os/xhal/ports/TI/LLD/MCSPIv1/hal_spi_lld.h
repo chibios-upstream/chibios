@@ -157,9 +157,45 @@
 #define AM67_SPI_MCSPI0_IRQ_PRIORITY    0x8U
 #endif
 
+/**
+ * @brief   Bus speed of the default configuration, in Hz.
+ */
+#if !defined(AM67_SPI_DEFAULT_SPEED) || defined(__DOXYGEN__)
+#define AM67_SPI_DEFAULT_SPEED          1000000U
+#endif
+
+/**
+ * @brief   Clock mode (0..3) of the default configuration.
+ */
+#if !defined(AM67_SPI_DEFAULT_CLOCK_MODE) || defined(__DOXYGEN__)
+#define AM67_SPI_DEFAULT_CLOCK_MODE     0U
+#endif
+
+/**
+ * @brief   Chip select channel (0..3) of the default configuration.
+ */
+#if !defined(AM67_SPI_DEFAULT_CS_CHANNEL) || defined(__DOXYGEN__)
+#define AM67_SPI_DEFAULT_CS_CHANNEL     0U
+#endif
+
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
+
+/**
+ * @brief   Driver default configuration, this is configuration zero.
+ * @details Slow, mode 0, chip select 0: the settings a device is most likely
+ *          to tolerate when nothing is known about it yet. The board overrides
+ *          the three @p AM67_SPI_DEFAULT_* settings when its chip select 0 is
+ *          wired to something with different needs.
+ */
+#define SPI_DEFAULT_CONFIGURATION                                           \
+{                                                                           \
+  .mode             = SPI_MODE_FSIZE_8,                                     \
+  .speed            = AM67_SPI_DEFAULT_SPEED,                               \
+  .clock_mode       = AM67_SPI_DEFAULT_CLOCK_MODE,                          \
+  .cs_channel       = AM67_SPI_DEFAULT_CS_CHANNEL                           \
+}
 
 #if (AM67_SPI_USE_MCSPI0 == TRUE) && (AM67_HAS_MCU_MCSPI0 == FALSE)
 #error "MCU_MCSPI0 not present in the selected device"
@@ -197,7 +233,13 @@
   /* False when the module failed to come out of reset (clock gated). Every  \
      entry point that reaches a register checks it: on K3 a read of a        \
      peripheral whose clock is gated is a bus error, not a zero.*/           \
-  bool                      ready;
+  bool                      ready;                                          \
+  /* True from the moment a frame is written to TX until the channel has    \
+     been seen idle again. CHSTAT.EOT reads 0 out of reset and only turns   \
+     1 when a transfer has actually finished, so it cannot be waited on     \
+     unconditionally -- this is how the driver tells "still shifting" from  \
+     "nothing was ever sent".*/                                             \
+  bool                      shift_pending;
 
 /**
  * @brief   Low level fields of the SPI configuration structure.

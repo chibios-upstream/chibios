@@ -35,12 +35,11 @@ static const SIOConfig sio_config = {
 /*
  * SPI configuration for the ICM-20948 on MCSPI0 channel 3 (SPI0_CS3). Mode 3
  * (CPOL=1, CPHA=1) and a conservative 1 MHz -- the datasheet allows up to
- * 7 MHz, but this demo is a WHO_AM_I smoke test, not a throughput test.
- * Confirmed on hardware 2026-08-10 (T3 Gemstone O1): the read below
- * returned 0xEA, the ICM-20948's documented WHO_AM_I.
+ * 7 MHz, but this demo exercises the driver's paths, it is not a throughput
+ * test.
  */
 static const SPIConfig spi_icm20948_config = {
-  .mode                 = 0U,
+  .mode                 = SPI_MODE_FSIZE_8,
   .speed                = 1000000U,
   .clock_mode           = 3U,
   .cs_channel           = 3U
@@ -67,15 +66,189 @@ static void console_write(const char *s) {
 }
 
 /*
- * Reads the ICM-20948 WHO_AM_I register over SPI channel 3. Proves the
- * select/polled-exchange/unselect path runs end to end without hanging or
- * faulting, and the value confirms the device really answered: 0xEA is the
- * ICM-20948's WHO_AM_I.
+ * SPI self-test against the onboard ICM-20948 on MCSPI0 channel 3.
+ *
+ * The device answers a fixed, documented value on WHO_AM_I, which is what
+ * makes it usable as a test: a driver that shifts the transaction by one
+ * frame, truncates the last one or leaves a word behind in the receive
+ * register returns something other than 0xEA rather than nothing at all.
+ *
+ * Three paths, because they fail differently:
+ *
+ *   - the polled exchange, which is the bring-up path and touches neither
+ *     the interrupt nor the transfer state machine;
+ *   - the interrupt-driven exchange, immediately followed by an unselect.
+ *     The chip select must not drop until the last frame has left the shift
+ *     register, and receive-register-full happens before that;
+ *   - an aborted transfer followed immediately by a new one. The frame in
+ *     flight when the abort lands has to be accounted for, otherwise it
+ *     turns up as the first word of the next transaction and every word
+ *     after it reads one position late. Repeated, because what it is
+ *     guarding against is a race and one pass through it proves little.
+ *
+ * Like the SIO self-test below, this requires the peripheral to belong to
+ * this firmware alone, and for the same reason: the interrupt is shared. A
+ * host OS with a driver bound to the same McSPI instance in its device tree
+ * -- on the T3 Gemstone O1 image that is 4b00000.spi with spidev on every
+ * chip select -- services this interrupt too, and Linux's omap2-mcspi
+ * handler answers it by writing MCSPI_IRQENABLE, a module-global register,
+ * to zero. That silently disarms the transfer in progress here, which then
+ * stalls with its frames unreceived; measured at 7 stalls in 20 attempts.
+ * The polled path raises no interrupt and is immune, so a passing polled
+ * probe says nothing about this. Unbind the host driver, or reserve the node
+ * for the firmware, before drawing conclusions from a stall.
+ *
+ * Returns the name of the failing step, NULL if the bus passed.
+ */
+#define ICM20948_READ           0x80U
+#define ICM20948_WHO_AM_I       0x00U
+#define ICM20948_WHO_AM_I_VALUE 0xEAU
+
+/* Frames started and then abandoned by the abort step. Long enough that the
+   abort certainly lands while a frame is still shifting -- 16 frames at
+   1 MHz take ~128us, and stopping the transfer takes microseconds -- and
+   short enough to remain an ordinary register burst for the device.*/
+#define SPI_ABORT_FRAMES        16U
+
+/* Abort-and-resume attempts. The frame left in flight by an abort is only
+   mishandled some of the time, so one attempt can pass on a driver that
+   loses it.*/
+#define SPI_ABORT_ROUNDS        8U
+
+/* Bound on the wait for an interrupt-driven transfer. Two frames at 1 MHz
+   are ~16us, so this is not a tight deadline; it exists so that a peripheral
+   that stops answering -- see the shared-interrupt note above -- fails the
+   test instead of blocking the demo forever.*/
+#define SPI_SELFTEST_TIMEOUT    TIME_MS2I(50)
+
+/*
+ * Runs one interrupt-driven exchange and waits for it, bounded. Returns the
+ * synchronization result, with the transfer stopped on timeout so that the
+ * driver is left idle either way.
+ */
+static msg_t spi_exchange_bounded(size_t n, const void *txbuf, void *rxbuf) {
+  msg_t msg;
+
+  msg = spiStartExchange(&SPID1, n, txbuf, rxbuf);
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+
+  msg = spiSynchronizeState(&SPID1, HAL_DRV_STATE_COMPLETE,
+                            SPI_SELFTEST_TIMEOUT);
+  if (msg != MSG_OK) {
+    (void)spiStopTransfer(&SPID1, NULL);
+  }
+
+  return msg;
+}
+
+static const char *spi_selftest(void) {
+  static const uint8_t whoami_tx[2] = {ICM20948_READ | ICM20948_WHO_AM_I,
+                                       0xFFU};
+  static const uint8_t burst_tx[SPI_ABORT_FRAMES] = {
+    ICM20948_READ | ICM20948_WHO_AM_I
+  };
+  uint8_t burst_rx[SPI_ABORT_FRAMES];
+  uint8_t rx[2];
+  size_t remaining;
+  uint8_t whoami;
+  unsigned round;
+
+  /* Polled path first: it is the one that works with the least of the driver
+     behind it, so a failure here says the bus itself is wrong.*/
+  spiSelectX(&SPID1);
+  (void)spi_lld_polled_exchange(&SPID1, ICM20948_READ | ICM20948_WHO_AM_I);
+  whoami = (uint8_t)spi_lld_polled_exchange(&SPID1, 0xFFU);
+  spiUnselectX(&SPID1);
+
+  /* A polled exchange returns 0 on timeout, which is what xfer_timeout is
+     for: without it a dead bus is indistinguishable from a device that
+     answered 0x00.*/
+  if (SPID1.xfer_timeout) {
+    return "polled-timeout";
+  }
+  trace_printf("SPI polled WHO_AM_I = 0x%02x\n", whoami);
+  if (whoami != ICM20948_WHO_AM_I_VALUE) {
+    return "polled-whoami";
+  }
+
+  /* Interrupt-driven, and the unselect follows the completion with nothing
+     in between.*/
+  spiSelectX(&SPID1);
+  if (spi_exchange_bounded(sizeof whoami_tx, whoami_tx, rx) != MSG_OK) {
+    spiUnselectX(&SPID1);
+    return "irq-exchange";
+  }
+  spiUnselectX(&SPID1);
+
+  trace_printf("SPI irq WHO_AM_I = 0x%02x\n", rx[1]);
+  if (rx[1] != ICM20948_WHO_AM_I_VALUE) {
+    return "irq-whoami";
+  }
+
+  for (round = 0U; round < SPI_ABORT_ROUNDS; round++) {
+
+    /* A burst is started and stopped while it is still running.*/
+    spiSelectX(&SPID1);
+    if (spiStartExchange(&SPID1, sizeof burst_tx, burst_tx,
+                         burst_rx) != HAL_RET_SUCCESS) {
+      spiUnselectX(&SPID1);
+      return "abort-start";
+    }
+    if (spiStopTransfer(&SPID1, &remaining) != HAL_RET_SUCCESS) {
+      spiUnselectX(&SPID1);
+      return "abort-stop";
+    }
+    spiUnselectX(&SPID1);
+
+    /* Nothing left to transfer means the burst had already finished and the
+       round tested nothing, which is a failed test rather than a passed
+       one.*/
+    if (remaining == 0U) {
+      return "abort-count";
+    }
+
+    /* The transfer right behind the abort is the actual check: if the frame
+       that was in flight went unaccounted for, it surfaces here as rx[0] and
+       the WHO_AM_I lands one position late.*/
+    spiSelectX(&SPID1);
+    if (spi_exchange_bounded(sizeof whoami_tx, whoami_tx, rx) != MSG_OK) {
+      spiUnselectX(&SPID1);
+      return "abort-exchange";
+    }
+    spiUnselectX(&SPID1);
+
+    if (rx[1] != ICM20948_WHO_AM_I_VALUE) {
+      trace_printf("SPI post-abort WHO_AM_I = 0x%02x\n", rx[1]);
+      return "abort-shift";
+    }
+  }
+
+  trace_printf("SPI post-abort WHO_AM_I = 0x%02x, %u rounds\n", rx[1],
+               (unsigned)SPI_ABORT_ROUNDS);
+
+  return NULL;
+}
+
+/*
+ * Brings the bus up and runs the self-test, reporting to the trace buffer
+ * and the console.
  */
 static void spi_probe_icm20948(void) {
-  uint8_t whoami;
+  const char *fail;
+
+  /* The board owns the pads: it is the one that knows SPI0_CS3 costs
+     MCU_MCAN0_TX on this design.*/
+  if (!board_spi0_pinmux(spi_icm20948_config.cs_channel)) {
+    trace_printf("SPI chip select %u not available on this board\n",
+                 (unsigned)spi_icm20948_config.cs_channel);
+    console_write("SPI pinmux FAILED\r\n");
+    return;
+  }
 
   board_imu_enable();
+
   if (drvStart(&SPID1, &spi_icm20948_config) != HAL_RET_SUCCESS) {
     /* The usual cause is the module clock still belonging to Linux, and the
        reads below would then fault rather than return anything.*/
@@ -84,22 +257,17 @@ static void spi_probe_icm20948(void) {
     return;
   }
 
-  spiSelectX(&SPID1);
-  (void)spi_lld_polled_exchange(&SPID1, 0x80U);   /* WHO_AM_I reg | read bit.*/
-  whoami = (uint8_t)spi_lld_polled_exchange(&SPID1, 0xFFU);
-  spiUnselectX(&SPID1);
-
-  /* A polled exchange returns 0 on timeout, which is what xfer_timeout is
-     for: without it a dead bus is indistinguishable from a device that
-     answered 0x00.*/
-  if (SPID1.xfer_timeout) {
-    trace_printf("SPI WHO_AM_I timed out\n");
-    console_write("SPI probe TIMED OUT\r\n");
-    return;
+  fail = spi_selftest();
+  trace_printf("SPI selftest %s%s\n", fail == NULL ? "passed" : "FAILED at ",
+               fail == NULL ? "" : fail);
+  if (fail == NULL) {
+    console_write("SPI selftest passed\r\n");
   }
-
-  trace_printf("SPI WHO_AM_I = 0x%02x\n", whoami);
-  console_write("SPI probe done\r\n");
+  else {
+    console_write("SPI selftest FAILED at ");
+    console_write(fail);
+    console_write("\r\n");
+  }
 }
 
 /*

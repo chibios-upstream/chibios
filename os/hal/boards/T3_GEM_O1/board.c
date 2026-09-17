@@ -394,3 +394,56 @@ void board_imu_enable(void) {
   *(volatile uint32_t *)(bank + AM67_GPIO_DIR_OFFSET) &= ~mask;
   *(volatile uint32_t *)(bank + AM67_GPIO_CLR_DATA_OFFSET) = mask;
 }
+
+/*
+ * Routes the MCU_SPI0 signals to the McSPI controller, for one chip select.
+ *
+ * CLK/D0/D1 are shared by every channel and always muxed; the receiver is
+ * enabled on all three, D0's input being what makes a MOSI-MISO jumper
+ * loopback possible. The chip select pad depends on the channel, and that is
+ * the reason this lives here rather than in the driver: SPI0_CS3 is an
+ * alternate function on MCU_MCAN0_TX, so muxing every chip select at once
+ * would quietly take the pad away from MCAN0 even for a device wired to CS0.
+ * The caller names the one channel it needs and gets that one.
+ *
+ * CS2 is refused: its pad is WKUP_UART0_RXD, the wakeup-domain console, and
+ * it reaches only the 40-pin header with no onboard device behind it.
+ *
+ * Returns false if this board does not offer the requested chip select, in
+ * which case nothing at all has been muxed.
+ */
+bool board_spi0_pinmux(unsigned channel) {
+  uint32_t cs_pad, cs_mode;
+
+  switch (channel) {
+  case 0U:
+    cs_pad  = AM67_PAD_SPI0_CS0;
+    cs_mode = 0U;
+    break;
+  case 1U:
+    cs_pad  = AM67_PAD_SPI0_CS1;
+    cs_mode = 0U;
+    break;
+  case 3U:
+    /* The onboard ICM-20948. Costs MCAN0_TX, which this board does not
+       bring out to a transceiver.*/
+    cs_pad  = AM67_PAD_MCU_MCAN0_TX;
+    cs_mode = 2U;
+    break;
+  default:
+    return false;
+  }
+
+  am67_mcu_padcfg_unlock();
+
+  am67_mcu_pad_config(AM67_PAD_SPI0_CLK,
+            AM67_PIN_MODE(0) | AM67_PIN_INPUT_ENABLE | AM67_PIN_PULL_DISABLE);
+  am67_mcu_pad_config(AM67_PAD_SPI0_D0,
+            AM67_PIN_MODE(0) | AM67_PIN_INPUT_ENABLE | AM67_PIN_PULL_DISABLE);
+  am67_mcu_pad_config(AM67_PAD_SPI0_D1,
+            AM67_PIN_MODE(0) | AM67_PIN_INPUT_ENABLE | AM67_PIN_PULL_DISABLE);
+  am67_mcu_pad_config(cs_pad,
+            AM67_PIN_MODE(cs_mode) | AM67_PIN_PULL_DISABLE);
+
+  return true;
+}

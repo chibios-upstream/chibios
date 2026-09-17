@@ -26,8 +26,13 @@
  *          knowledge and lives in the board files. Controller init sequence
  *          and channel configuration derived from NuttX
  *          arch/arm/src/am67/am67_mcspi.c (Apache-2.0).
- *          The SPI0 pads are muxed here in case the Linux device tree
- *          leaves them unconfigured (the write is idempotent otherwise).
+ *
+ *          Pads are not touched here. Which pads carry SPI0, and which of
+ *          them may be taken from the peripheral whose name they bear --
+ *          SPI0_CS3 is an alternate function on MCU_MCAN0_TX -- is a board
+ *          decision, so the board configures them before the driver is
+ *          started. See @p board_spi0_pinmux() in the T3 Gemstone O1 board
+ *          files for the reference implementation.
  *
  *          The controller bring-up and the per-channel configuration are
  *          kept apart: the one-time bring-up lives in @p spi_lld_start(),
@@ -49,22 +54,6 @@
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
-
-#include "am67_padcfg.h"
-
-/* MCU-domain pad offsets for the MCU_SPI0 signals.*/
-#define AM67_PAD_SPI0_CS0           0x0000U
-#define AM67_PAD_SPI0_CS1           0x0004U
-#define AM67_PAD_SPI0_CLK           0x0008U
-#define AM67_PAD_SPI0_D0            0x000CU
-#define AM67_PAD_SPI0_D1            0x0010U
-
-/* CS2 and CS3 are not dedicated pads: they are alternate functions on the
-   WKUP_UART0_RXD and MCU_MCAN0_TX pads. Mapping taken from the NuttX AM67
-   port (arch/arm/src/am67/am67_pinmux.c) and is an SoC pinmux fact, not a
-   board choice.*/
-#define AM67_PAD_WKUP_UART0_RXD     0x0024U   /* SPI0_CS2, mux mode 2.      */
-#define AM67_PAD_MCU_MCAN0_TX       0x0034U   /* SPI0_CS3, mux mode 2.      */
 
 /* Bound for busy-wait loops on CHSTAT, avoids a silent hard hang if the
    module clock is not running. One frame at the slowest configured clock
@@ -88,6 +77,15 @@
 #if (AM67_SPI_USE_MCSPI0 == TRUE) || defined(__DOXYGEN__)
 SPIDriver SPID1;
 #endif
+
+/*===========================================================================*/
+/* Driver local variables and types.                                         */
+/*===========================================================================*/
+
+/**
+ * @brief   Driver default configuration, configuration zero.
+ */
+static const hal_spi_config_t spi_default_config = SPI_DEFAULT_CONFIGURATION;
 
 /*===========================================================================*/
 /* Driver local functions.                                                   */
@@ -117,41 +115,6 @@ static inline void spi_ch_putreg(SPIDriver *spip, uint32_t offset,
                                  uint32_t value) {
 
   spi_putreg(spip, offset + MCSPI_CH_OFFSET(spip->channel), value);
-}
-
-/*
- * Routes SPI0 CLK/D0/D1 and the CS0/CS1/CS3 pads to the McSPI. CLK and both
- * data pads get the receiver enabled, D0 input is what makes the
- * MOSI-MISO jumper loopback test possible (matches the NuttX pad setup).
- *
- * CS0 and CS1 are dedicated pads at mux mode 0; CS3 is an alternate function
- * at mux mode 2 on a pad named for another peripheral. All are muxed on
- * every start regardless of which channel this configuration selects: the
- * writes are idempotent, and a per-channel pinmux would silently do nothing
- * for a device probed before its channel is configured.
- */
-static void spi0_pinmux(void) {
-
-  am67_mcu_padcfg_unlock();
-
-  am67_mcu_pad_config(AM67_PAD_SPI0_CLK,
-            AM67_PIN_MODE(0) | AM67_PIN_INPUT_ENABLE | AM67_PIN_PULL_DISABLE);
-  am67_mcu_pad_config(AM67_PAD_SPI0_D0,
-            AM67_PIN_MODE(0) | AM67_PIN_INPUT_ENABLE | AM67_PIN_PULL_DISABLE);
-  am67_mcu_pad_config(AM67_PAD_SPI0_D1,
-            AM67_PIN_MODE(0) | AM67_PIN_INPUT_ENABLE | AM67_PIN_PULL_DISABLE);
-  am67_mcu_pad_config(AM67_PAD_SPI0_CS0,
-            AM67_PIN_MODE(0) | AM67_PIN_PULL_DISABLE);
-  am67_mcu_pad_config(AM67_PAD_SPI0_CS1,
-            AM67_PIN_MODE(0) | AM67_PIN_PULL_DISABLE);
-  am67_mcu_pad_config(AM67_PAD_MCU_MCAN0_TX,
-            AM67_PIN_MODE(2) | AM67_PIN_PULL_DISABLE);
-
-  /* CS2 (AM67_PAD_WKUP_UART0_RXD at mode 2) is deliberately NOT muxed here.
-     It reaches only the 40-pin header, no onboard sensor, and the pad it
-     borrows belongs to the wakeup-domain UART0 -- taking it costs a console
-     that is not ours to take. Add it here if a header SPI device ever needs
-     a second chip select.*/
 }
 
 /**
@@ -203,6 +166,37 @@ static void spi_drain_rx(SPIDriver *spip) {
 }
 
 /**
+ * @brief   Waits for the frame in the shift register, if any, to reach the
+ *          end of transfer.
+ * @details RX full means the last frame's bits have landed in the receive
+ *          register; it does not mean the channel is idle. CHSTAT.EOT is the
+ *          bit that says that, and both deasserting the chip select and
+ *          abandoning a transfer have to wait for it: cutting the clock in
+ *          the middle of a word leaves the slave half a frame out of step
+ *          for the rest of the transaction, which it cannot detect or
+ *          recover from.
+ *
+ *          EOT reads 0 out of reset and only turns 1 once a transfer has
+ *          really completed, so it cannot be waited on unconditionally --
+ *          on a channel that never sent anything the wait would run to its
+ *          full bound. @p shift_pending says which of the two it is.
+ *
+ *          Bounded, like every other wait here: this runs in a lock zone and
+ *          a gated module clock must not hang the caller.
+ *
+ * @param[in] spip      pointer to the @p SPIDriver object
+ */
+static void mcspi_wait_idle(SPIDriver *spip) {
+
+  if (!spip->shift_pending) {
+    return;
+  }
+
+  (void)spi_wait_chstat(spip, MCSPI_CHSTAT_EOT);
+  spip->shift_pending = false;
+}
+
+/**
  * @brief   One-time controller bring-up: OCP clock, soft reset, master mode.
  * @details Runs exactly once, from @p spi_lld_start(), which XHAL only
  *          calls on the STOP->READY transition. Channel switches go
@@ -216,7 +210,8 @@ static void spi_drain_rx(SPIDriver *spip) {
 static bool mcspi_controller_reset(SPIDriver *spip) {
   uint32_t i;
 
-  spip->ready = false;
+  spip->ready         = false;
+  spip->shift_pending = false;
 
   /* No-idle so the interconnect does not gate the functional clock while
      CHSTAT is polled (K3 HL wrapper).*/
@@ -285,6 +280,13 @@ static bool spi_lld_validate_config(SPIDriver *spip,
     return false;
   }
 
+  /* Refused rather than masked down to two bits: mode 5 masks to mode 1,
+     and a device clocked on the wrong edge answers plausible-looking
+     rubbish instead of failing.*/
+  if (config->clock_mode > 3U) {
+    return false;
+  }
+
   if (config->speed == 0U) {
     return false;
   }
@@ -312,20 +314,25 @@ static bool spi_lld_validate_config(SPIDriver *spip,
  *          @p spi_lld_unselect(), which explains why a channel is left
  *          enabled between transactions.
  *
+ * @pre     The configuration passed @p spi_lld_validate_config(), which is
+ *          where @p div comes from. Validation is the caller's job so that a
+ *          rejected configuration leaves the hardware untouched rather than
+ *          half programmed.
+ *
  * @param[in] spip      pointer to the @p SPIDriver object
  * @param[in] config    pointer to the @p hal_spi_config_t structure
- * @return              False if the configuration is not one this driver
- *                      implements, see @p spi_lld_validate_config().
+ * @param[in] div       clock divider derived from the configuration, 1..4096
  */
-static bool mcspi_apply_channel_config(SPIDriver *spip,
-                                       const hal_spi_config_t *config) {
-  uint32_t chconf, chctrl, div;
+static void mcspi_apply_channel_config(SPIDriver *spip,
+                                       const hal_spi_config_t *config,
+                                       uint32_t div) {
+  uint32_t chconf, chctrl;
 
-  if (!spi_lld_validate_config(spip, config, &div)) {
-    return false;
-  }
+  spip->channel       = config->cs_channel;
 
-  spip->channel = config->cs_channel;
+  /* Nothing is shifting on the newly selected channel, whatever the previous
+     one was doing.*/
+  spip->shift_pending = false;
 
   /* Selected channel: RX from D1 (MISO), TX on D0 (MOSI), CS active low,
      8-bit frames, POL/PHA from the standard SPI mode number. SPIENSLV
@@ -350,8 +357,6 @@ static bool mcspi_apply_channel_config(SPIDriver *spip,
 
   /* Channel enabled, idle until FORCE asserts the CS.*/
   spi_ch_putreg(spip, MCSPI_CHCTRL0_OFFSET, chctrl | MCSPI_CHCTRL_EN);
-
-  return true;
 }
 
 /**
@@ -363,8 +368,10 @@ static bool mcspi_apply_channel_config(SPIDriver *spip,
  * @param[in] n         number of frames
  * @param[in] txbuf     transmit buffer or @p NULL for idle frames
  * @param[in] rxbuf     receive buffer or @p NULL to discard
+ * @return              False if the transmit register never came free, in
+ *                      which case nothing was started.
  */
-static void spi_start_transfer(SPIDriver *spip, size_t n,
+static bool spi_start_transfer(SPIDriver *spip, size_t n,
                                const void *txbuf, void *rxbuf) {
   uint32_t first;
 
@@ -379,7 +386,21 @@ static void spi_start_transfer(SPIDriver *spip, size_t n,
   if (spip->txptr != NULL) {
     first = *spip->txptr++;
   }
+
+  /* The transmit register only accepts a word while it is empty, which is
+     what CHSTAT.TXS reports; a write to a full one is dropped. Dropping it
+     is silent and looks exactly like a dead bus from the outside: nothing
+     is ever shifted, no RX_FULL arrives and the frame count never moves.
+     The polled path has always waited here, and the interrupt-driven path
+     needs the same.*/
+  if (!spi_wait_chstat(spip, MCSPI_CHSTAT_TXS)) {
+    return false;
+  }
+
   spi_ch_putreg(spip, MCSPI_TX0_OFFSET, first);
+  spip->shift_pending = true;
+
+  return true;
 }
 
 /**
@@ -406,12 +427,19 @@ static void spi_serve_interrupt(SPIDriver *spip) {
       return;
     }
 
+    /* Same rule as in spi_start_transfer(): the word is only accepted when
+       the transmit register is empty. The frame just read left it that way
+       in every normal case, so this reads the flag once and does not
+       usually spin.*/
+    (void)spi_wait_chstat(spip, MCSPI_CHSTAT_TXS);
+
     if (spip->txptr != NULL) {
       spi_ch_putreg(spip, MCSPI_TX0_OFFSET, *spip->txptr++);
     }
     else {
       spi_ch_putreg(spip, MCSPI_TX0_OFFSET, 0xFFU);
     }
+    spip->shift_pending = true;
   }
 }
 
@@ -448,11 +476,12 @@ void spi_lld_init(void) {
 
 #if AM67_SPI_USE_MCSPI0 == TRUE
   spiObjectInit(&SPID1);
-  SPID1.base         = AM67_MCU_MCSPI0_BASE;
-  SPID1.clock        = AM67_MCU_MCSPI0_CLOCK;
-  SPID1.channel      = 0U;
-  SPID1.xfer_timeout = false;
-  SPID1.ready        = false;
+  SPID1.base          = AM67_MCU_MCSPI0_BASE;
+  SPID1.clock         = AM67_MCU_MCSPI0_CLOCK;
+  SPID1.channel       = 0U;
+  SPID1.xfer_timeout  = false;
+  SPID1.ready         = false;
+  SPID1.shift_pending = false;
   vimSetHandler(AM67_MCU_MCSPI0_IRQ, mcspi0_irq_handler, NULL);
   vimSetPriority(AM67_MCU_MCSPI0_IRQ, AM67_SPI_MCSPI0_IRQ_PRIORITY);
 #endif
@@ -460,9 +489,9 @@ void spi_lld_init(void) {
 
 /**
  * @brief   Configures and activates the SPI peripheral.
- * @details Called once per STOP->READY transition. @p spip->config must
- *          already name a channel -- unlike STM32's SPIConfig, there is no
- *          sane board-independent default chip select to fall back to.
+ * @details Called once per STOP->READY transition. @p drvStart(spip, NULL)
+ *          selects configuration zero, @p spi_default_config, exactly as
+ *          @p drvSelectCfgX(spip, 0U) does later.
  *
  * @param[in] spip      pointer to the @p SPIDriver object
  * @return              The operation status.
@@ -471,20 +500,26 @@ void spi_lld_init(void) {
  */
 msg_t spi_lld_start(SPIDriver *spip) {
   const hal_spi_config_t *config = (const hal_spi_config_t *)spip->config;
+  uint32_t div;
 
   if (config == NULL) {
+    config = &spi_default_config;
+  }
+
+  /* Checked before the controller is touched. A configuration this driver
+     cannot implement leaves the module exactly as it was found -- the
+     alternative is a peripheral that has been soft reset and half
+     configured while the caller is told the start failed.*/
+  if (!spi_lld_validate_config(spip, config, &div)) {
     return HAL_RET_CONFIG_ERROR;
   }
 
 #if AM67_SPI_USE_MCSPI0 == TRUE
   if (spip == &SPID1) {
-    spi0_pinmux();
     if (!mcspi_controller_reset(spip)) {
       return HAL_RET_HW_FAILURE;
     }
-    if (!mcspi_apply_channel_config(spip, config)) {
-      return HAL_RET_CONFIG_ERROR;
-    }
+    mcspi_apply_channel_config(spip, config, div);
     vimEnableInterrupt(AM67_MCU_MCSPI0_IRQ);
   }
 #endif
@@ -518,6 +553,10 @@ void spi_lld_stop(SPIDriver *spip) {
 
   spi_putreg(spip, MCSPI_IRQENABLE_OFFSET, 0U);
 
+  /* Whatever was shifting is given its frame time to finish before the
+     channels go down under it, for the reason in mcspi_wait_idle().*/
+  mcspi_wait_idle(spip);
+
   /* Every channel, not just the current one. A driver that switched chip
      selects through spi_lld_setcfg() left each earlier channel enabled and
      driving its CS pad -- see spi_lld_unselect() -- and once the driver is
@@ -547,16 +586,20 @@ void spi_lld_stop(SPIDriver *spip) {
  */
 const hal_spi_config_t *spi_lld_setcfg(SPIDriver *spip,
                                        const hal_spi_config_t *config) {
+  uint32_t div;
 
   chDbgAssert(spip->state == HAL_DRV_STATE_READY, "not ready");
 
+  /* NULL means configuration zero here too, same as in spi_lld_start().*/
   if (config == NULL) {
+    config = &spi_default_config;
+  }
+
+  if (!spi_lld_validate_config(spip, config, &div)) {
     return NULL;
   }
 
-  if (!mcspi_apply_channel_config(spip, config)) {
-    return NULL;
-  }
+  mcspi_apply_channel_config(spip, config, div);
 
   spip->config = config;
 
@@ -565,14 +608,15 @@ const hal_spi_config_t *spi_lld_setcfg(SPIDriver *spip,
 
 /**
  * @brief   Selects one of the pre-defined SPI configurations.
- * @details AM67 has no board-independent default configuration (unlike
- *          STM32's @p SPI_DEFAULT_CONFIGURATION), since the chip select is
- *          part of the configuration and is always device-specific. Boards
- *          that multiplex several devices on one MCSPI instance must set
- *          @p SPI_USE_CONFIGURATIONS and
- *          provide a @p spi_configurations array; with it left at its
- *          default of @p FALSE, cfgnum 0 simply reapplies the configuration
- *          the driver was started with.
+ * @details Configuration zero is @p SPI_DEFAULT_CONFIGURATION, the same one
+ *          @p drvStart(spip, NULL) applies. It is a fixed default, not
+ *          whatever the driver happens to be configured with: a caller
+ *          selecting it after another device reprogrammed the bus expects
+ *          known settings back, not the other device's.
+ *
+ *          Boards that multiplex several devices on one MCSPI instance set
+ *          @p SPI_USE_CONFIGURATIONS and provide a @p spi_configurations
+ *          array, whose entry zero then replaces the built-in default.
  *
  * @param[in] spip      pointer to the @p SPIDriver object
  * @param[in] cfgnum    driver configuration number
@@ -596,7 +640,7 @@ const hal_spi_config_t *spi_lld_selcfg(SPIDriver *spip,
     return NULL;
   }
 
-  return spi_lld_setcfg(spip, (const hal_spi_config_t *)spip->config);
+  return spi_lld_setcfg(spip, NULL);
 #endif
 }
 
@@ -632,7 +676,12 @@ void spi_lld_select(SPIDriver *spip) {
 
 /**
  * @brief   Deasserts the slave select signal.
- * @details Only the FORCE bit is touched. The channel stays enabled for as
+ * @details The chip select is not released until the channel reports the end
+ *          of transfer: the last frame of a transaction is still on the wire
+ *          when its result reaches the receive register, and dropping CS
+ *          there truncates it -- see @p mcspi_wait_idle().
+ *
+ *          Only the FORCE bit is touched. The channel stays enabled for as
  *          long as the driver is started -- disabling it here was tried and
  *          reverted, because a disabled channel stops driving its CS pad
  *          and a floating chip select between transactions is exactly the
@@ -650,6 +699,8 @@ void spi_lld_unselect(SPIDriver *spip) {
   if (!spip->ready) {
     return;
   }
+
+  mcspi_wait_idle(spip);
 
   spi_ch_putreg(spip, MCSPI_CHCONF0_OFFSET,
                 spi_ch_getreg(spip, MCSPI_CHCONF0_OFFSET) &
@@ -673,7 +724,9 @@ msg_t spi_lld_ignore(SPIDriver *spip, size_t n) {
     return HAL_RET_HW_FAILURE;
   }
 
-  spi_start_transfer(spip, n, NULL, NULL);
+  if (!spi_start_transfer(spip, n, NULL, NULL)) {
+    return HAL_RET_HW_FAILURE;
+  }
 
   return HAL_RET_SUCCESS;
 }
@@ -698,7 +751,9 @@ msg_t spi_lld_exchange(SPIDriver *spip, size_t n,
     return HAL_RET_HW_FAILURE;
   }
 
-  spi_start_transfer(spip, n, txbuf, rxbuf);
+  if (!spi_start_transfer(spip, n, txbuf, rxbuf)) {
+    return HAL_RET_HW_FAILURE;
+  }
 
   return HAL_RET_SUCCESS;
 }
@@ -719,7 +774,9 @@ msg_t spi_lld_send(SPIDriver *spip, size_t n, const void *txbuf) {
     return HAL_RET_HW_FAILURE;
   }
 
-  spi_start_transfer(spip, n, txbuf, NULL);
+  if (!spi_start_transfer(spip, n, txbuf, NULL)) {
+    return HAL_RET_HW_FAILURE;
+  }
 
   return HAL_RET_SUCCESS;
 }
@@ -740,7 +797,9 @@ msg_t spi_lld_receive(SPIDriver *spip, size_t n, void *rxbuf) {
     return HAL_RET_HW_FAILURE;
   }
 
-  spi_start_transfer(spip, n, NULL, rxbuf);
+  if (!spi_start_transfer(spip, n, NULL, rxbuf)) {
+    return HAL_RET_HW_FAILURE;
+  }
 
   return HAL_RET_SUCCESS;
 }
@@ -761,14 +820,43 @@ msg_t spi_lld_stop_transfer(SPIDriver *spip, size_t *sizep) {
     return HAL_RET_HW_FAILURE;
   }
 
+  /* Masked first: from here the ISR cannot feed the channel again, so there
+     is at most one frame left in flight.*/
   spi_putreg(spip, MCSPI_IRQENABLE_OFFSET, 0U);
-  spi_putreg(spip, MCSPI_IRQSTATUS_OFFSET, 0xFFFFFFFFU);
 
-  /* Both bail-outs below drain before returning. A stale word left in RX0
-     does not corrupt the transfer it aborts -- that one is already reported
-     stopped -- it corrupts the NEXT transfer, silently, by shifting every
-     word in it by one position.*/
+  /* That frame is allowed to finish rather than being cut in half: it is
+     already on the wire and the slave is counting its clocks, so abandoning
+     it mid-word desynchronises the device for everything that follows. One
+     frame time is a few microseconds.
+
+     The wait is on RXS, not on EOT: the ISR writes the next frame the
+     instant it has read the previous one, and for the first cycles after
+     that write EOT still reports the completion of the PREVIOUS frame --
+     CHSTAT reads 0x4 there on hardware. RXS has no such window, since the
+     ISR cleared it by reading.
+
+     Then the frame is collected like any other. It was exchanged, so it
+     belongs in the caller's buffer and counts against the frames still
+     outstanding; left in RX0 it would instead surface as the first word of
+     the NEXT transfer, which is not a lost byte but a one-position shift of
+     every word after it -- see spi_drain_rx().*/
+  if (spip->remaining > 0U) {
+    if (spi_wait_chstat(spip, MCSPI_CHSTAT_RXS)) {
+      uint32_t frame = spi_ch_getreg(spip, MCSPI_RX0_OFFSET);
+
+      if (spip->rxptr != NULL) {
+        *spip->rxptr++ = (uint8_t)frame;
+      }
+      spip->remaining--;
+    }
+  }
+
+  /* RXS above says the frame was received, this says the channel is idle.*/
+  mcspi_wait_idle(spip);
+
+  /* Anything still in there predates this transfer and is discarded.*/
   spi_drain_rx(spip);
+  spi_putreg(spip, MCSPI_IRQSTATUS_OFFSET, 0xFFFFFFFFU);
 
   if (sizep != NULL) {
     *sizep = spip->remaining;
@@ -804,6 +892,7 @@ uint16_t spi_lld_polled_exchange(SPIDriver *spip, uint16_t frame) {
     return 0U;
   }
   spi_ch_putreg(spip, MCSPI_TX0_OFFSET, (uint32_t)frame);
+  spip->shift_pending = true;
 
   if (!spi_wait_chstat(spip, MCSPI_CHSTAT_RXS)) {
     spip->xfer_timeout = true;

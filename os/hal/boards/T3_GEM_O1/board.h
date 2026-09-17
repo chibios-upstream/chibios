@@ -186,12 +186,35 @@
 #define AM67_IMU_EN_PIN         12U
 #define AM67_PAD_IMU_EN         0x0030U   /* WKUP_UART0_RTSN, mux mode 7.  */
 
+/*
+ * MCU_SPI0 pads.
+ *
+ * CLK/D0/D1 are dedicated pads at mux mode 0. The chip selects are not all
+ * alike: CS0 and CS1 are dedicated pads, while CS2 and CS3 are alternate
+ * functions on pads named for other peripherals -- SPI0_CS3 is mux mode 2 on
+ * MCU_MCAN0_TX, and muxing it takes that pad away from MCAN0. Which of them
+ * this board is willing to give to the SPI controller is a board decision,
+ * which is why the driver does not make it; see board_spi0_pinmux().
+ *
+ * Pad-to-signal mapping from the NuttX AM67 port
+ * (arch/arm/src/am67/am67_pinmux.c).
+ */
+#define AM67_PAD_SPI0_CS0       0x0000U
+#define AM67_PAD_SPI0_CS1       0x0004U
+#define AM67_PAD_SPI0_CLK       0x0008U
+#define AM67_PAD_SPI0_D0        0x000CU
+#define AM67_PAD_SPI0_D1        0x0010U
+#define AM67_PAD_WKUP_UART0_RXD 0x0024U   /* SPI0_CS2, mux mode 2.         */
+#define AM67_PAD_MCU_MCAN0_TX   0x0034U   /* SPI0_CS3, mux mode 2.         */
+
 #if !defined(_FROM_ASM_)
+#include <stdbool.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
   void boardInit(void);
   void board_imu_enable(void);
+  bool board_spi0_pinmux(unsigned channel);
 #ifdef __cplusplus
 }
 #endif
