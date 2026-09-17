@@ -3329,8 +3329,7 @@ test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></va
 
 rop = chFactoryFindObject("myobj");
 if (rop != NULL) {
-  while (rop->element.refs > 0U) {
-    chFactoryReleaseObject(rop);
+  while (chFactoryReleaseObject(rop) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3460,8 +3459,7 @@ test_assert(rop == NULL, "found");]]></value>
 
 dbp = chFactoryFindBuffer("mybuf");
 if (dbp != NULL) {
-  while (dbp->element.refs > 0U) {
-    chFactoryReleaseBuffer(dbp);
+  while (chFactoryReleaseBuffer(dbp) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3586,8 +3584,7 @@ test_assert(dbp == NULL, "found");]]></value>
 
 dsp = chFactoryFindSemaphore("mysem");
 if (dsp != NULL) {
-  while (dsp->element.refs > 0U) {
-    chFactoryReleaseSemaphore(dsp);
+  while (chFactoryReleaseSemaphore(dsp) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3712,8 +3709,7 @@ test_assert(dsp == NULL, "found");]]></value>
 
 dmp = chFactoryFindMailbox("mymbx");
 if (dmp != NULL) {
-  while (dmp->element.refs > 0U) {
-    chFactoryReleaseMailbox(dmp);
+  while (chFactoryReleaseMailbox(dmp) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3838,8 +3834,7 @@ test_assert(dmp == NULL, "found");]]></value>
 
 dofp = chFactoryFindObjectsFIFO("myfifo");
 if (dofp != NULL) {
-  while (dofp->element.refs > 0U) {
-    chFactoryReleaseObjectsFIFO(dofp);
+  while (chFactoryReleaseObjectsFIFO(dofp) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3964,8 +3959,7 @@ test_assert(dofp == NULL, "found");]]></value>
 
 dpp = chFactoryFindPipe("mypipe");
 if (dpp != NULL) {
-  while (dpp->element.refs > 0U) {
-    chFactoryReleasePipe(dpp);
+  while (chFactoryReleasePipe(dpp) > 0U) {
   }
 }]]></value>
             </teardown_code>

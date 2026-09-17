@@ -44,9 +44,16 @@
 /*===========================================================================*/
 
 /**
- * @brief   Maximum length for object names.
- * @details If the specified length is zero then the name is stored by
- *          pointer but this could have unintended side effects.
+ * @brief   Storage size for object names, including the terminating zero.
+ * @details A positive value N stores and compares at most N-1 characters.
+ *          Longer names with the same first N-1 characters identify the
+ *          same object within a factory category.
+ * @details If zero, the name is stored without copying and compared by
+ *          pointer identity, not string contents. Lookup must use the same
+ *          pointer; equal strings in different arrays are different keys.
+ *          The pointed-to storage must remain valid until final release.
+ *          Do not rely on identical string literals having equal addresses.
+ * @note    Each factory category has a separate name space.
  */
 #if !defined(CH_CFG_FACTORY_MAX_NAMES_LENGTH) || defined(__DOXYGEN__)
 #define CH_CFG_FACTORY_MAX_NAMES_LENGTH     8
@@ -404,6 +411,9 @@ extern "C" {
 #if (CH_CFG_FACTORY_OBJECTS_REGISTRY == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Returns the pointer of the inner registered object.
+ * @pre     The caller must own a valid reference to the registration.
+ * @note    No reference is acquired. The pointed-to object's lifetime is
+ *          managed by the caller independently of the registration.
  *
  * @param[in] rop       registered object reference
  * @return              The pointer to the registered object.
@@ -419,6 +429,7 @@ static inline void *chFactoryGetObject(registered_object_t *rop) {
 #if (CH_CFG_FACTORY_GENERIC_BUFFERS == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Returns the size of a generic dynamic buffer object.
+ * @pre     The caller must own a valid reference to the buffer object.
  *
  * @param[in] dbp       dynamic buffer object reference
  * @return              The size of the buffer object in bytes.
@@ -432,6 +443,9 @@ static inline size_t chFactoryGetBufferSize(dyn_buffer_t *dbp) {
 
 /**
  * @brief   Returns the pointer to the inner buffer.
+ * @pre     The caller must own a valid reference to the buffer object.
+ * @note    The returned pointer is borrowed; keep a factory reference for
+ *          the entire duration of its use.
  *
  * @param[in] dbp       dynamic buffer object reference
  * @return              The pointer to the dynamic buffer.
@@ -447,6 +461,9 @@ static inline uint8_t *chFactoryGetBuffer(dyn_buffer_t *dbp) {
 #if (CH_CFG_FACTORY_SEMAPHORES == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Returns the pointer to the inner semaphore.
+ * @pre     The caller must own a valid reference to the semaphore object.
+ * @note    The returned pointer is borrowed; keep a factory reference for
+ *          the entire duration of its use, including blocking calls.
  *
  * @param[in] dsp       dynamic semaphore object reference
  * @return              The pointer to the semaphore.
@@ -462,6 +479,9 @@ static inline semaphore_t *chFactoryGetSemaphore(dyn_semaphore_t *dsp) {
 #if (CH_CFG_FACTORY_MAILBOXES == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Returns the pointer to the inner mailbox.
+ * @pre     The caller must own a valid reference to the mailbox object.
+ * @note    The returned pointer is borrowed; keep a factory reference for
+ *          the entire duration of its use, including blocking calls.
  *
  * @param[in] dmp       dynamic mailbox object reference
  * @return              The pointer to the mailbox.
@@ -477,6 +497,10 @@ static inline mailbox_t *chFactoryGetMailbox(dyn_mailbox_t *dmp) {
 #if (CH_CFG_FACTORY_OBJ_FIFOS == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Returns the pointer to the inner objects FIFO.
+ * @pre     The caller must own a valid reference to the FIFO object.
+ * @note    The returned pointer is borrowed; keep a factory reference for
+ *          the entire duration of its use, including blocking calls and
+ *          outstanding loans of objects from the FIFO.
  *
  * @param[in] dofp      dynamic "objects FIFO" object reference
  * @return              The pointer to the objects FIFO.
@@ -492,6 +516,9 @@ static inline objects_fifo_t *chFactoryGetObjectsFIFO(dyn_objects_fifo_t *dofp) 
 #if (CH_CFG_FACTORY_PIPES == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Returns the pointer to the inner pipe.
+ * @pre     The caller must own a valid reference to the pipe object.
+ * @note    The returned pointer is borrowed; keep a factory reference for
+ *          the entire duration of its use, including blocking calls.
  *
  * @param[in] dpp       dynamic pipe object reference
  * @return              The pointer to the pipe.
