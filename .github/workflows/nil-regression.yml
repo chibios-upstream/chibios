@@ -1,0 +1,34 @@
+name: NIL regression checks
+
+on:
+  pull_request:
+    paths:
+      - 'os/nil/**'
+      - 'os/oslib/**'
+      - 'os/common/**'
+      - 'os/license/**'
+      - 'test/nil/testbuild/**'
+      - '.github/workflows/nil-regression.yml'
+  push:
+    branches: [stable-21.11.x]
+    paths:
+      - 'os/nil/**'
+      - 'os/oslib/**'
+      - 'os/common/**'
+      - 'os/license/**'
+      - 'test/nil/testbuild/**'
+      - '.github/workflows/nil-regression.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  nil-regression:
+    name: NIL scheduler regression matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y make gcc
+      - name: Run deterministic NIL checks
+        run: sh test/nil/testbuild/check_timeouts.sh
