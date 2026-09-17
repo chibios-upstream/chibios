@@ -83,7 +83,7 @@ SPIDriver SPID1;
 /*===========================================================================*/
 
 /**
- * @brief   Driver default configuration, configuration zero.
+ * @brief   Built-in default configuration.
  */
 static const hal_spi_config_t spi_default_config = SPI_DEFAULT_CONFIGURATION;
 
@@ -115,6 +115,28 @@ static inline void spi_ch_putreg(SPIDriver *spip, uint32_t offset,
                                  uint32_t value) {
 
   spi_putreg(spip, offset + MCSPI_CH_OFFSET(spip->channel), value);
+}
+
+/**
+ * @brief   Resolves configuration zero.
+ * @details The one place that answers what configuration zero is, so that
+ *          @p drvStart(spip, NULL), @p drvSetCfgX(spip, NULL) and
+ *          @p drvSelectCfgX(spip, 0U) cannot select different objects. A
+ *          board that provides a @p spi_configurations array owns entry
+ *          zero of it; otherwise it is the built-in default.
+ *
+ * @return              Pointer to the configuration.
+ */
+static const hal_spi_config_t *spi_cfg_zero(void) {
+#if SPI_USE_CONFIGURATIONS == TRUE
+  extern const spi_configurations_t spi_configurations;
+
+  if (spi_configurations.cfgsnum > 0U) {
+    return &spi_configurations.cfgs[0];
+  }
+#endif
+
+  return &spi_default_config;
 }
 
 /**
@@ -375,6 +397,21 @@ static bool spi_start_transfer(SPIDriver *spip, size_t n,
                                const void *txbuf, void *rxbuf) {
   uint32_t first;
 
+  /* The transmit register only accepts a word while it is empty, which is
+     what CHSTAT.TXS reports; a write to a full one is dropped. Dropping it
+     is silent and looks exactly like a dead bus from the outside: nothing
+     is ever shifted, no RX_FULL arrives and the frame count never moves.
+     The polled path has always waited here, and the interrupt-driven path
+     needs the same.
+
+     The wait comes first, before any driver field is set and before the
+     interrupt is enabled, so that failing here leaves the driver and the
+     module exactly as they were found rather than half started with an
+     armed interrupt behind them.*/
+  if (!spi_wait_chstat(spip, MCSPI_CHSTAT_TXS)) {
+    return false;
+  }
+
   spip->txptr     = (const uint8_t *)txbuf;
   spip->rxptr     = (uint8_t *)rxbuf;
   spip->remaining = n;
@@ -385,16 +422,6 @@ static bool spi_start_transfer(SPIDriver *spip, size_t n,
   first = 0xFFU;
   if (spip->txptr != NULL) {
     first = *spip->txptr++;
-  }
-
-  /* The transmit register only accepts a word while it is empty, which is
-     what CHSTAT.TXS reports; a write to a full one is dropped. Dropping it
-     is silent and looks exactly like a dead bus from the outside: nothing
-     is ever shifted, no RX_FULL arrives and the frame count never moves.
-     The polled path has always waited here, and the interrupt-driven path
-     needs the same.*/
-  if (!spi_wait_chstat(spip, MCSPI_CHSTAT_TXS)) {
-    return false;
   }
 
   spi_ch_putreg(spip, MCSPI_TX0_OFFSET, first);
@@ -430,8 +457,16 @@ static void spi_serve_interrupt(SPIDriver *spip) {
     /* Same rule as in spi_start_transfer(): the word is only accepted when
        the transmit register is empty. The frame just read left it that way
        in every normal case, so this reads the flag once and does not
-       usually spin.*/
-    (void)spi_wait_chstat(spip, MCSPI_CHSTAT_TXS);
+       usually spin. If it never comes free the transfer cannot continue,
+       and writing anyway would recreate the dropped write this is here to
+       prevent -- the transfer is stopped and reported as an error instead,
+       leaving the frames not exchanged in @p remaining for
+       @p spi_lld_stop_transfer().*/
+    if (!spi_wait_chstat(spip, MCSPI_CHSTAT_TXS)) {
+      spi_putreg(spip, MCSPI_IRQENABLE_OFFSET, 0U);
+      _spi_isr_error_code(spip);
+      return;
+    }
 
     if (spip->txptr != NULL) {
       spi_ch_putreg(spip, MCSPI_TX0_OFFSET, *spip->txptr++);
@@ -503,7 +538,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
   uint32_t div;
 
   if (config == NULL) {
-    config = &spi_default_config;
+    config = spi_cfg_zero();
   }
 
   /* Checked before the controller is touched. A configuration this driver
@@ -592,7 +627,7 @@ const hal_spi_config_t *spi_lld_setcfg(SPIDriver *spip,
 
   /* NULL means configuration zero here too, same as in spi_lld_start().*/
   if (config == NULL) {
-    config = &spi_default_config;
+    config = spi_cfg_zero();
   }
 
   if (!spi_lld_validate_config(spip, config, &div)) {
@@ -608,15 +643,16 @@ const hal_spi_config_t *spi_lld_setcfg(SPIDriver *spip,
 
 /**
  * @brief   Selects one of the pre-defined SPI configurations.
- * @details Configuration zero is @p SPI_DEFAULT_CONFIGURATION, the same one
- *          @p drvStart(spip, NULL) applies. It is a fixed default, not
- *          whatever the driver happens to be configured with: a caller
- *          selecting it after another device reprogrammed the bus expects
- *          known settings back, not the other device's.
+ * @details Configuration zero goes through @p spi_cfg_zero(), the same
+ *          resolver @p drvStart(spip, NULL) and @p drvSetCfgX(spip, NULL)
+ *          use, so all three select the same object whether or not the
+ *          board provides a @p spi_configurations array. It is a fixed
+ *          configuration, not whatever the driver happens to be running
+ *          with: a caller selecting it after another device reprogrammed
+ *          the bus expects known settings back, not the other device's.
  *
- *          Boards that multiplex several devices on one MCSPI instance set
- *          @p SPI_USE_CONFIGURATIONS and provide a @p spi_configurations
- *          array, whose entry zero then replaces the built-in default.
+ *          Configurations above zero exist only when the board provides
+ *          that array, which is how several devices share one instance.
  *
  * @param[in] spip      pointer to the @p SPIDriver object
  * @param[in] cfgnum    driver configuration number
@@ -626,21 +662,24 @@ const hal_spi_config_t *spi_lld_setcfg(SPIDriver *spip,
  */
 const hal_spi_config_t *spi_lld_selcfg(SPIDriver *spip,
                                        unsigned cfgnum) {
-#if SPI_USE_CONFIGURATIONS == TRUE
-  extern const spi_configurations_t spi_configurations;
 
-  if (cfgnum >= spi_configurations.cfgsnum) {
-    return NULL;
+  if (cfgnum == 0U) {
+    return spi_lld_setcfg(spip, NULL);
   }
 
-  return spi_lld_setcfg(spip, &spi_configurations.cfgs[cfgnum]);
+#if SPI_USE_CONFIGURATIONS == TRUE
+  {
+    extern const spi_configurations_t spi_configurations;
+
+    if (cfgnum >= spi_configurations.cfgsnum) {
+      return NULL;
+    }
+
+    return spi_lld_setcfg(spip, &spi_configurations.cfgs[cfgnum]);
+  }
 #else
 
-  if (cfgnum > 0U) {
-    return NULL;
-  }
-
-  return spi_lld_setcfg(spip, NULL);
+  return NULL;
 #endif
 }
 
