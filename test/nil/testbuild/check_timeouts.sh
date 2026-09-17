@@ -18,13 +18,13 @@ done
 for assertions in TRUE FALSE; do
   for bits in 16 32; do
     for delta in 0 2 10; do
-      "$cc" -std=c99 -O2 -Wall -Wextra -Werror \
+      "$cc" -m32 -std=c99 -O2 -Wall -Wextra -Werror \
         -ffunction-sections -fdata-sections \
         -DCH_DBG_ENABLE_ASSERTS="$assertions" \
         -DCH_CFG_ST_RESOLUTION="$bits" -DCH_CFG_ST_TIMEDELTA="$delta" \
         -I "$mock_dir/cfg" -I "$mock_dir" \
         -I "$root_dir/os/nil/include" \
-        -I "$root_dir/os/common/ports/SIMX86_64/compilers/GCC" \
+        -I "$root_dir/os/common/ports/SIMIA32/compilers/GCC" \
         -I "$root_dir/os/common/portability/GCC" \
         -I "$root_dir/os/license" -I "$root_dir/os/oslib/include" \
         "$root_dir/os/nil/src/ch.c" "$root_dir/os/nil/src/chsem.c" \

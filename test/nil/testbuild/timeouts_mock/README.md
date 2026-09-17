@@ -28,8 +28,16 @@ sources with a deterministic port boundary. It controls the counter,
 compare register, register-write latency and nested-ISR interleavings.
 Context switches are intercepted; this is not a hardware timing simulation.
 The shell runner builds in a temporary directory and removes its executable
-on exit. Host GCC (or a compatible compiler selected using `CC`) and GNU Make
-are required.
+on exit. Host GCC (or a compatible compiler selected using `CC`), 32-bit C
+libraries and GNU Make are required (`gcc-multilib` on Debian/Ubuntu).
+
+This 21.11 backport uses the branch's SIMIA32 kernel type declarations and
+its `stkalign_t`/`PORT_SETUP_CONTEXT` port interface at the mock boundary.
+It runs as a 32-bit host executable with intercepted context switches, not
+as the actual IA32 simulator. The `-m32` build matches the stable message API's
+use of the 32-bit `msg_t` type to pass thread pointers.
+The focused `.github/workflows/nil-regression.yml` runs this fixture; master's
+larger mechanical-check workflow is not imported into the stable branch.
 
 The matrix covers 16/32-bit time, periodic/tickless operation (delta 0/2/10),
 and assertions enabled/disabled, with parameter and state checks enabled.

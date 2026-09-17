@@ -2,7 +2,7 @@
 #ifndef CHCORE_H
 #define CHCORE_H
 
-typedef uint64_t stkline_t;
+typedef uint64_t stkalign_t;
 struct port_context { void *sp; };
 #define PORT_SUPPORTS_RT FALSE
 #define PORT_NATURAL_ALIGN sizeof(void *)
@@ -19,8 +19,7 @@ void test_start_alarm(systime_t t);
 void test_stop_alarm(void);
 
 #define port_init(p) ((void)(p))
-#define port_setup_context_base(p) ((void)(p))
-#define port_setup_context(c, b, e, f, a) do {                               \
+#define PORT_SETUP_CONTEXT(c, b, e, f, a) do {                              \
   (void)(c); (void)(b); (void)(e); (void)(f); (void)(a);                       \
 } while (false)
 #define port_disable() ((void)0)
