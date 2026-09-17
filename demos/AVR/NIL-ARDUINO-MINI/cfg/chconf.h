@@ -18,10 +18,10 @@
  * @file    nil/templates/chconf.h
  * @brief   Configuration file template.
  * @details A copy of this file must be placed in each project directory, it
- *          contains the application specific kernel settings.
+ *          contains the application-specific kernel settings.
  *
  * @addtogroup NIL_CONFIG
- * @details Kernel related settings and hooks.
+ * @details Kernel-related settings and hooks.
  * @{
  */
 
@@ -44,7 +44,7 @@
  *          implicitly handled.
  * @note    Set this value to be exactly equal to the number of threads you
  *          will use or you would be wasting RAM and cycles.
- * @note    This values also defines the number of available priorities
+ * @note    This value also defines the number of available priorities
  *          (0..CH_CFG_MAX_THREADS-1).
  */
 #if !defined(CH_CFG_MAX_THREADS)
@@ -314,9 +314,16 @@
 #endif
 
 /**
- * @brief   Maximum length for object names.
- * @details If the specified length is zero then the name is stored by
- *          pointer but this could have unintended side effects.
+ * @brief   Storage size for object names, including the terminating zero.
+ * @details A positive value N stores and compares at most N-1 characters.
+ *          Longer names with the same first N-1 characters identify the
+ *          same object within a factory category.
+ * @details If zero, the name is stored without copying and compared by
+ *          pointer identity, not string contents. Lookup must use the same
+ *          pointer; equal strings in different arrays are different keys.
+ *          The pointed-to storage must remain valid until final release.
+ *          Do not rely on identical string literals having equal addresses.
+ * @note    Each factory category has a separate name space.
  */
 #if !defined(CH_CFG_FACTORY_MAX_NAMES_LENGTH)
 #define CH_CFG_FACTORY_MAX_NAMES_LENGTH     8
