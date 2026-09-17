@@ -46,10 +46,17 @@
 #define MPU_RBAR_XN                         (1U << 0)
 #define MPU_RBAR_AP_MASK                    (3U << 1)
 #define MPU_RBAR_AP(n)                      ((n) << 1)
-#define MPU_RBAR_AP_RW_RO                   MPU_RBAR_AP(0U)
+#define MPU_RBAR_AP_RW_NA                   MPU_RBAR_AP(0U)
 #define MPU_RBAR_AP_RW_RW                   MPU_RBAR_AP(1U)
 #define MPU_RBAR_AP_RO_NA                   MPU_RBAR_AP(2U)
 #define MPU_RBAR_AP_RO_RO                   MPU_RBAR_AP(3U)
+
+/**
+ * @brief   Legacy name for privileged read/write, unprivileged no access.
+ * @deprecated Use @p MPU_RBAR_AP_RW_NA instead.
+ */
+#define MPU_RBAR_AP_RW_RO                   MPU_RBAR_AP_RW_NA
+
 #define MPU_RBAR_SH_MASK                    (3U << 3)
 #define MPU_RBAR_SH(n)                      ((n) << 3)
 #define MPU_RBAR_SH_NO                      MPU_RBAR_SH(0U)
@@ -153,14 +160,14 @@
 #define MPU_REGION_5                        5U
 #define MPU_REGION_6                        6U
 #define MPU_REGION_7                        7U
-#define MPU_REGION_8                        7U
-#define MPU_REGION_9                        7U
-#define MPU_REGION_10                       7U
-#define MPU_REGION_11                       7U
-#define MPU_REGION_12                       7U
-#define MPU_REGION_13                       7U
-#define MPU_REGION_14                       7U
-#define MPU_REGION_15                       7U
+#define MPU_REGION_8                        8U
+#define MPU_REGION_9                        9U
+#define MPU_REGION_10                       10U
+#define MPU_REGION_11                       11U
+#define MPU_REGION_12                       12U
+#define MPU_REGION_13                       13U
+#define MPU_REGION_14                       14U
+#define MPU_REGION_15                       15U
 /** @} */
 
 /*===========================================================================*/
@@ -181,7 +188,7 @@
 
 /**
  * @brief   Enables the MPU.
- * @note    MEMFAULENA is enabled in SCB_SHCSR.
+ * @note    MEMFAULTENA is enabled in SCB_SHCSR.
  *
  * @param[in] ctrl      MPU control modes as defined in @p MPU_CTRL register,
  *                      the enable bit is enforced
@@ -190,16 +197,21 @@
  */
 #define mpuEnable(ctrl) {                                                   \
   MPU->CTRL = ((uint32_t)ctrl) | MPU_CTRL_ENABLE;                           \
+  SCB->SHCSR |= SCB_SHCSR_MEMFAULTENA_Msk;                                  \
 }
 
 /**
  * @brief   Disables the MPU.
- * @note    MEMFAULENA is disabled in SCB_SHCSR.
+ * @note    MEMFAULTENA is disabled in SCB_SHCSR.
  *
  * @api
  */
 #define mpuDisable() {                                                      \
+  __DSB();                                                                  \
+  MPU->CTRL = 0U;                                                           \
   SCB->SHCSR &= ~SCB_SHCSR_MEMFAULTENA_Msk;                                 \
+  __DSB();                                                                  \
+  __ISB();                                                                  \
 }
 
 /**
