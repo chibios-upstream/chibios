@@ -10,6 +10,11 @@ cc=${CC:-cc}
 
 trap 'rm -f "$build_dir/timeouts"; rmdir "$build_dir"' EXIT HUP INT TERM
 
+for smart in yes no; do
+  make --no-print-directory -s -f "$mock_dir/sources.mk" \
+    CHIBIOS="$root_dir" CHCONFDIR="$mock_dir/cfg" USE_SMART_BUILD="$smart" check
+done
+
 for assertions in TRUE FALSE; do
   for bits in 16 32; do
     for delta in 0 2 10; do

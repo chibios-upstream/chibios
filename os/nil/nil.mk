@@ -26,7 +26,7 @@ endif
 
 else
 KERNSRC := ${CHIBIOS}/os/nil/src/ch.c \
-           ${CHIBIOS}/os/nil/src/chevt.c
+           ${CHIBIOS}/os/nil/src/chevt.c \
            ${CHIBIOS}/os/nil/src/chmsg.c \
            ${CHIBIOS}/os/nil/src/chsem.c
 endif
