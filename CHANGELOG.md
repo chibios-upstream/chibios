@@ -223,6 +223,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [XHAL] SPI transfer-start failures now restore the driver to `READY` instead
+  of leaving it `ACTIVE` with no transfer in progress, allowing immediate
+  retries and avoiding waits for a nonexistent transfer
+  ([#326](https://github.com/chibios-upstream/chibios/pull/326)).
 - [STM32] ADCv4 (STM32H7) boost-level selection tested the ADC clock thresholds
   in ascending order, so any clock above 6.25 MHz selected BOOST level 1 and
   levels 2 and 3 were never reached (under-boosting the analog stage above
