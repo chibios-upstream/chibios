@@ -138,6 +138,21 @@
 #endif
 
 /**
+ * @brief   WFI instruction alignment.
+ * @details A value of zero uses the inline CMSIS WFI implementation. A value
+ *          of 16 uses an assembly helper in order to place the WFI instruction
+ *          at the beginning of a 16-byte aligned block.
+ */
+#if !defined(PORT_WFI_INSTRUCTION_ALIGNMENT) || defined(__DOXYGEN__)
+#define PORT_WFI_INSTRUCTION_ALIGNMENT  0
+#endif
+
+#if (PORT_WFI_INSTRUCTION_ALIGNMENT != 0) &&                            \
+    (PORT_WFI_INSTRUCTION_ALIGNMENT != 16)
+#error "PORT_WFI_INSTRUCTION_ALIGNMENT must be zero or 16"
+#endif
+
+/**
  * @brief   FPU support in context switch.
  * @details Activating this option activates the FPU support in the kernel.
  */
@@ -519,6 +534,10 @@ extern "C" {
   void __port_thread_start(void);
   void __port_switch_from_isr(void);
   void __port_exit_from_isr(void);
+#if (CORTEX_ENABLE_WFI_IDLE == TRUE) &&                                 \
+    (PORT_WFI_INSTRUCTION_ALIGNMENT == 16)
+  void __port_wait_for_interrupt(void);
+#endif
 #ifdef __cplusplus
 }
 #endif
@@ -687,12 +706,17 @@ extern "C" {
   *          The simplest implementation is an empty function or macro but this
   *          would not take advantage of architecture-specific power saving
   *          modes.
-  * @note    Implemented as an inlined @p WFI instruction.
-  */
+ * @note    Implemented as an inlined @p WFI instruction or, when an
+ *          instruction alignment is configured, as an assembly helper.
+ */
  __STATIC_FORCEINLINE void port_wait_for_interrupt(void) {
 
  #if CORTEX_ENABLE_WFI_IDLE == TRUE
+#if PORT_WFI_INSTRUCTION_ALIGNMENT == 16
+   __port_wait_for_interrupt();
+#else
    __WFI();
+#endif
  #endif
  }
 
