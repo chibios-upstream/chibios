@@ -557,6 +557,24 @@ static inline msg_t __vfsnode_stat(void *ip, vfs_stat_t *sp) {
  * @{
  */
 /**
+ * @brief       Returns the file system owning the node.
+ * @details     The owning file system remains unchanged throughout the node
+ *              lifetime.
+ * @note        The caller must hold a valid reference to the node.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_node_c instance.
+ * @return                      Pointer to the owning file system.
+ *
+ * @api
+ */
+CC_FORCE_INLINE
+static inline vfs_fs_c *vfsNodeGetOwner(void *ip) {
+  vfs_node_c *self = (vfs_node_c *)ip;
+
+  return self->fs;
+}
+
+/**
  * @brief       Returns information about the node.
  * @details     The output structure is initialized before invoking the node
  *              implementation. Optional fields are reported only when the

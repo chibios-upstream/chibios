@@ -69,6 +69,7 @@ typedef struct {
   const struct vfs_fs_vmt *vmt;
   unsigned                operation;
   unsigned                calls;
+  unsigned                disposals;
   char                    path[VFS_CFG_PATHLEN_MAX + 1];
   char                    newpath[VFS_CFG_PATHLEN_MAX + 1];
   int                     flags;

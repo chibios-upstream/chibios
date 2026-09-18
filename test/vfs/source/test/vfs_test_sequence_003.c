@@ -41,6 +41,7 @@
  * - @subpage vfs_test_003_002
  * - @subpage vfs_test_003_003
  * - @subpage vfs_test_003_004
+ * - @subpage vfs_test_003_005
  * .
  */
 
@@ -700,6 +701,107 @@ static const testcase_t vfs_test_003_004 = {
 };
 #endif /* VFS_CFG_ENABLE_DRV_STREAMS == TRUE */
 
+#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page vfs_test_003_005 [3.5] Overlay file system lifetime
+ *
+ * <h2>Description</h2>
+ * Unregistering or disposing an overlay leaves shared file systems
+ * alive until the caller disposes them.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - VFS_CFG_ENABLE_DRV_OVERLAY == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [3.5.1] Removing a mapping leaves the file system usable through
+ *   another overlay and reports a missing mapping on subsequent
+ *   unregister attempts.
+ * - [3.5.2] Disposing overlays leaves registered and backing file
+ *   systems intact, allowing their caller to dispose them exactly once
+ *   after all overlays are gone.
+ * .
+ */
+
+static void vfs_test_003_005_execute(void) {
+  vfs_overlay_driver_c first;
+  vfs_overlay_driver_c second;
+  vfs_stat_t stat;
+  msg_t ret;
+
+  /* [3.5.1] Removing a mapping leaves the file system usable through
+     another overlay and reports a missing mapping on subsequent
+     unregister attempts.*/
+  test_set_step(1);
+  {
+    vfs_test_fs_reset();
+    (void)ovldrvObjectInit(&first, NULL, NULL);
+    (void)ovldrvObjectInit(&second, (vfs_fs_c *)&vfs_test_fs, NULL);
+    ret = ovldrvRegisterDriver(&first, (vfs_fs_c *)&vfs_test_fs, "mount");
+    test_assert(ret == CH_RET_SUCCESS, "first registration failed");
+    ret = ovldrvRegisterDriver(&second, (vfs_fs_c *)&vfs_test_fs, "mount");
+    test_assert(ret == CH_RET_SUCCESS, "shared registration failed");
+    ret = ovldrvUnregisterDriver(&first, "mount");
+    test_assert(ret == CH_RET_SUCCESS, "unregister failed");
+    test_assert(vfs_test_fs.disposals == 0U,
+                "unregister disposed the shared file system");
+    test_assert(vfs_test_fs.calls == 0U,
+                "registration change called a file system operation");
+    ret = ovldrvUnregisterDriver(&first, "mount");
+    test_assert(ret == CH_RET_ENOENT, "removed mapping still registered");
+    ret = vfsFSStat(&first, "/mount/file", &stat);
+    test_assert(ret == CH_RET_ENOENT, "removed mapping still routes paths");
+    ret = vfsFSStat(&second, "/mount/file", &stat);
+    test_assert(ret == CH_RET_SUCCESS, "shared mapping no longer usable");
+    test_assert(strcmp(vfs_test_fs.path, "/file") == 0,
+                "shared mapping path changed");
+  }
+  test_end_step(1);
+
+  /* [3.5.2] Disposing overlays leaves registered and backing file
+     systems intact, allowing their caller to dispose them exactly once
+     after all overlays are gone.*/
+  test_set_step(2);
+  {
+    ret = ovldrvRegisterDriver(&first, (vfs_fs_c *)&vfs_test_fs, "again");
+    test_assert(ret == CH_RET_SUCCESS, "unregister did not free the slot");
+    vfs_test_fs.calls = 0U;
+    boDispose(&first);
+    test_assert(vfs_test_fs.disposals == 0U,
+                "overlay disposal disposed the registered file system");
+    test_assert(vfs_test_fs.calls == 0U,
+                "overlay disposal called a file system operation");
+    ret = vfsFSStat(&second, "/mount/file", &stat);
+    test_assert(ret == CH_RET_SUCCESS, "shared mapping lost after disposal");
+    ret = vfsFSStat(&second, "/backing", &stat);
+    test_assert(ret == CH_RET_SUCCESS, "backing file system lost after disposal");
+    test_assert(strcmp(vfs_test_fs.path, "/backing") == 0,
+                "backing file system path changed");
+    vfs_test_fs.calls = 0U;
+    boDispose(&second);
+    test_assert(vfs_test_fs.disposals == 0U,
+                "overlay disposal disposed the backing file system");
+    test_assert(vfs_test_fs.calls == 0U,
+                "backing file system called during disposal");
+    ret = vfsFSStat(&vfs_test_fs, "/file", &stat);
+    test_assert(ret == CH_RET_SUCCESS, "file system no longer usable directly");
+    boDispose(&vfs_test_fs);
+    test_assert(vfs_test_fs.disposals == 1U,
+                "caller did not dispose the file system exactly once");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_003_005 = {
+  "Overlay file system lifetime",
+  NULL,
+  NULL,
+  vfs_test_003_005_execute
+};
+#endif /* VFS_CFG_ENABLE_DRV_OVERLAY == TRUE */
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -719,6 +821,9 @@ const testcase_t * const vfs_test_sequence_003_array[] = {
 #endif
 #if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
   &vfs_test_003_004,
+#endif
+#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_003_005,
 #endif
   NULL
 };

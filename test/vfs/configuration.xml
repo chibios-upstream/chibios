@@ -51,6 +51,7 @@ typedef struct {
   const struct vfs_fs_vmt *vmt;
   unsigned                operation;
   unsigned                calls;
+  unsigned                disposals;
   char                    path[VFS_CFG_PATHLEN_MAX + 1];
   char                    newpath[VFS_CFG_PATHLEN_MAX + 1];
   int                     flags;
@@ -142,8 +143,9 @@ bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp) {
 }
 
 static void vfs_test_fs_dispose(void *ip) {
+  vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
 
-  (void)ip;
+  self->disposals++;
 }
 
 static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
@@ -257,6 +259,7 @@ void vfs_test_fs_reset(void) {
   (void)__vfsfs_objinit_impl(&vfs_test_fs, &vfs_test_fs_vmt);
   vfs_test_fs.operation       = VFS_TEST_FS_OP_NONE;
   vfs_test_fs.calls           = 0U;
+  vfs_test_fs.disposals       = 0U;
   vfs_test_fs.path[0]         = '\0';
   vfs_test_fs.newpath[0]      = '\0';
   vfs_test_fs.flags           = 0;
@@ -1605,6 +1608,104 @@ test_assert(ret == CH_RET_SUCCESS, "FIFO open failed");
 ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
 test_assert(ret == CH_RET_ENOTTY, "FIFO accepted terminal control");
 (void)roRelease(fnp);]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Overlay file system lifetime.</value>
+          </brief>
+          <description>
+            <value>Unregistering or disposing an overlay leaves shared file
+              systems alive until the caller disposes them.</value>
+          </description>
+          <condition>
+            <value>VFS_CFG_ENABLE_DRV_OVERLAY == TRUE</value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value />
+            </setup_code>
+            <teardown_code>
+              <value />
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[vfs_overlay_driver_c first;
+vfs_overlay_driver_c second;
+vfs_stat_t stat;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Removing a mapping leaves the file system usable
+                  through another overlay and reports a missing mapping
+                  on subsequent unregister attempts.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fs_reset();
+(void)ovldrvObjectInit(&first, NULL, NULL);
+(void)ovldrvObjectInit(&second, (vfs_fs_c *)&vfs_test_fs, NULL);
+ret = ovldrvRegisterDriver(&first, (vfs_fs_c *)&vfs_test_fs, "mount");
+test_assert(ret == CH_RET_SUCCESS, "first registration failed");
+ret = ovldrvRegisterDriver(&second, (vfs_fs_c *)&vfs_test_fs, "mount");
+test_assert(ret == CH_RET_SUCCESS, "shared registration failed");
+ret = ovldrvUnregisterDriver(&first, "mount");
+test_assert(ret == CH_RET_SUCCESS, "unregister failed");
+test_assert(vfs_test_fs.disposals == 0U,
+            "unregister disposed the shared file system");
+test_assert(vfs_test_fs.calls == 0U,
+            "registration change called a file system operation");
+ret = ovldrvUnregisterDriver(&first, "mount");
+test_assert(ret == CH_RET_ENOENT, "removed mapping still registered");
+ret = vfsFSStat(&first, "/mount/file", &stat);
+test_assert(ret == CH_RET_ENOENT, "removed mapping still routes paths");
+ret = vfsFSStat(&second, "/mount/file", &stat);
+test_assert(ret == CH_RET_SUCCESS, "shared mapping no longer usable");
+test_assert(strcmp(vfs_test_fs.path, "/file") == 0,
+            "shared mapping path changed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Disposing overlays leaves registered and backing
+                  file systems intact, allowing their caller to dispose
+                  them exactly once after all overlays are gone.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[ret = ovldrvRegisterDriver(&first, (vfs_fs_c *)&vfs_test_fs, "again");
+test_assert(ret == CH_RET_SUCCESS, "unregister did not free the slot");
+vfs_test_fs.calls = 0U;
+boDispose(&first);
+test_assert(vfs_test_fs.disposals == 0U,
+            "overlay disposal disposed the registered file system");
+test_assert(vfs_test_fs.calls == 0U,
+            "overlay disposal called a file system operation");
+ret = vfsFSStat(&second, "/mount/file", &stat);
+test_assert(ret == CH_RET_SUCCESS, "shared mapping lost after disposal");
+ret = vfsFSStat(&second, "/backing", &stat);
+test_assert(ret == CH_RET_SUCCESS, "backing file system lost after disposal");
+test_assert(strcmp(vfs_test_fs.path, "/backing") == 0,
+            "backing file system path changed");
+vfs_test_fs.calls = 0U;
+boDispose(&second);
+test_assert(vfs_test_fs.disposals == 0U,
+            "overlay disposal disposed the backing file system");
+test_assert(vfs_test_fs.calls == 0U,
+            "backing file system called during disposal");
+ret = vfsFSStat(&vfs_test_fs, "/file", &stat);
+test_assert(ret == CH_RET_SUCCESS, "file system no longer usable directly");
+boDispose(&vfs_test_fs);
+test_assert(vfs_test_fs.disposals == 1U,
+            "caller did not dispose the file system exactly once");]]></value>
               </code>
             </step>
           </steps>

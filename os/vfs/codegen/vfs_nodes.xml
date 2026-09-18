@@ -275,6 +275,17 @@ return CH_RET_SUCCESS;]]></implementation>
             </method>
           </virtual>
           <inline>
+            <method name="vfsNodeGetOwner" ctype="vfs_fs_c *">
+              <brief>Returns the file system owning the node.</brief>
+              <details>The owning file system remains unchanged throughout
+                the node lifetime.</details>
+              <note>The caller must hold a valid reference to the node.</note>
+              <return>Pointer to the owning file system.</return>
+              <api />
+              <implementation><![CDATA[
+
+return self->fs;]]></implementation>
+            </method>
             <method name="vfsNodeStat" ctype="msg_t">
               <brief>Returns information about the node.</brief>
               <details>The output structure is initialized before invoking
