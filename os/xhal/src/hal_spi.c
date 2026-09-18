@@ -229,6 +229,9 @@ msg_t spiStartIgnoreI(void *ip, size_t n) {
 
   self->state = HAL_DRV_STATE_ACTIVE;
   msg = spi_lld_ignore(self, n);
+  if (msg != HAL_RET_SUCCESS) {
+    self->state = HAL_DRV_STATE_READY;
+  }
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
   chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
@@ -297,6 +300,9 @@ msg_t spiStartExchangeI(void *ip, size_t n, const void *txbuf, void *rxbuf) {
 
   self->state = HAL_DRV_STATE_ACTIVE;
   msg = spi_lld_exchange(self, n, txbuf, rxbuf);
+  if (msg != HAL_RET_SUCCESS) {
+    self->state = HAL_DRV_STATE_READY;
+  }
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
   chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
@@ -366,6 +372,9 @@ msg_t spiStartSendI(void *ip, size_t n, const void *txbuf) {
 
   self->state = HAL_DRV_STATE_ACTIVE;
   msg = spi_lld_send(self, n, txbuf);
+  if (msg != HAL_RET_SUCCESS) {
+    self->state = HAL_DRV_STATE_READY;
+  }
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
   chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
@@ -433,6 +442,9 @@ msg_t spiStartReceiveI(void *ip, size_t n, void *rxbuf) {
 
   self->state = HAL_DRV_STATE_ACTIVE;
   msg = spi_lld_receive(self, n, rxbuf);
+  if (msg != HAL_RET_SUCCESS) {
+    self->state = HAL_DRV_STATE_READY;
+  }
 
 #if SPI_USE_ASSERT_ON_ERROR == TRUE
   chDbgAssert(msg == HAL_RET_SUCCESS, "function failed");
