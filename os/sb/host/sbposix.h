@@ -69,6 +69,9 @@ typedef struct {
   vfs_root_c                    *vfs_root;
   /**
    * @brief   VFS nodes associated to file descriptors.
+   * @note    Each entry owns one reference. The sandbox thread exclusively
+   *          owns the active table, including while a syscall waits. Host
+   *          registration requires STOPPED and lifecycle serialization.
    */
   vfs_node_c                    *vfs_nodes[SB_CFG_FD_NUM];
 } sb_ioblock_t;

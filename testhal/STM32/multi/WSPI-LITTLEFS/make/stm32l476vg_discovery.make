@@ -156,7 +156,8 @@ CPPWARN = -Wall -Wextra -Wundef
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS = -DXSNOR_USE_SPI=FALSE
+# This native-library test exercises the HAL lock hooks without VFS.
+UDEFS = -DXSNOR_USE_SPI=FALSE -DLFS_THREADSAFE=1
 
 # Define ASM defines here
 UADEFS =

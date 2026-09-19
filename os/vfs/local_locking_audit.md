@@ -9,9 +9,11 @@ thread-safe; steps 2 through 6 implement and validate the missing parts.
 The audit covers the in-tree root, overlay, streams, ROMFS, FatFS, and LittleFS
 implementations, CHFS's current skeleton, OOP references, pools, and the newlib
 and sandbox adapters. The available FatFS source is R0.14b, revision 86631,
-with ChibiOS extensions. `ext/littlefs` is absent, so LittleFS library behavior
-and runtime concurrency remain unverified; its wrapper and HAL bindings were
-inspected. Template and unfinished drivers have no concurrency guarantee.
+with ChibiOS extensions. LittleFS was unavailable at the initial audit; step 3
+now also validates the locally available 2.10.x library. The FatFS/LittleFS
+sections below have been updated for wrapper-owned synchronization, replacing
+the initial native-reentrancy prerequisites. Template and unfinished drivers
+have no concurrency guarantee.
 
 ## Operation and ownership contract
 
@@ -73,15 +75,15 @@ inspected. Template and unfinished drivers have no concurrency guarantee.
    callback reentry into allocating root operations are therefore unsupported.
    ELF relocation and sandbox directory scratch follow the same rule.
 
-The future `VFS_CFG_USE_MUTUAL_EXCLUSION` option controls only VFS-owned local
+The `VFS_CFG_USE_MUTUAL_EXCLUSION` option controls only VFS-owned local
 mutex fields/helpers. Disabled helpers are empty macros with no corresponding
-mutex storage. Callers then supply serialization for those metadata domains.
+mutex storage. Callers then supply serialization for those metadata and leaf domains.
 It does not disable kernel pool/reference protection or configure a leaf
 library's native synchronization. No global acquire/release API is introduced.
 
 ## State and protection inventory
 
-| State and source | Current protection | Required protection or ownership |
+| State and source | Protection at the step 1 baseline | Required protection or ownership |
 | --- | --- | --- |
 | Root `path_cwd`, resolution, `getcwd`, `chdir` in [drvroot_impl.inc](drivers/root/drvroot_impl.inc) | Private operation pair; CWD itself is unprotected | Root's inherited optional metadata mutex for copying/snapshot/commit only. Rename resolves both inputs from one CWD. Never carry the mutex into validation or node disposal. |
 | Lazy CWD storage in `vfsRootChangeCurrentDirectory()` | `chCoreAlloc()` followed by an unprotected pointer assignment | Establish storage without racing monotonic allocations. The selected design keeps one lazy buffer per root and protects the bounded, nonblocking `chCoreAlloc()` call with the metadata mutex. This prevents competing allocations; storage remains permanent rather than requiring a separate pool. |
@@ -96,7 +98,7 @@ library's native synchronization. No global acquire/release API is introduced.
 | Newlib `fds[]` in [syscalls.c](../various/newlib_bindings/syscalls.c) | No table lock and no operation pins in this branch | Atomic lookup plus lifetime pin, insertion, and detach. Keep I/O, virtual addref/release, and disposal outside table protection. An in-flight operation must continue on its pinned node after close/reuse. |
 | Sandbox `io.vfs_nodes[]` in [sbposix.c](../sb/host/sbposix.c) | Lifecycle ownership; ordinary lookup uses the table reference | One guest thread owns its active table. Host registration is stopped-state only. Detach entries before release on close/replacement/cleanup; preserve transferred references. See adapter details below. |
 | ROMFS cursors, positions, sessions; streams directory cursor | Per-open mutable state without operation locking | Same-handle caller serialization. Shared immutable descriptors need no mutex; shared callback/stream state needs its own backend contract. |
-| FatFS volume/library state; LittleFS `lfs`, `mounted`, `cfgp` | Configuration-dependent native locks; lifecycle gaps | Native domain shared by all callers, exclusive lifecycle phase, and the leaf prerequisites below. |
+| FatFS volume/library state; LittleFS `lfs`, `mounted`, `cfgp` | Configuration-dependent native locks; lifecycle gaps | Optional singleton FatFS/per-instance LittleFS wrapper mutexes, exclusive lifecycle phase, and the leaf requirements below. |
 | CHFS cache and prospective FS metadata | Cache ownership exists; FS operations are stubs | Cache reservation protects one object only. Actual filesystem transactions, lifecycle, and callback order require design with the future implementation. |
 
 Kernel allocation details matter: [chmempools.c](../oslib/src/chmempools.c)
@@ -118,7 +120,7 @@ must call the ordinary pool APIs outside its own system sections.
 | ROMFS `stat`/`open`/`read`/`close` and open-failure cleanup | Descriptor lifetime and applicable per-open session. Distinct-session callbacks can overlap; callback-owned shared state needs synchronization. A path operation or getdents caller may still own a pair. |
 | Streams read/write/seek/control | Retained VFS node and borrowed backend interface lifetime. Backend may block and may be shared by other nodes. |
 | ELF relocation and sandbox `getdents` to node methods | Scratch pair retained across I/O/iteration; node methods and their callbacks cannot wait for another pair. |
-| Native FatFS/LittleFS to storage hooks | Native lock/lifecycle requirements, backend identity, and backend buffer lifetime. No inherited upper VFS metadata mutex. Native lock reentry is not implicitly supported. |
+| Native FatFS/LittleFS to storage hooks | Leaf wrapper mutex held through native calls and I/O waits; optional backend locking follows it. No inherited upper VFS metadata mutex. Callback reentry into VFS is unsupported. |
 
 ## Leaf readiness
 
@@ -159,85 +161,63 @@ aliases even if the VFS node pointers differ. Do not put an upper VFS mutex
 around blocking stream or TTY calls. Directory enumeration alone needs only
 per-handle serialization and the immutable table.
 
-### FatFS
+### FatFS — step 3 implementation
 
 [drvfatfs_impl.inc](drivers/fatfs/drvfatfs_impl.inc) uses global native volume
-routing: ordinary operations do not derive the volume's synchronization from
-the `vfs_fatfs_driver_c` object. Two wrappers can access the same volume. A
-per-wrapper mutex would therefore leave shared native state unprotected.
+routing. One optional module mutex now protects the singleton, including all
+volumes, nodes, direct `FIL`/`DIR`/geometry reads, `f_getfs()`, and the
+argument-less mount/unmount helpers. Separate wrapper objects cannot create
+separate exclusion domains. The shared `Fsid`, optional `Files[]` and native
+LFN scratch therefore remain serialized across wrapper calls.
 
-The inspected R0.14b `ext/fatfs/source/ff.c` uses `lock_fs()` with a per-volume
-sync object when `FF_FS_REENTRANT` is enabled. The existing
-[fatfs_syscall.c](../various/fatfs_bindings/fatfs_syscall.c) implements that
-revision's `ff_cre_syncobj`, `ff_del_syncobj`, `ff_req_grant`, and
-`ff_rel_grant` hooks using one semaphore per volume. The simulator configuration,
-all five RT-VFS-FATFS configurations, and both L4R9 sandbox configurations
-currently set `FF_FS_REENTRANT=0` and `FF_FS_LOCK=0`. Their successful functional
-tests/builds are not concurrency validation.
+Native `FF_FS_REENTRANT` is optional; the simulator validates the R0.14b
+ChibiOS library with `FF_FS_REENTRANT=0` and `FF_FS_LOCK=0`. Native locks, when
+configured, are acquired inside the wrapper domain. The wrapper takes its
+mutex once for rewind/read and open/truncate/error-close. Node and info pools
+are allocated before locking and freed after unlocking. The fixed filesystem
+pool is nonblocking and is inspected under the singleton mutex during mount.
+A failed immediate mount unregisters its object before returning it to the
+pool; failed unmount must not return an object still registered with FatFS.
 
-Prerequisites for step 3:
+Mount/unmount and direct native formatting require an exclusive lifecycle
+phase with no affected active calls or live nodes. Direct native APIs must
+not overlap wrapper operations. Native duplicate-file/remove restrictions
+remain: `FF_FS_LOCK` checks sharing rules; wrapper mutual exclusion does not
+make prohibited sharing safe. The [disk bindings](../various/fatfs_bindings/fatfs_diskio.c)
+forward to the configured block device. Other users of that device still need
+a common device synchronization domain and safe start/stop/removal.
 
-- Enable native reentrancy for configurations offered for simultaneous access
-  to one volume, link the matching hooks, and provide kernel semaphore support.
-  The FatFS simulator target currently adds `ff.c` only; it must also link the
-  synchronization hooks for such tests. Keep `FF_USE_LFN` at 0, 2, or 3:
-  R0.14b rejects static LFN scratch (`FF_USE_LFN=1`) with native reentrancy.
-- Serialize native mount/unmount/format and volume registration as lifecycle
-  operations; no live nodes or calls may overlap them. `ffdrvMount()` queries,
-  allocates/registers and sometimes frees a `FATFS`; `ffdrvUnmount()` unregisters
-  then frees it. The native `f_getfs()` extension reads `FatFs[]` without a lock.
-  Native per-volume file locking does not make these sequences safe.
-- Audit cross-volume native globals before advertising multi-volume concurrency.
-  R0.14b has a shared `Fsid` changed on actual mount, optional `Files[]` share
-  tracking, and optional `CurrVol`; `lock_fs()` itself only locks one volume.
-  Eager mounts in the exclusive lifecycle phase and `FF_FS_RPATH=0` avoid some
-  races; media-triggered remount and shared file-table updates still need an
-  explicit supported policy or native fixes. A VFS-wide wrapper lock is not
-  the solution.
-- Respect native duplicate-file/remove restrictions. `FF_FS_REENTRANT` protects
-  filesystem internals; `FF_FS_LOCK` is a separate sharing check. With the
-  latter disabled, callers must enforce the native file-sharing restrictions.
-  Enabling it does not resolve the cross-volume table issue above.
-- Native stat/position wrappers read `FIL`, `DIR`, and FS geometry fields
-  directly. Their safety relies on same-handle serialization and a stable
-  mounted volume. `first` combines rewind/read, and truncate-open combines
-  open/truncate; native per-call locking does not promise atomic multi-call
-  operations or namespace snapshots.
-- The [disk bindings](../various/fatfs_bindings/fatfs_diskio.c) forward to the
-  configured block device without adding a common operation lock. A shared
-  physical device must supply suitable synchronization, including when native
-  volumes have different locks. Its start/stop/removal remains a lifecycle
-  concern. Update/test configuration through its template/updater when needed.
+### LittleFS — step 3 implementation
 
-### LittleFS
+The [VFS wrapper](drivers/littlefs/drvlittlefs_impl.inc) now has one optional
+mutex per driver instance. It covers `lfs_t`, `mounted`, all path and node
+operations (including close, tell, size, and rewind/read), and lifecycle calls.
+Constructor/disposal require exclusive ownership. Configuration, buffers and
+context remain fixed for the instance lifetime. Pools and final reference
+cleanup are outside the native operation lock.
 
-[littlefs.mk](../various/littlefs_bindings/littlefs.mk) enables `LFS_THREADSAFE`.
-The demo and test configurations wire `__lfs_lock`/`__lfs_unlock` from
-[lfs_hal.c](../various/littlefs_bindings/lfs_hal.c) to
-`flashAcquireExclusive()`/`flashReleaseExclusive()`. The domain is the actual
-flash device, so configurations using it share that exclusive-access domain.
-This is native backend protection, not an upper VFS metadata lock.
+[littlefs.mk](../various/littlefs_bindings/littlefs.mk) no longer forces
+`LFS_THREADSAFE`. The default supported VFS configuration uses its own wrapper
+mutex with native reentrancy disabled. Optional native hooks remain supported;
+the VFS demo/test configurations conditionally initialize them. The native
+WSPI-LITTLEFS HAL test explicitly enables those hooks to preserve its coverage.
 
-The [VFS wrapper](drivers/littlefs/drvlittlefs_impl.inc) reads `mounted` before
-calling the library; mount/unmount/format check or modify it outside the native
-lock. Merely adding a mutex around that boolean would not retain an active
-filesystem through the subsequent library call. Disposers call the library
-to close their native handles, so even idle open nodes prevent unmount.
+Leaf mutexes span native calls, storage callbacks and waits. They cannot be
+released while non-reentrant library state is active. Storage callbacks must
+not reenter VFS. Independent filesystem instances on independent storage can
+progress concurrently. Multiple instances sharing a flash device need a
+common device synchronization domain in addition to separate instance locks.
+The standard [HAL binding](../various/littlefs_bindings/lfs_hal.h) requires an
+exclusively owned device without native hooks; shared users can select native
+hooks backed by working HAL exclusive access, or supply synchronized callbacks.
+For EFL native hooks, `EFL_USE_MUTUAL_EXCLUSION` must be enabled. Lock/unlock
+hook errors are now propagated instead of ignored. Device exclusion does not
+make overlapping filesystem caches coherent: instances must use disjoint areas.
 
-Prerequisites: enforce the exclusive lifecycle phase, keep `cfgp` and its
-buffers/context immutable, use one `lfs_t` state per mounted filesystem, and
-require working native lock hooks for every concurrent configuration. For
-EFL this includes `EFL_USE_MUTUAL_EXCLUSION=TRUE`; its disabled implementation
-asserts/returns `FLASH_ERROR_UNIMPLEMENTED`, while the binding currently ignores
-that result and reports success. Step 3 must validate that requirement or
-propagate failures. A shared device lock cannot make two independent mutable
-filesystem caches for the same storage coherent.
-
-Once the external library is available, verify the actual lock coverage of
-open/close, stat, read/write, seek/tell/size, mount/unmount/format, and all
-storage callbacks; then run distinct-handle tests. Rewind/read is still a
-compound operation covered by the caller's same-handle rule. LittleFS is not
-yet validated for concurrent use in this worktree.
+Mount/unmount/format remain externally quiesced lifecycle operations. Idle open
+nodes still prevent unmount because disposal must close their native handles.
+The simulator tests both native-lock configurations, same-instance exclusion
+at a controlled I/O wait, independent instances, rewind/read, and error exits.
 
 ### CHFS and unfinished drivers
 
@@ -253,35 +233,51 @@ or media-lifecycle synchronization. Those are prerequisites of implementing
 CHFS, not evidence for declaring the existing skeleton concurrently usable.
 Template/unfinished drivers remain excluded from supported concurrency.
 
-## Descriptor ownership and remaining integration requirements
+## Descriptor ownership — step 4 implementation
 
-Newlib currently scans/inserts `fds[]` without protection, uses bare pointers
-for read/write/stat, and releases before clearing a close slot. Concurrent
-close/reuse can invalidate an operation's node. The earlier plan's reference
-to existing read/write pins applied to the preserved global-lock branch;
-there are no such pins in the restarted foundation.
+Newlib now protects insertion, lookup/pinning and close/detach with short
+`chSysLock()` sections. An occupied slot owns one node reference. Read/write
+and fstat pin that node before leaving table protection and release it outside.
+Close transfers the table's reference to a local variable and clears the slot
+before release. An open can reuse the number during an earlier I/O or disposal;
+the earlier operation keeps its selected node. No node call, virtual reference
+method or disposal executes under descriptor-table protection.
 
-Step 4 must implement atomic lookup plus lifetime retention, atomic slot
-insertion/detachment, and release outside protection. The generic virtual
-`roAddRef()` cannot be called under `chSysLock()` (its default implementation
-locks again), or under a table mutex that must not span node methods. All
-built-in node VMTs inspected use the standard OOP addref/release pair. A
-non-dispatching I-class pin may serve that explicitly supported reference
-model; arbitrary overrides need an explicit compatible protocol or deferred
-table-owned references. Do not silently bypass custom addref/release behavior.
-Selecting and testing that mechanism is part of step 4, not completed here.
+The private `pin_descriptorI()` helper increments the standard OOP counter
+without dispatch or nested locking. All built-in node VMTs use the standard
+`__ro_addref_impl`/`__ro_release_impl` pair. Newlib rejects custom reference
+methods at open with `ENOTSUP`, releasing the returned node through its own
+virtual release method outside protection. This explicitly limits admission
+instead of silently bypassing override semantics. Custom disposal remains
+supported. `OOP_USE_NOTHING` is rejected for VFS newlib builds. The pin/table
+critical sections remain active with `VFS_CFG_USE_MUTUAL_EXCLUSION=FALSE`,
+independently of optional metadata/leaf mutexes.
+
+The changes preserve existing newlib syscall behavior, including the limited
+mode-only fstat and seek/isatty stubs; completing those APIs is a separate task.
+Reference pins do not provide same-handle ordering or libc stream protection.
 
 Sandbox has one host thread per `sb_class_t`. [sbhost.h](../sb/host/sbhost.h)
 restricts `sbSetRoot()` and reference-transferring `sbRegisterDescriptor()` to
-the stopped state. Guest syscalls own the active table; normal exit/fault and
-failed-start paths invoke cleanup outside system locks before stopped-state
-reuse. Host lifecycle operations themselves require external serialization.
-Keep that ownership contract rather than adding a table mutex around syscalls.
-Sharing a node with the host or another sandbox still requires separate
-references and same-handle ordering. Detach close/dup2/cleanup slots before
-disposal can call external code; retain new references before replacing old
-ones. Supporting active host-side table mutation would require a new pinning
-protocol, not just a short critical section around a pointer read.
+the stopped state. Guest syscalls own the active table; VRQ delivery is deferred
+while the host executes a syscall. Normal exit/fault and failed-start paths
+invoke cleanup outside system locks before stopped-state reuse. Host lifecycle
+operations themselves require external serialization.
+
+The table's reference therefore retains a directory throughout getdents,
+including guarded-pool and backend waits, without an extra pin or table mutex.
+Close and cleanup now detach entries before release. Dup2 retains its source,
+replaces the destination, then releases the displaced reference. Sharing nodes
+with the host or another sandbox still requires separate references and
+same-handle ordering. Supporting host-side mutation of an active table would
+require a separate pinning protocol; it is outside the supported contract.
+
+Simulator tests compile the production newlib bindings with only a minimal
+libc ABI shim and renamed symbols. Controlled read/write/disposal suspension
+verifies close/reuse, success/error cleanup, original-node retention, and
+unlocked driver/disposal entry. Invalid descriptors, directories, full tables
+and custom-reference rejection are covered. Sandbox changes are source-audited
+and ARM compile/link validated; no sandbox runtime test is claimed here.
 
 ## Step 1 completion and follow-up
 
@@ -291,7 +287,7 @@ also documented in the generated node interface and VFS architecture page.
 This step makes no runtime synchronization changes and adds no concurrency
 claims to the previously run functional tests.
 
-Next is step 2: optional overlay/root metadata locking, safe CWD storage,
-consistent route snapshots, and explicit overlay enumeration phase. Steps 3
-and 4 must satisfy the leaf and descriptor prerequisites before the complete
-VFS stack is advertised as concurrently usable.
+Steps 2 through 4 now supply local metadata and leaf mutexes plus descriptor
+ownership protection. Next is step 5: finish API contracts and caller
+integration, followed by final validation. The complete VFS stack is not yet
+advertised as concurrently usable.

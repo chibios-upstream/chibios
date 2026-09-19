@@ -79,10 +79,11 @@
  * both inputs against one CWD. No global VFS operation mutex is provided.
  *
  * The option defaults to @p FALSE: mutex fields disappear and local lock
- * helpers become empty macros. Callers then serialize shared metadata.
+ * helpers become empty macros. Callers then serialize shared state.
  * Kernel pool/reference protection and native backend configuration remain
- * independent. Leaf and descriptor synchronization work is still pending;
- * local metadata protection alone does not make the entire VFS thread-safe.
+ * independent. Descriptor ownership is protected locally as described below.
+ * Caller integration and final concurrency validation are still pending;
+ * this is not yet a full-stack concurrency guarantee.
  *
  * Each root allocates one CWD buffer on its first successful chdir using
  * @p chCoreAlloc(). This bounded, nonblocking allocation runs under the
@@ -122,6 +123,57 @@
  * blocking allocation. Each leaf supplies its own synchronization. These
  * requirements do not imply that the current adapters or leaf configurations
  * already support concurrent use.
+ *
+ * @subsection vfs_arch_leaf_locking Leaf wrapper synchronization
+ *
+ * With @p VFS_CFG_USE_MUTUAL_EXCLUSION enabled, FatFS uses one module mutex
+ * for all volumes, node operations and mount/unmount. LittleFS uses one mutex
+ * per driver instance for its native state, mounted flag, node operations and
+ * mount/unmount/format. FatFS native reentrancy and LittleFS @c LFS_THREADSAFE
+ * are optional. Compound rewind/read and open/truncate acquire the wrapper
+ * lock once; recursive kernel mutexes are not required.
+ *
+ * A leaf mutex spans native calls, storage callbacks and I/O waits. Releasing
+ * it while non-reentrant native state is active would permit corruption.
+ * The order is leaf wrapper, then optional native/backend protection.
+ * Storage callbacks must not reenter VFS. Direct native calls must not overlap
+ * wrapper operations. These mutexes do not remove lifecycle or native
+ * file-sharing restrictions, nor provide atomic multi-call transactions.
+ *
+ * Independent LittleFS instances can progress concurrently on independent
+ * storage. Shared hardware still needs a shared device synchronization domain.
+ * The standard LittleFS HAL binding can supply this through optional native
+ * lock hooks and enabled HAL exclusive access. Without those hooks, use an
+ * exclusively owned device or synchronized callbacks. Distinct native states
+ * must never mount the same storage concurrently.
+ *
+ * ROMFS immutable data and per-open sessions need no module mutex. Shared
+ * custom callback state and aliased stream interfaces retain their backend
+ * synchronization contract. CHFS remains unfinished and is not covered by
+ * the concurrency guarantee.
+ *
+ * @subsection vfs_arch_descriptors Descriptor ownership
+ *
+ * Newlib descriptors each own one node reference. Insertion, lookup/pinning
+ * and detachment use short system critical sections. Read/write and fstat
+ * retain the selected node before unlocking; I/O and final release happen
+ * outside table protection. Close detaches the slot before releasing it, so
+ * another open may reuse the number while an earlier operation or disposal
+ * still runs. That operation finishes on its original node.
+ *
+ * The newlib pin is a private, non-dispatching I-class helper for the standard
+ * OOP reference counter. Newlib open rejects nodes overriding addref or release
+ * with @c ENOTSUP; arbitrary disposal overrides remain supported. OOP reference
+ * synchronization must be enabled. This reference/table protection is active
+ * independently of @p VFS_CFG_USE_MUTUAL_EXCLUSION, like pool protection.
+ * It does not serialize same-handle operations or libc stream state.
+ *
+ * A sandbox has one host thread owning its active descriptor table. Host
+ * registration is allowed only while STOPPED, under exclusive lifecycle
+ * ownership. Table references retain nodes throughout syscalls, including
+ * getdents scratch waits. Close and cleanup detach before release; dup2 retains
+ * the source and replaces the destination before releasing the old node.
+ * Host-side mutation of a running sandbox's table remains unsupported.
  *
  * @section vfs_arch_buffers Shared buffer pairs
  *

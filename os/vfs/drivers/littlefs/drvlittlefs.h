@@ -89,6 +89,16 @@
  * @class       vfs_littlefs_driver_c
  * @extends     vfs_fs_c
  *
+ * @brief       LittleFS wrapper with per-instance synchronization.
+ * @details     Optional mutual exclusion controlled by
+ *              VFS_CFG_USE_MUTUAL_EXCLUSION protects this instance and all its
+ *              node operations. LFS_THREADSAFE is optional.
+ *              Mount/unmount/format require no affected live nodes or active
+ *              operations. Direct native calls must not overlap VFS
+ *              operations. Storage callbacks execute under the leaf mutex and
+ *              must not reenter VFS. Shared storage devices need their own
+ *              synchronization; distinct instances must not mount the same
+ *              storage.
  *
  * @name        Class @p vfs_littlefs_driver_c structures
  * @{
@@ -124,6 +134,12 @@ struct vfs_littlefs_driver {
    * @brief       Virtual Methods Table.
    */
   const struct vfs_littlefs_driver_vmt *vmt;
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
+  /**
+   * @brief       LittleFS instance operation mutex.
+   */
+  mutex_t                   mutex;
+#endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
   /**
    * @brief       LittleFS driver mounted flag.
    */

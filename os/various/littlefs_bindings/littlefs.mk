@@ -6,7 +6,9 @@ LITTLEFSSRC = $(CHIBIOS)/os/various/littlefs_bindings/lfs_hal.c \
 LITTLEFSINC = $(CHIBIOS)/os/various/littlefs_bindings \
               $(CHIBIOS)/ext/littlefs
 
-DDEFS      += -DLFS_THREADSAFE=1 -DLFS_NO_DEBUG=0 -DLFS_CONFIG=lfs_config.h
+# VFS supplies optional per-instance serialization. Define LFS_THREADSAFE in
+# the application only when native lock hooks are also needed.
+DDEFS      += -DLFS_NO_DEBUG=0 -DLFS_CONFIG=lfs_config.h
 
 # Shared variables
 ALLCSRC += $(LITTLEFSSRC)

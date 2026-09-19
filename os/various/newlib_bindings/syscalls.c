@@ -29,7 +29,45 @@
 #define SYSCALL_MAX_FDS                     10
 #endif
 
+#if defined(OOP_USE_NOTHING)
+#error "VFS newlib bindings require synchronized OOP references"
+#endif
+
+/* Each occupied slot owns one reference. Lookup pins standard OOP nodes
+   before leaving the system lock. Custom reference methods are rejected at
+   insertion because invoking or bypassing them under that lock is unsafe.
+   I/O, virtual methods and final release always run outside table protection.*/
 static vfs_node_c *fds[SYSCALL_MAX_FDS];
+
+/* Non-dispatching I-class pin, for nodes admitted by _open_r() only.*/
+static vfs_node_c *pin_descriptorI(int file) {
+  vfs_node_c *np;
+
+  chDbgCheckClassI();
+
+  if ((file < 0) || (file >= SYSCALL_MAX_FDS)) {
+    return NULL;
+  }
+  np = fds[file];
+  if (np != NULL) {
+    chDbgAssert((np->vmt->addref == __ro_addref_impl) &&
+                (np->vmt->release == __ro_release_impl), "reference model");
+    chDbgAssert((np->references > 0U) &&
+                (np->references != (object_references_t)-1), "references");
+    np->references++;
+  }
+  return np;
+}
+
+static vfs_node_c *pin_descriptor(int file) {
+  vfs_node_c *np;
+
+  chSysLock();
+  np = pin_descriptorI(file);
+  chSysUnlock();
+
+  return np;
+}
 
 static mode_t mode_to_stat_mode(vfs_mode_t mode) {
   mode_t stat_mode = 0U;
@@ -68,13 +106,24 @@ int _open_r(struct _reent *r, const char *p, int oflag, int mode) {
     return -1;
   }
 
-  /* Searching for a free file handle.*/
+  /* The I-class pin must preserve the node's reference semantics.*/
+  if ((vnp->vmt->addref != __ro_addref_impl) ||
+      (vnp->vmt->release != __ro_release_impl)) {
+    vfsClose(vnp);
+    __errno_r(r) = ENOTSUP;
+    return -1;
+  }
+
+  /* Transferring the open reference into a free descriptor slot.*/
+  chSysLock();
   for (file = 0; file < SYSCALL_MAX_FDS; file++) {
     if (fds[file] == NULL) {
       fds[file] = vnp;
+      chSysUnlock();
       return file;
     }
   }
+  chSysUnlock();
 
   vfsClose(vnp);
 
@@ -95,14 +144,21 @@ int _open_r(struct _reent *r, const char *p, int oflag, int mode) {
 __attribute__((used))
 int _close_r(struct _reent *r, int file) {
 #if defined(SYSCALL_USE_VFS)
+  vfs_node_c *np = NULL;
 
-  if ((file < 0) || (file >= SYSCALL_MAX_FDS) || (fds[file] == NULL)) {
+  chSysLock();
+  if ((file >= 0) && (file < SYSCALL_MAX_FDS)) {
+    np = fds[file];
+    fds[file] = NULL;
+  }
+  chSysUnlock();
+  if (np == NULL) {
     __errno_r(r) = EBADF;
     return -1;
   }
 
-  vfsClose((vfs_node_c *)fds[file]);
-  fds[file] = NULL;
+  /* The detached reference is ours; another open can already reuse file.*/
+  vfsClose(np);
 
   return 0;
 #else
@@ -118,19 +174,23 @@ int _close_r(struct _reent *r, int file) {
 __attribute__((used))
 int _read_r(struct _reent *r, int file, char *ptr, int len) {
 #if defined(SYSCALL_USE_VFS)
+  vfs_node_c *np;
   ssize_t nr;
 
-  if ((file < 0) || (file >= SYSCALL_MAX_FDS) || (fds[file] == NULL)) {
+  np = pin_descriptor(file);
+  if (np == NULL) {
     __errno_r(r) = EBADF;
     return -1;
   }
 
-  if (VFS_MODE_S_ISDIR(fds[file]->mode)) {
+  if (VFS_MODE_S_ISDIR(np->mode)) {
+    vfsClose(np);
     __errno_r(r) = EISDIR;
     return -1;
   }
 
-  nr = vfsReadFile((vfs_file_node_c *)fds[file], (uint8_t *)ptr, (size_t)len);
+  nr = vfsReadFile((vfs_file_node_c *)np, (uint8_t *)ptr, (size_t)len);
+  vfsClose(np);
   if (CH_RET_IS_ERROR(nr)) {
     __errno_r(r) = CH_DECODE_ERROR(nr);
     return -1;
@@ -151,19 +211,23 @@ int _read_r(struct _reent *r, int file, char *ptr, int len) {
 __attribute__((used))
 int _write_r(struct _reent *r, int file, const char *ptr, int len) {
 #if defined(SYSCALL_USE_VFS)
+  vfs_node_c *np;
   ssize_t nw;
 
-  if ((file < 0) || (file >= SYSCALL_MAX_FDS) || (fds[file] == NULL)) {
+  np = pin_descriptor(file);
+  if (np == NULL) {
     __errno_r(r) = EBADF;
     return -1;
   }
 
-  if (VFS_MODE_S_ISDIR(fds[file]->mode)) {
+  if (VFS_MODE_S_ISDIR(np->mode)) {
+    vfsClose(np);
     __errno_r(r) = EISDIR;
     return -1;
   }
 
-  nw = vfsWriteFile((vfs_file_node_c *)fds[file], (const uint8_t *)ptr, (size_t)len);
+  nw = vfsWriteFile((vfs_file_node_c *)np, (const uint8_t *)ptr, (size_t)len);
+  vfsClose(np);
   if (CH_RET_IS_ERROR(nw)) {
     __errno_r(r) = CH_DECODE_ERROR(nw);
     return -1;
@@ -196,21 +260,25 @@ int _lseek_r(struct _reent *r, int file, int ptr, int dir) {
 __attribute__((used))
 int _fstat_r(struct _reent *r, int file, struct stat * st) {
 #if defined(SYSCALL_USE_VFS)
-  (void)r;
+  vfs_node_c *np;
+  vfs_mode_t mode;
 
-  if ((file < 0) || (file >= SYSCALL_MAX_FDS) || (fds[file] == NULL)) {
+  np = pin_descriptor(file);
+  if (np == NULL) {
     __errno_r(r) = EBADF;
     return -1;
   }
 
-  if (VFS_MODE_S_ISDIR(fds[file]->mode)) {
+  mode = np->mode;
+  vfsClose(np);
+  if (VFS_MODE_S_ISDIR(mode)) {
     __errno_r(r) = EISDIR;
     return -1;
   }
 
-   memset(st, 0, sizeof(*st));
+  memset(st, 0, sizeof(*st));
 
-  st->st_mode = mode_to_stat_mode(fds[file]->mode);
+  st->st_mode = mode_to_stat_mode(mode);
   if (st->st_mode == 0U) {
     __errno_r(r) = ENOENT;
     return -1;

@@ -30,6 +30,13 @@
     <types>
       <class type="regular" name="vfs_fatfs_driver" namespace="ffdrv"
         ancestorname="vfs_fs" descr="VFS fatfs driver">
+        <brief>Singleton FatFS wrapper.</brief>
+        <details>All volumes and nodes share optional module-level mutual
+          exclusion controlled by VFS_CFG_USE_MUTUAL_EXCLUSION. Native FatFS
+          reentrancy is not required. Direct native calls must not overlap VFS
+          operations. Mount/unmount require no affected live nodes or active
+          operations. Storage callbacks execute under the leaf mutex and must
+          not reenter VFS; upper metadata locks are not held.</details>
         <fields></fields>
         <methods>
           <objinit callsuper="true">
@@ -80,33 +87,39 @@
         <init />
         <implementation><![CDATA[
 
-  /* Initializing pools.*/
-  chPoolObjectInit(&vfs_fatfs_driver_static.dir_nodes_pool,
-                   sizeof (vfs_fatfs_dir_node_c),
-                   chCoreAllocAlignedI);
-  chPoolObjectInit(&vfs_fatfs_driver_static.file_nodes_pool,
-                   sizeof (vfs_fatfs_file_node_c),
-                   chCoreAllocAlignedI);
-  chPoolObjectInit(&vfs_fatfs_driver_static.info_nodes_pool,
-                   sizeof (FILINFO),
-                   chCoreAllocAlignedI);
-  chPoolObjectInit(&vfs_fatfs_driver_static.fs_nodes_pool,
-                   sizeof (FATFS),
-                   NULL);
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+chMtxObjectInit(&vfs_fatfs_driver_static.mutex);
+#endif
 
-  /* Preloading pools.*/
-  chPoolLoadArray(&vfs_fatfs_driver_static.dir_nodes_pool,
-                  &vfs_fatfs_driver_static.dir_nodes[0],
-                  DRV_CFG_FATFS_DIR_NODES_NUM);
-  chPoolLoadArray(&vfs_fatfs_driver_static.file_nodes_pool,
-                  &vfs_fatfs_driver_static.file_nodes[0],
-                  DRV_CFG_FATFS_FILE_NODES_NUM);
-  chPoolLoadArray(&vfs_fatfs_driver_static.fs_nodes_pool,
-                  &__nocache_vfs_fatfs_driver_static.fs[0],
-                  DRV_CFG_FATFS_FS_NUM);]]></implementation>
+/* Initializing pools.*/
+chPoolObjectInit(&vfs_fatfs_driver_static.dir_nodes_pool,
+                 sizeof (vfs_fatfs_dir_node_c),
+                 chCoreAllocAlignedI);
+chPoolObjectInit(&vfs_fatfs_driver_static.file_nodes_pool,
+                 sizeof (vfs_fatfs_file_node_c),
+                 chCoreAllocAlignedI);
+chPoolObjectInit(&vfs_fatfs_driver_static.info_nodes_pool,
+                 sizeof (FILINFO),
+                 chCoreAllocAlignedI);
+chPoolObjectInit(&vfs_fatfs_driver_static.fs_nodes_pool,
+                 sizeof (FATFS),
+                 NULL);
+
+/* Preloading pools.*/
+chPoolLoadArray(&vfs_fatfs_driver_static.dir_nodes_pool,
+                &vfs_fatfs_driver_static.dir_nodes[0],
+                DRV_CFG_FATFS_DIR_NODES_NUM);
+chPoolLoadArray(&vfs_fatfs_driver_static.file_nodes_pool,
+                &vfs_fatfs_driver_static.file_nodes[0],
+                DRV_CFG_FATFS_FILE_NODES_NUM);
+chPoolLoadArray(&vfs_fatfs_driver_static.fs_nodes_pool,
+                &__nocache_vfs_fatfs_driver_static.fs[0],
+                DRV_CFG_FATFS_FS_NUM);]]></implementation>
       </function>
       <function name="ffdrvMount" ctype="msg_t">
         <brief>Mounts a FatFS volume.</brief>
+        <note>Uses the singleton FatFS mutex when enabled. The caller must
+          ensure no affected live nodes or active operations.</note>
         <param name="name" ctype="const char *" dir="in"><![CDATA[Name to
                 be assigned to the volume, see FatFS @p f_mount() documentation
                 because there are several options.]]></param>
@@ -118,23 +131,32 @@
 FATFS *fs;
 FRESULT res;
 
+ff_lock();
 fs = f_getfs(name);
 if (fs == NULL) {
+  /* This fixed pool has no growth provider and cannot block.*/
   fs = chPoolAlloc(&vfs_fatfs_driver_static.fs_nodes_pool);
   if (fs == NULL) {
+    ff_unlock();
     return CH_RET_ENOMEM;
   }
 }
-
 res = f_mount(fs, name, (BYTE)(mountnow ? 1 : 0));
 if (res != FR_OK) {
-  chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, (void *)fs);
+  /* f_mount() registers the object even when the immediate mount fails.*/
+  (void)f_mount(NULL, name, 0);
+}
+ff_unlock();
+if (res != FR_OK) {
+  chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, fs);
 }
 
 return translate_error(res);]]></implementation>
       </function>
       <function name="ffdrvUnmount" ctype="msg_t">
         <brief>Unmounts a FatFS volume.</brief>
+        <note>Uses the singleton FatFS mutex when enabled. The caller must
+          ensure no affected live nodes or active operations.</note>
         <param name="name" ctype="const char *" dir="in"> Name of the volume to
           be unmounted.
         </param>
@@ -144,14 +166,17 @@ return translate_error(res);]]></implementation>
 FATFS *fs;
 FRESULT res;
 
+ff_lock();
 fs = f_getfs(name);
 if (fs == NULL) {
+  ff_unlock();
   return CH_RET_EINVAL;
 }
-
 res = f_unmount(name);
-
-chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, (void *)fs);
+ff_unlock();
+if (res == FR_OK) {
+  chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, fs);
+}
 
 return translate_error(res);]]></implementation>
       </function>
@@ -245,6 +270,11 @@ self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementa
       <struct name="vfs_fatfs_driver_static_struct">
         <brief>Global state of @p vfs_fatfs_driver_c.</brief>
         <fields>
+          <condition check="VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE">
+            <field name="mutex" ctype="mutex_t">
+              <brief>Singleton FatFS operation mutex.</brief>
+            </field>
+          </condition>
           <field name="fs_nodes_pool" ctype="memory_pool_t">
             <brief>Pool of file system objects.</brief>
           </field>

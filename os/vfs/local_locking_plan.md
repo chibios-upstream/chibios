@@ -16,16 +16,20 @@ ELF/directory scratch fixes. The global mutex API, implicit locking scopes,
 and atomic mutex/pool waiter are not carried forward. Configuration files
 are regenerated for buffer pairs, without introducing a mutex option yet.
 
-The foundation alone does not make VFS thread-safe. Step 2 now supplies
-optional root/overlay metadata protection; leaf, descriptor, and caller
-integration work remains before concurrent use of the full stack is supported.
+The foundation alone does not make VFS thread-safe. Steps 2 through 4 now
+supply optional metadata/leaf mutexes and descriptor ownership protection.
+Caller integration and final validation remain before concurrent use of the
+full stack is supported.
 
 ## Required behavior
 
 Use no global VFS operation mutex. Each layer protects its own mutable
-state internally. A local mutex must be released before calling another
-driver, a node virtual method, a callback, or reference release/disposal.
-Do not replace that mutex with an operation-wide semaphore or busy gate that
+state internally. An upper metadata mutex must be released before calling
+another VFS driver, a node virtual method, a callback, or reference
+release/disposal.
+Leaf FatFS/LittleFS wrapper mutexes protect their native-library calls,
+including storage callbacks and I/O waits.
+Do not replace an upper mutex with an operation-wide semaphore or busy gate that
 keeps the same outer serialization across delegation.
 
 Use short critical sections for small updates, and local mutexes for work
@@ -59,7 +63,7 @@ synchronized reconfiguration API is introduced.
 | Reference counts | Existing OOP critical sections; a safe non-dispatching pin operation for descriptor lookup where necessary |
 | Newlib descriptor table | Short critical sections for lookup/pinning, insertion, and detachment; I/O and disposal outside |
 | Sandbox descriptor table | Existing lifecycle ownership where sufficient; short local protection only where concurrent access is supported |
-| Leaf filesystem and node state | The leaf implementation or underlying library's own synchronization; no inherited VFS mutex |
+| Leaf filesystem and node state | Optional singleton FatFS/per-instance LittleFS wrapper mutex; other leaves follow their documented backend contract |
 | Shared open directory/file operation ordering | Explicit handle contract, independent of reference-count safety |
 
 Introduce `VFS_CFG_USE_MUTUAL_EXCLUSION` as the global option controlling
@@ -96,9 +100,10 @@ in the abstract FS class merely because some implementations need one.
    A local cursor lock alone cannot serialize backing `first`/`next` calls.
 
    Audit actual leaf implementations, not just the wrapped library's advertised
-   capabilities. FatFS tests currently set `FF_FS_REENTRANT=0`; evaluate native
-   synchronization and mount/unmount constraints. LittleFS bindings enable
-   `LFS_THREADSAFE`; verify hooks, configurations, and lifecycle operations.
+   capabilities. The baseline FatFS tests set `FF_FS_REENTRANT=0` and LittleFS
+   bindings force `LFS_THREADSAFE`; evaluate synchronization, hooks,
+   configurations and lifecycle constraints. Step 3 replaces the initial
+   native-reentrancy prerequisite with wrapper-owned mutexes.
    Audit CHFS/cache interactions, stream forwarding, ROMFS positions, and
    dynamic/compressed sessions and callbacks. Keep unsupported sharing explicit.
 
@@ -152,39 +157,84 @@ in the abstract FS class merely because some implementations need one.
    but must remain memory-safe and must not restart backing iteration because
    the mount count changed. Apply the handle contract from step 1.
 
-   Completion: metadata has matching reader/writer protection; no local mutex
-   surrounds delegation, cleanup, or a pool wait.
+   Completion: metadata has matching reader/writer protection; no upper metadata
+   mutex surrounds delegation, cleanup, or a pool wait.
 
-3. **Make leaf synchronization sufficient without the global mutex.**
+3. **Protect external filesystems in their VFS wrappers — complete.**
 
-   Implement the prerequisites found in step 1 using native library locking
-   or protection of each driver's own state. Audit open/close, mount/unmount,
-   callbacks, stream access, and error cleanup as well as read/write. Two roots
-   sharing one leaf must share that leaf's synchronization domain. For FatFS,
-   account for shared volumes and library-global state across wrapper objects.
+   Implemented and validated with native reentrancy disabled. XML interfaces,
+   the LittleFS binding, optional native-hook initializers, configuration
+   template and all 24 configurations are aligned. The native HAL-only test
+   explicitly enables its own LittleFS hooks.
 
-   Do not add a generic VFS wrapper mutex around another driver's calls. Any
-   callback must enter without a caller-owned VFS metadata mutex. Audit native
-   library/backend lock ordering separately so internal synchronization does
-   not reintroduce dependencies on upper-layer VFS state.
+   Wrapper synchronization follows `VFS_CFG_USE_MUTUAL_EXCLUSION`. FatFS is
+   a singleton: one optional mutex in its module state protects every volume,
+   node operation, and the argument-less mount/unmount helpers. LittleFS has
+   one optional mutex per driver instance, protecting its `lfs_t`, mounted
+   state, and all node operations through their owning FS. Disabled helpers
+   are empty macros and no wrapper mutex storage remains.
 
-   Use the audit's FatFS volume/global-state requirements, LittleFS native
-   hook and lifecycle requirements, and stream/callback sharing contracts.
+   Native FatFS/LittleFS reentrancy is optional. Test FatFS with
+   `FF_FS_REENTRANT=0` and LittleFS without `LFS_THREADSAFE`; remove the mandatory
+   LittleFS build definition and make native lock-hook configuration optional.
+   Cover open/close, stat/position queries (including native macros), I/O,
+   directory rewind/read, compound open/truncate, and mount/format/unmount.
+   Avoid recursive wrapper acquisition by using private locked helpers for
+   compound operations. Pools and reference disposal remain outside leaf
+   locks wherever they do not access native state.
+
+   Upper metadata locks never span delegation. A leaf wrapper's operation
+   mutex protects the entire external-library call, including storage callbacks
+   and I/O waits; it cannot be dropped while non-reentrant native state is
+   active. The order is leaf wrapper, then native/backend protection where
+   configured. Storage callbacks must not reenter that filesystem or acquire
+   upper VFS metadata locks. Direct native API access during VFS use must obey
+   the same serialization domain; bypassing the wrapper is unsupported.
+
+   Shared hardware still requires backend synchronization. LittleFS instances
+   using one flash device must share its exclusive-access domain; distinct
+   filesystem states must not mount the same storage concurrently. FatFS's
+   singleton mutex covers shared native globals as well as its volumes, but
+   external users of its block device still require device-level coordination.
    Mount/unmount/format require an exclusive lifecycle phase with no affected
-   operations or live nodes; concurrent hot unmount is outside this plan.
+   operations or live nodes; locking alone does not provide hot-unmount safety.
 
-   Completion: every configuration offered as concurrently usable has a
-   supported leaf contract. Optional untested backends are listed explicitly;
-   removing the global lock is not itself evidence that they are thread-safe.
+   Preserve the ROMFS immutable-data/per-session callback contract and stream
+   backend sharing contract. CHFS remains an unfinished driver, outside the
+   concurrency guarantee. Validate actual available library versions and
+   deterministic competing operations, independent LittleFS instances, and
+   progress outside a blocked leaf. Update XML and regenerate interfaces.
 
-4. **Separate descriptor ownership from I/O.**
+   Completion: supported wrappers provide their own optional synchronization
+   without relying on native reentrancy. Remaining backend restrictions and
+   unsupported configurations are documented explicitly.
+
+4. **Separate descriptor ownership from I/O — complete.**
+
+   Implemented short newlib table critical sections and a private I-class
+   pin for standard OOP nodes. Read/write/fstat retain the selected node;
+   close detaches before release and permits immediate descriptor reuse.
+   Custom addref/release implementations are rejected with `ENOTSUP` at open,
+   with virtual cleanup outside protection; custom disposal is supported.
+   `OOP_USE_NOTHING` is rejected for VFS newlib builds. Table/reference critical
+   sections remain active independently of the optional VFS mutex setting.
+   No generic OOP API, VMT field, table mutex or additional table storage is
+   introduced. Existing limited syscall behavior is otherwise preserved.
+
+   Sandbox close/cleanup detach before release; dup2 retains and publishes
+   the new reference before releasing the old one. Source review confirms
+   one host thread owns the active table, VRQs defer during host syscalls,
+   and lifecycle cleanup runs unlocked before stopped-state reuse. That
+   table reference retains getdents nodes across its ordinary buffer wait.
+
+   Implementation requirements:
 
    Newlib lookup must acquire a node reference atomically with inspecting the
    table slot; release the table protection before node calls. Close detaches
    the pointer under protection and releases it afterward. Add read/write
    operation pins that remain valid across concurrent close and descriptor reuse.
-   The restarted foundation has no pins; the preserved global-lock branch
-   supplies reference work, not an already implemented guarantee here.
+   The restarted foundation had no pins; these are now implemented locally,
+   without restoring the preserved branch's global operation lock.
 
    `roAddRef()` is virtual and its default implementation already enters
    `oopLock()`. Do not call it inside `chSysLock()` or assume arbitrary addref
@@ -265,17 +315,70 @@ Both backup branches have been created. The active branch has been realigned
 to `97faf9c40c`, and the reusable foundation is restored without global locking.
 Steps 1 and 2 are complete: [ownership and local synchronization audit](local_locking_audit.md),
 followed by optional root/overlay metadata protection, one lazy CWD buffer per root,
-and explicit directory enumeration phase. Steps 3 through 6 remain pending.
-Next is step 3: leaf synchronization and backend/lifecycle prerequisites.
+and explicit directory enumeration phase. Step 3 is also complete: optional
+FatFS singleton and LittleFS per-instance wrapper synchronization, with native
+reentrancy optional. Step 4 now protects newlib descriptor ownership and
+orders sandbox descriptor release correctly. Steps 5 and 6 remain pending;
+API contracts and caller integration are next.
 
-The step 1 source audit found native FatFS reentrancy disabled in the current
-tested configurations, LittleFS mount-state and native-hook prerequisites,
-shared backend state behind streams and callbacks, and unprotected newlib
-descriptor lookup/close. These are recorded implementation requirements,
-not new concurrency guarantees. The node interface and architecture page now
+The step 1 source audit found native FatFS reentrancy disabled, LittleFS
+mount-state and native-hook prerequisites, shared backend state behind streams
+and callbacks, and unprotected newlib descriptor lookup/close. Step 3 resolves
+the filesystem prerequisites through wrapper locking; native reentrancy is no
+longer required. Step 4 addresses descriptor ownership. Backend sharing and
+same-handle ordering retain their own requirements. The node interface and architecture page now
 document the handle contract. Step 1 validation is documentation/source review,
 XML schema validation, repeatable generation, and whitespace/link checks;
 no runtime synchronization behavior changed.
+
+Step 4 validation on 2026-09-19:
+
+- Six simulator configurations passed with checks, assertions and the system
+  state checker: metadata/leaf locking enabled; locking disabled; no kernel
+  mutexes; enabled with both native filesystem wrappers and three pairs;
+  recursive kernel mutexes with two pairs; and root disabled. The newlib
+  tests run in the five root-enabled configurations; the root-disabled build
+  verifies that the test shim and sequence are excluded correctly.
+- The simulator compiles the production newlib bindings with only a small
+  libc ABI shim and renamed exported symbols. Paused read/write tests verify
+  that close/reuse preserves the original node and releases its pin on success
+  and error. A paused final disposal permits another open/read on the reused
+  descriptor. Entry checks detect inherited system or mutex protection.
+- Invalid descriptor, directory, full-table and custom reference-method errors
+  preserve cleanup and slot availability. Rejected custom release methods are
+  invoked outside table protection; they are not bypassed by the pin helper.
+- STM32G474 FatFS/newlib and dynamic sandbox demos compile/link with local
+  locking, assertions, parameter checks and the state checker enabled.
+  Sandbox lifecycle/VRQ ownership was source-audited; no sandbox or physical
+  board runtime execution is claimed for this step.
+- Test XML validation, repeatable regeneration and whitespace checks passed.
+  Build products were cleaned.
+
+Step 3 validation on 2026-09-19:
+
+- Six combined FatFS/LittleFS simulator configurations passed with checks,
+  assertions and the system-state checker: wrapper locking enabled; disabled;
+  disabled with no kernel mutexes; enabled with optional LittleFS native hooks;
+  enabled with recursive kernel mutexes and three buffer pairs; and enabled
+  with root support disabled. FatFS uses `FF_FS_REENTRANT=0` throughout, and
+  LittleFS native reentrancy is off except in the explicit native-hook variant.
+- Controlled storage suspension verifies that another FatFS node waits for the
+  singleton mutex, and another LittleFS operation waits for its instance mutex.
+  A separate LittleFS instance on independent RAM storage creates, writes,
+  seeks, reads and closes while the first instance is suspended. Directory
+  rewind/read and error/lifecycle paths complete without recursive acquisition.
+  Failed immediate FatFS mounts preserve registration/pool consistency.
+- Disabled FatFS/LittleFS object files contain no mutex references. On the
+  64-bit simulator, the FatFS module state is 824/856 bytes and LittleFS objects
+  are 184/216 bytes with locking disabled/enabled. Abstract FS and FatFS wrapper
+  objects remain 8 bytes in both configurations.
+- STM32G474 FatFS and STM32L476 LittleFS VFS demos compile/link with wrapper
+  locking enabled and native reentrancy disabled. The STM32L476 native
+  WSPI-LITTLEFS HAL test compiles/links with native hooks explicitly enabled.
+  These are compile/link checks, not physical-board execution.
+- All 24 configurations were regenerated sequentially without changing option
+  values. XML validation, repeatable VFS/test generation, and whitespace checks
+  passed. Build products were cleaned.
 
 Step 2 validation on 2026-09-19:
 
@@ -319,5 +422,6 @@ Foundation validation on 2026-09-19:
   an empty section, allocation/read errors, and malformed section length.
 - All 24 `vfsconf.h` files were updated sequentially with existing values
   preserved. Edited XML validated; VFS and test regeneration was repeatable.
-- LittleFS tests were not run because the external library is unavailable.
+- LittleFS tests were not run at the foundation stage because the external
+  library was then unavailable. Step 3 supplies the current validation.
   Build products were cleaned.

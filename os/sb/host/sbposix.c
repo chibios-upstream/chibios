@@ -51,6 +51,10 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+/* The sandbox thread owns its active descriptor table. Host registration
+   is restricted to STOPPED; cleanup runs in the exclusive lifecycle phase.
+   Slot references therefore retain nodes across syscall waits without pins.
+   Detach/replace slots before any release that can invoke driver disposal.*/
 static msg_t create_descriptor(sb_ioblock_t *iop,
                                vfs_node_c *np) {
   unsigned fd;
@@ -126,13 +130,15 @@ static uint32_t sb_io_open(sb_class_t *sbp, const char *path, int flags) {
 }
 
 static uint32_t sb_io_close(sb_class_t *sbp, int fd) {
+  vfs_node_c *np;
 
   if (!sb_is_existing_descriptor(&sbp->io, fd)) {
     return (uint32_t)CH_RET_EBADF;
   }
 
-  vfsClose(sbp->io.vfs_nodes[fd]);
+  np = sbp->io.vfs_nodes[fd];
   sbp->io.vfs_nodes[fd] = NULL;
+  vfsClose(np);
 
   return (uint32_t)CH_RET_SUCCESS;
 }
@@ -160,6 +166,7 @@ static uint32_t sb_io_dup(sb_class_t *sbp, int fd) {
 }
 
 static uint32_t sb_io_dup2(sb_class_t *sbp, int oldfd, int newfd) {
+  vfs_node_c *oldnp, *newnp;
 
   if (!sb_is_existing_descriptor(&sbp->io, oldfd)) {
     return (uint32_t)CH_RET_EBADF;
@@ -173,11 +180,12 @@ static uint32_t sb_io_dup2(sb_class_t *sbp, int oldfd, int newfd) {
     return (uint32_t)newfd;
   }
 
-  if (sbp->io.vfs_nodes[newfd] != NULL) {
-    vfsClose(sbp->io.vfs_nodes[newfd]);
+  newnp = (vfs_node_c *)roAddRef(sbp->io.vfs_nodes[oldfd]);
+  oldnp = sbp->io.vfs_nodes[newfd];
+  sbp->io.vfs_nodes[newfd] = newnp;
+  if (oldnp != NULL) {
+    vfsClose(oldnp);
   }
-
-  sbp->io.vfs_nodes[newfd] = (vfs_node_c *)roAddRef(sbp->io.vfs_nodes[oldfd]);
 
   return (uint32_t)newfd;
 }
@@ -335,6 +343,7 @@ static uint32_t sb_io_lseek(sb_class_t *sbp, int fd, off_t offset, int whence) {
 }
 
 static uint32_t sb_io_getdents(sb_class_t *sbp, int fd, void *buf, size_t count) {
+  vfs_directory_node_c *dnp;
   vfs_shared_buffer_t *shbuf;
   vfs_direntry_info_t *dip;
   msg_t ret;
@@ -368,6 +377,8 @@ static uint32_t sb_io_getdents(sb_class_t *sbp, int fd, void *buf, size_t count)
     return (uint32_t)CH_RET_ENOMEM;
   }
 
+  /* The active table's reference remains owned throughout this wait.*/
+  dnp = (vfs_directory_node_c *)sbp->io.vfs_nodes[fd];
   shbuf = vfs_buffer_take_wait();
   if (shbuf == NULL) {
     return (uint32_t)CH_RET_ENOMEM;
@@ -392,7 +403,7 @@ static uint32_t sb_io_getdents(sb_class_t *sbp, int fd, void *buf, size_t count)
         break;
       }
 
-      ret = vfsReadDirectoryNext((vfs_directory_node_c *)sbp->io.vfs_nodes[fd], dip);
+      ret = vfsReadDirectoryNext(dnp, dip);
       if (ret <= 0) {
         /* Note, zero means no more directory entries available.*/
         break;
@@ -521,9 +532,11 @@ void __sb_io_cleanup(sb_class_t *sbp) {
 
   /* Closing all file descriptors.*/
   for (fd = 0U; fd < SB_CFG_FD_NUM; fd++) {
-    if (sbp->io.vfs_nodes[fd] != NULL) {
-      roRelease(sbp->io.vfs_nodes[fd]);
-      sbp->io.vfs_nodes[fd] = NULL;
+    vfs_node_c *np = sbp->io.vfs_nodes[fd];
+
+    sbp->io.vfs_nodes[fd] = NULL;
+    if (np != NULL) {
+      vfsClose(np);
     }
   }
 }

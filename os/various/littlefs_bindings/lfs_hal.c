@@ -152,17 +152,13 @@ int __lfs_sync(const struct lfs_config *c) {
 int __lfs_lock(const struct lfs_config *c) {
   const hal_lfs_binding_t *bnp = (const hal_lfs_binding_t *)c->context;
 
-  flashAcquireExclusive(bnp->flp);
-
-  return 0;
+  return flashAcquireExclusive(bnp->flp) == FLASH_NO_ERROR ? 0 : LFS_ERR_IO;
 }
 
 int __lfs_unlock(const struct lfs_config *c) {
   const hal_lfs_binding_t *bnp = (const hal_lfs_binding_t *)c->context;
 
-  flashReleaseExclusive(bnp->flp);
-
-  return 0;
+  return flashReleaseExclusive(bnp->flp) == FLASH_NO_ERROR ? 0 : LFS_ERR_IO;
 }
 
 /** @} */

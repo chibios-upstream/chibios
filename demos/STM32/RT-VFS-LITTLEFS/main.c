@@ -87,8 +87,10 @@ static const struct lfs_config lfscfg = {
     .prog               = __lfs_prog,
     .erase              = __lfs_erase,
     .sync               = __lfs_sync,
+#if defined(LFS_THREADSAFE)
     .lock               = __lfs_lock,
     .unlock             = __lfs_unlock,
+#endif
 
     /* Block device configuration.*/
     .read_size          = 16,

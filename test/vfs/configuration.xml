@@ -1800,8 +1800,10 @@ static const struct lfs_config vfs_test_lfs_config = {
   .prog             = __lfs_prog,
   .erase            = __lfs_erase,
   .sync             = __lfs_sync,
+#if defined(LFS_THREADSAFE)
   .lock             = __lfs_lock,
   .unlock           = __lfs_unlock,
+#endif
   .read_size        = 16,
   .prog_size        = 16,
   .block_size       = VFS_TEST_LFS_BLOCK_SIZE,
@@ -1816,7 +1818,83 @@ static const struct lfs_config vfs_test_lfs_config = {
   .file_max         = 0,
   .attr_max         = 0,
   .metadata_max     = 0
-};]]></value>
+};
+
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+#define VFS_TEST_LFS_RAM_BLOCK_SIZE 512U
+#define VFS_TEST_LFS_RAM_BLOCKS     16U
+
+typedef struct {
+  uint8_t data[VFS_TEST_LFS_RAM_BLOCK_SIZE * VFS_TEST_LFS_RAM_BLOCKS];
+  bool pause;
+  thread_reference_t waiter;
+} vfs_test_lfs_ram_t;
+
+static vfs_test_lfs_ram_t vfs_test_lfs_ram[2];
+static vfs_littlefs_driver_c vfs_test_lfs_instances[2];
+static struct lfs_config vfs_test_lfs_ram_config[2];
+static THD_WORKING_AREA(vfs_test_lfs_io_wa, 4096);
+static THD_WORKING_AREA(vfs_test_lfs_other_wa, 4096);
+static bool vfs_test_lfs_done;
+static ssize_t vfs_test_lfs_read_result;
+static msg_t vfs_test_lfs_stat_result;
+
+static int vfs_test_lfs_ram_read(const struct lfs_config *cfg,
+                                lfs_block_t block, lfs_off_t off,
+                                void *buffer, lfs_size_t size) {
+  vfs_test_lfs_ram_t *ram = cfg->context;
+
+  if (ram->pause) {
+    ram->pause = false;
+    chDbgAssert(chMtxGetNextMutexX() != NULL, "unprotected LittleFS I/O");
+    chSysLock();
+    (void)chThdSuspendS(&ram->waiter);
+    chSysUnlock();
+  }
+  memcpy(buffer, &ram->data[block * cfg->block_size + off], size);
+  return 0;
+}
+
+static int vfs_test_lfs_ram_prog(const struct lfs_config *cfg,
+                                lfs_block_t block, lfs_off_t off,
+                                const void *buffer, lfs_size_t size) {
+  vfs_test_lfs_ram_t *ram = cfg->context;
+
+  memcpy(&ram->data[block * cfg->block_size + off], buffer, size);
+  return 0;
+}
+
+static int vfs_test_lfs_ram_erase(const struct lfs_config *cfg,
+                                 lfs_block_t block) {
+  vfs_test_lfs_ram_t *ram = cfg->context;
+
+  memset(&ram->data[block * cfg->block_size], 0xff, cfg->block_size);
+  return 0;
+}
+
+/* No native locking here, even in the optional LFS_THREADSAFE build: this
+   test must exercise the wrapper's own serialization.*/
+static int vfs_test_lfs_ram_noop(const struct lfs_config *cfg) {
+
+  (void)cfg;
+  return 0;
+}
+
+static THD_FUNCTION(vfs_test_lfs_reader, arg) {
+  uint8_t buffer[VFS_TEST_LFS_RAM_BLOCK_SIZE];
+
+  vfs_test_lfs_read_result = vfsFileRead(arg, buffer, sizeof buffer);
+}
+
+static THD_FUNCTION(vfs_test_lfs_other, arg) {
+  vfs_stat_t stat;
+
+  (void)arg;
+  vfs_test_lfs_stat_result = vfsFSStat(&vfs_test_lfs_instances[0],
+                                      "/wait.bin", &stat);
+  vfs_test_lfs_done = true;
+}
+#endif]]></value>
       </shared_code>
       <cases>
         <case>
@@ -1928,6 +2006,120 @@ expected.mode = VFS_MODE_S_IFREG;
 test_assert(vfs_test_stat_equal(&stat, &expected),
             "LittleFS file path metadata changed");]]></value>
               </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief><value>Instance wrapper exclusion and independent progress.</value></brief>
+          <description><value>A suspended LittleFS read blocks operations on its own instance while another filesystem can create and read files on an independent device.</value></description>
+          <condition><value><![CDATA[VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[unsigned i;
+
+for (i = 0U; i < 2U; i++) {
+  memset(&vfs_test_lfs_ram[i], 0, sizeof vfs_test_lfs_ram[i]);
+  vfs_test_lfs_ram_config[i] = (struct lfs_config) {
+    .context = &vfs_test_lfs_ram[i],
+    .read = vfs_test_lfs_ram_read,
+    .prog = vfs_test_lfs_ram_prog,
+    .erase = vfs_test_lfs_ram_erase,
+    .sync = vfs_test_lfs_ram_noop,
+#if defined(LFS_THREADSAFE)
+    .lock = vfs_test_lfs_ram_noop,
+    .unlock = vfs_test_lfs_ram_noop,
+#endif
+    .read_size = 16,
+    .prog_size = 16,
+    .block_size = VFS_TEST_LFS_RAM_BLOCK_SIZE,
+    .block_count = VFS_TEST_LFS_RAM_BLOCKS,
+    .block_cycles = 500,
+    .cache_size = 16,
+    .lookahead_size = 16
+  };
+  (void)lfsdrvObjectInit(&vfs_test_lfs_instances[i], &vfs_test_lfs_ram_config[i]);
+  test_assert(lfsdrvFormat(&vfs_test_lfs_instances[i]) == CH_RET_SUCCESS,
+              "format failed");
+  test_assert(lfsdrvMount(&vfs_test_lfs_instances[i]) == CH_RET_SUCCESS,
+              "mount failed");
+}]]></value></setup_code>
+            <teardown_code><value><![CDATA[unsigned i;
+
+for (i = 0U; i < 2U; i++) {
+  test_assert(lfsdrvUnmount(&vfs_test_lfs_instances[i]) == CH_RET_SUCCESS,
+              "unmount failed");
+  boDispose(&vfs_test_lfs_instances[i]);
+}]]></value></teardown_code>
+            <local_variables><value><![CDATA[static const uint8_t contents[VFS_TEST_LFS_RAM_BLOCK_SIZE] = {42};
+uint8_t buffer[sizeof contents];
+vfs_file_node_c *first, *second;
+vfs_directory_node_c *dir;
+vfs_direntry_info_t entry;
+thread_t *reader, *other;
+bool blocked, independent;
+msg_t ret;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>Suspend one instance in storage I/O, queue a competing path operation, and use the other instance.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[ret = vfsFSOpenFile(&vfs_test_lfs_instances[0], "/wait.bin",
+                    VO_CREAT | VO_WRONLY, &first);
+test_assert(ret == CH_RET_SUCCESS, "create failed");
+test_assert(vfsFileWrite(first, contents, sizeof contents) == sizeof contents,
+            "seed write failed");
+(void)roRelease(first);
+test_assert(vfsFSOpenFile(&vfs_test_lfs_instances[0], "/wait.bin",
+                          VO_RDONLY, &first) == CH_RET_SUCCESS, "open failed");
+vfs_test_lfs_ram[0].pause = true;
+vfs_test_lfs_done = false;
+reader = chThdCreateStatic(vfs_test_lfs_io_wa, sizeof vfs_test_lfs_io_wa,
+                          chThdGetPriorityX() + 2, vfs_test_lfs_reader, first);
+other = chThdCreateStatic(vfs_test_lfs_other_wa, sizeof vfs_test_lfs_other_wa,
+                         chThdGetPriorityX() + 1, vfs_test_lfs_other, NULL);
+blocked = (vfs_test_lfs_ram[0].waiter != NULL) && !vfs_test_lfs_done;
+ret = vfsFSOpenFile(&vfs_test_lfs_instances[1], "/other.bin",
+                    VO_CREAT | VO_RDWR, &second);
+independent = ret == CH_RET_SUCCESS;
+if (independent) {
+  independent &= vfsFileWrite(second, contents, sizeof contents) == sizeof contents;
+  independent &= vfsFileSetPosition(second, 0, VFS_SEEK_SET) == CH_RET_SUCCESS;
+  independent &= vfsFileRead(second, buffer, sizeof buffer) == sizeof buffer;
+  independent &= memcmp(buffer, contents, sizeof buffer) == 0;
+  (void)roRelease(second);
+}
+chThdResume(&vfs_test_lfs_ram[0].waiter, MSG_OK);
+(void)chThdWait(reader);
+(void)chThdWait(other);
+(void)roRelease(first);
+test_assert(blocked, "another operation entered the active instance");
+test_assert(independent, "independent instance failed during I/O wait");
+test_assert(vfs_test_lfs_read_result == sizeof contents, "read failed");
+test_assert(vfs_test_lfs_stat_result == CH_RET_SUCCESS, "stat failed");]]></value></code>
+            </step>
+            <step>
+              <description><value>Check error exits, compound enumeration and per-instance lifecycle state.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[test_assert(vfsFSOpenFile(&vfs_test_lfs_instances[0], "/absent", VO_RDONLY,
+                          &first) == CH_RET_ENOENT, "missing file error");
+test_assert(vfsFSOpenDirectory(&vfs_test_lfs_instances[0], "/", &dir) ==
+            CH_RET_SUCCESS, "directory open failed");
+test_assert(vfsDirReadFirst(dir, &entry) == 1, "first failed");
+test_assert(strcmp(entry.name, "wait.bin") == 0, "unexpected entry");
+test_assert(vfsDirReadNext(dir, &entry) == 0, "end failed");
+test_assert(vfsDirReadFirst(dir, &entry) == 1, "rewind failed");
+(void)roRelease(dir);
+test_assert(lfsdrvMount(&vfs_test_lfs_instances[0]) == CH_RET_EBUSY,
+            "double mount error");
+test_assert(lfsdrvFormat(&vfs_test_lfs_instances[0]) == CH_RET_EBUSY,
+            "mounted format error");
+test_assert(lfsdrvUnmount(&vfs_test_lfs_instances[0]) == CH_RET_SUCCESS,
+            "unmount failed");
+test_assert(lfsdrvUnmount(&vfs_test_lfs_instances[0]) == CH_RET_EIO,
+            "second unmount error");
+test_assert(vfsFSOpenDirectory(&vfs_test_lfs_instances[0], "/", &dir) ==
+            CH_RET_EIO, "unmounted open error");
+test_assert(lfsdrvMount(&vfs_test_lfs_instances[0]) == CH_RET_SUCCESS,
+            "remount failed");]]></value></code>
             </step>
           </steps>
         </case>
@@ -2207,6 +2399,28 @@ static uint8_t vfs_test_fat_disk[VFS_TEST_FAT_SECTOR_SIZE *
 static DSTATUS vfs_test_fat_status = STA_NOINIT;
 static vfs_fatfs_driver_c vfs_test_fat_driver;
 
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+static THD_WORKING_AREA(vfs_test_fat_io_wa, 4096);
+static THD_WORKING_AREA(vfs_test_fat_other_wa, 4096);
+static thread_reference_t vfs_test_fat_waiter;
+static bool vfs_test_fat_pause, vfs_test_fat_done;
+static ssize_t vfs_test_fat_read_result;
+static msg_t vfs_test_fat_stat_result;
+
+static THD_FUNCTION(vfs_test_fat_reader, arg) {
+  uint8_t buffer[VFS_TEST_FAT_SECTOR_SIZE];
+
+  vfs_test_fat_read_result = vfsFileRead(arg, buffer, sizeof buffer);
+}
+
+static THD_FUNCTION(vfs_test_fat_other, arg) {
+  vfs_stat_t stat;
+
+  vfs_test_fat_stat_result = vfsNodeStat(arg, &stat);
+  vfs_test_fat_done = true;
+}
+#endif
+
 DSTATUS disk_initialize(BYTE pdrv) {
 
   if (pdrv != 0U) {
@@ -2236,6 +2450,15 @@ DRESULT disk_read(BYTE pdrv, BYTE *buf, LBA_t sector, UINT count) {
     return RES_PARERR;
   }
 
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  if (vfs_test_fat_pause) {
+    vfs_test_fat_pause = false;
+    chDbgAssert(chMtxGetNextMutexX() != NULL, "unprotected FatFS I/O");
+    chSysLock();
+    (void)chThdSuspendS(&vfs_test_fat_waiter);
+    chSysUnlock();
+  }
+#endif
   memcpy(buf, &vfs_test_fat_disk[(size_t)sector *
                                  VFS_TEST_FAT_SECTOR_SIZE],
          (size_t)count * VFS_TEST_FAT_SECTOR_SIZE);
@@ -2567,6 +2790,108 @@ test_assert(ret == CH_RET_SUCCESS, "FatFS created node stat failed");
 test_assert(stat.size == (vfs_offset_t)0, "FatFS created file not empty");
 (void)roRelease(fnp);]]></value>
               </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief><value>Singleton wrapper exclusion during I/O.</value></brief>
+          <description><value>A suspended disk read keeps another node on the singleton filesystem out of native state; ordinary errors and directory iteration release the lock.</value></description>
+          <condition><value><![CDATA[VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[MKFS_PARM options = {
+  .fmt     = FM_ANY,
+  .n_fat   = 1U,
+  .align   = 0U,
+  .n_root  = 0U,
+  .au_size = VFS_TEST_FAT_SECTOR_SIZE
+};
+uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+FRESULT fres;
+msg_t ret;
+
+memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+vfs_test_fat_status = STA_NOINIT;
+(void)ffdrvObjectInit(&vfs_test_fat_driver);
+fres = f_mkfs("0:", &options, work, sizeof work);
+test_assert(fres == FR_OK, "FatFS format failed");
+ret = ffdrvMount("0:", true);
+test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");]]></value></setup_code>
+            <teardown_code><value><![CDATA[test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS, "unmount failed");
+test_assert(ffdrvUnmount("0:") == CH_RET_EINVAL, "second unmount error");
+test_assert(ffdrvMount("0:", true) == CH_RET_SUCCESS, "remount failed");
+test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS, "final unmount failed");]]></value></teardown_code>
+            <local_variables><value><![CDATA[static const uint8_t contents[VFS_TEST_FAT_SECTOR_SIZE] = {42};
+vfs_file_node_c *first, *second;
+vfs_directory_node_c *dir;
+vfs_direntry_info_t entry;
+thread_t *reader, *other;
+bool blocked;
+uint8_t boot[VFS_TEST_FAT_SECTOR_SIZE];
+unsigned i;
+msg_t ret;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>Hold a native read at disk I/O and attempt metadata access through another open node.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[ret = vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin",
+                    VO_CREAT | VO_WRONLY, &first);
+test_assert(ret == CH_RET_SUCCESS, "create failed");
+test_assert(vfsFileWrite(first, contents, sizeof contents) == sizeof contents,
+            "seed write failed");
+(void)roRelease(first);
+test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin",
+                          VO_RDONLY, &first) == CH_RET_SUCCESS, "open failed");
+test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin",
+                          VO_RDONLY, &second) == CH_RET_SUCCESS, "reopen failed");
+vfs_test_fat_pause = true;
+vfs_test_fat_done = false;
+reader = chThdCreateStatic(vfs_test_fat_io_wa, sizeof vfs_test_fat_io_wa,
+                          chThdGetPriorityX() + 2, vfs_test_fat_reader, first);
+other = chThdCreateStatic(vfs_test_fat_other_wa, sizeof vfs_test_fat_other_wa,
+                         chThdGetPriorityX() + 1, vfs_test_fat_other, second);
+blocked = (vfs_test_fat_waiter != NULL) && !vfs_test_fat_done;
+chThdResume(&vfs_test_fat_waiter, MSG_OK);
+(void)chThdWait(reader);
+(void)chThdWait(other);
+(void)roRelease(first);
+(void)roRelease(second);
+test_assert(blocked, "another node entered the active native filesystem");
+test_assert(vfs_test_fat_read_result == sizeof contents, "read failed");
+test_assert(vfs_test_fat_stat_result == CH_RET_SUCCESS, "stat failed");]]></value></code>
+            </step>
+            <step>
+              <description><value>Exercise error exits and rewind/read without recursive mutex acquisition.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/absent.bin", VO_RDONLY,
+                          &first) == CH_RET_ENOENT, "missing file error");
+test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin", VO_RDONLY,
+                          &first) == CH_RET_SUCCESS, "reopen after error failed");
+test_assert(vfsFileSetPosition(first, -1, VFS_SEEK_SET) == CH_RET_EOVERFLOW,
+            "negative seek error");
+test_assert(vfsFileGetPosition(first) == 0, "position after error changed");
+(void)roRelease(first);
+test_assert(vfsFSOpenDirectory(&vfs_test_fat_driver, "/", &dir) ==
+            CH_RET_SUCCESS, "directory open failed");
+test_assert(vfsDirReadFirst(dir, &entry) == 1, "first failed");
+test_assert(vfsDirReadNext(dir, &entry) == 0, "end failed");
+test_assert(vfsDirReadFirst(dir, &entry) == 1, "rewind failed");
+(void)roRelease(dir);]]></value></code>
+            </step>
+            <step>
+              <description><value>A failed immediate mount unregisters its native object before returning it to the pool.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS, "unmount failed");
+memcpy(boot, vfs_test_fat_disk, sizeof boot);
+memset(vfs_test_fat_disk, 0, sizeof boot);
+for (i = 0U; i <= DRV_CFG_FATFS_FS_NUM; i++) {
+  test_assert(ffdrvMount("0:", true) == CH_RET_EIO, "bad volume error");
+  test_assert(ffdrvUnmount("0:") == CH_RET_EINVAL,
+              "failed mount left a registered object");
+}
+memcpy(vfs_test_fat_disk, boot, sizeof boot);
+test_assert(ffdrvMount("0:", true) == CH_RET_SUCCESS,
+            "failed mount leaked native storage or mutex");]]></value></code>
             </step>
           </steps>
         </case>
@@ -3231,6 +3556,390 @@ test_assert(ret == CH_RET_SUCCESS &&
 test_assert(vfs_test_metadata_result == CH_RET_SUCCESS,
             "pool waiter did not complete");
 test_assert(vfs_test_routing_reserve(0U), "pool waiter leaked a pair");]]></value></code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type><value>Internal Tests</value></type>
+      <brief><value>Newlib Descriptor Ownership.</value></brief>
+      <description><value>Production newlib bindings retain nodes across close/reuse and release outside descriptor protection.</value></description>
+      <condition><value><![CDATA[defined(VFS_TEST_NEWLIB) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)]]></value></condition>
+      <shared_code><value><![CDATA[#include <errno.h>
+#include <stdint.h>
+#include <string.h>
+
+#include "vfs.h"
+#include "newlib_test.h"
+
+typedef struct {
+  vfs_file_node_c node;
+  unsigned disposals;
+  uint8_t value;
+  bool pause_io, pause_dispose, fail_io;
+} vfs_test_fd_node_t;
+
+static vfs_test_fd_node_t vfs_test_fd_nodes[24];
+static unsigned vfs_test_fd_count, vfs_test_fd_custom_calls;
+static vfs_directory_node_c vfs_test_fd_dir;
+static unsigned vfs_test_fd_dir_disposals;
+static struct vfs_file_node_vmt vfs_test_fd_custom_vmt;
+static struct vfs_fs_vmt vfs_test_fd_fs_vmt;
+static vfs_root_c vfs_test_fd_root;
+static vfs_root_c *vfs_test_fd_saved_root;
+static THD_WORKING_AREA(vfs_test_fd_wa, 4096);
+static thread_reference_t vfs_test_fd_io_waiter, vfs_test_fd_dispose_waiter;
+static int vfs_test_fd_number, vfs_test_fd_operation, vfs_test_fd_result;
+static vfs_test_reent_t vfs_test_fd_reent;
+static char vfs_test_fd_byte;
+
+static void vfs_test_fd_unlocked(void) {
+
+  /* The state checker detects inherited system locks at driver/disposal entry.*/
+  chSysLock();
+  chSysUnlock();
+#if CH_CFG_USE_MUTEXES == TRUE
+  chDbgAssert(chMtxGetNextMutexX() == NULL, "descriptor lock reached driver");
+#endif
+}
+
+static void vfs_test_fd_dispose(void *ip) {
+  vfs_test_fd_node_t *np = ip;
+
+  vfs_test_fd_unlocked();
+  if (np->pause_dispose) {
+    np->pause_dispose = false;
+    chSysLock();
+    (void)chThdSuspendS(&vfs_test_fd_dispose_waiter);
+    chSysUnlock();
+  }
+  np->disposals++;
+  __vfsfile_dispose_impl(ip);
+}
+
+static void vfs_test_fd_io_wait(vfs_test_fd_node_t *np) {
+
+  vfs_test_fd_unlocked();
+  if (np->pause_io) {
+    np->pause_io = false;
+    chSysLock();
+    (void)chThdSuspendS(&vfs_test_fd_io_waiter);
+    chSysUnlock();
+  }
+}
+
+static ssize_t vfs_test_fd_read(void *ip, uint8_t *buf, size_t n) {
+  vfs_test_fd_node_t *np = ip;
+
+  vfs_test_fd_io_wait(np);
+  if (np->fail_io) {
+    return CH_RET_EIO;
+  }
+  if (n > 0U) {
+    buf[0] = np->value;
+    return 1;
+  }
+  return 0;
+}
+
+static ssize_t vfs_test_fd_write(void *ip, const uint8_t *buf, size_t n) {
+  vfs_test_fd_node_t *np = ip;
+
+  vfs_test_fd_io_wait(np);
+  if (np->fail_io) {
+    return CH_RET_EIO;
+  }
+  if (n > 0U) {
+    np->value = buf[0];
+    return 1;
+  }
+  return 0;
+}
+
+static const struct vfs_file_node_vmt vfs_test_fd_vmt = {
+  .dispose = vfs_test_fd_dispose,
+  .addref = __ro_addref_impl,
+  .release = __ro_release_impl,
+  .stat = __vfsnode_stat_impl,
+  .read = vfs_test_fd_read,
+  .write = vfs_test_fd_write,
+  .control = __vfsfile_control_impl
+};
+
+static void *vfs_test_fd_custom_addref(void *ip) {
+
+  vfs_test_fd_custom_calls++;
+  return __ro_addref_impl(ip);
+}
+
+static object_references_t vfs_test_fd_custom_release(void *ip) {
+
+  vfs_test_fd_unlocked();
+  vfs_test_fd_custom_calls++;
+  return __ro_release_impl(ip);
+}
+
+static msg_t vfs_test_fd_open(void *ip, const char *path, int flags,
+                             vfs_file_node_c **npp) {
+  vfs_test_fd_node_t *np;
+  const struct vfs_file_node_vmt *vmt = &vfs_test_fd_vmt;
+
+  (void)flags;
+  vfs_test_fd_unlocked();
+  if (strcmp(path, "/dir") == 0) {
+    return CH_RET_EISDIR;
+  }
+  if (strcmp(path, "/missing") == 0) {
+    return CH_RET_ENOENT;
+  }
+  chDbgAssert(vfs_test_fd_count < 24U, "test nodes exhausted");
+  np = &vfs_test_fd_nodes[vfs_test_fd_count++];
+  memset(np, 0, sizeof *np);
+  if (strncmp(path, "/custom-", 8U) == 0) {
+    vfs_test_fd_custom_vmt = vfs_test_fd_vmt;
+    if (strcmp(path, "/custom-add") == 0) {
+      vfs_test_fd_custom_vmt.addref = vfs_test_fd_custom_addref;
+    }
+    else {
+      vfs_test_fd_custom_vmt.release = vfs_test_fd_custom_release;
+    }
+    vmt = &vfs_test_fd_custom_vmt;
+  }
+  (void)__vfsfile_objinit_impl(&np->node, vmt, ip, VFS_MODE_S_IFREG);
+  np->value = (uint8_t)path[1];
+  *npp = &np->node;
+  return CH_RET_SUCCESS;
+}
+
+static void vfs_test_fd_dir_dispose(void *ip) {
+
+  vfs_test_fd_unlocked();
+  vfs_test_fd_dir_disposals++;
+  __vfsdir_dispose_impl(ip);
+}
+
+static const struct vfs_directory_node_vmt vfs_test_fd_dir_vmt = {
+  .dispose = vfs_test_fd_dir_dispose,
+  .addref = __ro_addref_impl,
+  .release = __ro_release_impl,
+  .stat = __vfsnode_stat_impl
+};
+
+static msg_t vfs_test_fd_opendir(void *ip, const char *path,
+                                vfs_directory_node_c **npp) {
+
+  vfs_test_fd_unlocked();
+  if (strcmp(path, "/dir") != 0) {
+    return CH_RET_ENOENT;
+  }
+  (void)__vfsdir_objinit_impl(&vfs_test_fd_dir, &vfs_test_fd_dir_vmt,
+                             ip, VFS_MODE_S_IFDIR);
+  *npp = &vfs_test_fd_dir;
+  return CH_RET_SUCCESS;
+}
+
+static THD_FUNCTION(vfs_test_fd_worker, arg) {
+
+  (void)arg;
+  vfs_test_fd_reent.error = 0;
+  if (vfs_test_fd_operation == 4) {
+    vfs_test_fd_result = vfs_test_close_r(&vfs_test_fd_reent, vfs_test_fd_number);
+  }
+  else if ((vfs_test_fd_operation & 1) != 0) {
+    vfs_test_fd_result = vfs_test_write_r(&vfs_test_fd_reent,
+                                         vfs_test_fd_number, "w", 1);
+  }
+  else {
+    vfs_test_fd_result = vfs_test_read_r(&vfs_test_fd_reent,
+                                        vfs_test_fd_number, &vfs_test_fd_byte, 1);
+  }
+}
+
+static void vfs_test_fd_setup(void) {
+
+  vfs_test_fs_reset();
+  vfs_test_fd_fs_vmt = *vfs_test_fs.vmt;
+  vfs_test_fd_fs_vmt.openfile = vfs_test_fd_open;
+  vfs_test_fd_fs_vmt.opendir = vfs_test_fd_opendir;
+  vfs_test_fs.vmt = &vfs_test_fd_fs_vmt;
+  (void)vfsrootObjectInit(&vfs_test_fd_root, (vfs_fs_c *)&vfs_test_fs, NULL);
+  vfs_test_fd_saved_root = vfs_root;
+  vfs_root = &vfs_test_fd_root;
+  vfs_test_fd_count = 0U;
+  vfs_test_fd_custom_calls = 0U;
+  vfs_test_fd_dir_disposals = 0U;
+}
+
+static void vfs_test_fd_teardown(void) {
+  vfs_test_reent_t r;
+  unsigned i;
+
+  for (i = 0U; i < VFS_TEST_NEWLIB_FDS; i++) {
+    (void)vfs_test_close_r(&r, (int)i);
+  }
+  vfs_root = vfs_test_fd_saved_root;
+  boDispose(&vfs_test_fd_root);
+}]]></value></shared_code>
+      <cases>
+        <case>
+          <brief><value>I/O pins survive close and descriptor reuse.</value></brief>
+          <description><value>Suspended reads and writes retain the original node through close/reuse, on success and error.</value></description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value>vfs_test_fd_setup();</value></setup_code>
+            <teardown_code><value>vfs_test_fd_teardown();</value></teardown_code>
+            <local_variables><value><![CDATA[vfs_test_reent_t r;
+vfs_test_fd_node_t *original;
+thread_t *tp;
+int fd, replacement, operation;
+char value;
+bool retained;
+struct stat st;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>Suspended reads and writes retain the original node through close/reuse, on success and error.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[for (operation = 0; operation < 4; operation++) {
+  fd = vfs_test_open_r(&r, "/old", VO_RDWR, 0);
+  test_assert(fd == 0, "initial descriptor not available");
+  original = &vfs_test_fd_nodes[vfs_test_fd_count - 1U];
+  original->pause_io = true;
+  original->fail_io = operation >= 2;
+  vfs_test_fd_number = fd;
+  vfs_test_fd_operation = operation;
+  tp = chThdCreateStatic(vfs_test_fd_wa, sizeof vfs_test_fd_wa,
+                         chThdGetPriorityX() + 1, vfs_test_fd_worker, NULL);
+  retained = vfs_test_fd_io_waiter != NULL;
+  retained &= vfs_test_close_r(&r, fd) == 0;
+  retained &= original->disposals == 0U;
+  replacement = vfs_test_open_r(&r, "/new", VO_RDWR, 0);
+  retained &= replacement == fd;
+  retained &= vfs_test_read_r(&r, replacement, &value, 1) == 1;
+  retained &= value == 'n';
+  retained &= vfs_test_fstat_r(&r, replacement, &st) == 0;
+  retained &= S_ISREG(st.st_mode);
+  chThdResume(&vfs_test_fd_io_waiter, MSG_OK);
+  (void)chThdWait(tp);
+  test_assert(retained, "close/reuse did not preserve the old node");
+  test_assert(original->disposals == 1U, "operation reference not released");
+  if (operation >= 2) {
+    test_assert(vfs_test_fd_result == -1 && vfs_test_fd_reent.error == EIO,
+                "I/O failure was not preserved");
+  }
+  else {
+    test_assert(vfs_test_fd_result == 1, "I/O failed");
+    test_assert((operation == 0) ? vfs_test_fd_byte == 'o' : original->value == 'w',
+                "in-flight I/O switched to the replacement descriptor");
+  }
+  test_assert(vfs_test_read_r(&r, replacement, &value, 1) == 1 && value == 'n',
+              "old completion changed the replacement");
+  test_assert(vfs_test_close_r(&r, replacement) == 0, "replacement close failed");
+}]]></value></code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief><value>Close detaches before blocking disposal.</value></brief>
+          <description><value>A descriptor is reusable while disposal of its previous node is suspended.</value></description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value>vfs_test_fd_setup();</value></setup_code>
+            <teardown_code><value>vfs_test_fd_teardown();</value></teardown_code>
+            <local_variables><value><![CDATA[vfs_test_reent_t r;
+vfs_test_fd_node_t *original;
+thread_t *tp;
+int fd, replacement;
+bool detached;
+char value;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>A descriptor is reusable while disposal of its previous node is suspended.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[fd = vfs_test_open_r(&r, "/old", VO_RDWR, 0);
+test_assert(fd == 0, "open failed");
+original = &vfs_test_fd_nodes[vfs_test_fd_count - 1U];
+original->pause_dispose = true;
+vfs_test_fd_operation = 4;
+vfs_test_fd_number = fd;
+tp = chThdCreateStatic(vfs_test_fd_wa, sizeof vfs_test_fd_wa,
+                       chThdGetPriorityX() + 1, vfs_test_fd_worker, NULL);
+detached = vfs_test_fd_dispose_waiter != NULL;
+detached &= vfs_test_close_r(&r, fd) == -1 && r.error == EBADF;
+replacement = vfs_test_open_r(&r, "/new", VO_RDWR, 0);
+detached &= replacement == fd;
+detached &= vfs_test_read_r(&r, replacement, &value, 1) == 1 && value == 'n';
+chThdResume(&vfs_test_fd_dispose_waiter, MSG_OK);
+(void)chThdWait(tp);
+test_assert(detached, "close did not detach before disposal");
+test_assert(original->disposals == 1U && vfs_test_fd_result == 0,
+            "old close did not finish");
+test_assert(vfs_test_read_r(&r, replacement, &value, 1) == 1 && value == 'n',
+            "old close cleared the reused slot");
+test_assert(vfs_test_close_r(&r, replacement) == 0, "replacement close failed");]]></value></code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief><value>Admission, table exhaustion and error cleanup.</value></brief>
+          <description><value>Invalid descriptors, directories, full tables and custom reference methods preserve ownership and report errors.</value></description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value>vfs_test_fd_setup();</value></setup_code>
+            <teardown_code><value>vfs_test_fd_teardown();</value></teardown_code>
+            <local_variables><value><![CDATA[vfs_test_reent_t r;
+int fd, i;
+char value;
+struct stat st;
+unsigned node;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>Invalid descriptors, directories, full tables and custom reference methods preserve ownership and report errors.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[test_assert(vfs_test_read_r(&r, -1, &value, 1) == -1 && r.error == EBADF,
+            "negative descriptor accepted");
+test_assert(vfs_test_write_r(&r, VFS_TEST_NEWLIB_FDS, "x", 1) == -1 &&
+            r.error == EBADF, "large descriptor accepted");
+test_assert(vfs_test_fstat_r(&r, 0, &st) == -1 && r.error == EBADF,
+            "empty descriptor accepted");
+test_assert(vfs_test_open_r(&r, "/missing", VO_RDONLY, 0) == -1 &&
+            r.error == ENOENT, "open error lost");
+fd = vfs_test_open_r(&r, "/dir", VO_RDONLY, 0);
+test_assert(fd == 0, "directory open failed");
+test_assert(vfs_test_read_r(&r, fd, &value, 1) == -1 && r.error == EISDIR,
+            "directory read error lost");
+test_assert(vfs_test_write_r(&r, fd, "x", 1) == -1 && r.error == EISDIR,
+            "directory write error lost");
+test_assert(vfs_test_fstat_r(&r, fd, &st) == -1 && r.error == EISDIR,
+            "directory stat behavior changed");
+test_assert(vfs_test_close_r(&r, fd) == 0 && vfs_test_fd_dir_disposals == 1U,
+            "directory error leaked a pin");
+for (i = 0; i < VFS_TEST_NEWLIB_FDS; i++) {
+  test_assert(vfs_test_open_r(&r, "/old", VO_RDWR, 0) == i, "insertion failed");
+}
+node = vfs_test_fd_count;
+test_assert(vfs_test_open_r(&r, "/new", VO_RDWR, 0) == -1 && r.error == EMFILE,
+            "full table error lost");
+test_assert(vfs_test_fd_nodes[node].disposals == 1U, "full table leaked node");
+for (i = 0; i < VFS_TEST_NEWLIB_FDS; i++) {
+  test_assert(vfs_test_close_r(&r, i) == 0, "close failed");
+}
+node = vfs_test_fd_count;
+test_assert(vfs_test_open_r(&r, "/custom-add", VO_RDWR, 0) == -1 &&
+            r.error == ENOTSUP, "custom addref silently bypassed");
+test_assert(vfs_test_fd_nodes[node].disposals == 1U &&
+            vfs_test_fd_custom_calls == 0U, "custom addref rejection leaked");
+node = vfs_test_fd_count;
+test_assert(vfs_test_open_r(&r, "/custom-release", VO_RDWR, 0) == -1 &&
+            r.error == ENOTSUP, "custom release silently bypassed");
+test_assert(vfs_test_fd_nodes[node].disposals == 1U &&
+            vfs_test_fd_custom_calls == 1U, "custom release was not honored");
+fd = vfs_test_open_r(&r, "/new", VO_RDWR, 0);
+test_assert(fd == 0, "errors consumed descriptor slots");
+test_assert(vfs_test_close_r(&r, fd) == 0, "final close failed");]]></value></code>
             </step>
           </steps>
         </case>
