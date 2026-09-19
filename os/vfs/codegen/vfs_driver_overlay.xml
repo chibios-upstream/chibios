@@ -204,6 +204,36 @@ return CH_RET_ENOENT;]]></implementation>
       </struct>
     </types>
     <functions>
+      <function name="__ovldrv_match" ctype="msg_t">
+        <brief>Matches a registered mount without changing the path.</brief>
+        <note>The input points just after the initial separator. On success
+          it advances to the remaining separator or string terminator.
+          This function requires thread context.</note>
+        <param name="self" ctype="vfs_overlay_driver_c *" dir="in">Pointer to
+          the overlay object.</param>
+        <param name="pathp" ctype="const char **" dir="both">Pointer to the
+          path cursor.</param>
+        <param name="fspp" ctype="vfs_fs_c **" dir="out">Pointer to the
+          matched file system pointer, set on success.</param>
+        <return>The operation result.</return>
+        <notapi />
+        <implementation><![CDATA[]]></implementation>
+      </function>
+      <function name="__ovldrv_open_root" ctype="msg_t">
+        <brief>Opens a merged root using an already prepared backing path.</brief>
+        <note>A missing backing directory leaves an empty backing view, as
+          for an overlay without a backing FS. The path is borrowed until
+          return. This function requires thread context.</note>
+        <param name="self" ctype="vfs_overlay_driver_c *" dir="in">Pointer to
+          the overlay object.</param>
+        <param name="backing_path" ctype="const char *" dir="in">Normalized
+          absolute path of the backing directory.</param>
+        <param name="vdnpp" ctype="vfs_directory_node_c **" dir="out">Pointer
+          to the opened directory node pointer.</param>
+        <return>The operation result.</return>
+        <notapi />
+        <implementation><![CDATA[]]></implementation>
+      </function>
       <function name="__drv_overlay_init" ctype="void">
         <brief>Module initialization.</brief>
         <init />
@@ -224,7 +254,6 @@ chPoolLoadArray(&vfs_overlay_driver_static.dir_nodes_pool,
   <private>
     <includes_always>
       <include style="regular">vfs.h</include>
-      <include style="regular">vfsprivate.h</include>
     </includes_always>
     <variables>
       <variable name="vfs_overlay_driver_static"

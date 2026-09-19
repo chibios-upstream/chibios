@@ -13,11 +13,13 @@
       <class type="regular" name="vfs_root" namespace="vfsroot"
         ancestorname="vfs_overlay_driver" descr="VFS root object">
         <brief>VFS root object with process path context.</brief>
-        <details><![CDATA[An overlay file system that accepts relative paths
-          and owns the current-directory state and backing prefix for one process
-          context. Root is an outer entry point and must not be stacked below
-          another root. Path operations reserve a buffer pair locally. Callers
-          remain responsible for serializing access to shared root state.]]></details>
+        <details><![CDATA[An overlay file system that accepts absolute or relative
+          paths and owns the current-directory state and backing prefix for one
+          process context. Relative inputs are resolved against its current
+          directory; all inputs are normalized before delegation. Root is an
+          outer entry point and must not be stacked below another root. Path
+          operations reserve a buffer pair locally. Callers remain responsible
+          for serializing access to shared root state.]]></details>
         <fields>
           <field name="path_cwd" ctype="char$I*">
             <brief>Current working directory path or @p NULL for root.</brief>
@@ -58,8 +60,8 @@ self->path_prefix = path_prefix;]]></implementation>
             </method>
             <method name="vfsRootChangeCurrentDirectory" ctype="msg_t">
               <brief>Changes the current VFS directory.</brief>
-              <param name="path" ctype="const char *" dir="in">Path of the new
-                current directory.</param>
+              <param name="path" ctype="const char *" dir="in">Absolute or
+                relative path of the new current directory.</param>
               <return>The operation result.</return>
               <api />
               <implementation><![CDATA[]]></implementation>
@@ -105,7 +107,6 @@ self->path_prefix = path_prefix;]]></implementation>
   <private>
     <includes_always>
       <include style="regular">vfs.h</include>
-      <include style="regular">vfsprivate.h</include>
     </includes_always>
   </private>
 </module>

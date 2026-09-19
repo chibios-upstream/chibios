@@ -90,7 +90,7 @@ void vfsInit(void) {
 /**
  * @brief   Changes the current VFS directory.
  *
- * @param[in] path      Path of the new current directory.
+ * @param[in] path      Absolute or relative path of the new current directory.
  * @return              The operation result.
  *
  * @api
@@ -117,7 +117,7 @@ msg_t vfsGetCurrentDirectory(char *buf, size_t size) {
 /**
  * @brief   Returns file or directory information.
  *
- * @param[in] path      Absolute path of the node to be examined.
+ * @param[in] path      Absolute or relative path of the node to be examined.
  * @param[out] sp       Pointer to a @p vfs_stat_t structure.
  * @return              The operation result.
  *
@@ -131,7 +131,7 @@ msg_t vfsStat(const char *path, vfs_stat_t *sp) {
 /**
  * @brief   Opens a VFS file or directory.
  *
- * @param[in] path      Absolute path of the node to be opened.
+ * @param[in] path      Absolute or relative path of the node to be opened.
  * @param[in] flags     Open flags.
  * @param[out] vnpp     Pointer to the pointer to the instantiated
  *                      @p vfs_node_c object.
@@ -147,7 +147,7 @@ msg_t vfsOpen(const char *path, int flags, vfs_node_c **vnpp) {
 /**
  * @brief   Opens a VFS directory.
  *
- * @param[in] path      Absolute path of the directory to be opened.
+ * @param[in] path      Absolute or relative path of the directory to be opened.
  * @param[out] vdnpp    Pointer to the pointer to the instantiated
  *                      @p vfs_directory_node_c object.
  * @return              The operation result.
@@ -162,7 +162,7 @@ msg_t vfsOpenDirectory(const char *path, vfs_directory_node_c **vdnpp) {
 /**
  * @brief   Opens a VFS file.
  *
- * @param[in] path      Path of the file to be opened.
+ * @param[in] path      Absolute or relative path of the file to be opened.
  * @param[in] flags     File open flags.
  * @param[out] vfnpp    Pointer to the pointer to the instantiated
  *                      @p vfs_file_node_c object.
@@ -178,7 +178,7 @@ msg_t vfsOpenFile(const char *path, int flags, vfs_file_node_c **vfnpp) {
 /**
  * @brief   Unlinks and possibly deletes a file.
  *
- * @param[in] path      Path of the file to be unlinked.
+ * @param[in] path      Absolute or relative path of the file to be unlinked.
  * @return              The operation result.
  *
  * @api
@@ -191,8 +191,8 @@ msg_t vfsUnlink(const char *path) {
 /**
  * @brief   Renames a file or directory.
  *
- * @param[in] oldpath   Path of the file to be renamed.
- * @param[in] newpath   New path of the renamed file.
+ * @param[in] oldpath   Absolute or relative path of the node to be renamed.
+ * @param[in] newpath   Absolute or relative destination path.
  * @return              The operation result.
  *
  * @api
@@ -205,7 +205,7 @@ msg_t vfsRename(const char *oldpath, const char *newpath) {
 /**
  * @brief   Creates a directory.
  *
- * @param[in] path      Path of the directory to be created.
+ * @param[in] path      Absolute or relative path of the directory to be created.
  * @param[in] mode      Mode flags for the directory.
  * @return              The operation result.
  *
@@ -219,7 +219,7 @@ msg_t vfsMkdir(const char *path, vfs_mode_t mode) {
 /**
  * @brief   Removes a directory.
  *
- * @param[in] path      Path of the directory to be removed.
+ * @param[in] path      Absolute or relative path of the directory to be removed.
  * @return              The operation result.
  *
  * @api

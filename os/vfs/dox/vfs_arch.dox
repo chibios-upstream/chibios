@@ -117,24 +117,27 @@
  *
  * @section vfs_arch_fs_paths File-system path contract
  *
- * Every path passed to a @p vfs_fs_c virtual method shall be:
+ * Except for root entry points described below, every path passed to a
+ * @p vfs_fs_c virtual method shall be:
  *
  * - absolute, beginning with a slash;
  * - normalized, with no repeated separators;
  * - free of @c "." and @c ".." elements;
  * - free of a trailing separator, except for the root path @c "/".
  *
- * File-system methods do not consult or modify a current directory. Mounted
- * file systems and nodes refer to @p vfs_fs_c objects, so the same file
- * system can be shared by multiple roots.
+ * Non-root file-system methods do not consult or modify a current directory.
+ * Mounted file systems and nodes refer to @p vfs_fs_c objects, so the same
+ * file system can be shared by multiple roots.
  *
  * @section vfs_arch_root_paths Root path contract
  *
- * Root methods accept both absolute and relative paths. A root resolves and
- * normalizes each input path against its own current directory before calling
- * the selected file system. A rename resolves both paths from the same
- * current-directory snapshot. Changing the current directory preserves its
- * logical candidate through validation and node cleanup before committing it.
+ * Root methods and the top-level path API accept both absolute and relative
+ * paths. A root resolves relative inputs against its own current directory
+ * and normalizes all input paths before calling the selected file system.
+ * The top-level API uses the default root. A rename resolves both paths from
+ * the same current-directory snapshot. Changing the current directory
+ * preserves its logical candidate through validation and node cleanup before
+ * committing it.
  * @p vfsRootOpen() keeps one resolved logical path across file-to-directory
  * fallback even if CWD changes while a driver sleeps. Use it for combined
  * opens through a root; @p vfsFSOpen() borrows a normalized absolute path.

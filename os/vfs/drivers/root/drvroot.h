@@ -53,12 +53,14 @@
  * @extends     vfs_overlay_driver_c
  *
  * @brief       VFS root object with process path context.
- * @details     An overlay file system that accepts relative paths and owns the
- *              current-directory state and backing prefix for one process
- *              context. Root is an outer entry point and must not be stacked
- *              below another root. Path operations reserve a buffer pair
- *              locally. Callers remain responsible for serializing access to
- *              shared root state.
+ * @details     An overlay file system that accepts absolute or relative paths
+ *              and owns the current-directory state and backing prefix for one
+ *              process context. Relative inputs are resolved against its
+ *              current directory; all inputs are normalized before delegation.
+ *              Root is an outer entry point and must not be stacked below
+ *              another root. Path operations reserve a buffer pair locally.
+ *              Callers remain responsible for serializing access to shared
+ *              root state.
  *
  * @name        Class @p vfs_root_c structures
  * @{

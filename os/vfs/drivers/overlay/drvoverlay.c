@@ -24,7 +24,6 @@
  */
 
 #include "vfs.h"
-#include "vfsprivate.h"
 
 #if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
 

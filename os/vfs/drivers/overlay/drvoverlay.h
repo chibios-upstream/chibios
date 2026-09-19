@@ -241,6 +241,11 @@ extern "C" {
   msg_t ovldrvRegisterDriver(void *ip, vfs_fs_c *fsp, const char *name);
   msg_t ovldrvUnregisterDriver(void *ip, const char *name);
   /* Regular functions.*/
+  msg_t __ovldrv_match(vfs_overlay_driver_c *self, const char **pathp,
+                       vfs_fs_c **fspp);
+  msg_t __ovldrv_open_root(vfs_overlay_driver_c *self,
+                           const char *backing_path,
+                           vfs_directory_node_c **vdnpp);
   void __drv_overlay_init(void);
 #ifdef __cplusplus
 }

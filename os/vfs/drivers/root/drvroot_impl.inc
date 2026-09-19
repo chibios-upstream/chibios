@@ -222,7 +222,8 @@ void __vfsroot_dispose_impl(void *ip) {
  * @brief       Override of method @p vfsFSStat().
  *
  * @param[in,out] ip            Pointer to a @p vfs_root_c instance.
- * @param[in]     path          Absolute path of the node to be examined.
+ * @param[in]     path          Absolute or relative path of the node to be
+ *                              examined.
  * @param[out]    sp            Pointer to a @p vfs_stat_t structure.
  * @return                      The operation result.
  */
@@ -261,7 +262,8 @@ msg_t __vfsroot_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
  * @brief       Override of method @p vfsFSOpenDirectory().
  *
  * @param[in,out] ip            Pointer to a @p vfs_root_c instance.
- * @param[in]     path          Absolute path of the directory to be opened.
+ * @param[in]     path          Absolute or relative path of the directory to be
+ *                              opened.
  * @param[out]    vdnpp         Pointer to the pointer to the instantiated @p
  *                              vfs_directory_node_c object.
  * @return                      The operation result.
@@ -289,7 +291,8 @@ msg_t __vfsroot_opendir_impl(void *ip, const char *path,
  * @brief       Override of method @p vfsFSOpenFile().
  *
  * @param[in,out] ip            Pointer to a @p vfs_root_c instance.
- * @param[in]     path          Absolute path of the directory to be opened.
+ * @param[in]     path          Absolute or relative path of the file to be
+ *                              opened.
  * @param[in]     flags         File open flags.
  * @param[out]    vfnpp         Pointer to the pointer to the instantiated @p
  *                              vfs_file_node_c object.
@@ -318,7 +321,8 @@ msg_t __vfsroot_openfile_impl(void *ip, const char *path, int flags,
  * @brief       Override of method @p vfsFSUnlink().
  *
  * @param[in,out] ip            Pointer to a @p vfs_root_c instance.
- * @param[in]     path          Path of the file to be unlinked.
+ * @param[in]     path          Absolute or relative path of the file to be
+ *                              unlinked.
  * @return                      The operation result.
  */
 msg_t __vfsroot_unlink_impl(void *ip, const char *path) {
@@ -354,8 +358,9 @@ msg_t __vfsroot_unlink_impl(void *ip, const char *path) {
  * @brief       Override of method @p vfsFSRename().
  *
  * @param[in,out] ip            Pointer to a @p vfs_root_c instance.
- * @param[in]     oldpath       Path of the node to be renamed.
- * @param[in]     newpath       New path of the renamed node.
+ * @param[in]     oldpath       Absolute or relative path of the node to be
+ *                              renamed.
+ * @param[in]     newpath       Absolute or relative destination path.
  * @return                      The operation result.
  */
 msg_t __vfsroot_rename_impl(void *ip, const char *oldpath, const char *newpath) {
@@ -385,7 +390,8 @@ msg_t __vfsroot_rename_impl(void *ip, const char *oldpath, const char *newpath) 
  * @brief       Override of method @p vfsFSMkdir().
  *
  * @param[in,out] ip            Pointer to a @p vfs_root_c instance.
- * @param[in]     path          Path of the directory to be created.
+ * @param[in]     path          Absolute or relative path of the directory to be
+ *                              created.
  * @param[in]     mode          Mode flags for the directory.
  * @return                      The operation result.
  */
@@ -422,7 +428,8 @@ msg_t __vfsroot_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
  * @brief       Override of method @p vfsFSRmdir().
  *
  * @param[in,out] ip            Pointer to a @p vfs_root_c instance.
- * @param[in]     path          Path of the directory to be removed.
+ * @param[in]     path          Absolute or relative path of the directory to be
+ *                              removed.
  * @return                      The operation result.
  */
 msg_t __vfsroot_rmdir_impl(void *ip, const char *path) {
@@ -517,7 +524,8 @@ msg_t vfsRootOpen(void *ip, const char *path, int flags, vfs_node_c **vnpp) {
  * @brief       Changes the current VFS directory.
  *
  * @param[in,out] ip            Pointer to a @p vfs_root_c instance.
- * @param[in]     path          Path of the new current directory.
+ * @param[in]     path          Absolute or relative path of the new current
+ *                              directory.
  * @return                      The operation result.
  *
  * @api
