@@ -488,6 +488,18 @@ static msg_t reloc_section(elf_load_context_t *ctxp,
 /* Module exported functions.                                                */
 /*===========================================================================*/
 
+/**
+ * @brief   Loads and relocates an ELF image from an open file.
+ * @pre     The caller retains a node reference and serializes use of its file
+ *          position for this entire call. The destination is exclusively
+ *          owned until loading finishes. Do not retain a VFS scratch pair;
+ *          relocation reserves one and may wait for it.
+ *
+ * @param[in] fnp       Borrowed file node.
+ * @param[in] map       Writable destination region.
+ * @return              The operation result.
+ * @api
+ */
 msg_t sbElfLoad(vfs_file_node_c *fnp, const memory_area_t *map) {
   msg_t ret;
   elf_load_context_t ctx;
@@ -618,6 +630,18 @@ msg_t sbElfLoad(vfs_file_node_c *fnp, const memory_area_t *map) {
   return ret;
 }
 
+/**
+ * @brief   Opens, loads and closes an ELF image through a root.
+ * @details The function owns the opened node through all reads and waits.
+ * @pre     Keep the root alive, own the destination exclusively and do not
+ *          retain a VFS scratch pair until this call finishes.
+ *
+ * @param[in] rootp     Borrowed root object.
+ * @param[in] path      Absolute or relative logical path.
+ * @param[in] map       Writable destination region.
+ * @return              The operation result.
+ * @api
+ */
 msg_t sbElfLoadFile(vfs_root_c *rootp,
                     const char *path,
                     const memory_area_t *map) {
@@ -638,6 +662,16 @@ msg_t sbElfLoadFile(vfs_root_c *rootp,
   return ret;
 }
 
+/**
+ * @brief   Determines the memory required to load an ELF image.
+ * @pre     The caller retains a node reference and serializes use of its file
+ *          position for this entire call.
+ *
+ * @param[in] fnp       Borrowed file node.
+ * @param[out] sizep    Required allocation size.
+ * @return              The operation result.
+ * @api
+ */
 msg_t sbElfGetAllocation(vfs_file_node_c *fnp, size_t *sizep) {
   msg_t ret;
   bool zerofound = false;

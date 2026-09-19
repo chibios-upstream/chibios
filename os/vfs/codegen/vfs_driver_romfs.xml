@@ -73,6 +73,12 @@
       </typedef>
       <class type="regular" name="vfs_rom_driver" namespace="romdrv"
         ancestorname="vfs_fs" descr="VFS ROMFS driver">
+        <brief>Read-only file system backed by an immutable image.</brief>
+        <details>The tree, descriptors, callback tables and static file data
+          must remain valid and unchanged until all users and nodes are gone.
+          Each open node owns its position and callback session; independent
+          nodes may overlap. Callbacks synchronize any shared mutable state
+          themselves, independently of VFS_CFG_USE_MUTUAL_EXCLUSION.</details>
         <fields>
           <field name="tree" ctype="const vfs_romfs_tree_t$I*">
             <brief>Pointer to the ROMFS image.</brief>
@@ -117,6 +123,14 @@ self->tree = tree;]]></implementation>
       </class>
       <struct name="vfs_romfs_compressed_ops">
         <brief>ROMFS compression backend callbacks.</brief>
+        <details>Callbacks run in thread context without an upper VFS metadata
+          mutex. A successful open transfers its session to the node; close
+          releases it during final disposal. Independent opens and stat calls
+          may overlap, so shared backend state requires its own synchronization.
+          The descriptor argument must outlive all calls and sessions. Read
+          buffers are borrowed only until return. A caller may already hold a
+          VFS scratch pair: callbacks must not wait for another pair, including
+          by reentering root path operations.</details>
         <fields>
           <field name="open"
             ctype="msg_t$I(*$N)(const void *arg, int flags, void **sessionp, vfs_offset_t *sizep)">
@@ -177,6 +191,9 @@ self->tree = tree;]]></implementation>
       </union>
       <struct name="vfs_romfs_dynamic_ops">
         <brief>ROMFS dynamic file callbacks.</brief>
+        <details>The context, session ownership, borrowed-buffer lifetime and
+          synchronization rules of @p vfs_romfs_compressed_ops_t also apply to
+          dynamic callbacks.</details>
         <fields>
           <field name="open"
             ctype="msg_t$I(*$N)(const void *arg, int flags, void **sessionp, vfs_offset_t *sizep)">

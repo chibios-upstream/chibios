@@ -346,7 +346,14 @@ struct vfs_stat {
  *              descriptors share that node and its position. Distinct nodes
  *              may be used concurrently only when their file system and shared
  *              backend support it. The owning file system is borrowed and must
- *              outlive the node and its disposal.
+ *              outlive the node and its disposal. These rules apply equally to
+ *              direct methods and convenience APIs. A reference must be
+ *              obtained from an existing owner before publishing the node to
+ *              another user; inspecting the reference count does not establish
+ *              ownership. The owner and node mode are immutable after
+ *              initialization. Borrowed data buffers and control arguments
+ *              remain valid through the call and may not be retained by the
+ *              driver.
  *
  * @name        Class @p vfs_node_c structures
  * @{

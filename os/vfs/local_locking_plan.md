@@ -18,8 +18,8 @@ are regenerated for buffer pairs, without introducing a mutex option yet.
 
 The foundation alone does not make VFS thread-safe. Steps 2 through 4 now
 supply optional metadata/leaf mutexes and descriptor ownership protection.
-Caller integration and final validation remain before concurrent use of the
-full stack is supported.
+Step 5 completes caller integration; final validation remains before concurrent
+use of the full stack is supported.
 
 ## Required behavior
 
@@ -252,7 +252,18 @@ in the abstract FS class merely because some implementations need one.
    Completion: lookup/close/reuse tests pass without a VFS-wide scope and no
    descriptor lock reaches a node call or disposal.
 
-5. **Finish local API contracts and caller integration.**
+5. **Finish local API contracts and caller integration — complete.**
+
+   Removed nine unprotected reference-count assertions from convenience APIs;
+   pointer checks preserve argument validation without reading shared counters.
+   Both HTTP adapters detach their node before final disposal. Documented
+   direct/convenience equivalence, default-root publication, borrowed argument
+   and callback lifetimes, ELF ownership and whole-call position serialization,
+   HTTP file serialization, shell CWD sharing, and the no-nested-pair rule.
+   XML-owned interfaces and all 24 configurations were regenerated, preserving
+   every option value. See the [caller audit](local_locking_audit.md).
+
+   Implementation requirements:
 
    Direct and convenience entry points use the same internal local
    synchronization. Do not introduce `vfsAcquire()`/`vfsRelease()` or public
@@ -318,8 +329,8 @@ followed by optional root/overlay metadata protection, one lazy CWD buffer per r
 and explicit directory enumeration phase. Step 3 is also complete: optional
 FatFS singleton and LittleFS per-instance wrapper synchronization, with native
 reentrancy optional. Step 4 now protects newlib descriptor ownership and
-orders sandbox descriptor release correctly. Steps 5 and 6 remain pending;
-API contracts and caller integration are next.
+orders sandbox descriptor release correctly. Step 5 completes API contracts
+and caller integration. Step 6 final concurrency validation is next.
 
 The step 1 source audit found native FatFS reentrancy disabled, LittleFS
 mount-state and native-hook prerequisites, shared backend state behind streams
@@ -330,6 +341,27 @@ same-handle ordering retain their own requirements. The node interface and archi
 document the handle contract. Step 1 validation is documentation/source review,
 XML schema validation, repeatable generation, and whitespace/link checks;
 no runtime synchronization behavior changed.
+
+Step 5 validation on 2026-09-19:
+
+- Combined FatFS/LittleFS simulator suites pass with checks, assertions and
+  the system state checker: local mutexes enabled with three pairs, and local
+  mutexes disabled with no kernel mutex support and one pair. Existing path,
+  CWD, buffer, native-driver and descriptor ownership regressions pass together.
+- Isolated probes of both production HTTP adapters pass lifecycle/reentrant
+  disposal and error cleanup under address/undefined-behavior sanitizers with
+  minimal ABI stubs. The original code fails the reentrant-disposal check.
+  This is not an HTTP network-stack runtime test.
+- Invalid option values and enabled VFS mutexes without kernel support are
+  rejected. Disabled VFS objects have no mutex references. On the 64-bit
+  simulator FS/FatFS objects remain 8 bytes; overlay/root/LittleFS sizes are
+  56/72/184 bytes disabled and 88/104/216 enabled.
+- STM32G474 FatFS/newlib and dynamic sandbox demos compile/link with local
+  mutexes and all three debug checks enabled. Prefix-using L4R9 demos and
+  ELF/getdents ownership were source-audited; final matrix and physical-board
+  coverage remain separate work in step 6.
+- Edited XML validates, repeated VFS generation is identical, all 24 config
+  updates preserve values, and whitespace checks pass. Build products cleaned.
 
 Step 4 validation on 2026-09-19:
 

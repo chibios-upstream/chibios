@@ -279,6 +279,49 @@ unlocked driver/disposal entry. Invalid descriptors, directories, full tables
 and custom-reference rejection are covered. Sandbox changes are source-audited
 and ARM compile/link validated; no sandbox runtime test is claimed here.
 
+## Caller integration — step 5 implementation
+
+Direct methods and convenience entry points use the same internal local
+protection. The nine convenience-wrapper assertions that read live reference
+counts without protection are replaced by pointer checks. A valid reference
+must already be held by the caller; inspecting a counter cannot establish it.
+The newlib pin retains its protected counter checks. No public acquire/release
+API or locked pool-wait helper is introduced.
+
+| Caller | Ownership through calls and waits | Remaining caller requirement |
+| --- | --- | --- |
+| Newlib | Table reference plus per-operation pin; detach before final release | Serialize same-node operations and libc stream state |
+| Sandbox getdents | Active table reference retained by the owning host thread; one whole scratch pair | Host lifecycle changes only while stopped; shared nodes need their own references and ordering |
+| ELF load/size query | Borrows caller's node; relocation allocates and returns one pair locally | Retain reference and serialize the whole sequence of seeks/reads; own destination exclusively; enter without a scratch pair |
+| ELF path load and sandbox startup | Private open node released on success/error | Keep root and storage alive, own destination exclusively |
+| Both HTTP bindings | One reference per HTTP file; private path array; detach before disposal | Initialize before serving, keep binding stable and serialize each HTTP file through close |
+| Shell and xshell | Command-owned nodes, heap/stack path and entry storage | Shared default-root CWD is not a multi-command transaction; terminal backend handles shared output |
+| Prefix-using L4R9 sandbox demos | Separate sandbox roots with `/sb1` backing prefix; per-root combined open and explicit descriptor-reference transfers | Root, prefix, backing FS and mounted stream interfaces outlive sandbox users |
+
+HTTP previously left `pextension` pointing at the node during final disposal.
+Both adapters now clear it before `vfsClose()`, so disposal that reenters HTTP
+cleanup cannot release the same reference twice. An isolated probe compiles
+each production adapter with minimal VFS/lwIP ABI stubs; it covers reentrant
+close, repeated close, read-after-close, normal reads, and open/stat failures.
+The old implementation fails the reentrant-close check, and both updated
+adapters pass with address/undefined-behavior sanitizers. This validates adapter
+ownership, not the lwIP network stack; leak detection is disabled because the
+sandbox's tracing environment does not support LeakSanitizer.
+
+ROMFS callbacks and stream interfaces now document thread context, immutable
+description lifetime, borrowed buffers, per-open session ownership and shared
+backend synchronization. A callback may be entered while its caller retains a
+scratch pair; it must not wait for another or reenter an allocating root path
+operation. Leaf storage callbacks retain the stricter no-VFS-reentry rule.
+FatFS native hooks use their own per-volume semaphores, separate from the
+wrapper's singleton mutex; native reentrancy remains optional.
+
+Source review confirms that ELF uses `VFS_BUFFER_SIZE`, rounds chunks down to
+whole relocation records and rejects partial records. Sandbox getdents also
+uses the combined capacity. Neither path waits for a second pair. Existing
+prefix, mount-bypass, logical-CWD and root-open fallback tests remain in the
+simulator suite. No caller requires an outer VFS operation scope.
+
 ## Step 1 completion and follow-up
 
 The state inventory, handle/lifetime contract, delegation boundaries, and
@@ -287,7 +330,7 @@ also documented in the generated node interface and VFS architecture page.
 This step makes no runtime synchronization changes and adds no concurrency
 claims to the previously run functional tests.
 
-Steps 2 through 4 now supply local metadata and leaf mutexes plus descriptor
-ownership protection. Next is step 5: finish API contracts and caller
-integration, followed by final validation. The complete VFS stack is not yet
-advertised as concurrently usable.
+Steps 2 through 4 supply local metadata and leaf mutexes plus descriptor
+ownership protection. Step 5 completes API contracts and caller integration.
+Step 6 final concurrency validation is next; the complete VFS stack is not
+yet advertised as concurrently usable.

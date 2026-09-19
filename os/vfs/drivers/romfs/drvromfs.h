@@ -138,6 +138,13 @@ typedef struct vfs_romfs_tree vfs_romfs_tree_t;
  * @class       vfs_rom_driver_c
  * @extends     vfs_fs_c
  *
+ * @brief       Read-only file system backed by an immutable image.
+ * @details     The tree, descriptors, callback tables and static file data
+ *              must remain valid and unchanged until all users and nodes are
+ *              gone. Each open node owns its position and callback session;
+ *              independent nodes may overlap. Callbacks synchronize any shared
+ *              mutable state themselves, independently of
+ *              VFS_CFG_USE_MUTUAL_EXCLUSION.
  *
  * @name        Class @p vfs_rom_driver_c structures
  * @{
@@ -182,6 +189,15 @@ struct vfs_rom_driver {
 
 /**
  * @brief       ROMFS compression backend callbacks.
+ * @details     Callbacks run in thread context without an upper VFS metadata
+ *              mutex. A successful open transfers its session to the node;
+ *              close releases it during final disposal. Independent opens and
+ *              stat calls may overlap, so shared backend state requires its
+ *              own synchronization. The descriptor argument must outlive all
+ *              calls and sessions. Read buffers are borrowed only until
+ *              return. A caller may already hold a VFS scratch pair: callbacks
+ *              must not wait for another pair, including by reentering root
+ *              path operations.
  */
 struct vfs_romfs_compressed_ops {
   msg_t                     (*open)(const void *arg, int flags, void **sessionp, vfs_offset_t *sizep);
@@ -228,6 +244,9 @@ union vfs_romfs_file_content {
 
 /**
  * @brief       ROMFS dynamic file callbacks.
+ * @details     The context, session ownership, borrowed-buffer lifetime and
+ *              synchronization rules of @p vfs_romfs_compressed_ops_t also
+ *              apply to dynamic callbacks.
  */
 struct vfs_romfs_dynamic_ops {
   msg_t                     (*open)(const void *arg, int flags, void **sessionp, vfs_offset_t *sizep);

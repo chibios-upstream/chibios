@@ -82,8 +82,8 @@
  * helpers become empty macros. Callers then serialize shared state.
  * Kernel pool/reference protection and native backend configuration remain
  * independent. Descriptor ownership is protected locally as described below.
- * Caller integration and final concurrency validation are still pending;
- * this is not yet a full-stack concurrency guarantee.
+ * Caller integration has been audited; final concurrency validation remains
+ * pending before advertising a full-stack concurrency guarantee.
  *
  * Each root allocates one CWD buffer on its first successful chdir using
  * @p chCoreAlloc(). This bounded, nonblocking allocation runs under the
@@ -103,6 +103,11 @@
  * counting protects lifetime; it does not serialize operations. Another
  * owner may release its reference while the operation retains its own.
  * A copied pointer or descriptor lookup alone does not retain the node.
+ * Direct methods and convenience APIs follow these same rules. The latter
+ * check pointer arguments without reading shared reference counters. Only
+ * the reference implementation or a protected descriptor pin changes or
+ * inspects those counters. Concurrent reference ownership requires OOP
+ * synchronization; @c OOP_USE_NOTHING does not provide it.
  *
  * Callers serialize operations on the same open node unless its driver
  * explicitly permits concurrent use. This includes stat, read/write,
@@ -114,7 +119,7 @@
  *
  * File systems, prefixes, backing relationships, immutable descriptions, and
  * backend interfaces remain valid through active operations and final node
- * disposal. Mount/unmount/format and backend reconfiguration require an
+ * disposal. Native mount/unmount/format and backend reconfiguration require an
  * exclusive lifecycle phase with no affected active operations or live nodes.
  * Unregistering a route does not wait for its active operations to finish.
  *
@@ -174,6 +179,37 @@
  * getdents scratch waits. Close and cleanup detach before release; dup2 retains
  * the source and replaces the destination before releasing the old node.
  * Host-side mutation of a running sandbox's table remains unsupported.
+ *
+ * @subsection vfs_arch_callers Caller integration
+ *
+ * Publish the application-provided @p vfs_root before starting users and
+ * keep it stable until they are quiescent. Top-level path calls use that
+ * root's shared logical CWD. Shell commands own their opened nodes and local
+ * work buffers, but concurrent commands share CWD; a chdir followed by another
+ * command is not an atomic sequence. Output stream synchronization belongs
+ * to the shared terminal backend.
+ *
+ * ELF functions accepting a node borrow the caller's reference and require
+ * exclusive use of its file position for the entire load or size query.
+ * @p sbElfLoadFile() and sandbox dynamic startup instead own a private open
+ * node through all reads and waits. The destination region is exclusively
+ * owned until loading finishes. Relocation uses the pair's combined capacity,
+ * rounded down to whole relocation records, and releases it on every exit.
+ *
+ * HTTP bindings are initialized before serving requests and keep a stable
+ * filesystem pointer until all files are closed. Each HTTP file owns a node
+ * reference and is serialized by HTTPD through read and close. Close detaches
+ * its extension before final node disposal, including reentrant cleanup.
+ * The request path is a local array; separate HTTP files can overlap subject
+ * to their backend's contract.
+ *
+ * ROMFS descriptions and callback tables are immutable and outlive all
+ * sessions. Dynamic and compression callbacks own their shared-state
+ * synchronization; stream nodes similarly borrow backend interfaces whose
+ * independent opens may alias the same cursor. Callback data buffers are
+ * borrowed only for the call. These callbacks may inherit a scratch pair and
+ * must not wait for another one, including by reentering an allocating root
+ * operation. Native filesystem storage callbacks must not reenter VFS.
  *
  * @section vfs_arch_buffers Shared buffer pairs
  *

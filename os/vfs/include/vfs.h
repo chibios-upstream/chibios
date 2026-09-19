@@ -126,8 +126,15 @@
 #include "drvtmplfs.h"
 #endif
 
-/* Application code is supposed to export this symbol when the process-aware
-   root API is enabled.*/
+/**
+ * @brief   Application-provided default root for the top-level path API.
+ * @details Initialize before publishing VFS users and keep the pointer stable
+ *          until they are quiescent. The root and its backing file systems
+ *          must outlive all calls and returned nodes. Direct and convenience
+ *          APIs have the same local synchronization and node-reference rules;
+ *          the default root does not add operation-wide locking. Its CWD is
+ *          shared by all callers, including shell commands.
+ */
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 extern vfs_root_c *vfs_root;
 #endif
