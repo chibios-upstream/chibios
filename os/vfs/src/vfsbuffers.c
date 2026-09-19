@@ -47,11 +47,11 @@
  */
 static struct {
   /**
-   * @brief   Guarded pool of path buffers.
+   * @brief   Guarded pool of path buffer pairs.
    */
   guarded_memory_pool_t             buffers_pool;
   /**
-   * @brief   Shared path buffers.
+   * @brief   Shared path buffer pairs.
    */
   vfs_shared_buffer_t               buffers[VFS_CFG_PATHBUFS_NUM];
 } vfs_buffers_static;
@@ -79,9 +79,12 @@ void __vfs_buffers_init(void) {
 }
 
 /**
- * @brief   Claims a path buffer from the fixed pool, waiting if not available.
+ * @brief   Claims a path buffer pair, waiting if none is available.
+ * @pre     The caller must not retain another pair from this pool or hold
+ *          a lock needed by a thread returning a pair.
  *
- * @return                      Pointer to the taken buffer.
+ * @return                      Pointer to the taken pair.
+ * @retval NULL                 If the wait is reset.
  */
 vfs_shared_buffer_t *vfs_buffer_take_wait(void) {
 
@@ -90,7 +93,7 @@ vfs_shared_buffer_t *vfs_buffer_take_wait(void) {
 }
 
 /**
- * @brief   Claims a path buffer from the fixed pool without waiting.
+ * @brief   Claims a path buffer pair from the fixed pool without waiting.
  *
  * @return                      Pointer to the taken buffer.
  * @retval NULL                 If the buffer is not available.
@@ -102,9 +105,9 @@ vfs_shared_buffer_t *vfs_buffer_take_immediate(void) {
 }
 
 /**
- * @brief   Releases a path buffer into the fixed pool.
+ * @brief   Releases a path buffer pair into the fixed pool.
  *
- * @param[in] buf               Buffer to be released.
+ * @param[in] shbuf             Buffer pair to be released.
  */
 void vfs_buffer_release(vfs_shared_buffer_t *shbuf) {
 

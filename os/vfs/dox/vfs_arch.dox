@@ -37,10 +37,10 @@
  * class vfs_overlay_driver_c {
  *   - overlaid_fs: vfs_fs_c *
  *   - mounted_fs[]: vfs_fs_c *
- *   - path_prefix: const char *
  * }
  * class vfs_root_c {
  *   - current_directory
+ *   - path_prefix: const char *
  *   + change_current_directory(path)
  *   + get_current_directory()
  *   + open(path)
@@ -67,6 +67,37 @@
  * @p VFS_CFG_ENABLE_DRV_ROOT. Root support requires the overlay driver, but
  * the core VFS API, concrete file systems and non-root overlays can be used
  * with root support disabled.
+ *
+ * @section vfs_arch_concurrency Synchronization status
+ *
+ * Shared buffer reservations protect temporary paths only. This foundation
+ * does not provide internal synchronization for root CWD, overlay routing
+ * metadata, or all leaf state. Callers remain responsible for serializing
+ * shared mutable state and respecting each driver's concurrency contract.
+ * The planned local metadata locking is not implemented yet.
+ *
+ * @section vfs_arch_buffers Shared buffer pairs
+ *
+ * Each shared pool element reserves two full path buffers atomically.
+ * @p paths.path1 and @p paths.path2 each hold @p VFS_CFG_PATHLEN_MAX characters
+ * plus the terminator; @p buf is a single scratch view of the same storage.
+ * @p VFS_BUFFER_SIZE is the combined scratch capacity. The element also has
+ * pointer alignment and may contain trailing alignment padding, which is not
+ * part of that capacity. @p VFS_CFG_PATHBUFS_NUM counts pairs.
+ *
+ * @p vfs_buffer_take_wait() waits on the guarded pool without holding an
+ * upper-layer VFS lock. It returns a whole pair, released with
+ * @p vfs_buffer_release(). A caller retaining a pair must not wait for a
+ * second pair from the same pool, including through delegated calls or
+ * callbacks. Do not hold a lock needed by a thread returning a pair.
+ *
+ * Each root path operation allocates, uses, and returns its pair locally.
+ * It reads CWD and routing state after allocation. Overlay and ROMFS consume
+ * borrowed read-only paths without reserving another pair. A driver may
+ * retain these paths throughout its call, including waits. Borrowed paths
+ * expire on return.
+ * Root is an outer entry point: do not stack a root below another root or
+ * reenter an allocating root operation while retaining a pair.
  *
  * @section vfs_arch_lifetime Object lifetime
  *
@@ -101,9 +132,19 @@
  *
  * Root methods accept both absolute and relative paths. A root resolves and
  * normalizes each input path against its own current directory before calling
- * the inherited file-system interface. A rename resolves both paths from the
- * same current-directory snapshot. Changing the current directory validates
- * the candidate directory before committing the new path.
+ * the selected file system. A rename resolves both paths from the same
+ * current-directory snapshot. Changing the current directory preserves its
+ * logical candidate through validation and node cleanup before committing it.
+ * @p vfsRootOpen() keeps one resolved logical path across file-to-directory
+ * fallback even if CWD changes while a driver sleeps. Use it for combined
+ * opens through a root; @p vfsFSOpen() borrows a normalized absolute path.
+ *
+ * Root owns the optional backing prefix. Registered mounts bypass it; only
+ * backing paths receive the prefix. Opening logical @c "/" merges registered
+ * names with the backing directory at the prefix. CWD stays in the logical
+ * namespace and never includes that prefix. @p ovldrvObjectInit() now takes
+ * only the overlay and backing FS; @p vfsrootObjectInit() retains its prefix
+ * argument. The prefix must remain valid for the lifetime of the root.
  *
  * Root path state is private to the root instance. Two roots may therefore
  * share mounted file systems without sharing their current directories.

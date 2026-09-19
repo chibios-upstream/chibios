@@ -50,7 +50,9 @@
 #endif
 
 /**
- * @brief   Number of shared path buffers.
+ * @brief   Number of shared path buffer pairs.
+ * @details Each pool element holds two full paths or one scratch buffer
+ *          spanning both paths, and is reserved by a single allocation.
  */
 #if !defined(VFS_CFG_PATHBUFS_NUM) || defined(__DOXYGEN__)
 #define VFS_CFG_PATHBUFS_NUM                1
@@ -223,7 +225,7 @@
 /*===========================================================================*/
 
 /**
- * @brief   Number of shared path buffers.
+ * @brief   Number of LittleFS directory nodes.
  */
 #if !defined(DRV_CFG_LITTLEFS_DIR_NODES_NUM) || defined(__DOXYGEN__)
 #define DRV_CFG_LITTLEFS_DIR_NODES_NUM      2
@@ -251,6 +253,10 @@
  * @{
  */
 /*===========================================================================*/
+
+#if !defined(DRV_CFG_ROM_ENABLE_COMPRESSION) || defined(__DOXYGEN__)
+#define DRV_CFG_ROM_ENABLE_COMPRESSION      FALSE
+#endif
 
 #if !defined(DRV_CFG_ROM_DIR_NODES_NUM) || defined(__DOXYGEN__)
 #define DRV_CFG_ROM_DIR_NODES_NUM           1

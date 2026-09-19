@@ -35,6 +35,7 @@
  * - @subpage vfs_test_001_003
  * - @subpage vfs_test_001_004
  * - @subpage vfs_test_001_005
+ * - @subpage vfs_test_001_006
  * .
  */
 
@@ -336,6 +337,69 @@ static const testcase_t vfs_test_001_005 = {
   vfs_test_001_005_execute
 };
 
+/**
+ * @page vfs_test_001_006 [1.6] Path append and in-place boundaries
+ *
+ * <h2>Description</h2>
+ * Exact-fit and rejected paths must not write into the adjacent
+ * buffer.
+ *
+ * <h2>Test Steps</h2>
+ * - [1.6.1] Append terminates once and leaves the adjacent bytes
+ *   untouched.
+ * - [1.6.2] Reject overflow before writing outside the destination.
+ * .
+ */
+
+static void vfs_test_001_006_execute(void) {
+  struct {
+    char path[5];
+    char guard[4];
+  } bounded;
+  size_t n;
+
+  /* [1.6.1] Append terminates once and leaves the adjacent bytes
+     untouched.*/
+  test_set_step(1);
+  {
+    memset(&bounded, 'Z', sizeof bounded);
+    bounded.path[0] = '\0';
+    n = vfs_path_append(bounded.path, "/abc", sizeof bounded.path);
+    test_assert(n == 4U && strcmp(bounded.path, "/abc") == 0,
+                "exact append failed");
+    test_assert(memcmp(bounded.guard, "ZZZZ", 4U) == 0,
+                "append crossed its terminator");
+    n = vfs_path_normalize(bounded.path, bounded.path, sizeof bounded.path);
+    test_assert(n == 4U && strcmp(bounded.path, "/abc") == 0,
+                "in-place normalization consumed bytes past the terminator");
+  }
+  test_end_step(1);
+
+  /* [1.6.2] Reject overflow before writing outside the destination.*/
+  test_set_step(2);
+  {
+    bounded.path[0] = '\0';
+    n = vfs_path_append(bounded.path, "/abcd", sizeof bounded.path);
+    test_assert(n == 0U, "append overflow accepted");
+    test_assert(memcmp(bounded.guard, "ZZZZ", 4U) == 0,
+                "overflow overwrote adjacent bytes");
+    n = vfs_path_make_absolute(bounded.path, "/abc",
+                               sizeof bounded.path, "/");
+    test_assert(n == 4U && strcmp(bounded.path, "/abc") == 0,
+                "exact absolute path failed");
+    test_assert(memcmp(bounded.guard, "ZZZZ", 4U) == 0,
+                "absolute path crossed its boundary");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_001_006 = {
+  "Path append and in-place boundaries",
+  NULL,
+  NULL,
+  vfs_test_001_006_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -349,6 +413,7 @@ const testcase_t * const vfs_test_sequence_001_array[] = {
   &vfs_test_001_003,
   &vfs_test_001_004,
   &vfs_test_001_005,
+  &vfs_test_001_006,
   NULL
 };
 

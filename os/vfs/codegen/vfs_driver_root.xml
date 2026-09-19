@@ -14,18 +14,16 @@
         ancestorname="vfs_overlay_driver" descr="VFS root object">
         <brief>VFS root object with process path context.</brief>
         <details><![CDATA[An overlay file system that accepts relative paths
-          and owns the current-directory state for one process context.]]></details>
+          and owns the current-directory state and backing prefix for one process
+          context. Root is an outer entry point and must not be stacked below
+          another root. Path operations reserve a buffer pair locally. Callers
+          remain responsible for serializing access to shared root state.]]></details>
         <fields>
           <field name="path_cwd" ctype="char$I*">
             <brief>Current working directory path or @p NULL for root.</brief>
           </field>
-          <field name="path_buf1"
-            ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]">
-            <brief>Primary path resolution buffer.</brief>
-          </field>
-          <field name="path_buf2"
-            ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]">
-            <brief>Secondary path resolution buffer.</brief>
+          <field name="path_prefix" ctype="const char$I*">
+            <brief>Normalized absolute prefix for the backing FS or @p NULL.</brief>
           </field>
         </fields>
         <methods>
@@ -33,15 +31,31 @@
             <param name="overlaid_fs" ctype="vfs_fs_c *" dir="in"><![CDATA[Pointer
               to a file system to be overlaid or @p NULL.]]></param>
             <param name="path_prefix" ctype="const char *" dir="in"><![CDATA[Prefix
-              to be added to paths delegated to @p overlaid_fs or @p NULL.]]></param>
+              to be added to paths delegated to @p overlaid_fs or @p NULL.
+              Must be a normalized absolute path and remain valid for the
+              lifetime of the root.]]></param>
             <implementation><![CDATA[
-self = __ovldrv_objinit_impl(ip, vmt, overlaid_fs, path_prefix);
-self->path_cwd = NULL;]]></implementation>
+self = __ovldrv_objinit_impl(ip, vmt, overlaid_fs);
+self->path_cwd = NULL;
+self->path_prefix = path_prefix;]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[]]></implementation>
           </dispose>
           <regular>
+            <method name="vfsRootOpen" ctype="msg_t">
+              <brief>Opens a file or directory relative to this root.</brief>
+              <details>The logical absolute path is resolved once and retained
+                across the file-to-directory fallback, including driver waits.</details>
+              <param name="path" ctype="const char *" dir="in">Absolute or
+                relative path of the node to open.</param>
+              <param name="flags" ctype="int" dir="in">Open flags.</param>
+              <param name="vnpp" ctype="vfs_node_c **" dir="out">Pointer to
+                the opened node pointer.</param>
+              <return>The operation result.</return>
+              <api />
+              <implementation><![CDATA[]]></implementation>
+            </method>
             <method name="vfsRootChangeCurrentDirectory" ctype="msg_t">
               <brief>Changes the current VFS directory.</brief>
               <param name="path" ctype="const char *" dir="in">Path of the new
@@ -91,6 +105,7 @@ self->path_cwd = NULL;]]></implementation>
   <private>
     <includes_always>
       <include style="regular">vfs.h</include>
+      <include style="regular">vfsprivate.h</include>
     </includes_always>
   </private>
 </module>

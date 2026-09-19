@@ -54,7 +54,11 @@
  *
  * @brief       VFS root object with process path context.
  * @details     An overlay file system that accepts relative paths and owns the
- *              current-directory state for one process context.
+ *              current-directory state and backing prefix for one process
+ *              context. Root is an outer entry point and must not be stacked
+ *              below another root. Path operations reserve a buffer pair
+ *              locally. Callers remain responsible for serializing access to
+ *              shared root state.
  *
  * @name        Class @p vfs_root_c structures
  * @{
@@ -92,23 +96,17 @@ struct vfs_root {
    */
   const struct vfs_root_vmt *vmt;
   vfs_fs_c                  *overlaid_drv;
-  const char                *path_prefix;
   unsigned                  next_driver;
   const char                *names[DRV_CFG_OVERLAY_DRV_MAX];
   vfs_fs_c                  *drivers[DRV_CFG_OVERLAY_DRV_MAX];
-  char                      buf[VFS_CFG_PATHLEN_MAX + 1];
   /**
    * @brief       Current working directory path or @p NULL for root.
    */
   char                      *path_cwd;
   /**
-   * @brief       Primary path resolution buffer.
+   * @brief       Normalized absolute prefix for the backing FS or @p NULL.
    */
-  char                      path_buf1[VFS_CFG_PATHLEN_MAX + 1];
-  /**
-   * @brief       Secondary path resolution buffer.
-   */
-  char                      path_buf2[VFS_CFG_PATHLEN_MAX + 1];
+  const char                *path_prefix;
 };
 /** @} */
 
@@ -133,6 +131,7 @@ extern "C" {
                               const char *newpath);
   msg_t __vfsroot_mkdir_impl(void *ip, const char *path, vfs_mode_t mode);
   msg_t __vfsroot_rmdir_impl(void *ip, const char *path);
+  msg_t vfsRootOpen(void *ip, const char *path, int flags, vfs_node_c **vnpp);
   msg_t vfsRootChangeCurrentDirectory(void *ip, const char *path);
   msg_t vfsRootGetCurrentDirectory(void *ip, char *buf, size_t size);
 #ifdef __cplusplus
@@ -155,7 +154,9 @@ extern "C" {
  * @param[in]     overlaid_fs   Pointer to a file system to be overlaid or @p
  *                              NULL.
  * @param[in]     path_prefix   Prefix to be added to paths delegated to @p
- *                              overlaid_fs or @p NULL.
+ *                              overlaid_fs or @p NULL. Must be a normalized
+ *                              absolute path and remain valid for the lifetime
+ *                              of the root.
  * @return                      Pointer to the initialized object.
  *
  * @objinit

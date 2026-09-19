@@ -150,7 +150,9 @@ struct vfs_overlay_dir_node {
  *              Unregistering a file system or disposing the overlay does not
  *              dispose them. The caller must keep them alive while accessible
  *              through an overlay or while their nodes or operations remain
- *              active.
+ *              active. Routing borrows read-only absolute paths and does not
+ *              allocate path buffers. Backing prefixes are provided by the
+ *              root driver.
  *
  * @name        Class @p vfs_overlay_driver_c structures
  * @{
@@ -187,11 +189,9 @@ struct vfs_overlay_driver {
    */
   const struct vfs_overlay_driver_vmt *vmt;
   vfs_fs_c                  *overlaid_drv;
-  const char                *path_prefix;
   unsigned                  next_driver;
   const char                *names[DRV_CFG_OVERLAY_DRV_MAX];
   vfs_fs_c                  *drivers[DRV_CFG_OVERLAY_DRV_MAX];
-  char                      buf[VFS_CFG_PATHLEN_MAX + 1];
 };
 /** @} */
 
@@ -226,7 +226,7 @@ extern "C" {
   msg_t __ovldir_next_impl(void *ip, vfs_direntry_info_t *dip);
   /* Methods of vfs_overlay_driver_c.*/
   void *__ovldrv_objinit_impl(void *ip, const void *vmt,
-                              vfs_fs_c *overlaid_drv, const char *path_prefix);
+                              vfs_fs_c *overlaid_drv);
   void __ovldrv_dispose_impl(void *ip);
   msg_t __ovldrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp);
   msg_t __ovldrv_opendir_impl(void *ip, const char *path,
@@ -286,20 +286,16 @@ static inline vfs_overlay_dir_node_c *ovldirObjectInit(vfs_overlay_dir_node_c *s
  *                              to be initialized.
  * @param[in]     overlaid_drv  Pointer to a file system to be overlaid or @p
  *                              NULL.
- * @param[in]     path_prefix   Prefix to be added to the paths or @p NULL, it
- *                              must be a normalized absolute path.
  * @return                      Pointer to the initialized object.
  *
  * @objinit
  */
 CC_FORCE_INLINE
 static inline vfs_overlay_driver_c *ovldrvObjectInit(vfs_overlay_driver_c *self,
-                                                     vfs_fs_c *overlaid_drv,
-                                                     const char *path_prefix) {
+                                                     vfs_fs_c *overlaid_drv) {
   extern const struct vfs_overlay_driver_vmt __vfs_overlay_driver_vmt;
 
-  return __ovldrv_objinit_impl(self, &__vfs_overlay_driver_vmt, overlaid_drv,
-                               path_prefix);
+  return __ovldrv_objinit_impl(self, &__vfs_overlay_driver_vmt, overlaid_drv);
 }
 /** @} */
 

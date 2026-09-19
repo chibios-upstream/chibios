@@ -109,8 +109,7 @@ static uint32_t sb_io_open(sb_class_t *sbp, const char *path, int flags) {
   }
 
   do {
-    ret = vfsFSOpen((vfs_fs_c *)sbGetRoot(sbp), path, (unsigned)flags,
-                    &np);
+    ret = vfsRootOpen(sbGetRoot(sbp), path, (unsigned)flags, &np);
     CH_BREAK_ON_ERROR(ret);
 
     ret = create_descriptor(&sbp->io, np);
@@ -365,7 +364,14 @@ static uint32_t sb_io_getdents(sb_class_t *sbp, int fd, void *buf, size_t count)
 
   max_entry = sizeof (struct dirent) + (size_t)VFS_CFG_NAMELEN_MAX + (size_t)1;
 
+  if (sizeof (vfs_direntry_info_t) > VFS_BUFFER_SIZE) {
+    return (uint32_t)CH_RET_ENOMEM;
+  }
+
   shbuf = vfs_buffer_take_wait();
+  if (shbuf == NULL) {
+    return (uint32_t)CH_RET_ENOMEM;
+  }
   dip = (vfs_direntry_info_t *)(void *)shbuf->buf;
 
   do {

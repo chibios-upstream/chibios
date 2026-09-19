@@ -152,8 +152,7 @@ int main(void) {
       chSysHalt("TTY reset");
     }
 
-    ret = vfsFSOpen((vfs_fs_c *)sbGetRoot(&sbx1),
-                    "/dev/ttyS0", VO_RDWR, &np);
+    ret = vfsRootOpen(sbGetRoot(&sbx1), "/dev/ttyS0", VO_RDWR, &np);
     if (CH_RET_IS_ERROR(ret)) {
       chprintf(console, "Opening /dev/ttyS0 failed (%08lx)\n", ret);
       continue;

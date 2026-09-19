@@ -208,7 +208,7 @@ int main(void) {
       }
 
       /* Associating standard input, output and error to sandbox 1.*/
-      ret = vfsFSOpen((vfs_fs_c *)sbGetRoot(&sbx1),
+      ret = vfsRootOpen(sbGetRoot(&sbx1),
                       "/dev/ttyS0", VO_RDWR, &np);
       if (CH_RET_IS_ERROR(ret)) {
         chprintf((sequential_stream_i *)oopGetIf(&ttyS0, tty),

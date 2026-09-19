@@ -660,6 +660,51 @@ test_assert(n == (size_t)0, "absolute path overflow accepted");]]></value>
             </step>
           </steps>
         </case>
+        <case>
+          <brief><value>Path append and in-place boundaries.</value></brief>
+          <description><value>Exact-fit and rejected paths must not write into the adjacent buffer.</value></description>
+          <condition><value><![CDATA[]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[]]></value></setup_code>
+            <teardown_code><value><![CDATA[]]></value></teardown_code>
+            <local_variables><value><![CDATA[struct {
+  char path[5];
+  char guard[4];
+} bounded;
+size_t n;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>Append terminates once and leaves the adjacent bytes untouched.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[memset(&bounded, 'Z', sizeof bounded);
+bounded.path[0] = '\0';
+n = vfs_path_append(bounded.path, "/abc", sizeof bounded.path);
+test_assert(n == 4U && strcmp(bounded.path, "/abc") == 0,
+            "exact append failed");
+test_assert(memcmp(bounded.guard, "ZZZZ", 4U) == 0,
+            "append crossed its terminator");
+n = vfs_path_normalize(bounded.path, bounded.path, sizeof bounded.path);
+test_assert(n == 4U && strcmp(bounded.path, "/abc") == 0,
+            "in-place normalization consumed bytes past the terminator");]]></value></code>
+            </step>
+            <step>
+              <description><value>Reject overflow before writing outside the destination.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[bounded.path[0] = '\0';
+n = vfs_path_append(bounded.path, "/abcd", sizeof bounded.path);
+test_assert(n == 0U, "append overflow accepted");
+test_assert(memcmp(bounded.guard, "ZZZZ", 4U) == 0,
+            "overflow overwrote adjacent bytes");
+n = vfs_path_make_absolute(bounded.path, "/abc",
+                           sizeof bounded.path, "/");
+test_assert(n == 4U && strcmp(bounded.path, "/abc") == 0,
+            "exact absolute path failed");
+test_assert(memcmp(bounded.guard, "ZZZZ", 4U) == 0,
+            "absolute path crossed its boundary");]]></value></code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
     <sequence>
@@ -1239,8 +1284,8 @@ test_assert(strcmp(cwd, "/") == 0, "synthetic root cwd changed");]]></value>
             <value>Non-root overlay dispatch.</value>
           </brief>
           <description>
-            <value>A plain overlay accepts absolute paths, applies its
-              backing prefix, exposes a synthetic root, and rejects relative
+            <value>A plain overlay forwards borrowed absolute paths,
+              exposes a synthetic root, and rejects relative
               paths without owning a current directory.</value>
           </description>
           <condition>
@@ -1264,7 +1309,7 @@ msg_t ret;]]></value>
           <steps>
             <step>
               <description>
-                <value>An absolute path is routed to the prefixed backing
+                <value>An absolute path is forwarded unchanged to the backing
                   file system.</value>
               </description>
               <tags>
@@ -1273,11 +1318,11 @@ msg_t ret;]]></value>
               <code>
                 <value><![CDATA[vfs_test_fs_reset();
 vfs_test_fs.stat = vfs_test_full_stat;
-(void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
+(void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs);
 ret = vfsFSStat(&overlay, "/nested", &stat);
 test_assert(ret == CH_RET_SUCCESS, "non-root overlay stat failed");
-test_assert(strcmp(vfs_test_fs.path, "/base/nested") == 0,
-            "non-root overlay prefix not applied");
+test_assert(strcmp(vfs_test_fs.path, "/nested") == 0,
+            "non-root overlay changed the path");
 test_assert(vfs_test_stat_equal(&stat, &vfs_test_full_stat),
             "overlay did not preserve backing metadata");]]></value>
               </code>
@@ -1293,7 +1338,7 @@ test_assert(vfs_test_stat_equal(&stat, &vfs_test_full_stat),
               <code>
                 <value><![CDATA[vfs_test_fs_reset();
 vfs_test_fs.stat = vfs_test_full_stat;
-(void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
+(void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs);
 memset(&stat, 0xA5, sizeof stat);
 ret = vfsFSStat(&overlay, "/", &stat);
 test_assert(ret == CH_RET_SUCCESS, "synthetic overlay root stat failed");
@@ -1306,7 +1351,7 @@ expected = (vfs_stat_t) {
 test_assert(vfs_test_stat_equal(&stat, &expected),
             "synthetic overlay root metadata changed");
 
-(void)ovldrvObjectInit(&overlay, NULL, NULL);
+(void)ovldrvObjectInit(&overlay, NULL);
 ret = vfsFSStat(&overlay, "/missing", &stat);
 test_assert(ret == CH_RET_ENOENT, "missing overlay path reported as root");
 ret = vfsFSOpenDirectory(&overlay, "/", &dnp);
@@ -1328,7 +1373,7 @@ test_assert(vfs_test_stat_equal(&stat, &expected),
               </tags>
               <code>
                 <value><![CDATA[vfs_test_fs_reset();
-(void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, NULL);
+(void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs);
 ret = vfsFSStat(&overlay, "relative", &stat);
 test_assert(ret == CH_RET_EINVAL, "relative overlay path accepted");
 test_assert(vfs_test_fs.calls == 0U,
@@ -1649,8 +1694,8 @@ msg_t ret;]]></value>
               </tags>
               <code>
                 <value><![CDATA[vfs_test_fs_reset();
-(void)ovldrvObjectInit(&first, NULL, NULL);
-(void)ovldrvObjectInit(&second, (vfs_fs_c *)&vfs_test_fs, NULL);
+(void)ovldrvObjectInit(&first, NULL);
+(void)ovldrvObjectInit(&second, (vfs_fs_c *)&vfs_test_fs);
 ret = ovldrvRegisterDriver(&first, (vfs_fs_c *)&vfs_test_fs, "mount");
 test_assert(ret == CH_RET_SUCCESS, "first registration failed");
 ret = ovldrvRegisterDriver(&second, (vfs_fs_c *)&vfs_test_fs, "mount");
@@ -2518,6 +2563,469 @@ test_assert(ret == CH_RET_SUCCESS, "FatFS created node stat failed");
 test_assert(stat.size == (vfs_offset_t)0, "FatFS created file not empty");
 (void)roRelease(fnp);]]></value>
               </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0"><value>Internal Tests</value></type>
+      <brief><value>Shared Buffer Pairs.</value></brief>
+      <description><value>Buffer pair reservation and pool waits.</value></description>
+      <condition><value /></condition>
+      <shared_code><value><![CDATA[#include <stdint.h>
+#include <string.h>
+
+#include "vfs.h"
+
+static THD_WORKING_AREA(vfs_test_buffer_wa, 4096);
+
+static size_t vfs_test_buffers_take(vfs_shared_buffer_t **buffers) {
+  size_t n;
+
+  for (n = 0U; n < VFS_CFG_PATHBUFS_NUM; n++) {
+    buffers[n] = vfs_buffer_take_immediate();
+    if (buffers[n] == NULL) {
+      break;
+    }
+  }
+  return n;
+}
+
+static void vfs_test_buffers_release(vfs_shared_buffer_t **buffers, size_t n) {
+
+  while (n > 0U) {
+    vfs_buffer_release(buffers[--n]);
+  }
+}
+
+static THD_FUNCTION(vfs_test_buffer_waiter, arg) {
+  vfs_shared_buffer_t *buffer;
+
+  (void)arg;
+  buffer = vfs_buffer_take_wait();
+  if (buffer != NULL) {
+    test_emit_token('A');
+    vfs_buffer_release(buffer);
+  }
+}]]></value></shared_code>
+      <cases>
+        <case>
+          <brief><value>Buffer pair storage and pool capacity.</value></brief>
+          <description><value>Both path slots alias one contiguous scratch view, and every pool element is aligned.</value></description>
+          <condition><value></value></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value><![CDATA[vfs_shared_buffer_t *buffers[VFS_CFG_PATHBUFS_NUM];
+vfs_shared_buffer_t *extra;
+size_t n, i;
+bool ok;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>Reserve all configured pairs and check their layout and alignment.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[n = vfs_test_buffers_take(buffers);
+ok = n == VFS_CFG_PATHBUFS_NUM;
+for (i = 0U; i < n; i++) {
+  vfs_shared_buffer_t *buffer = buffers[i];
+
+  ok &= ((uintptr_t)buffer % PORT_NATURAL_ALIGN) == 0U;
+  ok &= sizeof buffer->buf == 2U * (VFS_CFG_PATHLEN_MAX + 1U);
+  memset(buffer->buf, 'A', VFS_BUFFER_SIZE);
+  memset(buffer->paths.path2, 'B', sizeof buffer->paths.path2);
+  ok &= buffer->paths.path1[VFS_CFG_PATHLEN_MAX] == 'A';
+  ok &= buffer->buf[VFS_CFG_PATHLEN_MAX + 1U] == 'B';
+  ok &= buffer->buf[VFS_BUFFER_SIZE - 1U] == 'B';
+}
+extra = vfs_buffer_take_immediate();
+ok &= extra == NULL;
+if (extra != NULL) {
+  vfs_buffer_release(extra);
+}
+vfs_test_buffers_release(buffers, n);
+test_assert(ok, "pair layout, alignment or pool capacity failed");]]></value></code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief><value>Exhausted pool waits.</value></brief>
+          <description><value>An exhausted pool waits for a returned pair without holding an upper-layer lock.</value></description>
+          <condition><value></value></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value><![CDATA[vfs_shared_buffer_t *buffers[VFS_CFG_PATHBUFS_NUM];
+thread_t *tp;
+size_t n;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>Wait for a pair, then return the reserved pairs.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[n = vfs_test_buffers_take(buffers);
+test_assert(n == VFS_CFG_PATHBUFS_NUM, "pool leaked a pair");
+tp = chThdCreateStatic(vfs_test_buffer_wa, sizeof vfs_test_buffer_wa,
+                       chThdGetPriorityX() + 1, vfs_test_buffer_waiter, NULL);
+test_emit_token('R');
+vfs_test_buffers_release(buffers, n);
+(void)chThdWait(tp);
+test_assert_sequence("RA", "scratch allocation did not wait");]]></value></code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0"><value>Internal Tests</value></type>
+      <brief><value>Local Routing Buffers.</value></brief>
+      <description><value>Root owns one pair per operation; overlays and ROMFS consume borrowed paths.</value></description>
+      <condition><value><![CDATA[(VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_ENABLE_DRV_ROMFS == TRUE)]]></value></condition>
+      <shared_code><value><![CDATA[#include "vfs.h"
+
+static const uint8_t vfs_test_routing_data[] = {1U, 2U, 3U};
+static const vfs_romfs_file_desc_t vfs_test_routing_files[] = {
+  {
+    .name = "data",
+    .mode = VFS_MODE_S_IRUSR,
+    .flags = VFS_ROMFS_FILE_TYPE_RAW,
+    .size = sizeof vfs_test_routing_data,
+    .content.data = vfs_test_routing_data
+  }
+};
+static const vfs_romfs_dir_desc_t vfs_test_routing_dirs[] = {
+  {"/", NULL, 0U},
+  {"/base", vfs_test_routing_files, 1U},
+  {"/base/home", NULL, 0U},
+  {"/base/home/user", NULL, 0U},
+  {"/base/home/user/target", NULL, 0U},
+  {"/base/other", NULL, 0U}
+};
+static const vfs_romfs_tree_t vfs_test_routing_tree = {
+  .dirs = vfs_test_routing_dirs,
+  .dirs_num = sizeof vfs_test_routing_dirs / sizeof vfs_test_routing_dirs[0]
+};
+static vfs_rom_driver_c vfs_test_routing_rom;
+static vfs_overlay_driver_c vfs_test_routing_inner, vfs_test_routing_outer;
+static vfs_root_c vfs_test_routing_root;
+static char vfs_test_routing_cwd[VFS_CFG_PATHLEN_MAX + 1U];
+static vfs_shared_buffer_t *vfs_test_routing_held[VFS_CFG_PATHBUFS_NUM];
+static size_t vfs_test_routing_held_num;
+
+#if VFS_CFG_PATHBUFS_NUM > 1
+static THD_WORKING_AREA(vfs_test_routing_wa, 4096);
+static thread_t *vfs_test_routing_thread;
+static unsigned vfs_test_routing_suspend;
+static msg_t vfs_test_routing_worker_result;
+static bool vfs_test_routing_path_preserved;
+static struct vfs_rom_driver_vmt vfs_test_routing_vmt;
+static struct vfs_directory_node_vmt vfs_test_routing_dir_vmt;
+static void (*vfs_test_routing_dispose)(void *ip);
+
+static THD_FUNCTION(vfs_test_routing_worker, arg) {
+
+  (void)arg;
+  vfs_test_routing_worker_result =
+    vfsRootChangeCurrentDirectory(&vfs_test_routing_root, "/other");
+}
+
+static void vfs_test_routing_wait(unsigned point, const char *path) {
+
+  if (vfs_test_routing_suspend == point) {
+    vfs_test_routing_suspend = 0U;
+    (void)chThdWait(vfs_test_routing_thread);
+    vfs_test_routing_thread = NULL;
+    if (path != NULL) {
+      vfs_test_routing_path_preserved =
+        strcmp(path, "/base/home/user/target") == 0;
+    }
+  }
+}
+
+static void vfs_test_routing_dir_dispose(void *ip) {
+
+  vfs_test_routing_wait(3U, NULL);
+  vfs_test_routing_dispose(ip);
+}
+
+static msg_t vfs_test_routing_opendir(void *ip, const char *path,
+                                     vfs_directory_node_c **vdnpp) {
+  msg_t ret;
+
+  vfs_test_routing_wait(2U, path);
+  ret = __romdrv_opendir_impl(ip, path, vdnpp);
+  if (!CH_RET_IS_ERROR(ret) && (vfs_test_routing_suspend == 3U)) {
+    vfs_test_routing_dir_vmt = *(*vdnpp)->vmt;
+    vfs_test_routing_dispose = vfs_test_routing_dir_vmt.dispose;
+    vfs_test_routing_dir_vmt.dispose = vfs_test_routing_dir_dispose;
+    (*vdnpp)->vmt = &vfs_test_routing_dir_vmt;
+  }
+  return ret;
+}
+
+static msg_t vfs_test_routing_openfile(void *ip, const char *path, int flags,
+                                      vfs_file_node_c **vfnpp) {
+
+  vfs_test_routing_wait(1U, path);
+  return __romdrv_openfile_impl(ip, path, flags, vfnpp);
+}
+#endif
+
+static void vfs_test_routing_setup(void) {
+
+  (void)romdrvObjectInit(&vfs_test_routing_rom, &vfs_test_routing_tree);
+  (void)ovldrvObjectInit(&vfs_test_routing_inner,
+                         (vfs_fs_c *)&vfs_test_routing_rom);
+  (void)ovldrvObjectInit(&vfs_test_routing_outer,
+                         (vfs_fs_c *)&vfs_test_routing_inner);
+  (void)vfsrootObjectInit(&vfs_test_routing_root,
+                          (vfs_fs_c *)&vfs_test_routing_outer, "/base");
+  strcpy(vfs_test_routing_cwd, "/home/user");
+  vfs_test_routing_root.path_cwd = vfs_test_routing_cwd;
+  vfs_test_routing_held_num = 0U;
+}
+
+static void vfs_test_routing_teardown(void) {
+
+  while (vfs_test_routing_held_num > 0U) {
+    vfs_buffer_release(vfs_test_routing_held[--vfs_test_routing_held_num]);
+  }
+#if VFS_CFG_PATHBUFS_NUM > 1
+  if (vfs_test_routing_thread != NULL) {
+    (void)chThdWait(vfs_test_routing_thread);
+    vfs_test_routing_thread = NULL;
+  }
+#endif
+}
+
+/* Reserve all but the specified number of pairs without waiting.*/
+static bool vfs_test_routing_reserve(size_t available) {
+
+  while (vfs_test_routing_held_num < VFS_CFG_PATHBUFS_NUM - available) {
+    vfs_shared_buffer_t *buffer = vfs_buffer_take_immediate();
+
+    if (buffer == NULL) {
+      return false;
+    }
+    vfs_test_routing_held[vfs_test_routing_held_num++] = buffer;
+  }
+  return true;
+}]]></value></shared_code>
+      <cases>
+        <case>
+          <brief><value>Root prefix and rename routing.</value></brief>
+          <description><value>Backing routes receive the prefix through nested overlays; registered mounts bypass it.</value></description>
+          <condition><value><![CDATA[]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[vfs_test_routing_setup();]]></value></setup_code>
+            <teardown_code><value><![CDATA[vfs_test_routing_teardown();]]></value></teardown_code>
+            <local_variables><value><![CDATA[vfs_test_fs_c mounted;
+vfs_stat_t stat;
+char path[VFS_CFG_PATHLEN_MAX + 2U];
+msg_t ret;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>Use only one pair and apply the prefix to backing path operations.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[test_assert(vfs_test_routing_reserve(1U), "missing routing pair");
+vfs_test_fs_reset();
+mounted = vfs_test_fs;
+vfs_test_routing_inner.overlaid_drv = (vfs_fs_c *)&vfs_test_fs;
+ret = ovldrvRegisterDriver(&vfs_test_routing_root, (vfs_fs_c *)&mounted, "mnt");
+test_assert(ret == CH_RET_SUCCESS, "mount registration failed");
+ret = vfsFSStat(&vfs_test_routing_root, "../data", &stat);
+test_assert(ret == CH_RET_SUCCESS, "prefixed stat failed");
+test_assert(strcmp(vfs_test_fs.path, "/base/home/data") == 0,
+            "backing prefix missing");
+ret = vfsFSMkdir(&vfs_test_routing_root, "/dir", VFS_MODE_S_IRUSR);
+test_assert(ret == CH_RET_SUCCESS && strcmp(vfs_test_fs.path, "/base/dir") == 0,
+            "mkdir prefix failed");
+ret = vfsFSRmdir(&vfs_test_routing_root, "/dir");
+test_assert(ret == CH_RET_SUCCESS && strcmp(vfs_test_fs.path, "/base/dir") == 0,
+            "rmdir prefix failed");
+ret = vfsFSUnlink(&vfs_test_routing_root, "/file");
+test_assert(ret == CH_RET_SUCCESS && strcmp(vfs_test_fs.path, "/base/file") == 0,
+            "unlink prefix failed");]]></value></code>
+            </step>
+            <step>
+              <description><value>Rename retains both backing paths and bypasses the prefix on mounts.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[ret = vfsFSRename(&vfs_test_routing_root, "old", "../new");
+test_assert(ret == CH_RET_SUCCESS, "prefixed rename failed");
+test_assert(strcmp(vfs_test_fs.path, "/base/home/user/old") == 0 &&
+            strcmp(vfs_test_fs.newpath, "/base/home/new") == 0,
+            "rename paths changed");
+ret = vfsFSRename(&vfs_test_routing_root, "/mnt/old", "/mnt/new");
+test_assert(ret == CH_RET_SUCCESS, "mounted rename failed");
+test_assert(strcmp(mounted.path, "/old") == 0 &&
+            strcmp(mounted.newpath, "/new") == 0, "mount received prefix");
+ret = vfsFSRename(&vfs_test_routing_root, "/mnt/old", "/new");
+test_assert(ret == CH_RET_EXDEV, "cross-FS rename accepted");
+ret = vfsFSStat(&vfs_test_routing_root, "/mnt", &stat);
+test_assert(ret == CH_RET_SUCCESS && strcmp(mounted.path, "/") == 0,
+            "mount boundary did not resolve to root");
+ret = vfsFSStat(&vfs_test_routing_root, "/mntsuffix", &stat);
+test_assert(ret == CH_RET_SUCCESS &&
+            strcmp(vfs_test_fs.path, "/base/mntsuffix") == 0,
+            "partial mount name matched");]]></value></code>
+            </step>
+            <step>
+              <description><value>Reject prefix overflow, accept an exact-fit path, and return the pair after errors.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[memset(path, 'a', sizeof path);
+path[0] = '/';
+path[VFS_CFG_PATHLEN_MAX] = '\0';
+ret = vfsFSStat(&vfs_test_routing_root, path, &stat);
+test_assert(ret == CH_RET_ENAMETOOLONG, "prefix overflow accepted");
+vfs_test_routing_root.path_prefix = NULL;
+ret = vfsFSRename(&vfs_test_routing_root, path, "/new");
+test_assert(ret == CH_RET_SUCCESS && strcmp(vfs_test_fs.path, path) == 0 &&
+            strcmp(vfs_test_fs.newpath, "/new") == 0,
+            "exact-fit rename corrupted a slot");
+path[VFS_CFG_PATHLEN_MAX] = 'a';
+path[VFS_CFG_PATHLEN_MAX + 1U] = '\0';
+ret = vfsFSStat(&vfs_test_routing_root, path, &stat);
+test_assert(ret == CH_RET_ENAMETOOLONG, "path overflow accepted");
+test_assert(vfs_test_routing_reserve(0U), "error path leaked a pair");]]></value></code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief><value>Nested overlays and ROMFS without scratch allocation.</value></brief>
+          <description><value>Literal paths reach ROMFS without another allocation, and a root operation needs only one available pair.</value></description>
+          <condition><value><![CDATA[]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[vfs_test_routing_setup();]]></value></setup_code>
+            <teardown_code><value><![CDATA[vfs_test_routing_teardown();]]></value></teardown_code>
+            <local_variables><value><![CDATA[vfs_stat_t stat;
+vfs_file_node_c *fnp;
+vfs_directory_node_c *dnp;
+vfs_node_c *np;
+vfs_direntry_info_t entry;
+uint8_t data[3];
+bool mount_seen, data_seen;
+msg_t ret;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>ROMFS and overlays accept borrowed literal paths with the entire pool reserved.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[test_assert(vfs_test_routing_reserve(0U), "missing pool pair");
+ret = vfsFSStat(&vfs_test_routing_outer, "/base/data", &stat);
+test_assert(ret == CH_RET_SUCCESS && stat.size == 3, "borrowed stat failed");
+ret = vfsFSOpenFile(&vfs_test_routing_outer, "/base/data", VO_RDONLY, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "borrowed file open failed");
+ret = vfsFileRead(fnp, data, sizeof data);
+(void)roRelease(fnp);
+test_assert(ret == 3 && memcmp(data, vfs_test_routing_data, 3U) == 0,
+            "borrowed file read failed");
+ret = vfsFSOpenDirectory(&vfs_test_routing_outer, "/base/home", &dnp);
+test_assert(ret == CH_RET_SUCCESS, "borrowed directory open failed");
+(void)roRelease(dnp);
+ret = vfsFSStat(&vfs_test_routing_outer, "base/data", &stat);
+test_assert(ret == CH_RET_EINVAL, "relative overlay path accepted");
+ret = vfsFSStat(&vfs_test_routing_rom, "/bas/data", &stat);
+test_assert(ret == CH_RET_ENOENT, "partial ROMFS parent matched");
+vfs_buffer_release(vfs_test_routing_held[--vfs_test_routing_held_num]);]]></value></code>
+            </step>
+            <step>
+              <description><value>One pair supports root file opens and a prefixed merged-root listing.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[ret = ovldrvRegisterDriver(&vfs_test_routing_root,
+                            (vfs_fs_c *)&vfs_test_routing_rom, "mnt");
+test_assert(ret == CH_RET_SUCCESS, "mount registration failed");
+ret = vfsRootOpen(&vfs_test_routing_root, "/data", VO_RDONLY, &np);
+test_assert(ret == CH_RET_SUCCESS, "one-pair root file open failed");
+test_assert(vfsNodeGetOwner(np) == (vfs_fs_c *)&vfs_test_routing_rom,
+            "file owner changed");
+(void)roRelease(np);
+ret = vfsRootOpen(&vfs_test_routing_root, "/", VO_RDONLY, &np);
+test_assert(ret == CH_RET_SUCCESS, "prefixed merged-root open failed");
+test_assert(vfsNodeGetOwner(np) == (vfs_fs_c *)&vfs_test_routing_root,
+            "merged root owner changed");
+dnp = (vfs_directory_node_c *)np;
+mount_seen = data_seen = false;
+ret = vfsDirReadFirst(dnp, &entry);
+while (ret > 0) {
+  mount_seen |= strcmp(entry.name, "mnt") == 0;
+  data_seen |= strcmp(entry.name, "data") == 0;
+  ret = vfsDirReadNext(dnp, &entry);
+}
+(void)roRelease(dnp);
+test_assert(ret == 0 && mount_seen && data_seen,
+            "prefixed listing lost mounts or backing files");]]></value></code>
+            </step>
+            <step>
+              <description><value>Combined opens and chdir retain logical paths with a single pair.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[ret = vfsRootOpen(&vfs_test_routing_root, "target", VO_RDONLY, &np);
+test_assert(ret == CH_RET_SUCCESS, "relative directory fallback failed");
+(void)roRelease(np);
+ret = vfsRootChangeCurrentDirectory(&vfs_test_routing_root, "target");
+test_assert(ret == CH_RET_SUCCESS &&
+            strcmp(vfs_test_routing_cwd, "/home/user/target") == 0,
+            "chdir stored delegated prefix");
+ret = vfsRootChangeCurrentDirectory(&vfs_test_routing_root, "/missing");
+test_assert(ret == CH_RET_ENOENT &&
+            strcmp(vfs_test_routing_cwd, "/home/user/target") == 0,
+            "failed chdir changed CWD");
+ret = vfsRootOpen(&vfs_test_routing_root, "/home", VO_WRONLY, &np);
+test_assert(ret == CH_RET_EROFS, "ROMFS write-open error changed");
+test_assert(vfs_test_routing_reserve(0U), "root operation leaked a pair");]]></value></code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief><value>Root paths survive driver suspension.</value></brief>
+          <description><value>A second root operation changes CWD while the first retains its pair through open fallback, directory validation, or node cleanup.</value></description>
+          <condition><value><![CDATA[VFS_CFG_PATHBUFS_NUM > 1]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[vfs_test_routing_setup();]]></value></setup_code>
+            <teardown_code><value><![CDATA[vfs_test_routing_teardown();]]></value></teardown_code>
+            <local_variables><value><![CDATA[vfs_node_c *np;
+msg_t ret;
+unsigned point;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>Yield at each suspension point and let another thread change CWD before resuming.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[vfs_test_routing_vmt = *vfs_test_routing_rom.vmt;
+vfs_test_routing_vmt.openfile = vfs_test_routing_openfile;
+vfs_test_routing_vmt.opendir = vfs_test_routing_opendir;
+vfs_test_routing_rom.vmt = &vfs_test_routing_vmt;
+for (point = 1U; point <= 3U; point++) {
+  strcpy(vfs_test_routing_cwd, "/home/user");
+  vfs_test_routing_suspend = point;
+  vfs_test_routing_path_preserved = true;
+  vfs_test_routing_worker_result = CH_RET_EIO;
+  /* The worker runs only when the driver explicitly waits below. This
+     checks buffer ownership, not concurrent access to root metadata.*/
+  vfs_test_routing_thread = chThdCreateStatic(vfs_test_routing_wa,
+                              sizeof vfs_test_routing_wa,
+                              chThdGetPriorityX() - 1,
+                              vfs_test_routing_worker, NULL);
+  if (point == 1U) {
+    ret = vfsRootOpen(&vfs_test_routing_root, "target", VO_RDONLY, &np);
+    if (!CH_RET_IS_ERROR(ret)) {
+      (void)roRelease(np);
+    }
+  }
+  else {
+    ret = vfsRootChangeCurrentDirectory(&vfs_test_routing_root, "target");
+  }
+  test_assert(ret == CH_RET_SUCCESS, "suspended root operation failed");
+  test_assert(vfs_test_routing_thread == NULL &&
+              vfs_test_routing_worker_result == CH_RET_SUCCESS,
+              "concurrent chdir did not complete");
+  test_assert(vfs_test_routing_path_preserved, "borrowed path overwritten");
+  test_assert(strcmp(vfs_test_routing_cwd,
+                     point == 1U ? "/other" : "/home/user/target") == 0,
+              "CWD snapshot lost across suspension");
+}
+test_assert(vfs_test_routing_reserve(0U), "suspended operation leaked a pair");]]></value></code>
             </step>
           </steps>
         </case>

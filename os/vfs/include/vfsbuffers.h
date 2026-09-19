@@ -33,9 +33,9 @@
 /*===========================================================================*/
 
 /**
- * @brief   Size of the shared buffers.
+ * @brief   Total scratch capacity of a shared buffer pair.
  */
-#define VFS_BUFFER_SIZE         (VFS_CFG_PATHLEN_MAX + 1)
+#define VFS_BUFFER_SIZE         (2U * (VFS_CFG_PATHLEN_MAX + 1U))
 
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
@@ -50,10 +50,18 @@
 /*===========================================================================*/
 
 /**
- * @brief   Type of a shared buffer structure.
+ * @brief   Two path buffers sharing storage with one large scratch buffer.
+ * @details Each allocation reserves both paths. The pointer member ensures
+ *          pool and typed scratch alignment, including the array stride for
+ *          path lengths that do not give a naturally aligned buffer size.
  */
 typedef union vfs_shared_buffer {
+  struct {
+    char                path1[VFS_CFG_PATHLEN_MAX + 1U];
+    char                path2[VFS_CFG_PATHLEN_MAX + 1U];
+  } paths;
   char                  buf[VFS_BUFFER_SIZE];
+  void                  *alignment;
 } vfs_shared_buffer_t;
 
 /*===========================================================================*/

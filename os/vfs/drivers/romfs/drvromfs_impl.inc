@@ -429,27 +429,26 @@ static const char *get_dir_path(const vfs_rom_dir_node_c *dp) {
   return dp->dir->path;
 }
 
-static msg_t build_absolute_path(char *buf, const char *path) {
+static msg_t validate_absolute_path(const char *path) {
 
   if (!vfs_path_is_separator(*path)) {
     return CH_RET_EINVAL;
   }
-
-  *buf = '\0';
-  if (vfs_path_append(buf, path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+  if (strnlen(path, VFS_CFG_PATHLEN_MAX + 1U) > VFS_CFG_PATHLEN_MAX) {
     return CH_RET_ENAMETOOLONG;
   }
 
   return CH_RET_SUCCESS;
 }
 
-static const vfs_romfs_dir_desc_t *find_dir(const vfs_rom_driver_c *drvp,
-                                            const char *path) {
+static const vfs_romfs_dir_desc_t *find_dir_n(const vfs_rom_driver_c *drvp,
+                                            const char *path, size_t len) {
   size_t i;
 
   i = 0U;
   while (i < drvp->tree->dirs_num) {
-    if (strcmp(drvp->tree->dirs[i].path, path) == 0) {
+    if ((strncmp(drvp->tree->dirs[i].path, path, len) == 0) &&
+        (drvp->tree->dirs[i].path[len] == '\0')) {
       return &drvp->tree->dirs[i];
     }
 
@@ -457,6 +456,12 @@ static const vfs_romfs_dir_desc_t *find_dir(const vfs_rom_driver_c *drvp,
   }
 
   return NULL;
+}
+
+static const vfs_romfs_dir_desc_t *find_dir(const vfs_rom_driver_c *drvp,
+                                          const char *path) {
+
+  return find_dir_n(drvp, path, strlen(path));
 }
 
 static bool get_child_dir_name(const char *parent,
@@ -567,9 +572,9 @@ static msg_t get_file_stat(const vfs_romfs_file_desc_t *filep,
 }
 
 static const vfs_romfs_file_desc_t *find_file(vfs_rom_driver_c *drvp,
-                                              char *path) {
+                                              const char *path) {
   const vfs_romfs_dir_desc_t *dirp;
-  char *sep;
+  const char *sep;
   const char *name;
   size_t i;
 
@@ -588,9 +593,7 @@ static const vfs_romfs_file_desc_t *find_file(vfs_rom_driver_c *drvp,
     dirp = find_dir(drvp, "/");
   }
   else {
-    *sep = '\0';
-    dirp = find_dir(drvp, path);
-    *sep = '/';
+    dirp = find_dir_n(drvp, path, (size_t)(sep - path));
   }
 
   if (dirp == NULL) {
@@ -1178,14 +1181,11 @@ void __romdrv_dispose_impl(void *ip) {
  */
 msg_t __romdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_rom_driver_c *self = (vfs_rom_driver_c *)ip;
-  vfs_shared_buffer_t *shbuf;
   msg_t ret;
 
-  shbuf = vfs_buffer_take_wait();
-
-  ret = build_absolute_path(shbuf->buf, path);
+  ret = validate_absolute_path(path);
   if (!CH_RET_IS_ERROR(ret)) {
-    if (strcmp(shbuf->buf, "/") == 0) {
+    if (strcmp(path, "/") == 0) {
       sp->mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR | VFS_MODE_S_IXUSR;
       sp->size = (vfs_offset_t)0;
       ret = CH_RET_SUCCESS;
@@ -1194,14 +1194,14 @@ msg_t __romdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
       const vfs_romfs_dir_desc_t *dirp;
       const vfs_romfs_file_desc_t *filep;
 
-      dirp = find_dir(self, shbuf->buf);
+      dirp = find_dir(self, path);
       if (dirp != NULL) {
         sp->mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR | VFS_MODE_S_IXUSR;
         sp->size = (vfs_offset_t)0;
         ret = CH_RET_SUCCESS;
       }
       else {
-        filep = find_file(self, shbuf->buf);
+        filep = find_file(self, path);
         if (filep != NULL) {
           ret = get_file_stat(filep, sp);
         }
@@ -1211,8 +1211,6 @@ msg_t __romdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
       }
     }
   }
-
-  vfs_buffer_release(shbuf);
 
   return ret;
 }
@@ -1229,21 +1227,18 @@ msg_t __romdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
 msg_t __romdrv_opendir_impl(void *ip, const char *path,
                             vfs_directory_node_c **vdnpp) {
   vfs_rom_driver_c *self = (vfs_rom_driver_c *)ip;
-  vfs_shared_buffer_t *shbuf;
   const vfs_romfs_dir_desc_t *dirp;
   msg_t ret;
 
-  shbuf = vfs_buffer_take_wait();
-
-  ret = build_absolute_path(shbuf->buf, path);
+  ret = validate_absolute_path(path);
   if (!CH_RET_IS_ERROR(ret)) {
-    if (strcmp(shbuf->buf, "/") == 0) {
+    if (strcmp(path, "/") == 0) {
       dirp = find_dir(self, "/");
     }
     else {
-      dirp = find_dir(self, shbuf->buf);
+      dirp = find_dir(self, path);
       if (dirp == NULL) {
-        if (find_file(self, shbuf->buf) != NULL) {
+        if (find_file(self, path) != NULL) {
           ret = CH_RET_ENOTDIR;
         }
         else {
@@ -1269,8 +1264,6 @@ msg_t __romdrv_opendir_impl(void *ip, const char *path,
     }
   }
 
-  vfs_buffer_release(shbuf);
-
   return ret;
 }
 
@@ -1287,20 +1280,17 @@ msg_t __romdrv_opendir_impl(void *ip, const char *path,
 msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
                              vfs_file_node_c **vfnpp) {
   vfs_rom_driver_c *self = (vfs_rom_driver_c *)ip;
-  vfs_shared_buffer_t *shbuf;
   msg_t ret;
 
   if (!is_read_only_open(flags)) {
     return CH_RET_EROFS;
   }
 
-  shbuf = vfs_buffer_take_wait();
-
-  ret = build_absolute_path(shbuf->buf, path);
+  ret = validate_absolute_path(path);
   if (!CH_RET_IS_ERROR(ret)) {
     const vfs_romfs_file_desc_t *filep;
 
-    filep = find_file(self, shbuf->buf);
+    filep = find_file(self, path);
     if (filep != NULL) {
       vfs_rom_file_node_c *rfnp;
       vfs_offset_t size;
@@ -1308,7 +1298,7 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
 
       ret = validate_file_descriptor(filep);
       if (CH_RET_IS_ERROR(ret)) {
-        goto romdrv_openfile_done;
+        return ret;
       }
 
       size = filep->size;
@@ -1317,29 +1307,29 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
       if (is_dynamic_file(filep)) {
         if (filep->content.dynamic.ops->open == NULL) {
           ret = CH_RET_ENOSYS;
-          goto romdrv_openfile_done;
+          return ret;
         }
 
         ret = filep->content.dynamic.ops->open(filep->content.dynamic.arg,
                                                flags, &session, &size);
         if (CH_RET_IS_ERROR(ret)) {
-          goto romdrv_openfile_done;
+          return ret;
         }
       }
       else if (is_compressed_file(filep)) {
 #if DRV_CFG_ROM_ENABLE_COMPRESSION == FALSE
         ret = CH_RET_ENOSYS;
-        goto romdrv_openfile_done;
+        return ret;
 #else
         if (filep->content.compressed.ops->open == NULL) {
           ret = CH_RET_ENOSYS;
-          goto romdrv_openfile_done;
+          return ret;
         }
 
         ret = filep->content.compressed.ops->open(
                 filep->content.compressed.arg, flags, &session, &size);
         if (CH_RET_IS_ERROR(ret)) {
-          goto romdrv_openfile_done;
+          return ret;
         }
 #endif
       }
@@ -1365,7 +1355,7 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
       }
     }
     else {
-      if ((strcmp(shbuf->buf, "/") == 0) || (find_dir(self, shbuf->buf) != NULL)) {
+      if ((strcmp(path, "/") == 0) || (find_dir(self, path) != NULL)) {
         ret = CH_RET_EISDIR;
       }
       else {
@@ -1373,9 +1363,6 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
       }
     }
   }
-
-romdrv_openfile_done:
-  vfs_buffer_release(shbuf);
 
   return ret;
 }

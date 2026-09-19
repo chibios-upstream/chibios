@@ -141,7 +141,7 @@ msg_t vfsStat(const char *path, vfs_stat_t *sp) {
  */
 msg_t vfsOpen(const char *path, int flags, vfs_node_c **vnpp) {
 
-  return vfsFSOpen((vfs_fs_c *)vfs_root, path, flags, vnpp);
+  return vfsRootOpen(vfs_root, path, flags, vnpp);
 }
 
 /**

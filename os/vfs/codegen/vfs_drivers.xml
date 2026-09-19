@@ -180,6 +180,10 @@ return __vfsfs_stat(self, path, sp);]]></implementation>
     <functions>
       <function name="vfsFSOpen" ctype="msg_t">
         <brief>Opens a VFS file or directory.</brief>
+        <details>The input must be a normalized absolute path, borrowed until
+          return. This helper does not allocate routing buffers. Use
+          @p vfsRootOpen() for combined opens through a root, including relative
+          paths, to retain one resolved path across file-to-directory fallback.</details>
         <param name="fsp" ctype="vfs_fs_c *" dir="both"> Pointer to the @p
           vfs_fs_c object.
         </param>

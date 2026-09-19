@@ -425,13 +425,18 @@ static msg_t reloc_section(elf_load_context_t *ctxp,
   vfs_shared_buffer_t *shbuf;
   elf32_rel_t *rbuf;
   size_t size, done_size, remaining_size;
-  msg_t ret;
+  msg_t ret = CH_RET_SUCCESS;
 
   if ((esip->rel_size % sizeof (elf32_rel_t)) != 0U) {
     return CH_RET_ENOEXEC;
   }
 
+  /* Retain the scratch pair through node I/O. The node methods must not
+     wait for another pair from the same pool.*/
   shbuf = vfs_buffer_take_wait();
+  if (shbuf == NULL) {
+    return CH_RET_ENOMEM;
+  }
   rbuf = (elf32_rel_t *)(void *)shbuf->buf;
 
   /* Reading the relocation section data.*/
@@ -443,7 +448,7 @@ static msg_t reloc_section(elf_load_context_t *ctxp,
     /* Reading relocation data using buffers in order to not make continuous
        calls to the FS which could be unbuffered.*/
     if (remaining_size > VFS_BUFFER_SIZE) {
-      size = VFS_BUFFER_SIZE;
+      size = (VFS_BUFFER_SIZE / sizeof (elf32_rel_t)) * sizeof (elf32_rel_t);
     }
     else {
       size = remaining_size;

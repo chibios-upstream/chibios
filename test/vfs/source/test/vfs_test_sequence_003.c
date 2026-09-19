@@ -327,9 +327,9 @@ static const testcase_t vfs_test_003_001 = {
  * @page vfs_test_003_002 [3.2] Non-root overlay dispatch
  *
  * <h2>Description</h2>
- * A plain overlay accepts absolute paths, applies its backing prefix,
- * exposes a synthetic root, and rejects relative paths without owning
- * a current directory.
+ * A plain overlay forwards borrowed absolute paths, exposes a
+ * synthetic root, and rejects relative paths without owning a current
+ * directory.
  *
  * <h2>Conditions</h2>
  * This test is only executed if the following preprocessor condition
@@ -338,8 +338,8 @@ static const testcase_t vfs_test_003_001 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [3.2.1] An absolute path is routed to the prefixed backing file
- *   system.
+ * - [3.2.1] An absolute path is forwarded unchanged to the backing
+ *   file system.
  * - [3.2.2] The overlay root has the same synthetic metadata when
  *   queried by path or through an opened node.
  * - [3.2.3] A relative path is rejected by a plain overlay.
@@ -353,17 +353,17 @@ static void vfs_test_003_002_execute(void) {
   vfs_stat_t expected;
   msg_t ret;
 
-  /* [3.2.1] An absolute path is routed to the prefixed backing file
-     system.*/
+  /* [3.2.1] An absolute path is forwarded unchanged to the backing
+     file system.*/
   test_set_step(1);
   {
     vfs_test_fs_reset();
     vfs_test_fs.stat = vfs_test_full_stat;
-    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
+    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs);
     ret = vfsFSStat(&overlay, "/nested", &stat);
     test_assert(ret == CH_RET_SUCCESS, "non-root overlay stat failed");
-    test_assert(strcmp(vfs_test_fs.path, "/base/nested") == 0,
-                "non-root overlay prefix not applied");
+    test_assert(strcmp(vfs_test_fs.path, "/nested") == 0,
+                "non-root overlay changed the path");
     test_assert(vfs_test_stat_equal(&stat, &vfs_test_full_stat),
                 "overlay did not preserve backing metadata");
   }
@@ -375,7 +375,7 @@ static void vfs_test_003_002_execute(void) {
   {
     vfs_test_fs_reset();
     vfs_test_fs.stat = vfs_test_full_stat;
-    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
+    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs);
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&overlay, "/", &stat);
     test_assert(ret == CH_RET_SUCCESS, "synthetic overlay root stat failed");
@@ -388,7 +388,7 @@ static void vfs_test_003_002_execute(void) {
     test_assert(vfs_test_stat_equal(&stat, &expected),
                 "synthetic overlay root metadata changed");
 
-    (void)ovldrvObjectInit(&overlay, NULL, NULL);
+    (void)ovldrvObjectInit(&overlay, NULL);
     ret = vfsFSStat(&overlay, "/missing", &stat);
     test_assert(ret == CH_RET_ENOENT, "missing overlay path reported as root");
     ret = vfsFSOpenDirectory(&overlay, "/", &dnp);
@@ -406,7 +406,7 @@ static void vfs_test_003_002_execute(void) {
   test_set_step(3);
   {
     vfs_test_fs_reset();
-    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, NULL);
+    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs);
     ret = vfsFSStat(&overlay, "relative", &stat);
     test_assert(ret == CH_RET_EINVAL, "relative overlay path accepted");
     test_assert(vfs_test_fs.calls == 0U,
@@ -737,8 +737,8 @@ static void vfs_test_003_005_execute(void) {
   test_set_step(1);
   {
     vfs_test_fs_reset();
-    (void)ovldrvObjectInit(&first, NULL, NULL);
-    (void)ovldrvObjectInit(&second, (vfs_fs_c *)&vfs_test_fs, NULL);
+    (void)ovldrvObjectInit(&first, NULL);
+    (void)ovldrvObjectInit(&second, (vfs_fs_c *)&vfs_test_fs);
     ret = ovldrvRegisterDriver(&first, (vfs_fs_c *)&vfs_test_fs, "mount");
     test_assert(ret == CH_RET_SUCCESS, "first registration failed");
     ret = ovldrvRegisterDriver(&second, (vfs_fs_c *)&vfs_test_fs, "mount");

@@ -24,6 +24,7 @@
  */
 
 #include "vfs.h"
+#include "vfsprivate.h"
 
 #if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
 

@@ -70,26 +70,23 @@ self->overlaid_root = NULL;]]></implementation>
           Unregistering a file system or disposing the overlay does not
           dispose them. The caller must keep them alive while accessible
           through an overlay or while their nodes or operations remain
-          active.</details>
+          active. Routing borrows read-only absolute paths and does not
+          allocate path buffers. Backing prefixes are provided by the root
+          driver.</details>
         <fields>
           <field name="overlaid_drv" ctype="vfs_fs_c$I*"></field>
-          <field name="path_prefix" ctype="const char$I*"></field>
           <field name="next_driver" ctype="unsigned"></field>
           <field name="names"
             ctype="const char$I*$N[DRV_CFG_OVERLAY_DRV_MAX]"></field>
           <field name="drivers"
             ctype="vfs_fs_c$I*$N[DRV_CFG_OVERLAY_DRV_MAX]"></field>
-          <field name="buf" ctype="char$I$N[VFS_CFG_PATHLEN_MAX + 1]"></field>
         </fields>
         <methods>
           <objinit callsuper="true">
             <param name="overlaid_drv" ctype="vfs_fs_c *" dir="in"><![CDATA[Pointer to
               a file system to be overlaid or @p NULL.]]></param>
-            <param name="path_prefix" ctype="const char *" dir="in"><![CDATA[Prefix to be
-              added to the paths or @p NULL, it must be a normalized absolute path.]]></param>
             <implementation><![CDATA[
 self->overlaid_drv = overlaid_drv;
-self->path_prefix  = path_prefix;
 self->next_driver  = 0U;]]></implementation>
           </objinit>
           <dispose>
@@ -227,6 +224,7 @@ chPoolLoadArray(&vfs_overlay_driver_static.dir_nodes_pool,
   <private>
     <includes_always>
       <include style="regular">vfs.h</include>
+      <include style="regular">vfsprivate.h</include>
     </includes_always>
     <variables>
       <variable name="vfs_overlay_driver_static"
