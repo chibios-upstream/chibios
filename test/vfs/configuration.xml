@@ -3433,7 +3433,7 @@ static THD_FUNCTION(vfs_test_routing_job, arg) {
     job->node = NULL;
   }
   else {
-    /* getdents-style scratch: reserve a pair and call the retained node.*/
+    /* Directory scratch: reserve a pair and call the retained node.*/
     buffer = vfs_buffer_take_wait();
     chDbgAssert(buffer != NULL, "scratch allocation failed");
     memset(buffer->buf, 0x5a, VFS_BUFFER_SIZE);
