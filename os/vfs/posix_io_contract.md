@@ -10,6 +10,9 @@ and the sandbox adapter migration. Tests cover real FatFS/LittleFS, ROM/stream
 backends and production guest libc/shell code through simulated traps. Newlib
 migration remains pending. See the plan for checks and ARM storage measurements.
 
+The [limitations inventory](limitations.md) separates intrinsic backend
+constraints from VFS/adapter improvements and tracks outstanding audit findings.
+
 ## Boundary and ownership
 
 `vfs_io_c` is the descriptor/path API. FS and node APIs remain available to

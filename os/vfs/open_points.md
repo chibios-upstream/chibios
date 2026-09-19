@@ -4,6 +4,10 @@ This file tracks the current known follow-up work in `os/vfs/`.
 It is not meant to be a strict roadmap; it is a grouped backlog of the
 remaining technical points across the VFS subsystems.
 
+Filesystem/POSIX restrictions and missing API features are classified in
+[VFS limitations](limitations.md), separating backend constraints from work
+that can be addressed in VFS or its adapters.
+
 ## Base Classes
 
 - The `random_stream_i` seek method returns `uint32_t` with no separate error
