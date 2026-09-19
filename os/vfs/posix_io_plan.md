@@ -1,0 +1,218 @@
+# VFS I/O API and sandbox POSIX behavior plan
+
+Created on 2026-09-19. Status: step 1 complete; implementation starts at step 2.
+
+Make `vfs_io_c` the main application interface for paths and descriptors,
+shared by Newlib bindings and sandboxes. Target the POSIX behavior needed by
+existing sandbox applications, with explicit limits for embedded backends.
+Build on the current uncommitted I/O class prototype and the completed
+[local locking plan](local_locking_plan.md).
+
+## Architecture and scope
+
+- Keep one `vfsIOOpen()` returning an integer descriptor for files or
+  directories. `opendir()` and `fdopendir()` remain libc directory-stream
+  functions. Keep typed FS/node operations for drivers and specialized users.
+- An I/O object has caller-provided descriptor storage and a borrowed root
+  pointer. The root and backing drivers outlive all operations and nodes.
+  Sharing a root shares CWD; give sandboxes separate roots when they need
+  independent CWD state.
+- Keep descriptor publication, reference acquisition and detachment inside
+  short critical sections. Call drivers, wait for scratch and release references
+  outside them. Preserve local leaf locking and optional mutex storage.
+- Reserve a descriptor before a potentially creating/truncating open. Retain
+  the node for the whole operation, including waits and multi-call sequences.
+  Existing shared-handle serialization and filesystem lifetime rules still apply.
+- Retain `vfsInit()` and `vfs.h` as initialization and umbrella/configuration
+  interfaces. Remove operation wrappers and the global `vfs_root` after migrating
+  their users. Newlib gets an explicitly configured default I/O context because
+  its syscall signatures do not carry one; each sandbox embeds its own context.
+- Keep encoded ChibiOS errors internally; libc adapters translate them into
+  the appropriate return value and `errno`.
+
+## Findings to address
+
+The prototype already covers descriptor ownership, pinning, duplication, slot
+reservation and root delegation, with focused tests. Neither descriptor-table
+implementation in the adapters has been replaced yet.
+
+Sandbox `libdir.c` and shell globbing already pass `O_DIRECTORY | O_CLOEXEC`.
+Current VFS flag definitions omit both. FatFS and LittleFS flag translators
+reject some useful combinations; streams ignore flags. FatFS uses
+`FA_OPEN_APPEND` when opening, but its write wrapper just calls `f_write()`.
+Audit this against append-after-seek and repeated-write requirements.
+
+`fdopendir()` currently closes the supplied descriptor on allocation failure
+and does not check its type. Sandbox directory records need a shared alignment
+and bounds contract. A too-small first getdents buffer can consume an entry
+before returning an error. Newlib currently stubs seek/isatty and rejects
+directories in fstat.
+
+There is no sandbox POSIX exec syscall. Host `sbExecStatic`/`sbExecDynamic`
+start a stopped sandbox with explicitly registered descriptors. Guest
+`sbRunElfAt()` calls an ELF program and returns to the caller. Neither should
+automatically close the caller's descriptors as if replacing its process image.
+
+## Implementation sequence
+
+### 1. Define and test the supported contract - complete
+
+The [supported behavior and regression contract](posix_io_contract.md) records
+the open/path/error matrices, backend decisions and focused acceptance cases.
+The ARM host/guest flag ABI was checked against the installed toolchain, with
+Linux simulator differences recorded. Runtime cases are assigned to the steps
+that implement their behavior; this completion covers specification and audit.
+
+- Record expected results for existing/missing files, directories, read-only
+  mounts and streams across access/create/exclusive/truncate/append flags.
+  Include descriptor exhaustion, invalid descriptors and unsupported flags.
+- Use the target C library's flag values; verify host/sandbox agreement rather
+  than importing Linux constants into the ARM ABI.
+- Specify empty paths, relative paths, prefixes and trailing slashes before
+  normalization erases distinctions. In particular, a trailing slash must
+  preserve the requirement that the target be a directory.
+- Separate required behavior from backend limits: creation permissions/umask,
+  rename replacement, unlinking open files, multiple writable opens and reporting
+  errors from final native close. Current open adapters discard the creation
+  mode, and reference disposal cannot return a close error. Do not imply these
+  features become POSIX-compliant through table consolidation.
+- Keep the initial scope to existing sandbox operations. Full fcntl, openat,
+  fork/exec, symlinks and Unix permission enforcement are separate work.
+
+Deliverable: a supported-behavior/error matrix and focused regression cases,
+plus explicit decisions for any backend limitation exercised by current apps.
+
+### 2. Implement one open operation with correct type routing
+
+- Add `VO_DIRECTORY`; handle it at the common routing layer, before any file
+  creation or truncation. Strip flags that belong to the descriptor layer before
+  passing flags to native filesystems.
+- Read-only open can return a file or directory. Requiring a directory on a
+  regular file returns `ENOTDIR`; requesting write access on a directory returns
+  `EISDIR`. Do not let the current file-first fallback bypass flag validation.
+- Define explicit policy for unspecified flag combinations, such as
+  `O_DIRECTORY | O_CREAT`, and reject unsupported semantics consistently.
+- Correct native flag translation, including plain write-only opens and append
+  without create where supported. Keep exclusive-create checks inside the
+  native operation; a preliminary stat does not make creation atomic.
+- Preserve reservation cancellation and reference cleanup. Validate flags and
+  table capacity before side effects; audit post-open failure paths, including
+  admission of custom node implementations.
+- Apply the contract's read-only and stream capability rules. Preserve empty-
+  path and trailing-directory distinctions through normalization.
+
+Deliverable: tested routing and flag behavior through root, overlay and enabled
+leaves, without introducing separate descriptor-returning file/directory opens.
+The baseline follows [POSIX open](https://pubs.opengroup.org/onlinepubs/9799919799/functions/open.html).
+
+### 3. Complete descriptor and open-handle semantics
+
+- Replace pointer-only slots with a small descriptor-entry structure containing
+  the node reference and descriptor flags. Record `O_CLOEXEC` atomically when
+  publishing an open descriptor. Measure the ARM storage cost before finalizing
+  the layout; keep storage caller-owned and avoid a separate heap object.
+- Store access mode and required status flags with the shared open handle,
+  separate from stat permission bits. Initialize them consistently in all leaf
+  constructors, including nodes installed directly by the host. Check read/write
+  access and return `EBADF` for an incompatible access mode.
+- Preserve shared node/cursor ownership on dup. A new duplicate clears
+  close-on-exec; dup2 of a descriptor onto itself preserves it. Invalid-source
+  dup2 leaves the destination intact. Document the existing `EBUSY` result for
+  a destination reserved by an in-flight open as a local concurrency extension.
+  See [POSIX dup](https://pubs.opengroup.org/onlinepubs/9799919799/functions/dup.html).
+- Implement append at each write within the leaf's native-operation lock,
+  including after seeks. Verify native support for distinct handles to the same
+  file; a wrapper mutex alone does not fix stale per-handle native metadata.
+  Document/reject unsupported backend cases rather than claim atomic append
+  there. See [POSIX write](https://pubs.opengroup.org/onlinepubs/9699919799/functions/write.html).
+- Preserve short transfers, EOF, accurate seek results and non-seekable errors;
+  validate count/offset conversions. Keep same-handle compound-operation limits
+  explicit instead of adding an upper mutex around driver calls.
+- Enforce unlink/rmdir type restrictions under the leaf mutation lock and verify
+  rename behavior against the backend decisions in the contract. Native combined
+  removal APIs must not erase the distinction between files and directories.
+- Retain close-on-exec metadata, but document that current sandbox ELF calls do
+  not implement exec. A future process-image replacement/inheritance operation
+  must consume that metadata at its actual boundary. Do not close shell script,
+  glob or redirection descriptors on a returning ELF call. POSIX associates this
+  behavior with [exec](https://pubs.opengroup.org/onlinepubs/9799919799/functions/exec.html).
+
+Deliverable: ownership/duplication/flag tests, wrong-access tests, append-after-
+seek tests, and a documented memory and concurrency contract.
+
+### 4. Migrate sandboxes and repair directory-stream behavior
+
+- Embed `vfs_io_c` plus fixed-capacity entries in sandbox I/O state. Delegate
+  registration, lookup, open/close/dup, path operations and cleanup to it.
+  Preserve stopped-state registration, startup-failure cleanup and root lifetime.
+- Keep guest address/range/string validation and libc structure conversion in
+  the sandbox adapter. Preserve syscall numbers and encodings; coordinate any
+  necessary ABI extension with guest headers and bindings.
+- For getdents, pin one directory node across the scratch wait and entire batch.
+  Define aligned record lengths, bounds, terminators and initialized padding in
+  the shared ABI. Support unaligned guest buffers without unaligned typed stores.
+  Check output capacity before consuming an entry; define the minimum supported
+  buffer size if the iterator cannot retain a pending entry. Return partial
+  batches and EOF consistently.
+- Validate fdopendir's descriptor/type before success. Transfer ownership only
+  on success; preserve the descriptor on failure. Have opendir close its own
+  descriptor on stream-creation failure while preserving errno. Initialize all
+  stream fields and make closedir release exactly once. This follows the
+  [directory-stream ownership contract](https://sourceware.org/glibc/manual/2.25/html_node/Opening-a-Directory.html).
+- Test through guest libc: directory open/read/close, invalid and regular-file
+  descriptors, allocation failure, EOF/error distinction, small buffers, shell
+  globbing, redirection and here-document creation. Audit isatty through the
+  terminal control operation rather than equating every character device to a TTY.
+- Enable and size FatFS native open-object checks (FF_FS_LOCK) in writable
+  sandbox configurations, independently of native reentrancy, and test rejection
+  of conflicting open/remove/rename operations. No VFS lock registry is added.
+
+Deliverable: sandbox descriptor-table duplication removed and the actual guest
+directory/descriptor workflows passing through the shared class.
+
+### 5. Migrate Newlib to a configured I/O context
+
+- Replace its private descriptor table with the shared class. Define explicit
+  context binding and initialization before stdio use; retain existing capacity
+  configuration and make standard-descriptor installation unambiguous.
+- Delegate open/close/read/write/seek/stat and path operations, preserving libc
+  errno conversion. Implement real lseek/fstat/isatty behavior, including
+  directories and terminal checks. Audit integer widths against target Newlib.
+- Test buffered stdio and direct descriptor use, invalid descriptors, short I/O,
+  full-table opens, initialization and the build without VFS bindings.
+
+Deliverable: one descriptor-table implementation used by both adapters.
+
+### 6. Migrate remaining callers and remove the old application API
+
+- Give shell/xshell an I/O context; use integer descriptors rather than casting
+  node pointers to descriptors. Account for recursive directory traversal when
+  sizing their table and handle exhaustion correctly.
+- Update demos to initialize and bind contexts. Keep ELF loading and HTTP
+  bindings on direct FS/node methods where their retained-node model is useful;
+  replace their calls to redundant wrappers with those methods.
+- Migrate tests and documentation, then remove the 19 operation wrappers in
+  `vfs.c/h` and the exported default root. Keep initialization, configuration,
+  umbrella includes and low-level class interfaces.
+
+Deliverable: repository-wide call-site checks find no remaining removed API
+users, and public examples show the new I/O context model.
+
+### 7. Validate the integrated behavior
+
+- Run focused descriptor and POSIX-behavior tests with mutexes enabled and
+  disabled, debug/state checks enabled, and descriptor-only root-disabled builds.
+  Preserve the OOP_USE_NOTHING exclusion and one-pair scratch exhaustion tests.
+- Exercise real FatFS/LittleFS configurations and streams/ROMFS where relevant;
+  mocks alone do not verify native flag translation or append behavior.
+- Build affected sandbox applications, host demos, Newlib, shells and HTTP
+  bindings. Run guest libc/application scenarios on a suitable target or harness;
+  report compile-only coverage separately when runtime access is unavailable.
+- Validate edited XML against its schema, regenerate code/tests, and confirm a
+  second generation is unchanged. Update configuration templates/updaters only
+  if configuration changes; run updaters sequentially. Check changed-line style
+  and whitespace, then clean build products.
+
+Deliverable: recorded results and remaining backend limitations. Each preceding
+step should include its focused tests and remain independently buildable; this
+last step verifies integration rather than postponing all testing until the end.

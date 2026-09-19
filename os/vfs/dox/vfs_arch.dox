@@ -50,6 +50,13 @@
  * }
  * abstract class vfs_directory_node_c
  * abstract class vfs_file_node_c
+ * class vfs_io_c {
+ *   - root: vfs_root_c *
+ *   - nodes[]: vfs_node_c *
+ *   + open(path, flags): descriptor
+ *   + read(descriptor, buffer, size)
+ *   + close(descriptor)
+ * }
  *
  * vfs_fs_c <|-- vfs_overlay_driver_c
  * vfs_overlay_driver_c <|-- vfs_root_c
@@ -57,6 +64,8 @@
  * vfs_node_c <|-- vfs_file_node_c
  * vfs_node_c "*" --> "1" vfs_fs_c : owner
  * vfs_overlay_driver_c "1" o-- "*" vfs_fs_c : mounts
+ * vfs_io_c "*" --> "0..1" vfs_root_c : borrows
+ * vfs_io_c "*" o-- "*" vfs_node_c : owns references
  * @enduml
  *
  * File-system implementations, including non-root overlays, derive from
@@ -160,6 +169,47 @@
  * the concurrency guarantee.
  *
  * @subsection vfs_arch_descriptors Descriptor ownership
+ *
+ * The shared @p vfs_io_c prototype combines caller-provided descriptor storage
+ * with a borrowed root association. Insert/install consume a node reference
+ * only on success; get returns a reference that the caller must release.
+ * Close, dup, dup2 and clear manage descriptor ownership. Read/write, fstat,
+ * seek/tell, directory first/next and control retain the selected node through
+ * the whole call and release it on success or error. Metadata and directory
+ * entries use native VFS types; errno, libc layouts and sandbox memory
+ * validation remain the adapter responsibility.
+ *
+ * Short system critical sections protect slots and reference acquisition;
+ * no driver callback or final release runs inside them. Slot allocation scans
+ * the configured capacity, which should remain small. The object contains a
+ * VMT pointer, slot-array pointer, capacity and optional root pointer, with no
+ * heap allocation or mutex. Standard synchronized OOP addref/release methods
+ * are required; custom disposal is supported. Root support adds one private
+ * module-wide node identity for reservations, never exposed or dispatched.
+ *
+ * Open reserves the lowest free descriptor before entering the root, so a
+ * full table returns EMFILE before any create/truncate side effects. The slot
+ * stays reserved through driver or scratch-buffer waits, then publishes the
+ * opened node or becomes free on error. Get, close and duplication sources
+ * treat reservations as unavailable; install and dup2 return EBUSY for a
+ * reserved destination. Failed node admission frees the reservation before
+ * invoking disposal. These rules keep concurrent allocations independent.
+ *
+ * Set-root requires exclusive lifecycle access. A root is never retained or
+ * disposed by the context; its lifetime and backing filesystem lifetimes
+ * remain caller-managed through all node disposal, including references
+ * returned by get. Clear preserves the root association. Open, stat, unlink,
+ * rename, mkdir, rmdir, chdir and getcwd use the associated root, accepting
+ * logical absolute or relative paths. A NULL root returns ENOSYS for path
+ * methods while registered descriptors remain usable. Separate roots provide
+ * independent CWD/mount state; contexts sharing a root share that state.
+ * Root support disabled removes its field and methods, preserving descriptor
+ * operations. Initialization, clear and disposal require exclusive lifecycle
+ * access with no pending calls. Same-node operation ordering remains the
+ * caller's responsibility, including seek followed by position retrieval.
+ *
+ * The newlib and sandbox adapters still use their existing tables, described
+ * below, pending migration to this shared implementation.
  *
  * Newlib descriptors each own one node reference. Insertion, lookup/pinning
  * and detachment use short system critical sections. Read/write and fstat

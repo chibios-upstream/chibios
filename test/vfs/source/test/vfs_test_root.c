@@ -30,6 +30,8 @@
  * - @subpage vfs_test_sequence_007
  * - @subpage vfs_test_sequence_008
  * - @subpage vfs_test_sequence_009
+ * - @subpage vfs_test_sequence_010
+ * - @subpage vfs_test_sequence_011
  * .
  */
 
@@ -71,6 +73,12 @@ const testsequence_t * const vfs_test_suite_array[] = {
 #endif
 #if (defined(VFS_TEST_NEWLIB) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)) || defined(__DOXYGEN__)
   &vfs_test_sequence_009,
+#endif
+#if (!defined(OOP_USE_NOTHING)) || defined(__DOXYGEN__)
+  &vfs_test_sequence_010,
+#endif
+#if (!defined(OOP_USE_NOTHING)) || defined(__DOXYGEN__)
+  &vfs_test_sequence_011,
 #endif
   NULL
 };

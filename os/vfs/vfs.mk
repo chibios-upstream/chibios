@@ -10,6 +10,7 @@ VFSSRC := $(CHIBIOS)/os/vfs/src/vfspaths.c \
           $(CHIBIOS)/os/vfs/src/vfsbuffers.c \
           $(CHIBIOS)/os/vfs/src/vfsdrivers.c \
           $(CHIBIOS)/os/vfs/src/vfsnodes.c \
+          $(CHIBIOS)/os/vfs/src/vfsio.c \
           $(CHIBIOS)/os/vfs/src/vfs.c \
           $(CHIBIOS)/os/vfs/drivers/tmplfs/drvtmplfs.c \
           $(CHIBIOS)/os/vfs/drivers/chfs/drvchfs.c \

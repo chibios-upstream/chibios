@@ -1,0 +1,804 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/ccode/modules.xsd"
+  name="vfsio" descr="VFS I/O" editcode="false"
+  check="!defined(OOP_USE_NOTHING)">
+  <brief>VFS I/O context class.</brief>
+  <imports>
+    <import>oop_base_object.xml</import>
+  </imports>
+  <public>
+    <types>
+      <class type="regular" name="vfs_io" namespace="vfsio"
+        ancestorname="base_object" descr="VFS I/O object">
+        <brief>A root association and descriptor table for one VFS I/O context.</brief>
+        <details><![CDATA[The caller provides the slot array and its capacity.
+          Initialization, root association, clear and disposal require exclusive lifecycle access;
+          all other methods support concurrent callers. The object and its array
+          must outlive all table calls, and the array must only be accessed through
+          this API after initialization. No heap allocation or mutex is required.
+          Short system critical sections protect slots and reference acquisition,
+          independently of VFS_CFG_USE_MUTUAL_EXCLUSION. Driver methods and final
+          node disposal always run outside these sections.
+
+          Admitted nodes must use __ro_addref_impl and __ro_release_impl, and keep
+          their VMT unchanged while referenced. Custom disposal is supported.
+          This class requires synchronized OOP references and is unavailable with
+          OOP_USE_NOTHING. Returned node references protect lifetime only; the
+          caller must still serialize operations on a shared node when needed.
+          Each occupied slot owns one node reference. The root pointer is borrowed,
+          initially NULL, and must remain stable during use. The application
+          keeps roots and backing file systems alive through all operations and
+          node disposal, including references obtained from get. Clear and
+          disposal never dispose the root. Sharing a root shares its CWD and
+          mounts; separate roots provide independent path state. Path methods
+          return ENOSYS when no root is associated, and are omitted when root
+          support is disabled. Descriptor methods remain available.
+
+          Open reserves a slot before any driver call. Pending opens occupy
+          slots but cannot be looked up, closed or duplicated. Install and dup2
+          return EBUSY for a reserved destination. No table protection spans a
+          driver call, buffer wait or reference release. Slot allocation scans
+          the caller-sized array under a system critical section, so capacities
+          should remain small. Methods run in thread context unless marked X.]]></details>
+        <fields>
+          <condition check="VFS_CFG_ENABLE_DRV_ROOT == TRUE">
+            <field name="root" ctype="vfs_root_c$I*">
+              <brief>Borrowed root, stable during use; internal access only.</brief>
+            </field>
+          </condition>
+          <field name="nodes" ctype="vfs_node_c$I**">
+            <brief>Caller-owned slot array, private after initialization.</brief>
+          </field>
+          <field name="size" ctype="size_t">
+            <brief>Number of slots, immutable after initialization.</brief>
+          </field>
+        </fields>
+        <methods>
+          <objinit callsuper="true">
+            <param name="nodes" ctype="vfs_node_c **" dir="out">Slot array,
+              or NULL for a zero-capacity table. Existing contents are discarded,
+              so the array must not own references before initialization.</param>
+            <param name="size" ctype="size_t" dir="in">Capacity, at most INT_MAX.</param>
+            <implementation><![CDATA[
+chDbgCheck((size <= (size_t)INT_MAX) && ((size == 0U) || (nodes != NULL)));
+
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+self->root = NULL;
+#endif
+self->nodes = nodes;
+self->size = size;
+if (size > 0U) {
+  memset(nodes, 0, size * sizeof *nodes);
+}]]></implementation>
+          </objinit>
+          <dispose>
+            <implementation><![CDATA[
+vfsIOClear(self);]]></implementation>
+          </dispose>
+          <regular>
+            <method name="vfsIOInsert" ctype="int">
+              <brief>Transfers a node reference into the lowest free slot.</brief>
+              <details>Consumes one caller-owned reference on success only.
+                NULL is rejected with EINVAL and custom reference methods with
+                ENOTSUP. A full table returns EMFILE.</details>
+              <param name="np" ctype="vfs_node_c *" dir="in">Owned node reference.</param>
+              <return>A nonnegative descriptor or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+msg_t ret;
+size_t i;
+
+ret = check_node(np);
+if (CH_RET_IS_ERROR(ret)) {
+  return (int)ret;
+}
+
+chSysLock();
+for (i = 0U; i < self->size; i++) {
+  if (self->nodes[i] == NULL) {
+    self->nodes[i] = np;
+    chSysUnlock();
+    return (int)i;
+  }
+}
+chSysUnlock();
+
+return CH_RET_EMFILE;]]></implementation>
+            </method>
+            <method name="vfsIOInstall" ctype="msg_t">
+              <brief>Transfers a node reference into a specified empty slot.</brief>
+              <details>Consumes one caller-owned reference on success only.
+                Invalid descriptors return EBADF, occupied or reserved slots EBUSY, NULL
+                nodes EINVAL and custom reference methods ENOTSUP.</details>
+              <param name="fd" ctype="int" dir="in">Destination descriptor.</param>
+              <param name="np" ctype="vfs_node_c *" dir="in">Owned node reference.</param>
+              <return>CH_RET_SUCCESS or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+msg_t ret;
+
+if ((fd < 0) || ((size_t)fd >= self->size)) {
+  return CH_RET_EBADF;
+}
+ret = check_node(np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+
+chSysLock();
+if (self->nodes[fd] != NULL) {
+  ret = CH_RET_EBUSY;
+}
+else {
+  self->nodes[fd] = np;
+}
+chSysUnlock();
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOGet" ctype="vfs_node_c *">
+              <brief>Acquires a node reference from a descriptor.</brief>
+              <details>The caller must release the returned reference using
+                roRelease(). It remains valid after the descriptor is closed or
+                replaced. No node operation is performed under table protection.</details>
+              <param name="fd" ctype="int" dir="in">Source descriptor.</param>
+              <return>An owned reference, or NULL for an invalid, empty or reserved slot
+                or reference counter overflow.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+
+if (CH_RET_IS_ERROR(pin_descriptor(self, fd, &np))) {
+  return NULL;
+}
+
+return np;]]></implementation>
+            </method>
+            <method name="vfsIOClose" ctype="msg_t">
+              <brief>Detaches a descriptor and releases its reference.</brief>
+              <details>The slot is reusable before release or final disposal
+                runs. These callbacks may block or reenter the table.</details>
+              <param name="fd" ctype="int" dir="in">Descriptor to close.</param>
+              <return>CH_RET_SUCCESS, or EBADF for an invalid, empty or reserved slot.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+
+if ((fd < 0) || ((size_t)fd >= self->size)) {
+  return CH_RET_EBADF;
+}
+
+chSysLock();
+np = self->nodes[fd];
+if (!is_node(np)) {
+  chSysUnlock();
+  return CH_RET_EBADF;
+}
+self->nodes[fd] = NULL;
+chSysUnlock();
+(void)roRelease(np);
+
+return CH_RET_SUCCESS;]]></implementation>
+            </method>
+            <method name="vfsIODup" ctype="int">
+              <brief>Duplicates a descriptor into the lowest free slot.</brief>
+              <param name="fd" ctype="int" dir="in">Source descriptor.</param>
+              <return>A nonnegative descriptor, or encoded EBADF, EMFILE or
+                EOVERFLOW. Errors leave slots and references unchanged.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+size_t i;
+int ret;
+
+if ((fd < 0) || ((size_t)fd >= self->size)) {
+  return CH_RET_EBADF;
+}
+
+chSysLock();
+np = self->nodes[fd];
+ret = CH_RET_EBADF;
+if (is_node(np)) {
+  ret = CH_RET_EMFILE;
+  for (i = 0U; i < self->size; i++) {
+    if (self->nodes[i] == NULL) {
+      if (retain_nodeI(np)) {
+        self->nodes[i] = np;
+        ret = (int)i;
+      }
+      else {
+        ret = CH_RET_EOVERFLOW;
+      }
+      break;
+    }
+  }
+}
+chSysUnlock();
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIODup2" ctype="int">
+              <brief>Duplicates a descriptor, atomically replacing a destination.</brief>
+              <details>The displaced reference is released after publishing the
+                replacement and leaving table protection. Equal descriptors are
+                validated and returned unchanged. A reserved destination returns EBUSY.</details>
+              <param name="oldfd" ctype="int" dir="in">Source descriptor.</param>
+              <param name="newfd" ctype="int" dir="in">Destination descriptor.</param>
+              <return>The destination descriptor, or encoded EBADF, EBUSY or EOVERFLOW.
+                Errors leave slots and references unchanged.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np, *displaced = NULL;
+int ret;
+
+if ((oldfd < 0) || ((size_t)oldfd >= self->size) ||
+    (newfd < 0) || ((size_t)newfd >= self->size)) {
+  return CH_RET_EBADF;
+}
+
+chSysLock();
+np = self->nodes[oldfd];
+ret = CH_RET_EBADF;
+if (is_node(np)) {
+  ret = newfd;
+  if (oldfd != newfd) {
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+    if (self->nodes[newfd] == &reserved_node) {
+      chSysUnlock();
+      return CH_RET_EBUSY;
+    }
+#endif
+    if (retain_nodeI(np)) {
+      displaced = self->nodes[newfd];
+      self->nodes[newfd] = np;
+    }
+    else {
+      ret = CH_RET_EOVERFLOW;
+    }
+  }
+}
+chSysUnlock();
+if (displaced != NULL) {
+  (void)roRelease(displaced);
+}
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOClear" ctype="void">
+              <brief>Releases all descriptors during exclusive lifecycle access.</brief>
+              <details>Also called by object disposal. No other table operation
+                may run concurrently, and disposal callbacks must not repopulate
+                the table. Each slot is detached before its reference is released
+                outside protection. Previously acquired node references remain
+                valid. The empty table can be reused after this method returns.</details>
+              <api />
+              <implementation><![CDATA[
+size_t i;
+
+for (i = 0U; i < self->size; i++) {
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+  chDbgAssert(self->nodes[i] != &reserved_node, "active open");
+#endif
+  (void)vfsIOClose(self, (int)i);
+}]]></implementation>
+            </method>
+            <method name="vfsIORead" ctype="ssize_t">
+              <brief>Reads from a descriptor.</brief>
+              <details>The selected node is retained throughout the call, including driver waits. The caller serializes operations on the same open node.</details>
+              <param name="fd" ctype="int" dir="in">Descriptor.</param>
+              <param name="buf" ctype="uint8_t *" dir="out">Data buffer, or NULL when n is zero.</param>
+              <param name="n" ctype="size_t" dir="in">Maximum byte count.</param>
+              <return>The byte count or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+ssize_t ret;
+
+ret = pin_descriptor(self, fd, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+if (VFS_MODE_S_ISDIR(np->mode)) {
+  ret = CH_RET_EISDIR;
+}
+else if (n == 0U) {
+  ret = 0;
+}
+else if (buf == NULL) {
+  ret = CH_RET_EINVAL;
+}
+else {
+  ret = vfsFileRead((vfs_file_node_c *)np, buf, n);
+}
+(void)roRelease(np);
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOWrite" ctype="ssize_t">
+              <brief>Writes to a descriptor.</brief>
+              <details>The selected node is retained throughout the call, including driver waits. The caller serializes operations on the same open node.</details>
+              <param name="fd" ctype="int" dir="in">Descriptor.</param>
+              <param name="buf" ctype="const uint8_t *" dir="in">Data buffer, or NULL when n is zero.</param>
+              <param name="n" ctype="size_t" dir="in">Maximum byte count.</param>
+              <return>The byte count or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+ssize_t ret;
+
+ret = pin_descriptor(self, fd, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+if (VFS_MODE_S_ISDIR(np->mode)) {
+  ret = CH_RET_EISDIR;
+}
+else if (n == 0U) {
+  ret = 0;
+}
+else if (buf == NULL) {
+  ret = CH_RET_EINVAL;
+}
+else {
+  ret = vfsFileWrite((vfs_file_node_c *)np, buf, n);
+}
+(void)roRelease(np);
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOFstat" ctype="msg_t">
+              <brief>Returns descriptor information.</brief>
+              <param name="fd" ctype="int" dir="in">Descriptor.</param>
+              <param name="sp" ctype="vfs_stat_t *" dir="out">VFS metadata output.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+msg_t ret;
+
+if (sp == NULL) {
+  return CH_RET_EINVAL;
+}
+ret = pin_descriptor(self, fd, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+ret = vfsNodeStat(np, sp);
+(void)roRelease(np);
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOSeek" ctype="vfs_offset_t">
+              <brief>Changes and returns the file position.</brief>
+              <details>The caller serializes position-dependent operations on the same node. Directories return EISDIR and non-regular files ESPIPE.</details>
+              <param name="fd" ctype="int" dir="in">Descriptor.</param>
+              <param name="offset" ctype="vfs_offset_t" dir="in">Position offset.</param>
+              <param name="whence" ctype="vfs_seekmode_t" dir="in">VFS_SEEK_SET, VFS_SEEK_CUR or VFS_SEEK_END.</param>
+              <return>The resulting file position or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+vfs_offset_t ret;
+
+if ((whence != VFS_SEEK_SET) && (whence != VFS_SEEK_CUR) &&
+    (whence != VFS_SEEK_END)) {
+  return CH_RET_EINVAL;
+}
+ret = pin_descriptor(self, fd, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+if (VFS_MODE_S_ISDIR(np->mode)) {
+  ret = CH_RET_EISDIR;
+}
+else if (!VFS_MODE_S_ISREG(np->mode)) {
+  ret = CH_RET_ESPIPE;
+}
+else {
+  ret = vfsFileSetPosition((vfs_file_node_c *)np, offset, whence);
+  if (!CH_RET_IS_ERROR(ret)) {
+    ret = vfsFileGetPosition((vfs_file_node_c *)np);
+  }
+}
+(void)roRelease(np);
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOTell" ctype="vfs_offset_t">
+              <brief>Returns the file position.</brief>
+              <details>The caller serializes position-dependent operations on the same node. Directories return EISDIR and non-regular files ESPIPE.</details>
+              <param name="fd" ctype="int" dir="in">Descriptor.</param>
+              <return>The resulting file position or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+vfs_offset_t ret;
+
+ret = pin_descriptor(self, fd, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+if (VFS_MODE_S_ISDIR(np->mode)) {
+  ret = CH_RET_EISDIR;
+}
+else if (!VFS_MODE_S_ISREG(np->mode)) {
+  ret = CH_RET_ESPIPE;
+}
+else {
+  ret = vfsFileGetPosition((vfs_file_node_c *)np);
+}
+(void)roRelease(np);
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOReadDirectoryFirst" ctype="msg_t">
+              <brief>Reads the first directory entry.</brief>
+              <details>The caller serializes enumeration on the same open directory.</details>
+              <param name="fd" ctype="int" dir="in">Descriptor.</param>
+              <param name="dip" ctype="vfs_direntry_info_t *" dir="out">Directory entry output.</param>
+              <return>One for an entry, zero at end, or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+msg_t ret;
+
+if (dip == NULL) {
+  return CH_RET_EINVAL;
+}
+ret = pin_descriptor(self, fd, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+if (!VFS_MODE_S_ISDIR(np->mode)) {
+  ret = CH_RET_ENOTDIR;
+}
+else {
+  ret = vfsDirReadFirst((vfs_directory_node_c *)np, dip);
+}
+(void)roRelease(np);
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOReadDirectoryNext" ctype="msg_t">
+              <brief>Reads the next directory entry.</brief>
+              <details>The caller serializes enumeration on the same open directory.</details>
+              <param name="fd" ctype="int" dir="in">Descriptor.</param>
+              <param name="dip" ctype="vfs_direntry_info_t *" dir="out">Directory entry output.</param>
+              <return>One for an entry, zero at end, or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+msg_t ret;
+
+if (dip == NULL) {
+  return CH_RET_EINVAL;
+}
+ret = pin_descriptor(self, fd, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+if (!VFS_MODE_S_ISDIR(np->mode)) {
+  ret = CH_RET_ENOTDIR;
+}
+else {
+  ret = vfsDirReadNext((vfs_directory_node_c *)np, dip);
+}
+(void)roRelease(np);
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOControl" ctype="msg_t">
+              <brief>Performs a file-specific control operation.</brief>
+              <details>Argument validation and lifetime follow the selected control operation. Libc and sandbox marshalling remain the adapter responsibility.</details>
+              <param name="fd" ctype="int" dir="in">Descriptor.</param>
+              <param name="operation" ctype="vfs_control_op_t" dir="in">Control operation.</param>
+              <param name="arg" ctype="void *" dir="both">Operation-specific arguments, possibly NULL.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+msg_t ret;
+
+ret = pin_descriptor(self, fd, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+if (VFS_MODE_S_ISDIR(np->mode)) {
+  ret = CH_RET_EISDIR;
+}
+else {
+  ret = vfsFileControl((vfs_file_node_c *)np, operation, arg);
+}
+(void)roRelease(np);
+
+return ret;]]></implementation>
+            </method>
+            <condition check="VFS_CFG_ENABLE_DRV_ROOT == TRUE">
+            <method name="vfsIOSetRoot" ctype="void">
+              <brief>Associates a borrowed root with an I/O context.</brief>
+              <details>Requires exclusive lifecycle access with no concurrent calls, including get-root. Existing descriptors are unchanged. Their owners must remain alive. The root is neither retained nor disposed by this object.</details>
+              <param name="root" ctype="vfs_root_c *" dir="in">Root, or NULL to disable path operations.</param>
+              <api />
+              <implementation><![CDATA[
+self->root = root;]]></implementation>
+            </method>
+            <method name="vfsIOOpen" ctype="int">
+              <brief>Opens a file or directory and returns a descriptor.</brief>
+              <details>A slot is reserved before entering the root. A full table returns EMFILE without invoking a driver. Failed opens cancel the reservation; rejected node references are released outside table protection. Standard OOP reference methods are required. Read-only opens also accept directories.</details>
+              <param name="path" ctype="const char *" dir="in">Absolute or relative path within the associated root.</param>
+              <param name="flags" ctype="int" dir="in">File open flags.</param>
+              <return>A nonnegative descriptor or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np = NULL;
+size_t i;
+msg_t ret;
+
+if (self->root == NULL) {
+  return CH_RET_ENOSYS;
+}
+if (path == NULL) {
+  return CH_RET_EINVAL;
+}
+
+/* Reserve before driver calls, including create or truncate side effects.*/
+chSysLock();
+for (i = 0U; i < self->size; i++) {
+  if (self->nodes[i] == NULL) {
+    self->nodes[i] = &reserved_node;
+    break;
+  }
+}
+chSysUnlock();
+if (i == self->size) {
+  return CH_RET_EMFILE;
+}
+
+ret = vfsRootOpen(self->root, path, flags, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  /* Failed opens do not transfer a node reference.*/
+  np = NULL;
+}
+else {
+  ret = check_node(np);
+}
+chSysLock();
+chDbgAssert(self->nodes[i] == &reserved_node, "lost reservation");
+self->nodes[i] = CH_RET_IS_ERROR(ret) ? NULL : np;
+chSysUnlock();
+if (CH_RET_IS_ERROR(ret)) {
+  if (np != NULL) {
+    (void)roRelease(np);
+  }
+  return (int)ret;
+}
+
+return (int)i;]]></implementation>
+            </method>
+            <method name="vfsIOStat" ctype="msg_t">
+              <brief>Returns information about a path.</brief>
+              <details>Uses the associated root and its existing local synchronization. Returns ENOSYS if no root is associated.</details>
+              <param name="path" ctype="const char *" dir="in">Absolute or relative path within the associated root.</param>
+              <param name="sp" ctype="vfs_stat_t *" dir="out">VFS metadata output.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+if (self->root == NULL) {
+  return CH_RET_ENOSYS;
+}
+if ((path == NULL) || (sp == NULL)) {
+  return CH_RET_EINVAL;
+}
+
+return vfsFSStat(self->root, path, sp);]]></implementation>
+            </method>
+            <method name="vfsIOUnlink" ctype="msg_t">
+              <brief>Unlinks a file.</brief>
+              <details>Uses the associated root and its existing local synchronization. Returns ENOSYS if no root is associated.</details>
+              <param name="path" ctype="const char *" dir="in">Absolute or relative path within the associated root.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+if (self->root == NULL) {
+  return CH_RET_ENOSYS;
+}
+if (path == NULL) {
+  return CH_RET_EINVAL;
+}
+
+return vfsFSUnlink(self->root, path);]]></implementation>
+            </method>
+            <method name="vfsIORename" ctype="msg_t">
+              <brief>Renames a file or directory.</brief>
+              <details>Uses the associated root and its existing local synchronization. Returns ENOSYS if no root is associated.</details>
+              <param name="oldpath" ctype="const char *" dir="in">Absolute or relative source path.</param>
+              <param name="newpath" ctype="const char *" dir="in">Absolute or relative destination path.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+if (self->root == NULL) {
+  return CH_RET_ENOSYS;
+}
+if ((oldpath == NULL) || (newpath == NULL)) {
+  return CH_RET_EINVAL;
+}
+
+return vfsFSRename(self->root, oldpath, newpath);]]></implementation>
+            </method>
+            <method name="vfsIOMkdir" ctype="msg_t">
+              <brief>Creates a directory.</brief>
+              <details>Uses the associated root and its existing local synchronization. Returns ENOSYS if no root is associated.</details>
+              <param name="path" ctype="const char *" dir="in">Absolute or relative path within the associated root.</param>
+              <param name="mode" ctype="vfs_mode_t" dir="in">Directory mode.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+if (self->root == NULL) {
+  return CH_RET_ENOSYS;
+}
+if (path == NULL) {
+  return CH_RET_EINVAL;
+}
+
+return vfsFSMkdir(self->root, path, mode);]]></implementation>
+            </method>
+            <method name="vfsIORmdir" ctype="msg_t">
+              <brief>Removes a directory.</brief>
+              <details>Uses the associated root and its existing local synchronization. Returns ENOSYS if no root is associated.</details>
+              <param name="path" ctype="const char *" dir="in">Absolute or relative path within the associated root.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+if (self->root == NULL) {
+  return CH_RET_ENOSYS;
+}
+if (path == NULL) {
+  return CH_RET_EINVAL;
+}
+
+return vfsFSRmdir(self->root, path);]]></implementation>
+            </method>
+            <method name="vfsIOChdir" ctype="msg_t">
+              <brief>Changes the associated root current directory.</brief>
+              <details>Uses the associated root and its existing local synchronization. Returns ENOSYS if no root is associated.</details>
+              <param name="path" ctype="const char *" dir="in">Absolute or relative path within the associated root.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+if (self->root == NULL) {
+  return CH_RET_ENOSYS;
+}
+if (path == NULL) {
+  return CH_RET_EINVAL;
+}
+
+return vfsRootChangeCurrentDirectory(self->root, path);]]></implementation>
+            </method>
+            <method name="vfsIOGetcwd" ctype="msg_t">
+              <brief>Copies the associated root current directory.</brief>
+              <details>Uses the associated root and its existing local synchronization. Returns ENOSYS if no root is associated.</details>
+              <param name="buf" ctype="char *" dir="out">Path output buffer.</param>
+              <param name="size" ctype="size_t" dir="in">Buffer capacity.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+if (self->root == NULL) {
+  return CH_RET_ENOSYS;
+}
+if (buf == NULL) {
+  return CH_RET_EINVAL;
+}
+
+return vfsRootGetCurrentDirectory(self->root, buf, size);]]></implementation>
+            </method>
+            </condition>
+          </regular>
+          <inline>
+            <condition check="VFS_CFG_ENABLE_DRV_ROOT == TRUE">
+            <method name="vfsIOGetRootX" ctype="vfs_root_c *">
+              <brief>Returns the borrowed root.</brief>
+              <details>The root association must remain stable during use. This getter does not retain the root.</details>
+              <return>The associated root or NULL.</return>
+              <xclass />
+              <implementation><![CDATA[
+return self->root;]]></implementation>
+            </method>
+            </condition>
+          </inline>
+        </methods>
+      </class>
+    </types>
+  </public>
+  <private>
+    <includes_always>
+      <include style="regular">vfs.h</include>
+    </includes_always>
+    <includes>
+      <include style="angular">limits.h</include>
+      <include style="angular">string.h</include>
+    </includes>
+    <variables>
+      <condition check="VFS_CFG_ENABLE_DRV_ROOT == TRUE">
+        <variable name="reserved_node" ctype="vfs_node_c">
+          <brief>Private identity for a pending open; never dispatched.</brief>
+        </variable>
+      </condition>
+    </variables>
+    <functions>
+      <function name="is_node" ctype="bool">
+        <brief>Distinguishes an occupied slot from empty or reserved slots.</brief>
+        <param name="np" ctype="vfs_node_c *" dir="in">Slot value.</param>
+        <return>True for an admitted node.</return>
+        <implementation><![CDATA[
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+if (np == &reserved_node) {
+  return false;
+}
+#endif
+
+return np != NULL;]]></implementation>
+      </function>
+      <function name="check_node" ctype="msg_t">
+        <brief>Checks whether a caller-owned node can be admitted.</brief>
+        <param name="np" ctype="vfs_node_c *" dir="in">Owned reference.</param>
+        <return>CH_RET_SUCCESS or an encoded error.</return>
+        <implementation><![CDATA[
+if (!is_node(np)) {
+  return CH_RET_EINVAL;
+}
+if ((np->vmt->addref != __ro_addref_impl) ||
+    (np->vmt->release != __ro_release_impl)) {
+  return CH_ENCODE_ERROR(ENOTSUP);
+}
+
+return CH_RET_SUCCESS;]]></implementation>
+      </function>
+      <function name="retain_nodeI" ctype="bool">
+        <brief>Pins an admitted node without dispatching a virtual method.</brief>
+        <param name="np" ctype="vfs_node_c *" dir="both">Node owned by a slot.</param>
+        <return>True on success, false on reference counter overflow.</return>
+        <iclass />
+        <implementation><![CDATA[
+chDbgCheckClassI();
+chDbgAssert(np->references > 0U, "unreferenced node");
+
+if (np->references == UINT_MAX) {
+  return false;
+}
+np->references++;
+
+return true;]]></implementation>
+      </function>
+      <function name="pin_descriptor" ctype="msg_t">
+        <brief>Acquires a reference while protecting descriptor lookup.</brief>
+        <param name="self" ctype="vfs_io_c *" dir="both">I/O context.</param>
+        <param name="fd" ctype="int" dir="in">Descriptor.</param>
+        <param name="npp" ctype="vfs_node_c **" dir="out">Owned reference on success.</param>
+        <return>CH_RET_SUCCESS, EBADF or EOVERFLOW.</return>
+        <implementation><![CDATA[
+vfs_node_c *np;
+msg_t ret = CH_RET_EBADF;
+
+if ((fd < 0) || ((size_t)fd >= self->size)) {
+  return ret;
+}
+
+chSysLock();
+np = self->nodes[fd];
+if (is_node(np)) {
+  if (retain_nodeI(np)) {
+    *npp = np;
+    ret = CH_RET_SUCCESS;
+  }
+  else {
+    ret = CH_RET_EOVERFLOW;
+  }
+}
+chSysUnlock();
+
+return ret;]]></implementation>
+      </function>
+    </functions>
+  </private>
+</module>
