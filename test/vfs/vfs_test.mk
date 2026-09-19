@@ -11,7 +11,8 @@ TESTSRC += ${CHIBIOS}/test/vfs/source/test/vfs_test_root.c \
            ${CHIBIOS}/test/vfs/source/test/vfs_test_sequence_009.c \
            ${CHIBIOS}/test/vfs/source/test/vfs_test_sequence_010.c \
            ${CHIBIOS}/test/vfs/source/test/vfs_test_sequence_011.c \
-           ${CHIBIOS}/test/vfs/source/test/vfs_test_sequence_012.c
+           ${CHIBIOS}/test/vfs/source/test/vfs_test_sequence_012.c \
+           ${CHIBIOS}/test/vfs/source/test/vfs_test_sequence_013.c
 
 # Required include directories
 TESTINC += ${CHIBIOS}/test/vfs/source/test

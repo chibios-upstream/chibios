@@ -54,7 +54,7 @@
  * @brief   Maximum filename length.
  */
 #if !defined(VFS_CFG_NAMELEN_MAX) || defined(__DOXYGEN__)
-#define VFS_CFG_NAMELEN_MAX                 15
+#define VFS_CFG_NAMELEN_MAX                 31
 #endif
 
 /**

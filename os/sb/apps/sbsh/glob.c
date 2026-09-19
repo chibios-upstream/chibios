@@ -272,28 +272,40 @@ static int expand_pattern(sbsh_state_t *state,
 
     offset = 0U;
     while (offset < (size_t)n) {
-      struct dirent *entry;
+      struct dirent entry;
+      const char *name;
+      size_t remaining = (size_t)n - offset;
 
-      entry = (struct dirent *)(void *)(state->pathbuf + offset);
-      if ((entry->d_reclen == 0U) ||
-          (offset + entry->d_reclen > (size_t)n)) {
+      if (remaining < SB_DIRENT_RECLEN(0)) {
         errno = EIO;
         (void)close(fd);
         return -1;
       }
-      if (!is_dots(entry->d_name) &&
-          wildcard_match(plan, last, entry->d_name)) {
+      memcpy(&entry, state->pathbuf + offset,
+             offsetof(struct dirent, d_name));
+      name = state->pathbuf + offset + offsetof(struct dirent, d_name);
+      if ((entry.d_reclen < SB_DIRENT_RECLEN(0)) ||
+          ((entry.d_reclen % SB_DIRENT_ALIGNMENT) != 0U) ||
+          ((size_t)entry.d_reclen > remaining) ||
+          (memchr(name, '\0', entry.d_reclen -
+                              offsetof(struct dirent, d_name)) == NULL)) {
+        errno = EIO;
+        (void)close(fd);
+        return -1;
+      }
+      if (!is_dots(name) &&
+          wildcard_match(plan, last, name)) {
         if (add_match(state,
                       argcp,
                       pattern,
                       prefix_length,
-                      entry->d_name) != 0) {
+                      name) != 0) {
           (void)close(fd);
           return -1;
         }
         matches++;
       }
-      offset += entry->d_reclen;
+      offset += entry.d_reclen;
     }
   }
   (void)close(fd);

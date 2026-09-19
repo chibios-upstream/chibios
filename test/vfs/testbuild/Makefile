@@ -24,6 +24,7 @@ BUILDDIR = ./build
 DEPDIR   = ./.dep
 
 OOPSELECT := base referenced
+UTILSSELECT := paths
 
 include $(CHIBIOS)/os/license/license.mk
 include $(CHIBIOS)/os/common/oop/oop.mk
@@ -39,20 +40,22 @@ include $(CHIBIOS)/os/test/test.mk
 include $(CHIBIOS)/test/vfs/vfs_test.mk
 ifeq ($(VFS_TEST_FATFS),yes)
 FATFS_TEST_DIR ?= $(CHIBIOS)/ext/fatfs/source
-ALLCSRC += $(FATFS_TEST_DIR)/ff.c
+ALLCSRC += $(FATFS_TEST_DIR)/ff.c $(FATFS_TEST_DIR)/ffunicode.c
 ALLINC  += $(FATFS_TEST_DIR)
 endif
 ifeq ($(VFS_TEST_LITTLEFS),yes)
 include $(CHIBIOS)/os/various/littlefs_bindings/littlefs.mk
 endif
 
-CSRC = $(ALLCSRC) $(TESTSRC) main.c newlib_test.c
+CSRC = $(ALLCSRC) $(TESTSRC) main.c newlib_test.c sb_test.c
 CPPSRC = $(ALLCPPSRC)
 ASMSRC = $(ALLASMSRC)
 ASMXSRC = $(ALLXASMSRC)
-INCDIR = . $(CONFDIR) $(ALLINC) $(TESTINC)
+INCDIR = . $(CONFDIR) sb_stubs $(CHIBIOS)/os/sb/common \
+         $(CHIBIOS)/os/sb/user $(CHIBIOS)/os/sb/apps/common/elfexec \
+         $(ALLINC) $(TESTINC)
 
-UDEFS = -DSIMULATOR -DVFS_TEST_NEWLIB -DTEST_CFG_DELAY_BETWEEN_TESTS=0 \
+UDEFS = -DSIMULATOR -DVFS_TEST_NEWLIB -DVFS_TEST_SB -DVFS_CFG_NAMELEN_MAX=31 -DTEST_CFG_DELAY_BETWEEN_TESTS=0 \
         -DTEST_CFG_SIZE_REPORT=FALSE \
         -DDRV_CFG_ROM_ENABLE_COMPRESSION=TRUE
 ifeq ($(VFS_TEST_FATFS),yes)

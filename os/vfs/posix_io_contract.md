@@ -4,11 +4,11 @@ Step 1 of the [POSIX I/O plan](posix_io_plan.md), completed on 2026-09-19.
 This specifies the target of steps 2 through 7; it does not claim that the
 current prototype or adapters already implement every requirement below.
 
-Steps 2 and 3 implement open routing, flag validation, descriptor flags,
-shared access/append state, transfer/seek checks and native namespace type checks.
-Generated tests cover real FatFS/LittleFS and ROM/stream backends, including
-reserved descriptors and concurrent close/reuse. Adapter migrations remain
-pending. See the plan for checks and ARM storage measurements.
+Steps 2 through 4 implement open routing, flag validation, descriptor flags,
+shared access/append state, transfer/seek checks, native namespace type checks,
+and the sandbox adapter migration. Tests cover real FatFS/LittleFS, ROM/stream
+backends and production guest libc/shell code through simulated traps. Newlib
+migration remains pending. See the plan for checks and ARM storage measurements.
 
 ## Boundary and ownership
 
@@ -175,7 +175,18 @@ bounded NUL-terminated names and initialized padding; copy safely to unaligned
 guest memory. Reject a buffer smaller than the maximum supported record before
 advancing the iterator. This conservative minimum avoids adding a pending-entry
 allocation. Verify `DIR_BUF_SIZE` against the configured maximum. Short batches
-are valid; the next call must not lose or repeat an entry.
+are valid; the next call must not lose or repeat an entry. The implementation
+uses `SB_DIRENT_RECLEN(VFS_CFG_NAMELEN_MAX)` as the minimum getdents capacity;
+record strides are rounded to `sizeof(ino_t)`. Guest DIR storage is aligned.
+A partial batch takes precedence over an error encountered after its entries;
+an error with no output is reported immediately. Readdir caches EOF without
+altering errno and rejects malformed records with EIO.
+
+Sandbox operations 1 through 18 keep their numbers. Operation 19 adds isatty
+through `VFS_CTL_TTY_ISATTY`; nonterminal devices and directories return ENOTTY.
+Rebuild host and guest together for aligned directory records and this syscall.
+`sbRegisterDescriptor()` now returns an encoded result and consumes the node
+reference only on success; registration and root changes still require STOPPED.
 
 Duplication follows [POSIX dup](https://pubs.opengroup.org/onlinepubs/9799919799/functions/dup.html).
 Access/transfer rules use [read](https://pubs.opengroup.org/onlinepubs/9799919799/functions/read.html)
@@ -202,7 +213,7 @@ to [POSIX lseek](https://pubs.opengroup.org/onlinepubs/9799919799/functions/lsee
 | Open-file unlink/rename | Not portable in this subset. Callers close all references first, as the shell's pipeline cleanup already does. LittleFS-specific behavior is not a common guarantee. |
 | FatFS simultaneous native opens | Multiple read-only opens are allowed; any conflicting writable open is unsupported. dup shares one FIL and is allowed. A wrapper mutex does not make multiple FIL caches coherent. |
 | LittleFS simultaneous native opens | Conflicting independent writable opens of one file are unsupported: each native handle caches its own file size and data state. A native probe of two append handles produced `seedB` after A then B, losing A. Use duplicates of one handle or close/reopen with external serialization. No wrapper registry rejects this misuse. |
-| FatFS misuse rejection | Writable sandbox deployments must enable FF_FS_LOCK with capacity for their simultaneously open native files/directories, so conflicting opens/remove/rename fail instead of corrupting data. This is independent of FF_FS_REENTRANT and VFS mutexes. Current SB demos set it to zero and need configuration updates in step 4. General non-sandbox use may retain zero under the documented caller restrictions. |
+| FatFS misuse rejection | Writable sandbox deployments must enable FF_FS_LOCK with capacity for their simultaneously open native files/directories, so conflicting opens/remove/rename fail instead of corrupting data. This is independent of FF_FS_REENTRANT and VFS mutexes. Both writable L4R9 SB demos now set it to 16 (12 guest descriptors plus four host/loader objects). General non-sandbox use may retain zero under the documented caller restrictions. |
 | FatFS error detail | Keep EACCES for FR_LOCKED/FR_DENIED unless a precise native distinction is available. In particular, nonempty rmdir may return EACCES instead of ENOTEMPTY. Native capacity exhaustion is ENFILE. |
 | Final close errors | The current void reference-disposal interface cannot propagate native close/flush errors, especially when a pin delays final disposal. Do not claim successful descriptor close confirms durable storage. A status-returning flush/close design is separate work. |
 | Metadata | File type/size and initialized fields are required. Permission bits, inode identity, timestamps and link counts are limited to available native information; no fabricated POSIX permission enforcement. |
@@ -263,15 +274,21 @@ in `test/vfs/configuration.xml`; it is not native-filesystem conformance evidenc
 | NS-02 | Rename to new name, itself, existing destination and another FS; assert documented backend result and preservation of destination on failure | Implemented / 3, native rename and root EXDEV |
 | RO-01 | ROM/read-only backing: R, R+A, existing R+C, existing C+X, missing C and write/truncate; assert documented results without mutation | Specified / 2 |
 | STREAM-01 | Registered read/write capabilities, D on device, missing C, existing C+X, A/T on character versus random stream, isatty on non-TTY character device | Specified / 2-3 |
-| DIR-01 | fdopendir invalid fd/regular file/allocation failure; original fd remains owned; opendir allocation failure releases its internal fd; closedir closes once | Specified / 4 |
-| DIR-02 | Mixed name lengths, unaligned output, maximum-length record, too-small buffer, EOF/error and multiple batches; rejected buffer consumes nothing; no uninitialized padding | Specified / 4 |
-| SB-01 | Guest invalid string/range, signed length conversion, fstat of directory and terminal control; verify libc result/errno and memory validation | Specified / 4 |
-| SB-02 | Shell input/output/append redirection, glob, script calling ELF and spooled pipeline; stdio restored, temporary files closed/removed, caller descriptors survive returning ELF call | Specified / 4 |
-| FAT-01 | FF_FS_LOCK enabled: distinct read-only opens work, conflicting write/remove/rename reject; dup remains usable; native lock-table exhaustion reports ENFILE | Specified / 4 |
+| DIR-01 | fdopendir invalid fd/regular file/allocation failure; original fd remains owned; opendir allocation failure releases its internal fd; closedir closes once | Verified / 4 |
+| DIR-02 | Mixed name lengths, unaligned output, maximum-length record, too-small buffer, EOF/error and multiple batches; rejected buffer consumes nothing; no uninitialized padding | Verified / 4 |
+| SB-01 | Guest invalid string/range, signed length conversion, fstat of directory and terminal control; verify libc result/errno and memory validation | Verified / 4 |
+| SB-02 | Production shell input/output/append redirection, glob and spooled pipeline; stdio restored, temporary files closed/removed, script-like CLOEXEC descriptor survives a simulated returning program | Verified / 4; ARM ELF execution is not simulated |
+| FAT-01 | FF_FS_LOCK enabled: distinct read-only opens work, conflicting write/remove/rename reject; dup remains usable; native lock-table exhaustion reports ENFILE | Verified / 4 |
 | LIBC-01 | Newlib seek/tell, file/directory fstat, TTY/non-TTY, buffered stdio and errno translation through configured context | Specified / 5 |
 
 When implementing, put generated regression cases in the test XML and validate
 the schema before regeneration. Use real native backends for their flag and
-namespace behavior, and guest libc for directory-stream ownership. This step
-performed source and ABI checks only; no runtime behavior was changed or newly
-claimed as passing.
+namespace behavior, and guest libc for directory-stream ownership. The original
+step 1 performed source and ABI checks only. Step 4 adds suite 013 and the
+`testbuild/sb_test.c` adapter fixture; native backend suites call the same guest
+workflow helper. It also checks close/reuse while getdents waits for scratch.
+The fixture exercises host memory validation but does not emulate an ARM MPU,
+trap instruction or ELF execution. A subsequent G474 hardware run adds actual
+SVC/MPU/ELF coverage: 207 guest checks passed with VFS mutexes off/on, followed
+by normal and fault-driven sandbox restart. Writable backends remain simulator
+coverage on this board. The plan records all completed validation.

@@ -80,6 +80,9 @@ bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
 void vfs_test_fs_reset(void);
 void vfs_test_open_matrix(vfs_fs_c *fsp);
 void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs);
+#if defined(VFS_TEST_SB)
+#include "sb_test.h"
+#endif
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);
 #endif]]></value>
@@ -2503,7 +2506,10 @@ eflStop(&EFLD1);]]></value></teardown_code>
               <description><value><![CDATA[POSIX open flag matrix.]]></value></description>
               <tags><value /></tags>
               <code><value><![CDATA[vfs_test_open_matrix((vfs_fs_c *)&vfs_test_lfs_driver);
-vfs_test_handle_contract((vfs_fs_c *)&vfs_test_lfs_driver, false);]]></value></code>
+vfs_test_handle_contract((vfs_fs_c *)&vfs_test_lfs_driver, false);
+#if defined(VFS_TEST_SB) && VFS_CFG_ENABLE_DRV_ROOT == TRUE
+vfs_test_sb_native((vfs_fs_c *)&vfs_test_lfs_driver);
+#endif]]></value></code>
             </step>
           </steps>
         </case>
@@ -3314,7 +3320,10 @@ test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");]]></value></teardown
               <description><value><![CDATA[POSIX open flag matrix.]]></value></description>
               <tags><value /></tags>
               <code><value><![CDATA[vfs_test_open_matrix((vfs_fs_c *)&vfs_test_fat_driver);
-vfs_test_handle_contract((vfs_fs_c *)&vfs_test_fat_driver, true);]]></value></code>
+vfs_test_handle_contract((vfs_fs_c *)&vfs_test_fat_driver, true);
+#if defined(VFS_TEST_SB) && VFS_CFG_ENABLE_DRV_ROOT == TRUE
+vfs_test_sb_native((vfs_fs_c *)&vfs_test_fat_driver);
+#endif]]></value></code>
             </step>
           </steps>
         </case>
@@ -6716,5 +6725,45 @@ test_assert(vfsIOStat(&open_io, "data", &st) == 0 && st.size == 4,
       </cases>
     </sequence>
 
+    <sequence>
+      <type index="0"><value>Internal Tests</value></type>
+      <brief><value>Sandbox I/O and directory streams</value></brief>
+      <description><value>Production sandbox adapters and guest libc on the simulator.</value></description>
+      <condition><value>defined(VFS_TEST_SB) &amp;&amp; VFS_CFG_ENABLE_DRV_ROOT == TRUE</value></condition>
+      <shared_code><value><![CDATA[#include "vfs.h"
+#include "sb_test.h"]]></value></shared_code>
+      <cases>
+        <case>
+          <brief><value>Directory records and stream ownership</value></brief>
+          <description><value>Directory records and stream ownership</value></description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps><step>
+            <description><value>Directory records and stream ownership</value></description>
+            <tags><value /></tags>
+            <code><value>vfs_test_sb_directories();</value></code>
+          </step></steps>
+        </case>
+        <case>
+          <brief><value>Directory retention across scratch waits</value></brief>
+          <description><value>Directory retention across scratch waits</value></description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps><step>
+            <description><value>Directory retention across scratch waits</value></description>
+            <tags><value /></tags>
+            <code><value>vfs_test_sb_directory_wait();</value></code>
+          </step></steps>
+        </case>
+      </cases>
+    </sequence>
   </sequences>
 </instance>

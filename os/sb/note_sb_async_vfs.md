@@ -58,7 +58,7 @@ carrier.
   using the VRQ flags mechanism (`sbVRQSetFlagsI` is documented as "a
   fast way to transmit a (virtual) peripheral status" — this is exactly
   that). A small submission-slot table per SB lives next to
-  `vfs_nodes[]` in `sb_ioblock_t`; slot count is the natural quota for
+  the shared VFS I/O context and descriptor entries in `sb_ioblock_t`; slot count is the natural quota for
   in-flight operations per SB.
 - VFS becomes, in effect, another virtual peripheral, unifying its model
   with VIO.

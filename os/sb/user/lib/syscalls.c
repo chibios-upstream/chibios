@@ -61,6 +61,11 @@ __attribute__((used))
 int _write_r(struct _reent *r, int file, char *ptr, int len) {
   msg_t err;
 
+  if (len < 0) {
+    __errno_r(r) = EINVAL;
+    return -1;
+  }
+
   err = sbWrite(file, (const void *)ptr, (size_t)len);
   if (CH_RET_IS_ERROR(err)) {
     __errno_r(r) = CH_DECODE_ERROR(err);
@@ -73,6 +78,11 @@ int _write_r(struct _reent *r, int file, char *ptr, int len) {
 __attribute__((used))
 int _read_r(struct _reent *r, int file, char *ptr, int len) {
   msg_t err;
+
+  if (len < 0) {
+    __errno_r(r) = EINVAL;
+    return -1;
+  }
 
   err = sbRead(file, (void *)ptr, (size_t)len);
   if (CH_RET_IS_ERROR(err)) {
@@ -125,16 +135,10 @@ int _stat_r(struct _reent *r, const char *file, struct stat *pstat) {
 __attribute__((used))
 int _isatty_r(struct _reent *r, int fd) {
   msg_t err;
-  struct stat s;
 
-  err = sbFstat(fd, &s);
+  err = sbIsatty(fd);
   if (CH_RET_IS_ERROR(err)) {
     __errno_r(r) = CH_DECODE_ERROR(err);
-    return 0;
-  }
-
-  if (!S_ISCHR(s.st_mode)) {
-    __errno_r(r) = ENOTTY;
     return 0;
   }
 
@@ -210,6 +214,11 @@ int tcsetattr(int fd, int optional_actions, const struct termios *termiosp) {
 
 int _getdents_r(struct _reent *r, int fd, void *dp, int count) {
   msg_t n;
+
+  if (count < 0) {
+    __errno_r(r) = EINVAL;
+    return -1;
+  }
 
   n = sbGetdents(fd, dp, count);
   if (CH_RET_IS_ERROR(n)) {

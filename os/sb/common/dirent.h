@@ -27,6 +27,7 @@
 #ifndef DIRENT_H
 #define DIRENT_H
 
+#include <stddef.h>
 #include <sys/types.h>
 
 /*===========================================================================*/
@@ -80,12 +81,24 @@ typedef struct {
   int               fd;
   ssize_t           next;
   ssize_t           size;
-  char              buf[DIR_BUF_SIZE];
+  union {
+    ino_t           alignment;
+    char            buf[DIR_BUF_SIZE];
+  };
 } DIR;
 
 /*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/
+
+/* Records preserve field offsets and round their stride to inode alignment.
+   Names are terminated within d_reclen; all padding bytes are zero. The host
+   requires space for a maximum VFS name before consuming any entry. Host and
+   guest must be rebuilt with this shared contract.*/
+#define SB_DIRENT_ALIGNMENT sizeof(ino_t)
+#define SB_DIRENT_RECLEN(n)  ((offsetof(struct dirent, d_name) + (n) + 1U + \
+                              SB_DIRENT_ALIGNMENT - 1U) & \
+                             ~(SB_DIRENT_ALIGNMENT - 1U))
 
 #define IFTODT(mode)        (((mode) & 0170000) >> 12)
 #define DTTOIF(dirtype)     ((dirtype) << 12)

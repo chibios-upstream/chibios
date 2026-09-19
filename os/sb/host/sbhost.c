@@ -602,6 +602,9 @@ void sbObjectInit(sb_class_t *sbp) {
 
   memset((void *)sbp, 0, sizeof (sb_class_t));
   sbp->state = SB_STATE_STOPPED;
+#if SB_CFG_ENABLE_VFS == TRUE
+  (void)vfsioObjectInit(&sbp->io.context, sbp->io.descriptors, SB_CFG_FD_NUM);
+#endif
 
   /* Marking the thread as terminated in order to make sbIsThreadRunningX()
      behave correctly.*/

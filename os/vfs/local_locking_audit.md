@@ -264,20 +264,26 @@ while the host executes a syscall. Normal exit/fault and failed-start paths
 invoke cleanup outside system locks before stopped-state reuse. Host lifecycle
 operations themselves require external serialization.
 
-The table's reference therefore retains a directory throughout getdents,
-including guarded-pool and backend waits, without an extra pin or table mutex.
-Close and cleanup now detach entries before release. Dup2 retains its source,
-replaces the destination, then releases the displaced reference. Sharing nodes
-with the host or another sandbox still requires separate references and
-same-handle ordering. Supporting host-side mutation of an active table would
-require a separate pinning protocol; it is outside the supported contract.
+The later [POSIX I/O migration](posix_io_plan.md), step 4, replaces this private
+table with `vfs_io_c` and descriptor entries. Operations now take shared-class
+pins; getdents pins a directory before scratch allocation and retains it for the
+whole batch. Close and cleanup detach before release. Sharing nodes with the
+host or another sandbox still requires separate references and same-handle
+ordering. Host-side mutation of an active table remains outside the sandbox
+lifecycle contract despite the shared class's close/reuse protection.
 
 Simulator tests compile the production newlib bindings with only a minimal
 libc ABI shim and renamed symbols. Controlled read/write/disposal suspension
 verifies close/reuse, success/error cleanup, original-node retention, and
 unlocked driver/disposal entry. Invalid descriptors, directories, full tables
-and custom-reference rejection are covered. Sandbox changes are source-audited
-and ARM compile/link validated; no sandbox runtime test is claimed here.
+and custom-reference rejection are covered. The original sandbox checks were
+source/ARM build checks. POSIX migration step 4 now compiles production sandbox
+host dispatch, region validation and guest libc/shell into a simulator fixture;
+it covers ownership, scratch waits, close/reuse and native filesystem workflows.
+The subsequent G474 multi-demo hardware run also covers real SVC/MPU and ELF
+execution, with 207 guest checks under both mutex settings and successful normal
+and fault-driven restart. Its ROMFS/stream setup does not test writable backends;
+see the POSIX I/O plan for the scope.
 
 ## Caller integration — step 5 implementation
 
@@ -291,7 +297,7 @@ API or locked pool-wait helper is introduced.
 | Caller | Ownership through calls and waits | Remaining caller requirement |
 | --- | --- | --- |
 | Newlib | Table reference plus per-operation pin; detach before final release | Serialize same-node operations and libc stream state |
-| Sandbox getdents | Active table reference retained by the owning host thread; one whole scratch pair | Host lifecycle changes only while stopped; shared nodes need their own references and ordering |
+| Sandbox getdents | Explicit shared-context node pin across the batch/waits; one whole scratch pair | Host lifecycle changes only while stopped; shared nodes need their own references and ordering |
 | ELF load/size query | Borrows caller's node; relocation allocates and returns one pair locally | Retain reference and serialize the whole sequence of seeks/reads; own destination exclusively; enter without a scratch pair |
 | ELF path load and sandbox startup | Private open node released on success/error | Keep root and storage alive, own destination exclusively |
 | Both HTTP bindings | One reference per HTTP file; private path array; detach before disposal | Initialize before serving, keep binding stable and serialize each HTTP file through close |

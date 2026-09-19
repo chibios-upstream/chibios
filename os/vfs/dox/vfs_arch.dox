@@ -240,8 +240,8 @@
  * access with no pending calls. Same-node operation ordering remains the
  * caller's responsibility, including seek followed by position retrieval.
  *
- * The newlib and sandbox adapters still use their existing tables, described
- * below, pending migration to this shared implementation.
+ * Sandboxes embed this context and caller-owned entries. Newlib still uses
+ * its existing protected table pending migration, as described below.
  *
  * Newlib descriptors each own one node reference. Insertion, lookup/pinning
  * and detachment use short system critical sections. Read/write and fstat
@@ -259,10 +259,19 @@
  *
  * A sandbox has one host thread owning its active descriptor table. Host
  * registration is allowed only while STOPPED, under exclusive lifecycle
- * ownership. Table references retain nodes throughout syscalls, including
- * getdents scratch waits. Close and cleanup detach before release; dup2 retains
- * the source and replaces the destination before releasing the old node.
- * Host-side mutation of a running sandbox's table remains unsupported.
+ * ownership. Shared-context operations pin nodes for the whole call; getdents
+ * explicitly pins one directory before its scratch wait and retains it across
+ * the batch. Close/cleanup detach before release. Registration returns an error
+ * without consuming the supplied reference on failure. The borrowed root is
+ * preserved across cleanup. Host-side mutation of a running sandbox's table
+ * remains unsupported; shared handles still need caller ordering.
+ *
+ * Guest directory records retain their field offsets, round their stride to
+ * inode alignment and initialize all padding. A buffer must hold the largest
+ * configured record before iteration starts. Guest fdopendir takes ownership
+ * only on success; opendir closes its own descriptor on allocation failure.
+ * Terminal detection uses control capability through sandbox operation 19.
+ * Rebuild host and guest together for the updated shared directory contract.
  *
  * @subsection vfs_arch_callers Caller integration
  *

@@ -333,6 +333,17 @@ static inline msg_t sbFstat(int fd, struct stat *statbuf) {
 }
 
 /**
+ * @brief   Checks terminal capability without changing terminal state.
+ * @param[in] fd        file descriptor
+ * @return              Success for a terminal or an encoded error.
+ */
+static inline msg_t sbIsatty(int fd) {
+
+  __syscall2r(128, SB_POSIX_ISATTY, fd);
+  return (msg_t)r0;
+}
+
+/**
  * @brief   Retrieves terminal attributes.
  *
  * @param[in] fd        file descriptor

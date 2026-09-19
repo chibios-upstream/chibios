@@ -1,6 +1,6 @@
 # VFS I/O API and sandbox POSIX behavior plan
 
-Created on 2026-09-19. Status: steps 1 through 3 complete; step 4 is next.
+Created on 2026-09-19. Status: steps 1 through 4 complete; step 5 is next.
 
 Make `vfs_io_c` the main application interface for paths and descriptors,
 shared by Newlib bindings and sandboxes. Target the POSIX behavior needed by
@@ -32,9 +32,9 @@ Build on the I/O class prototype committed at `8265033984` and the completed
 
 ## Findings to address
 
-The prototype already covers descriptor ownership, pinning, duplication, slot
-reservation and root delegation, with focused tests. Neither descriptor-table
-implementation in the adapters has been replaced yet.
+These were the initial audit findings. Steps 2 through 4 now address the VFS
+and sandbox issues; Newlib migration remains step 5. The sandbox uses the shared
+context, while Newlib still has its own protected descriptor table.
 
 Sandbox `libdir.c` and shell globbing already pass `O_DIRECTORY | O_CLOEXEC`.
 Current VFS flag definitions omit both. FatFS and LittleFS flag translators
@@ -202,7 +202,65 @@ and the OOP_USE_NOTHING compile check pass.
 Deliverable: ownership/duplication/flag tests, wrong-access tests, append-after-
 seek tests, and a documented memory and concurrency contract.
 
-### 4. Migrate sandboxes and repair directory-stream behavior
+### 4. Migrate sandboxes and repair directory-stream behavior - complete
+
+Each sandbox embeds the shared context and descriptor entries. Initialization,
+registration, syscalls and cleanup use that context; stopped-state lifecycle
+rules and borrowed root lifetime remain in force. Registration now reports
+errors and consumes the supplied reference only on success. Guest range/string
+checks remain in the adapter; stat output supports unaligned guest buffers.
+
+Getdents pins one directory before waiting for scratch and keeps it for the
+whole batch. Records preserve field offsets, use an inode-aligned stride and
+zero padding, and can be copied to unaligned output. A first buffer smaller
+than the maximum configured record is rejected before cursor advancement.
+Guest directory streams validate records, preserve fd ownership on failure,
+and distinguish EOF from errors. Shell globbing reads headers by byte copy.
+
+Terminal detection uses the existing VFS terminal control operation through
+new sandbox operation 19; operations 1 through 18 retain their encodings.
+Host and guest must be rebuilt together for the updated shared directory ABI
+and terminal syscall. ARM Newlib measurements: inode size 2, name offset 5,
+maximum record 38 bytes with NAMELEN_MAX=31, and DIR size 524. Sandbox I/O storage
+is 16 + 8*N bytes instead of 4 + 4*N: an increase of 60 bytes for 12 descriptors.
+
+Both writable L4R9 sandbox demos enable FF_FS_LOCK=16 (12 guest descriptors
+plus four host/loader objects). Their VFS name limit is now 31, regenerated with
+the updater: the shell's temporary filename needs 19 characters, exceeding the
+previous limit of 15. Native FatFS reentrancy remains independent.
+
+Validation compiles production host dispatch/range checks and guest libc,
+parser, glob and execution code into the simulator, replacing the ARM trap and
+program entry with a host fixture. Tests cover ownership/allocation failures,
+multiple directory batches, padding/alignment, partial errors/EOF, scratch waits
+with close/reuse, invalid guest memory/counts, full-table mutation rejection,
+terminal capability, globbing, input/output/append redirection, spooled pipeline
+cleanup, and CLOEXEC survival across a returning program call. The shell has no
+here-document syntax; its temporary-document creation/rewind/cleanup primitive
+is covered. FatFS tests additionally check native conflicts and lock exhaustion.
+
+FatFS and LittleFS suites pass with mutexes/debug checks enabled and with kernel
+mutexes/condition variables disabled. Root-disabled builds pass. STM32G474
+switched and both STM32L4R9 FatFS sandbox hosts, plus the ARM sbsh guest, compile
+and link. XML schema, deterministic regeneration and changed/new-source style
+checks pass.
+
+Hardware follow-up: the STM32G474RE multi-target sandbox demo was rebuilt with
+fresh guest images and run through OpenOCD on port 3333 and its 38400-baud ST-LINK
+console. A temporary guest probe passed 207 checks with VFS mutexes both disabled
+and enabled, with kernel assertions/checks/state checking active. It covered
+TTY/non-TTY capability, unaligned stat/getdents output, record padding and bounds,
+80-entry enumeration across batches, EOF, fdopendir errors, independent directory
+cursors, dup/shared offsets, signed seek, access checks, descriptor exhaustion
+and reuse, and invalid/out-of-range guest pointers through actual SVC dispatch.
+A ROMFS script continued after real ELF calls, retaining its CLOEXEC descriptor.
+A deliberate write to protected host RAM terminated only the sandbox with
+status 000F0004; the host restarted it and the probe passed again. Normal exit
+and restart also passed. Interactive listing, globbing and /dev/null redirection
+passed. The normal ROMFS was regenerated twice identically, removing temporary
+fixtures, and the standard demo restored on the board. Native writable-file and
+spooled-pipeline tests remain simulator coverage: this G4 demo has no writable
+filesystem. The checked-in multi-demo ROMFS now contains rebuilt guest binaries.
 
 - Embed `vfs_io_c` plus fixed-capacity entries in sandbox I/O state. Delegate
   registration, lookup, open/close/dup, path operations and cleanup to it.
