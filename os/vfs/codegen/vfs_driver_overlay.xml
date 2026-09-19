@@ -23,12 +23,31 @@
         <assert invalid="$N &lt; 1" />
       </config>
     </configs>
+    <macros>
+      <condition check="VFS_CFG_USE_MUTUAL_EXCLUSION == FALSE">
+        <macro name="__ovldrv_lock">
+          <brief>Disabled local metadata lock.</brief>
+          <param name="ip" dir="both">Overlay or root object.</param>
+          <notapi />
+          <implementation><![CDATA[]]></implementation>
+        </macro>
+        <macro name="__ovldrv_unlock">
+          <brief>Disabled local metadata unlock.</brief>
+          <param name="ip" dir="both">Overlay or root object.</param>
+          <notapi />
+          <implementation><![CDATA[]]></implementation>
+        </macro>
+      </condition>
+    </macros>
     <types>
       <class type="regular" name="vfs_overlay_dir_node" namespace="ovldir"
         ancestorname="vfs_directory_node" descr="VFS overlay directory node">
         <fields>
           <field name="index" ctype="unsigned">
             <brief>Next directory entry to be read.</brief>
+          </field>
+          <field name="phase" ctype="unsigned">
+            <brief>Mounts, backing, or end enumeration phase.</brief>
           </field>
           <field name="overlaid_root" ctype="vfs_directory_node_c$I*">
             <brief>File system to be overlaid.</brief>
@@ -45,6 +64,7 @@
 self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
 
 self->index         = 0U;
+self->phase         = OVL_DIR_MOUNTS;
 self->overlaid_root = NULL;]]></implementation>
           </objinit>
           <dispose>
@@ -72,8 +92,17 @@ self->overlaid_root = NULL;]]></implementation>
           through an overlay or while their nodes or operations remain
           active. Routing borrows read-only absolute paths and does not
           allocate path buffers. Backing prefixes are provided by the root
-          driver.</details>
+          driver. Optional local metadata locking protects mount lookup and
+          updates, and is released before delegation. Backing pointers remain
+          immutable after publication. Directory enumeration is a live view:
+          mount changes may skip or repeat entries, but do not restart backing
+          iteration. Callers serialize use of each open directory.</details>
         <fields>
+          <condition check="VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE">
+            <field name="mutex" ctype="mutex_t">
+              <brief>Local metadata mutex, also used by derived roots.</brief>
+            </field>
+          </condition>
           <field name="overlaid_drv" ctype="vfs_fs_c$I*"></field>
           <field name="next_driver" ctype="unsigned"></field>
           <field name="names"
@@ -87,10 +116,16 @@ self->overlaid_root = NULL;]]></implementation>
               a file system to be overlaid or @p NULL.]]></param>
             <implementation><![CDATA[
 self->overlaid_drv = overlaid_drv;
-self->next_driver  = 0U;]]></implementation>
+self->next_driver  = 0U;
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+chMtxObjectInit(&self->mutex);
+#endif]]></implementation>
           </objinit>
           <dispose>
-            <implementation><![CDATA[]]></implementation>
+            <implementation><![CDATA[
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+chMtxObjectDispose(&self->mutex);
+#endif]]></implementation>
           </dispose>
           <regular>
             <method name="ovldrvRegisterDriver" ctype="msg_t">
@@ -98,28 +133,44 @@ self->next_driver  = 0U;]]></implementation>
               <note>The file system remains owned by the caller. It must
                 remain alive while registered and until all its nodes and
                 operations have finished. The name string must remain valid
-                while registered.</note>
+                and immutable while registered.</note>
               <param name="fsp" ctype="vfs_fs_c *" dir="in"><![CDATA[Pointer to the caller-owned file system to be registered.]]></param>
               <param name="name" ctype="const char *" dir="in"><![CDATA[Name for the
                 new overlay directory, must be alphanumeric.]]></param>
               <return>The operation result.</return>
               <api />
-              <implementation><![CDATA[
-msg_t ret;
+              <implementation><![CDATA[msg_t ret;
+unsigned i;
 
-chSysLock();
+/* Name length check.*/
+if (strlen(name) > (size_t)VFS_CFG_NAMELEN_MAX) {
+  return CH_RET_ENAMETOOLONG;
+}
+
+__ovldrv_lock(self);
 
 if (self->next_driver >= DRV_CFG_OVERLAY_DRV_MAX) {
   ret = CH_RET_ENOMEM;
 }
 else {
-  self->names[self->next_driver]   = name;
-  self->drivers[self->next_driver] = fsp;
-  self->next_driver++;
+
+  /* Duplicate name check.*/
   ret = CH_RET_SUCCESS;
+  for (i = 0U; i < self->next_driver; i++) {
+    if (strcmp(self->names[i], name) == 0) {
+      ret = CH_RET_EEXIST;
+      break;
+    }
+  }
+
+  if (!CH_RET_IS_ERROR(ret)) {
+    self->names[self->next_driver]   = name;
+    self->drivers[self->next_driver] = fsp;
+    self->next_driver++;
+  }
 }
 
-chSysUnlock();
+__ovldrv_unlock(self);
 
 return ret;]]></implementation>
             </method>
@@ -132,10 +183,9 @@ return ret;]]></implementation>
                 overlay directory to be unregistered.]]></param>
               <return>The operation result.</return>
               <api />
-              <implementation><![CDATA[
-unsigned i;
+              <implementation><![CDATA[unsigned i;
 
-chSysLock();
+__ovldrv_lock(self);
 
 i = 0U;
 while (i < self->next_driver) {
@@ -151,7 +201,7 @@ while (i < self->next_driver) {
     }
     self->next_driver--;
 
-    chSysUnlock();
+    __ovldrv_unlock(self);
 
     return CH_RET_SUCCESS;
   }
@@ -159,11 +209,30 @@ while (i < self->next_driver) {
   i++;
 }
 
-chSysUnlock();
+__ovldrv_unlock(self);
 
 return CH_RET_ENOENT;]]></implementation>
             </method>
           </regular>
+          <inline>
+            <condition check="VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE">
+              <method name="__ovldrv_lock" ctype="void">
+                <brief>Locks local overlay/root metadata.</brief>
+                <note>Thread context only. Do not nest metadata locks or hold
+                  one across delegation, callbacks, disposal, or blocking
+                  allocation.</note>
+                <notapi />
+                <implementation><![CDATA[
+chMtxLock(&self->mutex);]]></implementation>
+              </method>
+              <method name="__ovldrv_unlock" ctype="void">
+                <brief>Unlocks local overlay/root metadata.</brief>
+                <notapi />
+                <implementation><![CDATA[
+chMtxUnlock(&self->mutex);]]></implementation>
+              </method>
+            </condition>
+          </inline>
           <override>
             <method shortname="stat">
               <implementation><![CDATA[]]></implementation>
@@ -208,7 +277,8 @@ return CH_RET_ENOENT;]]></implementation>
         <brief>Matches a registered mount without changing the path.</brief>
         <note>The input points just after the initial separator. On success
           it advances to the remaining separator or string terminator.
-          This function requires thread context.</note>
+          The caller holds the local metadata lock when enabled; this is
+          a thread-context helper, not an S-class function.</note>
         <param name="self" ctype="vfs_overlay_driver_c *" dir="in">Pointer to
           the overlay object.</param>
         <param name="pathp" ctype="const char **" dir="both">Pointer to the

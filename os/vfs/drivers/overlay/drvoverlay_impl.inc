@@ -21,6 +21,12 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+enum {
+  OVL_DIR_MOUNTS,
+  OVL_DIR_BACKING,
+  OVL_DIR_END
+};
+
 static msg_t validate_absolute_path(const char *path) {
 
   if (!vfs_path_is_separator(*path)) {
@@ -38,7 +44,9 @@ static msg_t resolve_path(vfs_overlay_driver_c *self, const char *path,
   msg_t ret;
 
   *delegated = path + 1;
+  __ovldrv_lock(self);
   ret = __ovldrv_match(self, delegated, fsp);
+  __ovldrv_unlock(self);
   if (!CH_RET_IS_ERROR(ret)) {
     if (**delegated == '\0') {
       *delegated = "/";
@@ -61,6 +69,7 @@ static msg_t resolve_path(vfs_overlay_driver_c *self, const char *path,
  * @brief   Matches a registered mount without changing the path.
  * @note    The input points just after the initial separator. On success
  *          it advances to the remaining separator or string terminator.
+ *          The caller holds the local metadata lock when enabled.
  * @notapi
  */
 msg_t __ovldrv_match(vfs_overlay_driver_c *self, const char **pathp,
@@ -153,6 +162,7 @@ void *__ovldir_objinit_impl(void *ip, const void *vmt,
   self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
 
   self->index         = 0U;
+  self->phase         = OVL_DIR_MOUNTS;
   self->overlaid_root = NULL;
 
   return self;
@@ -215,6 +225,7 @@ msg_t __ovldir_first_impl(void *ip, vfs_direntry_info_t *dip) {
   vfs_overlay_dir_node_c *self = (vfs_overlay_dir_node_c *)ip;
 
   self->index = 0U;
+  self->phase = OVL_DIR_MOUNTS;
 
   return __ovldir_next_impl(self, dip);
 }
@@ -233,30 +244,38 @@ msg_t __ovldir_first_impl(void *ip, vfs_direntry_info_t *dip) {
 msg_t __ovldir_next_impl(void *ip, vfs_direntry_info_t *dip) {
   vfs_overlay_dir_node_c *self = (vfs_overlay_dir_node_c *)ip;
   vfs_overlay_driver_c *drvp = (vfs_overlay_driver_c *)self->fs;
+  msg_t ret;
 
-  if (self->index < drvp->next_driver) {
-    dip->mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR;
-    dip->size = (vfs_offset_t)0;
-    strcpy(dip->name, drvp->names[self->index]);
-
-    self->index++;
-
-    return (msg_t)1;
-  }
-  if (self->overlaid_root != NULL) {
-    if (self->index == drvp->next_driver) {
-
+  if (self->phase == OVL_DIR_MOUNTS) {
+    __ovldrv_lock(drvp);
+    if (self->index < drvp->next_driver) {
+      dip->mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR;
+      dip->size = (vfs_offset_t)0;
+      strcpy(dip->name, drvp->names[self->index]);
       self->index++;
-
-      return vfsDirReadFirst((void *)self->overlaid_root, dip);
+      __ovldrv_unlock(drvp);
+      return (msg_t)1;
     }
-    if (self->index > drvp->next_driver) {
+    __ovldrv_unlock(drvp);
 
-      return vfsDirReadNext((void *)self->overlaid_root, dip);
+    if (self->overlaid_root == NULL) {
+      self->phase = OVL_DIR_END;
+      return (msg_t)0;
     }
+    self->phase = OVL_DIR_BACKING;
+    ret = vfsDirReadFirst(self->overlaid_root, dip);
+  }
+  else if (self->phase == OVL_DIR_BACKING) {
+    ret = vfsDirReadNext(self->overlaid_root, dip);
+  }
+  else {
+    return (msg_t)0;
+  }
+  if (ret == (msg_t)0) {
+    self->phase = OVL_DIR_END;
   }
 
-  return (msg_t)0;
+  return ret;
 }
 /** @} */
 
@@ -305,6 +324,9 @@ void *__ovldrv_objinit_impl(void *ip, const void *vmt,
   /* Initialization code.*/
   self->overlaid_drv = overlaid_drv;
   self->next_driver  = 0U;
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  chMtxObjectInit(&self->mutex);
+#endif
 
   return self;
 }
@@ -322,8 +344,9 @@ void *__ovldrv_objinit_impl(void *ip, const void *vmt,
 void __ovldrv_dispose_impl(void *ip) {
   vfs_overlay_driver_c *self = (vfs_overlay_driver_c *)ip;
 
-  /* No finalization code.*/
-  (void)self;
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  chMtxObjectDispose(&self->mutex);
+#endif
 
   /* Finalization of the ancestors-defined parts.*/
   __vfsfs_dispose_impl(self);
@@ -490,8 +513,10 @@ msg_t __ovldrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
   }
   op = oldpath + 1;
   np = newpath + 1;
+  __ovldrv_lock(self);
   oldret = __ovldrv_match(self, &op, &oldfs);
   newret = __ovldrv_match(self, &np, &newfs);
+  __ovldrv_unlock(self);
   if (!CH_RET_IS_ERROR(oldret) && !CH_RET_IS_ERROR(newret)) {
     if (oldfs != newfs) {
       return CH_RET_EXDEV;
@@ -599,8 +624,8 @@ const struct vfs_overlay_driver_vmt __vfs_overlay_driver_vmt = {
  * @brief       Registers a VFS file system as an overlay.
  * @note        The file system remains owned by the caller. It must remain
  *              alive while registered and until all its nodes and operations
- *              have finished. The name string must remain valid while
- *              registered.
+ *              have finished. The name string must remain valid and immutable
+ *              while registered.
  *
  * @param[in,out] ip            Pointer to a @p vfs_overlay_driver_c instance.
  * @param[in]     fsp           Pointer to the caller-owned file system to be
@@ -621,7 +646,7 @@ msg_t ovldrvRegisterDriver(void *ip, vfs_fs_c *fsp, const char *name) {
     return CH_RET_ENAMETOOLONG;
   }
 
-  chSysLock();
+  __ovldrv_lock(self);
 
   if (self->next_driver >= DRV_CFG_OVERLAY_DRV_MAX) {
     ret = CH_RET_ENOMEM;
@@ -644,7 +669,7 @@ msg_t ovldrvRegisterDriver(void *ip, vfs_fs_c *fsp, const char *name) {
     }
   }
 
-  chSysUnlock();
+  __ovldrv_unlock(self);
 
   return ret;
 }
@@ -669,7 +694,7 @@ msg_t ovldrvUnregisterDriver(void *ip, const char *name) {
   vfs_overlay_driver_c *self = (vfs_overlay_driver_c *)ip;
   unsigned i;
 
-  chSysLock();
+  __ovldrv_lock(self);
 
   i = 0U;
   while (i < self->next_driver) {
@@ -685,7 +710,7 @@ msg_t ovldrvUnregisterDriver(void *ip, const char *name) {
       }
       self->next_driver--;
 
-      chSysUnlock();
+      __ovldrv_unlock(self);
 
       return CH_RET_SUCCESS;
     }
@@ -693,7 +718,7 @@ msg_t ovldrvUnregisterDriver(void *ip, const char *name) {
     i++;
   }
 
-  chSysUnlock();
+  __ovldrv_unlock(self);
 
   return CH_RET_ENOENT;
 }

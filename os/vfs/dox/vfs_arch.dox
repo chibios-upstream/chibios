@@ -70,11 +70,58 @@
  *
  * @section vfs_arch_concurrency Synchronization status
  *
- * Shared buffer reservations protect temporary paths only. This foundation
- * does not provide internal synchronization for root CWD, overlay routing
- * metadata, or all leaf state. Callers remain responsible for serializing
- * shared mutable state and respecting each driver's concurrency contract.
- * The planned local metadata locking is not implemented yet.
+ * Shared buffer reservations protect temporary paths. Enabling
+ * @p VFS_CFG_USE_MUTUAL_EXCLUSION adds one local metadata mutex per overlay
+ * object, inherited by root, for mount lookup/updates and CWD copying/commit.
+ * It is released before delegation, callbacks, node disposal, or blocking
+ * allocation.
+ * Rename snapshots both routes together at each layer; root also resolves
+ * both inputs against one CWD. No global VFS operation mutex is provided.
+ *
+ * The option defaults to @p FALSE: mutex fields disappear and local lock
+ * helpers become empty macros. Callers then serialize shared metadata.
+ * Kernel pool/reference protection and native backend configuration remain
+ * independent. Leaf and descriptor synchronization work is still pending;
+ * local metadata protection alone does not make the entire VFS thread-safe.
+ *
+ * Each root allocates one CWD buffer on its first successful chdir using
+ * @p chCoreAlloc(). This bounded, nonblocking allocation runs under the
+ * metadata mutex to prevent duplicate allocations. Later changes reuse the
+ * same buffer. Core storage is permanent and is not reclaimed on disposal;
+ * no operation pair is retained for CWD storage. Successful chdir calls take
+ * effect in commit order after unlocked validation and node release.
+ *
+ * Overlay enumeration is a live view. Mount changes may skip or repeat
+ * entries in the mount phase; they cannot restart the backing phase or
+ * reopen an ended iterator. A new first call restarts both phases.
+ *
+ * @subsection vfs_arch_handle_ownership Handle ownership and concurrency
+ *
+ * Each independent node user holds a reference throughout its operation,
+ * including waits and access through borrowed stream interfaces. Reference
+ * counting protects lifetime; it does not serialize operations. Another
+ * owner may release its reference while the operation retains its own.
+ * A copied pointer or descriptor lookup alone does not retain the node.
+ *
+ * Callers serialize operations on the same open node unless its driver
+ * explicitly permits concurrent use. This includes stat, read/write,
+ * seek/position, control, and directory first/next. Duplicated descriptors
+ * share a node and its position. Multi-call sequences need caller ordering.
+ * Distinct nodes may be used concurrently only when the leaf and its backend
+ * support that usage; separate stream nodes can share one backend cursor.
+ * Native restrictions on opening or modifying the same file still apply.
+ *
+ * File systems, prefixes, backing relationships, immutable descriptions, and
+ * backend interfaces remain valid through active operations and final node
+ * disposal. Mount/unmount/format and backend reconfiguration require an
+ * exclusive lifecycle phase with no affected active operations or live nodes.
+ * Unregistering a route does not wait for its active operations to finish.
+ *
+ * The local synchronization design releases upper VFS metadata protection
+ * before driver or node methods, callbacks, reference release/disposal, and
+ * blocking allocation. Each leaf supplies its own synchronization. These
+ * requirements do not imply that the current adapters or leaf configurations
+ * already support concurrent use.
  *
  * @section vfs_arch_buffers Shared buffer pairs
  *

@@ -18,11 +18,18 @@
           process context. Relative inputs are resolved against its current
           directory; all inputs are normalized before delegation. Root is an
           outer entry point and must not be stacked below another root. Path
-          operations reserve a buffer pair locally. Callers remain responsible
-          for serializing access to shared root state.]]></details>
+          operations reserve a buffer pair before locking metadata. Optional
+          local locking protects CWD copying and commit, and is released before
+          delegated operations and node disposal. When disabled, callers must
+          serialize shared metadata. Each root allocates one CWD buffer on
+          its first successful chdir using the permanent core allocator.
+          The allocation is protected by the metadata mutex and reused for
+          subsequent changes; callers must not replace its pointer. Disposal
+          does not reclaim CWD storage and requires no live nodes or active
+          operations.]]></details>
         <fields>
           <field name="path_cwd" ctype="char$I*">
-            <brief>Current working directory path or @p NULL for root.</brief>
+            <brief>Owned CWD storage or @p NULL for root; internal use only.</brief>
           </field>
           <field name="path_prefix" ctype="const char$I*">
             <brief>Normalized absolute prefix for the backing FS or @p NULL.</brief>
@@ -60,6 +67,10 @@ self->path_prefix = path_prefix;]]></implementation>
             </method>
             <method name="vfsRootChangeCurrentDirectory" ctype="msg_t">
               <brief>Changes the current VFS directory.</brief>
+              <details>Resolves a candidate, validates it without the metadata
+                lock, then commits. Concurrent successful changes take effect
+                in commit order. The backing namespace may change after
+                validation.</details>
               <param name="path" ctype="const char *" dir="in">Absolute or
                 relative path of the new current directory.</param>
               <return>The operation result.</return>

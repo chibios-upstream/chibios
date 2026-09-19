@@ -338,6 +338,15 @@ struct vfs_stat {
  * @extends     referenced_object_c
  *
  * @brief       Common ancestor class of all VFS nodes.
+ * @details     Each independent user must hold a valid reference throughout an
+ *              operation, including waits and use of borrowed node interfaces.
+ *              Reference counting protects lifetime, not operation ordering.
+ *              Callers must serialize operations on the same open node unless
+ *              its driver explicitly supports concurrent use. Duplicated
+ *              descriptors share that node and its position. Distinct nodes
+ *              may be used concurrently only when their file system and shared
+ *              backend support it. The owning file system is borrowed and must
+ *              outlive the node and its disposal.
  *
  * @name        Class @p vfs_node_c structures
  * @{

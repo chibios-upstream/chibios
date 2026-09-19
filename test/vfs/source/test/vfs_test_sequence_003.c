@@ -310,6 +310,7 @@ static void vfs_test_003_001_execute(void) {
     ret = vfsRootGetCurrentDirectory(&empty_root, cwd, sizeof cwd);
     test_assert(ret == CH_RET_SUCCESS, "synthetic root getcwd failed");
     test_assert(strcmp(cwd, "/") == 0, "synthetic root cwd changed");
+    boDispose(&empty_root);
   }
   test_end_step(7);
 }

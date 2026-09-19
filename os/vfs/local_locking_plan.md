@@ -16,8 +16,9 @@ ELF/directory scratch fixes. The global mutex API, implicit locking scopes,
 and atomic mutex/pool waiter are not carried forward. Configuration files
 are regenerated for buffer pairs, without introducing a mutex option yet.
 
-The foundation does not make VFS thread-safe. Callers still serialize shared
-mutable state until the local synchronization work below is implemented.
+The foundation alone does not make VFS thread-safe. Step 2 now supplies
+optional root/overlay metadata protection; leaf, descriptor, and caller
+integration work remains before concurrent use of the full stack is supported.
 
 ## Required behavior
 
@@ -28,10 +29,12 @@ Do not replace that mutex with an operation-wide semaphore or busy gate that
 keeps the same outer serialization across delegation.
 
 Use short critical sections for small updates, and local mutexes for work
-such as CWD copying and mount-table searches. Never sleep, allocate storage,
-or call external code inside a system critical section. Avoid nesting local
-mutexes: snapshot one object's state and release its lock before entering
-another object.
+such as CWD copying and mount-table searches. Never sleep, invoke a
+thread-context allocator, or call external code inside a system critical
+section. Blocking allocations stay outside metadata mutexes. The bounded,
+nonblocking `chCoreAlloc()` call for initial CWD storage runs under the root
+metadata mutex, preventing duplicate allocations. Avoid nesting local mutexes:
+snapshot one object's state and release its lock before entering another object.
 
 Preserve the paired-buffer union, combined scratch view, root-owned prefix,
 read-only overlay/ROMFS routing, and allocation/use/release within one function.
@@ -46,7 +49,7 @@ names must be copied while protected or remain valid until readers finish.
 Keep prefixes/backing pointers immutable after publication unless an explicit
 synchronized reconfiguration API is introduced.
 
-## Proposed synchronization responsibilities
+## Synchronization responsibilities
 
 | State | Protection and scope |
 | --- | --- |
@@ -72,13 +75,19 @@ in the abstract FS class merely because some implementations need one.
 
 ## Implementation steps
 
-1. **Specify operation and ownership contracts; audit leaf readiness.**
+1. **Specify operation and ownership contracts; audit leaf readiness — complete.**
+
+   The [step 1 audit](local_locking_audit.md) records the concrete inventory,
+   ownership/handle contract, delegation boundaries, and leaf prerequisites
+   against `27f0ad644e`. This completes the specification and source audit;
+   implementing or validating concurrent use remains in the later steps.
 
    Inventory CWD, routing tables, directory cursor/phase, descriptor entries,
    reference transfer, node positions, and driver/library shared state.
    Identify every delegation and disposal boundary and what must survive it.
 
-   Proposed handle rule: distinct open handles may run concurrently. Callers
+   Handle rule: distinct open handles may run concurrently when the leaf and
+   shared backend support it; stream nodes can alias the same cursor. Callers
    serialize operations on the same open file/directory unless its driver
    explicitly guarantees concurrent use. Duplicated descriptors share a handle.
    Each active user owns a reference; closing another owned reference is safe.
@@ -96,7 +105,25 @@ in the abstract FS class merely because some implementations need one.
    Completion: a concrete state/lock inventory, documented handle contract,
    and identified prerequisites for each supported leaf configuration.
 
-2. **Protect root and overlay metadata locally.**
+2. **Protect root and overlay metadata locally — complete.**
+
+   Implemented one conditional overlay mutex inherited by root, matching
+   mount-table reader/writer protection, local CWD snapshots/commit, paired
+   rename route selection, and explicit mounts/backing/end enumeration.
+   `VFS_CFG_USE_MUTUAL_EXCLUSION` defaults to `FALSE`; disabled helpers are
+   empty macros and no mutex field is present. Enabled builds require kernel
+   mutex support. The template and all 24 configurations have been updated.
+
+   Each root retains one CWD pointer, initially `NULL` for `/`. Its first
+   successful `chdir` allocates a full path buffer with `chCoreAlloc()` under
+   the metadata mutex; subsequent changes reuse that buffer. Core allocation
+   is bounded and nonblocking, so this prevents competing allocations without
+   another pool or a recheck protocol. Storage remains permanent, as with the
+   original core allocation model; root disposal does not reclaim it. No
+   operation pair is retained persistently. Prefixes and backing pointers
+   retain the immutable-publication contract.
+
+   Implementation requirements:
 
    Add the conditional metadata mutex and private local helpers in the overlay
    XML/implementation; root reuses that mutex. Protect reads and writes of the
@@ -113,10 +140,10 @@ in the abstract FS class merely because some implementations need one.
 
    `getcwd` copies under the metadata lock. `chdir` resolves a candidate,
    unlocks, validates it and releases the validation node, then relocks to
-   commit. Concurrent successful changes commit in completion order. Handle
-   lazy CWD allocation outside the mutex and recheck before installing storage;
-   avoid leaking competing allocations from the monotonic core allocator.
-   If necessary, use a reclaimable allocation or change CWD storage explicitly.
+   commit. Concurrent successful changes take effect in commit order. Keep
+   the initial CWD check, nonblocking core allocation, pointer installation,
+   and copy under that mutex. Failed validation leaves CWD unallocated or
+   unchanged. With local locking disabled, callers serialize these operations.
 
    Give overlay enumeration an explicit mounts/backing/end phase instead of
    using a mutable mount count as the backing-start marker. Copy mount names
@@ -141,6 +168,11 @@ in the abstract FS class merely because some implementations need one.
    library/backend lock ordering separately so internal synchronization does
    not reintroduce dependencies on upper-layer VFS state.
 
+   Use the audit's FatFS volume/global-state requirements, LittleFS native
+   hook and lifecycle requirements, and stream/callback sharing contracts.
+   Mount/unmount/format require an exclusive lifecycle phase with no affected
+   operations or live nodes; concurrent hot unmount is outside this plan.
+
    Completion: every configuration offered as concurrently usable has a
    supported leaf contract. Optional untested backends are listed explicitly;
    removing the global lock is not itself evidence that they are thread-safe.
@@ -149,8 +181,10 @@ in the abstract FS class merely because some implementations need one.
 
    Newlib lookup must acquire a node reference atomically with inspecting the
    table slot; release the table protection before node calls. Close detaches
-   the pointer under protection and releases it afterward. Preserve the
-   existing read/write pins across concurrent close and descriptor reuse.
+   the pointer under protection and releases it afterward. Add read/write
+   operation pins that remain valid across concurrent close and descriptor reuse.
+   The restarted foundation has no pins; the preserved global-lock branch
+   supplies reference work, not an already implemented guarantee here.
 
    `roAddRef()` is virtual and its default implementation already enters
    `oopLock()`. Do not call it inside `chSysLock()` or assume arbitrary addref
@@ -229,8 +263,48 @@ in the abstract FS class merely because some implementations need one.
 
 Both backup branches have been created. The active branch has been realigned
 to `97faf9c40c`, and the reusable foundation is restored without global locking.
-All six local synchronization steps remain pending. The next step is the
-operation/ownership contract and leaf-driver readiness audit.
+Steps 1 and 2 are complete: [ownership and local synchronization audit](local_locking_audit.md),
+followed by optional root/overlay metadata protection, one lazy CWD buffer per root,
+and explicit directory enumeration phase. Steps 3 through 6 remain pending.
+Next is step 3: leaf synchronization and backend/lifecycle prerequisites.
+
+The step 1 source audit found native FatFS reentrancy disabled in the current
+tested configurations, LittleFS mount-state and native-hook prerequisites,
+shared backend state behind streams and callbacks, and unprotected newlib
+descriptor lookup/close. These are recorded implementation requirements,
+not new concurrency guarantees. The node interface and architecture page now
+document the handle contract. Step 1 validation is documentation/source review,
+XML schema validation, repeatable generation, and whitespace/link checks;
+no runtime synchronization behavior changed.
+
+Step 2 validation on 2026-09-19:
+
+- Seven simulator configurations passed with checks, assertions, and the
+  system-state checker: disabled/one pair; enabled/one pair; enabled/three
+  pairs; enabled/two pairs with recursive kernel mutexes and a 128-character
+  path limit; disabled with no kernel mutexes; enabled with root disabled;
+  and enabled with FatFS. FatFS coverage here remains functional, not native
+  concurrent-volume validation.
+- The final lazy-core-allocation change was revalidated with five simulator
+  variants: locking disabled, enabled with one and three pairs, recursive
+  mutexes with two pairs and a 128-character path limit, and no kernel mutexes.
+- Regressions verify CWD and mount-table readers/writers wait for the same
+  mutex, metadata stays available during root buffer-pool waits, driver and
+  disposal suspension permits another CWD change, initial CWD publication
+  preserves commit order, mount changes do not restart backing enumeration,
+  and queries/failed validation leave CWD unallocated. Competing initial
+  chdir calls consume one CWD allocation; later changes reuse it without
+  consuming further core memory, and different roots have separate storage.
+- Driver/callback entry assertions detect leaked metadata mutex ownership.
+  Disabled root/overlay object files contain no mutex references. On the
+  64-bit simulator, FS/overlay/root sizes are 8/56/72 bytes disabled and
+  8/88/104 enabled; only overlay and its root subclass gain the mutex.
+- Invalid option values and enabling VFS mutexes without kernel mutex support
+  are rejected. STM32G474 CHFS compiles/links with local locking enabled;
+  no physical-board execution was performed.
+- All 24 configurations were regenerated sequentially with prior values
+  preserved. XML schema validation, repeatable VFS/test generation, and
+  whitespace checks passed. Build products were cleaned.
 
 Foundation validation on 2026-09-19:
 

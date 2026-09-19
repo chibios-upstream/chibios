@@ -151,6 +151,9 @@ static void vfs_test_fs_dispose(void *ip) {
 static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
                                const char *path) {
 
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  chDbgAssert(chMtxGetNextMutexX() == NULL, "metadata lock reached driver");
+#endif
   self->operation = operation;
   self->calls++;
   strcpy(self->path, path);
