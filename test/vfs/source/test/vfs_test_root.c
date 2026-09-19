@@ -32,6 +32,7 @@
  * - @subpage vfs_test_sequence_009
  * - @subpage vfs_test_sequence_010
  * - @subpage vfs_test_sequence_011
+ * - @subpage vfs_test_sequence_012
  * .
  */
 
@@ -79,6 +80,9 @@ const testsequence_t * const vfs_test_suite_array[] = {
 #endif
 #if (!defined(OOP_USE_NOTHING)) || defined(__DOXYGEN__)
   &vfs_test_sequence_011,
+#endif
+#if ((VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_ENABLE_DRV_ROMFS == TRUE)) || defined(__DOXYGEN__)
+  &vfs_test_sequence_012,
 #endif
   NULL
 };
@@ -295,5 +299,157 @@ void vfs_test_root_reset(void) {
   vfs_test_root.path_cwd = vfs_test_cwd;
 }
 #endif
+
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+static THD_WORKING_AREA(vfs_open_race_wa1, 4096);
+static THD_WORKING_AREA(vfs_open_race_wa2, 4096);
+static semaphore_t vfs_open_race_gate;
+static vfs_fs_c *vfs_open_race_fs;
+
+static THD_FUNCTION(vfs_open_racer, arg) {
+  msg_t *result = arg;
+  vfs_file_node_c *fnp;
+
+  (void)chSemWait(&vfs_open_race_gate);
+  *result = vfsFSOpenFile(vfs_open_race_fs, "/race",
+                          VO_RDWR | VO_CREAT | VO_EXCL | VO_TRUNC, &fnp);
+  if (!CH_RET_IS_ERROR(*result)) {
+    (void)roRelease(fnp);
+  }
+}
+#endif
+
+void vfs_test_open_matrix(vfs_fs_c *fsp) {
+  static const struct {
+    int flags;
+    msg_t existing, missing, directory;
+  } cases[] = {
+    {VO_RDONLY, 0, CH_RET_ENOENT, 0},
+    {VO_WRONLY, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDWR, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDONLY | VO_DIRECTORY, CH_RET_ENOTDIR, CH_RET_ENOENT, 0},
+    {VO_WRONLY | VO_DIRECTORY, CH_RET_ENOTDIR, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDONLY | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_WRONLY | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDWR | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDONLY | VO_CREAT | VO_EXCL, CH_RET_EEXIST, 0, CH_RET_EEXIST},
+    {VO_WRONLY | VO_CREAT | VO_EXCL, CH_RET_EEXIST, 0, CH_RET_EEXIST},
+    {VO_RDWR | VO_CREAT | VO_EXCL | VO_TRUNC | VO_CLOEXEC,
+      CH_RET_EEXIST, 0, CH_RET_EEXIST},
+    {VO_WRONLY | VO_TRUNC, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDWR | VO_CREAT | VO_TRUNC, 0, 0, CH_RET_EISDIR},
+    {VO_RDONLY | VO_APPEND, 0, CH_RET_ENOENT, 0},
+    {VO_WRONLY | VO_APPEND, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDWR | VO_APPEND, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_WRONLY | VO_APPEND | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDWR | VO_APPEND | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDWR | VO_APPEND | VO_TRUNC | VO_CREAT, 0, 0, CH_RET_EISDIR}
+  };
+  static const char *paths[] = {"/flags", "/new", "/dir"};
+  vfs_file_node_c *fnp;
+  vfs_node_c *np;
+  vfs_stat_t st;
+  msg_t ret, expected;
+  unsigned i, j;
+  uint8_t byte;
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+  vfs_root_c root;
+  vfs_stat_t after;
+#endif
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  thread_t *threads[2];
+  msg_t results[2];
+#endif
+
+  test_assert(vfsFSMkdir(fsp, "/dir", 0) == CH_RET_SUCCESS,
+              "matrix mkdir failed");
+  for (i = 0U; i < sizeof cases / sizeof cases[0]; i++) {
+    test_emit_token((char)('a' + i));
+    ret = vfsFSOpenFile(fsp, "/flags", VO_RDWR | VO_CREAT | VO_TRUNC, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "matrix seed open failed");
+    test_assert(vfsFileWrite(fnp, (const uint8_t *)"seed", 4) == 4,
+                "matrix seed write failed");
+    (void)roRelease(fnp);
+    for (j = 0U; j < 3U; j++) {
+      expected = j == 0U ? cases[i].existing :
+                 j == 1U ? cases[i].missing : cases[i].directory;
+      np = NULL;
+      ret = vfsFSOpen(fsp, paths[j], cases[i].flags, &np);
+      test_assert(ret == expected, "matrix open result mismatch");
+      if (!CH_RET_IS_ERROR(ret)) {
+        test_assert(np != NULL, "open did not publish a node");
+        test_assert(VFS_MODE_S_ISDIR(np->mode) == (j == 2U),
+                    "matrix open type mismatch");
+        if (j != 2U) {
+          vfs_offset_t size = (j == 1U || (cases[i].flags & VO_TRUNC) != 0) ?
+                              0 : 4;
+
+          test_assert(vfsNodeStat(np, &st) == CH_RET_SUCCESS && st.size == size,
+                      "matrix open changed contents");
+          fnp = (vfs_file_node_c *)np;
+          test_assert(vfsFileGetPosition(fnp) == 0, "open offset is not zero");
+          if (((cases[i].flags & VO_APPEND) != 0) &&
+              ((cases[i].flags & VO_ACCMODE) != VO_RDONLY)) {
+            if (((cases[i].flags & VO_ACCMODE) == VO_RDWR) && (size != 0)) {
+              test_assert(vfsFileRead(fnp, &byte, 1) == 1 && byte == 's',
+                          "append-open read did not start at zero");
+            }
+            test_assert(vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+                        vfsFileWrite(fnp, (const uint8_t *)"x", 1) == 1 &&
+                        vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+                        vfsFileWrite(fnp, (const uint8_t *)"y", 1) == 1,
+                        "append after seek failed");
+            test_assert(vfsNodeStat(np, &st) == 0 && st.size == size + 2,
+                        "append overwrote contents");
+          }
+        }
+        (void)roRelease(np);
+        if (j == 1U) {
+          test_assert(vfsFSUnlink(fsp, "/new") == 0, "matrix cleanup failed");
+        }
+      }
+      else {
+        test_assert(np == NULL, "failed open published a node");
+      }
+    }
+  }
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+  (void)vfsrootObjectInit(&root, fsp, NULL);
+  test_assert(vfsFSStat(fsp, "/flags", &st) == 0, "file disappeared");
+  ret = vfsRootOpen(&root, "/flags/", VO_WRONLY | VO_CREAT | VO_TRUNC, &np);
+  test_assert(ret == CH_RET_ENOTDIR, "trailing slash allowed truncation");
+  ret = vfsRootOpen(&root, "/trailing/", VO_WRONLY | VO_CREAT, &np);
+  test_assert(ret == CH_RET_ENOENT, "trailing slash created a file");
+  ret = vfsFSOpenFile(&root, "/flags/", VO_WRONLY | VO_TRUNC, &fnp);
+  test_assert(ret == CH_RET_ENOTDIR, "typed open bypassed trailing slash");
+  ret = vfsFSOpenFile(fsp, "/flags", VO_RDONLY, &fnp);
+  test_assert(ret == 0 && vfsNodeStat(fnp, &after) == 0 && after.size == st.size,
+              "rejected trailing slash modified the file");
+  (void)roRelease(fnp);
+  test_assert(vfsFSStat(&root, "/flags/", &st) == CH_RET_ENOTDIR,
+              "stat discarded trailing slash");
+  __vfsroot_dispose_impl(&root);
+#endif
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  vfs_open_race_fs = fsp;
+  chSemObjectInit(&vfs_open_race_gate, 0);
+  threads[0] = chThdCreateStatic(vfs_open_race_wa1, sizeof vfs_open_race_wa1,
+                                 chThdGetPriorityX() + 1, vfs_open_racer,
+                                 &results[0]);
+  threads[1] = chThdCreateStatic(vfs_open_race_wa2, sizeof vfs_open_race_wa2,
+                                 chThdGetPriorityX() + 1, vfs_open_racer,
+                                 &results[1]);
+  chSysLock();
+  chSemSignalI(&vfs_open_race_gate);
+  chSemSignalI(&vfs_open_race_gate);
+  chSchRescheduleS();
+  chSysUnlock();
+  (void)chThdWait(threads[0]);
+  (void)chThdWait(threads[1]);
+  test_assert(((results[0] == 0) && (results[1] == CH_RET_EEXIST)) ||
+              ((results[1] == 0) && (results[0] == CH_RET_EEXIST)),
+              "exclusive creators both succeeded or both failed");
+#endif
+}
 
 #endif /* !defined(__DOXYGEN__) */

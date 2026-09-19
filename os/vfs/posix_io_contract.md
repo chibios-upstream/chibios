@@ -4,6 +4,14 @@ Step 1 of the [POSIX I/O plan](posix_io_plan.md), completed on 2026-09-19.
 This specifies the target of steps 2 through 7; it does not claim that the
 current prototype or adapters already implement every requirement below.
 
+Step 2 implementation status: open matrices, flag rejection, directory routing,
+read-only opens and stream open capabilities are now exercised by generated
+tests, including real FatFS/LittleFS. Native trailing-slash rejection and
+exclusive-create races are covered. FatFS append-after-seek was implemented
+early to make its expanded open flags correct. The regression catalog below
+retains the original step ownership; descriptor flags/access enforcement and
+adapter migrations remain pending. See the plan for the completed checks.
+
 ## Boundary and ownership
 
 `vfs_io_c` is the descriptor/path API. FS and node APIs remain available to

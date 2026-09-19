@@ -822,7 +822,7 @@ static void vfs_test_011_004_execute(void) {
     test_assert(vfsIORmdir(&vfs_test_api_io, "gone") == CH_RET_SUCCESS &&
                 strcmp(vfs_test_fs.path, "/prefix/cwd/gone") == 0,
                 "rmdir routing failed");
-    fd = vfsIOOpen(&vfs_test_api_io, "file", VO_RDWR | VO_CREAT);
+    fd = vfsIOOpen(&vfs_test_api_io, "file", VO_RDWR | VO_CREAT | VO_CLOEXEC);
     test_assert(fd == 0 && strcmp(vfs_test_fs.path, "/prefix/cwd/file") == 0 &&
                 vfs_test_fs.flags == (VO_RDWR | VO_CREAT), "open routing failed");
     test_assert(vfsIOClose(&vfs_test_api_io, fd) == CH_RET_SUCCESS &&
@@ -926,6 +926,9 @@ static void vfs_test_011_005_execute(void) {
     ok &= vfsIODup(&vfs_test_api_io, 2) == 1;
     ok &= vfsIOOpen(&vfs_test_api_io, "/unreached", VO_CREAT | VO_TRUNC | VO_RDWR) ==
           CH_RET_EMFILE;
+    ok &= vfsIOOpen(&vfs_test_api_io, "/unreached", VO_DIRECTORY | VO_CREAT) ==
+          CH_RET_EINVAL;
+    ok &= vfsIOOpen(&vfs_test_api_io, "", VO_RDONLY) == CH_RET_ENOENT;
     ok &= vfs_test_api_open_calls == 1U;
     ok &= vfsIOInsert(&vfs_test_api_other,
                        (vfs_node_c *)&vfs_test_api_files[1]) == 0;

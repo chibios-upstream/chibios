@@ -78,6 +78,7 @@ bool vfs_test_stat_equal(const vfs_stat_t *actual,
                          const vfs_stat_t *expected);
 bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
 void vfs_test_fs_reset(void);
+void vfs_test_open_matrix(vfs_fs_c *fsp);
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);
 #endif]]></value>
@@ -282,7 +283,160 @@ void vfs_test_root_reset(void) {
   (void)vfsrootObjectInit(&vfs_test_root, (vfs_fs_c *)&vfs_test_fs, NULL);
   vfs_test_root.path_cwd = vfs_test_cwd;
 }
-#endif]]></value>
+#endif
+
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+static THD_WORKING_AREA(vfs_open_race_wa1, 4096);
+static THD_WORKING_AREA(vfs_open_race_wa2, 4096);
+static semaphore_t vfs_open_race_gate;
+static vfs_fs_c *vfs_open_race_fs;
+
+static THD_FUNCTION(vfs_open_racer, arg) {
+  msg_t *result = arg;
+  vfs_file_node_c *fnp;
+
+  (void)chSemWait(&vfs_open_race_gate);
+  *result = vfsFSOpenFile(vfs_open_race_fs, "/race",
+                          VO_RDWR | VO_CREAT | VO_EXCL | VO_TRUNC, &fnp);
+  if (!CH_RET_IS_ERROR(*result)) {
+    (void)roRelease(fnp);
+  }
+}
+#endif
+
+void vfs_test_open_matrix(vfs_fs_c *fsp) {
+  static const struct {
+    int flags;
+    msg_t existing, missing, directory;
+  } cases[] = {
+    {VO_RDONLY, 0, CH_RET_ENOENT, 0},
+    {VO_WRONLY, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDWR, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDONLY | VO_DIRECTORY, CH_RET_ENOTDIR, CH_RET_ENOENT, 0},
+    {VO_WRONLY | VO_DIRECTORY, CH_RET_ENOTDIR, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDONLY | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_WRONLY | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDWR | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDONLY | VO_CREAT | VO_EXCL, CH_RET_EEXIST, 0, CH_RET_EEXIST},
+    {VO_WRONLY | VO_CREAT | VO_EXCL, CH_RET_EEXIST, 0, CH_RET_EEXIST},
+    {VO_RDWR | VO_CREAT | VO_EXCL | VO_TRUNC | VO_CLOEXEC,
+      CH_RET_EEXIST, 0, CH_RET_EEXIST},
+    {VO_WRONLY | VO_TRUNC, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDWR | VO_CREAT | VO_TRUNC, 0, 0, CH_RET_EISDIR},
+    {VO_RDONLY | VO_APPEND, 0, CH_RET_ENOENT, 0},
+    {VO_WRONLY | VO_APPEND, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDWR | VO_APPEND, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_WRONLY | VO_APPEND | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDWR | VO_APPEND | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDWR | VO_APPEND | VO_TRUNC | VO_CREAT, 0, 0, CH_RET_EISDIR}
+  };
+  static const char *paths[] = {"/flags", "/new", "/dir"};
+  vfs_file_node_c *fnp;
+  vfs_node_c *np;
+  vfs_stat_t st;
+  msg_t ret, expected;
+  unsigned i, j;
+  uint8_t byte;
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+  vfs_root_c root;
+  vfs_stat_t after;
+#endif
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  thread_t *threads[2];
+  msg_t results[2];
+#endif
+
+  test_assert(vfsFSMkdir(fsp, "/dir", 0) == CH_RET_SUCCESS,
+              "matrix mkdir failed");
+  for (i = 0U; i < sizeof cases / sizeof cases[0]; i++) {
+    test_emit_token((char)('a' + i));
+    ret = vfsFSOpenFile(fsp, "/flags", VO_RDWR | VO_CREAT | VO_TRUNC, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "matrix seed open failed");
+    test_assert(vfsFileWrite(fnp, (const uint8_t *)"seed", 4) == 4,
+                "matrix seed write failed");
+    (void)roRelease(fnp);
+    for (j = 0U; j < 3U; j++) {
+      expected = j == 0U ? cases[i].existing :
+                 j == 1U ? cases[i].missing : cases[i].directory;
+      np = NULL;
+      ret = vfsFSOpen(fsp, paths[j], cases[i].flags, &np);
+      test_assert(ret == expected, "matrix open result mismatch");
+      if (!CH_RET_IS_ERROR(ret)) {
+        test_assert(np != NULL, "open did not publish a node");
+        test_assert(VFS_MODE_S_ISDIR(np->mode) == (j == 2U),
+                    "matrix open type mismatch");
+        if (j != 2U) {
+          vfs_offset_t size = (j == 1U || (cases[i].flags & VO_TRUNC) != 0) ?
+                              0 : 4;
+
+          test_assert(vfsNodeStat(np, &st) == CH_RET_SUCCESS && st.size == size,
+                      "matrix open changed contents");
+          fnp = (vfs_file_node_c *)np;
+          test_assert(vfsFileGetPosition(fnp) == 0, "open offset is not zero");
+          if (((cases[i].flags & VO_APPEND) != 0) &&
+              ((cases[i].flags & VO_ACCMODE) != VO_RDONLY)) {
+            if (((cases[i].flags & VO_ACCMODE) == VO_RDWR) && (size != 0)) {
+              test_assert(vfsFileRead(fnp, &byte, 1) == 1 && byte == 's',
+                          "append-open read did not start at zero");
+            }
+            test_assert(vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+                        vfsFileWrite(fnp, (const uint8_t *)"x", 1) == 1 &&
+                        vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+                        vfsFileWrite(fnp, (const uint8_t *)"y", 1) == 1,
+                        "append after seek failed");
+            test_assert(vfsNodeStat(np, &st) == 0 && st.size == size + 2,
+                        "append overwrote contents");
+          }
+        }
+        (void)roRelease(np);
+        if (j == 1U) {
+          test_assert(vfsFSUnlink(fsp, "/new") == 0, "matrix cleanup failed");
+        }
+      }
+      else {
+        test_assert(np == NULL, "failed open published a node");
+      }
+    }
+  }
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+  (void)vfsrootObjectInit(&root, fsp, NULL);
+  test_assert(vfsFSStat(fsp, "/flags", &st) == 0, "file disappeared");
+  ret = vfsRootOpen(&root, "/flags/", VO_WRONLY | VO_CREAT | VO_TRUNC, &np);
+  test_assert(ret == CH_RET_ENOTDIR, "trailing slash allowed truncation");
+  ret = vfsRootOpen(&root, "/trailing/", VO_WRONLY | VO_CREAT, &np);
+  test_assert(ret == CH_RET_ENOENT, "trailing slash created a file");
+  ret = vfsFSOpenFile(&root, "/flags/", VO_WRONLY | VO_TRUNC, &fnp);
+  test_assert(ret == CH_RET_ENOTDIR, "typed open bypassed trailing slash");
+  ret = vfsFSOpenFile(fsp, "/flags", VO_RDONLY, &fnp);
+  test_assert(ret == 0 && vfsNodeStat(fnp, &after) == 0 && after.size == st.size,
+              "rejected trailing slash modified the file");
+  (void)roRelease(fnp);
+  test_assert(vfsFSStat(&root, "/flags/", &st) == CH_RET_ENOTDIR,
+              "stat discarded trailing slash");
+  __vfsroot_dispose_impl(&root);
+#endif
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  vfs_open_race_fs = fsp;
+  chSemObjectInit(&vfs_open_race_gate, 0);
+  threads[0] = chThdCreateStatic(vfs_open_race_wa1, sizeof vfs_open_race_wa1,
+                                 chThdGetPriorityX() + 1, vfs_open_racer,
+                                 &results[0]);
+  threads[1] = chThdCreateStatic(vfs_open_race_wa2, sizeof vfs_open_race_wa2,
+                                 chThdGetPriorityX() + 1, vfs_open_racer,
+                                 &results[1]);
+  chSysLock();
+  chSemSignalI(&vfs_open_race_gate);
+  chSemSignalI(&vfs_open_race_gate);
+  chSchRescheduleS();
+  chSysUnlock();
+  (void)chThdWait(threads[0]);
+  (void)chThdWait(threads[1]);
+  test_assert(((results[0] == 0) && (results[1] == CH_RET_EEXIST)) ||
+              ((results[1] == 0) && (results[0] == CH_RET_EEXIST)),
+              "exclusive creators both succeeded or both failed");
+#endif
+}
+]]></value>
     </global_code>
   </global_data_and_code>
   <sequences>
@@ -1560,6 +1714,54 @@ test_assert(ret == CH_RET_ESPIPE, "TTY seek accepted");
           </steps>
         </case>
         <case>
+          <brief><value><![CDATA[Stream open capabilities and directory rejection.]]></value></brief>
+          <description><value><![CDATA[Stream open capabilities and directory rejection.]]></value></description>
+          <condition><value><![CDATA[VFS_CFG_ENABLE_DRV_STREAMS == TRUE]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[]]></value></setup_code>
+            <teardown_code><value><![CDATA[]]></value></teardown_code>
+            <local_variables><value><![CDATA[static const drv_streams_element_t writable[] = {
+  DRV_STREAMS_ELEMENT_REGULAR("file", VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                              &vfs_test_random_stream),
+  DRV_STREAMS_ELEMENT_END()
+};
+vfs_streams_driver_c driver;
+vfs_node_c *np;
+msg_t ret;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value><![CDATA[Stream open capabilities and directory rejection.]]></value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[(void)stmdrvObjectInit(&driver, vfs_test_streams);
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/console", VO_DIRECTORY, &np);
+test_assert(ret == CH_RET_ENOTDIR, "directory open accepted stream");
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/absent", VO_CREAT | VO_WRONLY, &np);
+test_assert(ret == CH_RET_EROFS, "stream namespace accepted creation");
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_CREAT | VO_EXCL | VO_WRONLY,
+                &np);
+test_assert(ret == CH_RET_EEXIST, "exclusive stream open accepted");
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_WRONLY, &np);
+test_assert(ret == CH_RET_EACCES, "read-only stream accepted writable open");
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty",
+                VO_CREAT | VO_TRUNC | VO_WRONLY | VO_CLOEXEC, &np);
+test_assert(ret == CH_RET_SUCCESS, "terminal redirection flags rejected");
+(void)roRelease(np);
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_APPEND | VO_WRONLY, &np);
+test_assert(ret == CH_RET_SUCCESS, "terminal append flags rejected");
+(void)roRelease(np);
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_TRUNC | VO_RDONLY, &np);
+test_assert(ret == CH_RET_EINVAL, "invalid stream flags accepted");
+(void)stmdrvObjectInit(&driver, writable);
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_TRUNC | VO_WRONLY, &np);
+test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream truncated");
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_APPEND | VO_WRONLY, &np);
+test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream appended");]]></value></code>
+            </step>
+          </steps>
+        </case>
+
+        <case>
           <brief>
             <value>TTY return-code translation.</value>
           </brief>
@@ -2120,6 +2322,35 @@ test_assert(vfsFSOpenDirectory(&vfs_test_lfs_instances[0], "/", &dir) ==
             CH_RET_EIO, "unmounted open error");
 test_assert(lfsdrvMount(&vfs_test_lfs_instances[0]) == CH_RET_SUCCESS,
             "remount failed");]]></value></code>
+            </step>
+          </steps>
+        </case>
+
+        <case>
+          <brief><value><![CDATA[POSIX open flag matrix.]]></value></brief>
+          <description><value><![CDATA[POSIX open flag matrix.]]></value></description>
+          <condition><value><![CDATA[]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[msg_t ret;
+
+eflStart(&EFLD1, NULL);
+(void)lfsdrvObjectInit(&vfs_test_lfs_driver, &vfs_test_lfs_config);
+ret = lfsdrvFormat(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS format failed");
+ret = lfsdrvMount(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS mount failed");]]></value></setup_code>
+            <teardown_code><value><![CDATA[msg_t ret;
+
+ret = lfsdrvUnmount(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS unmount failed");
+eflStop(&EFLD1);]]></value></teardown_code>
+            <local_variables><value><![CDATA[]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value><![CDATA[POSIX open flag matrix.]]></value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[vfs_test_open_matrix((vfs_fs_c *)&vfs_test_lfs_driver);]]></value></code>
             </step>
           </steps>
         </case>
@@ -2892,6 +3123,44 @@ for (i = 0U; i <= DRV_CFG_FATFS_FS_NUM; i++) {
 memcpy(vfs_test_fat_disk, boot, sizeof boot);
 test_assert(ffdrvMount("0:", true) == CH_RET_SUCCESS,
             "failed mount leaked native storage or mutex");]]></value></code>
+            </step>
+          </steps>
+        </case>
+
+        <case>
+          <brief><value><![CDATA[POSIX open flag matrix.]]></value></brief>
+          <description><value><![CDATA[POSIX open flag matrix.]]></value></description>
+          <condition><value><![CDATA[]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[MKFS_PARM options = {
+  .fmt     = FM_ANY,
+  .n_fat   = 1U,
+  .align   = 0U,
+  .n_root  = 0U,
+  .au_size = VFS_TEST_FAT_SECTOR_SIZE
+};
+uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+FRESULT fres;
+msg_t ret;
+
+memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+vfs_test_fat_status = STA_NOINIT;
+(void)ffdrvObjectInit(&vfs_test_fat_driver);
+fres = f_mkfs("0:", &options, work, sizeof work);
+test_assert(fres == FR_OK, "FatFS format failed");
+ret = ffdrvMount("0:", true);
+test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");]]></value></setup_code>
+            <teardown_code><value><![CDATA[msg_t ret;
+
+ret = ffdrvUnmount("0:");
+test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");]]></value></teardown_code>
+            <local_variables><value><![CDATA[]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value><![CDATA[POSIX open flag matrix.]]></value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[vfs_test_open_matrix((vfs_fs_c *)&vfs_test_fat_driver);]]></value></code>
             </step>
           </steps>
         </case>
@@ -3705,7 +3974,7 @@ test_assert(ret == CH_RET_ENOENT &&
             strcmp(vfs_test_routing_root.path_cwd, "/home/user/target") == 0,
             "failed chdir changed CWD");
 ret = vfsRootOpen(&vfs_test_routing_root, "/home", VO_WRONLY, &np);
-test_assert(ret == CH_RET_EROFS, "ROMFS write-open error changed");
+test_assert(ret == CH_RET_EISDIR, "writable directory open accepted");
 test_assert(vfs_test_routing_reserve(0U), "root operation leaked a pair");]]></value></code>
             </step>
           </steps>
@@ -5842,7 +6111,7 @@ test_assert(vfsIOMkdir(&vfs_test_api_io, "new", 0755) == CH_RET_SUCCESS &&
 test_assert(vfsIORmdir(&vfs_test_api_io, "gone") == CH_RET_SUCCESS &&
             strcmp(vfs_test_fs.path, "/prefix/cwd/gone") == 0,
             "rmdir routing failed");
-fd = vfsIOOpen(&vfs_test_api_io, "file", VO_RDWR | VO_CREAT);
+fd = vfsIOOpen(&vfs_test_api_io, "file", VO_RDWR | VO_CREAT | VO_CLOEXEC);
 test_assert(fd == 0 && strcmp(vfs_test_fs.path, "/prefix/cwd/file") == 0 &&
             vfs_test_fs.flags == (VO_RDWR | VO_CREAT), "open routing failed");
 test_assert(vfsIOClose(&vfs_test_api_io, fd) == CH_RET_SUCCESS &&
@@ -5915,6 +6184,9 @@ ok &= vfsIOInstall(&vfs_test_api_io, 0,
 ok &= vfsIODup(&vfs_test_api_io, 2) == 1;
 ok &= vfsIOOpen(&vfs_test_api_io, "/unreached", VO_CREAT | VO_TRUNC | VO_RDWR) ==
       CH_RET_EMFILE;
+ok &= vfsIOOpen(&vfs_test_api_io, "/unreached", VO_DIRECTORY | VO_CREAT) ==
+      CH_RET_EINVAL;
+ok &= vfsIOOpen(&vfs_test_api_io, "", VO_RDONLY) == CH_RET_ENOENT;
 ok &= vfs_test_api_open_calls == 1U;
 ok &= vfsIOInsert(&vfs_test_api_other,
                    (vfs_node_c *)&vfs_test_api_files[1]) == 0;
@@ -6041,5 +6313,133 @@ test_assert(vfs_test_api_files[0].disposals == 1U &&
         </case>
       </cases>
     </sequence>
+    <sequence>
+      <type><value>Internal Tests</value></type>
+      <brief><value>POSIX Open Routing</value></brief>
+      <description><value>Directory selection and flag validation before mutation.</value></description>
+      <condition><value><![CDATA[(VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_ENABLE_DRV_ROMFS == TRUE)]]></value></condition>
+      <shared_code><value><![CDATA[#include <string.h>
+
+#include "vfs.h"
+
+static const vfs_romfs_file_desc_t open_files[] = {
+  {
+    .name = "data",
+    .mode = VFS_MODE_S_IRUSR,
+    .flags = VFS_ROMFS_FILE_TYPE_RAW,
+    .size = 4,
+    .content = {.data = (const uint8_t *)"seed"}
+  }
+};
+
+static const vfs_romfs_dir_desc_t open_dirs[] = {
+  {.path = "/", .files = open_files, .files_num = 1},
+  {.path = "/dir", .files = NULL, .files_num = 0},
+  {.path = "/base", .files = open_files, .files_num = 1},
+  {.path = "/base/dir", .files = NULL, .files_num = 0}
+};
+
+static const vfs_romfs_tree_t open_tree = {
+  .dirs = open_dirs,
+  .dirs_num = sizeof open_dirs / sizeof open_dirs[0]
+};
+
+static vfs_rom_driver_c open_rom;
+static vfs_overlay_driver_c open_overlay;
+static vfs_root_c open_root;
+static vfs_io_c open_io;
+static vfs_node_c *open_slots[3];
+
+static void open_setup(void) {
+
+  (void)romdrvObjectInit(&open_rom, &open_tree);
+  (void)ovldrvObjectInit(&open_overlay, (vfs_fs_c *)&open_rom);
+  (void)vfsrootObjectInit(&open_root, (vfs_fs_c *)&open_overlay, "/base");
+  (void)ovldrvRegisterDriver(&open_root, (vfs_fs_c *)&open_overlay, "mount");
+  (void)vfsioObjectInit(&open_io, open_slots, 3);
+  vfsIOSetRoot(&open_io, &open_root);
+}
+
+static void open_teardown(void) {
+
+  vfsIOClear(&open_io);
+  __vfsroot_dispose_impl(&open_root);
+  __ovldrv_dispose_impl(&open_overlay);
+  __romdrv_dispose_impl(&open_rom);
+}]]></value></shared_code>
+      <cases>
+        <case>
+          <brief><value><![CDATA[Root and read-only open matrix.]]></value></brief>
+          <description><value><![CDATA[Root and read-only open matrix.]]></value></description>
+          <condition><value><![CDATA[]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[open_setup();]]></value></setup_code>
+            <teardown_code><value><![CDATA[open_teardown();]]></value></teardown_code>
+            <local_variables><value><![CDATA[static const struct {
+  const char *path;
+  int flags;
+  int result;
+  bool directory;
+} cases[] = {
+  {"data", VO_RDONLY, 0, false},
+  {"/mount/data", VO_RDONLY | VO_CLOEXEC, 0, false},
+  {"dir", VO_RDONLY, 0, true},
+  {"/dir", VO_DIRECTORY | VO_CLOEXEC, 0, true},
+  {"/mount/dir", VO_DIRECTORY, 0, true},
+  {"/", VO_RDONLY | VO_DIRECTORY, 0, true},
+  {"data", VO_DIRECTORY, CH_RET_ENOTDIR, false},
+  {"data", VO_DIRECTORY | VO_WRONLY, CH_RET_ENOTDIR, false},
+  {"data/", VO_RDONLY, CH_RET_ENOTDIR, false},
+  {"data///", VO_CREAT | VO_TRUNC | VO_WRONLY, CH_RET_ENOTDIR, false},
+  {"dir/", VO_RDONLY, 0, true},
+  {"dir", VO_WRONLY, CH_RET_EISDIR, false},
+  {"dir", VO_DIRECTORY | VO_RDWR, CH_RET_EISDIR, false},
+  {"dir", VO_CREAT, CH_RET_EISDIR, false},
+  {"dir", VO_CREAT | VO_EXCL, CH_RET_EEXIST, false},
+  {"/", VO_CREAT | VO_EXCL | VO_RDWR, CH_RET_EEXIST, false},
+  {"data", VO_RDONLY | VO_CREAT, 0, false},
+  {"data", VO_RDONLY | VO_APPEND, 0, false},
+  {"data", VO_CREAT | VO_EXCL, CH_RET_EEXIST, false},
+  {"data", VO_WRONLY, CH_RET_EROFS, false},
+  {"missing", VO_CREAT, CH_RET_EROFS, false},
+  {"missing", VO_RDONLY, CH_RET_ENOENT, false},
+  {"missing", VO_DIRECTORY, CH_RET_ENOENT, false},
+  {"missing/", VO_CREAT | VO_WRONLY, CH_RET_ENOENT, false},
+  {"", VO_RDONLY, CH_RET_ENOENT, false},
+  {"data", VO_TRUNC, CH_RET_EINVAL, false},
+  {"data", VO_EXCL, CH_RET_EINVAL, false},
+  {"data", VO_DIRECTORY | VO_CREAT, CH_RET_EINVAL, false},
+  {"data", VO_DIRECTORY | VO_TRUNC | VO_WRONLY, CH_RET_EINVAL, false},
+  {"data", VO_ACCMODE, CH_RET_EINVAL, false},
+  {"data", -1, CH_RET_EINVAL, false}
+};
+unsigned i;
+int fd;
+vfs_stat_t st;
+]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value><![CDATA[Root and read-only open matrix.]]></value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[for (i = 0U; i < sizeof cases / sizeof cases[0]; i++) {
+  test_emit_token((char)('A' + i));
+  fd = vfsIOOpen(&open_io, cases[i].path, cases[i].flags);
+  test_assert(fd == cases[i].result, "root open matrix mismatch");
+  if (fd >= 0) {
+    test_assert(vfsIOFstat(&open_io, fd, &st) == 0 &&
+                VFS_MODE_S_ISDIR(st.mode) == cases[i].directory,
+                "root open type mismatch");
+    test_assert(vfsIOClose(&open_io, fd) == 0, "root close failed");
+  }
+}
+test_assert(vfsIOStat(&open_io, "data", &st) == 0 && st.size == 4,
+            "rejected open changed read-only file");]]></value></code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+
   </sequences>
 </instance>

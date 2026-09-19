@@ -46,46 +46,30 @@ static msg_t validate_absolute_path(const char *path) {
 }
 
 static enum lfs_open_flags translate_oflag(int oflag) {
+  enum lfs_open_flags flags;
 
-  enum lfs_open_flags flags = 0;
-  switch (oflag & (VO_SUPPORTED_FLAGS_MASK & ~VO_TRUNC)) {
-    case VO_RDONLY:                                   /* r */
-      return LFS_O_RDONLY;
-
-    case VO_RDWR:                                     /* r+ */
-      flags = LFS_O_RDWR;
-      break;
-
-    case VO_CREAT | VO_APPEND | VO_WRONLY:            /* a */
-      flags = LFS_O_CREAT | LFS_O_APPEND | LFS_O_WRONLY;
-      break;
-
-    case VO_CREAT | VO_APPEND | VO_RDWR:              /* a+ */
-      flags = LFS_O_CREAT | LFS_O_APPEND | LFS_O_RDWR;
-      break;
-
-    case VO_CREAT | VO_WRONLY:                        /* w */
-      flags = LFS_O_CREAT | LFS_O_WRONLY;
-      break;
-
-    case VO_CREAT | VO_RDWR:                          /* w+ */
-      flags = LFS_O_CREAT | LFS_O_RDWR;
-      break;
-
-    case VO_CREAT | VO_EXCL | VO_WRONLY:              /* wx */
-      flags = LFS_O_CREAT | LFS_O_EXCL | LFS_O_WRONLY;
-      break;
-
-    case VO_CREAT | VO_EXCL | VO_RDWR:                /* w+x */
-      flags = LFS_O_CREAT | LFS_O_EXCL | LFS_O_RDWR;
-      break;
-
-    default:
-      break;
+  switch (oflag & VO_ACCMODE) {
+  case VO_RDONLY:
+    flags = LFS_O_RDONLY;
+    break;
+  case VO_WRONLY:
+    flags = LFS_O_WRONLY;
+    break;
+  default:
+    flags = LFS_O_RDWR;
+    break;
   }
-
-  if (flags != 0 && oflag & VO_TRUNC) {
+  if ((oflag & VO_CREAT) != 0) {
+    flags |= LFS_O_CREAT;
+  }
+  if ((oflag & VO_EXCL) != 0) {
+    flags |= LFS_O_EXCL;
+  }
+  if ((oflag & VO_TRUNC) != 0) {
     flags |= LFS_O_TRUNC;
+  }
+  if ((oflag & VO_APPEND) != 0) {
+    flags |= LFS_O_APPEND;
   }
 
   return flags;
@@ -787,12 +771,14 @@ msg_t __lfsdrv_openfile_impl(void *ip, const char *path, int flags,
   int res;
   msg_t ret;
 
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
+  if ((flags & VO_DIRECTORY) != 0) {
+    return CH_RET_ENOTDIR;
+  }
   ret = validate_absolute_path(path);
   CH_RETURN_ON_ERROR(ret);
   mode = translate_oflag(flags);
-  if (mode == 0) {
-    return CH_RET_EINVAL;
-  }
   node = chPoolAlloc(&vfs_littlefs_driver_static.file_nodes_pool);
   if (node == NULL) {
     return CH_RET_ENOMEM;

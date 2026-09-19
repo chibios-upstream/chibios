@@ -35,6 +35,7 @@
 #include "vfs_test_sequence_009.h"
 #include "vfs_test_sequence_010.h"
 #include "vfs_test_sequence_011.h"
+#include "vfs_test_sequence_012.h"
 
 #if !defined(__DOXYGEN__)
 
@@ -101,6 +102,7 @@ bool vfs_test_stat_equal(const vfs_stat_t *actual,
                          const vfs_stat_t *expected);
 bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
 void vfs_test_fs_reset(void);
+void vfs_test_open_matrix(vfs_fs_c *fsp);
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);
 #endif

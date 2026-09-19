@@ -36,8 +36,7 @@ static inline void ff_unlock(void) {
 #define ff_unlock()
 #endif
 
-static BYTE translate_oflag(int oflag) {
-  int flags = oflag & VO_SUPPORTED_FLAGS_MASK;
+static BYTE translate_oflag(int flags) {
   BYTE mode;
 
   switch (flags & VO_ACCMODE) {
@@ -47,39 +46,16 @@ static BYTE translate_oflag(int oflag) {
   case VO_WRONLY:
     mode = FA_WRITE;
     break;
-  case VO_RDWR:
+  default:
     mode = FA_READ | FA_WRITE;
     break;
-  default:
-    return (BYTE)0;
   }
-
-  /* Mutation flags require a writable file object.*/
-  if (((flags & (VO_APPEND | VO_CREAT | VO_TRUNC | VO_EXCL)) != 0) &&
-      ((mode & FA_WRITE) == 0)) {
-    return (BYTE)0;
-  }
-
-  /* Exclusive mode is meaningful only together with creation.*/
-  if (((flags & VO_EXCL) != 0) && ((flags & VO_CREAT) == 0)) {
-    return (BYTE)0;
-  }
-
-  /* FA_OPEN_APPEND includes create-if-missing, therefore it cannot
-     represent append without VO_CREAT.*/
-  if (((flags & VO_APPEND) != 0) && ((flags & VO_CREAT) == 0)) {
-    return (BYTE)0;
-  }
-
   if ((flags & VO_CREAT) != 0) {
     if ((flags & VO_EXCL) != 0) {
       mode |= FA_CREATE_NEW;
     }
     else if ((flags & VO_TRUNC) != 0) {
       mode |= FA_CREATE_ALWAYS;
-    }
-    else if ((flags & VO_APPEND) != 0) {
-      mode |= FA_OPEN_APPEND;
     }
     else {
       mode |= FA_OPEN_ALWAYS;
@@ -594,6 +570,7 @@ static void *__fffile_objinit_impl(void *ip, const void *vmt,
 
   /* Initialization code.*/
   self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
+  self->append = false;
 
   return self;
 }
@@ -689,7 +666,11 @@ static ssize_t __fffile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   UINT bw;
 
   ff_lock();
-  res = f_write(&self->file, (const void *)buf, (UINT)n, &bw);
+  /* Append and write are one native operation, also after a seek.*/
+  res = self->append ? f_lseek(&self->file, f_size(&self->file)) : FR_OK;
+  if (res == FR_OK) {
+    res = f_write(&self->file, (const void *)buf, (UINT)n, &bw);
+  }
   ff_unlock();
   if (res != FR_OK) {
 
@@ -971,17 +952,53 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
   vfs_mode_t node_mode = (vfs_mode_t)0;
   BYTE mode;
   FRESULT res;
+  FILINFO *info = NULL;
+  msg_t ret;
 
-  mode = translate_oflag(flags);
-  if (mode == (BYTE)0) {
-    return CH_RET_EINVAL;
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
+  if ((flags & VO_DIRECTORY) != 0) {
+    return CH_RET_ENOTDIR;
   }
+  if (strcmp(path, "/") == 0) {
+    return CH_RET_EISDIR;
+  }
+  mode = translate_oflag(flags);
   node = chPoolAlloc(&vfs_fatfs_driver_static.file_nodes_pool);
   if (node == NULL) {
     return CH_RET_ENOMEM;
   }
+  if ((flags & VO_CREAT) != 0) {
+    info = chPoolAlloc(&vfs_fatfs_driver_static.info_nodes_pool);
+    if (info == NULL) {
+      chPoolFree(&vfs_fatfs_driver_static.file_nodes_pool, node);
+      return CH_RET_ENOMEM;
+    }
+  }
   ff_lock();
-  res = f_open(&node->file, (const TCHAR *)path, mode);
+  res = FR_OK;
+  if (info != NULL) {
+    /* Resolve native create-on-directory and read-only existing-file errors.
+       The native exclusive create still handles a missing name atomically.*/
+    res = f_stat((const TCHAR *)path, info);
+    if (res == FR_OK) {
+      if ((flags & VO_EXCL) != 0) {
+        res = FR_EXIST;
+      }
+      else if ((info->fattrib & AM_DIR) != 0) {
+        res = FR_IS_DIRECTORY;
+      }
+      else if ((flags & VO_TRUNC) == 0) {
+        mode &= (BYTE)~FA_OPEN_ALWAYS;
+      }
+    }
+    else if (res == FR_NO_FILE) {
+      res = FR_OK;
+    }
+  }
+  if (res == FR_OK) {
+    res = f_open(&node->file, (const TCHAR *)path, mode);
+  }
   if (res == FR_OK) {
     if (((flags & VO_TRUNC) != 0) && ((flags & VO_CREAT) == 0)) {
       res = f_truncate(&node->file);
@@ -994,11 +1011,16 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
     }
   }
   ff_unlock();
+  if (info != NULL) {
+    chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, info);
+  }
   if (res != FR_OK) {
     chPoolFree(&vfs_fatfs_driver_static.file_nodes_pool, node);
     return translate_error(res);
   }
   (void)fffileObjectInit(node, (vfs_fs_c *)self, node_mode);
+  node->append = ((flags & VO_APPEND) != 0) &&
+                 ((flags & VO_ACCMODE) != VO_RDONLY);
   *vfnpp = (vfs_file_node_c *)node;
 
   return CH_RET_SUCCESS;

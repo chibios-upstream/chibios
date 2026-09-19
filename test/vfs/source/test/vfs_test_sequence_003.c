@@ -42,6 +42,7 @@
  * - @subpage vfs_test_003_003
  * - @subpage vfs_test_003_004
  * - @subpage vfs_test_003_005
+ * - @subpage vfs_test_003_006
  * .
  */
 
@@ -600,7 +601,74 @@ static const testcase_t vfs_test_003_003 = {
 
 #if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_003_004 [3.4] TTY return-code translation
+ * @page vfs_test_003_004 [3.4] Stream open capabilities and directory rejection
+ *
+ * <h2>Description</h2>
+ * Stream open capabilities and directory rejection.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - VFS_CFG_ENABLE_DRV_STREAMS == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [3.4.1] Stream open capabilities and directory rejection.
+ * .
+ */
+
+static void vfs_test_003_004_execute(void) {
+  static const drv_streams_element_t writable[] = {
+    DRV_STREAMS_ELEMENT_REGULAR("file", VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                                &vfs_test_random_stream),
+    DRV_STREAMS_ELEMENT_END()
+  };
+  vfs_streams_driver_c driver;
+  vfs_node_c *np;
+  msg_t ret;
+
+  /* [3.4.1] Stream open capabilities and directory rejection.*/
+  test_set_step(1);
+  {
+    (void)stmdrvObjectInit(&driver, vfs_test_streams);
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/console", VO_DIRECTORY, &np);
+    test_assert(ret == CH_RET_ENOTDIR, "directory open accepted stream");
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/absent", VO_CREAT | VO_WRONLY, &np);
+    test_assert(ret == CH_RET_EROFS, "stream namespace accepted creation");
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_CREAT | VO_EXCL | VO_WRONLY,
+                    &np);
+    test_assert(ret == CH_RET_EEXIST, "exclusive stream open accepted");
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_WRONLY, &np);
+    test_assert(ret == CH_RET_EACCES, "read-only stream accepted writable open");
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty",
+                    VO_CREAT | VO_TRUNC | VO_WRONLY | VO_CLOEXEC, &np);
+    test_assert(ret == CH_RET_SUCCESS, "terminal redirection flags rejected");
+    (void)roRelease(np);
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_APPEND | VO_WRONLY, &np);
+    test_assert(ret == CH_RET_SUCCESS, "terminal append flags rejected");
+    (void)roRelease(np);
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_TRUNC | VO_RDONLY, &np);
+    test_assert(ret == CH_RET_EINVAL, "invalid stream flags accepted");
+    (void)stmdrvObjectInit(&driver, writable);
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_TRUNC | VO_WRONLY, &np);
+    test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream truncated");
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_APPEND | VO_WRONLY, &np);
+    test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream appended");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_003_004 = {
+  "Stream open capabilities and directory rejection",
+  NULL,
+  NULL,
+  vfs_test_003_004_execute
+};
+#endif /* VFS_CFG_ENABLE_DRV_STREAMS == TRUE */
+
+#if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page vfs_test_003_005 [3.5] TTY return-code translation
  *
  * <h2>Description</h2>
  * HAL and XHAL share stable return-code values. TTY configuration
@@ -613,20 +681,20 @@ static const testcase_t vfs_test_003_003 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [3.4.1] Shared status values preserve HAL compatibility and
+ * - [3.5.1] Shared status values preserve HAL compatibility and
  *   distinguish invalid state from an invalid instance.
- * - [3.4.2] Flush and flow configuration failures translate to EINVAL;
+ * - [3.5.2] Flush and flow configuration failures translate to EINVAL;
  *   successful operations still return success.
- * - [3.4.3] Unavailable drivers and other failures remain EIO, and
+ * - [3.5.3] Unavailable drivers and other failures remain EIO, and
  *   non-terminal streams still reject TTY controls.
  * .
  */
 
-static void vfs_test_003_004_teardown(void) {
+static void vfs_test_003_005_teardown(void) {
   vfs_test_tty_status = HAL_RET_SUCCESS;
 }
 
-static void vfs_test_003_004_execute(void) {
+static void vfs_test_003_005_execute(void) {
   vfs_streams_driver_c streams;
   vfs_file_node_c *fnp;
   int action;
@@ -638,7 +706,7 @@ static void vfs_test_003_004_execute(void) {
     MSG_RESET, MSG_TIMEOUT, (msg_t)-100
   };
 
-  /* [3.4.1] Shared status values preserve HAL compatibility and
+  /* [3.5.1] Shared status values preserve HAL compatibility and
      distinguish invalid state from an invalid instance.*/
   test_set_step(1);
   {
@@ -653,7 +721,7 @@ static void vfs_test_003_004_execute(void) {
   }
   test_end_step(1);
 
-  /* [3.4.2] Flush and flow configuration failures translate to EINVAL;
+  /* [3.5.2] Flush and flow configuration failures translate to EINVAL;
      successful operations still return success.*/
   test_set_step(2);
   {
@@ -673,7 +741,7 @@ static void vfs_test_003_004_execute(void) {
   }
   test_end_step(2);
 
-  /* [3.4.3] Unavailable drivers and other failures remain EIO, and
+  /* [3.5.3] Unavailable drivers and other failures remain EIO, and
      non-terminal streams still reject TTY controls.*/
   test_set_step(3);
   {
@@ -694,17 +762,17 @@ static void vfs_test_003_004_execute(void) {
   test_end_step(3);
 }
 
-static const testcase_t vfs_test_003_004 = {
+static const testcase_t vfs_test_003_005 = {
   "TTY return-code translation",
   NULL,
-  vfs_test_003_004_teardown,
-  vfs_test_003_004_execute
+  vfs_test_003_005_teardown,
+  vfs_test_003_005_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_STREAMS == TRUE */
 
 #if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_003_005 [3.5] Overlay file system lifetime
+ * @page vfs_test_003_006 [3.6] Overlay file system lifetime
  *
  * <h2>Description</h2>
  * Unregistering or disposing an overlay leaves shared file systems
@@ -717,22 +785,22 @@ static const testcase_t vfs_test_003_004 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [3.5.1] Removing a mapping leaves the file system usable through
+ * - [3.6.1] Removing a mapping leaves the file system usable through
  *   another overlay and reports a missing mapping on subsequent
  *   unregister attempts.
- * - [3.5.2] Disposing overlays leaves registered and backing file
+ * - [3.6.2] Disposing overlays leaves registered and backing file
  *   systems intact, allowing their caller to dispose them exactly once
  *   after all overlays are gone.
  * .
  */
 
-static void vfs_test_003_005_execute(void) {
+static void vfs_test_003_006_execute(void) {
   vfs_overlay_driver_c first;
   vfs_overlay_driver_c second;
   vfs_stat_t stat;
   msg_t ret;
 
-  /* [3.5.1] Removing a mapping leaves the file system usable through
+  /* [3.6.1] Removing a mapping leaves the file system usable through
      another overlay and reports a missing mapping on subsequent
      unregister attempts.*/
   test_set_step(1);
@@ -761,7 +829,7 @@ static void vfs_test_003_005_execute(void) {
   }
   test_end_step(1);
 
-  /* [3.5.2] Disposing overlays leaves registered and backing file
+  /* [3.6.2] Disposing overlays leaves registered and backing file
      systems intact, allowing their caller to dispose them exactly once
      after all overlays are gone.*/
   test_set_step(2);
@@ -795,11 +863,11 @@ static void vfs_test_003_005_execute(void) {
   test_end_step(2);
 }
 
-static const testcase_t vfs_test_003_005 = {
+static const testcase_t vfs_test_003_006 = {
   "Overlay file system lifetime",
   NULL,
   NULL,
-  vfs_test_003_005_execute
+  vfs_test_003_006_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_OVERLAY == TRUE */
 
@@ -823,8 +891,11 @@ const testcase_t * const vfs_test_sequence_003_array[] = {
 #if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
   &vfs_test_003_004,
 #endif
-#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
+#if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
   &vfs_test_003_005,
+#endif
+#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_003_006,
 #endif
   NULL
 };

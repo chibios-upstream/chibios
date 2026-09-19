@@ -38,6 +38,7 @@
  * <h2>Test Cases</h2>
  * - @subpage vfs_test_004_001
  * - @subpage vfs_test_004_002
+ * - @subpage vfs_test_004_003
  * .
  */
 
@@ -435,6 +436,53 @@ static const testcase_t vfs_test_004_002 = {
 };
 #endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
 
+/**
+ * @page vfs_test_004_003 [4.3] POSIX open flag matrix
+ *
+ * <h2>Description</h2>
+ * POSIX open flag matrix.
+ *
+ * <h2>Test Steps</h2>
+ * - [4.3.1] POSIX open flag matrix.
+ * .
+ */
+
+static void vfs_test_004_003_setup(void) {
+  msg_t ret;
+
+  eflStart(&EFLD1, NULL);
+  (void)lfsdrvObjectInit(&vfs_test_lfs_driver, &vfs_test_lfs_config);
+  ret = lfsdrvFormat(&vfs_test_lfs_driver);
+  test_assert(ret == CH_RET_SUCCESS, "LittleFS format failed");
+  ret = lfsdrvMount(&vfs_test_lfs_driver);
+  test_assert(ret == CH_RET_SUCCESS, "LittleFS mount failed");
+}
+
+static void vfs_test_004_003_teardown(void) {
+  msg_t ret;
+
+  ret = lfsdrvUnmount(&vfs_test_lfs_driver);
+  test_assert(ret == CH_RET_SUCCESS, "LittleFS unmount failed");
+  eflStop(&EFLD1);
+}
+
+static void vfs_test_004_003_execute(void) {
+
+  /* [4.3.1] POSIX open flag matrix.*/
+  test_set_step(1);
+  {
+    vfs_test_open_matrix((vfs_fs_c *)&vfs_test_lfs_driver);
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_004_003 = {
+  "POSIX open flag matrix",
+  vfs_test_004_003_setup,
+  vfs_test_004_003_teardown,
+  vfs_test_004_003_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -447,6 +495,7 @@ const testcase_t * const vfs_test_sequence_004_array[] = {
 #if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
   &vfs_test_004_002,
 #endif
+  &vfs_test_004_003,
   NULL
 };
 

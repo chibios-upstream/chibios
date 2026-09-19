@@ -168,6 +168,10 @@ struct vfs_fatfs_file_node {
    */
   vfs_mode_t                mode;
   /**
+   * @brief       Positions writes at EOF under the native operation lock.
+   */
+  bool                      append;
+  /**
    * @brief       FatFS inner @p FIL structure.
    */
   FIL                       file;

@@ -187,13 +187,22 @@
  * are required; custom disposal is supported. Root support adds one private
  * module-wide node identity for reservations, never exposed or dispatched.
  *
- * Open reserves the lowest free descriptor before entering the root, so a
- * full table returns EMFILE before any create/truncate side effects. The slot
+ * Open validates flags and paths, then reserves the lowest free descriptor
+ * before entering the root. A full table returns EMFILE before any
+ * create/truncate side effects. The slot
  * stays reserved through driver or scratch-buffer waits, then publishes the
  * opened node or becomes free on error. Get, close and duplication sources
  * treat reservations as unavailable; install and dup2 return EBUSY for a
  * reserved destination. Failed node admission frees the reservation before
  * invoking disposal. These rules keep concurrent allocations independent.
+ * VO_DIRECTORY and trailing separators select directory lookup before any
+ * file open. Creation/exclusive flags cannot bypass directory type checks.
+ * VO_CLOEXEC is accepted and stripped before driver calls; descriptor flag
+ * storage remains a subsequent prototype step. Drivers must return nodes
+ * with standard reference hooks: defensive admission failure releases the
+ * returned node but cannot undo side effects of a contract-violating driver.
+ * FatFS append state is local to each native file handle; positioning at EOF
+ * and writing occur under one leaf lock. Initial read position stays zero.
  *
  * Set-root requires exclusive lifecycle access. A root is never retained or
  * disposed by the context; its lifetime and backing filesystem lifetimes

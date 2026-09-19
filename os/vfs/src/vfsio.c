@@ -792,11 +792,14 @@ void vfsIOSetRoot(void *ip, vfs_root_c *root) {
 
 /**
  * @brief       Opens a file or directory and returns a descriptor.
- * @details     A slot is reserved before entering the root. A full table
- *              returns EMFILE without invoking a driver. Failed opens cancel
- *              the reservation; rejected node references are released outside
- *              table protection. Standard OOP reference methods are required.
- *              Read-only opens also accept directories.
+ * @details     Flags and paths are validated before reserving a slot. A full
+ *              table returns EMFILE without invoking a driver. Failed opens
+ *              cancel the reservation; rejected node references are released
+ *              outside table protection. Standard OOP reference methods are
+ *              required. Read-only opens also accept directories, and
+ *              VO_DIRECTORY requires one. VO_CLOEXEC is accepted and stripped
+ *              before delegation; descriptor flag storage is not implemented
+ *              yet.
  *
  * @param[in,out] ip            Pointer to a @p vfs_io_c instance.
  * @param[in]     path          Absolute or relative path within the associated
@@ -815,9 +818,8 @@ int vfsIOOpen(void *ip, const char *path, int flags) {
   if (self->root == NULL) {
     return CH_RET_ENOSYS;
   }
-  if (path == NULL) {
-    return CH_RET_EINVAL;
-  }
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
 
   /* Reserve before driver calls, including create or truncate side effects.*/
   chSysLock();

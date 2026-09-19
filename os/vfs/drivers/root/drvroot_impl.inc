@@ -41,6 +41,9 @@ static const char *current_directory(vfs_root_c *rootp) {
 
 static msg_t make_absolute_path(char *buf, const char *path, const char *cwd) {
 
+  if (*path == '\0') {
+    return CH_RET_ENOENT;
+  }
   if (vfs_path_make_absolute(buf, path, VFS_CFG_PATHLEN_MAX + 1, cwd) ==
       (size_t)0) {
     return CH_RET_ENAMETOOLONG;
@@ -244,8 +247,12 @@ void __vfsroot_dispose_impl(void *ip) {
 msg_t __vfsroot_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_root_c *self = (vfs_root_c *)ip;
   vfs_shared_buffer_t *buffer;
+  bool directory;
   msg_t ret;
 
+  ret = __vfs_check_open(path, VO_RDONLY);
+  CH_RETURN_ON_ERROR(ret);
+  directory = vfs_path_is_separator(path[strlen(path) - 1U]);
   buffer = vfs_buffer_take_wait();
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
@@ -264,6 +271,10 @@ msg_t __vfsroot_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
       ret = resolve_path(self, buffer->paths.path1, &delegated, &fsp);
       if (!CH_RET_IS_ERROR(ret)) {
         ret = vfsFSStat(fsp, delegated, sp);
+        if (!CH_RET_IS_ERROR(ret) && directory &&
+            !VFS_MODE_S_ISDIR(sp->mode)) {
+          ret = CH_RET_ENOTDIR;
+        }
       }
     }
   }
@@ -316,15 +327,28 @@ msg_t __vfsroot_openfile_impl(void *ip, const char *path, int flags,
                               vfs_file_node_c **vfnpp) {
   vfs_root_c *self = (vfs_root_c *)ip;
   vfs_shared_buffer_t *buffer;
+  vfs_node_c *np;
   msg_t ret;
 
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
+  if (((flags & VO_DIRECTORY) != 0) ||
+      vfs_path_is_separator(path[strlen(path) - 1U])) {
+    ret = vfsRootOpen(self, path, flags, &np);
+    if (!CH_RET_IS_ERROR(ret)) {
+      (void)roRelease(np);
+      ret = CH_RET_EISDIR;
+    }
+    return ret;
+  }
   buffer = vfs_buffer_take_wait();
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
   }
   ret = make_current_path(self, buffer->paths.path1, path);
   if (!CH_RET_IS_ERROR(ret)) {
-    ret = open_absolute_file(self, buffer->paths.path1, flags, vfnpp);
+    ret = open_absolute_file(self, buffer->paths.path1, flags & ~VO_CLOEXEC,
+                              vfnpp);
   }
   vfs_buffer_release(buffer);
 
@@ -514,8 +538,14 @@ const struct vfs_root_vmt __vfs_root_vmt = {
 msg_t vfsRootOpen(void *ip, const char *path, int flags, vfs_node_c **vnpp) {
   vfs_root_c *self = (vfs_root_c *)ip;
   vfs_shared_buffer_t *buffer;
+  vfs_directory_node_c *dnp;
+  bool directory;
   msg_t ret;
 
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
+  directory = ((flags & VO_DIRECTORY) != 0) ||
+              vfs_path_is_separator(path[strlen(path) - 1U]);
   buffer = vfs_buffer_take_wait();
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
@@ -523,12 +553,29 @@ msg_t vfsRootOpen(void *ip, const char *path, int flags, vfs_node_c **vnpp) {
   ret = make_current_path(self, buffer->paths.path2, path);
   if (!CH_RET_IS_ERROR(ret)) {
     strcpy(buffer->paths.path1, buffer->paths.path2);
-    ret = open_absolute_file(self, buffer->paths.path1, flags,
-                              (vfs_file_node_c **)vnpp);
-    if ((ret == CH_RET_EISDIR) && ((flags & VO_ACCMODE) == VO_RDONLY)) {
-      strcpy(buffer->paths.path1, buffer->paths.path2);
-      ret = open_absolute_dir(self, buffer->paths.path1,
-                               (vfs_directory_node_c **)vnpp);
+    if (directory) {
+      ret = open_absolute_dir(self, buffer->paths.path1, &dnp);
+      if (!CH_RET_IS_ERROR(ret)) {
+        ret = __vfs_check_directory_flags(flags);
+        if (CH_RET_IS_ERROR(ret)) {
+          (void)roRelease(dnp);
+        }
+        else {
+          *vnpp = (vfs_node_c *)dnp;
+        }
+      }
+    }
+    else {
+      ret = open_absolute_file(self, buffer->paths.path1, flags & ~VO_CLOEXEC,
+                                (vfs_file_node_c **)vnpp);
+      if (ret == CH_RET_EISDIR) {
+        ret = __vfs_check_directory_flags(flags);
+        if (!CH_RET_IS_ERROR(ret)) {
+          strcpy(buffer->paths.path1, buffer->paths.path2);
+          ret = open_absolute_dir(self, buffer->paths.path1,
+                                   (vfs_directory_node_c **)vnpp);
+        }
+      }
     }
   }
   vfs_buffer_release(buffer);

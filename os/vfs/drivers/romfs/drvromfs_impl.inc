@@ -612,19 +612,6 @@ static const vfs_romfs_file_desc_t *find_file(vfs_rom_driver_c *drvp,
   return NULL;
 }
 
-static bool is_read_only_open(int flags) {
-
-  if ((flags & VO_ACCMODE) != VO_RDONLY) {
-    return false;
-  }
-
-  if ((flags & (VO_APPEND | VO_CREAT | VO_TRUNC | VO_EXCL)) != 0) {
-    return false;
-  }
-
-  return true;
-}
-
 static msg_t __romdir_next_impl(void *ip, vfs_direntry_info_t *dip);
 
 /*===========================================================================*/
@@ -1282,10 +1269,8 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
   vfs_rom_driver_c *self = (vfs_rom_driver_c *)ip;
   msg_t ret;
 
-  if (!is_read_only_open(flags)) {
-    return CH_RET_EROFS;
-  }
-
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
   ret = validate_absolute_path(path);
   if (!CH_RET_IS_ERROR(ret)) {
     const vfs_romfs_file_desc_t *filep;
@@ -1296,6 +1281,17 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
       vfs_offset_t size;
       void *session;
 
+      if ((flags & VO_DIRECTORY) != 0) {
+        return CH_RET_ENOTDIR;
+      }
+      if ((flags & VO_EXCL) != 0) {
+        return CH_RET_EEXIST;
+      }
+      if ((flags & VO_ACCMODE) != VO_RDONLY) {
+        return CH_RET_EROFS;
+      }
+      /* Creation of an existing read-only file is a read-only open.*/
+      flags = VO_RDONLY;
       ret = validate_file_descriptor(filep);
       if (CH_RET_IS_ERROR(ret)) {
         return ret;
@@ -1359,7 +1355,9 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
         ret = CH_RET_EISDIR;
       }
       else {
-        ret = CH_RET_ENOENT;
+        ret = ((flags & VO_CREAT) != 0) ||
+              ((flags & VO_ACCMODE) != VO_RDONLY) ?
+              CH_RET_EROFS : CH_RET_ENOENT;
       }
     }
   }

@@ -440,6 +440,8 @@ msg_t __ovldrv_openfile_impl(void *ip, const char *path, int flags,
   vfs_fs_c *fsp;
   msg_t ret;
 
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
   ret = validate_absolute_path(path);
   if (CH_RET_IS_ERROR(ret)) {
     return ret;

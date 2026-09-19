@@ -1,11 +1,11 @@
 # VFS I/O API and sandbox POSIX behavior plan
 
-Created on 2026-09-19. Status: step 1 complete; implementation starts at step 2.
+Created on 2026-09-19. Status: steps 1 and 2 complete; step 3 is next.
 
 Make `vfs_io_c` the main application interface for paths and descriptors,
 shared by Newlib bindings and sandboxes. Target the POSIX behavior needed by
 existing sandbox applications, with explicit limits for embedded backends.
-Build on the current uncommitted I/O class prototype and the completed
+Build on the I/O class prototype committed at `8265033984` and the completed
 [local locking plan](local_locking_plan.md).
 
 ## Architecture and scope
@@ -82,7 +82,30 @@ that implement their behavior; this completion covers specification and audit.
 Deliverable: a supported-behavior/error matrix and focused regression cases,
 plus explicit decisions for any backend limitation exercised by current apps.
 
-### 2. Implement one open operation with correct type routing
+### 2. Implement one open operation with correct type routing - complete
+
+Common validation now precedes descriptor reservation and root scratch waits.
+Directory flags and trailing separators select directory lookup before file
+mutation. Root stat also preserves the trailing-directory requirement, and
+empty root paths fail instead of resolving to CWD. Flags are checked in the
+enabled leaf wrappers, with corrected FatFS/LittleFS combinations, read-only
+ROMFS handling and stream capability checks.
+
+FatFS per-handle append positioning/write was brought forward from step 3 so
+accepting append without create cannot produce incorrect writes. Its initial
+read offset remains zero. Step 3 will consolidate this state with shared open
+flags and implement descriptor flag storage; CLOEXEC is currently accepted and
+stripped at routing boundaries, without being recorded in the table.
+
+Validation: 19 flag combinations against existing files, missing names and
+directories on each real FatFS/LittleFS backend; concurrent exclusive creators;
+append after seeks; native trailing-slash mutation rejection; 31 root/ROMFS
+routing cases; stream flags/capabilities; reservation validation and cleanup.
+Simulator suites passed with leaf mutexes/debug checks enabled, with kernel
+mutexes/condition variables disabled, and with root support disabled. The
+STM32G474 switched sandbox and STM32L4R9 dynamic FatFS sandbox demos compiled
+and linked without warnings. These ARM checks are builds, not hardware runs.
+XML schema, repeat-generation and changed-line style checks passed.
 
 - Add `VO_DIRECTORY`; handle it at the common routing layer, before any file
   creation or truncation. Strip flags that belong to the descriptor layer before
@@ -125,6 +148,8 @@ The baseline follows [POSIX open](https://pubs.opengroup.org/onlinepubs/97999197
   file; a wrapper mutex alone does not fix stale per-handle native metadata.
   Document/reject unsupported backend cases rather than claim atomic append
   there. See [POSIX write](https://pubs.opengroup.org/onlinepubs/9699919799/functions/write.html).
+  FatFS append/write and native append regression coverage are already present
+  from step 2; consolidate its append field when adding common open-handle flags.
 - Preserve short transfers, EOF, accurate seek results and non-seekable errors;
   validate count/offset conversions. Keep same-handle compound-operation limits
   explicit instead of adding an upper mutex around driver calls.

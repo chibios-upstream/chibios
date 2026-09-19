@@ -226,6 +226,9 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementat
       <class type="regular" name="vfs_fatfs_file_node" namespace="fffile"
         ancestorname="vfs_file_node" descr="VFS fatfs file node">
         <fields>
+          <field name="append" ctype="bool">
+            <brief>Positions writes at EOF under the native operation lock.</brief>
+          </field>
           <field name="file" ctype="FIL">
             <brief>FatFS inner @p FIL structure.</brief>
           </field>
@@ -238,7 +241,8 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementat
             <param name="mode" ctype="vfs_mode_t" dir="in"> Node mode flags.
             </param>
             <implementation><![CDATA[
-self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementation>
+self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
+self->append = false;]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[]]></implementation>

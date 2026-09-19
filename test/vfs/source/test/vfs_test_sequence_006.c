@@ -39,6 +39,7 @@
  * - @subpage vfs_test_006_001
  * - @subpage vfs_test_006_002
  * - @subpage vfs_test_006_003
+ * - @subpage vfs_test_006_004
  * .
  */
 
@@ -600,6 +601,62 @@ static const testcase_t vfs_test_006_003 = {
 };
 #endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
 
+/**
+ * @page vfs_test_006_004 [6.4] POSIX open flag matrix
+ *
+ * <h2>Description</h2>
+ * POSIX open flag matrix.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.4.1] POSIX open flag matrix.
+ * .
+ */
+
+static void vfs_test_006_004_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_004_teardown(void) {
+  msg_t ret;
+
+  ret = ffdrvUnmount("0:");
+  test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
+}
+
+static void vfs_test_006_004_execute(void) {
+
+  /* [6.4.1] POSIX open flag matrix.*/
+  test_set_step(1);
+  {
+    vfs_test_open_matrix((vfs_fs_c *)&vfs_test_fat_driver);
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_006_004 = {
+  "POSIX open flag matrix",
+  vfs_test_006_004_setup,
+  vfs_test_006_004_teardown,
+  vfs_test_006_004_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -613,6 +670,7 @@ const testcase_t * const vfs_test_sequence_006_array[] = {
 #if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
   &vfs_test_006_003,
 #endif
+  &vfs_test_006_004,
   NULL
 };
 

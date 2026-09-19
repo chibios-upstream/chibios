@@ -54,12 +54,73 @@
 /*===========================================================================*/
 
 /**
+ * @brief       Validates open arguments before allocation or delegation.
+ *
+ * @param[in]     path          Input path.
+ * @param[in]     flags         Open flags.
+ * @return                      The validation result.
+ *
+ * @notapi
+ */
+msg_t __vfs_check_open(const char *path, int flags) {
+  size_t n, component = 0U;
+  int access = flags & VO_ACCMODE;
+
+  if ((path == NULL) || ((flags & ~VO_SUPPORTED_FLAGS_MASK) != 0) ||
+      ((access != VO_RDONLY) && (access != VO_WRONLY) && (access != VO_RDWR)) ||
+      (((flags & VO_EXCL) != 0) && ((flags & VO_CREAT) == 0)) ||
+      (((flags & VO_TRUNC) != 0) && (access == VO_RDONLY)) ||
+      (((flags & VO_DIRECTORY) != 0) &&
+       ((flags & (VO_CREAT | VO_TRUNC)) != 0))) {
+    return CH_RET_EINVAL;
+  }
+  if (*path == '\0') {
+    return CH_RET_ENOENT;
+  }
+  for (n = 0U; path[n] != '\0'; n++) {
+    if (n >= VFS_CFG_PATHLEN_MAX) {
+      return CH_RET_ENAMETOOLONG;
+    }
+    if (vfs_path_is_separator(path[n])) {
+      component = 0U;
+    }
+    else if (++component > VFS_CFG_NAMELEN_MAX) {
+      return CH_RET_ENAMETOOLONG;
+    }
+  }
+
+  return CH_RET_SUCCESS;
+}
+
+/**
+ * @brief       Checks flags after identifying the target as a directory.
+ *
+ * @param[in]     flags         Validated open flags.
+ * @return                      The validation result.
+ *
+ * @notapi
+ */
+msg_t __vfs_check_directory_flags(int flags) {
+  if ((flags & (VO_CREAT | VO_EXCL)) == (VO_CREAT | VO_EXCL)) {
+    return CH_RET_EEXIST;
+  }
+  if (((flags & VO_ACCMODE) != VO_RDONLY) ||
+      ((flags & (VO_CREAT | VO_TRUNC)) != 0)) {
+    return CH_RET_EISDIR;
+  }
+
+  return CH_RET_SUCCESS;
+}
+
+/**
  * @brief       Opens a VFS file or directory.
  * @details     The input must be a normalized absolute path, borrowed until
  *              return. This helper does not allocate routing buffers. Use @p
  *              vfsRootOpen() for combined opens through a root, including
  *              relative paths, to retain one resolved path across
- *              file-to-directory fallback.
+ *              file-to-directory fallback. VO_DIRECTORY selects directory
+ *              lookup directly. VO_CLOEXEC is stripped before delegation; this
+ *              helper does not own descriptors.
  *
  * @param[in,out] fsp           Pointer to the @p vfs_fs_c object.
  * @param[in]     path          Absolute path of the node to be opened.
@@ -71,16 +132,31 @@
  * @api
  */
 msg_t vfsFSOpen(vfs_fs_c *fsp, const char *path, int flags, vfs_node_c **vnpp) {
+  vfs_directory_node_c *dnp;
   msg_t ret;
 
-  /* Attempting to open as file.*/
-  ret = vfsFSOpenFile(fsp, path, flags, (vfs_file_node_c **)vnpp);
-  if (ret == CH_RET_EISDIR) {
-    if ((flags & VO_ACCMODE) != VO_RDONLY) {
-      ret = CH_RET_EISDIR;
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
+  if (((flags & VO_DIRECTORY) != 0) ||
+      vfs_path_is_separator(path[strlen(path) - 1U])) {
+    ret = vfsFSOpenDirectory(fsp, path, &dnp);
+    CH_RETURN_ON_ERROR(ret);
+    ret = __vfs_check_directory_flags(flags);
+    if (CH_RET_IS_ERROR(ret)) {
+      (void)roRelease(dnp);
     }
     else {
-      ret = vfsFSOpenDirectory(fsp, path, (vfs_directory_node_c **)vnpp);
+      *vnpp = (vfs_node_c *)dnp;
+    }
+  }
+  else {
+    ret = vfsFSOpenFile(fsp, path, flags & ~VO_CLOEXEC,
+                        (vfs_file_node_c **)vnpp);
+    if (ret == CH_RET_EISDIR) {
+      ret = __vfs_check_directory_flags(flags);
+      if (!CH_RET_IS_ERROR(ret)) {
+        ret = vfsFSOpenDirectory(fsp, path, (vfs_directory_node_c **)vnpp);
+      }
     }
   }
 

@@ -525,7 +525,7 @@ self->root = root;]]></implementation>
             </method>
             <method name="vfsIOOpen" ctype="int">
               <brief>Opens a file or directory and returns a descriptor.</brief>
-              <details>A slot is reserved before entering the root. A full table returns EMFILE without invoking a driver. Failed opens cancel the reservation; rejected node references are released outside table protection. Standard OOP reference methods are required. Read-only opens also accept directories.</details>
+              <details>Flags and paths are validated before reserving a slot. A full table returns EMFILE without invoking a driver. Failed opens cancel the reservation; rejected node references are released outside table protection. Standard OOP reference methods are required. Read-only opens also accept directories, and VO_DIRECTORY requires one. VO_CLOEXEC is accepted and stripped before delegation; descriptor flag storage is not implemented yet.</details>
               <param name="path" ctype="const char *" dir="in">Absolute or relative path within the associated root.</param>
               <param name="flags" ctype="int" dir="in">File open flags.</param>
               <return>A nonnegative descriptor or an encoded error.</return>
@@ -538,9 +538,8 @@ msg_t ret;
 if (self->root == NULL) {
   return CH_RET_ENOSYS;
 }
-if (path == NULL) {
-  return CH_RET_EINVAL;
-}
+ret = __vfs_check_open(path, flags);
+CH_RETURN_ON_ERROR(ret);
 
 /* Reserve before driver calls, including create or truncate side effects.*/
 chSysLock();

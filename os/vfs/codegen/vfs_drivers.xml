@@ -13,7 +13,7 @@
     <definitions_early>
       <group description="File open flags compatible with Posix">
         <define name="VO_SUPPORTED_FLAGS_MASK"
-          value="(O_ACCMODE | O_APPEND | O_CREAT | O_TRUNC | O_EXCL)" />
+          value="(O_ACCMODE | O_APPEND | O_CREAT | O_TRUNC | O_EXCL | O_DIRECTORY | O_CLOEXEC)" />
         <define name="VO_ACCMODE" value="O_ACCMODE" />
         <define name="VO_RDONLY" value="O_RDONLY" />
         <define name="VO_WRONLY" value="O_WRONLY" />
@@ -22,6 +22,8 @@
         <define name="VO_CREAT" value="O_CREAT" />
         <define name="VO_TRUNC" value="O_TRUNC" />
         <define name="VO_EXCL" value="O_EXCL" />
+        <define name="VO_DIRECTORY" value="O_DIRECTORY" />
+        <define name="VO_CLOEXEC" value="O_CLOEXEC" />
       </group>
     </definitions_early>
     <types>
@@ -188,12 +190,65 @@ return __vfsfs_stat(self, path, sp);]]></implementation>
       </class>
     </types>
     <functions>
+      <function name="__vfs_check_open" ctype="msg_t">
+        <brief>Validates open arguments before allocation or delegation.</brief>
+        <param name="path" ctype="const char *" dir="in">Input path.</param>
+        <param name="flags" ctype="int" dir="in">Open flags.</param>
+        <return>The validation result.</return>
+        <notapi />
+        <implementation><![CDATA[
+size_t n, component = 0U;
+int access = flags & VO_ACCMODE;
+
+if ((path == NULL) || ((flags & ~VO_SUPPORTED_FLAGS_MASK) != 0) ||
+    ((access != VO_RDONLY) && (access != VO_WRONLY) && (access != VO_RDWR)) ||
+    (((flags & VO_EXCL) != 0) && ((flags & VO_CREAT) == 0)) ||
+    (((flags & VO_TRUNC) != 0) && (access == VO_RDONLY)) ||
+    (((flags & VO_DIRECTORY) != 0) &&
+     ((flags & (VO_CREAT | VO_TRUNC)) != 0))) {
+  return CH_RET_EINVAL;
+}
+if (*path == '\0') {
+  return CH_RET_ENOENT;
+}
+for (n = 0U; path[n] != '\0'; n++) {
+  if (n >= VFS_CFG_PATHLEN_MAX) {
+    return CH_RET_ENAMETOOLONG;
+  }
+  if (vfs_path_is_separator(path[n])) {
+    component = 0U;
+  }
+  else if (++component > VFS_CFG_NAMELEN_MAX) {
+    return CH_RET_ENAMETOOLONG;
+  }
+}
+
+return CH_RET_SUCCESS;]]></implementation>
+      </function>
+      <function name="__vfs_check_directory_flags" ctype="msg_t">
+        <brief>Checks flags after identifying the target as a directory.</brief>
+        <param name="flags" ctype="int" dir="in">Validated open flags.</param>
+        <return>The validation result.</return>
+        <notapi />
+        <implementation><![CDATA[
+if ((flags & (VO_CREAT | VO_EXCL)) == (VO_CREAT | VO_EXCL)) {
+  return CH_RET_EEXIST;
+}
+if (((flags & VO_ACCMODE) != VO_RDONLY) ||
+    ((flags & (VO_CREAT | VO_TRUNC)) != 0)) {
+  return CH_RET_EISDIR;
+}
+
+return CH_RET_SUCCESS;]]></implementation>
+      </function>
       <function name="vfsFSOpen" ctype="msg_t">
         <brief>Opens a VFS file or directory.</brief>
         <details>The input must be a normalized absolute path, borrowed until
           return. This helper does not allocate routing buffers. Use
           @p vfsRootOpen() for combined opens through a root, including relative
-          paths, to retain one resolved path across file-to-directory fallback.</details>
+          paths, to retain one resolved path across file-to-directory fallback.
+          VO_DIRECTORY selects directory lookup directly. VO_CLOEXEC is
+          stripped before delegation; this helper does not own descriptors.</details>
         <param name="fsp" ctype="vfs_fs_c *" dir="both"> Pointer to the @p
           vfs_fs_c object.
         </param>
@@ -207,16 +262,31 @@ return __vfsfs_stat(self, path, sp);]]></implementation>
         <return>The operation result.</return>
         <api />
         <implementation><![CDATA[
+vfs_directory_node_c *dnp;
 msg_t ret;
 
-/* Attempting to open as file.*/
-ret = vfsFSOpenFile(fsp, path, flags, (vfs_file_node_c **)vnpp);
-if (ret == CH_RET_EISDIR) {
-  if ((flags & VO_ACCMODE) != VO_RDONLY) {
-    ret = CH_RET_EISDIR;
+ret = __vfs_check_open(path, flags);
+CH_RETURN_ON_ERROR(ret);
+if (((flags & VO_DIRECTORY) != 0) ||
+    vfs_path_is_separator(path[strlen(path) - 1U])) {
+  ret = vfsFSOpenDirectory(fsp, path, &dnp);
+  CH_RETURN_ON_ERROR(ret);
+  ret = __vfs_check_directory_flags(flags);
+  if (CH_RET_IS_ERROR(ret)) {
+    (void)roRelease(dnp);
   }
   else {
-    ret = vfsFSOpenDirectory(fsp, path, (vfs_directory_node_c **)vnpp);
+    *vnpp = (vfs_node_c *)dnp;
+  }
+}
+else {
+  ret = vfsFSOpenFile(fsp, path, flags & ~VO_CLOEXEC,
+                      (vfs_file_node_c **)vnpp);
+  if (ret == CH_RET_EISDIR) {
+    ret = __vfs_check_directory_flags(flags);
+    if (!CH_RET_IS_ERROR(ret)) {
+      ret = vfsFSOpenDirectory(fsp, path, (vfs_directory_node_c **)vnpp);
+    }
   }
 }
 

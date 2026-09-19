@@ -619,6 +619,12 @@ msg_t __stmdrv_opendir_impl(void *ip, const char *path,
   vfs_streams_driver_c *self = (vfs_streams_driver_c *)ip;
   msg_t ret;
 
+  if (strcmp(path, "/") != 0) {
+    vfs_stat_t st;
+
+    ret = vfsFSStat(self, path, &st);
+    return CH_RET_IS_ERROR(ret) ? ret : CH_RET_ENOTDIR;
+  }
   do {
     vfs_streams_dir_node_c *sdnp;
 
@@ -666,7 +672,8 @@ msg_t __stmdrv_openfile_impl(void *ip, const char *path, int flags,
   const drv_streams_element_t *dsep;
   msg_t ret;
 
-  (void)flags; /* TODO  handle invalid modes.*/
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
 
   do {
     char fname[VFS_CFG_NAMELEN_MAX + 1]; /* TODO remove automatic buffer.*/
@@ -691,7 +698,25 @@ msg_t __stmdrv_openfile_impl(void *ip, const char *path, int flags,
     while (dsep->name != NULL) {
       if (strncmp(fname, dsep->name, VFS_CFG_NAMELEN_MAX) == 0) {
         vfs_streams_file_node_c *sfnp;
+        int access = flags & VO_ACCMODE;
 
+        if ((flags & VO_DIRECTORY) != 0) {
+          return CH_RET_ENOTDIR;
+        }
+        if ((flags & VO_EXCL) != 0) {
+          return CH_RET_EEXIST;
+        }
+        if (((access != VO_WRONLY) &&
+             ((dsep->mode & VFS_MODE_S_IRUSR) == 0)) ||
+            ((access != VO_RDONLY) &&
+             ((dsep->mode & VFS_MODE_S_IWUSR) == 0))) {
+          return CH_RET_EACCES;
+        }
+        if (VFS_MODE_S_ISREG(dsep->mode) &&
+            (((flags & VO_TRUNC) != 0) ||
+             (((flags & VO_APPEND) != 0) && (access != VO_RDONLY)))) {
+          return CH_ENCODE_ERROR(ENOTSUP);
+        }
         sfnp = chPoolAlloc(&vfs_streams_driver_static.file_nodes_pool);
         if (sfnp != NULL) {
 
@@ -710,7 +735,7 @@ msg_t __stmdrv_openfile_impl(void *ip, const char *path, int flags,
       dsep++;
     }
 
-    ret = CH_RET_ENOENT;
+    ret = (flags & VO_CREAT) != 0 ? CH_RET_EROFS : CH_RET_ENOENT;
   }
   while (false);
 
