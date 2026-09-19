@@ -36,6 +36,7 @@
  *
  * <h2>Test Cases</h2>
  * - @subpage vfs_test_012_001
+ * - @subpage vfs_test_012_002
  * .
  */
 
@@ -75,7 +76,7 @@ static vfs_rom_driver_c open_rom;
 static vfs_overlay_driver_c open_overlay;
 static vfs_root_c open_root;
 static vfs_io_c open_io;
-static vfs_node_c *open_slots[3];
+static vfs_descriptor_t open_slots[3];
 
 static void open_setup(void) {
 
@@ -100,13 +101,13 @@ static void open_teardown(void) {
 /*===========================================================================*/
 
 /**
- * @page vfs_test_012_001 [12.1] Root and read-only open matrix
+ * @page vfs_test_012_001 [12.1] ROM transfer and seek boundaries
  *
  * <h2>Description</h2>
- * Root and read-only open matrix.
+ * ROM transfer and seek boundaries.
  *
  * <h2>Test Steps</h2>
- * - [12.1.1] Root and read-only open matrix.
+ * - [12.1.1] ROM transfer and seek boundaries.
  * .
  */
 
@@ -119,6 +120,56 @@ static void vfs_test_012_001_teardown(void) {
 }
 
 static void vfs_test_012_001_execute(void) {
+  int fd;
+  uint8_t bytes[8];
+
+  /* [12.1.1] ROM transfer and seek boundaries.*/
+  test_set_step(1);
+  {
+    fd = vfsIOOpen(&open_io, "data", VO_RDONLY | VO_APPEND);
+    test_assert(fd == 0 && vfsIOWrite(&open_io, fd, NULL, 0) == CH_RET_EBADF,
+                "ROM opened access lost");
+    test_assert(vfsIORead(&open_io, fd, bytes, sizeof bytes) == 4 &&
+                memcmp(bytes, "seed", 4) == 0 &&
+                vfsIORead(&open_io, fd, bytes, sizeof bytes) == 0,
+                "ROM short read or EOF lost");
+    test_assert(vfsIOSeek(&open_io, fd, -1, VFS_SEEK_END) == 3 &&
+                vfsIOSeek(&open_io, fd, -1, VFS_SEEK_CUR) == 2 &&
+                vfsIOSeek(&open_io, fd, INT32_MAX, VFS_SEEK_CUR) == CH_RET_EOVERFLOW &&
+                vfsIOSeek(&open_io, fd, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
+                vfsIOSeek(&open_io, fd, 5, VFS_SEEK_SET) == CH_ENCODE_ERROR(ENOTSUP) &&
+                vfsIOTell(&open_io, fd) == 2, "ROM seek bounds or failure position");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_012_001 = {
+  "ROM transfer and seek boundaries",
+  vfs_test_012_001_setup,
+  vfs_test_012_001_teardown,
+  vfs_test_012_001_execute
+};
+
+/**
+ * @page vfs_test_012_002 [12.2] Root and read-only open matrix
+ *
+ * <h2>Description</h2>
+ * Root and read-only open matrix.
+ *
+ * <h2>Test Steps</h2>
+ * - [12.2.1] Root and read-only open matrix.
+ * .
+ */
+
+static void vfs_test_012_002_setup(void) {
+  open_setup();
+}
+
+static void vfs_test_012_002_teardown(void) {
+  open_teardown();
+}
+
+static void vfs_test_012_002_execute(void) {
   static const struct {
     const char *path;
     int flags;
@@ -161,7 +212,7 @@ static void vfs_test_012_001_execute(void) {
   int fd;
   vfs_stat_t st;
 
-  /* [12.1.1] Root and read-only open matrix.*/
+  /* [12.2.1] Root and read-only open matrix.*/
   test_set_step(1);
   {
     for (i = 0U; i < sizeof cases / sizeof cases[0]; i++) {
@@ -172,6 +223,9 @@ static void vfs_test_012_001_execute(void) {
         test_assert(vfsIOFstat(&open_io, fd, &st) == 0 &&
                     VFS_MODE_S_ISDIR(st.mode) == cases[i].directory,
                     "root open type mismatch");
+        test_assert(vfsIOGetDescriptorFlags(&open_io, fd) ==
+                      ((cases[i].flags & VO_CLOEXEC) != 0 ? VFD_CLOEXEC : 0),
+                    "open descriptor flags not published");
         test_assert(vfsIOClose(&open_io, fd) == 0, "root close failed");
       }
     }
@@ -181,11 +235,11 @@ static void vfs_test_012_001_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_012_001 = {
+static const testcase_t vfs_test_012_002 = {
   "Root and read-only open matrix",
-  vfs_test_012_001_setup,
-  vfs_test_012_001_teardown,
-  vfs_test_012_001_execute
+  vfs_test_012_002_setup,
+  vfs_test_012_002_teardown,
+  vfs_test_012_002_execute
 };
 
 /*===========================================================================*/
@@ -197,6 +251,7 @@ static const testcase_t vfs_test_012_001 = {
  */
 const testcase_t * const vfs_test_sequence_012_array[] = {
   &vfs_test_012_001,
+  &vfs_test_012_002,
   NULL
 };
 

@@ -169,6 +169,10 @@ struct vfs_rom_file_node {
    */
   vfs_mode_t                mode;
   /**
+   * @brief       Immutable access mode and append status shared by duplicates.
+   */
+  int                       flags;
+  /**
    * @brief       File descriptor.
    */
   const vfs_romfs_file_desc_t *file;

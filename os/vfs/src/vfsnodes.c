@@ -53,6 +53,50 @@
 /* Module exported functions.                                                */
 /*===========================================================================*/
 
+/**
+ * @brief       Computes a representable nonnegative seek target.
+ *
+ * @param[in]     offset        Signed offset.
+ * @param[in]     whence        Seek origin.
+ * @param[in]     current       Current native position.
+ * @param[in]     size          Native file size.
+ * @param[out]    target        Result on success.
+ * @return                      Success, EINVAL for invalid/negative positions
+ *                              or EOVERFLOW.
+ */
+msg_t __vfs_seek_target(vfs_offset_t offset, vfs_seekmode_t whence,
+                        uint64_t current, uint64_t size, vfs_offset_t *target) {
+  uint64_t base;
+  int64_t result;
+
+  switch (whence) {
+  case VFS_SEEK_SET:
+    base = 0U;
+    break;
+  case VFS_SEEK_CUR:
+    base = current;
+    break;
+  case VFS_SEEK_END:
+    base = size;
+    break;
+  default:
+    return CH_RET_EINVAL;
+  }
+  if (base > UINT32_MAX) {
+    return CH_RET_EOVERFLOW;
+  }
+  result = (int64_t)base + (int64_t)offset;
+  if (result < 0) {
+    return CH_RET_EINVAL;
+  }
+  if (result > INT32_MAX) {
+    return CH_RET_EOVERFLOW;
+  }
+  *target = (vfs_offset_t)result;
+
+  return CH_RET_SUCCESS;
+}
+
 /*===========================================================================*/
 /* Module class "vfs_node_c" methods.                                        */
 /*===========================================================================*/
@@ -218,14 +262,17 @@ msg_t __vfsdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
  * @param[in]     vmt           VMT pointer for the new object.
  * @param[in]     fs            Pointer to the controlling file system.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Open flags. Access mode is explicit and
+ *                              independent of stat permission bits.
  * @return                      A new reference to the object.
  */
 void *__vfsfile_objinit_impl(void *ip, const void *vmt, vfs_fs_c *fs,
-                             vfs_mode_t mode) {
+                             vfs_mode_t mode, int flags) {
   vfs_file_node_c *self = (vfs_file_node_c *)ip;
 
   /* Initialization code.*/
   self = __vfsnode_objinit_impl(ip, vmt, fs, mode);
+  self->flags = flags & (VO_ACCMODE | VO_APPEND);
 
   return self;
 }
@@ -248,7 +295,7 @@ void __vfsfile_dispose_impl(void *ip) {
 }
 
 /**
- * @brief       Implementation of method @p vfsFileRead().
+ * @brief       Implementation of method @p __vfsfile_read().
  * @note        This function is meant to be used by derived classes.
  *
  * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
@@ -267,7 +314,7 @@ ssize_t __vfsfile_read_impl(void *ip, uint8_t *buf, size_t n) {
 }
 
 /**
- * @brief       Implementation of method @p vfsFileWrite().
+ * @brief       Implementation of method @p __vfsfile_write().
  * @note        This function is meant to be used by derived classes.
  *
  * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
@@ -338,6 +385,69 @@ msg_t __vfsfile_control_impl(void *ip, vfs_control_op_t operation, void *arg) {
   (void)arg;
 
   return CH_RET_ENOTTY;
+}
+/** @} */
+
+/**
+ * @name        Regular methods of vfs_file_node_c
+ * @{
+ */
+/**
+ * @brief       Reads bytes using the opened access mode.
+ * @details     Access is checked even for zero bytes. A zero count accepts
+ *              NULL and does not call the driver. Counts exceeding SSIZE_MAX
+ *              are rejected before native narrowing. The caller serializes
+ *              shared handle operations; no upper lock covers driver calls.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
+ * @param[out]    buf           Data buffer.
+ * @param[in]     n             Maximum byte count.
+ * @return                      The transferred byte count or an encoded error.
+ *
+ * @api
+ */
+ssize_t vfsFileRead(void *ip, uint8_t *buf, size_t n) {
+  vfs_file_node_c *self = (vfs_file_node_c *)ip;
+  if ((self->flags & VO_ACCMODE) == VO_WRONLY) {
+    return CH_RET_EBADF;
+  }
+  if ((n > (SIZE_MAX >> 1)) || ((n != 0U) && (buf == NULL))) {
+    return CH_RET_EINVAL;
+  }
+  if (n == 0U) {
+    return 0;
+  }
+
+  return __vfsfile_read(self, buf, n);
+}
+
+/**
+ * @brief       Writes bytes using the opened access mode.
+ * @details     Access is checked even for zero bytes. A zero count accepts
+ *              NULL and does not call the driver. Counts exceeding SSIZE_MAX
+ *              are rejected before native narrowing. The caller serializes
+ *              shared handle operations; no upper lock covers driver calls.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
+ * @param[in]     buf           Data buffer.
+ * @param[in]     n             Maximum byte count.
+ * @return                      The transferred byte count or an encoded error.
+ *
+ * @api
+ */
+ssize_t vfsFileWrite(void *ip, const uint8_t *buf, size_t n) {
+  vfs_file_node_c *self = (vfs_file_node_c *)ip;
+  if ((self->flags & VO_ACCMODE) == VO_RDONLY) {
+    return CH_RET_EBADF;
+  }
+  if ((n > (SIZE_MAX >> 1)) || ((n != 0U) && (buf == NULL))) {
+    return CH_RET_EINVAL;
+  }
+  if (n == 0U) {
+    return 0;
+  }
+
+  return __vfsfile_write(self, buf, n);
 }
 /** @} */
 

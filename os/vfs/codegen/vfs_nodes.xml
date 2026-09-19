@@ -372,7 +372,14 @@ return CH_RET_ENOSYS;<![CDATA[]]></implementation>
       <class type="abstract" name="vfs_file_node" namespace="vfsfile"
         ancestorname="vfs_node" descr="VFS file node">
         <brief>Ancestor class of all VFS file nodes classes.</brief>
+        <details>Constructors take explicit open flags, including for host-created
+          nodes. Access and append status remain immutable for the node lifetime
+          and are shared by all references and duplicated descriptors. Stat
+          permission bits do not grant access to an opened handle.</details>
         <fields>
+          <field name="flags" ctype="int">
+            <brief>Immutable access mode and append status shared by duplicates.</brief>
+          </field>
         </fields>
         <methods>
           <objinit callsuper="false">
@@ -381,21 +388,24 @@ return CH_RET_ENOSYS;<![CDATA[]]></implementation>
             </param>
             <param name="mode" ctype="vfs_mode_t" dir="in"> Node mode flags.
             </param>
+            <param name="flags" ctype="int" dir="in">Open flags. Access mode
+              is explicit and independent of stat permission bits.</param>
             <implementation><![CDATA[
-self = __vfsnode_objinit_impl(ip, vmt, fs, mode);]]></implementation>
+self = __vfsnode_objinit_impl(ip, vmt, fs, mode);
+self->flags = flags & (VO_ACCMODE | VO_APPEND);]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[ ]]></implementation>
           </dispose>
           <virtual>
-            <method name="vfsFileRead" shortname="read" ctype="ssize_t">
+            <method name="__vfsfile_read" shortname="read" ctype="ssize_t">
               <brief>File node read.</brief>
               <param name="buf" ctype="uint8_t *" dir="out">Pointer to the data
                 buffer.</param>
               <param name="n" ctype="size_t" dir="in">Maximum amount of data to
                 be transferred.</param>
               <return>The transferred number of bytes or an error.</return>
-              <api />
+              <notapi />
               <implementation>
 
 (void)self;
@@ -404,14 +414,14 @@ self = __vfsnode_objinit_impl(ip, vmt, fs, mode);]]></implementation>
 
 return CH_RET_ENOSYS;<![CDATA[]]></implementation>
             </method>
-            <method name="vfsFileWrite" shortname="write" ctype="ssize_t">
-              <brief>File node read.</brief>
+            <method name="__vfsfile_write" shortname="write" ctype="ssize_t">
+              <brief>File node write.</brief>
               <param name="buf" ctype="const uint8_t *" dir="in">Pointer to the
                 data buffer.</param>
               <param name="n" ctype="size_t" dir="in">Maximum amount of data to
                 be transferred.</param>
               <return>The transferred number of bytes or an error.</return>
-              <api />
+              <notapi />
               <implementation>
 
 (void)self;
@@ -470,9 +480,98 @@ return CH_RET_ENOSYS;<![CDATA[]]></implementation>
 return CH_RET_ENOTTY;<![CDATA[]]></implementation>
             </method>
           </virtual>
+          <regular>
+            <method name="vfsFileRead" ctype="ssize_t">
+              <brief>Reads bytes using the opened access mode.</brief>
+              <details>Access is checked even for zero bytes. A zero count accepts
+                NULL and does not call the driver. Counts exceeding SSIZE_MAX are
+                rejected before native narrowing. The caller serializes shared
+                handle operations; no upper lock covers driver calls.</details>
+              <param name="buf" ctype="uint8_t *" dir="out">Data buffer.</param>
+              <param name="n" ctype="size_t" dir="in">Maximum byte count.</param>
+              <return>The transferred byte count or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+if ((self->flags & VO_ACCMODE) == VO_WRONLY) {
+  return CH_RET_EBADF;
+}
+if ((n > (SIZE_MAX >> 1)) || ((n != 0U) && (buf == NULL))) {
+  return CH_RET_EINVAL;
+}
+if (n == 0U) {
+  return 0;
+}
+
+return __vfsfile_read(self, buf, n);]]></implementation>
+            </method>
+            <method name="vfsFileWrite" ctype="ssize_t">
+              <brief>Writes bytes using the opened access mode.</brief>
+              <details>Access is checked even for zero bytes. A zero count accepts
+                NULL and does not call the driver. Counts exceeding SSIZE_MAX are
+                rejected before native narrowing. The caller serializes shared
+                handle operations; no upper lock covers driver calls.</details>
+              <param name="buf" ctype="const uint8_t *" dir="in">Data buffer.</param>
+              <param name="n" ctype="size_t" dir="in">Maximum byte count.</param>
+              <return>The transferred byte count or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+if ((self->flags & VO_ACCMODE) == VO_RDONLY) {
+  return CH_RET_EBADF;
+}
+if ((n > (SIZE_MAX >> 1)) || ((n != 0U) && (buf == NULL))) {
+  return CH_RET_EINVAL;
+}
+if (n == 0U) {
+  return 0;
+}
+
+return __vfsfile_write(self, buf, n);]]></implementation>
+            </method>
+          </regular>
         </methods>
       </class>
     </types>
+    <functions>
+      <function name="__vfs_seek_target" ctype="msg_t">
+        <brief>Computes a representable nonnegative seek target.</brief>
+        <param name="offset" ctype="vfs_offset_t" dir="in">Signed offset.</param>
+        <param name="whence" ctype="vfs_seekmode_t" dir="in">Seek origin.</param>
+        <param name="current" ctype="uint64_t" dir="in">Current native position.</param>
+        <param name="size" ctype="uint64_t" dir="in">Native file size.</param>
+        <param name="target" ctype="vfs_offset_t *" dir="out">Result on success.</param>
+        <return>Success, EINVAL for invalid/negative positions or EOVERFLOW.</return>
+        <implementation><![CDATA[
+uint64_t base;
+int64_t result;
+
+switch (whence) {
+case VFS_SEEK_SET:
+  base = 0U;
+  break;
+case VFS_SEEK_CUR:
+  base = current;
+  break;
+case VFS_SEEK_END:
+  base = size;
+  break;
+default:
+  return CH_RET_EINVAL;
+}
+if (base > UINT32_MAX) {
+  return CH_RET_EOVERFLOW;
+}
+result = (int64_t)base + (int64_t)offset;
+if (result < 0) {
+  return CH_RET_EINVAL;
+}
+if (result > INT32_MAX) {
+  return CH_RET_EOVERFLOW;
+}
+*target = (vfs_offset_t)result;
+
+return CH_RET_SUCCESS;]]></implementation>
+      </function>
+    </functions>
   </public>
   <private>
     <includes_always>

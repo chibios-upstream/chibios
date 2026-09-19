@@ -103,6 +103,7 @@ bool vfs_test_stat_equal(const vfs_stat_t *actual,
 bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
 void vfs_test_fs_reset(void);
 void vfs_test_open_matrix(vfs_fs_c *fsp);
+void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs);
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);
 #endif

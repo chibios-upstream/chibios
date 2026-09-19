@@ -43,6 +43,7 @@
  * - @subpage vfs_test_010_005
  * - @subpage vfs_test_010_006
  * - @subpage vfs_test_010_007
+ * - @subpage vfs_test_010_008
  * .
  */
 
@@ -63,7 +64,7 @@ typedef struct {
 } vfs_test_io_node_t;
 
 static vfs_io_c vfs_test_io, vfs_test_io_other, vfs_test_io_empty;
-static vfs_node_c *vfs_test_io_slots[3], *vfs_test_io_other_slots[1];
+static vfs_descriptor_t vfs_test_io_slots[3], vfs_test_io_other_slots[1];
 static vfs_test_io_node_t vfs_test_io_nodes[4];
 static struct vfs_node_vmt vfs_test_io_custom_vmt[2];
 static unsigned vfs_test_io_custom_calls;
@@ -228,15 +229,13 @@ static void vfs_test_io_teardown(void) {
 /*===========================================================================*/
 
 /**
- * @page vfs_test_010_001 [10.1] Slot allocation and admission
+ * @page vfs_test_010_001 [10.1] Descriptor flag ownership
  *
  * <h2>Description</h2>
- * Sparse installation, independent capacities and rejected transfers
- * preserve ownership.
+ * Descriptor flag ownership.
  *
  * <h2>Test Steps</h2>
- * - [10.1.1] Sparse installation, independent capacities and rejected
- *   transfers preserve ownership.
+ * - [10.1.1] Descriptor flag ownership.
  * .
  */
 
@@ -249,9 +248,73 @@ static void vfs_test_010_001_teardown(void) {
 }
 
 static void vfs_test_010_001_execute(void) {
+
+  /* [10.1.1] Descriptor flag ownership.*/
+  test_set_step(1);
+  {
+    test_assert(vfsIOInsert(&vfs_test_io, &vfs_test_io_nodes[0].node) == 0 &&
+                vfsIOGetDescriptorFlags(&vfs_test_io, 0) == 0,
+                "installed reference has stale flags");
+    test_assert(vfsIOSetDescriptorFlags(&vfs_test_io, 0, VFD_CLOEXEC) == 0 &&
+                vfsIODup(&vfs_test_io, 0) == 1 &&
+                vfsIOGetDescriptorFlags(&vfs_test_io, 0) == VFD_CLOEXEC &&
+                vfsIOGetDescriptorFlags(&vfs_test_io, 1) == 0,
+                "dup did not separate descriptor flags");
+    test_assert(vfsIODup2(&vfs_test_io, 0, 0) == 0 &&
+                vfsIOGetDescriptorFlags(&vfs_test_io, 0) == VFD_CLOEXEC,
+                "same descriptor dup2 changed flags");
+    test_assert(vfsIOSetDescriptorFlags(&vfs_test_io, 1, VFD_CLOEXEC) == 0 &&
+                vfsIODup2(&vfs_test_io, -1, 1) == CH_RET_EBADF &&
+                vfsIOGetDescriptorFlags(&vfs_test_io, 1) == VFD_CLOEXEC &&
+                vfsIODup2(&vfs_test_io, 0, 1) == 1 &&
+                vfsIOGetDescriptorFlags(&vfs_test_io, 1) == 0,
+                "dup2 flags or failure atomicity");
+    test_assert(vfsIOSetDescriptorFlags(&vfs_test_io, 0, -1) == CH_RET_EINVAL &&
+                vfsIOGetDescriptorFlags(&vfs_test_io, 0) == VFD_CLOEXEC &&
+                vfsIOGetDescriptorFlags(&vfs_test_io, -1) == CH_RET_EBADF &&
+                vfsIOSetDescriptorFlags(&vfs_test_io, 2, 0) == CH_RET_EBADF,
+                "invalid descriptor flags accepted");
+    test_assert(vfsIOClose(&vfs_test_io, 0) == 0 &&
+                vfsIOGetDescriptorFlags(&vfs_test_io, 0) == CH_RET_EBADF &&
+                vfsIOInstall(&vfs_test_io, 0, &vfs_test_io_nodes[1].node) == 0 &&
+                vfsIOGetDescriptorFlags(&vfs_test_io, 0) == 0,
+                "reused descriptor retained flags");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_010_001 = {
+  "Descriptor flag ownership",
+  vfs_test_010_001_setup,
+  vfs_test_010_001_teardown,
+  vfs_test_010_001_execute
+};
+
+/**
+ * @page vfs_test_010_002 [10.2] Slot allocation and admission
+ *
+ * <h2>Description</h2>
+ * Sparse installation, independent capacities and rejected transfers
+ * preserve ownership.
+ *
+ * <h2>Test Steps</h2>
+ * - [10.2.1] Sparse installation, independent capacities and rejected
+ *   transfers preserve ownership.
+ * .
+ */
+
+static void vfs_test_010_002_setup(void) {
+  vfs_test_io_setup();
+}
+
+static void vfs_test_010_002_teardown(void) {
+  vfs_test_io_teardown();
+}
+
+static void vfs_test_010_002_execute(void) {
   vfs_node_c *np;
 
-  /* [10.1.1] Sparse installation, independent capacities and rejected
+  /* [10.2.1] Sparse installation, independent capacities and rejected
      transfers preserve ownership.*/
   test_set_step(1);
   {
@@ -303,38 +366,38 @@ static void vfs_test_010_001_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_010_001 = {
+static const testcase_t vfs_test_010_002 = {
   "Slot allocation and admission",
-  vfs_test_010_001_setup,
-  vfs_test_010_001_teardown,
-  vfs_test_010_001_execute
+  vfs_test_010_002_setup,
+  vfs_test_010_002_teardown,
+  vfs_test_010_002_execute
 };
 
 /**
- * @page vfs_test_010_002 [10.2] Duplicate and replacement ownership
+ * @page vfs_test_010_003 [10.3] Duplicate and replacement ownership
  *
  * <h2>Description</h2>
  * Duplication errors preserve destinations and each occupied slot owns
  * one reference.
  *
  * <h2>Test Steps</h2>
- * - [10.2.1] Duplication errors preserve destinations and each
+ * - [10.3.1] Duplication errors preserve destinations and each
  *   occupied slot owns one reference.
  * .
  */
 
-static void vfs_test_010_002_setup(void) {
+static void vfs_test_010_003_setup(void) {
   vfs_test_io_setup();
 }
 
-static void vfs_test_010_002_teardown(void) {
+static void vfs_test_010_003_teardown(void) {
   vfs_test_io_teardown();
 }
 
-static void vfs_test_010_002_execute(void) {
+static void vfs_test_010_003_execute(void) {
   vfs_node_c *np;
 
-  /* [10.2.1] Duplication errors preserve destinations and each
+  /* [10.3.1] Duplication errors preserve destinations and each
      occupied slot owns one reference.*/
   test_set_step(1);
   {
@@ -377,39 +440,39 @@ static void vfs_test_010_002_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_010_002 = {
+static const testcase_t vfs_test_010_003 = {
   "Duplicate and replacement ownership",
-  vfs_test_010_002_setup,
-  vfs_test_010_002_teardown,
-  vfs_test_010_002_execute
+  vfs_test_010_003_setup,
+  vfs_test_010_003_teardown,
+  vfs_test_010_003_execute
 };
 
 /**
- * @page vfs_test_010_003 [10.3] Lookup survives close and descriptor reuse
+ * @page vfs_test_010_004 [10.4] Lookup survives close and descriptor reuse
  *
  * <h2>Description</h2>
  * A suspended node operation retains its original node through success
  * and error returns.
  *
  * <h2>Test Steps</h2>
- * - [10.3.1] A suspended node operation retains its original node
+ * - [10.4.1] A suspended node operation retains its original node
  *   through success and error returns.
  * .
  */
 
-static void vfs_test_010_003_setup(void) {
+static void vfs_test_010_004_setup(void) {
   vfs_test_io_setup();
 }
 
-static void vfs_test_010_003_teardown(void) {
+static void vfs_test_010_004_teardown(void) {
   vfs_test_io_teardown();
 }
 
-static void vfs_test_010_003_execute(void) {
+static void vfs_test_010_004_execute(void) {
   unsigned iteration;
   bool ok;
 
-  /* [10.3.1] A suspended node operation retains its original node
+  /* [10.4.1] A suspended node operation retains its original node
      through success and error returns.*/
   test_set_step(1);
   {
@@ -444,38 +507,38 @@ static void vfs_test_010_003_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_010_003 = {
+static const testcase_t vfs_test_010_004 = {
   "Lookup survives close and descriptor reuse",
-  vfs_test_010_003_setup,
-  vfs_test_010_003_teardown,
-  vfs_test_010_003_execute
+  vfs_test_010_004_setup,
+  vfs_test_010_004_teardown,
+  vfs_test_010_004_execute
 };
 
 /**
- * @page vfs_test_010_004 [10.4] Close allows reentry and suspended disposal
+ * @page vfs_test_010_005 [10.5] Close allows reentry and suspended disposal
  *
  * <h2>Description</h2>
  * The detached slot and independent tables remain usable while final
  * disposal waits.
  *
  * <h2>Test Steps</h2>
- * - [10.4.1] The detached slot and independent tables remain usable
+ * - [10.5.1] The detached slot and independent tables remain usable
  *   while final disposal waits.
  * .
  */
 
-static void vfs_test_010_004_setup(void) {
+static void vfs_test_010_005_setup(void) {
   vfs_test_io_setup();
 }
 
-static void vfs_test_010_004_teardown(void) {
+static void vfs_test_010_005_teardown(void) {
   vfs_test_io_teardown();
 }
 
-static void vfs_test_010_004_execute(void) {
+static void vfs_test_010_005_execute(void) {
   bool ok;
 
-  /* [10.4.1] The detached slot and independent tables remain usable
+  /* [10.5.1] The detached slot and independent tables remain usable
      while final disposal waits.*/
   test_set_step(1);
   {
@@ -498,39 +561,39 @@ static void vfs_test_010_004_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_010_004 = {
+static const testcase_t vfs_test_010_005 = {
   "Close allows reentry and suspended disposal",
-  vfs_test_010_004_setup,
-  vfs_test_010_004_teardown,
-  vfs_test_010_004_execute
+  vfs_test_010_005_setup,
+  vfs_test_010_005_teardown,
+  vfs_test_010_005_execute
 };
 
 /**
- * @page vfs_test_010_005 [10.5] Dup2 publishes before suspended disposal
+ * @page vfs_test_010_006 [10.6] Dup2 publishes before suspended disposal
  *
  * <h2>Description</h2>
  * A disposal callback observes the replacement and other callers can
  * close or reuse it.
  *
  * <h2>Test Steps</h2>
- * - [10.5.1] A disposal callback observes the replacement and other
+ * - [10.6.1] A disposal callback observes the replacement and other
  *   callers can close or reuse it.
  * .
  */
 
-static void vfs_test_010_005_setup(void) {
+static void vfs_test_010_006_setup(void) {
   vfs_test_io_setup();
 }
 
-static void vfs_test_010_005_teardown(void) {
+static void vfs_test_010_006_teardown(void) {
   vfs_test_io_teardown();
 }
 
-static void vfs_test_010_005_execute(void) {
+static void vfs_test_010_006_execute(void) {
   bool ok;
   vfs_node_c *np;
 
-  /* [10.5.1] A disposal callback observes the replacement and other
+  /* [10.6.1] A disposal callback observes the replacement and other
      callers can close or reuse it.*/
   test_set_step(1);
   {
@@ -563,38 +626,38 @@ static void vfs_test_010_005_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_010_005 = {
+static const testcase_t vfs_test_010_006 = {
   "Dup2 publishes before suspended disposal",
-  vfs_test_010_005_setup,
-  vfs_test_010_005_teardown,
-  vfs_test_010_005_execute
+  vfs_test_010_006_setup,
+  vfs_test_010_006_teardown,
+  vfs_test_010_006_execute
 };
 
 /**
- * @page vfs_test_010_006 [10.6] Clear and object disposal
+ * @page vfs_test_010_007 [10.7] Clear and object disposal
  *
  * <h2>Description</h2>
  * Clearing releases each slot once, retained references survive and an
  * empty table is reusable.
  *
  * <h2>Test Steps</h2>
- * - [10.6.1] Clearing releases each slot once, retained references
+ * - [10.7.1] Clearing releases each slot once, retained references
  *   survive and an empty table is reusable.
  * .
  */
 
-static void vfs_test_010_006_setup(void) {
+static void vfs_test_010_007_setup(void) {
   vfs_test_io_setup();
 }
 
-static void vfs_test_010_006_teardown(void) {
+static void vfs_test_010_007_teardown(void) {
   vfs_test_io_teardown();
 }
 
-static void vfs_test_010_006_execute(void) {
+static void vfs_test_010_007_execute(void) {
   vfs_node_c *np;
 
-  /* [10.6.1] Clearing releases each slot once, retained references
+  /* [10.7.1] Clearing releases each slot once, retained references
      survive and an empty table is reusable.*/
   test_set_step(1);
   {
@@ -622,39 +685,39 @@ static void vfs_test_010_006_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_010_006 = {
+static const testcase_t vfs_test_010_007 = {
   "Clear and object disposal",
-  vfs_test_010_006_setup,
-  vfs_test_010_006_teardown,
-  vfs_test_010_006_execute
+  vfs_test_010_007_setup,
+  vfs_test_010_007_teardown,
+  vfs_test_010_007_execute
 };
 
 /**
- * @page vfs_test_010_007 [10.7] Reference method admission and overflow
+ * @page vfs_test_010_008 [10.8] Reference method admission and overflow
  *
  * <h2>Description</h2>
  * Custom reference methods are rejected without invocation, and
  * overflow leaves ownership unchanged.
  *
  * <h2>Test Steps</h2>
- * - [10.7.1] Custom reference methods are rejected without invocation,
+ * - [10.8.1] Custom reference methods are rejected without invocation,
  *   and overflow leaves ownership unchanged.
  * .
  */
 
-static void vfs_test_010_007_setup(void) {
+static void vfs_test_010_008_setup(void) {
   vfs_test_io_setup();
 }
 
-static void vfs_test_010_007_teardown(void) {
+static void vfs_test_010_008_teardown(void) {
   vfs_test_io_teardown();
 }
 
-static void vfs_test_010_007_execute(void) {
+static void vfs_test_010_008_execute(void) {
   bool ok;
   unsigned i;
 
-  /* [10.7.1] Custom reference methods are rejected without invocation,
+  /* [10.8.1] Custom reference methods are rejected without invocation,
      and overflow leaves ownership unchanged.*/
   test_set_step(1);
   {
@@ -698,11 +761,11 @@ static void vfs_test_010_007_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_010_007 = {
+static const testcase_t vfs_test_010_008 = {
   "Reference method admission and overflow",
-  vfs_test_010_007_setup,
-  vfs_test_010_007_teardown,
-  vfs_test_010_007_execute
+  vfs_test_010_008_setup,
+  vfs_test_010_008_teardown,
+  vfs_test_010_008_execute
 };
 
 /*===========================================================================*/
@@ -720,6 +783,7 @@ const testcase_t * const vfs_test_sequence_010_array[] = {
   &vfs_test_010_005,
   &vfs_test_010_006,
   &vfs_test_010_007,
+  &vfs_test_010_008,
   NULL
 };
 

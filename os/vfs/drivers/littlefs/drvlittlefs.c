@@ -163,6 +163,10 @@ struct vfs_littlefs_file_node {
    */
   vfs_mode_t                mode;
   /**
+   * @brief       Immutable access mode and append status shared by duplicates.
+   */
+  int                       flags;
+  /**
    * @brief       LittleFS inner @p lfs_file_t structure.
    */
   lfs_file_t                file;

@@ -161,8 +161,9 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementat
             </param>
             <param name="mode" ctype="vfs_mode_t" dir="in">Node mode flags.
             </param>
+            <param name="flags" ctype="int" dir="in">Opened access and status flags.</param>
             <implementation><![CDATA[
-self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementation>
+self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode, flags);]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[]]></implementation>

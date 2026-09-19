@@ -857,18 +857,19 @@ static vfs_rom_dir_node_c *romdirObjectInit(vfs_rom_dir_node_c *self,
  * @param[in]     vmt           VMT pointer for the new object.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Opened access and status flags.
  * @param[in]     file          Pointer to the file descriptor.
  * @param[in]     size          File size for the current open session.
  * @param[in]     session       Dynamic file session pointer.
  * @return                      A new reference to the object.
  */
 static void *__romfile_objinit_impl(void *ip, const void *vmt,
-                                    vfs_fs_c *driver, vfs_mode_t mode,
+                                    vfs_fs_c *driver, vfs_mode_t mode, int flags,
                                     const vfs_romfs_file_desc_t *file,
                                     vfs_offset_t size, void *session) {
   vfs_rom_file_node_c *self = (vfs_rom_file_node_c *)ip;
 
-  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
+  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode, flags);
   self->file = file;
   self->position = (vfs_offset_t)0;
   self->size = size;
@@ -1023,37 +1024,16 @@ static ssize_t __romfile_write_impl(void *ip, const uint8_t *buf, size_t n) {
 static msg_t __romfile_setpos_impl(void *ip, vfs_offset_t offset,
                                    vfs_seekmode_t whence) {
   vfs_rom_file_node_c *self = (vfs_rom_file_node_c *)ip;
-  vfs_offset_t newpos;
+  vfs_offset_t target;
+  msg_t ret;
 
-  switch (whence) {
-  case VFS_SEEK_SET:
-    newpos = offset;
-    break;
-  case VFS_SEEK_CUR:
-    if (((offset > (vfs_offset_t)0) &&
-         (offset > (self->size - self->position))) ||
-        ((offset < (vfs_offset_t)0) &&
-         (offset < ((vfs_offset_t)0 - self->position)))) {
-      return CH_RET_EINVAL;
-    }
-    newpos = self->position + offset;
-    break;
-  case VFS_SEEK_END:
-    if ((offset > (vfs_offset_t)0) ||
-        (offset < ((vfs_offset_t)0 - self->size))) {
-      return CH_RET_EINVAL;
-    }
-    newpos = self->size + offset;
-    break;
-  default:
-    return CH_RET_EINVAL;
+  ret = __vfs_seek_target(offset, whence, (uint64_t)self->position,
+                           (uint64_t)self->size, &target);
+  CH_RETURN_ON_ERROR(ret);
+  if (target > self->size) {
+    return CH_ENCODE_ERROR(ENOTSUP);
   }
-
-  if ((newpos < (vfs_offset_t)0) || (newpos > self->size)) {
-    return CH_RET_EINVAL;
-  }
-
-  self->position = newpos;
+  self->position = target;
 
   return CH_RET_SUCCESS;
 }
@@ -1099,6 +1079,7 @@ static const struct vfs_rom_file_node_vmt __vfs_rom_file_node_vmt = {
  *                              be initialized.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Opened access and status flags.
  * @param[in]     file          Pointer to the file descriptor.
  * @param[in]     size          File size for the current open session.
  * @param[in]     session       Dynamic file session pointer.
@@ -1108,13 +1089,13 @@ static const struct vfs_rom_file_node_vmt __vfs_rom_file_node_vmt = {
  */
 static vfs_rom_file_node_c *romfileObjectInit(vfs_rom_file_node_c *self,
                                               vfs_fs_c *driver,
-                                              vfs_mode_t mode,
+                                              vfs_mode_t mode, int flags,
                                               const vfs_romfs_file_desc_t *file,
                                               vfs_offset_t size,
                                               void *session) {
 
   return __romfile_objinit_impl(self, &__vfs_rom_file_node_vmt,
-                                driver, mode, file, size, session);
+                                driver, mode, flags, file, size, session);
 }
 /** @} */
 
@@ -1291,7 +1272,6 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
         return CH_RET_EROFS;
       }
       /* Creation of an existing read-only file is a read-only open.*/
-      flags = VO_RDONLY;
       ret = validate_file_descriptor(filep);
       if (CH_RET_IS_ERROR(ret)) {
         return ret;
@@ -1307,7 +1287,7 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
         }
 
         ret = filep->content.dynamic.ops->open(filep->content.dynamic.arg,
-                                               flags, &session, &size);
+                                               VO_RDONLY, &session, &size);
         if (CH_RET_IS_ERROR(ret)) {
           return ret;
         }
@@ -1323,7 +1303,7 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
         }
 
         ret = filep->content.compressed.ops->open(
-                filep->content.compressed.arg, flags, &session, &size);
+                filep->content.compressed.arg, VO_RDONLY, &session, &size);
         if (CH_RET_IS_ERROR(ret)) {
           return ret;
         }
@@ -1333,7 +1313,7 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
       rfnp = chPoolAlloc(&vfs_rom_driver_static.file_nodes_pool);
       if (rfnp != NULL) {
         (void)romfileObjectInit(rfnp, (vfs_fs_c *)self,
-                                VFS_MODE_S_IFREG | filep->mode,
+                                VFS_MODE_S_IFREG | filep->mode, flags,
                                 filep, size, session);
         *vfnpp = (vfs_file_node_c *)rfnp;
         ret = CH_RET_SUCCESS;

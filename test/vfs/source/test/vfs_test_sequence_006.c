@@ -561,7 +561,7 @@ static void vfs_test_006_003_execute(void) {
                               &first) == CH_RET_ENOENT, "missing file error");
     test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin", VO_RDONLY,
                               &first) == CH_RET_SUCCESS, "reopen after error failed");
-    test_assert(vfsFileSetPosition(first, -1, VFS_SEEK_SET) == CH_RET_EOVERFLOW,
+    test_assert(vfsFileSetPosition(first, -1, VFS_SEEK_SET) == CH_RET_EINVAL,
                 "negative seek error");
     test_assert(vfsFileGetPosition(first) == 0, "position after error changed");
     (void)roRelease(first);
@@ -646,6 +646,7 @@ static void vfs_test_006_004_execute(void) {
   test_set_step(1);
   {
     vfs_test_open_matrix((vfs_fs_c *)&vfs_test_fat_driver);
+    vfs_test_handle_contract((vfs_fs_c *)&vfs_test_fat_driver, true);
   }
   test_end_step(1);
 }

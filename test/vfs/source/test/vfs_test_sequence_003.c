@@ -78,16 +78,21 @@ static size_t vfs_test_stream_read(void *ip, uint8_t *bp, size_t n) {
 }
 
 static uint32_t vfs_test_stream_position;
+static uint32_t vfs_test_stream_limit = UINT32_MAX;
 
 static uint32_t vfs_test_stream_seek(void *ip, uint32_t offset, int whence) {
 
   (void)ip;
 
   if (whence == RSTM_SEEK_SET) {
-    vfs_test_stream_position = offset;
+    vfs_test_stream_position = offset > vfs_test_stream_limit ?
+                               vfs_test_stream_limit : offset;
   }
   else if (whence == RSTM_SEEK_CUR) {
     vfs_test_stream_position += offset;
+  }
+  else if (whence == RSTM_SEEK_END) {
+    vfs_test_stream_position = vfs_test_stream_limit;
   }
 
   return vfs_test_stream_position;
@@ -569,6 +574,20 @@ static void vfs_test_003_003_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "random stream seek failed");
     test_assert(vfsGetFilePosition(fnp) == (vfs_offset_t)7,
                 "random stream position changed");
+    vfs_test_stream_limit = 16U;
+    test_assert(vfsFileSetPosition(fnp, -2, VFS_SEEK_CUR) == 0 &&
+                vfsFileGetPosition(fnp) == 5 &&
+                vfsFileSetPosition(fnp, -2, VFS_SEEK_END) == 0 &&
+                vfsFileGetPosition(fnp) == 14, "stream signed seek failed");
+    test_assert(vfsFileSetPosition(fnp, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
+                vfsFileSetPosition(fnp, INT32_MAX, VFS_SEEK_CUR) == CH_RET_EOVERFLOW &&
+                vfsFileSetPosition(fnp, 17, VFS_SEEK_SET) == CH_ENCODE_ERROR(ENOTSUP) &&
+                vfsFileGetPosition(fnp) == 14, "stream seek clamped silently");
+    vfs_test_stream_position = UINT32_MAX;
+    test_assert(vfsFileGetPosition(fnp) == CH_RET_EOVERFLOW,
+                "stream tell narrowed overflowing position");
+    vfs_test_stream_position = 0U;
+    vfs_test_stream_limit = UINT32_MAX;
     (void)roRelease(fnp);
 
     vfs_test_tty_drains = 0U;

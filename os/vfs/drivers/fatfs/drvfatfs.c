@@ -28,6 +28,7 @@
 #if (VFS_CFG_ENABLE_DRV_FATFS == TRUE) || defined(__DOXYGEN__)
 
 #include "ff.h"
+#include <limits.h>
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
@@ -168,9 +169,9 @@ struct vfs_fatfs_file_node {
    */
   vfs_mode_t                mode;
   /**
-   * @brief       Positions writes at EOF under the native operation lock.
+   * @brief       Immutable access mode and append status shared by duplicates.
    */
-  bool                      append;
+  int                       flags;
   /**
    * @brief       FatFS inner @p FIL structure.
    */

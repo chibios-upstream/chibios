@@ -459,6 +459,11 @@ struct vfs_directory_node {
  * @extends     vfs_node_c
  *
  * @brief       Ancestor class of all VFS file nodes classes.
+ * @details     Constructors take explicit open flags, including for
+ *              host-created nodes. Access and append status remain immutable
+ *              for the node lifetime and are shared by all references and
+ *              duplicated descriptors. Stat permission bits do not grant
+ *              access to an opened handle.
  *
  * @name        Class @p vfs_file_node_c structures
  * @{
@@ -508,6 +513,10 @@ struct vfs_file_node {
    * @brief       Node mode information.
    */
   vfs_mode_t                mode;
+  /**
+   * @brief       Immutable access mode and append status shared by duplicates.
+   */
+  int                       flags;
 };
 /** @} */
 
@@ -531,7 +540,7 @@ extern "C" {
   msg_t __vfsdir_next_impl(void *ip, vfs_direntry_info_t *dip);
   /* Methods of vfs_file_node_c.*/
   void *__vfsfile_objinit_impl(void *ip, const void *vmt, vfs_fs_c *fs,
-                               vfs_mode_t mode);
+                               vfs_mode_t mode, int flags);
   void __vfsfile_dispose_impl(void *ip);
   ssize_t __vfsfile_read_impl(void *ip, uint8_t *buf, size_t n);
   ssize_t __vfsfile_write_impl(void *ip, const uint8_t *buf, size_t n);
@@ -539,6 +548,12 @@ extern "C" {
                               vfs_seekmode_t whence);
   vfs_offset_t __vfsfile_getpos_impl(void *ip);
   msg_t __vfsfile_control_impl(void *ip, vfs_control_op_t operation, void *arg);
+  ssize_t vfsFileRead(void *ip, uint8_t *buf, size_t n);
+  ssize_t vfsFileWrite(void *ip, const uint8_t *buf, size_t n);
+  /* Regular functions.*/
+  msg_t __vfs_seek_target(vfs_offset_t offset, vfs_seekmode_t whence,
+                          uint64_t current, uint64_t size,
+                          vfs_offset_t *target);
 #ifdef __cplusplus
 }
 #endif
@@ -661,27 +676,27 @@ static inline msg_t vfsDirReadNext(void *ip, vfs_direntry_info_t *dip) {
  * @param[in]     n             Maximum amount of data to be transferred.
  * @return                      The transferred number of bytes or an error.
  *
- * @api
+ * @notapi
  */
 CC_FORCE_INLINE
-static inline ssize_t vfsFileRead(void *ip, uint8_t *buf, size_t n) {
+static inline ssize_t __vfsfile_read(void *ip, uint8_t *buf, size_t n) {
   vfs_file_node_c *self = (vfs_file_node_c *)ip;
 
   return self->vmt->read(ip, buf, n);
 }
 
 /**
- * @brief       File node read.
+ * @brief       File node write.
  *
  * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
  * @param[in]     buf           Pointer to the data buffer.
  * @param[in]     n             Maximum amount of data to be transferred.
  * @return                      The transferred number of bytes or an error.
  *
- * @api
+ * @notapi
  */
 CC_FORCE_INLINE
-static inline ssize_t vfsFileWrite(void *ip, const uint8_t *buf, size_t n) {
+static inline ssize_t __vfsfile_write(void *ip, const uint8_t *buf, size_t n) {
   vfs_file_node_c *self = (vfs_file_node_c *)ip;
 
   return self->vmt->write(ip, buf, n);

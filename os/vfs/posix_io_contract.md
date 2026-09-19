@@ -4,13 +4,11 @@ Step 1 of the [POSIX I/O plan](posix_io_plan.md), completed on 2026-09-19.
 This specifies the target of steps 2 through 7; it does not claim that the
 current prototype or adapters already implement every requirement below.
 
-Step 2 implementation status: open matrices, flag rejection, directory routing,
-read-only opens and stream open capabilities are now exercised by generated
-tests, including real FatFS/LittleFS. Native trailing-slash rejection and
-exclusive-create races are covered. FatFS append-after-seek was implemented
-early to make its expanded open flags correct. The regression catalog below
-retains the original step ownership; descriptor flags/access enforcement and
-adapter migrations remain pending. See the plan for the completed checks.
+Steps 2 and 3 implement open routing, flag validation, descriptor flags,
+shared access/append state, transfer/seek checks and native namespace type checks.
+Generated tests cover real FatFS/LittleFS and ROM/stream backends, including
+reserved descriptors and concurrent close/reuse. Adapter migrations remain
+pending. See the plan for checks and ARM storage measurements.
 
 ## Boundary and ownership
 
@@ -124,9 +122,9 @@ transactional rollback guarantee; prevent avoidable local failures after mutatio
 Keep the trailing-directory requirement until leaf resolution. Mutation type
 checks must be performed together with mutation under the leaf lock; an upper
 stat followed by a separately locked remove is insufficient. Both FatFS and
-LittleFS currently call a native combined file/directory removal primitive for
-unlink and rmdir (FatFS's `f_rmdir` is an alias of `f_unlink` in `ff.h`), so the
-two type restrictions require wrapper fixes.
+LittleFS use a native combined file/directory removal primitive (FatFS's
+`f_rmdir` aliases `f_unlink`). Their wrappers now check type and perform removal
+under the same native-operation lock.
 
 VFS currently normalizes dot components lexically. This work does not promise
 POSIX component-by-component checks for paths such as `missing/../file` or
@@ -184,6 +182,11 @@ Access/transfer rules use [read](https://pubs.opengroup.org/onlinepubs/979991979
 and [write](https://pubs.opengroup.org/onlinepubs/9699919799/functions/write.html).
 Append must locate EOF at each write under the leaf operation lock, even after
 a seek. Do not inherit FatFS's initial seek-to-end as the public read offset.
+ROMFS and read-only FatFS reject past-EOF seeks with `ENOTSUP`. Writable
+FatFS may extend the file during seek and reports `ENOSPC` if allocation clamps
+the result. LittleFS permits past-EOF positions; its wrapper explicitly returns
+to EOF before append writes, even from a later position. Random-stream clamping
+returns `ENOTSUP`; restoring the previous position depends on the backend.
 Seek beyond EOF and concurrent shared-handle atomicity remain limits relative
 to [POSIX lseek](https://pubs.opengroup.org/onlinepubs/9799919799/functions/lseek.html).
 
@@ -198,6 +201,7 @@ to [POSIX lseek](https://pubs.opengroup.org/onlinepubs/9799919799/functions/lsee
 | Rename replacement | Use native LittleFS replacement where supported. FatFS keeps EEXIST for an existing different destination. Do not emulate replacement with unlink-then-rename, which can lose the destination on failure. Shell mv reports that failure. |
 | Open-file unlink/rename | Not portable in this subset. Callers close all references first, as the shell's pipeline cleanup already does. LittleFS-specific behavior is not a common guarantee. |
 | FatFS simultaneous native opens | Multiple read-only opens are allowed; any conflicting writable open is unsupported. dup shares one FIL and is allowed. A wrapper mutex does not make multiple FIL caches coherent. |
+| LittleFS simultaneous native opens | Conflicting independent writable opens of one file are unsupported: each native handle caches its own file size and data state. A native probe of two append handles produced `seedB` after A then B, losing A. Use duplicates of one handle or close/reopen with external serialization. No wrapper registry rejects this misuse. |
 | FatFS misuse rejection | Writable sandbox deployments must enable FF_FS_LOCK with capacity for their simultaneously open native files/directories, so conflicting opens/remove/rename fail instead of corrupting data. This is independent of FF_FS_REENTRANT and VFS mutexes. Current SB demos set it to zero and need configuration updates in step 4. General non-sandbox use may retain zero under the documented caller restrictions. |
 | FatFS error detail | Keep EACCES for FR_LOCKED/FR_DENIED unless a precise native distinction is available. In particular, nonempty rmdir may return EACCES instead of ENOTEMPTY. Native capacity exhaustion is ENFILE. |
 | Final close errors | The current void reference-disposal interface cannot propagate native close/flush errors, especially when a pin delays final disposal. Do not claim successful descriptor close confirms durable storage. A status-returning flush/close design is separate work. |
@@ -208,7 +212,8 @@ to [POSIX lseek](https://pubs.opengroup.org/onlinepubs/9799919799/functions/lsee
 FatFS restrictions are documented in its [application note](https://elm-chan.org/fsw/ff/doc/appnote.html#dup)
 and [rename API](https://elm-chan.org/fsw/ff/doc/rename.html). The vendored copies
 under `ext/fatfs/documents/doc` confirm the same restrictions. LittleFS's native
-remove/rename contract is in `ext/littlefs/lfs.h`. No external dependency is
+remove/rename contract is in `ext/littlefs/lfs.h`; append/cache behavior was
+checked against `ext/littlefs/lfs.c` and a RAM-backed native probe. No external dependency is
 modified by this step.
 
 ## Flag ABI verification
@@ -249,13 +254,13 @@ in `test/vfs/configuration.xml`; it is not native-filesystem conformance evidenc
 | OPEN-04 | Race two C+X creates for one absent name; exactly one succeeds, one gets EEXIST, no truncation; repeat with shell temporary-file flags | Specified / 2 |
 | PATH-01 | Empty, relative, prefixed, root, trailing-slash and overlong paths; verify matrix errors and no create/truncate through a trailing slash | Specified / 2 |
 | PATH-02 | Failed chdir preserves CWD; shared roots share CWD, separate roots do not; insufficient getcwd space returns ERANGE | Root sharing existing 011; remaining cases specified / 2 |
-| NODE-01 | Read W, write R, zero-byte transfers, short transfer, EOF, excessive count; assert errno/byte count and no incompatible driver call | Specified / 3; dispatch/zero-byte baseline in 011 |
-| NODE-02 | Open RW+A on nonempty file; initial read starts at zero; seek to zero, write, then write again; both writes extend file; repeat through dup | Specified / 3, real FatFS/LittleFS |
-| NODE-03 | SET/CUR/END seeks, invalid origin, negative/overflow offset and character stream; assert result and cursor; reject unsupported beyond-EOF behavior explicitly | Basic dispatch existing 011; native boundary cases specified / 3 |
-| FD-01 | Dup shares cursor; new duplicate clears CLOEXEC, same-fd dup2 preserves it; invalid source leaves destination and flags intact | Ownership existing 010; flags/cursor checks specified / 3 |
+| NODE-01 | Read W, write R, zero-byte transfers, short transfer, EOF, excessive count; assert errno/byte count and no incompatible driver call | Implemented / 3; direct nodes and I/O context |
+| NODE-02 | Open RW+A on nonempty file; initial read starts at zero; seek to zero, write, then write again; both writes extend file; repeat through dup | Implemented / 3, real FatFS/LittleFS, including dup |
+| NODE-03 | SET/CUR/END seeks, invalid origin, negative/overflow offset and character stream; assert result and cursor; reject unsupported beyond-EOF behavior explicitly | Implemented / 3; native, ROM and stream boundaries |
+| FD-01 | Dup shares cursor; new duplicate clears CLOEXEC, same-fd dup2 preserves it; invalid source leaves destination and flags intact | Implemented / 3, ownership 010 and native shared cursor |
 | FD-02 | Suspend every node operation, close/reuse fd, resume; operation stays on pinned old node; repeat driver errors and reference overflow | Existing 010/011; retain through migrations |
-| NS-01 | unlink empty directory, rmdir regular file, rmdir nonempty directory; assert failure and unchanged namespace; remove correct types successfully | Specified / 3, real FatFS/LittleFS |
-| NS-02 | Rename to new name, itself, existing destination and another FS; assert documented backend result and preservation of destination on failure | Specified / 3 |
+| NS-01 | unlink empty directory, rmdir regular file, rmdir nonempty directory; assert failure and unchanged namespace; remove correct types successfully | Implemented / 3, real FatFS/LittleFS |
+| NS-02 | Rename to new name, itself, existing destination and another FS; assert documented backend result and preservation of destination on failure | Implemented / 3, native rename and root EXDEV |
 | RO-01 | ROM/read-only backing: R, R+A, existing R+C, existing C+X, missing C and write/truncate; assert documented results without mutation | Specified / 2 |
 | STREAM-01 | Registered read/write capabilities, D on device, missing C, existing C+X, A/T on character versus random stream, isatty on non-TTY character device | Specified / 2-3 |
 | DIR-01 | fdopendir invalid fd/regular file/allocation failure; original fd remains owned; opendir allocation failure releases its internal fd; closedir closes once | Specified / 4 |

@@ -1,6 +1,6 @@
 # VFS I/O API and sandbox POSIX behavior plan
 
-Created on 2026-09-19. Status: steps 1 and 2 complete; step 3 is next.
+Created on 2026-09-19. Status: steps 1 through 3 complete; step 4 is next.
 
 Make `vfs_io_c` the main application interface for paths and descriptors,
 shared by Newlib bindings and sandboxes. Target the POSIX behavior needed by
@@ -93,9 +93,9 @@ ROMFS handling and stream capability checks.
 
 FatFS per-handle append positioning/write was brought forward from step 3 so
 accepting append without create cannot produce incorrect writes. Its initial
-read offset remains zero. Step 3 will consolidate this state with shared open
-flags and implement descriptor flag storage; CLOEXEC is currently accepted and
-stripped at routing boundaries, without being recorded in the table.
+read offset remains zero. Step 3 consolidates this state with shared open flags and adds descriptor
+flag storage. At the step-2 commit, CLOEXEC was accepted and stripped at routing
+boundaries without being recorded in the table.
 
 Validation: 19 flag combinations against existing files, missing names and
 directories on each real FatFS/LittleFS backend; concurrent exclusive creators;
@@ -128,7 +128,44 @@ Deliverable: tested routing and flag behavior through root, overlay and enabled
 leaves, without introducing separate descriptor-returning file/directory opens.
 The baseline follows [POSIX open](https://pubs.opengroup.org/onlinepubs/9799919799/functions/open.html).
 
-### 3. Complete descriptor and open-handle semantics
+### 3. Complete descriptor and open-handle semantics - complete
+
+Descriptor storage is now `vfs_descriptor_t` (owned node and independent flags).
+Open records CLOEXEC atomically; flag get/set, dup, dup2, close and reuse preserve
+the documented ownership rules. Explicit constructor flags initialize shared
+access/append state for every leaf and host-created file node. Common read/write
+checks also cover direct node callers and reject incompatible zero-byte calls.
+FatFS's temporary append field has been removed.
+
+Both writable native wrappers position append writes under their own lock.
+LittleFS needs explicit positioning as well: native append alone preserves a
+cursor beyond EOF. A native two-handle probe produced `seedB`, not `seedAB`,
+when separately opened append handles wrote A then B; independent conflicting
+writable handles remain unsupported on both backends. Duplicates share a single
+native handle and are tested. This step adds no registry or upper lock.
+
+Checked seek arithmetic rejects negative/overflowing targets before mutation.
+ROMFS and read-only FatFS reject past-EOF seeks with ENOTSUP. Writable FatFS may
+extend at seek time; LittleFS supports past-EOF positions. Random streams are
+checked for clamping and report failure instead of a false success. Native
+count conversions are bounded. Unlink/rmdir type checks and mutation share one
+leaf lock, FatFS identical-name rename verifies existence, and LittleFS reports
+its native nonempty-directory and transfer errors through the proper VFS codes.
+
+ARM storage measurements: context remains 16 bytes with root support or 12
+without, entries grow from 4 to 8 bytes, and the common file node grows from
+16 to 20 bytes. FatFS replaces its private append storage. No new heap objects
+or mutexes are introduced.
+
+Validation covers descriptor flags and reuse, reserved-slot invisibility,
+wrong access including read-only creation, zero/short/EOF transfers, excessive
+counts, signed seek boundaries and stream clamping, duplicated append (including
+LittleFS past-EOF seeks), typed removals and rename behavior on real FatFS and
+LittleFS. Simulator variants include native wrappers with mutexes/debug checks,
+no kernel mutexes/condition variables, and no root support. STM32G474 switched
+and STM32L4R9 dynamic FatFS sandbox demos build and link; these are build checks,
+not hardware runs. XML schemas, deterministic regeneration, changed-line style
+and the OOP_USE_NOTHING compile check pass.
 
 - Replace pointer-only slots with a small descriptor-entry structure containing
   the node reference and descriptor flags. Record `O_CLOEXEC` atomically when

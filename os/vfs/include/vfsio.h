@@ -33,6 +33,13 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+/**
+ * @name    Descriptor flags compatible with Posix
+ * @{
+ */
+#define VFD_CLOEXEC                         FD_CLOEXEC
+/** @} */
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -48,6 +55,26 @@
 /*===========================================================================*/
 /* Module data structures and types.                                         */
 /*===========================================================================*/
+
+/**
+ * @brief       Type of a descriptor table entry.
+ */
+typedef struct vfs_descriptor vfs_descriptor_t;
+
+/**
+ * @brief       Caller-owned descriptor entry, private while its table is
+ *              active.
+ */
+struct vfs_descriptor {
+  /**
+   * @brief       Owned node reference or internal reservation.
+   */
+  vfs_node_c                *node;
+  /**
+   * @brief       Descriptor flags, independent of shared node status.
+   */
+  int                       flags;
+};
 
 /**
  * @class       vfs_io_c
@@ -71,22 +98,24 @@
  *              with OOP_USE_NOTHING. Returned node references protect lifetime
  *              only; the caller must still serialize operations on a shared
  *              node when needed. Each occupied slot owns one node reference.
- *              The root pointer is borrowed, initially NULL, and must remain
- *              stable during use. The application keeps roots and backing file
- *              systems alive through all operations and node disposal,
- *              including references obtained from get. Clear and disposal
- *              never dispose the root. Sharing a root shares its CWD and
- *              mounts; separate roots provide independent path state. Path
- *              methods return ENOSYS when no root is associated, and are
- *              omitted when root support is disabled. Descriptor methods
- *              remain available. Open reserves a slot before any driver call.
- *              Pending opens occupy slots but cannot be looked up, closed or
- *              duplicated. Install and dup2 return EBUSY for a reserved
- *              destination. No table protection spans a driver call, buffer
- *              wait or reference release. Slot allocation scans the
- *              caller-sized array under a system critical section, so
- *              capacities should remain small. Methods run in thread context
- *              unless marked X.
+ *              Insert, install and new duplicates clear descriptor flags; dup2
+ *              onto itself preserves them. Open publishes close-on-exec
+ *              atomically with its node reference. The root pointer is
+ *              borrowed, initially NULL, and must remain stable during use.
+ *              The application keeps roots and backing file systems alive
+ *              through all operations and node disposal, including references
+ *              obtained from get. Clear and disposal never dispose the root.
+ *              Sharing a root shares its CWD and mounts; separate roots
+ *              provide independent path state. Path methods return ENOSYS when
+ *              no root is associated, and are omitted when root support is
+ *              disabled. Descriptor methods remain available. Open reserves a
+ *              slot before any driver call. Pending opens occupy slots but
+ *              cannot be looked up, closed or duplicated. Install and dup2
+ *              return EBUSY for a reserved destination. No table protection
+ *              spans a driver call, buffer wait or reference release. Slot
+ *              allocation scans the caller-sized array under a system critical
+ *              section, so capacities should remain small. Methods run in
+ *              thread context unless marked X.
  *
  * @name        Class @p vfs_io_c structures
  * @{
@@ -123,7 +152,7 @@ struct vfs_io {
   /**
    * @brief       Caller-owned slot array, private after initialization.
    */
-  vfs_node_c                **nodes;
+  vfs_descriptor_t          *slots;
   /**
    * @brief       Number of slots, immutable after initialization.
    */
@@ -139,8 +168,8 @@ struct vfs_io {
 extern "C" {
 #endif
   /* Methods of vfs_io_c.*/
-  void *__vfsio_objinit_impl(void *ip, const void *vmt, vfs_node_c **nodes,
-                             size_t size);
+  void *__vfsio_objinit_impl(void *ip, const void *vmt,
+                             vfs_descriptor_t *slots, size_t size);
   void __vfsio_dispose_impl(void *ip);
   int vfsIOInsert(void *ip, vfs_node_c *np);
   msg_t vfsIOInstall(void *ip, int fd, vfs_node_c *np);
@@ -148,6 +177,8 @@ extern "C" {
   msg_t vfsIOClose(void *ip, int fd);
   int vfsIODup(void *ip, int fd);
   int vfsIODup2(void *ip, int oldfd, int newfd);
+  int vfsIOGetDescriptorFlags(void *ip, int fd);
+  int vfsIOSetDescriptorFlags(void *ip, int fd, int flags);
   void vfsIOClear(void *ip);
   ssize_t vfsIORead(void *ip, int fd, uint8_t *buf, size_t n);
   ssize_t vfsIOWrite(void *ip, int fd, const uint8_t *buf, size_t n);
@@ -186,7 +217,7 @@ extern "C" {
  *
  * @param[out]    self          Pointer to a @p vfs_io_c instance to be
  *                              initialized.
- * @param[out]    nodes         Slot array, or NULL for a zero-capacity table.
+ * @param[out]    slots         Slot array, or NULL for a zero-capacity table.
  *                              Existing contents are discarded, so the array
  *                              must not own references before initialization.
  * @param[in]     size          Capacity, at most INT_MAX.
@@ -195,11 +226,11 @@ extern "C" {
  * @objinit
  */
 CC_FORCE_INLINE
-static inline vfs_io_c *vfsioObjectInit(vfs_io_c *self, vfs_node_c **nodes,
-                                        size_t size) {
+static inline vfs_io_c *vfsioObjectInit(vfs_io_c *self,
+                                        vfs_descriptor_t *slots, size_t size) {
   extern const struct vfs_io_vmt __vfs_io_vmt;
 
-  return __vfsio_objinit_impl(self, &__vfs_io_vmt, nodes, size);
+  return __vfsio_objinit_impl(self, &__vfs_io_vmt, slots, size);
 }
 /** @} */
 

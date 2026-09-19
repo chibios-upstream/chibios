@@ -133,7 +133,7 @@ static msg_t pin_descriptor(vfs_io_c *self, int fd, vfs_node_c **npp) {
   }
 
   chSysLock();
-  np = self->nodes[fd];
+  np = self->slots[fd].node;
   if (is_node(np)) {
     if (retain_nodeI(np)) {
       *npp = np;
@@ -167,13 +167,13 @@ static msg_t pin_descriptor(vfs_io_c *self, int fd, vfs_node_c **npp) {
  * @param[out]    ip            Pointer to a @p vfs_io_c instance to be
  *                              initialized.
  * @param[in]     vmt           VMT pointer for the new object.
- * @param[out]    nodes         Slot array, or NULL for a zero-capacity table.
+ * @param[out]    slots         Slot array, or NULL for a zero-capacity table.
  *                              Existing contents are discarded, so the array
  *                              must not own references before initialization.
  * @param[in]     size          Capacity, at most INT_MAX.
  * @return                      A new reference to the object.
  */
-void *__vfsio_objinit_impl(void *ip, const void *vmt, vfs_node_c **nodes,
+void *__vfsio_objinit_impl(void *ip, const void *vmt, vfs_descriptor_t *slots,
                            size_t size) {
   vfs_io_c *self = (vfs_io_c *)ip;
 
@@ -181,15 +181,15 @@ void *__vfsio_objinit_impl(void *ip, const void *vmt, vfs_node_c **nodes,
   __bo_objinit_impl(self, vmt);
 
   /* Initialization code.*/
-  chDbgCheck((size <= (size_t)INT_MAX) && ((size == 0U) || (nodes != NULL)));
+  chDbgCheck((size <= (size_t)INT_MAX) && ((size == 0U) || (slots != NULL)));
 
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
   self->root = NULL;
 #endif
-  self->nodes = nodes;
+  self->slots = slots;
   self->size = size;
   if (size > 0U) {
-    memset(nodes, 0, size * sizeof *nodes);
+    memset(slots, 0, size * sizeof *slots);
   }
 
   return self;
@@ -249,8 +249,9 @@ int vfsIOInsert(void *ip, vfs_node_c *np) {
 
   chSysLock();
   for (i = 0U; i < self->size; i++) {
-    if (self->nodes[i] == NULL) {
-      self->nodes[i] = np;
+    if (self->slots[i].node == NULL) {
+      self->slots[i].node = np;
+      self->slots[i].flags = 0;
       chSysUnlock();
       return (int)i;
     }
@@ -286,11 +287,12 @@ msg_t vfsIOInstall(void *ip, int fd, vfs_node_c *np) {
   }
 
   chSysLock();
-  if (self->nodes[fd] != NULL) {
+  if (self->slots[fd].node != NULL) {
     ret = CH_RET_EBUSY;
   }
   else {
-    self->nodes[fd] = np;
+    self->slots[fd].node = np;
+    self->slots[fd].flags = 0;
   }
   chSysUnlock();
 
@@ -344,12 +346,13 @@ msg_t vfsIOClose(void *ip, int fd) {
   }
 
   chSysLock();
-  np = self->nodes[fd];
+  np = self->slots[fd].node;
   if (!is_node(np)) {
     chSysUnlock();
     return CH_RET_EBADF;
   }
-  self->nodes[fd] = NULL;
+  self->slots[fd].node = NULL;
+  self->slots[fd].flags = 0;
   chSysUnlock();
   (void)roRelease(np);
 
@@ -378,14 +381,15 @@ int vfsIODup(void *ip, int fd) {
   }
 
   chSysLock();
-  np = self->nodes[fd];
+  np = self->slots[fd].node;
   ret = CH_RET_EBADF;
   if (is_node(np)) {
     ret = CH_RET_EMFILE;
     for (i = 0U; i < self->size; i++) {
-      if (self->nodes[i] == NULL) {
+      if (self->slots[i].node == NULL) {
         if (retain_nodeI(np)) {
-          self->nodes[i] = np;
+          self->slots[i].node = np;
+          self->slots[i].flags = 0;
           ret = (int)i;
         }
         else {
@@ -427,20 +431,21 @@ int vfsIODup2(void *ip, int oldfd, int newfd) {
   }
 
   chSysLock();
-  np = self->nodes[oldfd];
+  np = self->slots[oldfd].node;
   ret = CH_RET_EBADF;
   if (is_node(np)) {
     ret = newfd;
     if (oldfd != newfd) {
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
-      if (self->nodes[newfd] == &reserved_node) {
+      if (self->slots[newfd].node == &reserved_node) {
         chSysUnlock();
         return CH_RET_EBUSY;
       }
 #endif
       if (retain_nodeI(np)) {
-        displaced = self->nodes[newfd];
-        self->nodes[newfd] = np;
+        displaced = self->slots[newfd].node;
+        self->slots[newfd].node = np;
+        self->slots[newfd].flags = 0;
       }
       else {
         ret = CH_RET_EOVERFLOW;
@@ -451,6 +456,65 @@ int vfsIODup2(void *ip, int oldfd, int newfd) {
   if (displaced != NULL) {
     (void)roRelease(displaced);
   }
+
+  return ret;
+}
+
+/**
+ * @brief       Returns the flags belonging to one descriptor.
+ * @details     Only VFD_CLOEXEC is supported. No current ELF call consumes
+ *              this metadata; it is reserved for a future exec boundary.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_io_c instance.
+ * @param[in]     fd            Descriptor.
+ * @return                      The descriptor flags, or an encoded error.
+ *
+ * @api
+ */
+int vfsIOGetDescriptorFlags(void *ip, int fd) {
+  vfs_io_c *self = (vfs_io_c *)ip;
+  int ret = CH_RET_EBADF;
+
+  if ((fd < 0) || ((size_t)fd >= self->size)) {
+    return ret;
+  }
+  chSysLock();
+  if (is_node(self->slots[fd].node)) {
+    ret = self->slots[fd].flags;
+  }
+  chSysUnlock();
+
+  return ret;
+}
+
+/**
+ * @brief       Changes the flags belonging to one descriptor.
+ * @details     Only VFD_CLOEXEC is supported. No current ELF call consumes
+ *              this metadata; it is reserved for a future exec boundary.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_io_c instance.
+ * @param[in]     fd            Descriptor.
+ * @param[in]     flags         Descriptor flags.
+ * @return                      Zero on success, or an encoded error.
+ *
+ * @api
+ */
+int vfsIOSetDescriptorFlags(void *ip, int fd, int flags) {
+  vfs_io_c *self = (vfs_io_c *)ip;
+  int ret = CH_RET_EBADF;
+
+  if ((fd < 0) || ((size_t)fd >= self->size)) {
+    return ret;
+  }
+  if ((flags & ~VFD_CLOEXEC) != 0) {
+    return CH_RET_EINVAL;
+  }
+  chSysLock();
+  if (is_node(self->slots[fd].node)) {
+    self->slots[fd].flags = flags;
+    ret = CH_RET_SUCCESS;
+  }
+  chSysUnlock();
 
   return ret;
 }
@@ -474,7 +538,7 @@ void vfsIOClear(void *ip) {
 
   for (i = 0U; i < self->size; i++) {
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
-    chDbgAssert(self->nodes[i] != &reserved_node, "active open");
+    chDbgAssert(self->slots[i].node != &reserved_node, "active open");
 #endif
     (void)vfsIOClose(self, (int)i);
   }
@@ -505,12 +569,6 @@ ssize_t vfsIORead(void *ip, int fd, uint8_t *buf, size_t n) {
   }
   if (VFS_MODE_S_ISDIR(np->mode)) {
     ret = CH_RET_EISDIR;
-  }
-  else if (n == 0U) {
-    ret = 0;
-  }
-  else if (buf == NULL) {
-    ret = CH_RET_EINVAL;
   }
   else {
     ret = vfsFileRead((vfs_file_node_c *)np, buf, n);
@@ -545,12 +603,6 @@ ssize_t vfsIOWrite(void *ip, int fd, const uint8_t *buf, size_t n) {
   }
   if (VFS_MODE_S_ISDIR(np->mode)) {
     ret = CH_RET_EISDIR;
-  }
-  else if (n == 0U) {
-    ret = 0;
-  }
-  else if (buf == NULL) {
-    ret = CH_RET_EINVAL;
   }
   else {
     ret = vfsFileWrite((vfs_file_node_c *)np, buf, n);
@@ -797,9 +849,8 @@ void vfsIOSetRoot(void *ip, vfs_root_c *root) {
  *              cancel the reservation; rejected node references are released
  *              outside table protection. Standard OOP reference methods are
  *              required. Read-only opens also accept directories, and
- *              VO_DIRECTORY requires one. VO_CLOEXEC is accepted and stripped
- *              before delegation; descriptor flag storage is not implemented
- *              yet.
+ *              VO_DIRECTORY requires one. VO_CLOEXEC is recorded atomically in
+ *              the descriptor and stripped before delegation.
  *
  * @param[in,out] ip            Pointer to a @p vfs_io_c instance.
  * @param[in]     path          Absolute or relative path within the associated
@@ -824,8 +875,9 @@ int vfsIOOpen(void *ip, const char *path, int flags) {
   /* Reserve before driver calls, including create or truncate side effects.*/
   chSysLock();
   for (i = 0U; i < self->size; i++) {
-    if (self->nodes[i] == NULL) {
-      self->nodes[i] = &reserved_node;
+    if (self->slots[i].node == NULL) {
+      self->slots[i].node = &reserved_node;
+      self->slots[i].flags = 0;
       break;
     }
   }
@@ -843,8 +895,10 @@ int vfsIOOpen(void *ip, const char *path, int flags) {
     ret = check_node(np);
   }
   chSysLock();
-  chDbgAssert(self->nodes[i] == &reserved_node, "lost reservation");
-  self->nodes[i] = CH_RET_IS_ERROR(ret) ? NULL : np;
+  chDbgAssert(self->slots[i].node == &reserved_node, "lost reservation");
+  self->slots[i].node = CH_RET_IS_ERROR(ret) ? NULL : np;
+  self->slots[i].flags = !CH_RET_IS_ERROR(ret) && ((flags & VO_CLOEXEC) != 0) ?
+                         VFD_CLOEXEC : 0;
   chSysUnlock();
   if (CH_RET_IS_ERROR(ret)) {
     if (np != NULL) {

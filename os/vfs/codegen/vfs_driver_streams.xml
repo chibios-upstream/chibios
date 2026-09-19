@@ -182,8 +182,10 @@ self->index = 0U;]]></implementation>
               dir="in">
               Element descriptor to be associated.
             </param>
+            <param name="flags" ctype="int" dir="in">Opened access and status flags.</param>
             <implementation><![CDATA[
-self = __vfsfile_objinit_impl(self, vmt, (vfs_fs_c *)driver, element->mode);
+self = __vfsfile_objinit_impl(self, vmt, (vfs_fs_c *)driver,
+                               element->mode, flags);
 self->element = element;]]></implementation>
           </objinit>
           <dispose>

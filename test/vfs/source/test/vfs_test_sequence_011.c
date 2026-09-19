@@ -43,6 +43,7 @@
  * - @subpage vfs_test_011_006
  * - @subpage vfs_test_011_007
  * - @subpage vfs_test_011_008
+ * - @subpage vfs_test_011_009
  * .
  */
 
@@ -70,7 +71,7 @@ typedef struct {
 } vfs_test_api_dir_t;
 
 static vfs_io_c vfs_test_api_io, vfs_test_api_other;
-static vfs_node_c *vfs_test_api_slots[3], *vfs_test_api_other_slots[1];
+static vfs_descriptor_t vfs_test_api_slots[3], vfs_test_api_other_slots[1];
 static vfs_test_api_file_t vfs_test_api_files[6];
 static vfs_test_api_dir_t vfs_test_api_dir;
 static THD_WORKING_AREA(vfs_test_api_wa, 4096);
@@ -279,7 +280,8 @@ static void vfs_test_api_file_init(unsigned i) {
 
   memset(&vfs_test_api_files[i], 0, sizeof vfs_test_api_files[i]);
   (void)__vfsfile_objinit_impl(&vfs_test_api_files[i], &vfs_test_api_file_vmt,
-                               (vfs_fs_c *)&vfs_test_fs, VFS_MODE_S_IFREG);
+                               (vfs_fs_c *)&vfs_test_fs, VFS_MODE_S_IFREG,
+                               VO_RDWR);
   vfs_test_api_files[i].byte = 42;
 }
 
@@ -487,15 +489,13 @@ static void vfs_test_api_teardown(void) {
 /*===========================================================================*/
 
 /**
- * @page vfs_test_011_001 [11.1] Descriptor I/O results and validation
+ * @page vfs_test_011_001 [11.1] Opened access and transfer bounds
  *
  * <h2>Description</h2>
- * File, directory and control operations preserve errors, metadata and
- * reference ownership.
+ * Opened access and transfer bounds.
  *
  * <h2>Test Steps</h2>
- * - [11.1.1] File, directory and control operations preserve errors,
- *   metadata and reference ownership.
+ * - [11.1.1] Opened access and transfer bounds.
  * .
  */
 
@@ -508,13 +508,82 @@ static void vfs_test_011_001_teardown(void) {
 }
 
 static void vfs_test_011_001_execute(void) {
+  uint8_t byte = 0, shortbuf[2] = {0};
+  vfs_offset_t target;
+
+  /* [11.1.1] Opened access and transfer bounds.*/
+  test_set_step(1);
+  {
+    vfs_test_api_files[0].node.flags = VO_WRONLY | VO_APPEND;
+    vfs_test_api_files[1].node.flags = VO_RDONLY;
+    test_assert(vfsIOInsert(&vfs_test_api_io,
+                             (vfs_node_c *)&vfs_test_api_files[0]) == 0 &&
+                vfsIOInsert(&vfs_test_api_io,
+                             (vfs_node_c *)&vfs_test_api_files[1]) == 1 &&
+                vfsIODup(&vfs_test_api_io, 0) == 2, "access fixture failed");
+    test_assert(vfsIORead(&vfs_test_api_io, 0, &byte, 1) == CH_RET_EBADF &&
+                vfsIORead(&vfs_test_api_io, 2, NULL, 0) == CH_RET_EBADF &&
+                vfsIOWrite(&vfs_test_api_io, 1, &byte, 1) == CH_RET_EBADF &&
+                vfsIOWrite(&vfs_test_api_io, 1, NULL, 0) == CH_RET_EBADF,
+                "descriptor access checks failed");
+    test_assert(vfsIOWrite(&vfs_test_api_io, 0, &byte, SIZE_MAX) == CH_RET_EINVAL &&
+                vfsIORead(&vfs_test_api_io, 1, &byte, SIZE_MAX) == CH_RET_EINVAL &&
+                vfs_test_api_files[0].calls == 0U &&
+                vfs_test_api_files[1].calls == 0U, "invalid I/O reached driver");
+    test_assert(vfsIORead(&vfs_test_api_io, 1, &byte, 1) == 1 &&
+                vfsIOWrite(&vfs_test_api_io, 2, &byte, 1) == 1,
+                "stat permission bits confused with opened access");
+    test_assert(vfsIORead(&vfs_test_api_io, 1, shortbuf, sizeof shortbuf) == 1 &&
+                vfsIOWrite(&vfs_test_api_io, 2, shortbuf, sizeof shortbuf) == 1,
+                "short driver transfer promoted to full count");
+    test_assert(__vfs_seek_target(INT32_MAX, VFS_SEEK_SET, 0, 0, &target) == 0 &&
+                target == INT32_MAX &&
+                __vfs_seek_target(1, VFS_SEEK_CUR, INT32_MAX, 0, &target) ==
+                  CH_RET_EOVERFLOW &&
+                __vfs_seek_target(INT32_MIN, VFS_SEEK_END, 0, UINT32_MAX,
+                                  &target) == 0 && target == INT32_MAX &&
+                __vfs_seek_target(0, VFS_SEEK_END, 0, UINT64_MAX, &target) ==
+                  CH_RET_EOVERFLOW, "native offset arithmetic overflow");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_011_001 = {
+  "Opened access and transfer bounds",
+  vfs_test_011_001_setup,
+  vfs_test_011_001_teardown,
+  vfs_test_011_001_execute
+};
+
+/**
+ * @page vfs_test_011_002 [11.2] Descriptor I/O results and validation
+ *
+ * <h2>Description</h2>
+ * File, directory and control operations preserve errors, metadata and
+ * reference ownership.
+ *
+ * <h2>Test Steps</h2>
+ * - [11.2.1] File, directory and control operations preserve errors,
+ *   metadata and reference ownership.
+ * .
+ */
+
+static void vfs_test_011_002_setup(void) {
+  vfs_test_api_setup();
+}
+
+static void vfs_test_011_002_teardown(void) {
+  vfs_test_api_teardown();
+}
+
+static void vfs_test_011_002_execute(void) {
   uint8_t byte;
   unsigned value;
   vfs_stat_t st;
   vfs_direntry_info_t entry;
   bool ok;
 
-  /* [11.1.1] File, directory and control operations preserve errors,
+  /* [11.2.1] File, directory and control operations preserve errors,
      metadata and reference ownership.*/
   test_set_step(1);
   {
@@ -607,41 +676,41 @@ static void vfs_test_011_001_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_011_001 = {
+static const testcase_t vfs_test_011_002 = {
   "Descriptor I/O results and validation",
-  vfs_test_011_001_setup,
-  vfs_test_011_001_teardown,
-  vfs_test_011_001_execute
+  vfs_test_011_002_setup,
+  vfs_test_011_002_teardown,
+  vfs_test_011_002_execute
 };
 
 /**
- * @page vfs_test_011_002 [11.2] All descriptor operations retain across waits
+ * @page vfs_test_011_003 [11.3] All descriptor operations retain across waits
  *
  * <h2>Description</h2>
  * Each wrapper completes on its original node after close/reuse, on
  * both success and failure.
  *
  * <h2>Test Steps</h2>
- * - [11.2.1] Each wrapper completes on its original node after
+ * - [11.3.1] Each wrapper completes on its original node after
  *   close/reuse, on both success and failure.
  * .
  */
 
-static void vfs_test_011_002_setup(void) {
+static void vfs_test_011_003_setup(void) {
   vfs_test_api_setup();
 }
 
-static void vfs_test_011_002_teardown(void) {
+static void vfs_test_011_003_teardown(void) {
   vfs_test_api_teardown();
 }
 
-static void vfs_test_011_002_execute(void) {
+static void vfs_test_011_003_execute(void) {
   static const int expected[] = {1, 1, 0, 4, 0, 0, 1, 0};
   unsigned iteration, operation;
   bool ok;
   vfs_node_c *np;
 
-  /* [11.2.1] Each wrapper completes on its original node after
+  /* [11.3.1] Each wrapper completes on its original node after
      close/reuse, on both success and failure.*/
   test_set_step(1);
   {
@@ -682,16 +751,16 @@ static void vfs_test_011_002_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_011_002 = {
+static const testcase_t vfs_test_011_003 = {
   "All descriptor operations retain across waits",
-  vfs_test_011_002_setup,
-  vfs_test_011_002_teardown,
-  vfs_test_011_002_execute
+  vfs_test_011_003_setup,
+  vfs_test_011_003_teardown,
+  vfs_test_011_003_execute
 };
 
 #if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_011_003 [11.3] Absent root preserves descriptor access
+ * @page vfs_test_011_004 [11.4] Absent root preserves descriptor access
  *
  * <h2>Description</h2>
  * Every path method reports ENOSYS without a root, while registered
@@ -704,25 +773,25 @@ static const testcase_t vfs_test_011_002 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [11.3.1] Every path method reports ENOSYS without a root, while
+ * - [11.4.1] Every path method reports ENOSYS without a root, while
  *   registered nodes remain usable.
  * .
  */
 
-static void vfs_test_011_003_setup(void) {
+static void vfs_test_011_004_setup(void) {
   vfs_test_api_setup();
 }
 
-static void vfs_test_011_003_teardown(void) {
+static void vfs_test_011_004_teardown(void) {
   vfs_test_api_teardown();
 }
 
-static void vfs_test_011_003_execute(void) {
+static void vfs_test_011_004_execute(void) {
   vfs_stat_t st;
   char cwd[VFS_CFG_PATHLEN_MAX + 1];
   uint8_t byte;
 
-  /* [11.3.1] Every path method reports ENOSYS without a root, while
+  /* [11.4.1] Every path method reports ENOSYS without a root, while
      registered nodes remain usable.*/
   test_set_step(1);
   {
@@ -749,17 +818,17 @@ static void vfs_test_011_003_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_011_003 = {
+static const testcase_t vfs_test_011_004 = {
   "Absent root preserves descriptor access",
-  vfs_test_011_003_setup,
-  vfs_test_011_003_teardown,
-  vfs_test_011_003_execute
+  vfs_test_011_004_setup,
+  vfs_test_011_004_teardown,
+  vfs_test_011_004_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_ROOT == TRUE */
 
 #if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_011_004 [11.4] Root routing, sharing and borrowed lifetime
+ * @page vfs_test_011_005 [11.5] Root routing, sharing and borrowed lifetime
  *
  * <h2>Description</h2>
  * Paths use the associated prefix and CWD; contexts can share roots
@@ -772,25 +841,25 @@ static const testcase_t vfs_test_011_003 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [11.4.1] Paths use the associated prefix and CWD; contexts can
+ * - [11.5.1] Paths use the associated prefix and CWD; contexts can
  *   share roots without taking ownership.
  * .
  */
 
-static void vfs_test_011_004_setup(void) {
+static void vfs_test_011_005_setup(void) {
   vfs_test_api_setup();
 }
 
-static void vfs_test_011_004_teardown(void) {
+static void vfs_test_011_005_teardown(void) {
   vfs_test_api_teardown();
 }
 
-static void vfs_test_011_004_execute(void) {
+static void vfs_test_011_005_execute(void) {
   vfs_stat_t st;
   char cwd[VFS_CFG_PATHLEN_MAX + 1];
   int fd;
 
-  /* [11.4.1] Paths use the associated prefix and CWD; contexts can
+  /* [11.5.1] Paths use the associated prefix and CWD; contexts can
      share roots without taking ownership.*/
   test_set_step(1);
   {
@@ -862,17 +931,17 @@ static void vfs_test_011_004_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_011_004 = {
+static const testcase_t vfs_test_011_005 = {
   "Root routing, sharing and borrowed lifetime",
-  vfs_test_011_004_setup,
-  vfs_test_011_004_teardown,
-  vfs_test_011_004_execute
+  vfs_test_011_005_setup,
+  vfs_test_011_005_teardown,
+  vfs_test_011_005_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_ROOT == TRUE */
 
 #if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_011_005 [11.5] Pending opens reserve capacity before driver calls
+ * @page vfs_test_011_006 [11.6] Pending opens reserve capacity before driver calls
  *
  * <h2>Description</h2>
  * A suspended open cannot be overwritten, and full tables reject
@@ -885,24 +954,24 @@ static const testcase_t vfs_test_011_004 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [11.5.1] A suspended open cannot be overwritten, and full tables
+ * - [11.6.1] A suspended open cannot be overwritten, and full tables
  *   reject create/truncate without reaching the driver.
  * .
  */
 
-static void vfs_test_011_005_setup(void) {
+static void vfs_test_011_006_setup(void) {
   vfs_test_api_setup();
 }
 
-static void vfs_test_011_005_teardown(void) {
+static void vfs_test_011_006_teardown(void) {
   vfs_test_api_teardown();
 }
 
-static void vfs_test_011_005_execute(void) {
+static void vfs_test_011_006_execute(void) {
   bool ok;
   vfs_stat_t st;
 
-  /* [11.5.1] A suspended open cannot be overwritten, and full tables
+  /* [11.6.1] A suspended open cannot be overwritten, and full tables
      reject create/truncate without reaching the driver.*/
   test_set_step(1);
   {
@@ -915,6 +984,8 @@ static void vfs_test_011_005_execute(void) {
     vfs_test_api_start(8);
     ok = vfs_test_api_waiter != NULL;
     ok &= vfsIOGet(&vfs_test_api_io, 0) == NULL;
+    ok &= vfsIOGetDescriptorFlags(&vfs_test_api_io, 0) == CH_RET_EBADF;
+    ok &= vfsIOSetDescriptorFlags(&vfs_test_api_io, 0, VFD_CLOEXEC) == CH_RET_EBADF;
     ok &= vfsIOClose(&vfs_test_api_io, 0) == CH_RET_EBADF;
     ok &= vfsIODup(&vfs_test_api_io, 0) == CH_RET_EBADF;
     ok &= vfsIODup2(&vfs_test_api_io, 0, 0) == CH_RET_EBADF;
@@ -947,17 +1018,17 @@ static void vfs_test_011_005_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_011_005 = {
+static const testcase_t vfs_test_011_006 = {
   "Pending opens reserve capacity before driver calls",
-  vfs_test_011_005_setup,
-  vfs_test_011_005_teardown,
-  vfs_test_011_005_execute
+  vfs_test_011_006_setup,
+  vfs_test_011_006_teardown,
+  vfs_test_011_006_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_ROOT == TRUE */
 
 #if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_011_006 [11.6] Failed opens cancel reservations
+ * @page vfs_test_011_007 [11.7] Failed opens cancel reservations
  *
  * <h2>Description</h2>
  * Driver and path errors leave the lowest descriptor reusable.
@@ -969,24 +1040,24 @@ static const testcase_t vfs_test_011_005 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [11.6.1] Driver and path errors leave the lowest descriptor
+ * - [11.7.1] Driver and path errors leave the lowest descriptor
  *   reusable.
  * .
  */
 
-static void vfs_test_011_006_setup(void) {
+static void vfs_test_011_007_setup(void) {
   vfs_test_api_setup();
 }
 
-static void vfs_test_011_006_teardown(void) {
+static void vfs_test_011_007_teardown(void) {
   vfs_test_api_teardown();
 }
 
-static void vfs_test_011_006_execute(void) {
+static void vfs_test_011_007_execute(void) {
   bool ok;
   char longpath[VFS_CFG_PATHLEN_MAX + 3];
 
-  /* [11.6.1] Driver and path errors leave the lowest descriptor
+  /* [11.7.1] Driver and path errors leave the lowest descriptor
      reusable.*/
   test_set_step(1);
   {
@@ -1013,17 +1084,17 @@ static void vfs_test_011_006_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_011_006 = {
+static const testcase_t vfs_test_011_007 = {
   "Failed opens cancel reservations",
-  vfs_test_011_006_setup,
-  vfs_test_011_006_teardown,
-  vfs_test_011_006_execute
+  vfs_test_011_007_setup,
+  vfs_test_011_007_teardown,
+  vfs_test_011_007_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_ROOT == TRUE */
 
 #if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_011_007 [11.7] Admission failure releases outside table protection
+ * @page vfs_test_011_008 [11.8] Admission failure releases outside table protection
  *
  * <h2>Description</h2>
  * An unsupported node is released after cancelling the reservation,
@@ -1036,23 +1107,23 @@ static const testcase_t vfs_test_011_006 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [11.7.1] An unsupported node is released after cancelling the
+ * - [11.8.1] An unsupported node is released after cancelling the
  *   reservation, allowing reuse during disposal.
  * .
  */
 
-static void vfs_test_011_007_setup(void) {
+static void vfs_test_011_008_setup(void) {
   vfs_test_api_setup();
 }
 
-static void vfs_test_011_007_teardown(void) {
+static void vfs_test_011_008_teardown(void) {
   vfs_test_api_teardown();
 }
 
-static void vfs_test_011_007_execute(void) {
+static void vfs_test_011_008_execute(void) {
   bool ok;
 
-  /* [11.7.1] An unsupported node is released after cancelling the
+  /* [11.8.1] An unsupported node is released after cancelling the
      reservation, allowing reuse during disposal.*/
   test_set_step(1);
   {
@@ -1073,17 +1144,17 @@ static void vfs_test_011_007_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_011_007 = {
+static const testcase_t vfs_test_011_008 = {
   "Admission failure releases outside table protection",
-  vfs_test_011_007_setup,
-  vfs_test_011_007_teardown,
-  vfs_test_011_007_execute
+  vfs_test_011_008_setup,
+  vfs_test_011_008_teardown,
+  vfs_test_011_008_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_ROOT == TRUE */
 
 #if ((VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_PATHBUFS_NUM == 1)) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_011_008 [11.8] Concurrent opens wait for scratch independently
+ * @page vfs_test_011_009 [11.9] Concurrent opens wait for scratch independently
  *
  * <h2>Description</h2>
  * Two pending opens reserve different descriptors while sharing one
@@ -1096,23 +1167,23 @@ static const testcase_t vfs_test_011_007 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [11.8.1] Two pending opens reserve different descriptors while
+ * - [11.9.1] Two pending opens reserve different descriptors while
  *   sharing one scratch pair.
  * .
  */
 
-static void vfs_test_011_008_setup(void) {
+static void vfs_test_011_009_setup(void) {
   vfs_test_api_setup();
 }
 
-static void vfs_test_011_008_teardown(void) {
+static void vfs_test_011_009_teardown(void) {
   vfs_test_api_teardown();
 }
 
-static void vfs_test_011_008_execute(void) {
+static void vfs_test_011_009_execute(void) {
   bool ok;
 
-  /* [11.8.1] Two pending opens reserve different descriptors while
+  /* [11.9.1] Two pending opens reserve different descriptors while
      sharing one scratch pair.*/
   test_set_step(1);
   {
@@ -1146,11 +1217,11 @@ static void vfs_test_011_008_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_011_008 = {
+static const testcase_t vfs_test_011_009 = {
   "Concurrent opens wait for scratch independently",
-  vfs_test_011_008_setup,
-  vfs_test_011_008_teardown,
-  vfs_test_011_008_execute
+  vfs_test_011_009_setup,
+  vfs_test_011_009_teardown,
+  vfs_test_011_009_execute
 };
 #endif /* (VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_PATHBUFS_NUM == 1) */
 
@@ -1164,9 +1235,7 @@ static const testcase_t vfs_test_011_008 = {
 const testcase_t * const vfs_test_sequence_011_array[] = {
   &vfs_test_011_001,
   &vfs_test_011_002,
-#if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
   &vfs_test_011_003,
-#endif
 #if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
   &vfs_test_011_004,
 #endif
@@ -1179,8 +1248,11 @@ const testcase_t * const vfs_test_sequence_011_array[] = {
 #if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
   &vfs_test_011_007,
 #endif
-#if ((VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_PATHBUFS_NUM == 1)) || defined(__DOXYGEN__)
+#if (VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
   &vfs_test_011_008,
+#endif
+#if ((VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_PATHBUFS_NUM == 1)) || defined(__DOXYGEN__)
+  &vfs_test_011_009,
 #endif
   NULL
 };

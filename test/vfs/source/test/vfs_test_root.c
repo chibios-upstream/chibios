@@ -388,6 +388,18 @@ void vfs_test_open_matrix(vfs_fs_c *fsp) {
                       "matrix open changed contents");
           fnp = (vfs_file_node_c *)np;
           test_assert(vfsFileGetPosition(fnp) == 0, "open offset is not zero");
+          test_assert(fnp->flags == (cases[i].flags & (VO_ACCMODE | VO_APPEND)),
+                      "open status includes descriptor or creation flags");
+          if ((cases[i].flags & VO_ACCMODE) == VO_RDONLY) {
+            test_assert(vfsFileWrite(fnp, &byte, 1) == CH_RET_EBADF &&
+                        vfsFileWrite(fnp, NULL, 0) == CH_RET_EBADF,
+                        "readonly open permits writes");
+          }
+          if ((cases[i].flags & VO_ACCMODE) == VO_WRONLY) {
+            test_assert(vfsFileRead(fnp, &byte, 1) == CH_RET_EBADF &&
+                        vfsFileRead(fnp, NULL, 0) == CH_RET_EBADF,
+                        "writeonly open permits reads");
+          }
           if (((cases[i].flags & VO_APPEND) != 0) &&
               ((cases[i].flags & VO_ACCMODE) != VO_RDONLY)) {
             if (((cases[i].flags & VO_ACCMODE) == VO_RDWR) && (size != 0)) {
@@ -450,6 +462,126 @@ void vfs_test_open_matrix(vfs_fs_c *fsp) {
               ((results[1] == 0) && (results[0] == CH_RET_EEXIST)),
               "exclusive creators both succeeded or both failed");
 #endif
+}
+
+void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
+  vfs_file_node_c *fnp;
+  vfs_stat_t st;
+  uint8_t bytes[8];
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE && !defined(OOP_USE_NOTHING)
+  vfs_root_c root;
+  vfs_io_c io;
+  vfs_descriptor_t slots[3];
+  int fd, duplicate;
+#endif
+
+  test_assert(vfsFSOpenFile(fsp, "/handle", VO_CREAT | VO_RDWR, &fnp) == 0,
+              "handle creation failed");
+  test_assert(vfsFileWrite(fnp, (const uint8_t *)"abcd", 4) == 4,
+              "handle seed failed");
+  (void)roRelease(fnp);
+  test_assert(vfsFSOpenFile(fsp, "/handle", VO_RDONLY, &fnp) == 0,
+              "handle read open failed");
+  test_assert(vfsFileRead(fnp, bytes, sizeof bytes) == 4 &&
+              memcmp(bytes, "abcd", 4) == 0 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 0,
+              "short read or EOF lost");
+  test_assert(vfsFileRead(fnp, bytes, SIZE_MAX) == CH_RET_EINVAL,
+              "excessive read count reached native code");
+#if SIZE_MAX > UINT32_MAX
+  test_assert(vfsFileRead(fnp, bytes, (size_t)UINT32_MAX + 1U) == CH_RET_EINVAL,
+              "native read count narrowed");
+#endif
+  test_assert(vfsFileSetPosition(fnp, 2, VFS_SEEK_SET) == 0 &&
+              vfsFileSetPosition(fnp, -1, VFS_SEEK_CUR) == 0 &&
+              vfsFileGetPosition(fnp) == 1 &&
+              vfsFileSetPosition(fnp, -1, VFS_SEEK_END) == 0 &&
+              vfsFileGetPosition(fnp) == 3, "signed native seek failed");
+  test_assert(vfsFileSetPosition(fnp, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
+              vfsFileSetPosition(fnp, INT32_MAX, VFS_SEEK_CUR) ==
+                CH_RET_EOVERFLOW &&
+              vfsFileSetPosition(fnp, 0, 123) == CH_RET_EINVAL &&
+              vfsFileGetPosition(fnp) == 3, "invalid seek changed position");
+  test_assert(vfsFileSetPosition(fnp, 8, VFS_SEEK_SET) ==
+                (fatfs ? CH_ENCODE_ERROR(ENOTSUP) : 0) &&
+              vfsFileGetPosition(fnp) == (fatfs ? 3 : 8),
+              "beyond EOF seek silently clamped");
+  (void)roRelease(fnp);
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE && !defined(OOP_USE_NOTHING)
+  (void)vfsrootObjectInit(&root, fsp, NULL);
+  (void)vfsioObjectInit(&io, slots, 3);
+  vfsIOSetRoot(&io, &root);
+  fd = vfsIOOpen(&io, "/handle", VO_RDWR | VO_APPEND | VO_CLOEXEC);
+  test_assert(fd == 0 && vfsIOGetDescriptorFlags(&io, fd) == VFD_CLOEXEC,
+              "append descriptor flags lost");
+  duplicate = vfsIODup(&io, fd);
+  test_assert(duplicate == 1 && vfsIOGetDescriptorFlags(&io, duplicate) == 0,
+              "dup inherited close-on-exec");
+  test_assert(vfsIORead(&io, fd, bytes, 1) == 1 && bytes[0] == 'a' &&
+              vfsIOTell(&io, duplicate) == 1, "dup did not share cursor");
+  test_assert(vfsIOSeek(&io, duplicate, 0, VFS_SEEK_SET) == 0 &&
+              vfsIOWrite(&io, fd, (const uint8_t *)"x", 1) == 1 &&
+              vfsIOSeek(&io, fd, 0, VFS_SEEK_SET) == 0 &&
+              vfsIOWrite(&io, duplicate, (const uint8_t *)"y", 1) == 1 &&
+              vfsIOFstat(&io, fd, &st) == 0 && st.size == 6,
+              "duplicated append overwrote contents");
+  test_assert(vfsIOSeek(&io, fd, 0, VFS_SEEK_SET) == 0 &&
+              vfsIORead(&io, duplicate, bytes, sizeof bytes) == 6 &&
+              memcmp(bytes, "abcdxy", 6) == 0,
+              "shared append data or short transfer incorrect");
+  if (!fatfs) {
+    test_assert(vfsIOSeek(&io, duplicate, 12, VFS_SEEK_SET) == 12 &&
+                vfsIOWrite(&io, fd, (const uint8_t *)"z", 1) == 1 &&
+                vfsIOFstat(&io, fd, &st) == 0 && st.size == 7,
+                "append after beyond EOF seek created a hole");
+  }
+  vfs_test_fs_reset();
+  test_assert(ovldrvRegisterDriver(&root, (vfs_fs_c *)&vfs_test_fs, "other") == 0 &&
+              vfsIORename(&io, "/handle", "/other/target") == CH_RET_EXDEV &&
+              vfs_test_fs.calls == 0U &&
+              vfsIOStat(&io, "/handle", &st) == 0,
+              "cross-filesystem rename reached a leaf or removed the source");
+  boDispose(&io);
+  boDispose(&root);
+#endif
+  test_assert(vfsFSUnlink(fsp, "/dir") == CH_RET_EISDIR &&
+              vfsFSRmdir(fsp, "/handle") == CH_RET_ENOTDIR &&
+              vfsFSStat(fsp, "/dir", &st) == 0 &&
+              VFS_MODE_S_ISDIR(st.mode) &&
+              vfsFSStat(fsp, "/handle", &st) == 0 &&
+              VFS_MODE_S_ISREG(st.mode), "remove erased the wrong type");
+  test_assert(vfsFSRename(fsp, "/handle", "/handle") == 0 &&
+              vfsFSRename(fsp, "/absent", "/absent") == CH_RET_ENOENT,
+              "identical rename did not check existence");
+  test_assert(vfsFSRename(fsp, "/handle", "/moved") == 0 &&
+              vfsFSStat(fsp, "/handle", &st) == CH_RET_ENOENT &&
+              vfsFSRename(fsp, "/moved", "/handle") == 0,
+              "rename to a new name failed");
+  test_assert(vfsFSOpenFile(fsp, "/target", VO_CREAT | VO_WRONLY, &fnp) == 0 &&
+              vfsFileWrite(fnp, (const uint8_t *)"q", 1) == 1,
+              "rename target creation failed");
+  test_assert(vfsFileWrite(fnp, bytes, SIZE_MAX) == CH_RET_EINVAL,
+              "excessive write count reached native code");
+#if SIZE_MAX > UINT32_MAX
+  test_assert(vfsFileWrite(fnp, bytes, (size_t)UINT32_MAX + 1U) == CH_RET_EINVAL,
+              "native write count narrowed");
+#endif
+  (void)roRelease(fnp);
+  test_assert(vfsFSRename(fsp, "/handle", "/target") ==
+                (fatfs ? CH_RET_EEXIST : 0), "rename replacement contract");
+  test_assert(vfsFSOpenFile(fsp, "/target", VO_RDONLY, &fnp) == 0 &&
+              vfsFileRead(fnp, bytes, 1) == 1 &&
+              bytes[0] == (fatfs ? 'q' : 'a'), "rename lost file contents");
+  (void)roRelease(fnp);
+  test_assert(vfsFSOpenFile(fsp, "/dir/child", VO_CREAT | VO_WRONLY, &fnp) == 0,
+              "child creation failed");
+  (void)roRelease(fnp);
+  test_assert(vfsFSRmdir(fsp, "/dir") ==
+                (fatfs ? CH_RET_EACCES : CH_ENCODE_ERROR(ENOTEMPTY)) &&
+              vfsFSStat(fsp, "/dir/child", &st) == 0,
+              "nonempty directory was removed");
+  test_assert(vfsFSUnlink(fsp, "/dir/child") == 0 &&
+              vfsFSRmdir(fsp, "/dir") == 0, "typed cleanup failed");
 }
 
 #endif /* !defined(__DOXYGEN__) */

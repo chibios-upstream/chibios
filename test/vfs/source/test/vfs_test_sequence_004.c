@@ -472,6 +472,7 @@ static void vfs_test_004_003_execute(void) {
   test_set_step(1);
   {
     vfs_test_open_matrix((vfs_fs_c *)&vfs_test_lfs_driver);
+    vfs_test_handle_contract((vfs_fs_c *)&vfs_test_lfs_driver, false);
   }
   test_end_step(1);
 }

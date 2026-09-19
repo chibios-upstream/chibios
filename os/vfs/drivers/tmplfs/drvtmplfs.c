@@ -158,6 +158,10 @@ struct vfs_tmpl_file_node {
    * @brief       Node mode information.
    */
   vfs_mode_t                mode;
+  /**
+   * @brief       Immutable access mode and append status shared by duplicates.
+   */
+  int                       flags;
 };
 /** @} */
 

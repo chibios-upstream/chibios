@@ -236,14 +236,17 @@ const struct vfs_streams_dir_node_vmt __vfs_streams_dir_node_vmt = {
  * @param[in]     vmt           VMT pointer for the new object.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     element       Element descriptor to be associated.
+ * @param[in]     flags         Opened access and status flags.
  * @return                      A new reference to the object.
  */
 void *__stmfile_objinit_impl(void *ip, const void *vmt, vfs_fs_c *driver,
-                             const drv_streams_element_t *element) {
+                             const drv_streams_element_t *element,
+                             int flags) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsfile_objinit_impl(self, vmt, (vfs_fs_c *)driver, element->mode);
+  self = __vfsfile_objinit_impl(self, vmt, (vfs_fs_c *)driver,
+                                 element->mode, flags);
   self->element = element;
 
   return self;
@@ -346,17 +349,34 @@ msg_t __stmfile_setpos_impl(void *ip, vfs_offset_t offset,
                             vfs_seekmode_t whence) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
   random_stream_i *rstream;
+  uint32_t current, size, result;
+  vfs_offset_t target;
+  msg_t ret;
 
-  if ((self->element->mode & VFS_MODE_S_IFMT) != VFS_MODE_S_IFREG) {
+  if (!VFS_MODE_S_ISREG(self->mode)) {
     return CH_RET_ESPIPE;
   }
-
+  if ((whence != VFS_SEEK_SET) && (whence != VFS_SEEK_CUR) &&
+      (whence != VFS_SEEK_END)) {
+    return CH_RET_EINVAL;
+  }
   rstream = self->element->interface.rstream;
   if (rstream == NULL) {
     return CH_RET_EIO;
   }
-
-  rstmSeek(rstream, (uint32_t)offset, (int)whence);
+  current = rstmSeek(rstream, 0U, RSTM_SEEK_CUR);
+  size = 0U;
+  if (whence == VFS_SEEK_END) {
+    size = rstmSeek(rstream, 0U, RSTM_SEEK_END);
+    (void)rstmSeek(rstream, current, RSTM_SEEK_SET);
+  }
+  ret = __vfs_seek_target(offset, whence, current, size, &target);
+  CH_RETURN_ON_ERROR(ret);
+  result = rstmSeek(rstream, (uint32_t)target, RSTM_SEEK_SET);
+  if (result != (uint32_t)target) {
+    (void)rstmSeek(rstream, current, RSTM_SEEK_SET);
+    return CH_ENCODE_ERROR(ENOTSUP);
+  }
 
   return CH_RET_SUCCESS;
 }
@@ -374,6 +394,7 @@ msg_t __stmfile_setpos_impl(void *ip, vfs_offset_t offset,
 vfs_offset_t __stmfile_getpos_impl(void *ip) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
   random_stream_i *rstream;
+  uint32_t position;
 
   if ((self->element->mode & VFS_MODE_S_IFMT) != VFS_MODE_S_IFREG) {
     return CH_RET_ESPIPE;
@@ -384,7 +405,9 @@ vfs_offset_t __stmfile_getpos_impl(void *ip) {
     return CH_RET_EIO;
   }
 
-  return (vfs_offset_t)rstmSeek(rstream, 0U, RSTM_SEEK_CUR);
+  position = rstmSeek(rstream, 0U, RSTM_SEEK_CUR);
+
+  return position > INT32_MAX ? CH_RET_EOVERFLOW : (vfs_offset_t)position;
 }
 
 /**
@@ -723,7 +746,7 @@ msg_t __stmdrv_openfile_impl(void *ip, const char *path, int flags,
           /* Node object initialization.*/
           (void) stmfileObjectInit(sfnp,
                                    (vfs_fs_c *)self,
-                                   dsep);
+                                   dsep, flags);
 
           *vfnpp = (vfs_file_node_c *)sfnp;
           return CH_RET_SUCCESS;

@@ -186,6 +186,11 @@
  * heap allocation or mutex. Standard synchronized OOP addref/release methods
  * are required; custom disposal is supported. Root support adds one private
  * module-wide node identity for reservations, never exposed or dispatched.
+ * ARM measurements: the context is 16 bytes with root support, 12 without;
+ * each @p vfs_descriptor_t entry is 8 bytes (node pointer and flags).
+ * The common file node gains one 4-byte open-status field. No extra heap
+ * object or mutex is allocated. FatFS uses that field in place of its former
+ * private append field.
  *
  * Open validates flags and paths, then reserves the lowest free descriptor
  * before entering the root. A full table returns EMFILE before any
@@ -197,12 +202,30 @@
  * invoking disposal. These rules keep concurrent allocations independent.
  * VO_DIRECTORY and trailing separators select directory lookup before any
  * file open. Creation/exclusive flags cannot bypass directory type checks.
- * VO_CLOEXEC is accepted and stripped before driver calls; descriptor flag
- * storage remains a subsequent prototype step. Drivers must return nodes
+ * VO_CLOEXEC is stripped before driver calls and recorded as VFD_CLOEXEC
+ * atomically with publication. Get/set-descriptor-flags operate under table
+ * protection. Insert/install and new duplicates clear it; dup2 onto itself
+ * preserves it. Current returning ELF calls do not consume it.
+ * Drivers must return nodes
  * with standard reference hooks: defensive admission failure releases the
  * returned node but cannot undo side effects of a contract-violating driver.
  * FatFS append state is local to each native file handle; positioning at EOF
- * and writing occur under one leaf lock. Initial read position stays zero.
+ * and writing occur under one leaf lock. LittleFS also positions each append
+ * write at EOF, including after a seek beyond EOF. Initial read position stays
+ * zero. Both backends require callers to avoid conflicting independent writable
+ * opens of one file; duplicates share a single handle and its append state.
+ * LittleFS has no wrapper registry to reject this misuse. Stream handles may
+ * also share their registered backend cursor, requiring external serialization.
+ *
+ * File constructors take explicit access flags, separate from stat permissions.
+ * Common read/write entry points check access even for zero-byte requests,
+ * accept NULL for a valid zero-byte transfer and reject excessive counts.
+ * Seek arithmetic rejects negative results and signed overflow. ROMFS and
+ * read-only FatFS reject seeks past EOF with ENOTSUP; writable FatFS may extend
+ * the file during seek, and LittleFS permits positions past EOF. A random stream
+ * that clamps a seek returns ENOTSUP through VFS, with its old position restored
+ * when the backend permits it. No upper lock spans these compound calls.
+ * Unlink/rmdir check native node type and remove under the same leaf lock.
  *
  * Set-root requires exclusive lifecycle access. A root is never retained or
  * disposed by the context; its lifetime and backing filesystem lifetimes

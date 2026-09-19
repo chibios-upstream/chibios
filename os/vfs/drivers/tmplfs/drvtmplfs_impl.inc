@@ -217,14 +217,16 @@ static vfs_tmpl_dir_node_c *tmpldirObjectInit(vfs_tmpl_dir_node_c *self,
  * @param[in]     vmt           VMT pointer for the new object.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Opened access and status flags.
  * @return                      A new reference to the object.
  */
 static void *__tmplfile_objinit_impl(void *ip, const void *vmt,
-                                     vfs_fs_c *driver, vfs_mode_t mode) {
+                                     vfs_fs_c *driver, vfs_mode_t mode,
+                                    int flags) {
   vfs_tmpl_file_node_c *self = (vfs_tmpl_file_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
+  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode, flags);
 
   return self;
 }
@@ -380,15 +382,17 @@ static const struct vfs_tmpl_file_node_vmt __vfs_tmpl_file_node_vmt = {
  *                              to be initialized.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Opened access and status flags.
  * @return                      Pointer to the initialized object.
  *
  * @objinit
  */
 static vfs_tmpl_file_node_c *tmplfileObjectInit(vfs_tmpl_file_node_c *self,
                                                 vfs_fs_c *driver,
-                                                vfs_mode_t mode) {
+                                                vfs_mode_t mode, int flags) {
 
-  return __tmplfile_objinit_impl(self, &__vfs_tmpl_file_node_vmt, driver, mode);
+  return __tmplfile_objinit_impl(self, &__vfs_tmpl_file_node_vmt, driver,
+                                mode, flags);
 }
 /** @} */
 
