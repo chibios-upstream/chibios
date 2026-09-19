@@ -150,7 +150,7 @@
 /**
  * @brief   Number of directory nodes pre-allocated in the pool.
  */
-#if !defined(DRV_CFG_OVERLAY_NODES_NUM) || defined(__DOXYGEN__)
+#if !defined(DRV_CFG_OVERLAY_DIR_NODES_NUM) || defined(__DOXYGEN__)
 #define DRV_CFG_OVERLAY_DIR_NODES_NUM       1
 #endif
 

@@ -82,8 +82,10 @@
  * helpers become empty macros. Callers then serialize shared state.
  * Kernel pool/reference protection and native backend configuration remain
  * independent. Descriptor ownership is protected locally as described below.
- * Caller integration has been audited; final concurrency validation remains
- * pending before advertising a full-stack concurrency guarantee.
+ * Caller integration and simulator concurrency validation cover root/overlay,
+ * ROMFS, FatFS/LittleFS wrappers and descriptor ownership under the contracts
+ * below. Shared backend synchronization, node ordering and native lifecycle
+ * requirements remain the caller's responsibility.
  *
  * Each root allocates one CWD buffer on its first successful chdir using
  * @p chCoreAlloc(). This bounded, nonblocking allocation runs under the
@@ -126,8 +128,8 @@
  * The local synchronization design releases upper VFS metadata protection
  * before driver or node methods, callbacks, reference release/disposal, and
  * blocking allocation. Each leaf supplies its own synchronization. These
- * requirements do not imply that the current adapters or leaf configurations
- * already support concurrent use.
+ * requirements also apply to custom drivers and callbacks; enabling the option
+ * cannot supply synchronization for arbitrary shared backend state.
  *
  * @subsection vfs_arch_leaf_locking Leaf wrapper synchronization
  *

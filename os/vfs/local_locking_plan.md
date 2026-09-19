@@ -18,8 +18,8 @@ are regenerated for buffer pairs, without introducing a mutex option yet.
 
 The foundation alone does not make VFS thread-safe. Steps 2 through 4 now
 supply optional metadata/leaf mutexes and descriptor ownership protection.
-Step 5 completes caller integration; final validation remains before concurrent
-use of the full stack is supported.
+Step 5 completes caller integration, and step 6 validates the local-locking
+implementation under the documented handle, backend and lifecycle contracts.
 
 ## Required behavior
 
@@ -289,7 +289,22 @@ in the abstract FS class merely because some implementations need one.
    concurrent use is supported. No partial stage should be described as the
    completed local-lock architecture.
 
-6. **Validate concurrency and driver-boundary behavior.**
+6. **Validate concurrency and driver-boundary behavior — complete.**
+
+   Extended the XML-owned routing tests with pool exhaustion/error recovery,
+   completion permutations across the same and separate roots, file/directory
+   scratch contention in both directions, mount replacement during a paused
+   route, and independent directory handles during mount changes. Leaf and
+   callback entry probes assert that no upper mutex or system lock is held;
+   drivers do not release an inherited lock. Existing CWD, fallback, disposal,
+   leaf exclusion and descriptor tests run alongside these additions.
+
+   Added a repeatable host probe of the production ELF relocation loop with
+   non-record-aligned combined capacity. Fixed the configuration template's
+   overlay directory-pool override guard, discovered when enabling two live
+   directory nodes; all 24 configurations are regenerated with values preserved.
+
+   Validation requirements:
 
    Retain existing functional regressions for root prefixes, merged root
    listing, mount bypass, nested overlays, rename, path limits, and cleanup.
@@ -330,7 +345,7 @@ and explicit directory enumeration phase. Step 3 is also complete: optional
 FatFS singleton and LittleFS per-instance wrapper synchronization, with native
 reentrancy optional. Step 4 now protects newlib descriptor ownership and
 orders sandbox descriptor release correctly. Step 5 completes API contracts
-and caller integration. Step 6 final concurrency validation is next.
+and caller integration. Step 6 final concurrency validation is complete.
 
 The step 1 source audit found native FatFS reentrancy disabled, LittleFS
 mount-state and native-hook prerequisites, shared backend state behind streams
@@ -341,6 +356,61 @@ same-handle ordering retain their own requirements. The node interface and archi
 document the handle contract. Step 1 validation is documentation/source review,
 XML schema validation, repeatable generation, and whitespace/link checks;
 no runtime synchronization behavior changed.
+
+Step 6 validation on 2026-09-19:
+
+All seven simulator configurations pass with parameter checks, assertions and
+the system state checker enabled. FatFS and LittleFS are included together
+except in the special path/record-boundary build.
+
+| Configuration | VFS mutexes | Pairs | Additional coverage |
+| --- | --- | --- | --- |
+| One pair | Enabled | 1 | Exhaustion, CWD after pool waits, success/error recovery |
+| Three pairs | Enabled | 3 | All six completion orders, separate roots, two directory nodes per pool |
+| Boundary | Enabled | 2 | Recursive kernel mutexes, path limit 128, name limit 127, two directory nodes per pool |
+| Disabled | Disabled | 1 | Ordinary guarded pools and reference/descriptor protection |
+| No kernel mutexes | Disabled | 1 | Kernel mutexes/condition variables and EFL mutual exclusion disabled |
+| Root disabled | Enabled | 1 | Direct leaf APIs; root/descriptor test exclusion |
+| Native reentrancy | Enabled | 2 | FatFS `FF_FS_REENTRANT=1` and LittleFS `LFS_THREADSAFE`, nonrecursive kernel mutexes |
+
+The default native-reentrancy settings are off. The native-enabled variant uses
+an isolated copy of the test configuration and the production FatFS hooks;
+the in-tree native configuration is unchanged. All simulator builds use
+`USE_SMART_BUILD=no`. Configuration names above describe the overrides of
+`test/vfs/testbuild/cfg`, not separate configuration files.
+
+- Paused stat, rename, open fallback, chdir validation, node I/O and disposal
+  permit the specified progress without driver-side manipulation of an upper
+  lock. Both rename paths and callback buffers survive waits. Mount replacement
+  leaves an already selected driver alive and usable; later calls see the new
+  mapping. Interleaved independent directory handles retain separate positions.
+- File scratch writes the whole combined capacity. The boundary configuration
+  uses a 136-byte directory entry in a 258-byte pair with 129-byte halves and
+  writes the maximum-length name across the half boundary. Path/scratch waits
+  in either direction preserve ownership and recover the entire pool.
+- `make test-elf-scratch` passes with address/undefined-behavior sanitizers.
+  It extracts the production relocation loop unchanged and uses the real buffer
+  union with stubbed I/O/relocation application: 65 records in 258-byte scratch,
+  empty/malformed sections, allocation/seek/read/relocation errors and unpaired
+  MOVW cleanup. This is not sandbox or ARM relocation execution.
+- STM32G474 FatFS/newlib and dynamic sandbox, STM32L476 LittleFS, and both
+  prefix-using L4R9 sandbox demos compile/link with local locking and all three
+  debug checks enabled. No physical-board execution or live HTTP network test
+  was performed; those remain distinct from this simulator/build validation.
+- Disabled VFS objects have no mutex references. On the 64-bit simulator,
+  FS/FatFS objects remain 8 bytes; overlay/root/LittleFS sizes are 56/72/184
+  bytes disabled and 88/104/216 enabled. FatFS module state is 824/856 bytes;
+  its separate non-cacheable state is unchanged. Invalid option values and
+  enabled VFS locking without kernel mutexes are rejected.
+- XML validation, repeatable VFS/test generation and whitespace checks pass.
+  The corrected overlay pool guard accepts the two-node override without a
+  redefinition. All 24 configuration updates preserve option values, and build
+  products are cleaned.
+
+The plan is complete for the supported local-locking contract. Same-node
+ordering, borrowed FS/backend lifetime, quiescent native lifecycle changes,
+shared hardware/backend synchronization and the no-nested-pair rule still
+apply. CHFS/template drivers remain outside the supported concurrency scope.
 
 Step 5 validation on 2026-09-19:
 

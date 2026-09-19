@@ -86,10 +86,13 @@ CPPWARN = -Wall -Wextra -Wundef
 RULESPATH = $(CHIBIOS)/os/common/startup/$(SIM_PORT)/compilers/GCC
 include $(RULESPATH)/rules.mk
 
-.PHONY: test test-fatfs clean-fatfs test-littlefs clean-littlefs
+.PHONY: test test-fatfs clean-fatfs test-littlefs clean-littlefs test-elf-scratch
 
 test: all
 	./$(BUILDDIR)/$(PROJECT)
+
+test-elf-scratch:
+	python3 check_elf_scratch.py
 
 test-fatfs:
 	$(MAKE) VFS_TEST_FATFS=yes USE_SMART_BUILD=no BUILDDIR=./build/fatfs \

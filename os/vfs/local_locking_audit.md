@@ -332,5 +332,25 @@ claims to the previously run functional tests.
 
 Steps 2 through 4 supply local metadata and leaf mutexes plus descriptor
 ownership protection. Step 5 completes API contracts and caller integration.
-Step 6 final concurrency validation is next; the complete VFS stack is not
-yet advertised as concurrently usable.
+Step 6 final concurrency validation is complete under those contracts. The
+[validation matrix](local_locking_plan.md) records seven simulator variants,
+the isolated ELF scratch probe, object/symbol checks and five ARM demo builds.
+
+The extended XML-owned routing tests assert unlocked driver/callback entry,
+exhaust the paired pool, resume operations in different orders across the same
+and separate roots, and exchange ownership between scratch and path consumers
+in both directions. Paused mount replacement preserves the selected backend
+while subsequent callers observe the new mapping. Independent directory
+handles retain separate positions as mounts change. The boundary variant
+actually writes a typed directory entry across the two path halves.
+
+Enabling two directory nodes exposed a template typo: the override guard used
+`DRV_CFG_OVERLAY_NODES_NUM` instead of `DRV_CFG_OVERLAY_DIR_NODES_NUM`. The
+guard is corrected in the template and all 24 generated configurations, with
+option values preserved. No additional runtime lock or allocation mechanism
+was needed during final validation.
+
+Physical-board and live HTTP network execution are not part of these results.
+The supported scope retains same-node ordering, borrowed object lifetime,
+quiescent native lifecycle, shared-backend synchronization and no nested pair
+waits; CHFS and unfinished template drivers remain excluded.
