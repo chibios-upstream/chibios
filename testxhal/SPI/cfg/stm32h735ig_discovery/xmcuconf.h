@@ -407,12 +407,12 @@
 #define STM32_SPI_DEFAULT_PAD              0U
 #define STM32_SPI_DEFAULT_CFG1             (SPI_CFG1_MBR_DIV128 | SPI_CFG1_DSIZE_8BITS)
 #define STM32_SPI_DEFAULT_CFG2             0U
-#define STM32_SPI_USE_SPI1                  FALSE
-#define STM32_SPI_USE_SPI2                  FALSE
-#define STM32_SPI_USE_SPI3                  FALSE
-#define STM32_SPI_USE_SPI4                  FALSE
-#define STM32_SPI_USE_SPI5                  FALSE
-#define STM32_SPI_USE_SPI6                  FALSE
+#define STM32_SPI_USE_SPI1                  TRUE
+#define STM32_SPI_USE_SPI2                  TRUE
+#define STM32_SPI_USE_SPI3                  TRUE
+#define STM32_SPI_USE_SPI4                  TRUE
+#define STM32_SPI_USE_SPI5                  TRUE
+#define STM32_SPI_USE_SPI6                  TRUE
 #define STM32_SPI_SPI1_RX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_SPI_SPI1_TX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_SPI_SPI2_RX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
@@ -506,8 +506,8 @@
 /*
  * WSPI driver system settings.
  */
-#define STM32_WSPI_USE_OCTOSPI1             TRUE
-#define STM32_WSPI_USE_OCTOSPI2             TRUE
+#define STM32_WSPI_USE_OCTOSPI1             FALSE
+#define STM32_WSPI_USE_OCTOSPI2             FALSE
 #define STM32_WSPI_OCTOSPI1_PRESCALER_VALUE 2
 #define STM32_WSPI_OCTOSPI2_PRESCALER_VALUE 2
 #define STM32_WSPI_OCTOSPI1_SSHIFT          FALSE

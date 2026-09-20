@@ -70,6 +70,13 @@
 #include "stm32_i2c4.inc"
 #include "stm32_i2c5.inc"
 
+#include "stm32_spi1.inc"
+#include "stm32_spi2.inc"
+#include "stm32_spi3.inc"
+#include "stm32_spi4.inc"
+#include "stm32_spi5.inc"
+#include "stm32_spi6.inc"
+
 #include "stm32_usart1.inc"
 #include "stm32_usart2.inc"
 #include "stm32_usart3.inc"
@@ -94,8 +101,12 @@
 #include "stm32_tim16.inc"
 #include "stm32_tim17.inc"
 
+#if STM32_HAS_OCTOSPI1
 #include "stm32_octospi1.inc"
+#endif
+#if STM32_HAS_OCTOSPI2
 #include "stm32_octospi2.inc"
+#endif
 
 /*===========================================================================*/
 /* Driver exported functions.                                                */
@@ -131,6 +142,13 @@ void irqInit(void) {
   i2c4_irq_init();
   i2c5_irq_init();
 
+  spi1_irq_init();
+  spi2_irq_init();
+  spi3_irq_init();
+  spi4_irq_init();
+  spi5_irq_init();
+  spi6_irq_init();
+
   tim1_irq_init();
   tim2_irq_init();
   tim3_irq_init();
@@ -143,8 +161,12 @@ void irqInit(void) {
   tim16_irq_init();
   tim17_irq_init();
 
+#if STM32_HAS_OCTOSPI1
   octospi1_irq_init();
+#endif
+#if STM32_HAS_OCTOSPI2
   octospi2_irq_init();
+#endif
 
   usart1_irq_init();
   usart2_irq_init();
@@ -189,6 +211,13 @@ void irqDeinit(void) {
   i2c4_irq_deinit();
   i2c5_irq_deinit();
 
+  spi1_irq_deinit();
+  spi2_irq_deinit();
+  spi3_irq_deinit();
+  spi4_irq_deinit();
+  spi5_irq_deinit();
+  spi6_irq_deinit();
+
   tim1_irq_deinit();
   tim2_irq_deinit();
   tim3_irq_deinit();
@@ -201,8 +230,12 @@ void irqDeinit(void) {
   tim16_irq_deinit();
   tim17_irq_deinit();
 
+#if STM32_HAS_OCTOSPI1
   octospi1_irq_deinit();
+#endif
+#if STM32_HAS_OCTOSPI2
   octospi2_irq_deinit();
+#endif
 
   usart1_irq_deinit();
   usart2_irq_deinit();
