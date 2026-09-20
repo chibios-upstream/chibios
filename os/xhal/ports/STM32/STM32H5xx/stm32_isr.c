@@ -125,7 +125,7 @@
 
 #include "stm32_rtc_h5.inc"
 
-//#include "stm32_usb1.inc"
+#include "stm32_usb1.inc"
 
 /*===========================================================================*/
 /* Driver exported functions.                                                */
@@ -211,7 +211,7 @@ void irqInit(void) {
   uart12_irq_init();
   lpuart1_irq_init();
 
-//  usb1_irq_init();
+  usb1_irq_init();
 }
 
 /**
@@ -294,7 +294,7 @@ void irqDeinit(void) {
   uart12_irq_deinit();
   lpuart1_irq_deinit();
 
-//  usb1_irq_deinit();
+  usb1_irq_deinit();
 }
 
 /** @} */

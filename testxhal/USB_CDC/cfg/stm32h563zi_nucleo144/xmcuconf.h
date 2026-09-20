@@ -46,7 +46,7 @@
 /*
  * ICache settings.
  */
-#define STM32_ICACHE_CR                     (ICACHE_CR_EN)
+#define STM32_ICACHE_CR                     (ICACHE_CR_WAYSEL | ICACHE_CR_EN)
 #define STM32_ICACHE_CRR0                   (0U)
 #define STM32_ICACHE_CRR1                   (0U)
 #define STM32_ICACHE_CRR2                   (0U)
@@ -60,7 +60,7 @@
 #define STM32_PWR_UCPDR                     (0U)
 #define STM32_PWR_SCCR                      (0U)
 #define STM32_PWR_VMCR                      (0U)
-#define STM32_PWR_USBSCR                    (0U)
+#define STM32_PWR_USBSCR                    (PWR_USBSCR_USB33SV | PWR_USBSCR_USB33DEN)
 #define STM32_PWR_WUCR                      (0U)
 #define STM32_PWR_IORETR                    (0U)
 #define STM32_PWR_SECCFGR                   (0U)
@@ -74,8 +74,8 @@
 #define STM32_HSI48_ENABLED                 FALSE
 #define STM32_CSI_ENABLED                   FALSE
 #define STM32_HSE_ENABLED                   TRUE
-#define STM32_LSI_ENABLED                   TRUE
-#define STM32_LSE_ENABLED                   TRUE
+#define STM32_LSI_ENABLED                   FALSE
+#define STM32_LSE_ENABLED                   FALSE
 #define STM32_SW                            RCC_CFGR1_SW_PLL1P
 #define STM32_PLL1SRC                       RCC_PLL1CFGR_PLL1SRC_HSE
 #define STM32_PLL1M_VALUE                   4
@@ -140,7 +140,7 @@
 #define STM32_SPI6SEL                       RCC_CCIPR3_SPI6SEL_PCLK2
 #define STM32_OSPISEL                       RCC_CCIPR4_OSPISEL_HCLK4
 #define STM32_SYSTICKSEL                    RCC_CCIPR4_SYSTICKSEL_HCLKDIV8
-#define STM32_USBSEL                        RCC_CCIPR4_USBSEL_NOCLOCK
+#define STM32_USBSEL                        RCC_CCIPR4_USBSEL_PLL3Q
 #define STM32_SDMMC1SEL                     RCC_CCIPR4_SDMMC1SEL_PLL1Q
 #define STM32_SDMMC2SEL                     RCC_CCIPR4_SDMMC2SEL_PLL1Q
 #define STM32_I2C1SEL                       RCC_CCIPR4_I2C1SEL_PCLK1
@@ -156,7 +156,7 @@
 #define STM32_SAI1SEL                       RCC_CCIPR5_SAI1SEL_PLL1Q
 #define STM32_SAI2SEL                       RCC_CCIPR5_SAI2SEL_PLL1Q
 #define STM32_CKPERSEL                      RCC_CCIPR5_CKPERSEL_HSI
-#define STM32_RTCSEL                        RCC_BDCR_RTCSEL_LSE
+#define STM32_RTCSEL                        RCC_BDCR_RTCSEL_NOCLOCK
 
 /*
  * IRQ system settings.
@@ -250,8 +250,8 @@
 #define STM32_ADC_COMPACT_SAMPLES           FALSE
 #define STM32_ADC_USE_ADC1                  FALSE
 #define STM32_ADC_USE_ADC2                  FALSE
-#define STM32_ADC_ADC1_DMA3_CHANNEL         STM32_DMA3_CHANNEL_ID_ANY
-#define STM32_ADC_ADC2_DMA3_CHANNEL         STM32_DMA3_CHANNEL_ID_ANY
+#define STM32_ADC_ADC1_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
+#define STM32_ADC_ADC2_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
 #define STM32_ADC_ADC2_DMA_PRIORITY         2
 #define STM32_ADC_ADC12_CLOCK_MODE          ADC_CCR_CKMODE_AHB_DIV4
@@ -301,10 +301,10 @@
 #define STM32_I2C_USE_I2C3                  FALSE
 #define STM32_I2C_USE_I2C4                  FALSE
 #define STM32_I2C_USE_DMA                   TRUE
-#define STM32_I2C_I2C1_DMA_PRIORITY         1
-#define STM32_I2C_I2C2_DMA_PRIORITY         1
-#define STM32_I2C_I2C3_DMA_PRIORITY         1
-#define STM32_I2C_I2C4_DMA_PRIORITY         1
+#define STM32_I2C_I2C1_DMA_PRIORITY         3
+#define STM32_I2C_I2C2_DMA_PRIORITY         3
+#define STM32_I2C_I2C3_DMA_PRIORITY         3
+#define STM32_I2C_I2C4_DMA_PRIORITY         3
 #define STM32_I2C_I2C1_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
 #define STM32_I2C_I2C2_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
 #define STM32_I2C_I2C3_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
@@ -346,7 +346,7 @@
  */
 #define STM32_SIO_USE_USART1                FALSE
 #define STM32_SIO_USE_USART2                FALSE
-#define STM32_SIO_USE_USART3                FALSE
+#define STM32_SIO_USE_USART3                TRUE
 #define STM32_SIO_USE_UART4                 FALSE
 #define STM32_SIO_USE_UART5                 FALSE
 #define STM32_SIO_USE_USART6                FALSE
@@ -404,7 +404,7 @@
  */
 #define STM32_RTC_PRESA_VALUE               32
 #define STM32_RTC_PRESS_VALUE               1024
-#define STM32_RTC_CR_INIT                   0U
+#define STM32_RTC_CR_INIT                   0
 
 /*
  * SDC driver system settings.
@@ -439,7 +439,7 @@
 /*
  * USB driver system settings.
  */
-#define STM32_USB_USE_USB1                  FALSE
+#define STM32_USB_USE_USB1                  TRUE
 #define STM32_USB_USE_ISOCHRONOUS           FALSE
 #define STM32_USB_USE_FAST_COPY             FALSE
 #define STM32_USB_HOST_WAKEUP_DURATION      2
@@ -448,6 +448,6 @@
 /*
  * WDG driver system settings.
  */
-#define STM32_WDG_USE_IWDG                  TRUE
+#define STM32_WDG_USE_IWDG                  FALSE
 
 #endif /* XMCUCONF_H */
