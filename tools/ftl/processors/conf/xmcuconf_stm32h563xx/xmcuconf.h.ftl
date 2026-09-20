@@ -371,6 +371,11 @@
 /*
  * SPI driver system settings.
  */
+#define STM32_SPI_SELECT_MODE              ${doc.STM32_SPI_SELECT_MODE!"STM32_SPI_SELECT_MODE_LINE"}
+#define STM32_SPI_DEFAULT_PORT             ${doc.STM32_SPI_DEFAULT_PORT!"GPIOA"}
+#define STM32_SPI_DEFAULT_PAD              ${doc.STM32_SPI_DEFAULT_PAD!"0U"}
+#define STM32_SPI_DEFAULT_CFG1             ${doc.STM32_SPI_DEFAULT_CFG1!"(SPI_CFG1_MBR_DIV128 | SPI_CFG1_DSIZE_8BITS)"}
+#define STM32_SPI_DEFAULT_CFG2             ${doc.STM32_SPI_DEFAULT_CFG2!"0U"}
 #define STM32_SPI_USE_SPI1                  ${doc.STM32_SPI_USE_SPI1!"FALSE"}
 #define STM32_SPI_USE_SPI2                  ${doc.STM32_SPI_USE_SPI2!"FALSE"}
 #define STM32_SPI_USE_SPI3                  ${doc.STM32_SPI_USE_SPI3!"FALSE"}

@@ -347,9 +347,9 @@
 #define STM32_SPI_DEFAULT_PAD              0U
 #define STM32_SPI_DEFAULT_CFG1             (SPI_CFG1_MBR_DIV128 | SPI_CFG1_DSIZE_8BITS)
 #define STM32_SPI_DEFAULT_CFG2             0U
-#define STM32_SPI_USE_SPI1                  FALSE
-#define STM32_SPI_USE_SPI2                  FALSE
-#define STM32_SPI_USE_SPI3                  FALSE
+#define STM32_SPI_USE_SPI1                  TRUE
+#define STM32_SPI_USE_SPI2                  TRUE
+#define STM32_SPI_USE_SPI3                  TRUE
 #define STM32_SPI_SPI1_RX_DMA3_CHANNEL      STM32_DMA3_MASK_FIFO2
 #define STM32_SPI_SPI1_TX_DMA3_CHANNEL      STM32_DMA3_MASK_FIFO2
 #define STM32_SPI_SPI2_RX_DMA3_CHANNEL      STM32_DMA3_MASK_FIFO2

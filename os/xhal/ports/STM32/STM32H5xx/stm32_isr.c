@@ -85,12 +85,12 @@
 #include "stm32_sdmmc1.inc"
 #include "stm32_sdmmc2.inc"
 
-//#include "stm32_spi1.inc"
-//#include "stm32_spi2.inc"
-//#include "stm32_spi3.inc"
-//#include "stm32_spi4.inc"
-//#include "stm32_spi5.inc"
-//#include "stm32_spi6.inc"
+#include "stm32_spi1.inc"
+#include "stm32_spi2.inc"
+#include "stm32_spi3.inc"
+#include "stm32_spi4.inc"
+#include "stm32_spi5.inc"
+#include "stm32_spi6.inc"
 
 #include "stm32_octospi1.inc"
 
@@ -172,12 +172,12 @@ void irqInit(void) {
   sdmmc1_irq_init();
   sdmmc2_irq_init();
 
-//  spi1_irq_init();
-//  spi2_irq_init();
-//  spi3_irq_init();
-//  spi4_irq_init();
-//  spi5_irq_init();
-//  spi6_irq_init();
+  spi1_irq_init();
+  spi2_irq_init();
+  spi3_irq_init();
+  spi4_irq_init();
+  spi5_irq_init();
+  spi6_irq_init();
 
   octospi1_irq_init();
   rtc_irq_init();
@@ -255,12 +255,12 @@ void irqDeinit(void) {
   sdmmc1_irq_deinit();
   sdmmc2_irq_deinit();
 
-//  spi1_irq_deinit();
-//  spi2_irq_deinit();
-//  spi3_irq_deinit();
-//  spi4_irq_deinit();
-//  spi5_irq_deinit();
-//  spi6_irq_deinit();
+  spi1_irq_deinit();
+  spi2_irq_deinit();
+  spi3_irq_deinit();
+  spi4_irq_deinit();
+  spi5_irq_deinit();
+  spi6_irq_deinit();
 
   octospi1_irq_deinit();
   rtc_irq_deinit();
