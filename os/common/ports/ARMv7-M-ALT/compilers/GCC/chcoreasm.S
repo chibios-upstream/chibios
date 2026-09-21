@@ -59,7 +59,7 @@
 #define MPU_RBAR        0xE000ED9C
 
 /* Size of the integer context portion (sp, basepri, r4-r11, (control),
-   lr_exc), used to recover the context base address after the integer
+   lr_exc), used to locate the MPU table pointer after the integer
    context store.*/
 #if PORT_SAVE_CONTROL
   #define CONTEXT_INTEGER_SIZE  48
@@ -92,9 +92,9 @@
 
                 /* Store integer context through R1.
                    On entry R2=PSP, R3=BASEPRI, R12=CONTROL.
-                   On exit R5=context base address, it is meant to survive
-                   until PORT_LOAD_MPU_CONTEXT, the registers R4-R11 are
-                   free after this point.*/
+                   On exit R5=old MPU regions table pointer, it is meant to
+                   survive until PORT_LOAD_MPU_CONTEXT, the registers R4-R11
+                   are free after this point.*/
                 .macro  PORT_STORE_INTEGER_CONTEXT
 #if PORT_SAVE_CONTROL
                 stmia   r1!, {r2-r12,lr}
@@ -102,7 +102,9 @@
                 stmia   r1!, {r2-r11,lr}
 #endif
 #if PORT_SWITCHED_REGIONS_NUMBER > 0
-                sub     r5, r1, #CONTEXT_INTEGER_SIZE
+                /* Snapshot while locked, the outgoing thread can be
+                   disposed by another core after the spinlock release.*/
+                ldr     r5, [r1, #(CONTEXT_MPU_OFFSET - CONTEXT_INTEGER_SIZE)]
 #endif
                 .endm
 
@@ -144,8 +146,20 @@
 #endif
                 .endm
 
+                /* Restore the incoming thread's guard after saving the
+                   outgoing float context, including any lazy stacking.
+                   Preserve R0 and keep the call stack eight-byte aligned.*/
+                .macro  PORT_LOAD_GUARD_PAGE
+#if PORT_ENABLE_GUARD_PAGES
+                push    {r0, lr}
+                bl      __port_set_region
+                pop     {r0, lr}
+#endif
+                .endm
+
                 /* Compare and load MPU context.
-                   On entry R0=new context base, R5=old context base. The
+                   On entry R0=new context base, R5=old MPU regions table
+                   pointer captured before releasing the spinlock. The
                    MPU is reprogrammed only when the two contexts point at
                    different regions tables; the tables are never written
                    back. The RBAR values in the tables carry the pre-baked
@@ -155,8 +169,7 @@
                 .macro  PORT_LOAD_MPU_CONTEXT
 #if PORT_SWITCHED_REGIONS_NUMBER > 0
                 ldr     r2, [r0, #CONTEXT_MPU_OFFSET]
-                ldr     r3, [r5, #CONTEXT_MPU_OFFSET]
-                cmp     r2, r3
+                cmp     r2, r5
                 beq     1f
                 ldr     r3, =MPU_RBAR
 #if PORT_SWITCHED_REGIONS_NUMBER == 1
@@ -229,6 +242,7 @@ SVC_Handler:
                 mrs     r3, BASEPRI
                 PORT_STORE_INTEGER_CONTEXT
                 PORT_STORE_FLOAT_CONTEXT
+                PORT_LOAD_GUARD_PAGE
 
 #if CH_DBG_SYSTEM_STATE_CHECK || CH_DBG_STATISTICS || CH_CFG_SMP_MODE
                 ldr     r3, [r0, #4]        /* BASEPRI offset */
@@ -284,6 +298,7 @@ PendSV_Handler:
 #endif
                 PORT_STORE_INTEGER_CONTEXT
                 PORT_STORE_FLOAT_CONTEXT
+                PORT_LOAD_GUARD_PAGE
 
                 /* Context load for new thread through R0.*/
                 adds    r0, #CONTEXT_OFFSET
@@ -333,9 +348,6 @@ __port_thread_start:
                    because a long context is used for starting it.*/
                 mov     r0, #2
                 msr     CONTROL, r0
-#endif
-#if PORT_ENABLE_GUARD_PAGES
-                bl      __port_set_region
 #endif
 #if CH_DBG_SYSTEM_STATE_CHECK
                 bl      __dbg_check_unlock
