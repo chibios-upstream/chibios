@@ -606,6 +606,7 @@ struct port_intctx {
   uint32_t      s29;
   uint32_t      s30;
   uint32_t      s31;
+  uint32_t      fpscr;
 #endif /* CORTEX_USE_FPU */
   uint32_t      r4;
   uint32_t      r5;
@@ -992,6 +993,9 @@ static inline void port_setup_context(struct port_context *ctxp,
 
   ctxp->sp = (struct port_intctx *)(void *)((uint8_t *)wtop -
                                             sizeof (struct port_intctx));
+#if CORTEX_USE_FPU
+  ctxp->sp->fpscr = FPU->FPDSCR;
+#endif
   ctxp->sp->r4 = (uint32_t)pf;
   ctxp->sp->r5 = (uint32_t)arg;
   ctxp->sp->lr = (uint32_t)__port_thread_start;

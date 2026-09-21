@@ -62,7 +62,7 @@ ICSR_PENDSVSET  EQU     0x10000000
                 IMPORT  chThdExit
                 IMPORT  chSchDoPreemption
 #if CH_DBG_ENABLE_STACK_CHECK && PORT_ENABLE_GUARD_PAGES
-                IMPORT  _port_set_region
+                IMPORT  __port_set_region
 #endif
 #if CH_DBG_STATISTICS
                 IMPORT  __stats_start_measure_crit_thd
@@ -83,6 +83,8 @@ ICSR_PENDSVSET  EQU     0x10000000
 __port_switch   PROC
                 push    {r4, r5, r6, r7, r8, r9, r10, r11, lr}
 #if CORTEX_USE_FPU
+                vmrs    r2, FPSCR
+                push    {r2}
                 vpush   {s16-s31}
 #endif
 
@@ -99,6 +101,8 @@ __port_switch   PROC
 
 #if CORTEX_USE_FPU
                 vpop    {s16-s31}
+                pop     {r2}
+                vmsr    FPSCR, r2
 #endif
                 pop     {r4, r5, r6, r7, r8, r9, r10, r11, pc}
                 ENDP

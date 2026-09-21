@@ -74,6 +74,8 @@
 __port_switch:
                 push    {r4, r5, r6, r7, r8, r9, r10, r11, lr}
 #if CORTEX_USE_FPU
+                vmrs    r2, FPSCR
+                push    {r2}
                 vpush   {s16-s31}
 #endif
 
@@ -89,6 +91,8 @@ __port_switch:
 
 #if CORTEX_USE_FPU
                 vpop    {s16-s31}
+                pop     {r2}
+                vmsr    FPSCR, r2
 #endif
                 pop     {r4, r5, r6, r7, r8, r9, r10, r11, pc}
 
