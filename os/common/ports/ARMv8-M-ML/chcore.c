@@ -134,6 +134,12 @@ void port_init(os_instance_t *oip) {
   /* Starting in a known IRQ configuration.*/
   port_suspend();
 
+#if CH_DBG_ENABLE_STACK_CHECK == FALSE
+  /* Disabling the startup stack limit because it is not switched between
+     threads when stack checking is disabled.*/
+  __set_PSPLIM(0U);
+#endif
+
 #if CORTEX_USE_FPU == TRUE
   /* Making sure to use the correct settings for FPU-related exception
      handling, better do not rely on startup settings.*/
