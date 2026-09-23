@@ -89,11 +89,11 @@ USBDriver USBD2;
 /*===========================================================================*/
 
 /**
- * @brief   EP0 state.
+ * @brief   EP0 transfer state type.
  * @note    It is an union because IN and OUT endpoints are never used at the
  *          same time for EP0.
  */
-static union {
+typedef union {
   /**
    * @brief   IN EP0 state.
    */
@@ -102,30 +102,31 @@ static union {
    * @brief   OUT EP0 state.
    */
   USBOutEndpointState out;
-} ep0_state;
+} otg_ep0_state_t;
+
+#if STM32_USB_USE_OTG1
+/**
+ * @brief   Private OTG1 EP0 storage, preserving the USBDriver layout.
+ */
+static otg_ep0_state_t ep0_state1;
+static uint8_t ep0setup_buffer1[8];
 
 /**
- * @brief   Buffer for the EP0 setup packets.
+ * @brief   OTG1 EP0 initialization structure.
  */
-static uint8_t ep0setup_buffer[8];
-
-/**
- * @brief   EP0 initialization structure.
- */
-static const USBEndpointConfig ep0config = {
+static const USBEndpointConfig ep0config1 = {
   USB_EP_MODE_TYPE_CTRL,
   _usb_ep0setup,
   _usb_ep0in,
   _usb_ep0out,
-  0x40,
-  0x40,
-  &ep0_state.in,
-  &ep0_state.out,
+  EP0_MAX_INSIZE,
+  EP0_MAX_OUTSIZE,
+  &ep0_state1.in,
+  &ep0_state1.out,
   1,
-  ep0setup_buffer
+  ep0setup_buffer1
 };
 
-#if STM32_USB_USE_OTG1
 static const stm32_otg_params_t fsparams = {
   STM32_USB_OTG1_RX_FIFO_SIZE / 4,
   STM32_OTG1_FIFO_MEM_SIZE,
@@ -134,6 +135,28 @@ static const stm32_otg_params_t fsparams = {
 #endif
 
 #if STM32_USB_USE_OTG2
+/**
+ * @brief   Private OTG2 EP0 storage, preserving the USBDriver layout.
+ */
+static otg_ep0_state_t ep0_state2;
+static uint8_t ep0setup_buffer2[8];
+
+/**
+ * @brief   OTG2 EP0 initialization structure.
+ */
+static const USBEndpointConfig ep0config2 = {
+  USB_EP_MODE_TYPE_CTRL,
+  _usb_ep0setup,
+  _usb_ep0in,
+  _usb_ep0out,
+  EP0_MAX_INSIZE,
+  EP0_MAX_OUTSIZE,
+  &ep0_state2.in,
+  &ep0_state2.out,
+  1,
+  ep0setup_buffer2
+};
+
 static const stm32_otg_params_t hsparams = {
   STM32_USB_OTG2_RX_FIFO_SIZE / 4,
   STM32_OTG2_FIFO_MEM_SIZE,
@@ -152,13 +175,17 @@ static void otg_core_reset(USBDriver *usbp) {
   while ((otgp->GRSTCTL & GRSTCTL_AHBIDL) == 0)
     ;
 
-  /* Core reset and delay of at least 3 PHY cycles.*/
+  /* Allow at least 10 PHY clocks after PHY selection before core reset.
+     One microsecond covers both the 48MHz FS and 60MHz HS interfaces.*/
+  osalSysPolledDelayX(OSAL_US2RTC(SystemCoreClock, 1U));
+
+  /* Core reset.*/
   otgp->GRSTCTL = GRSTCTL_CSRST;
-  osalSysPolledDelayX(12);
   while ((otgp->GRSTCTL & GRSTCTL_CSRST) != 0)
     ;
 
-  osalSysPolledDelayX(18);
+  /* Wait at least 3 PHY clocks before accessing the PHY clock domain.*/
+  osalSysPolledDelayX(OSAL_US2RTC(SystemCoreClock, 1U));
 
   /* Wait AHB idle condition again.*/
   while ((otgp->GRSTCTL & GRSTCTL_AHBIDL) == 0)
@@ -215,8 +242,8 @@ static void otg_rxfifo_flush(USBDriver *usbp) {
   otgp->GRSTCTL = GRSTCTL_RXFFLSH;
   while ((otgp->GRSTCTL & GRSTCTL_RXFFLSH) != 0)
     ;
-  /* Wait for 3 PHY Clocks.*/
-  osalSysPolledDelayX(18);
+  /* Wait at least 3 PHY clocks, independently of the CPU frequency.*/
+  osalSysPolledDelayX(OSAL_US2RTC(SystemCoreClock, 1U));
 }
 
 static void otg_txfifo_flush(USBDriver *usbp, uint32_t fifo) {
@@ -225,8 +252,8 @@ static void otg_txfifo_flush(USBDriver *usbp, uint32_t fifo) {
   otgp->GRSTCTL = GRSTCTL_TXFNUM(fifo) | GRSTCTL_TXFFLSH;
   while ((otgp->GRSTCTL & GRSTCTL_TXFFLSH) != 0)
     ;
-  /* Wait for 3 PHY Clocks.*/
-  osalSysPolledDelayX(18);
+  /* Wait at least 3 PHY clocks, independently of the CPU frequency.*/
+  osalSysPolledDelayX(OSAL_US2RTC(SystemCoreClock, 1U));
 }
 
 /**
@@ -1015,6 +1042,13 @@ void usb_lld_stop(USBDriver *usbp) {
 void usb_lld_reset(USBDriver *usbp) {
   unsigned i;
   stm32_otg_t *otgp = usbp->otg;
+#if STM32_USB_USE_OTG1 && STM32_USB_USE_OTG2
+  const USBEndpointConfig *epcp = &USBD1 == usbp ? &ep0config1 : &ep0config2;
+#elif STM32_USB_USE_OTG1
+  const USBEndpointConfig *epcp = &ep0config1;
+#else
+  const USBEndpointConfig *epcp = &ep0config2;
+#endif
 
   /* Flush the Tx FIFO.*/
   otg_txfifo_flush(usbp, 0);
@@ -1047,16 +1081,16 @@ void usb_lld_reset(USBDriver *usbp) {
   otgp->DOEPMSK   = DOEPMSK_STUPM   | DOEPMSK_XFRCM;
 
   /* EP0 initialization, it is a special case.*/
-  usbp->epc[0] = &ep0config;
+  usbp->epc[0] = epcp;
   otgp->oe[0].DOEPTSIZ = DOEPTSIZ_STUPCNT(3);
   otgp->oe[0].DOEPCTL = DOEPCTL_SD0PID | DOEPCTL_USBAEP | DOEPCTL_EPTYP_CTRL |
-                        DOEPCTL_MPSIZ(ep0config.out_maxsize);
+                        DOEPCTL_MPSIZ(epcp->out_maxsize);
   otgp->ie[0].DIEPTSIZ = 0;
   otgp->ie[0].DIEPCTL = DIEPCTL_SD0PID | DIEPCTL_USBAEP | DIEPCTL_EPTYP_CTRL |
-                        DIEPCTL_TXFNUM(0) | DIEPCTL_MPSIZ(ep0config.in_maxsize);
-  otgp->DIEPTXF0 = DIEPTXF_INEPTXFD(ep0config.in_maxsize / 4) |
+                        DIEPCTL_TXFNUM(0) | DIEPCTL_MPSIZ(epcp->in_maxsize);
+  otgp->DIEPTXF0 = DIEPTXF_INEPTXFD(epcp->in_maxsize / 4) |
                    DIEPTXF_INEPTXSA(otg_ram_alloc(usbp,
-                                                  ep0config.in_maxsize / 4));
+                                                  epcp->in_maxsize / 4));
 }
 
 /**
@@ -1145,12 +1179,26 @@ void usb_lld_init_endpoint(USBDriver *usbp, usbep_t ep) {
  * @notapi
  */
 void usb_lld_disable_endpoints(USBDriver *usbp) {
+  stm32_otg_t *otgp = usbp->otg;
+  unsigned ep;
 
-  /* Resets the FIFO memory allocator.*/
+  /* Preserve the RX FIFO and EP0 TX FIFO allocations and EP0 operation.*/
   otg_ram_reset(usbp);
-
-  /* Disabling all endpoints.*/
-  otg_disable_ep(usbp);
+  usbp->pmnext += EP0_MAX_INSIZE / 4U;
+  otgp->DIEPEMPMSK &= DIEPEMPMSK_INEPTXFEM(0);
+  otgp->DAINTMSK = DAINTMSK_OEPM(0) | DAINTMSK_IEPM(0);
+  for (ep = 1U; ep <= usbp->otgparams->num_endpoints; ep++) {
+    if ((otgp->ie[ep].DIEPCTL & DIEPCTL_EPENA) != 0U) {
+      otgp->ie[ep].DIEPCTL |= DIEPCTL_EPDIS | DIEPCTL_SNAK;
+    }
+    if ((otgp->oe[ep].DOEPCTL & DOEPCTL_EPENA) != 0U) {
+      otgp->oe[ep].DOEPCTL |= DOEPCTL_EPDIS | DOEPCTL_SNAK;
+    }
+    otgp->ie[ep].DIEPCTL &= ~DIEPCTL_USBAEP;
+    otgp->oe[ep].DOEPCTL &= ~DOEPCTL_USBAEP;
+    otgp->ie[ep].DIEPINT = 0xFFFFFFFFU;
+    otgp->oe[ep].DOEPINT = 0xFFFFFFFFU;
+  }
 }
 
 /**
