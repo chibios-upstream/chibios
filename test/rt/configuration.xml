@@ -1058,7 +1058,7 @@ test_assert(tm2.cumulative == (rttime_t)0, "invalid cumulative");]]></value>
 chVTObjectDispose(&timers_state_vt);]]></value>
             </teardown_code>
             <local_variables>
-              <value><![CDATA[sysinterval_t interval;
+              <value><![CDATA[sysinterval_t interval = (sysinterval_t)0;
 bool pending;]]></value>
             </local_variables>
           </various_code>
