@@ -156,6 +156,8 @@
 #define STM32_IRQ_OCTOSPI1_PRIORITY         10
 #define STM32_IRQ_OCTOSPI2_PRIORITY         10
 
+#define STM32_IRQ_OTG1_PRIORITY             14
+
 #define STM32_IRQ_SDMMC1_PRIORITY           9
 
 #define STM32_IRQ_TIM1_BRK_TIM15_PRIORITY   7
@@ -368,8 +370,10 @@
  * USB driver system settings.
  */
 #define STM32_USB_USE_OTG1                  FALSE
-#define STM32_USB_OTG1_IRQ_PRIORITY         14
 #define STM32_USB_OTG1_RX_FIFO_SIZE         512
+#define STM32_USB_OTGFIFO_FILL_BASEPRI      0
+#define STM32_USB_48MHZ_DELTA               120000
+#define STM32_USB_HOST_WAKEUP_DURATION      2
 
 /*
  * WDG driver system settings.

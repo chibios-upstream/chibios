@@ -29,6 +29,7 @@ include $(CHIBIOS)/os/xhal/ports/STM32/LLD/DMAv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/EXTIv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/GPIOv3/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/OCTOSPIv1/driver.mk
+include $(CHIBIOS)/os/xhal/ports/STM32/LLD/OTGv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/RCCv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/SDMMCv2/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/SYSTICKv1/driver.mk

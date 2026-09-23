@@ -131,12 +131,14 @@ static void ep0_signal_setupI(hal_usb_driver_c *usbp, msg_t msg) {
   ep0_resume_waiterI(usbp, msg);
 }
 
+#if (USB_SET_ADDRESS_MODE == USB_LATE_SET_ADDRESS) || defined (__DOXYGEN__)
 static void set_address_thread(hal_usb_driver_c *usbp) {
   usbp->address = usbp->setup[2];
   usb_lld_set_address(usbp);
   usb_invoke_event_cb(usbp, USB_FLAGS_ADDRESS);
   usbp->state = USB_SELECTED;
 }
+#endif /* USB_SET_ADDRESS_MODE == USB_LATE_SET_ADDRESS */
 
 static msg_t ep0_reply_or_ack(hal_usb_driver_c *usbp, const uint8_t *buf,
                               size_t n) {

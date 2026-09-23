@@ -173,6 +173,9 @@
 /*
  * IRQ system settings.
  */
+#define STM32_IRQ_ADC12_PRIORITY            5
+#define STM32_IRQ_ADC3_PRIORITY             5
+
 #define STM32_IRQ_EXTI0_PRIORITY            6
 #define STM32_IRQ_EXTI1_PRIORITY            6
 #define STM32_IRQ_EXTI2_PRIORITY            6
@@ -192,6 +195,9 @@
 #define STM32_IRQ_MDMA_PRIORITY             9
 
 #define STM32_IRQ_QUADSPI1_PRIORITY         10
+
+#define STM32_IRQ_OTG1_PRIORITY             14
+#define STM32_IRQ_OTG2_PRIORITY             14
 
 #define STM32_IRQ_SDMMC1_PRIORITY           9
 #define STM32_IRQ_SDMMC2_PRIORITY           9
@@ -242,8 +248,6 @@
 #define STM32_ADC_ADC3_BDMA_STREAM          STM32_BDMA_STREAM_ID_ANY
 #define STM32_ADC_ADC12_DMA_PRIORITY        2
 #define STM32_ADC_ADC3_DMA_PRIORITY         2
-#define STM32_ADC_ADC12_IRQ_PRIORITY        5
-#define STM32_ADC_ADC3_IRQ_PRIORITY         5
 #define STM32_ADC_ADC12_CLOCK_MODE          ADC_CCR_CKMODE_AHB_DIV4
 #define STM32_ADC_ADC3_CLOCK_MODE           ADC_CCR_CKMODE_AHB_DIV4
 
@@ -486,10 +490,11 @@
  */
 #define STM32_USB_USE_OTG1                  FALSE
 #define STM32_USB_USE_OTG2                  FALSE
-#define STM32_USB_OTG1_IRQ_PRIORITY         14
-#define STM32_USB_OTG2_IRQ_PRIORITY         14
 #define STM32_USB_OTG1_RX_FIFO_SIZE         512
 #define STM32_USB_OTG2_RX_FIFO_SIZE         1024
+#define STM32_USE_USB_OTG2_HS               TRUE
+#define STM32_USB_OTGFIFO_FILL_BASEPRI      0
+#define STM32_USB_48MHZ_DELTA               120000
 #define STM32_USB_HOST_WAKEUP_DURATION      2
 
 /*

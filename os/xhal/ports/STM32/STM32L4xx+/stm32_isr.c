@@ -67,6 +67,8 @@
 #include "stm32_sdmmc1.inc"
 #include "stm32_sdmmc2.inc"
 
+#include "stm32_otg1.inc"
+
 #include "stm32_usart1.inc"
 #include "stm32_usart2.inc"
 #include "stm32_usart3.inc"
@@ -121,6 +123,8 @@ void irqInit(void) {
   tim7_irq_init();
   tim8_irq_init();
 
+  otg1_irq_init();
+
   usart1_irq_init();
   usart2_irq_init();
   usart3_irq_init();
@@ -162,6 +166,8 @@ void irqDeinit(void) {
   tim6_irq_deinit();
   tim7_irq_deinit();
   tim8_irq_deinit();
+
+  otg1_irq_deinit();
 
   usart1_irq_deinit();
   usart2_irq_deinit();

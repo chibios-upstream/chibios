@@ -2419,6 +2419,7 @@ usbp->ep0reset = 0U;
 usbp->ep0seq++;
 ep0_resume_waiterI(usbp, msg);]]></implementation>
       </function>
+      <condition check="USB_SET_ADDRESS_MODE == USB_LATE_SET_ADDRESS">
       <function name="set_address_thread" ctype="void">
         <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
         <implementation><![CDATA[
@@ -2427,6 +2428,7 @@ usb_lld_set_address(usbp);
 usb_invoke_event_cb(usbp, USB_FLAGS_ADDRESS);
 usbp->state = USB_SELECTED;]]></implementation>
       </function>
+      </condition>
       <function name="ep0_reply_or_ack" ctype="msg_t">
         <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
         <param name="buf" ctype="const uint8_t *" dir="in"></param>

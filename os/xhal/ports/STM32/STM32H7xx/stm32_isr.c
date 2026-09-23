@@ -51,6 +51,11 @@
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
+#include "stm32_adc12.inc"
+#if STM32_HAS_ADC3
+#include "stm32_adc3.inc"
+#endif
+
 #include "stm32_exti0.inc"
 #include "stm32_exti1.inc"
 #include "stm32_exti2.inc"
@@ -64,6 +69,10 @@
 #include "stm32_exti19.inc"
 #include "stm32_exti20_21.inc"
 
+#include "stm32_fdcan1.inc"
+#include "stm32_fdcan2.inc"
+#include "stm32_fdcan3.inc"
+
 #include "stm32_i2c1.inc"
 #include "stm32_i2c2.inc"
 #include "stm32_i2c3.inc"
@@ -76,6 +85,9 @@
 #include "stm32_spi4.inc"
 #include "stm32_spi5.inc"
 #include "stm32_spi6.inc"
+
+#include "stm32_otg1.inc"
+#include "stm32_otg2.inc"
 
 #include "stm32_usart1.inc"
 #include "stm32_usart2.inc"
@@ -123,6 +135,11 @@ void irqInit(void) {
   mdma_irq_init();
 #endif
 
+  adc12_irq_init();
+#if STM32_HAS_ADC3
+  adc3_irq_init();
+#endif
+
   exti0_irq_init();
   exti1_irq_init();
   exti2_irq_init();
@@ -135,6 +152,10 @@ void irqInit(void) {
   exti18_irq_init();
   exti19_irq_init();
   exti20_exti21_irq_init();
+
+  fdcan1_irq_init();
+  fdcan2_irq_init();
+  fdcan3_irq_init();
 
   i2c1_irq_init();
   i2c2_irq_init();
@@ -168,6 +189,9 @@ void irqInit(void) {
   octospi2_irq_init();
 #endif
 
+  otg1_irq_init();
+  otg2_irq_init();
+
   usart1_irq_init();
   usart2_irq_init();
   usart3_irq_init();
@@ -192,6 +216,11 @@ void irqDeinit(void) {
   mdma_irq_deinit();
 #endif
 
+  adc12_irq_deinit();
+#if STM32_HAS_ADC3
+  adc3_irq_deinit();
+#endif
+
   exti0_irq_deinit();
   exti1_irq_deinit();
   exti2_irq_deinit();
@@ -204,6 +233,10 @@ void irqDeinit(void) {
   exti18_irq_deinit();
   exti19_irq_deinit();
   exti20_exti21_irq_deinit();
+
+  fdcan1_irq_deinit();
+  fdcan2_irq_deinit();
+  fdcan3_irq_deinit();
 
   i2c1_irq_deinit();
   i2c2_irq_deinit();
@@ -236,6 +269,9 @@ void irqDeinit(void) {
 #if STM32_HAS_OCTOSPI2
   octospi2_irq_deinit();
 #endif
+
+  otg1_irq_deinit();
+  otg2_irq_deinit();
 
   usart1_irq_deinit();
   usart2_irq_deinit();
