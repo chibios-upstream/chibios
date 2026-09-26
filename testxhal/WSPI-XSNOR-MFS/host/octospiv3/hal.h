@@ -14,7 +14,6 @@
     limitations under the License.
 */
 
-
 /* Host-only CMSIS register storage and DMA/RCC/IRQ model. */
 #ifndef TEST_OCTOSPI_V3_HAL_H
 #define TEST_OCTOSPI_V3_HAL_H

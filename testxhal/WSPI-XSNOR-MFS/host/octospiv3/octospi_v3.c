@@ -14,7 +14,6 @@
     limitations under the License.
 */
 
-
 #include <stdio.h>
 #include "hal.h"
 #include "hal_wspi_lld.c"

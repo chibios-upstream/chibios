@@ -14,7 +14,6 @@
     limitations under the License.
 */
 
-
 /* RTC IRQ ownership on platforms with one, two or three vectors. */
 #include <assert.h>
 #include <stdint.h>
