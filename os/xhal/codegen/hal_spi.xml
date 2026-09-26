@@ -69,23 +69,21 @@
       </macro>
       <macro name="_spi_isr_half_code">
         <brief>Common ISR code, half buffer event.</brief>
+        <note>For half and full events from the same interrupt snapshot,
+          use @p _spi_isr_circular_code() instead.</note>
         <param name="spip" dir="both">Pointer to the SPI driver instance.</param>
         <notapi />
         <implementation><![CDATA[
-do {
-  __cbdrv_invoke_half_cb(spip);
-  __spi_wakeup_state_isr(spip, HAL_DRV_STATE_HALF);
-} while (false)]]></implementation>
+__spi_isr_buffer_code(spip, HAL_DRV_STATE_HALF)]]></implementation>
       </macro>
       <macro name="_spi_isr_full_code">
         <brief>Common ISR code, full buffer event.</brief>
+        <note>For half and full events from the same interrupt snapshot,
+          use @p _spi_isr_circular_code() instead.</note>
         <param name="spip" dir="both">Pointer to the SPI driver instance.</param>
         <notapi />
         <implementation><![CDATA[
-do {
-  __cbdrv_invoke_full_cb(spip);
-  __spi_wakeup_state_isr(spip, HAL_DRV_STATE_FULL);
-} while (false)]]></implementation>
+__spi_isr_buffer_code(spip, HAL_DRV_STATE_FULL)]]></implementation>
       </macro>
       <macro name="_spi_isr_complete_code">
         <brief>Common ISR code, transfer complete event.</brief>
@@ -179,6 +177,14 @@ SPI_CONFIG_EXT_FIELDS]]></verbatim>
         ancestorname="hal_cb_driver" descr="SPI driver">
         <brief>Class of a SPI driver.</brief>
         <fields>
+          <condition check="SPI_SUPPORTS_CIRCULAR == TRUE">
+            <field name="sequence" ctype="uint32_t">
+              <brief>Transfer generation counter, managed by the HLD.</brief>
+              <details>Incremented before every transfer start, including linear
+                transfers. Initialized only at object construction, not when
+                stopping or restarting the driver.</details>
+            </field>
+          </condition>
           <condition check="SPI_USE_SYNCHRONIZATION == TRUE">
             <field name="sync_transfer" ctype="thread_reference_t">
               <brief>Synchronization point for transfer.</brief>
@@ -198,6 +204,9 @@ spi_lld_driver_fields;]]></verbatim>
         <methods>
           <objinit callsuper="true">
             <implementation><![CDATA[
+#if SPI_SUPPORTS_CIRCULAR == TRUE
+self->sequence = 0U;
+#endif
 #if SPI_USE_SYNCHRONIZATION == TRUE
 self->sync_transfer = NULL;
 self->sync_state    = HAL_DRV_STATE_STOP;
@@ -240,6 +249,9 @@ chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
 chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = HAL_DRV_STATE_ACTIVE;
+#if SPI_SUPPORTS_CIRCULAR == TRUE
+self->sequence++;
+#endif
 msg = spi_lld_ignore(self, n);
 if (msg != HAL_RET_SUCCESS) {
   self->state = HAL_DRV_STATE_READY;
@@ -313,6 +325,9 @@ chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
 chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = HAL_DRV_STATE_ACTIVE;
+#if SPI_SUPPORTS_CIRCULAR == TRUE
+self->sequence++;
+#endif
 msg = spi_lld_exchange(self, n, txbuf, rxbuf);
 if (msg != HAL_RET_SUCCESS) {
   self->state = HAL_DRV_STATE_READY;
@@ -390,6 +405,9 @@ chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
 chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = HAL_DRV_STATE_ACTIVE;
+#if SPI_SUPPORTS_CIRCULAR == TRUE
+self->sequence++;
+#endif
 msg = spi_lld_send(self, n, txbuf);
 if (msg != HAL_RET_SUCCESS) {
   self->state = HAL_DRV_STATE_READY;
@@ -463,6 +481,9 @@ chDbgCheck(((__spi_getfield(self, mode) & SPI_MODE_CIRCULAR) == 0U) ||
 chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
 
 self->state = HAL_DRV_STATE_ACTIVE;
+#if SPI_SUPPORTS_CIRCULAR == TRUE
+self->sequence++;
+#endif
 msg = spi_lld_receive(self, n, rxbuf);
 if (msg != HAL_RET_SUCCESS) {
   self->state = HAL_DRV_STATE_READY;
@@ -854,6 +875,66 @@ chSysUnlockFromISR();]]></implementation>
 
 (void)self;
 (void)state;]]></implementation>
+              </method>
+            </condition>
+            <method name="__spi_isr_buffer_code" ctype="void">
+              <brief>Invokes a circular buffer callback and wakes its waiter.</brief>
+              <note>The callback executes outside the system lock. If it stops
+                or replaces the transfer, the old event must not wake a waiter
+                belonging to the new transfer.</note>
+              <param name="state" ctype="driver_state_t" dir="in">Buffer event
+                state, @p HAL_DRV_STATE_HALF or @p HAL_DRV_STATE_FULL.</param>
+              <notapi />
+              <implementation><![CDATA[
+#if (SPI_SUPPORTS_CIRCULAR == TRUE) && (SPI_USE_SYNCHRONIZATION == TRUE)
+uint32_t sequence = self->sequence;
+#endif
+
+__cbdrv_invoke_cb_with_transition(self, state, HAL_DRV_STATE_ACTIVE);
+
+#if SPI_USE_SYNCHRONIZATION == TRUE
+chSysLockFromISR();
+#if SPI_SUPPORTS_CIRCULAR == TRUE
+if ((self->state == HAL_DRV_STATE_ACTIVE) && (self->sequence == sequence) &&
+    (self->sync_state == state)) {
+#else
+if (self->sync_state == state) {
+#endif
+  chThdResumeI(&self->sync_transfer, MSG_OK);
+}
+chSysUnlockFromISR();
+#endif]]></implementation>
+            </method>
+            <condition check="SPI_SUPPORTS_CIRCULAR == TRUE">
+              <method name="_spi_isr_circular_code" ctype="void">
+                <brief>Handles circular buffer events from one interrupt snapshot.</brief>
+                <details>The LLD decodes its interrupt flags into half and full
+                  events and passes both in one call. A full event captured before
+                  a half callback stops or replaces the transfer is discarded.
+                  Counter initialization and updates are entirely HLD-owned.</details>
+                <note>This helper and the generation counter are only present
+                  when @p SPI_SUPPORTS_CIRCULAR is enabled. Existing single-event
+                  helpers remain available, but separate half/full calls cannot
+                  detect a transfer replacement between those calls.</note>
+                <param name="half" ctype="bool" dir="in">Half buffer event
+                  pending.</param>
+                <param name="full" ctype="bool" dir="in">Full buffer event
+                  pending.</param>
+                <notapi />
+                <implementation><![CDATA[
+uint32_t sequence = self->sequence;
+
+if (self->state != HAL_DRV_STATE_ACTIVE) {
+  return;
+}
+
+if (half) {
+  _spi_isr_half_code(self);
+}
+if (full && (self->state == HAL_DRV_STATE_ACTIVE) &&
+    (self->sequence == sequence)) {
+  _spi_isr_full_code(self);
+}]]></implementation>
               </method>
             </condition>
           </inline>

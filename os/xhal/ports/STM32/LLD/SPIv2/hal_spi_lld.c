@@ -337,14 +337,8 @@ static void spi_lld_serve_rx_interrupt(SPIDriver *spip, uint32_t flags) {
     _spi_isr_error_code(spip);
   }
   else if ((__spi_getfield(spip, mode) & SPI_MODE_CIRCULAR) != 0U) {
-    if ((flags & STM32_DMA_ISR_HTIF) != 0U) {
-      /* Half buffer interrupt.*/
-      _spi_isr_half_code(spip);
-    }
-    if ((flags & STM32_DMA_ISR_TCIF) != 0U) {
-      /* Full buffer interrupt.*/
-      _spi_isr_full_code(spip);
-    }
+    _spi_isr_circular_code(spip, (flags & STM32_DMA_ISR_HTIF) != 0U,
+                           (flags & STM32_DMA_ISR_TCIF) != 0U);
   }
   else {
     /* Stopping DMAs.*/

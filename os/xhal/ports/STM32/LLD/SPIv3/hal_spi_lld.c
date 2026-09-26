@@ -435,15 +435,8 @@ static void spi_lld_serve_bdma_rx_interrupt(hal_spi_driver_c *spip, uint32_t fla
   }
 
   if (((__spi_getfield(spip, mode) & SPI_MODE_CIRCULAR) != 0U)) {
-    if ((flags & STM32_BDMA_ISR_HTIF) != 0U) {
-      /* Half buffer interrupt.*/
-      _spi_isr_half_code(spip);
-    }
-    if (((flags & STM32_BDMA_ISR_TCIF) != 0U) &&
-        (spip->state == HAL_DRV_STATE_ACTIVE)) {
-      /* End buffer interrupt.*/
-      _spi_isr_full_code(spip);
-    }
+    _spi_isr_circular_code(spip, (flags & STM32_BDMA_ISR_HTIF) != 0U,
+                           (flags & STM32_BDMA_ISR_TCIF) != 0U);
   }
   else if ((flags & STM32_BDMA_ISR_TCIF) != 0U) {
     /* Stopping the transfer.*/
@@ -509,15 +502,8 @@ static void spi_lld_serve_dma_rx_interrupt(hal_spi_driver_c *spip, uint32_t flag
   }
 
   if (((__spi_getfield(spip, mode) & SPI_MODE_CIRCULAR) != 0U)) {
-    if ((flags & STM32_DMA_ISR_HTIF) != 0U) {
-      /* Half buffer interrupt.*/
-      _spi_isr_half_code(spip);
-    }
-    if (((flags & STM32_DMA_ISR_TCIF) != 0U) &&
-        (spip->state == HAL_DRV_STATE_ACTIVE)) {
-      /* End buffer interrupt.*/
-      _spi_isr_full_code(spip);
-    }
+    _spi_isr_circular_code(spip, (flags & STM32_DMA_ISR_HTIF) != 0U,
+                           (flags & STM32_DMA_ISR_TCIF) != 0U);
   }
   else if ((flags & STM32_DMA_ISR_TCIF) != 0U) {
     /* Stopping the transfer.*/

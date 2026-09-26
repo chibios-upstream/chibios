@@ -290,6 +290,15 @@ static void test_half_callback(hal_spi_driver_c *spip) {
 }
 #define _spi_isr_half_code(spip) test_half_callback(spip)
 #define _spi_isr_full_code(spip) ((void)(spip), fulls++)
+/* Event decoding model only; host/hld tests the real HLD generation guard. */
+static void _spi_isr_circular_code(hal_spi_driver_c *spip, bool half, bool full) {
+  if (half) {
+    _spi_isr_half_code(spip);
+  }
+  if (full && (spip->state == HAL_DRV_STATE_ACTIVE)) {
+    _spi_isr_full_code(spip);
+  }
+}
 #define _spi_isr_complete_code(spip) do { \
   completions++; (spip)->state = HAL_DRV_STATE_READY; \
 } while (false)
