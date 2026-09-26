@@ -169,7 +169,7 @@
 #define STM32_CFG_I3C1_SEL                  RCC_CCIPR1_I3C1SEL_PCLK1
 #define STM32_CFG_I3C2_SEL                  RCC_CCIPR1_I3C2SEL_PCLK2
 #define STM32_CFG_ADCDACICLK_SEL            RCC_CCIPR2_ADCDACSEL_HCLK
-#define STM32_CFG_ADCDACPRE_VALUE           1
+#define STM32_CFG_ADCDACPRE_VALUE           2
 #define STM32_CFG_DAC1SH_SEL                RCC_CCIPR2_DAC1SHSEL_IGNORE
 #define STM32_CFG_RNG_SEL                   RCC_CCIPR2_RNGSEL_IGNORE
 #define STM32_CFG_FDCAN1_SEL                RCC_CCIPR1_FDCAN1SEL_SYSCLK
@@ -240,7 +240,7 @@
 /*
  * ADC driver system settings.
  */
-#define STM32_ADC_USE_ADC1                  FALSE
+#define STM32_ADC_USE_ADC1                  TRUE
 #define STM32_ADC_USE_ADC2                  FALSE
 #define STM32_ADC_DUAL_MODE                 FALSE
 #define STM32_ADC_COMPACT_SAMPLES           FALSE
@@ -271,7 +271,7 @@
 #define STM32_GPT_USE_TIM1                  FALSE
 #define STM32_GPT_USE_TIM2                  FALSE
 #define STM32_GPT_USE_TIM3                  FALSE
-#define STM32_GPT_USE_TIM4                  FALSE
+#define STM32_GPT_USE_TIM4                  TRUE
 #define STM32_GPT_USE_TIM6                  FALSE
 #define STM32_GPT_USE_TIM7                  FALSE
 #define STM32_GPT_USE_TIM15                 FALSE
@@ -382,7 +382,7 @@
 /*
  * USB driver system settings.
  */
-#define STM32_USB_USE_USB1                  TRUE
+#define STM32_USB_USE_USB1                  FALSE
 #define STM32_USB_USE_ISOCHRONOUS           FALSE
 #define STM32_USB_USE_FAST_COPY             FALSE
 #define STM32_USB_HOST_WAKEUP_DURATION      2
