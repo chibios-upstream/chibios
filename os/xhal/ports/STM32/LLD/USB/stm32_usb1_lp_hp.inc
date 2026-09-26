@@ -53,12 +53,12 @@
 #endif
 
 #if (STM32_USB1_HP_NUMBER != STM32_USB1_LP_NUMBER) &&                       \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_USB_USB1_HP_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to STM32_USB_USB1_HP_IRQ_PRIORITY"
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_USB1_HP_PRIORITY)
+#error "Invalid IRQ priority assigned to STM32_IRQ_USB1_HP_PRIORITY"
 #endif
 
-#if !CH_IRQ_IS_VALID_PRIORITY(STM32_USB_USB1_LP_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to STM32_USB_USB1_LP_IRQ_PRIORITY"
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_USB1_LP_PRIORITY)
+#error "Invalid IRQ priority assigned to STM32_IRQ_USB1_LP_PRIORITY"
 #endif
 
 #endif /* STM32_HAS_USB */
@@ -71,10 +71,10 @@ static inline void usb1_irq_init(void) {
 #if defined(STM32_USB1_IS_USED)
 #if STM32_USB1_HP_NUMBER != STM32_USB1_LP_NUMBER
 #if STM32_USB_USE_ISOCHRONOUS
-  nvicEnableVector(STM32_USB1_HP_NUMBER, STM32_USB_USB1_HP_IRQ_PRIORITY);
+  nvicEnableVector(STM32_USB1_HP_NUMBER, STM32_IRQ_USB1_HP_PRIORITY);
 #endif
 #endif
-  nvicEnableVector(STM32_USB1_LP_NUMBER, STM32_USB_USB1_LP_IRQ_PRIORITY);
+  nvicEnableVector(STM32_USB1_LP_NUMBER, STM32_IRQ_USB1_LP_PRIORITY);
 #endif
 }
 

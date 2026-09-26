@@ -106,6 +106,9 @@
 #define STM32_IRQ_USART2_PRIORITY           2
 #define STM32_IRQ_USART3_4_LP1_PRIORITY     2
 
+#define STM32_IRQ_SPI1_PRIORITY             2
+#define STM32_IRQ_SPI2_PRIORITY             2
+
 #define STM32_IRQ_TIM1_UP_PRIORITY          1
 #define STM32_IRQ_TIM1_CC_PRIORITY          1
 #define STM32_IRQ_TIM2_PRIORITY             1
@@ -212,8 +215,6 @@
 #define STM32_SPI_SPI2_TX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
-#define STM32_SPI_SPI1_IRQ_PRIORITY         2
-#define STM32_SPI_SPI2_IRQ_PRIORITY         2
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*

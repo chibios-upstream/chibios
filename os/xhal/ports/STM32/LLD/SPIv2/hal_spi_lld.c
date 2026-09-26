@@ -566,7 +566,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI1_RX_DMA_STREAM,
                           STM32_SPI_SPI1_TX_DMA_STREAM,
-                          STM32_SPI_SPI1_IRQ_PRIORITY);
+                          STM32_IRQ_SPI1_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
@@ -584,7 +584,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI2_RX_DMA_STREAM,
                           STM32_SPI_SPI2_TX_DMA_STREAM,
-                          STM32_SPI_SPI2_IRQ_PRIORITY);
+                          STM32_IRQ_SPI2_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
@@ -602,7 +602,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI3_RX_DMA_STREAM,
                           STM32_SPI_SPI3_TX_DMA_STREAM,
-                          STM32_SPI_SPI3_IRQ_PRIORITY);
+                          STM32_IRQ_SPI3_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
@@ -620,7 +620,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI4_RX_DMA_STREAM,
                           STM32_SPI_SPI4_TX_DMA_STREAM,
-                          STM32_SPI_SPI4_IRQ_PRIORITY);
+                          STM32_IRQ_SPI4_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
@@ -638,7 +638,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI5_RX_DMA_STREAM,
                           STM32_SPI_SPI5_TX_DMA_STREAM,
-                          STM32_SPI_SPI5_IRQ_PRIORITY);
+                          STM32_IRQ_SPI5_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
@@ -656,7 +656,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI6_RX_DMA_STREAM,
                           STM32_SPI_SPI6_TX_DMA_STREAM,
-                          STM32_SPI_SPI6_IRQ_PRIORITY);
+                          STM32_IRQ_SPI6_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }

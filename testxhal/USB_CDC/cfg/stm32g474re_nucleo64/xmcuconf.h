@@ -168,6 +168,11 @@
 #define STM32_IRQ_RTC_WKUP_PRIORITY         6
 #define STM32_IRQ_RTC_ALARM_PRIORITY        6
 
+#define STM32_IRQ_SPI1_PRIORITY             10
+#define STM32_IRQ_SPI2_PRIORITY             10
+#define STM32_IRQ_SPI3_PRIORITY             10
+#define STM32_IRQ_SPI4_PRIORITY             10
+
 #define STM32_IRQ_TIM1_BRK_TIM15_PRIORITY   7
 #define STM32_IRQ_TIM1_UP_TIM16_PRIORITY    7
 #define STM32_IRQ_TIM1_TRGCO_TIM17_PRIORITY 7
@@ -184,6 +189,9 @@
 #define STM32_IRQ_TIM20_CC_PRIORITY         7
 
 #define STM32_IRQ_QUADSPI1_PRIORITY         10
+
+#define STM32_IRQ_USB1_HP_PRIORITY         13
+#define STM32_IRQ_USB1_LP_PRIORITY         14
 
 #define STM32_IRQ_USART1_PRIORITY           12
 #define STM32_IRQ_USART2_PRIORITY           12
@@ -297,8 +305,6 @@
 #define STM32_I2S_USE_SPI3                  FALSE
 #define STM32_I2S_SPI2_MODE                 (STM32_I2S_MODE_MASTER | STM32_I2S_MODE_RX)
 #define STM32_I2S_SPI3_MODE                 (STM32_I2S_MODE_MASTER | STM32_I2S_MODE_RX)
-#define STM32_I2S_SPI2_IRQ_PRIORITY         10
-#define STM32_I2S_SPI3_IRQ_PRIORITY         10
 #define STM32_I2S_SPI2_DMA_PRIORITY         1
 #define STM32_I2S_SPI3_DMA_PRIORITY         1
 #define STM32_I2S_SPI2_RX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
@@ -362,10 +368,6 @@
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
 #define STM32_SPI_SPI3_DMA_PRIORITY         1
 #define STM32_SPI_SPI4_DMA_PRIORITY         1
-#define STM32_SPI_SPI1_IRQ_PRIORITY         10
-#define STM32_SPI_SPI2_IRQ_PRIORITY         10
-#define STM32_SPI_SPI3_IRQ_PRIORITY         10
-#define STM32_SPI_SPI4_IRQ_PRIORITY         10
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*
@@ -394,8 +396,6 @@
  */
 #define STM32_USB_USE_USB1                  TRUE
 #define STM32_USB_LOW_POWER_ON_SUSPEND      FALSE
-#define STM32_USB_USB1_HP_IRQ_PRIORITY      13
-#define STM32_USB_USB1_LP_IRQ_PRIORITY      14
 
 /*
  * WDG driver system settings.
