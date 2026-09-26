@@ -6,7 +6,8 @@ CPPFLAGS := -I$(STM32) -I$(STM32)/LLD/ADC -I$(STM32)/STM32G0xx \
             -I$(STM32)/STM32WLxx
 CFLAGS := -std=c11 -O2 -g -Wall -Wextra -Wundef -Werror
 TESTS := g0_none g0_adc g0_hook g0_adc_hook g0_dac_only g0_unassigned \
-         wl_none wl_adc wl_dac wl_hook wl_all wl_unassigned
+         wl_none wl_adc wl_dac wl_hook wl_all wl_unassigned \
+         u0_none u0_adc u0_hook u0_adc_hook u0_unassigned
 BINARIES := $(addprefix $(BUILDDIR)/,$(TESTS))
 DEDICATED_PLATFORMS := c0 g031 g0b0 wl_m4 h5
 DEDICATED_TESTS := $(foreach platform,$(DEDICATED_PLATFORMS),\
@@ -39,6 +40,11 @@ $(BUILDDIR)/wl_hook: CPPFLAGS += -DTEST_HOOK=1
 $(BUILDDIR)/wl_all: CPPFLAGS += -DTEST_ADC=1 -DTEST_DAC=1 -DTEST_HOOK=1
 $(BUILDDIR)/wl_unassigned: CPPFLAGS += -DTEST_ADC=1 -DTEST_DAC=1 \
                                     -DTEST_ADC_UNIT=0 -DTEST_DAC_UNIT=0
+$(filter $(BUILDDIR)/u0_%,$(BINARIES)): CPPFLAGS += -DTEST_U0=1
+$(BUILDDIR)/u0_adc: CPPFLAGS += -DTEST_ADC=1
+$(BUILDDIR)/u0_hook: CPPFLAGS += -DTEST_HOOK=1
+$(BUILDDIR)/u0_adc_hook: CPPFLAGS += -DTEST_ADC=1 -DTEST_HOOK=1
+$(BUILDDIR)/u0_unassigned: CPPFLAGS += -DTEST_ADC=1 -DTEST_ADC_UNIT=0
 
 $(filter $(BUILDDIR)/c0_%,$(DEDICATED_BINARIES)): CPPFLAGS += -DTEST_C0=1
 $(filter $(BUILDDIR)/g031_%,$(DEDICATED_BINARIES)): CPPFLAGS += -DTEST_G031=1
@@ -51,6 +57,7 @@ $(filter %_unassigned,$(DEDICATED_BINARIES)): CPPFLAGS += -DTEST_ADC=1 \
                                                      -DTEST_ADC_UNIT=0
 
 $(BINARIES): adc_irq.c $(FRAGMENTS) $(STM32)/STM32G0xx/stm32_isr.h \
+             $(STM32)/STM32U0xx/stm32_isr.h \
              $(STM32)/STM32WLxx/stm32_isr_m0.inc | $(BUILDDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@
 

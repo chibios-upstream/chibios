@@ -22,6 +22,9 @@
 #ifndef TEST_WL
 #define TEST_WL                             0
 #endif
+#ifndef TEST_U0
+#define TEST_U0                             0
+#endif
 #ifndef TEST_ADC
 #define TEST_ADC                            0
 #endif
@@ -110,8 +113,12 @@ static inline void dac_lld_serve_interrupt_dac1(void) {
                                             (TEST_DAC && TEST_DAC_UNIT) || \
                                             TEST_HOOK)
 #else
+#if TEST_U0
+#include "STM32U0xx/stm32_isr.h"
+#else
 #define STM32G071xx
 #include "stm32_isr.h"
+#endif
 #include "stm32_adc1_comp.inc"
 #define test_irq_init                      adc1_comp_irq_init
 #define test_irq_deinit                    adc1_comp_irq_deinit

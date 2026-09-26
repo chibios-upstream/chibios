@@ -310,7 +310,9 @@ void adc_lld_serve_interrupt(hal_adc_driver_c *adcp) {
 
     /* Note, an overflow may occur after the conversion ended before the driver
        is able to stop the ADC, this is why the state is checked too.*/
-    if ((isr & ADC_ISR_OVR) && (adcp->state == HAL_DRV_STATE_ACTIVE)) {
+    if (((isr & ADC_ISR_OVR) != 0U) &&
+        ((adcp->state == ADC_ACTIVE_LINEAR) ||
+         (adcp->state == ADC_ACTIVE_CIRCULAR))) {
       /* ADC overflow condition, this could happen only if the DMA is unable
          to read data fast enough.*/
       emask |= ADC_ERR_OVERFLOW;

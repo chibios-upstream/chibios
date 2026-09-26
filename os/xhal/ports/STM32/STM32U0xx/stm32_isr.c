@@ -51,6 +51,8 @@
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
+#include "stm32_adc1_comp.inc"
+
 #include "stm32_dma1_ch23.inc"
 #include "stm32_dma1_ch4567_dma2_ch12345.inc"
 
@@ -91,6 +93,8 @@
  */
 void irqInit(void) {
 
+  adc1_comp_irq_init();
+
   exti0_1_irq_init();
   exti2_3_irq_init();
   exti4_15_irq_init();
@@ -124,6 +128,8 @@ void irqInit(void) {
  * @notapi
  */
 void irqDeinit(void) {
+
+  adc1_comp_irq_deinit();
 
   exti0_1_irq_deinit();
   exti2_3_irq_deinit();

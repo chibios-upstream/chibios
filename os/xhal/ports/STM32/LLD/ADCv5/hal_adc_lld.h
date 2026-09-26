@@ -203,8 +203,9 @@
 /*===========================================================================*/
 
 /* Supported devices checks.*/
-#if !defined(STM32C0XX) && !defined(STM32G0XX) && !defined(STM32WLXX)
-#error "ADCv5 only supports C0, G0 and WL STM32 devices"
+#if !defined(STM32C0XX) && !defined(STM32G0XX) && !defined(STM32U0XX) && \
+    !defined(STM32WLXX)
+#error "ADCv5 only supports C0, G0, U0 and WL STM32 devices"
 #endif
 
 /* Registry checks.*/

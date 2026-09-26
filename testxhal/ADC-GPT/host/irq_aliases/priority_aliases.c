@@ -105,11 +105,16 @@ _Static_assert(STM32_IRQ_DAC1_PRIORITY == 3, "WL M0 DAC priority");
 
 #elif TEST_PLATFORM == 10
 
+#define STM32_IRQ_ADC1_COMP_PRIORITY        2
 #define STM32_IRQ_I2C2_3_4_PRIORITY         3
+#define STM32_IRQ_SPI2_3_PRIORITY           1
 #include "STM32U0xx/stm32_isr.h"
+_Static_assert(STM32_IRQ_ADC1_PRIORITY == 2, "U0 ADC priority");
 _Static_assert(STM32_IRQ_I2C2_PRIORITY == 3, "U0 I2C2 priority");
 _Static_assert(STM32_IRQ_I2C3_PRIORITY == 3, "U0 I2C3 priority");
 _Static_assert(STM32_IRQ_I2C4_PRIORITY == 3, "U0 I2C4 priority");
+_Static_assert(STM32_IRQ_SPI2_PRIORITY == 1, "U0 SPI2 priority");
+_Static_assert(STM32_IRQ_SPI3_PRIORITY == 1, "U0 SPI3 priority");
 
 #elif TEST_PLATFORM == 11
 
