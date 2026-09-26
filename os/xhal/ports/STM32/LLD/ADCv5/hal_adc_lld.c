@@ -187,16 +187,18 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
     return HAL_RET_CONFIG_ERROR;
   }
 
-  /* If in stopped state then enables the ADC and DMA clocks.*/
-  if (adcp->state == HAL_DRV_STATE_STOP) {
+  /* Allocating resources and enabling clocks during initial startup.*/
+  if (adcp->state == HAL_DRV_STATE_STARTING) {
 
 #if STM32_ADC_USE_ADC1
     if (&ADCD1 == adcp) {
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC1_DMA_STREAM,
-                                    STM32_IRQ_ADC1_PRIORITY,
-                                    (stm32_dmaisr_t)adc_lld_serve_rx_interrupt,
-                                    (void *)adcp);
-      chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
+                                  STM32_IRQ_ADC1_PRIORITY,
+                                  (stm32_dmaisr_t)adc_lld_serve_rx_interrupt,
+                                  (void *)adcp);
+      if (adcp->dmastp == NULL) {
+        return HAL_RET_NO_RESOURCE;
+      }
       rccResetADC1();
       rccEnableADC1(true);
 
@@ -354,9 +356,15 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
   adcp->adc->IER    = ADC_IER_OVRIE | ADC_IER_AWD1IE
                                     | ADC_IER_AWD2IE
                                     | ADC_IER_AWD3IE;
+#if defined(ADC_AWD1TR_LT1)
+  adcp->adc->AWD1TR = grpp->tr1;
+  adcp->adc->AWD2TR = grpp->tr2;
+  adcp->adc->AWD3TR = grpp->tr3;
+#else
   adcp->adc->TR1    = grpp->tr1;
   adcp->adc->TR2    = grpp->tr2;
   adcp->adc->TR3    = grpp->tr3;
+#endif
   adcp->adc->AWD2CR = grpp->awd2cr;
   adcp->adc->AWD3CR = grpp->awd3cr;
 
@@ -410,7 +418,9 @@ void adc_lld_serve_interrupt(hal_adc_driver_c *adcp) {
 
     /* Note, an overflow may occur after the conversion ended before the driver
        is able to stop the ADC, this is why the state is checked too.*/
-    if ((isr & ADC_ISR_OVR) && (adcp->state == HAL_DRV_STATE_ACTIVE)) {
+    if (((isr & ADC_ISR_OVR) != 0U) &&
+        ((adcp->state == ADC_ACTIVE_LINEAR) ||
+         (adcp->state == ADC_ACTIVE_CIRCULAR))) {
       /* ADC overflow condition, this could happen only if the DMA is unable
          to read data fast enough.*/
       emask |= ADC_ERR_OVERFLOW;

@@ -55,10 +55,12 @@
  * @{
  */
 /*
- * ADC unit.
+ * ADC/COMP units.
  */
-#define STM32_ADC1_HANDLER                  Vector70
-#define STM32_ADC1_NUMBER                   12
+#define STM32_ADC1_COMP_HANDLER             Vector70
+#define STM32_ADC1_COMP_NUMBER              12
+#define STM32_ADC1_HANDLER                  STM32_ADC1_COMP_HANDLER
+#define STM32_ADC1_NUMBER                   STM32_ADC1_COMP_NUMBER
 
 /*
  * DMA unit.
@@ -154,11 +156,14 @@
 #define STM32_USB1_NUMBER                   8
 /** @} */
 
-/* Individual IRQ priorities are derived by the shared I2C IRQ priority,
+/* Individual IRQ priorities are derived from the shared IRQ priorities,
    drivers expect individual definitions to exist.*/
+#define STM32_IRQ_ADC1_PRIORITY             STM32_IRQ_ADC1_COMP_PRIORITY
 #define STM32_IRQ_I2C2_PRIORITY             STM32_IRQ_I2C2_3_4_PRIORITY
 #define STM32_IRQ_I2C3_PRIORITY             STM32_IRQ_I2C2_3_4_PRIORITY
 #define STM32_IRQ_I2C4_PRIORITY             STM32_IRQ_I2C2_3_4_PRIORITY
+#define STM32_IRQ_SPI2_PRIORITY             STM32_IRQ_SPI2_3_PRIORITY
+#define STM32_IRQ_SPI3_PRIORITY             STM32_IRQ_SPI2_3_PRIORITY
 
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */
