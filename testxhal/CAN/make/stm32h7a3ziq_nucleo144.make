@@ -100,7 +100,7 @@ include $(CHIBIOS)/os/license/license.mk
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32h7xx.mk
 # XHAL files.
 include $(CHIBIOS)/os/xhal/xhal.mk
-include $(CHIBIOS)/os/xhal/ports/STM32/STM32H7xx/platform_type2.mk
+include $(CHIBIOS)/os/xhal/ports/STM32/STM32H7xx/platform_h7a3_h7b3.mk
 include $(CHIBIOS)/os/hal/boards/ST_NUCLEO144_H7A3ZI_Q/board.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk

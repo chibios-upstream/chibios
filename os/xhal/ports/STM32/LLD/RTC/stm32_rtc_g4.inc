@@ -15,8 +15,8 @@
 */
 
 /**
- * @file    RTCv3/stm32_rtc_g4.inc
- * @brief   Shared RTCv3 G4 interrupt handlers.
+ * @file    RTC/stm32_rtc_g4.inc
+ * @brief   Shared three-vector RTC interrupt handlers.
  *
  * @addtogroup STM32_RTC_HANDLER
  * @{

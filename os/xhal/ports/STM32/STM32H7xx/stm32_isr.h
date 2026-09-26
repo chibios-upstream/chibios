@@ -133,6 +133,17 @@
 #define STM32_DMA2_CH7_NUMBER               70
 
 /*
+ * RTC unit.
+ */
+#define STM32_RTC_TAMP_STAMP_HANDLER        Vector48
+#define STM32_RTC_WKUP_HANDLER              Vector4C
+#define STM32_RTC_ALARM_HANDLER             VectorE4
+
+#define STM32_RTC_TAMP_STAMP_NUMBER         2
+#define STM32_RTC_WKUP_NUMBER               3
+#define STM32_RTC_ALARM_NUMBER              41
+
+/*
  * MDMA units.
  */
 #define STM32_MDMA_HANDLER                  Vector228
@@ -157,9 +168,6 @@
 #define STM32_EXTI5_9_HANDLER               Vector9C
 #define STM32_EXTI10_15_HANDLER             VectorE0
 #define STM32_EXTI16_HANDLER                Vector44    /* PVD              */
-#define STM32_EXTI17_HANDLER                VectorE4    /* RTC ALARM        */
-#define STM32_EXTI18_HANDLER                Vector48    /* RTC TAMP CSS     */
-#define STM32_EXTI19_HANDLER                Vector4C    /* RTC WAKEUP       */
 #define STM32_EXTI2021_HANDLER              Vector264   /* COMP1 COMP2      */
 
 #define STM32_EXTI0_NUMBER                  6
@@ -170,9 +178,6 @@
 #define STM32_EXTI5_9_NUMBER                23
 #define STM32_EXTI10_15_NUMBER              40
 #define STM32_EXTI16_NUMBER                 1
-#define STM32_EXTI17_NUMBER                 41
-#define STM32_EXTI18_NUMBER                 42
-#define STM32_EXTI19_NUMBER                 3
 #define STM32_EXTI2021_NUMBER               137
 
 /*

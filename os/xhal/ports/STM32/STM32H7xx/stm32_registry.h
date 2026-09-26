@@ -87,20 +87,51 @@
 #define STM32_RTC_HAS_PERIODIC_WAKEUPS      TRUE
 #define STM32_RTC_NUM_ALARMS                2
 #define STM32_RTC_STORAGE_SIZE              128
-#define STM32_RTC_TAMP_STAMP_HANDLER        Vector48
-#define STM32_RTC_WKUP_HANDLER              Vector4C
-#define STM32_RTC_ALARM_HANDLER             VectorE4
-#define STM32_RTC_TAMP_STAMP_NUMBER         2
-#define STM32_RTC_WKUP_NUMBER               3
-#define STM32_RTC_ALARM_NUMBER              41
 #define STM32_RTC_ALARM_EXTI                17
 #define STM32_RTC_TAMP_STAMP_EXTI           18
 #define STM32_RTC_WKUP_EXTI                 19
-#define STM32_RTC_IRQ_ENABLE() do {                                         \
-  nvicEnableVector(STM32_RTC_ALARM_NUMBER, STM32_IRQ_EXTI17_PRIORITY);      \
-  nvicEnableVector(STM32_RTC_TAMP_STAMP_NUMBER, STM32_IRQ_EXTI18_PRIORITY); \
-  nvicEnableVector(STM32_RTC_WKUP_NUMBER, STM32_IRQ_EXTI19_PRIORITY);       \
+
+/* Enabling RTC-related EXTI lines.*/
+#define STM32_RTC_ENABLE_ALL_EXTI() do {                                    \
+  extiEnableGroup1(EXTI_MASK1(STM32_RTC_ALARM_EXTI) |                         \
+                   EXTI_MASK1(STM32_RTC_TAMP_STAMP_EXTI) |                  \
+                   EXTI_MASK1(STM32_RTC_WKUP_EXTI),                         \
+                   EXTI_MODE_RISING_EDGE | EXTI_MODE_ACTION_INTERRUPT);     \
 } while (false)
+
+/* Clearing RTC-related EXTI interrupts.*/
+#define STM32_RTC_CLEAR_ALL_EXTI() do {                                     \
+  extiClearGroup1(EXTI_MASK1(STM32_RTC_ALARM_EXTI) |                          \
+                  EXTI_MASK1(STM32_RTC_TAMP_STAMP_EXTI) |                   \
+                  EXTI_MASK1(STM32_RTC_WKUP_EXTI));                         \
+} while (false)
+
+/* Register masks depend on the RTC generation in the selected device.*/
+#define STM32_RTC_PRER_MASK                 0x007F7FFFU
+#if defined(STM32H7A3xx) || defined(STM32H7B3xx) ||                          \
+    defined(STM32H7A3xxQ) || defined(STM32H7B3xxQ) || defined(STM32H7B0xx)
+#define STM32_RTC_CR_MASK                   0xE7FFFF7FU
+#define STM32_TAMP_CR1_MASK                 0x00BF0007U
+#define STM32_TAMP_CR2_MASK                 0x07070007U
+#define STM32_TAMP_FLTCR_MASK               0x000000FFU
+#define STM32_TAMP_IER_MASK                 0x00BF0007U
+#else
+#define STM32_RTC_CR_MASK                   0x01FFFF7FU
+#if defined(STM32H723xx) || defined(STM32H733xx) || defined(STM32H725xx) ||    \
+    defined(STM32H735xx) || defined(STM32H730xx)
+/* RM0468: tamper 2 is absent, even though CMSIS exposes its bit definitions.*/
+#define STM32_RTC_HAS_TAMP2                 FALSE
+#define STM32_RTC_ISR_EVENT_MASK            0x0002BF00U
+#define STM32_RTC_TAMPCR_MASK               0x01C7FFE7U
+#define STM32_RTC_TAMPCR_IRQ_MASK           0x00410004U
+#else
+#define STM32_RTC_HAS_TAMP2                 TRUE
+#define STM32_RTC_ISR_EVENT_MASK            0x0002FF00U
+#define STM32_RTC_TAMPCR_MASK               0x01FFFFFFU
+#define STM32_RTC_TAMPCR_IRQ_MASK            0x00490004U
+#endif
+#define STM32_RTC_ISR_W0C_MASK              (STM32_RTC_ISR_EVENT_MASK | 0x20U)
+#endif
 
 /*===========================================================================*/
 /* STM32H730xx, STM32H750xx, STM32H7B0xx, STM32H733xx, STM32H735xx,          */

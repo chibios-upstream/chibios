@@ -66,9 +66,7 @@
 #include "stm32_exti5_9.inc"
 #include "stm32_exti10_15.inc"
 #include "stm32_exti16.inc"
-#include "stm32_exti17.inc"
-#include "stm32_exti18.inc"
-#include "stm32_exti19.inc"
+#include "stm32_rtc_g4.inc"
 #include "stm32_exti20_21.inc"
 
 #include "stm32_fdcan1.inc"
@@ -155,9 +153,7 @@ void irqInit(void) {
   exti5_9_irq_init();
   exti10_15_irq_init();
   exti16_irq_init();
-  exti17_irq_init();
-  exti18_irq_init();
-  exti19_irq_init();
+  rtc_irq_init();
   exti20_exti21_irq_init();
 
   fdcan1_irq_init();
@@ -241,9 +237,7 @@ void irqDeinit(void) {
   exti5_9_irq_deinit();
   exti10_15_irq_deinit();
   exti16_irq_deinit();
-  exti17_irq_deinit();
-  exti18_irq_deinit();
-  exti19_irq_deinit();
+  rtc_irq_deinit();
   exti20_exti21_irq_deinit();
 
   fdcan1_irq_deinit();

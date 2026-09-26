@@ -145,9 +145,6 @@
 #define STM32_IRQ_EXTI5_9_PRIORITY          6
 #define STM32_IRQ_EXTI10_15_PRIORITY        6
 #define STM32_IRQ_EXTI1635_38_PRIORITY      6
-#define STM32_IRQ_EXTI18_PRIORITY           6
-#define STM32_IRQ_EXTI19_PRIORITY           6
-#define STM32_IRQ_EXTI20_PRIORITY           6
 #define STM32_IRQ_EXTI21_22_PRIORITY        6
 
 #define STM32_IRQ_I2C1_PRIORITY             5
@@ -282,6 +279,7 @@
 #define STM32_RTC_PRESA_VALUE               32
 #define STM32_RTC_PRESS_VALUE               1024
 #define STM32_RTC_CR_INIT                   0
+#define STM32_RTC_TAMPCR_INIT               0
 #define STM32_TAMP_CR1_INIT                 0
 #define STM32_TAMP_CR2_INIT                 0
 #define STM32_TAMP_FLTCR_INIT               0
