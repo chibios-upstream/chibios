@@ -103,16 +103,26 @@ static inline void adc1_irq_deinit(void) {
  * @isr
  */
 CH_IRQ_HANDLER(STM32_ADC1_HANDLER) {
+#if !defined(STM32_ADC1_IRQ_HOOK_AFTER_SERVICE)
   uint32_t isr;
+#endif
 
   CH_IRQ_PROLOGUE();
 
+#if !defined(STM32_ADC1_IRQ_HOOK_AFTER_SERVICE)
   isr  = ADC1->ISR;
 #if defined(STM32_ADC_ADC1_IRQ_HOOK)
   STM32_ADC_ADC1_IRQ_HOOK
 #endif
-  adc_lld_serve_interrupt(&ADCD1);
   (void)isr;
+#endif
+
+  adc_lld_serve_interrupt(&ADCD1);
+
+#if defined(STM32_ADC1_IRQ_HOOK_AFTER_SERVICE) &&                          \
+    defined(STM32_ADC_ADC1_IRQ_HOOK)
+  STM32_ADC_ADC1_IRQ_HOOK
+#endif
 
   CH_IRQ_EPILOGUE();
 }

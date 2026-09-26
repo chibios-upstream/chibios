@@ -192,8 +192,13 @@ void mdmaInit(void) {
 /**
  * @brief   Allocates an MDMA channel.
  * @details The channel is allocated and, if required, the MDMA clock enabled.
- *          The function also enables the IRQ vector associated to the channel
- *          and initializes its priority.
+ *          All channels share the IRQ vector configured using
+ *          @p STM32_IRQ_MDMA_PRIORITY. Channel allocation does not change
+ *          the vector priority.
+ * @note    To rely on non-preemption between an MDMA callback and its
+ *          peripheral handler, the peripheral IRQ priority must match
+ *          @p STM32_IRQ_MDMA_PRIORITY. Per-channel priorities cannot be
+ *          selected, and locking requirements for I-class APIs still apply.
  *
  * @param[in] id        numeric identifiers of a specific channel or:
  *                      - @p STM32_MDMA_CHANNEL_ID_ANY for any channel.
@@ -251,8 +256,13 @@ const stm32_mdma_channel_t *mdmaChannelAllocI(uint32_t id,
 /**
  * @brief   Allocates a MDMA channel.
  * @details The channel is allocated and, if required, the MDMA clock enabled.
- *          The function also enables the IRQ vector associated to the channel
- *          and initializes its priority.
+ *          All channels share the IRQ vector configured using
+ *          @p STM32_IRQ_MDMA_PRIORITY. Channel allocation does not change
+ *          the vector priority.
+ * @note    To rely on non-preemption between an MDMA callback and its
+ *          peripheral handler, the peripheral IRQ priority must match
+ *          @p STM32_IRQ_MDMA_PRIORITY. Per-channel priorities cannot be
+ *          selected, and locking requirements for I-class APIs still apply.
  *
  * @param[in] id        numeric identifiers of a specific channel or:
  *                      - @p STM32_MDMA_CHANNEL_ID_ANY for any channel.

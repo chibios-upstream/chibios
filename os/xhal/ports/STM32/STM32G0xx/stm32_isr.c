@@ -51,6 +51,12 @@
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
+#if defined(STM32_ADC1_COMP_HANDLER)
+#include "stm32_adc1_comp.inc"
+#else
+#include "stm32_adc1.inc"
+#endif
+
 #include "stm32_dma1_ch23.inc"
 #if STM32_DMA2_NUM_CHANNELS > 0
 #include "stm32_dma1_ch4567_dma2_ch12345.inc"
@@ -81,7 +87,11 @@
 #else
 #error "unknown TIMs combination"
 #endif
+#if defined(STM32_TIM6_DAC_LPTIM1_HANDLER)
+#include "stm32_tim6_dac_lptim1.inc"
+#else
 #include "stm32_tim6.inc"
+#endif
 #include "stm32_tim7.inc"
 #include "stm32_tim14.inc"
 #include "stm32_tim15.inc"
@@ -127,6 +137,12 @@
  */
 void irqInit(void) {
 
+#if defined(STM32_ADC1_COMP_HANDLER)
+  adc1_comp_irq_init();
+#else
+  adc1_irq_init();
+#endif
+
   exti0_1_irq_init();
   exti2_3_irq_init();
   exti4_15_irq_init();
@@ -146,7 +162,11 @@ void irqInit(void) {
 #elif STM32_HAS_TIM3
   tim3_irq_init();
 #endif
+#if defined(STM32_TIM6_DAC_LPTIM1_HANDLER)
+  tim6_dac_lptim1_irq_init();
+#else
   tim6_irq_init();
+#endif
   tim7_irq_init();
   tim14_irq_init();
   tim15_irq_init();
@@ -185,6 +205,12 @@ void irqInit(void) {
  */
 void irqDeinit(void) {
 
+#if defined(STM32_ADC1_COMP_HANDLER)
+  adc1_comp_irq_deinit();
+#else
+  adc1_irq_deinit();
+#endif
+
   exti0_1_irq_deinit();
   exti2_3_irq_deinit();
   exti4_15_irq_deinit();
@@ -204,7 +230,11 @@ void irqDeinit(void) {
 #elif STM32_HAS_TIM3
   tim3_irq_deinit();
 #endif
+#if defined(STM32_TIM6_DAC_LPTIM1_HANDLER)
+  tim6_dac_lptim1_irq_deinit();
+#else
   tim6_irq_deinit();
+#endif
   tim7_irq_deinit();
   tim14_irq_deinit();
   tim15_irq_deinit();

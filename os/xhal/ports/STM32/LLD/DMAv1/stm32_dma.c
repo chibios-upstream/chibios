@@ -572,8 +572,18 @@ void dmaInit(void) {
 /**
  * @brief   Allocates a DMA stream.
  * @details The stream is allocated and, if required, the DMA clock enabled.
- *          The function also enables the IRQ vector associated to the stream
- *          and initializes its priority.
+ *          If a callback is specified and the associated IRQ vector is not
+ *          already in use, the vector is enabled with the requested priority.
+ * @note    On devices where DMA streams share an IRQ vector, the first
+ *          allocation with a non-NULL callback sets the vector priority.
+ *          Later allocations sharing that vector retain the existing
+ *          priority; different requested priorities are not checked.
+ *          The vector is disabled only after its last callback-bearing
+ *          stream is freed. A subsequent allocation can set a new priority.
+ * @note    To rely on non-preemption between DMA and peripheral handlers,
+ *          all drivers sharing the DMA vector must request the same IRQ
+ *          priority and use that priority for their peripheral handlers.
+ *          This does not remove locking requirements for I-class APIs.
  *
  * @param[in] id        numeric identifiers of a specific stream or:
  *                      - @p STM32_DMA_STREAM_ID_ANY for any stream.
@@ -582,7 +592,7 @@ void dmaInit(void) {
  *                      - @p STM32_DMA_STREAM_ID_ANY_DMA2 for any stream
  *                        on DMA2.
  *                      .
- * @param[in] priority  IRQ priority for the DMA stream
+ * @param[in] priority  requested IRQ priority for the DMA stream
  * @param[in] func      handling function pointer, can be @p NULL
  * @param[in] param     a parameter to be passed to the handling function
  * @return              Pointer to the allocated @p stm32_dma_stream_t
@@ -674,8 +684,18 @@ const stm32_dma_stream_t *dmaStreamAllocI(uint32_t id,
 /**
  * @brief   Allocates a DMA stream.
  * @details The stream is allocated and, if required, the DMA clock enabled.
- *          The function also enables the IRQ vector associated to the stream
- *          and initializes its priority.
+ *          If a callback is specified and the associated IRQ vector is not
+ *          already in use, the vector is enabled with the requested priority.
+ * @note    On devices where DMA streams share an IRQ vector, the first
+ *          allocation with a non-NULL callback sets the vector priority.
+ *          Later allocations sharing that vector retain the existing
+ *          priority; different requested priorities are not checked.
+ *          The vector is disabled only after its last callback-bearing
+ *          stream is freed. A subsequent allocation can set a new priority.
+ * @note    To rely on non-preemption between DMA and peripheral handlers,
+ *          all drivers sharing the DMA vector must request the same IRQ
+ *          priority and use that priority for their peripheral handlers.
+ *          This does not remove locking requirements for I-class APIs.
  *
  * @param[in] id        numeric identifiers of a specific stream or:
  *                      - @p STM32_DMA_STREAM_ID_ANY for any stream.
@@ -684,7 +704,7 @@ const stm32_dma_stream_t *dmaStreamAllocI(uint32_t id,
  *                      - @p STM32_DMA_STREAM_ID_ANY_DMA2 for any stream
  *                        on DMA2.
  *                      .
- * @param[in] priority  IRQ priority for the DMA stream
+ * @param[in] priority  requested IRQ priority for the DMA stream
  * @param[in] func      handling function pointer, can be @p NULL
  * @param[in] param     a parameter to be passed to the handling function
  * @return              Pointer to the allocated @p stm32_dma_stream_t

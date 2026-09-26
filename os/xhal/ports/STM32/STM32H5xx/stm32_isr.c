@@ -57,6 +57,8 @@
 #include "stm32_adc1_2.inc"
 #include "stm32_adc2.inc"
 
+#include "stm32_eth1.inc"
+
 #include "stm32_exti0.inc"
 #include "stm32_exti1.inc"
 #include "stm32_exti2.inc"
@@ -144,6 +146,8 @@ void irqInit(void) {
   adc1_adc2_irq_init();
   adc2_irq_init();
 
+  eth1_irq_init();
+
   exti0_irq_init();
   exti1_irq_init();
   exti2_irq_init();
@@ -226,6 +230,8 @@ void irqDeinit(void) {
   adc1_irq_deinit();
   adc1_adc2_irq_deinit();
   adc2_irq_deinit();
+
+  eth1_irq_deinit();
 
   exti0_irq_deinit();
   exti1_irq_deinit();

@@ -166,6 +166,8 @@
 #define STM32_IRQ_ADC1_PRIORITY             5
 #define STM32_IRQ_ADC2_PRIORITY             5
 
+#define STM32_IRQ_ETH1_PRIORITY             13
+
 #define STM32_IRQ_EXTI0_PRIORITY            6
 #define STM32_IRQ_EXTI1_PRIORITY            6
 #define STM32_IRQ_EXTI2_PRIORITY            6
@@ -426,7 +428,6 @@
 #define STM32_WSPI_OCTOSPI1_DHQC            FALSE
 #define STM32_WSPI_OCTOSPI1_DMA3_CHANNEL    STM32_DMA3_MASK_ANY
 #define STM32_WSPI_OCTOSPI1_DMA_PRIORITY    1
-#define STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY 10
 #define STM32_WSPI_DMA_ERROR_HOOK(wspip)    chSysHalt("DMA failure")
 
 /*

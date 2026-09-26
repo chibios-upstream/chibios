@@ -17,6 +17,10 @@
 /**
  * @file    OCTOSPIv3/hal_wspi_lld.h
  * @brief   STM32 WSPI subsystem low level driver header.
+ * @details The peripheral IRQ priority from xmcuconf.h, validated by the
+ *          shared OCTOSPI IRQ handler, is also used for the DMA3 channel
+ *          interrupt, so the DMA and peripheral handlers cannot preempt
+ *          each other.
  *
  * @addtogroup WSPI
  * @{
@@ -202,13 +206,6 @@
 #endif
 
 /**
- * @brief   OCTOSPI1 DMA3 interrupt priority level setting.
- */
-#if !defined(STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY 10
-#endif
-
-/**
  * @brief   Default DCR1 value for the WSPI default configuration.
  */
 #if !defined(STM32_WSPI_DEFAULT_DCR1) || defined(__DOXYGEN__)
@@ -268,10 +265,6 @@
 #if (STM32_WSPI_OCTOSPI1_PRESCALER_VALUE < 1) ||                            \
     (STM32_WSPI_OCTOSPI1_PRESCALER_VALUE > 256)
 #error "STM32_WSPI_OCTOSPI1_PRESCALER_VALUE not within 1..256"
-#endif
-
-#if !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to OCTOSPI1 DMA"
 #endif
 
 #if !STM32_DMA3_ARE_VALID_CHANNELS(STM32_WSPI_OCTOSPI1_DMA3_CHANNEL)

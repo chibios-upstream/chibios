@@ -440,7 +440,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmachp = dma3ChannelAlloc(STM32_ADC_ADC1_DMA3_CHANNEL,
-                                       STM32_ADCV6_ADC1_IRQ_PRIORITY,
+                                       STM32_IRQ_ADC1_PRIORITY,
                                        adc_lld_serve_dma_interrupt,
                                        (void *)adcp);
       chDbgAssert(adcp->dmachp != NULL, "unable to allocate stream");
@@ -459,7 +459,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmachp = dma3ChannelAlloc(STM32_ADC_ADC2_DMA3_CHANNEL,
-                                       STM32_ADCV6_ADC2_IRQ_PRIORITY,
+                                       STM32_IRQ_ADC2_PRIORITY,
                                        adc_lld_serve_dma_interrupt,
                                        (void *)adcp);
       chDbgAssert(adcp->dmachp != NULL, "unable to allocate stream");
@@ -478,7 +478,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmachp = dma3ChannelAlloc(STM32_ADC_ADC3_DMA3_CHANNEL,
-                                       STM32_ADCV6_ADC3_IRQ_PRIORITY,
+                                       STM32_IRQ_ADC3_PRIORITY,
                                        adc_lld_serve_dma_interrupt,
                                        (void *)adcp);
       chDbgAssert(adcp->dmachp != NULL, "unable to allocate stream");
@@ -497,7 +497,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmachp = dma3ChannelAlloc(STM32_ADC_ADC4_DMA3_CHANNEL,
-                                       STM32_ADCV6_ADC4_IRQ_PRIORITY,
+                                       STM32_IRQ_ADC4_PRIORITY,
                                        adc_lld_serve_dma_interrupt,
                                        (void *)adcp);
       chDbgAssert(adcp->dmachp != NULL, "unable to allocate stream");

@@ -425,7 +425,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
 #if STM32_ADC_USE_ADC1
   if (&ADCD1 == adcp) {
     adcp->dmachp = dma3ChannelAlloc(STM32_ADC_ADC1_DMA3_CHANNEL,
-                                    STM32_ADCV8_ADC1_IRQ_PRIORITY,
+                                    STM32_IRQ_ADC1_PRIORITY,
                                     adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
     chDbgAssert(adcp->dmachp != NULL, "unable to allocate DMA channel");
@@ -436,7 +436,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
 #if STM32_ADC_USE_ADC2 && !STM32_ADC_DUAL_MODE
   if (&ADCD2 == adcp) {
     adcp->dmachp = dma3ChannelAlloc(STM32_ADC_ADC2_DMA3_CHANNEL,
-                                    STM32_ADCV8_ADC2_IRQ_PRIORITY,
+                                    STM32_IRQ_ADC2_PRIORITY,
                                     adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
     chDbgAssert(adcp->dmachp != NULL, "unable to allocate DMA channel");

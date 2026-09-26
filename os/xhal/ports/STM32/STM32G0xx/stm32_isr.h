@@ -64,6 +64,16 @@
 #define STM32_ADC1_HANDLER                  Vector70
 #define STM32_ADC1_NUMBER                   12
 
+/* Preserve ADCv5's post-service IRQ hook ordering.*/
+#define STM32_ADC1_IRQ_HOOK_AFTER_SERVICE
+
+#if defined(STM32G051xx) || defined(STM32G061xx) ||                          \
+    defined(STM32G071xx) || defined(STM32G081xx) ||                          \
+    defined(STM32G0B1xx) || defined(STM32G0C1xx)
+#define STM32_ADC1_COMP_HANDLER             STM32_ADC1_HANDLER
+#define STM32_ADC1_COMP_NUMBER              STM32_ADC1_NUMBER
+#endif
+
 /*
  * DMA unit.
  */
@@ -141,6 +151,13 @@
 #define STM32_TIM16_NUMBER                  21
 #define STM32_TIM17_NUMBER                  22
 
+#if defined(STM32G051xx) || defined(STM32G061xx) ||                          \
+    defined(STM32G071xx) || defined(STM32G081xx) ||                          \
+    defined(STM32G0B1xx) || defined(STM32G0C1xx)
+#define STM32_TIM6_DAC_LPTIM1_HANDLER       STM32_TIM6_HANDLER
+#define STM32_TIM6_DAC_LPTIM1_NUMBER        STM32_TIM6_NUMBER
+#endif
+
 /*
  * USART/UART units.
  */
@@ -172,8 +189,17 @@
 #endif
 /** @} */
 
-/* Individual IRQ priorities are derived by the shared I2C IRQ priority,
+/* Individual IRQ priorities are derived from the shared vector priorities,
    drivers expect individual definitions to exist.*/
+#if defined(STM32_ADC1_COMP_NUMBER)
+#define STM32_IRQ_ADC1_PRIORITY             STM32_IRQ_ADC1_COMP_PRIORITY
+#endif
+#if defined(STM32_TIM6_DAC_LPTIM1_NUMBER)
+#define STM32_IRQ_TIM6_PRIORITY             STM32_IRQ_TIM6_DAC_LPTIM1_PRIORITY
+#define STM32_IRQ_DAC1_PRIORITY             STM32_IRQ_TIM6_DAC_LPTIM1_PRIORITY
+#define STM32_IRQ_LPTIM1_PRIORITY           STM32_IRQ_TIM6_DAC_LPTIM1_PRIORITY
+#endif
+
 #if STM32_HAS_I2C2 && STM32_HAS_I2C3
 #define STM32_IRQ_I2C2_PRIORITY             STM32_IRQ_I2C2_3_PRIORITY
 #define STM32_IRQ_I2C3_PRIORITY             STM32_IRQ_I2C2_3_PRIORITY

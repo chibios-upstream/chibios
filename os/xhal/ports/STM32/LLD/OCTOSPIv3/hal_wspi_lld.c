@@ -162,7 +162,7 @@ msg_t wspi_lld_start(hal_wspi_driver_c *wspip) {
 #if STM32_WSPI_USE_OCTOSPI1
     if (&WSPID1 == wspip) {
       wspip->dmachp = dma3ChannelAlloc(STM32_WSPI_OCTOSPI1_DMA3_CHANNEL,
-                                       STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY,
+                                       STM32_IRQ_OCTOSPI1_PRIORITY,
                                        wspi_lld_serve_dma_interrupt,
                                        (void *)wspip);
       if (wspip->dmachp == NULL) {

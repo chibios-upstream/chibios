@@ -105,6 +105,8 @@
 /*
  * Shared IRQ settings.
  */
+#define STM32_IRQ_ADC1_PRIORITY             ${doc.STM32_IRQ_ADC1_PRIORITY!"2"}
+
 #define STM32_IRQ_EXTI0_1_PRIORITY          ${doc.STM32_IRQ_EXTI0_1_PRIORITY!"3"}
 #define STM32_IRQ_EXTI2_3_PRIORITY          ${doc.STM32_IRQ_EXTI2_3_PRIORITY!"3"}
 #define STM32_IRQ_EXTI4_15_PRIORITY         ${doc.STM32_IRQ_EXTI4_15_PRIORITY!"3"}
@@ -113,19 +115,9 @@
 #define STM32_IRQ_I2C1_PRIORITY             ${doc.STM32_IRQ_I2C1_PRIORITY!"3"}
 #define STM32_IRQ_I2C2_3_PRIORITY           ${doc.STM32_IRQ_I2C2_3_PRIORITY!"3"}
 
-[#-- Preserve the priority of an instance assigned to I2S during migration. --]
-[#if (doc.STM32_I2S_USE_SPI1!"FALSE")?trim?matches("\\(*\\s*(TRUE|1[Uu]?)\\s*\\)*")]
-#define STM32_IRQ_SPI1_PRIORITY             ${doc.STM32_I2S_SPI1_IRQ_PRIORITY!doc.STM32_IRQ_SPI1_PRIORITY!doc.STM32_SPI_SPI1_IRQ_PRIORITY!"2"}
-[#else]
-#define STM32_IRQ_SPI1_PRIORITY             ${doc.STM32_IRQ_SPI1_PRIORITY!doc.STM32_SPI_SPI1_IRQ_PRIORITY!doc.STM32_I2S_SPI1_IRQ_PRIORITY!"2"}
-[/#if]
-[#-- Preserve the priority of an instance assigned to I2S during migration. --]
-[#if (doc.STM32_I2S_USE_SPI2!"FALSE")?trim?matches("\\(*\\s*(TRUE|1[Uu]?)\\s*\\)*")]
-#define STM32_IRQ_SPI2_PRIORITY             ${doc.STM32_I2S_SPI2_IRQ_PRIORITY!doc.STM32_IRQ_SPI2_PRIORITY!doc.STM32_SPI_SPI2_IRQ_PRIORITY!"2"}
-[#else]
-#define STM32_IRQ_SPI2_PRIORITY             ${doc.STM32_IRQ_SPI2_PRIORITY!doc.STM32_SPI_SPI2_IRQ_PRIORITY!doc.STM32_I2S_SPI2_IRQ_PRIORITY!"2"}
-[/#if]
-#define STM32_IRQ_SPI3_PRIORITY             ${doc.STM32_IRQ_SPI3_PRIORITY!doc.STM32_SPI_SPI3_IRQ_PRIORITY!"2"}
+#define STM32_IRQ_SPI1_PRIORITY             ${doc.STM32_IRQ_SPI1_PRIORITY!"2"}
+#define STM32_IRQ_SPI2_PRIORITY             ${doc.STM32_IRQ_SPI2_PRIORITY!"2"}
+#define STM32_IRQ_SPI3_PRIORITY             ${doc.STM32_IRQ_SPI3_PRIORITY!"2"}
 
 #define STM32_IRQ_TIM1_UP_PRIORITY          ${doc.STM32_IRQ_TIM1_UP_PRIORITY!"1"}
 #define STM32_IRQ_TIM1_CC_PRIORITY          ${doc.STM32_IRQ_TIM1_CC_PRIORITY!"1"}
@@ -149,7 +141,6 @@
 #define STM32_ADC_USE_ADC1                  ${doc.STM32_ADC_USE_ADC1!"FALSE"}
 #define STM32_ADC_ADC1_CFGR2                ${doc.STM32_ADC_ADC1_CFGR2!"ADC_CFGR2_CKMODE_ADCCLK"}
 #define STM32_ADC_ADC1_DMA_PRIORITY         ${doc.STM32_ADC_ADC1_DMA_PRIORITY!"2"}
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     ${doc.STM32_ADC_ADC1_DMA_IRQ_PRIORITY!"2"}
 #define STM32_ADC_ADC1_DMA_STREAM           ${doc.STM32_ADC_ADC1_DMA_STREAM!"STM32_DMA_STREAM_ID_ANY"}
 #define STM32_ADC_PRESCALER_VALUE           ${doc.STM32_ADC_PRESCALER_VALUE!"2"}
 

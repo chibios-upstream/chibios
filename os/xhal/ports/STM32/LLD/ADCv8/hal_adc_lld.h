@@ -250,13 +250,6 @@
 #endif
 
 /**
- * @brief   ADC1/ADC2 interrupt priority level setting.
- */
-#if !defined(STM32_IRQ_ADC1_2_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_IRQ_ADC1_2_PRIORITY           5
-#endif
-
-/**
  * @brief   ADC1/ADC2 kernel clock prescaler.
  */
 #if !defined(STM32_ADC_ADC12_PRESC) || defined(__DOXYGEN__)
@@ -342,13 +335,15 @@
 #error "Invalid DMA priority assigned to ADC2"
 #endif
 
-/* ADC and DMA IRQ priority mapping and checks.*/
-#define STM32_ADCV8_ADC1_IRQ_PRIORITY       STM32_IRQ_ADC1_2_PRIORITY
-#define STM32_ADCV8_ADC2_IRQ_PRIORITY       STM32_IRQ_ADC1_2_PRIORITY
+/* ADC IRQ priority tests.*/
+#if STM32_ADC_USE_ADC1 &&                                                   \
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC1_PRIORITY)
+#error "Invalid IRQ priority assigned to ADC1"
+#endif
 
-#if (STM32_ADC_USE_ADC1 || STM32_ADC_USE_ADC2) &&                           \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC1_2_PRIORITY)
-#error "Invalid IRQ priority assigned to ADC1/ADC2"
+#if STM32_ADC_USE_ADC2 &&                                                   \
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC2_PRIORITY)
+#error "Invalid IRQ priority assigned to ADC2"
 #endif
 
 /* ADC clock calculation and checks.*/

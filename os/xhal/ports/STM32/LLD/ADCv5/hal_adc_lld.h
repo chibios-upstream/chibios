@@ -17,6 +17,14 @@
 /**
  * @file    ADCv5/hal_adc_lld.h
  * @brief   STM32 ADC subsystem low level driver header.
+ * @details The selected peripheral IRQ priority is also requested for DMA.
+ *          All ADC IRQ priorities come from xmcuconf.h and are validated
+ *          by the corresponding platform IRQ fragments.
+ * @note    If the selected DMA stream shares an IRQ vector, its effective
+ *          priority is set by the first allocation with a non-NULL callback.
+ *          All drivers sharing that vector must request the same priority
+ *          to rely on non-preemption with their peripheral handlers.
+ * @see     dmaStreamAlloc
  *
  * @addtogroup ADC
  * @{
@@ -179,20 +187,6 @@
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
 #endif
 
-/**
- * @brief   ADC interrupt priority level setting.
- */
-#if !defined(STM32_ADC_ADC1_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_ADC_ADC1_IRQ_PRIORITY         2
-#endif
-
-/**
- * @brief   ADC1 DMA interrupt priority level setting.
- */
-#if !defined(STM32_ADC_ADC1_DMA_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     2
-#endif
-
 /*
  * @brief   ADC prescaler setting.
  * @note    This setting has effect only in asynchronous clock mode (the
@@ -238,18 +232,6 @@
 /* At least one ADC must be assigned.*/
 #if !STM32_ADC_USE_ADC1
 #error "ADC driver activated but no ADC peripheral assigned"
-#endif
-
-/* ADC IRQ priority tests.*/
-#if STM32_ADC_USE_ADC1 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADC_ADC1_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to ADC1"
-#endif
-
-/* DMA IRQ priority tests.*/
-#if STM32_ADC_USE_ADC1 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADC_ADC1_DMA_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to ADC1 DMA"
 #endif
 
 /* DMA priority tests.*/

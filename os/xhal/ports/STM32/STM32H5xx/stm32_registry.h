@@ -276,6 +276,9 @@
 #define STM32_HAS_DAC2_CH1                  FALSE
 #define STM32_HAS_DAC2_CH2                  FALSE
 
+/* ETH attributes.*/
+#define STM32_HAS_ETH                       FALSE
+
 /* EXTI attributes.*/
 #define STM32_EXTI_HAS_CR                   TRUE
 #define STM32_EXTI_SEPARATE_RF              TRUE
@@ -452,6 +455,9 @@
 #define STM32_HAS_DAC1_CH2                  TRUE
 #define STM32_HAS_DAC2_CH1                  FALSE
 #define STM32_HAS_DAC2_CH2                  FALSE
+
+/* ETH attributes.*/
+#define STM32_HAS_ETH                       FALSE
 
 /* EXTI attributes.*/
 #define STM32_EXTI_HAS_CR                   TRUE
@@ -668,6 +674,13 @@
 #define STM32_HAS_DAC1_CH2                  TRUE
 #define STM32_HAS_DAC2_CH1                  FALSE
 #define STM32_HAS_DAC2_CH2                  FALSE
+
+/* ETH attributes.*/
+#if defined(STM32H563xx) || defined(STM32H573xx)
+#define STM32_HAS_ETH                       TRUE
+#else
+#define STM32_HAS_ETH                       FALSE
+#endif
 
 /* EXTI attributes.*/
 #define STM32_EXTI_HAS_CR                   TRUE

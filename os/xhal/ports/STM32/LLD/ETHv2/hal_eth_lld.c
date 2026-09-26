@@ -265,11 +265,19 @@ static void eth_set_address(const uint8_t *p) {
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
-CH_IRQ_HANDLER(STM32_ETH_HANDLER) {
-  hal_eth_driver_c *ethp = &ETHD1;
-  uint32_t dmacsr;
+/*===========================================================================*/
+/* Driver exported functions.                                                */
+/*===========================================================================*/
 
-  CH_IRQ_PROLOGUE();
+/**
+ * @brief   ETH interrupt service routine.
+ *
+ * @param[in,out] ethp          Pointer to a @p hal_eth_driver_c instance.
+ *
+ * @notapi
+ */
+void eth_lld_serve_interrupt(hal_eth_driver_c *ethp) {
+  uint32_t dmacsr;
 
   dmacsr = ETH->DMACSR;
   ETH->DMACSR = dmacsr;
@@ -301,13 +309,7 @@ CH_IRQ_HANDLER(STM32_ETH_HANDLER) {
 
     __cbdrv_invoke_cb(ethp);
   }
-
-  CH_IRQ_EPILOGUE();
 }
-
-/*===========================================================================*/
-/* Driver exported functions.                                                */
-/*===========================================================================*/
 
 /**
  * @brief       ETH Low Level Driver initialization.
@@ -393,9 +395,6 @@ msg_t eth_lld_start(hal_eth_driver_c *ethp) {
   /* ETH clocks activation and commanded reset procedure.*/
   rccResetETH();
   rccEnableETH(true);
-
-  /* ISR vector enabled.*/
-  nvicEnableVector(STM32_ETH_NUMBER, STM32_ETH_ETH1_IRQ_PRIORITY);
 
 #if STM32_ETH_ETH1_CHANGE_PHY_STATE
   /* PHY in power up mode.*/
@@ -502,9 +501,6 @@ void eth_lld_stop(hal_eth_driver_c *ethp) {
 
   /* MAC clocks stopped.*/
   rccDisableETH();
-
-  /* ISR vector disabled.*/
-  nvicDisableVector(STM32_ETH_NUMBER);
 }
 
 /**

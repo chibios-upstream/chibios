@@ -17,6 +17,12 @@
 /**
  * @file    QUADSPIv1/hal_wspi_lld.h
  * @brief   STM32 WSPI subsystem low level driver header.
+ * @details The peripheral IRQ priority from xmcuconf.h, validated by the
+ *          shared QUADSPI IRQ handler, is also requested for DMA.
+ * @note    If the DMA vector is shared, the first allocation with a non-NULL
+ *          callback sets its effective priority. All users of that vector
+ *          must request the same priority to rely on non-preemption.
+ * @see     dmaStreamAlloc
  *
  * @addtogroup WSPI
  * @{
@@ -139,24 +145,10 @@
 #endif
 
 /**
- * @brief   QUADSPI1 interrupt priority level setting.
- */
-#if !defined(STM32_IRQ_QUADSPI1_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_IRQ_QUADSPI1_PRIORITY         10
-#endif
-
-/**
  * @brief   QUADSPI1 DMA priority (0..3|lowest..highest).
  */
 #if !defined(STM32_WSPI_QUADSPI1_DMA_PRIORITY) || defined(__DOXYGEN__)
 #define STM32_WSPI_QUADSPI1_DMA_PRIORITY    1
-#endif
-
-/**
- * @brief   QUADSPI1 DMA interrupt priority level setting.
- */
-#if !defined(STM32_WSPI_QUADSPI1_DMA_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_WSPI_QUADSPI1_DMA_IRQ_PRIORITY 10
 #endif
 
 /**
@@ -195,14 +187,6 @@
 
 #if !STM32_WSPI_USE_QUADSPI1
 #error "WSPI driver activated but no QUADSPI peripheral assigned"
-#endif
-
-#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_QUADSPI1_PRIORITY)
-#error "Invalid IRQ priority assigned to STM32_IRQ_QUADSPI1_PRIORITY"
-#endif
-
-#if !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_QUADSPI1_DMA_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to STM32_WSPI_QUADSPI1_DMA_IRQ_PRIORITY"
 #endif
 
 #if !STM32_DMA_IS_VALID_PRIORITY(STM32_WSPI_QUADSPI1_DMA_PRIORITY)

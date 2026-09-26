@@ -105,6 +105,8 @@
 /*
  * Shared IRQ settings.
  */
+#define STM32_IRQ_ADC1_COMP_PRIORITY        2
+
 #define STM32_IRQ_EXTI0_1_PRIORITY          3
 #define STM32_IRQ_EXTI2_3_PRIORITY          3
 #define STM32_IRQ_EXTI4_15_PRIORITY         3
@@ -121,7 +123,7 @@
 #define STM32_IRQ_TIM1_CC_PRIORITY          1
 #define STM32_IRQ_TIM2_PRIORITY             1
 #define STM32_IRQ_TIM3_4_PRIORITY           1
-#define STM32_IRQ_TIM6_PRIORITY             1
+#define STM32_IRQ_TIM6_DAC_LPTIM1_PRIORITY  1
 #define STM32_IRQ_TIM7_PRIORITY             1
 #define STM32_IRQ_TIM14_PRIORITY            1
 #define STM32_IRQ_TIM15_PRIORITY            1
@@ -140,7 +142,6 @@
 #define STM32_ADC_USE_ADC1                  FALSE
 #define STM32_ADC_ADC1_CFGR2                ADC_CFGR2_CKMODE_ADCCLK
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     2
 #define STM32_ADC_ADC1_DMA_STREAM           STM32_DMA_STREAM_ID_ANY
 #define STM32_ADC_PRESCALER_VALUE           2
 
@@ -150,8 +151,6 @@
 #define STM32_DAC_DUAL_MODE                 FALSE
 #define STM32_DAC_USE_DAC1_CH1              FALSE
 #define STM32_DAC_USE_DAC1_CH2              FALSE
-#define STM32_DAC_DAC1_CH1_IRQ_PRIORITY     3
-#define STM32_DAC_DAC1_CH2_IRQ_PRIORITY     3
 #define STM32_DAC_DAC1_CH1_DMA_PRIORITY     2
 #define STM32_DAC_DAC1_CH2_DMA_PRIORITY     2
 #define STM32_DAC_DAC1_CH1_DMA_STREAM       STM32_DMA_STREAM_ID_ANY

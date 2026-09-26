@@ -199,13 +199,6 @@
 #endif
 
 /**
- * @brief   ETHD1 interrupt priority level setting.
- */
-#if !defined(STM32_ETH_ETH1_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_ETH_ETH1_IRQ_PRIORITY         13
-#endif
-
-/**
  * @brief   IP checksum offload.
  * @details The following modes are available:
  *          - 0 Function disabled.
@@ -233,6 +226,10 @@
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
+
+#if !STM32_HAS_ETH
+#error "ETH not present in the selected device"
+#endif
 
 #if (STM32_ETH_IP_CHECKSUM_OFFLOAD < 0) || (STM32_ETH_IP_CHECKSUM_OFFLOAD > 3)
 #error "invalid STM32_ETH_IP_CHECKSUM_OFFLOAD value"
@@ -306,6 +303,7 @@ extern hal_eth_driver_c ETHD1;
 #ifdef __cplusplus
 extern "C" {
 #endif
+  void eth_lld_serve_interrupt(hal_eth_driver_c *ethp);
   void eth_lld_init(void);
   msg_t eth_lld_start(hal_eth_driver_c *ethp);
   void eth_lld_stop(hal_eth_driver_c *ethp);

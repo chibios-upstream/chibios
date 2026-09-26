@@ -546,7 +546,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC1_DMA_STREAM,
-                                    STM32_ADCV3_ADC1_IRQ_PRIORITY,
+                                    STM32_IRQ_ADC1_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
       chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
@@ -574,7 +574,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC2_DMA_STREAM,
-                                    STM32_ADCV3_ADC2_IRQ_PRIORITY,
+                                    STM32_IRQ_ADC2_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
       chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
@@ -599,7 +599,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC3_DMA_STREAM,
-                                    STM32_ADCV3_ADC3_IRQ_PRIORITY,
+                                    STM32_IRQ_ADC3_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
       chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
@@ -627,7 +627,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC4_DMA_STREAM,
-                                    STM32_ADCV3_ADC4_IRQ_PRIORITY,
+                                    STM32_IRQ_ADC4_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
       chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
@@ -654,7 +654,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC5_DMA_STREAM,
-                                    STM32_ADCV3_ADC5_IRQ_PRIORITY,
+                                    STM32_IRQ_ADC5_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_dma_interrupt,
                                     (void *)adcp);
       chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");

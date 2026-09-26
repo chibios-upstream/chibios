@@ -124,7 +124,7 @@ msg_t wspi_lld_start(hal_wspi_driver_c *wspip) {
 #if STM32_WSPI_USE_QUADSPI1
     if (&WSPID1 == wspip) {
       wspip->dma = dmaStreamAlloc(STM32_WSPI_QUADSPI1_DMA_STREAM,
-                                  STM32_WSPI_QUADSPI1_DMA_IRQ_PRIORITY,
+                                  STM32_IRQ_QUADSPI1_PRIORITY,
                                   (stm32_dmaisr_t)wspi_lld_serve_dma_interrupt,
                                   (void *)wspip);
       if (wspip->dma == NULL) {

@@ -336,6 +336,11 @@
 #define STM32_OTG2_NUMBER                   73
 /** @} */
 
+/* Individual IRQ priorities are derived from the shared vector priorities,
+   drivers expect individual definitions to exist.*/
+#define STM32_IRQ_ADC1_PRIORITY             STM32_IRQ_ADC1_2_PRIORITY
+#define STM32_IRQ_ADC2_PRIORITY             STM32_IRQ_ADC1_2_PRIORITY
+
 /*===========================================================================*/
 /* External declarations.                                                    */
 /*===========================================================================*/

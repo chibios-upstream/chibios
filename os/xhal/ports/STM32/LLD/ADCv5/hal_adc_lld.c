@@ -144,29 +144,6 @@ static void adc_lld_serve_rx_interrupt(hal_adc_driver_c *adcp, uint32_t flags) {
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
-#if STM32_ADC_USE_ADC1 || defined(__DOXYGEN__)
-#if !defined(STM32_ADC1_HANDLER)
-#error "STM32_ADC1_HANDLER not defined"
-#endif
-/**
- * @brief   ADC interrupt handler.
- *
- * @isr
- */
-CH_IRQ_HANDLER(STM32_ADC1_HANDLER) {
-
-  CH_IRQ_PROLOGUE();
-
-  adc_lld_serve_interrupt(&ADCD1);
-
-#if defined(STM32_ADC_ADC1_IRQ_HOOK)
-  STM32_ADC_ADC1_IRQ_HOOK
-#endif
-
-  CH_IRQ_EPILOGUE();
-}
-#endif
-
 /*===========================================================================*/
 /* Driver exported functions.                                                */
 /*===========================================================================*/
@@ -189,10 +166,6 @@ void adc_lld_init(void) {
                   STM32_DMA_CR_MSIZE_HWORD | STM32_DMA_CR_PSIZE_HWORD |
                   STM32_DMA_CR_MINC        | STM32_DMA_CR_TCIE        |
                   STM32_DMA_CR_DMEIE       | STM32_DMA_CR_TEIE;
-
-  /* The vector is initialized on driver initialization and never
-     disabled.*/
-  nvicEnableVector(STM32_ADC1_NUMBER, STM32_ADC_ADC1_IRQ_PRIORITY);
 #endif
 }
 
@@ -220,7 +193,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
 #if STM32_ADC_USE_ADC1
     if (&ADCD1 == adcp) {
       adcp->dmastp = dmaStreamAlloc(STM32_ADC_ADC1_DMA_STREAM,
-                                    STM32_ADC_ADC1_DMA_IRQ_PRIORITY,
+                                    STM32_IRQ_ADC1_PRIORITY,
                                     (stm32_dmaisr_t)adc_lld_serve_rx_interrupt,
                                     (void *)adcp);
       chDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");

@@ -197,9 +197,10 @@
 #define STM32_IRQ_I2C3_PRIORITY             5
 #define STM32_IRQ_I2C4_PRIORITY             5
 
+/* All MDMA channels and WSPI peripheral IRQs use this priority. */
 #define STM32_IRQ_MDMA_PRIORITY             9
 
-#define STM32_IRQ_QUADSPI1_PRIORITY         10
+#define STM32_IRQ_QUADSPI1_PRIORITY         STM32_IRQ_MDMA_PRIORITY
 
 #define STM32_IRQ_OTG1_PRIORITY             14
 #define STM32_IRQ_OTG2_PRIORITY             14
@@ -268,8 +269,6 @@
 #define STM32_DAC_DUAL_MODE                 FALSE
 #define STM32_DAC_USE_DAC1_CH1              FALSE
 #define STM32_DAC_USE_DAC1_CH2              FALSE
-#define STM32_DAC_DAC1_CH1_IRQ_PRIORITY     10
-#define STM32_DAC_DAC1_CH2_IRQ_PRIORITY     10
 #define STM32_DAC_DAC1_CH1_DMA_PRIORITY     2
 #define STM32_DAC_DAC1_CH2_DMA_PRIORITY     2
 #define STM32_DAC_DAC1_CH1_DMA_STREAM       STM32_DMA_STREAM_ID_ANY
@@ -339,7 +338,6 @@
 #define STM32_MAC_BUFFERS_SIZE              1522
 #define STM32_MAC_PHY_TIMEOUT               100
 #define STM32_MAC_ETH1_CHANGE_PHY_STATE     TRUE
-#define STM32_MAC_ETH1_IRQ_PRIORITY         13
 #define STM32_MAC_IP_CHECKSUM_OFFLOAD       0
 
 /*

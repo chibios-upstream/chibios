@@ -175,7 +175,7 @@ msg_t wspi_lld_start(hal_wspi_driver_c *wspip) {
 #if STM32_WSPI_USE_OCTOSPI1
     if (&WSPID1 == wspip) {
       wspip->dma = dmaStreamAlloc(STM32_WSPI_OCTOSPI1_DMA_STREAM,
-                                  STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY,
+                                  STM32_IRQ_OCTOSPI1_PRIORITY,
                                   (stm32_dmaisr_t)wspi_lld_serve_dma_interrupt,
                                   (void *)wspip);
       if (wspip->dma == NULL) {
@@ -190,7 +190,7 @@ msg_t wspi_lld_start(hal_wspi_driver_c *wspip) {
 #if STM32_WSPI_USE_OCTOSPI2
     if (&WSPID2 == wspip) {
       wspip->dma = dmaStreamAlloc(STM32_WSPI_OCTOSPI2_DMA_STREAM,
-                                  STM32_WSPI_OCTOSPI2_DMA_IRQ_PRIORITY,
+                                  STM32_IRQ_OCTOSPI2_PRIORITY,
                                   (stm32_dmaisr_t)wspi_lld_serve_dma_interrupt,
                                   (void *)wspip);
       if (wspip->dma == NULL) {
