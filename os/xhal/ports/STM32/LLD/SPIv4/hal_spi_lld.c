@@ -381,15 +381,8 @@ static void spi_lld_serve_dma_rx_interrupt(hal_spi_driver_c *spip, uint32_t csr)
   }
 
   if ((__spi_getfield(spip, mode) & SPI_MODE_CIRCULAR) != 0U) {
-    if ((csr & STM32_DMA3_CSR_HTF) != 0U) {
-      /* Half buffer interrupt.*/
-      _spi_isr_half_code(spip);
-    }
-    if (((csr & STM32_DMA3_CSR_TCF) != 0U) &&
-        (spip->state == HAL_DRV_STATE_ACTIVE)) {
-      /* End buffer interrupt.*/
-      _spi_isr_full_code(spip);
-    }
+    _spi_isr_circular_code(spip, (csr & STM32_DMA3_CSR_HTF) != 0U,
+                           (csr & STM32_DMA3_CSR_TCF) != 0U);
   }
   else if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
     /* Stopping the transfer.*/
