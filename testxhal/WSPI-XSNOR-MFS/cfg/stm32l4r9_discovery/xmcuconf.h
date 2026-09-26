@@ -137,6 +137,8 @@
  */
 #define STM32_IRQ_ADC1_PRIORITY             5
 
+#define STM32_IRQ_CAN1_PRIORITY             11
+
 #define STM32_IRQ_EXTI0_PRIORITY            6
 #define STM32_IRQ_EXTI1_PRIORITY            6
 #define STM32_IRQ_EXTI2_PRIORITY            6
@@ -202,6 +204,7 @@
  * CAN driver system settings.
  */
 #define STM32_CAN_USE_CAN1                  FALSE
+#define STM32_CAN_REPORT_ALL_ERRORS         FALSE
 
 /*
  * DAC driver system settings.

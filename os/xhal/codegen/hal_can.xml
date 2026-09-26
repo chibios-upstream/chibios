@@ -159,6 +159,27 @@ do {
 } while (false)]]></implementation>
           </macro>
         </condition>
+        <condition check="CAN_USE_SYNCHRONIZATION == TRUE">
+          <macro name="_can_wakeup_waiters_isr">
+            <brief>Releases threads waiting while the controller was asleep.</brief>
+            <param name="canp" dir="both">Pointer to the CAN driver instance.</param>
+            <notapi />
+            <implementation><![CDATA[
+do {
+  chSysLockFromISR();
+  chThdDequeueAllI(&(canp)->txqueue, MSG_OK);
+  chThdDequeueAllI(&(canp)->rxqueue, MSG_OK);
+  chSysUnlockFromISR();
+} while (false)]]></implementation>
+          </macro>
+          <elseif />
+          <macro name="_can_wakeup_waiters_isr">
+            <brief>No synchronization queues to release.</brief>
+            <param name="canp" dir="both">Pointer to the CAN driver instance.</param>
+            <notapi />
+            <implementation />
+          </macro>
+        </condition>
         <macro name="_can_wakeup_isr">
           <brief>Common ISR code, CAN wakeup event.</brief>
           <param name="canp" dir="both">Pointer to the CAN driver instance.</param>
@@ -167,6 +188,7 @@ do {
 do {
   (canp)->state  = HAL_DRV_STATE_READY;
   (canp)->events |= CAN_EVENT_WAKEUP;
+  _can_wakeup_waiters_isr(canp);
   __cbdrv_invoke_cb(canp);
 } while (false)]]></implementation>
         </macro>
@@ -483,6 +505,11 @@ if (self->state == CAN_SLEEP) {
   can_lld_wakeup(self);
   self->state = HAL_DRV_STATE_READY;
   self->events |= CAN_EVENT_WAKEUP;
+#if CAN_USE_SYNCHRONIZATION == TRUE
+  chThdDequeueAllI(&self->txqueue, MSG_OK);
+  chThdDequeueAllI(&self->rxqueue, MSG_OK);
+  chSchRescheduleS();
+#endif
 }
 chSysUnlock();]]></implementation>
               </method>
