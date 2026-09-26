@@ -110,23 +110,11 @@ static void rtc_disable_interrupt_sources(hal_rtc_driver_c *rtcp) {
 #endif
 }
 
-static void rtc_disable_irqs_exti(void) {
+/* NVIC vectors belong to the platform IRQ layer and remain enabled across
+   driver stop/start. Only the peripheral interrupt sources and EXTI masks
+   are disabled here.*/
+static void rtc_disable_exti(void) {
 
-#if defined(STM32_RTC_TAMP_STAMP_NUMBER)
-  nvicDisableVector(STM32_RTC_TAMP_STAMP_NUMBER);
-#endif
-#if defined(STM32_RTC_WKUP_NUMBER)
-  nvicDisableVector(STM32_RTC_WKUP_NUMBER);
-#endif
-#if defined(STM32_RTC_ALARM_NUMBER)
-  nvicDisableVector(STM32_RTC_ALARM_NUMBER);
-#endif
-#if defined(STM32_RTC_GLOBAL_NUMBER)
-  nvicDisableVector(STM32_RTC_GLOBAL_NUMBER);
-#endif
-#if defined(STM32_RTC_TAMP_NUMBER)
-  nvicDisableVector(STM32_RTC_TAMP_NUMBER);
-#endif
 #if defined(STM32_RTC_ALARM_EXTI) && defined(STM32_RTC_TAMP_STAMP_EXTI) && \
     defined(STM32_RTC_WKUP_EXTI)
   extiEnableGroup1(EXTI_MASK1(STM32_RTC_ALARM_EXTI) |
@@ -136,6 +124,10 @@ static void rtc_disable_irqs_exti(void) {
 #elif defined(STM32_RTC_GLOBAL_EXTI) && defined(STM32_RTC_TAMP_EXTI)
   extiEnableGroup1(EXTI_MASK1(STM32_RTC_GLOBAL_EXTI) |
                    EXTI_MASK1(STM32_RTC_TAMP_EXTI),
+                   EXTI_MODE_DISABLED);
+#elif defined(STM32_RTC_EVENT_RTC_EXTI) && defined(STM32_RTC_EVENT_TAMP_EXTI)
+  extiEnableGroup1(EXTI_MASK1(STM32_RTC_EVENT_RTC_EXTI) |
+                   EXTI_MASK1(STM32_RTC_EVENT_TAMP_EXTI),
                    EXTI_MODE_DISABLED);
 #endif
   STM32_RTC_CLEAR_ALL_EXTI();
@@ -360,7 +352,7 @@ void rtc_lld_stop(hal_rtc_driver_c *rtcp) {
   rtc_wpr_unlock(rtcp);
   rtc_disable_interrupt_sources(rtcp);
   rtc_wpr_lock(rtcp);
-  rtc_disable_irqs_exti();
+  rtc_disable_exti();
   rtcp->cb = NULL;
   rtcp->events = 0U;
 }

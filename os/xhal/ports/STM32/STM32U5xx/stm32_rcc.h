@@ -502,6 +502,10 @@
  * @name    OCTOSPI peripherals specific RCC operations
  * @{
  */
+#define rccEnableOCTOSPIM(lp) rccEnableAHB2R1(RCC_AHB2ENR1_OCTOSPIMEN, lp)
+#define rccDisableOCTOSPIM() rccDisableAHB2R1(RCC_AHB2ENR1_OCTOSPIMEN)
+#define rccResetOCTOSPIM() rccResetAHB2R1(RCC_AHB2RSTR1_OCTOSPIMRST)
+
 #define rccEnableOCTOSPI1(lp) rccEnableAHB2R2(RCC_AHB2ENR2_OCTOSPI1EN, lp)
 #define rccDisableOCTOSPI1() rccDisableAHB2R2(RCC_AHB2ENR2_OCTOSPI1EN)
 #define rccResetOCTOSPI1() rccResetAHB2R2(RCC_AHB2RSTR2_OCTOSPI1RST)

@@ -170,6 +170,8 @@
  */
 #define STM32_IRQ_ADC12_PRIORITY            5
 
+#define STM32_IRQ_ETH1_PRIORITY             13
+
 #define STM32_IRQ_EXTI0_PRIORITY            6
 #define STM32_IRQ_EXTI1_PRIORITY            6
 #define STM32_IRQ_EXTI2_PRIORITY            6
@@ -215,7 +217,7 @@
 #define STM32_IRQ_TIM3_PRIORITY             7
 #define STM32_IRQ_TIM4_PRIORITY             7
 #define STM32_IRQ_TIM5_PRIORITY             7
-#define STM32_IRQ_TIM6_PRIORITY             7
+#define STM32_IRQ_TIM6_DAC_PRIORITY         7
 #define STM32_IRQ_TIM7_PRIORITY             7
 #define STM32_IRQ_TIM8_BRK_TIM12_PRIORITY   7
 #define STM32_IRQ_TIM8_UP_TIM13_PRIORITY    7
@@ -321,14 +323,14 @@
 #define STM32_ICU_USE_TIM17                 FALSE
 
 /*
- * MAC driver system settings.
+ * ETH driver system settings.
  */
-#define STM32_MAC_TRANSMIT_BUFFERS          2
-#define STM32_MAC_RECEIVE_BUFFERS           4
-#define STM32_MAC_BUFFERS_SIZE              1522
-#define STM32_MAC_PHY_TIMEOUT               100
-#define STM32_MAC_ETH1_CHANGE_PHY_STATE     TRUE
-#define STM32_MAC_IP_CHECKSUM_OFFLOAD       0
+#define STM32_ETH_TRANSMIT_BUFFERS          2
+#define STM32_ETH_RECEIVE_BUFFERS           4
+#define STM32_ETH_BUFFERS_SIZE              1524
+#define STM32_ETH_PHY_TIMEOUT               100
+#define STM32_ETH_ETH1_CHANGE_PHY_STATE     TRUE
+#define STM32_ETH_IP_CHECKSUM_OFFLOAD       0
 
 /*
  * PWM driver system settings.

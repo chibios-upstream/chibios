@@ -160,6 +160,14 @@
 #define STM32_FDCAN1_IT1_NUMBER             40
 
 /*
+ * RTC/TAMP units.
+ */
+#define STM32_RTC_GLOBAL_HANDLER            Vector48
+#define STM32_RTC_TAMP_HANDLER              Vector50
+#define STM32_RTC_GLOBAL_NUMBER             2
+#define STM32_RTC_TAMP_NUMBER               4
+
+/*
  * I2C units.
  */
 #define STM32_I2C1_EV_HANDLER               Vector11C

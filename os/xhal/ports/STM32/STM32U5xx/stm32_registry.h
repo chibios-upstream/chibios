@@ -244,20 +244,6 @@
 #define STM32_RTC_HAS_PERIODIC_WAKEUPS      TRUE
 #define STM32_RTC_NUM_ALARMS                2
 #define STM32_RTC_STORAGE_SIZE              128
-#define STM32_RTC_GLOBAL_HANDLER            Vector48
-#define STM32_RTC_TAMP_HANDLER              Vector50
-#define STM32_RTC_GLOBAL_NUMBER             2
-#define STM32_RTC_TAMP_NUMBER               4
-#if !defined(STM32_RTC_GLOBAL_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_RTC_GLOBAL_IRQ_PRIORITY       STM32_IRQ_EXTI15_PRIORITY
-#endif
-#if !defined(STM32_RTC_TAMP_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_RTC_TAMP_IRQ_PRIORITY         STM32_IRQ_EXTI15_PRIORITY
-#endif
-#define STM32_RTC_IRQ_ENABLE() do {                                         \
-  nvicEnableVector(STM32_RTC_GLOBAL_NUMBER, STM32_RTC_GLOBAL_IRQ_PRIORITY); \
-  nvicEnableVector(STM32_RTC_TAMP_NUMBER, STM32_RTC_TAMP_IRQ_PRIORITY);     \
-} while (false)
 
 /* This device has no RTC-dedicated EXTI lines: the RTC interrupts are
    connected directly to the NVIC (RM0456 Table 187 - EXTI lines 17/19 are

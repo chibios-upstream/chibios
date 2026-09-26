@@ -249,6 +249,11 @@
 
 #define STM32_IRQ_ADC1_2_PRIORITY           5
 
+#define STM32_IRQ_OCTOSPI1_PRIORITY         10
+
+#define STM32_IRQ_RTC_GLOBAL_PRIORITY       6
+#define STM32_IRQ_RTC_TAMP_PRIORITY         6
+
 #define STM32_IRQ_SPI1_PRIORITY             10
 #define STM32_IRQ_SPI2_PRIORITY             10
 #define STM32_IRQ_SPI3_PRIORITY             10
@@ -502,6 +507,12 @@
  * WSPI driver system settings.
  */
 #define STM32_WSPI_USE_OCTOSPI1             FALSE
-#define STM32_WSPI_USE_OCTOSPI2             FALSE
+/* OCTOSPIv3 currently implements OCTOSPI1 only.*/
+#define STM32_WSPI_OCTOSPI1_PRESCALER_VALUE 1
+#define STM32_WSPI_OCTOSPI1_SSHIFT          FALSE
+#define STM32_WSPI_OCTOSPI1_DHQC            FALSE
+#define STM32_WSPI_OCTOSPI1_DMA3_CHANNEL    STM32_DMA3_MASK_ANY
+#define STM32_WSPI_OCTOSPI1_DMA_PRIORITY    1
+#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    chSysHalt("DMA failure")
 
 #endif /* XMCUCONF_H */

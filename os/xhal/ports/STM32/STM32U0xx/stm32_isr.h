@@ -96,6 +96,12 @@
 #define STM32_EXTI4_15_NUMBER               7
 
 /*
+ * RTC/TAMP units.
+ */
+#define STM32_RTC_COMMON_HANDLER            Vector48
+#define STM32_RTC_COMMON_NUMBER             2
+
+/*
  * I2C units.
  */
 #define STM32_I2C1_GLOBAL_HANDLER           Vector9C

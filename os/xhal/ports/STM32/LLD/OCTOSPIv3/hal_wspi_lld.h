@@ -258,6 +258,10 @@
 #error "OCTOSPI1 not present in the selected device"
 #endif
 
+#if defined(STM32_WSPI_USE_OCTOSPI2) && STM32_WSPI_USE_OCTOSPI2
+#error "OCTOSPI2 is not supported by this XHAL LLD"
+#endif
+
 #if !STM32_WSPI_USE_OCTOSPI1
 #error "WSPI driver activated but no OCTOSPI peripheral assigned"
 #endif

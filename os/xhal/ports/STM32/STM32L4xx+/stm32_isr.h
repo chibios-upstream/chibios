@@ -140,6 +140,16 @@
 #define STM32_EXTI21_22_NUMBER              64
 
 /*
+ * RTC/TAMP units.
+ */
+#define STM32_RTC_TAMP_STAMP_HANDLER        Vector48
+#define STM32_RTC_WKUP_HANDLER              Vector4C
+#define STM32_RTC_ALARM_HANDLER             VectorE4
+#define STM32_RTC_TAMP_STAMP_NUMBER         2
+#define STM32_RTC_WKUP_NUMBER               3
+#define STM32_RTC_ALARM_NUMBER              41
+
+/*
  * I2C units.
  */
 #define STM32_I2C1_EV_HANDLER               VectorBC
@@ -194,6 +204,22 @@
 #define STM32_SDMMC1_HANDLER                Vector104
 
 #define STM32_SDMMC1_NUMBER                 49
+
+#if defined(STM32L4P5xx) || defined(STM32L4Q5xx)
+#define STM32_SDMMC2_HANDLER                VectorFC
+#define STM32_SDMMC2_NUMBER                 47
+#endif
+
+/*
+ * SPI units.
+ */
+#define STM32_SPI1_HANDLER                  VectorCC
+#define STM32_SPI2_HANDLER                  VectorD0
+#define STM32_SPI3_HANDLER                  Vector10C
+
+#define STM32_SPI1_NUMBER                   35
+#define STM32_SPI2_NUMBER                   36
+#define STM32_SPI3_NUMBER                   51
 
 /*
  * TIM units.
@@ -273,6 +299,9 @@
 
 #define STM32_DCMI_NUMBER                   85
 /** @} */
+
+/* Individual IRQ priorities derived from the shared vector priority.*/
+#define STM32_IRQ_DAC1_PRIORITY             STM32_IRQ_TIM6_DAC_PRIORITY
 
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */

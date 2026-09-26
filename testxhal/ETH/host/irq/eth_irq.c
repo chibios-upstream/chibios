@@ -51,14 +51,14 @@ static int ETHD1;
 
 static void nvicEnableVector(unsigned number, unsigned priority) {
 
-  assert(number == 106U);
+  assert(number == TEST_VECTOR);
   assert(priority == TEST_PRIORITY);
   ++enables;
 }
 
 static void nvicDisableVector(unsigned number) {
 
-  assert(number == 106U);
+  assert(number == TEST_VECTOR);
   ++disables;
 }
 

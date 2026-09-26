@@ -136,6 +136,11 @@ void wspi_lld_init(void) {
   WSPID1.dreq           = STM32_DMA3_REQ_OSPI1;
   WSPID1.dprio          = STM32_WSPI_OCTOSPI1_DMA_PRIORITY;
 #endif
+
+#if defined(rccEnableOCTOSPIM)
+  /* Shared I/O manager, present on STM32U5.*/
+  rccEnableOCTOSPIM(false);
+#endif
 }
 
 /**
