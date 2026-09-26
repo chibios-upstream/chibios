@@ -82,6 +82,7 @@
 #include "stm32_i2c6.inc"
 
 #include "stm32_octospi1.inc"
+#include "stm32_octospi2.inc"
 
 #if STM32_HAS_USB1
 #include "stm32_usb1.inc"
@@ -161,6 +162,7 @@ void irqInit(void) {
   i2c6_irq_init();
 
   octospi1_irq_init();
+  octospi2_irq_init();
 
 #if STM32_HAS_USB1
   usb1_irq_init();
@@ -238,6 +240,7 @@ void irqDeinit(void) {
   i2c6_irq_deinit();
 
   octospi1_irq_deinit();
+  octospi2_irq_deinit();
 
 #if STM32_HAS_USB1
   usb1_irq_deinit();
