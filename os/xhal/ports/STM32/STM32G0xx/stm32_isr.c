@@ -67,7 +67,7 @@
 #include "stm32_exti0_1.inc"
 #include "stm32_exti2_3.inc"
 #include "stm32_exti4_15.inc"
-#include "stm32_exti19-21.inc"
+#include "stm32_rtc_tamp.inc"
 
 #include "stm32_i2c1.inc"
 #if STM32_HAS_I2C2 && STM32_HAS_I2C3
@@ -146,7 +146,7 @@ void irqInit(void) {
   exti0_1_irq_init();
   exti2_3_irq_init();
   exti4_15_irq_init();
-  exti19_exti21_irq_init();
+  rtc_irq_init();
 
   i2c1_irq_init();
 #if STM32_HAS_I2C2 && STM32_HAS_I2C3
@@ -214,7 +214,7 @@ void irqDeinit(void) {
   exti0_1_irq_deinit();
   exti2_3_irq_deinit();
   exti4_15_irq_deinit();
-  exti19_exti21_irq_deinit();
+  rtc_irq_deinit();
 
   i2c1_irq_deinit();
 #if STM32_HAS_I2C2 && STM32_HAS_I2C3

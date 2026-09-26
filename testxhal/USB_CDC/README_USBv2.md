@@ -19,16 +19,16 @@ There is no dependency on the SPIv3 import.
 
 ### U5 audit correction
 
-The current HAL and XHAL U5 registries incorrectly describe U575/U585 as
-`STM32_HAS_USB1` with packet memory. Their in-tree CMSIS headers instead
-describe an OTG FS controller. USBv2 applies to U535/U545, whose CMSIS headers
-contain `USB_DRD_BASE` and `USB_DRD_PMAADDR`, but those device variants are
-not currently supported by these platform registries.
+U575/U585 have OTG FS, not USB DRD/PMA. Their XHAL registry is now corrected
+and `STM32U5xx/platform.mk` imports OTGv1. The classic HAL registry is not
+changed by this XHAL integration.
 
-Consequently this import does not wire USBv2 into the U5 platform. Correcting
-the HAL/XHAL U5 registry and adding the appropriate OTG LLD are separate
-follow-up work. A temporary U575 USBv2 fixture was removed after this mismatch
-was confirmed.
+USBv2 applies to U535/U545, whose CMSIS headers contain `USB_DRD_BASE` and
+`USB_DRD_PMAADDR`. The separate `STM32U5xx/platform_u535_u545.mk` selects
+USBv2 instead of OTGv1. This only prepares the build split: U535/U545 still
+need device-registry and clock-tree integration before the platform can be
+built. A temporary U575 USBv2 fixture was removed after the original
+controller mismatch was confirmed.
 
 ## Port details
 

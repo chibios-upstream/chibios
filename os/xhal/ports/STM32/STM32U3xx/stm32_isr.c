@@ -76,6 +76,8 @@
 #include "stm32_i2c2.inc"
 #include "stm32_i2c3.inc"
 
+#include "stm32_rtc_h5.inc"
+
 #include "stm32_spi1.inc"
 #include "stm32_spi2.inc"
 #include "stm32_spi3.inc"
@@ -138,6 +140,8 @@ void irqInit(void) {
   i2c2_irq_init();
   i2c3_irq_init();
 
+  rtc_irq_init();
+
   spi1_irq_init();
   spi2_irq_init();
   spi3_irq_init();
@@ -196,6 +200,8 @@ void irqDeinit(void) {
   i2c1_irq_deinit();
   i2c2_irq_deinit();
   i2c3_irq_deinit();
+
+  rtc_irq_deinit();
 
   spi1_irq_deinit();
   spi2_irq_deinit();

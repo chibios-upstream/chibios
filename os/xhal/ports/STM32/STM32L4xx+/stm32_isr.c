@@ -51,6 +51,8 @@
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
+#include "stm32_adc1.inc"
+
 #include "stm32_exti0.inc"
 #include "stm32_exti1.inc"
 #include "stm32_exti2.inc"
@@ -59,10 +61,23 @@
 #include "stm32_exti5_9.inc"
 #include "stm32_exti10_15.inc"
 #include "stm32_exti16-35_38.inc"
+#if defined(STM32L4P5xx) || defined(STM32L4Q5xx)
+#include "stm32_rtc_g4.inc"
+#else
 #include "stm32_exti18.inc"
 #include "stm32_exti19.inc"
 #include "stm32_exti20.inc"
+#endif
 #include "stm32_exti21_22.inc"
+
+#include "stm32_i2c1.inc"
+#include "stm32_i2c2.inc"
+#include "stm32_i2c3.inc"
+#include "stm32_i2c4.inc"
+
+#include "stm32_spi1.inc"
+#include "stm32_spi2.inc"
+#include "stm32_spi3.inc"
 
 #include "stm32_sdmmc1.inc"
 #include "stm32_sdmmc2.inc"
@@ -84,7 +99,7 @@
 #include "stm32_tim3.inc"
 #include "stm32_tim4.inc"
 #include "stm32_tim5.inc"
-#include "stm32_tim6.inc"
+#include "stm32_tim6_dac.inc"
 #include "stm32_tim7.inc"
 #include "stm32_tim8.inc"
 
@@ -99,6 +114,8 @@
  */
 void irqInit(void) {
 
+  adc1_irq_init();
+
   exti0_irq_init();
   exti1_irq_init();
   exti2_irq_init();
@@ -107,9 +124,22 @@ void irqInit(void) {
   exti5_9_irq_init();
   exti10_15_irq_init();
   exti16_exti35_38_irq_init();
+#if defined(STM32L4P5xx) || defined(STM32L4Q5xx)
+  rtc_irq_init();
+#else
   exti18_irq_init();
   exti19_irq_init();
+#endif
   exti21_22_irq_init();
+
+  i2c1_irq_init();
+  i2c2_irq_init();
+  i2c3_irq_init();
+  i2c4_irq_init();
+
+  spi1_irq_init();
+  spi2_irq_init();
+  spi3_irq_init();
 
   sdmmc1_irq_init();
   sdmmc2_irq_init();
@@ -143,6 +173,8 @@ void irqInit(void) {
  */
 void irqDeinit(void) {
 
+  adc1_irq_deinit();
+
   exti0_irq_deinit();
   exti1_irq_deinit();
   exti2_irq_deinit();
@@ -151,9 +183,22 @@ void irqDeinit(void) {
   exti5_9_irq_deinit();
   exti10_15_irq_deinit();
   exti16_exti35_38_irq_deinit();
+#if defined(STM32L4P5xx) || defined(STM32L4Q5xx)
+  rtc_irq_deinit();
+#else
   exti18_irq_deinit();
   exti19_irq_deinit();
+#endif
   exti21_22_irq_deinit();
+
+  i2c1_irq_deinit();
+  i2c2_irq_deinit();
+  i2c3_irq_deinit();
+  i2c4_irq_deinit();
+
+  spi1_irq_deinit();
+  spi2_irq_deinit();
+  spi3_irq_deinit();
 
   sdmmc1_irq_deinit();
   sdmmc2_irq_deinit();

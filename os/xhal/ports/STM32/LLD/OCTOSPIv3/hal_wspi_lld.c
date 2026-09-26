@@ -39,6 +39,11 @@
 hal_wspi_driver_c WSPID1;
 #endif
 
+/** @brief OCTOSPI2 driver identifier.*/
+#if STM32_WSPI_USE_OCTOSPI2 || defined(__DOXYGEN__)
+hal_wspi_driver_c WSPID2;
+#endif
+
 /*===========================================================================*/
 /* Driver local variables and types.                                         */
 /*===========================================================================*/
@@ -136,6 +141,27 @@ void wspi_lld_init(void) {
   WSPID1.dreq           = STM32_DMA3_REQ_OSPI1;
   WSPID1.dprio          = STM32_WSPI_OCTOSPI1_DMA_PRIORITY;
 #endif
+
+#if STM32_WSPI_USE_OCTOSPI2
+  wspiObjectInit(&WSPID2);
+  WSPID2.extra_tcr      = 0U
+#if STM32_WSPI_OCTOSPI2_SSHIFT
+                     | OCTOSPI_TCR_SSHIFT
+#endif
+#if STM32_WSPI_OCTOSPI2_DHQC
+                     | OCTOSPI_TCR_DHQC
+#endif
+                     ;
+  WSPID2.ospi           = OCTOSPI2;
+  WSPID2.dmachp         = NULL;
+  WSPID2.dreq           = STM32_DMA3_REQ_OSPI2;
+  WSPID2.dprio          = STM32_WSPI_OCTOSPI2_DMA_PRIORITY;
+#endif
+
+#if defined(rccEnableOCTOSPIM)
+  /* Shared I/O manager, present on STM32U5.*/
+  rccEnableOCTOSPIM(false);
+#endif
 }
 
 /**
@@ -156,22 +182,33 @@ msg_t wspi_lld_start(hal_wspi_driver_c *wspip) {
     }
   }
 
-  dcr2 = STM32_DCR2_PRESCALER(STM32_WSPI_OCTOSPI1_PRESCALER_VALUE - 1U);
-
-  {
 #if STM32_WSPI_USE_OCTOSPI1
-    if (&WSPID1 == wspip) {
-      wspip->dmachp = dma3ChannelAlloc(STM32_WSPI_OCTOSPI1_DMA3_CHANNEL,
-                                       STM32_IRQ_OCTOSPI1_PRIORITY,
-                                       wspi_lld_serve_dma_interrupt,
-                                       (void *)wspip);
-      if (wspip->dmachp == NULL) {
-        return HAL_RET_NO_RESOURCE;
-      }
-      rccEnableOCTOSPI1(true);
+  if (&WSPID1 == wspip) {
+    wspip->dmachp = dma3ChannelAlloc(STM32_WSPI_OCTOSPI1_DMA3_CHANNEL,
+                                     STM32_IRQ_OCTOSPI1_PRIORITY,
+                                     wspi_lld_serve_dma_interrupt,
+                                     (void *)wspip);
+    if (wspip->dmachp == NULL) {
+      return HAL_RET_NO_RESOURCE;
     }
-#endif
+    rccEnableOCTOSPI1(true);
+    dcr2 = STM32_DCR2_PRESCALER(STM32_WSPI_OCTOSPI1_PRESCALER_VALUE - 1U);
   }
+#endif
+
+#if STM32_WSPI_USE_OCTOSPI2
+  if (&WSPID2 == wspip) {
+    wspip->dmachp = dma3ChannelAlloc(STM32_WSPI_OCTOSPI2_DMA3_CHANNEL,
+                                     STM32_IRQ_OCTOSPI2_PRIORITY,
+                                     wspi_lld_serve_dma_interrupt,
+                                     (void *)wspip);
+    if (wspip->dmachp == NULL) {
+      return HAL_RET_NO_RESOURCE;
+    }
+    rccEnableOCTOSPI2(true);
+    dcr2 = STM32_DCR2_PRESCALER(STM32_WSPI_OCTOSPI2_PRESCALER_VALUE - 1U);
+  }
+#endif
 
   wspip->ospi->DCR1 = __wspi_getfield(wspip, dcr1);
   wspip->ospi->DCR2 = __wspi_getfield(wspip, dcr2) | dcr2;
@@ -212,6 +249,12 @@ void wspi_lld_stop(hal_wspi_driver_c *wspip) {
 #if STM32_WSPI_USE_OCTOSPI1
   if (&WSPID1 == wspip) {
     rccDisableOCTOSPI1();
+  }
+#endif
+
+#if STM32_WSPI_USE_OCTOSPI2
+  if (&WSPID2 == wspip) {
+    rccDisableOCTOSPI2();
   }
 #endif
 }
@@ -435,12 +478,13 @@ void wspi_lld_start_status_poll(
   uint64_t interval;
   uint32_t mask;
   uint32_t match;
+  uint32_t prescaler;
   size_t i;
 
   chDbgAssert(pollp->length <= sizeof(uint32_t), "status too long");
 
-  interval = ((uint64_t)(STM32_OSPICLK /
-                         STM32_WSPI_OCTOSPI1_PRESCALER_VALUE) *
+  prescaler = (wspip->ospi->DCR2 & STM32_DCR2_PRESCALER_MASK) + 1U;
+  interval = ((uint64_t)(STM32_OSPICLK / prescaler) *
               (uint64_t)pollp->interval +
               (uint64_t)CH_CFG_ST_FREQUENCY - 1ULL) /
              (uint64_t)CH_CFG_ST_FREQUENCY;
@@ -544,9 +588,16 @@ void wspi_lld_map_flash(hal_wspi_driver_c *wspip,
   wspip->ospi->WIR  = 0U;
   wspip->ospi->WABR = 0U;
 
-  if (addrp != NULL) {
+#if STM32_WSPI_USE_OCTOSPI1
+  if ((addrp != NULL) && (&WSPID1 == wspip)) {
     *addrp = (uint8_t *)0x90000000U;
   }
+#endif
+#if STM32_WSPI_USE_OCTOSPI2
+  if ((addrp != NULL) && (&WSPID2 == wspip)) {
+    *addrp = (uint8_t *)0x70000000U;
+  }
+#endif
 }
 
 /**

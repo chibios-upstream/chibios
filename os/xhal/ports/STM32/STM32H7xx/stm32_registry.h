@@ -70,6 +70,8 @@
 /*===========================================================================*/
 
 /* DAC attributes.*/
+#define STM32_HAS_DAC3_CH1                  FALSE
+#define STM32_HAS_DAC3_CH2                  FALSE
 #define STM32_DAC_HAS_MCR                   TRUE
 
 /* RNG attributes.*/

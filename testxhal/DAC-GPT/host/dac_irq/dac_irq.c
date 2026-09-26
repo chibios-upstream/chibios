@@ -21,6 +21,9 @@
 #ifndef TEST_WL
 #define TEST_WL                            0
 #endif
+#ifndef TEST_SHARED
+#define TEST_SHARED                        0
+#endif
 #ifndef TEST_DAC
 #define TEST_DAC                           0
 #endif
@@ -51,6 +54,10 @@
 #define STM32_DAC_DUAL_MODE                 FALSE
 #define STM32_HAS_DAC1_CH1                  TRUE
 #define STM32_HAS_DAC1_CH2                  (!TEST_WL)
+#define STM32_HAS_DAC3_CH1                  FALSE
+#define STM32_HAS_DAC3_CH2                  FALSE
+#define STM32_DAC_USE_DAC3_CH1              FALSE
+#define STM32_DAC_USE_DAC3_CH2              FALSE
 #define STM32_HAS_TIM6                      (!TEST_WL)
 #define STM32_GPT_USE_TIM6                  TEST_TIM
 #define STM32_ST_USE_TIM6                   TEST_ST
@@ -117,6 +124,16 @@ static inline void dac_lld_serve_interrupt(int *dacp) {
 
 #else
 
+#if TEST_SHARED
+#define STM32_IRQ_TIM6_DAC_PRIORITY         TEST_PRIORITY
+#if TEST_SHARED == 1
+#include "STM32H7xx/stm32_isr.h"
+#else
+#include "STM32L4xx+/stm32_isr.h"
+#endif
+_Static_assert(STM32_IRQ_DAC1_PRIORITY == TEST_PRIORITY,
+               "DAC must use the shared TIM6 IRQ priority");
+#else
 #define STM32G071xx
 #define STM32_HAS_UCPD1                     FALSE
 #define STM32_HAS_UCPD2                     FALSE
@@ -124,6 +141,7 @@ static inline void dac_lld_serve_interrupt(int *dacp) {
 #define STM32_HAS_I2C3                      FALSE
 #define STM32_IRQ_TIM6_DAC_LPTIM1_PRIORITY  TEST_PRIORITY
 #include "STM32G0xx/stm32_isr.h"
+#endif
 static int GPTD6;
 
 static inline void gpt_lld_serve_interrupt(int *gptp) {
@@ -148,6 +166,20 @@ static inline void dac_lld_serve_interrupt_dac1(void) {
 #define STM32_LPTIM1_IRQ_HOOK() do { assert(in_isr); ++hook_count; } while (0)
 #endif
 
+#if TEST_SHARED
+static inline void dac_lld_serve_interrupt_dac3(void) {
+
+  /* These platforms have no DAC3.*/
+}
+
+#include "TIMv1/stm32_tim6_dac.inc"
+#define test_irq_init                      tim6_irq_init
+#define test_irq_deinit                    tim6_irq_deinit
+#define test_handler                       STM32_TIM6_HANDLER
+#define TEST_VECTOR                        54
+#define TEST_ACTIVE                        (TEST_TIM || TEST_ST || \
+                                             (TEST_DAC && TEST_CHANNEL))
+#else
 #include "TIMv1/stm32_tim6_dac_lptim1.inc"
 #define test_irq_init                      tim6_dac_lptim1_irq_init
 #define test_irq_deinit                    tim6_dac_lptim1_irq_deinit
@@ -155,6 +187,7 @@ static inline void dac_lld_serve_interrupt_dac1(void) {
 #define TEST_VECTOR                        17
 #define TEST_ACTIVE                        (TEST_TIM || TEST_ST || TEST_HOOK || \
                                              (TEST_DAC && TEST_CHANNEL))
+#endif
 #endif
 
 int main(void) {

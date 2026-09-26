@@ -395,6 +395,9 @@
 #define STM32_DCMI_NUMBER                   78
 /** @} */
 
+/* Individual IRQ priorities derived from the shared vector priority.*/
+#define STM32_IRQ_DAC1_PRIORITY             STM32_IRQ_TIM6_DAC_PRIORITY
+
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */
 /*===========================================================================*/

@@ -23,6 +23,75 @@
 
 #include "../../../../os/xhal/ports/STM32/LLD/OTGv1/hal_usb_lld.c"
 
+#if defined(TEST_U5)
+static unsigned test_irq_enables, test_irq_disables;
+static unsigned test_irq_number, test_irq_priority;
+
+static void nvicEnableVector(unsigned number, unsigned priority) {
+
+  test_irq_enables++;
+  test_irq_number = number;
+  test_irq_priority = priority;
+}
+
+static void nvicDisableVector(unsigned number) {
+
+  test_irq_disables++;
+  assert(number == test_irq_number);
+}
+
+#define CH_IRQ_HANDLER(name) void name(void)
+#define CH_IRQ_PROLOGUE() (test_isr = true)
+#define CH_IRQ_EPILOGUE() (test_isr = false)
+#include "stm32_otg1.inc"
+#include "stm32_otg2.inc"
+
+_Static_assert(STM32_HAS_USB1 == FALSE, "U5 OTG is not USB DRD");
+#if STM32_USB_USE_OTG1
+#if !defined(STM32_USB_CLOCK_REQUIRED) || defined(STM32_OTGHS_CLOCK_REQUIRED)
+#error "OTG FS must demand the USB clock only"
+#endif
+_Static_assert(USB_MAX_ENDPOINTS == 5U, "EP0 plus five FS endpoints");
+_Static_assert(OTG_FS_ADDR == USB_OTG_FS_BASE, "FS register address");
+_Static_assert(STM32_OTG1_NUMBER == OTG_FS_IRQn, "FS IRQ number");
+_Static_assert(STM32_OTG1_FIFO_MEM_SIZE == 320U, "FS FIFO size in words");
+_Static_assert(GCCFG_INIT_VALUE == (USB_OTG_GCCFG_VBDEN |
+                                    USB_OTG_GCCFG_PWRDWN), "FS PHY power");
+#else
+#if defined(STM32_USB_CLOCK_REQUIRED) || !defined(STM32_OTGHS_CLOCK_REQUIRED)
+#error "OTG HS must demand the PHY reference clock only"
+#endif
+_Static_assert(USB_MAX_ENDPOINTS == 8U, "EP0 plus eight HS endpoints");
+_Static_assert(OTG_HS_ADDR == USB_OTG_HS_BASE, "HS register address");
+_Static_assert(STM32_OTG2_NUMBER == OTG_HS_IRQn, "HS IRQ number");
+_Static_assert(STM32_OTG2_FIFO_MEM_SIZE == 1024U, "HS FIFO size in words");
+_Static_assert(GCCFG_INIT_VALUE == USB_OTG_GCCFG_VBDEN, "HS VBUS sensing");
+#endif
+
+static void check_irq(void) {
+  hal_usb_driver_c *usbp;
+  unsigned sofs = test_sofs;
+
+  otg1_irq_init();
+  otg2_irq_init();
+  assert(test_irq_enables == 1U && test_irq_number == 73U);
+#if STM32_USB_USE_OTG1
+  assert(test_irq_priority == STM32_IRQ_OTG1_PRIORITY);
+  usbp = &USBD1;
+#else
+  assert(test_irq_priority == STM32_IRQ_OTG2_PRIORITY);
+  usbp = &USBD2;
+#endif
+  usbp->otg->GINTMSK = GINTMSK_SOFM;
+  usbp->otg->GINTSTS = GINTSTS_SOF;
+  Vector164();
+  assert(test_sofs == sofs + 1U);
+  otg1_irq_deinit();
+  otg2_irq_deinit();
+  assert(test_irq_disables == 1U);
+}
+#endif
+
 uint32_t SystemCoreClock = 520000000U;
 static bool test_record_delays;
 static unsigned test_delay_index, test_delay_count;
@@ -192,17 +261,24 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
 #endif
   assert(usb_lld_selcfg(usbp, 99U) == NULL);
   test_clock = 47000000U;
-  assert(usb_lld_start(usbp) == HAL_RET_CONFIG_ERROR);
-  assert(test_enables[index] == enables);
+  if (!otg_uses_integrated_hs_phy(usbp)) {
+    assert(usb_lld_start(usbp) == HAL_RET_CONFIG_ERROR);
+    assert(test_enables[index] == enables);
+  }
   test_clock = 48000000U;
   assert(usb_lld_start(usbp) == HAL_RET_SUCCESS);
   assert(test_enables[index] == enables + 1U);
   assert(usbp->config == &default_usb_config);
   assert((otgp->DCTL & DCTL_SDIS) != 0U);
   assert((otgp->GAHBCFG & GAHBCFG_GINTMSK) != 0U);
-#if STM32_USB_USE_OTG2 && STM32_USB_OTG2_PHY == STM32_OTG_PHY_EXTERNAL_ULPI
+#if STM32_USB_USE_OTG2 &&                                               \
+    (STM32_USB_OTG2_PHY != STM32_OTG_PHY_EMBEDDED_FS)
   if (index == 1U) {
+#if STM32_USB_OTG2_PHY == STM32_OTG_PHY_INTEGRATED_HS
+    assert(test_phy_starts != 0U);
+#else
     assert(test_ulpi_enables != 0U);
+#endif
     assert((otgp->GUSBCFG & GUSBCFG_PHYSEL) == 0U);
     assert((otgp->DCFG & DCFG_DSPD_MASK) ==
            (STM32_USE_USB_OTG2_HS ? DCFG_DSPD_HS : DCFG_DSPD_HS_FS));
@@ -376,7 +452,7 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
     };
 
     test_clock = clocks[i];
-    if (i < 2U) {
+    if ((i < 2U) || otg_uses_integrated_hs_phy(usbp)) {
       assert(usb_lld_start(usbp) == HAL_RET_SUCCESS);
       usb_lld_stop(usbp);
     }
@@ -437,6 +513,9 @@ int main(void) {
     peripheral_process();
   }
   usb_lld_init();
+#if defined(TEST_U5)
+  check_irq();
+#endif
   check_copy();
 #if STM32_USB_USE_OTG1
   check_phy_delays(&USBD1, 0U);
@@ -452,7 +531,17 @@ int main(void) {
   assert(USBD1.ep0config.setup_buf != USBD2.ep0config.setup_buf);
   assert(USBD1.ep0setup_buffer[0] == 0x73);
 #endif
+#if defined(TEST_U5)
+#if STM32_USB_USE_OTG2
+  assert(test_phy_starts != 0U && test_phy_starts == test_phy_stops);
+#else
+  assert(test_phy_starts == 0U && test_phy_stops == 0U);
+#endif
+  assert(test_ulpi_disables == 0U && test_ulpi_enables == 0U);
+#else
+  assert(test_phy_starts == 0U && test_phy_stops == 0U);
   assert(test_ulpi_disables != 0U || test_ulpi_enables != 0U);
+#endif
   test_hw->done = 1U;
   assert(waitpid(child, &status, 0) == child);
   assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);

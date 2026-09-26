@@ -2044,9 +2044,13 @@
 #endif
 
 /**
- * @brief   SDMMC frequency.
+ * @brief   SDMMC instance frequencies.
+ * @details Both instances share the RCC_CCIPR2.SDMMCSEL kernel clock mux.
  */
-#define STM32_SDMMC1CLK             STM32_48CLK
+#define STM32_SDMMC1CLK             STM32_SDMMCCLK
+#if STM32_HAS_SDMMC2 || defined(__DOXYGEN__)
+#define STM32_SDMMC2CLK             STM32_SDMMCCLK
+#endif
 
 /**
  * @brief   LTDC frequency.

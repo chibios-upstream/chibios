@@ -249,6 +249,12 @@
 
 #define STM32_IRQ_ADC1_2_PRIORITY           5
 
+#define STM32_IRQ_OCTOSPI1_PRIORITY         10
+#define STM32_IRQ_OCTOSPI2_PRIORITY         10
+
+#define STM32_IRQ_RTC_GLOBAL_PRIORITY       6
+#define STM32_IRQ_RTC_TAMP_PRIORITY         6
+
 #define STM32_IRQ_SPI1_PRIORITY             10
 #define STM32_IRQ_SPI2_PRIORITY             10
 #define STM32_IRQ_SPI3_PRIORITY             10
@@ -280,7 +286,7 @@
 #define STM32_IRQ_UART5_PRIORITY            12
 #define STM32_IRQ_LPUART1_PRIORITY          12
 
-#define STM32_IRQ_USB1_PRIORITY             13
+#define STM32_IRQ_OTG1_PRIORITY             13
 
 /*
  * ADC driver system settings.
@@ -487,9 +493,8 @@
 /*
  * USB driver system settings.
  */
-#define STM32_USB_USE_USB1                  FALSE
-#define STM32_USB_USE_ISOCHRONOUS           FALSE
-#define STM32_USB_USE_FAST_COPY             FALSE
+#define STM32_USB_USE_OTG1                  FALSE
+#define STM32_USB_OTG1_RX_FIFO_SIZE         512
 #define STM32_USB_HOST_WAKEUP_DURATION      2
 #define STM32_USB_48MHZ_DELTA               120000
 
@@ -503,5 +508,16 @@
  */
 #define STM32_WSPI_USE_OCTOSPI1             FALSE
 #define STM32_WSPI_USE_OCTOSPI2             FALSE
+#define STM32_WSPI_OCTOSPI1_PRESCALER_VALUE 1
+#define STM32_WSPI_OCTOSPI2_PRESCALER_VALUE 1
+#define STM32_WSPI_OCTOSPI1_SSHIFT          FALSE
+#define STM32_WSPI_OCTOSPI2_SSHIFT          FALSE
+#define STM32_WSPI_OCTOSPI1_DHQC            FALSE
+#define STM32_WSPI_OCTOSPI2_DHQC            FALSE
+#define STM32_WSPI_OCTOSPI1_DMA3_CHANNEL    STM32_DMA3_MASK_ANY
+#define STM32_WSPI_OCTOSPI2_DMA3_CHANNEL    STM32_DMA3_MASK_ANY
+#define STM32_WSPI_OCTOSPI1_DMA_PRIORITY    1
+#define STM32_WSPI_OCTOSPI2_DMA_PRIORITY    1
+#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    chSysHalt("DMA failure")
 
 #endif /* XMCUCONF_H */

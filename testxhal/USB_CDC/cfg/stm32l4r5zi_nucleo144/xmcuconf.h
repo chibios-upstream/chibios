@@ -135,6 +135,8 @@
 /*
  * IRQ system settings.
  */
+#define STM32_IRQ_ADC1_PRIORITY             5
+
 #define STM32_IRQ_EXTI0_PRIORITY            6
 #define STM32_IRQ_EXTI1_PRIORITY            6
 #define STM32_IRQ_EXTI2_PRIORITY            6
@@ -158,7 +160,16 @@
 
 #define STM32_IRQ_OTG1_PRIORITY             14
 
+#define STM32_IRQ_RTC_TAMP_STAMP_PRIORITY   6
+#define STM32_IRQ_RTC_WKUP_PRIORITY         6
+#define STM32_IRQ_RTC_ALARM_PRIORITY        6
+
 #define STM32_IRQ_SDMMC1_PRIORITY           9
+#define STM32_IRQ_SDMMC2_PRIORITY           9
+
+#define STM32_IRQ_SPI1_PRIORITY             10
+#define STM32_IRQ_SPI2_PRIORITY             10
+#define STM32_IRQ_SPI3_PRIORITY             10
 
 #define STM32_IRQ_TIM1_BRK_TIM15_PRIORITY   7
 #define STM32_IRQ_TIM1_UP_TIM16_PRIORITY    7
@@ -168,7 +179,7 @@
 #define STM32_IRQ_TIM3_PRIORITY             7
 #define STM32_IRQ_TIM4_PRIORITY             7
 #define STM32_IRQ_TIM5_PRIORITY             7
-#define STM32_IRQ_TIM6_PRIORITY             7
+#define STM32_IRQ_TIM6_DAC_PRIORITY         7
 #define STM32_IRQ_TIM7_PRIORITY             7
 #define STM32_IRQ_TIM8_UP_PRIORITY          7
 #define STM32_IRQ_TIM8_CC_PRIORITY          7
@@ -237,7 +248,7 @@
 #define STM32_I2C_I2C2_DMA_PRIORITY         3
 #define STM32_I2C_I2C3_DMA_PRIORITY         3
 #define STM32_I2C_I2C4_DMA_PRIORITY         3
-#define STM32_I2C_DMA_ERROR_HOOK(i2cp)      osalSysHalt("DMA failure")
+#define STM32_I2C_DMA_ERROR_HOOK(i2cp)      chSysHalt("DMA failure")
 
 /*
  * ICU driver system settings.
@@ -271,12 +282,16 @@
 #define STM32_RTC_PRESA_VALUE               32
 #define STM32_RTC_PRESS_VALUE               1024
 #define STM32_RTC_CR_INIT                   0
-#define STM32_RTC_TAMPCR_INIT               0
+#define STM32_TAMP_CR1_INIT                 0
+#define STM32_TAMP_CR2_INIT                 0
+#define STM32_TAMP_FLTCR_INIT               0
+#define STM32_TAMP_IER_INIT                 0
 
 /*
  * SDC driver system settings.
  */
 #define STM32_SDC_USE_SDMMC1                FALSE
+#define STM32_SDC_USE_SDMMC2                FALSE
 #define STM32_SDC_SDMMC_UNALIGNED_SUPPORT   TRUE
 #define STM32_SDC_SDMMC_WRITE_TIMEOUT       10000
 #define STM32_SDC_SDMMC_READ_TIMEOUT        10000
@@ -318,7 +333,7 @@
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
 #define STM32_SPI_SPI3_DMA_PRIORITY         1
-#define STM32_SPI_DMA_ERROR_HOOK(spip)      osalSysHalt("DMA failure")
+#define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*
  * ST driver system settings.
@@ -355,7 +370,7 @@
 #define STM32_UART_USART3_DMA_PRIORITY      0
 #define STM32_UART_UART4_DMA_PRIORITY       0
 #define STM32_UART_UART5_DMA_PRIORITY       0
-#define STM32_UART_DMA_ERROR_HOOK(uartp)    osalSysHalt("DMA failure")
+#define STM32_UART_DMA_ERROR_HOOK(uartp)    chSysHalt("DMA failure")
 
 /*
  * USB driver system settings.
@@ -386,6 +401,6 @@
 #define STM32_WSPI_OCTOSPI2_DMA_STREAM      STM32_DMA_STREAM_ID_ANY
 #define STM32_WSPI_OCTOSPI1_DMA_PRIORITY    1
 #define STM32_WSPI_OCTOSPI2_DMA_PRIORITY    1
-#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    osalSysHalt("DMA failure")
+#define STM32_WSPI_DMA_ERROR_HOOK(wspip)    chSysHalt("DMA failure")
 
 #endif /* XMCUCONF_H */
