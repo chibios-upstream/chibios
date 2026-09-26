@@ -66,13 +66,17 @@ static struct {
 /*===========================================================================*/
 
 static void mdma_serve_interrupt(const stm32_mdma_channel_t *mdmachp) {
-  uint32_t flags, eflags;
+  uint32_t flags, eflags, pending;
 
   flags = mdmachp->channel->CISR;
   eflags = mdmachp->channel->CESR;
+  /* CCR interrupt enables are one bit above the corresponding CISR flags.*/
+  pending = flags & (mdmachp->channel->CCR >> 1U) & STM32_MDMA_ISR_MASK;
   mdmachp->channel->CIFCR = flags;
-  if (mdmachp->func != NULL) {
-    mdmachp->func(mdmachp->param, flags | (eflags << 16));
+  if ((pending != 0U) && (mdmachp->func != NULL)) {
+    /* Preserve status without an interrupt enable and the CESR diagnostics.*/
+    flags = pending | (flags & ~STM32_MDMA_ISR_MASK);
+    mdmachp->func(mdmachp->param, flags | (eflags << 16U));
   }
 }
 

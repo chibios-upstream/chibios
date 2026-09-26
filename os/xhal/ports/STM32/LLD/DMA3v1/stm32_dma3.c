@@ -699,12 +699,15 @@ size_t dma3ChannelDisable(const stm32_dma3_channel_t *dmachp) {
  * @special
  */
 void dma3ServeInterrupt(const stm32_dma3_channel_t *dmachp) {
-  uint32_t csr;
+  uint32_t csr, pending;
   uint32_t selfindex = (uint32_t)(dmachp - __stm32_dma3_channels);
 
   csr = dmachp->channel->CSR;
+  pending = csr & dmachp->channel->CCR & STM32_DMA3_CSR_ALL_FLAGS;
   dmachp->channel->CFCR = csr;
-  if ((csr & dmachp->channel->CCR & STM32_DMA3_CSR_ALL_FLAGS) != 0U) {
+  if (pending != 0U) {
+    /* Status without an interrupt enable (IDLEF and FIFOL) is preserved.*/
+    csr = pending | (csr & ~STM32_DMA3_CSR_ALL_FLAGS);
     if (dma3.channels[selfindex].func) {
       dma3.channels[selfindex].func(dma3.channels[selfindex].param, csr);
     }

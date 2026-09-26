@@ -801,14 +801,18 @@ void dmaStreamFree(const stm32_dma_stream_t *dmastp) {
  * @special
  */
 void dmaServeInterrupt(const stm32_dma_stream_t *dmastp) {
-  uint32_t flags;
+  uint32_t flags, pending;
   uint32_t selfindex = (uint32_t)dmastp->selfindex;
 
   flags = (dmastp->dma->ISR >> dmastp->shift) & STM32_DMA_ISR_MASK;
-  if (flags & dmastp->channel->CCR) {
+  pending = flags & dmastp->channel->CCR;
+  if (pending != 0U) {
+    /* Clear all captured flags, but report only enabled interrupt sources.
+       Channels without an enabled pending source may be polled, leave their
+       flags untouched when serving a shared vector.*/
     dmastp->dma->IFCR = flags << dmastp->shift;
     if (dma.streams[selfindex].func) {
-      dma.streams[selfindex].func(dma.streams[selfindex].param, flags);
+      dma.streams[selfindex].func(dma.streams[selfindex].param, pending);
     }
   }
 }

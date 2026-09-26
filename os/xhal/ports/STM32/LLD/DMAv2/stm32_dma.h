@@ -410,10 +410,11 @@
 
 /**
  * @brief   STM32 DMA ISR function type.
+ * @details Only pending flags whose interrupt sources are enabled are passed.
+ *          The callback is not invoked if no enabled source is pending.
  *
  * @param[in] p         parameter for the registered function
- * @param[in] flags     pre-shifted content of the xISR register, the bits
- *                      are aligned to bit zero
+ * @param[in] flags     enabled pending xISR flags, aligned to bit zero
  */
 typedef void (*stm32_dmaisr_t)(void *p, uint32_t flags);
 

@@ -275,10 +275,14 @@
 
 /**
  * @brief   STM32 MDMA ISR function type.
+ * @details Only pending flags whose interrupt sources are enabled are passed.
+ *          Status without an interrupt enable and CESR diagnostics are
+ *          preserved. The callback is not invoked if no enabled source is
+ *          pending.
  *
  * @param[in] p         parameter for the registered function
- * @param[in] flags     content of the CISR register in the lower 16 bits,
- *                      content of the CESR register in the upper 16 bits
+ * @param[in] flags     filtered CISR content ORed with CESR shifted left by
+ *                      16 bits, preserving the existing status encoding
  */
 typedef void (*stm32_mdmaisr_t)(void *p, uint32_t flags);
 
