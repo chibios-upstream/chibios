@@ -165,6 +165,31 @@ static void rtc_alarm_test(void) {
 #endif
 }
 
+static void rtc_wakeup_test(void) {
+#if RTC_SUPPORTS_PERIODIC_WAKEUP
+  const rtc_wakeup_t wakeup = {RTC_WAKEUP(4U, 0U)};
+  rtc_wakeup_t readback;
+  unsigned count, retries;
+
+  /* One ck_spre tick, normally one second, between wakeup events.*/
+  test_assert(rtcSetPeriodicWakeup(&RTCD1, &wakeup) == HAL_RET_SUCCESS);
+  test_assert(rtcGetPeriodicWakeup(&RTCD1, &readback) == HAL_RET_SUCCESS);
+  test_assert(readback.wutr == wakeup.wutr);
+  count = 0U;
+  for (retries = 0U; (retries < 40U) && (count < 3U); retries++) {
+    chThdSleepMilliseconds(100);
+    if (rtcGetAndClearEventsX(&RTCD1, RTC_FLAGS_WAKEUP) != 0U) {
+      count++;
+    }
+  }
+  test_assert(count == 3U);
+  test_assert(rtcSetPeriodicWakeup(&RTCD1, NULL) == HAL_RET_SUCCESS);
+  rtcGetAndClearEventsX(&RTCD1, RTC_FLAGS_WAKEUP);
+  chThdSleepMilliseconds(1200);
+  test_assert((rtcGetEventsX(&RTCD1) & RTC_FLAGS_WAKEUP) == 0U);
+#endif
+}
+
 static THD_WORKING_AREA(waThread1, 256);
 static THD_FUNCTION(Thread1, arg) {
   (void)arg;
@@ -191,6 +216,7 @@ int main(void) {
 
   rtc_basic_test();
   rtc_alarm_test();
+  rtc_wakeup_test();
 
   while (true) {
     palWriteLine(PORTAB_LINE_LED1, PORTAB_LED_ON);

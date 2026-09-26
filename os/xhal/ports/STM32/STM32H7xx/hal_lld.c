@@ -80,6 +80,9 @@ static inline void init_bkp_domain(void) {
 #endif
 
 #if HAL_USE_RTC
+  /* Calendar and tamper register accesses require the APB interface clock.*/
+  rccEnableAPB4(RCC_APB4ENR_RTCAPBEN, true);
+
   /* If the backup domain hasn't been initialized yet then proceed with
      initialization.*/
   if ((RCC->BDCR & RCC_BDCR_RTCEN) == 0) {

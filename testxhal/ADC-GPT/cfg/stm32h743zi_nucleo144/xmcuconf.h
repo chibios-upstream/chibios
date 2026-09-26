@@ -186,9 +186,6 @@
 #define STM32_IRQ_EXTI5_9_PRIORITY          6
 #define STM32_IRQ_EXTI10_15_PRIORITY        6
 #define STM32_IRQ_EXTI16_PRIORITY           6
-#define STM32_IRQ_EXTI17_PRIORITY           6
-#define STM32_IRQ_EXTI18_PRIORITY           6
-#define STM32_IRQ_EXTI19_PRIORITY           6
 #define STM32_IRQ_EXTI20_21_PRIORITY        6
 
 #define STM32_IRQ_FDCAN1_PRIORITY           10
@@ -206,6 +203,10 @@
 
 #define STM32_IRQ_OTG1_PRIORITY             14
 #define STM32_IRQ_OTG2_PRIORITY             14
+
+#define STM32_IRQ_RTC_TAMP_STAMP_PRIORITY    6
+#define STM32_IRQ_RTC_WKUP_PRIORITY          6
+#define STM32_IRQ_RTC_ALARM_PRIORITY         6
 
 #define STM32_IRQ_SDMMC1_PRIORITY           9
 #define STM32_IRQ_SDMMC2_PRIORITY           9

@@ -113,8 +113,24 @@ typedef struct {
   uint32_t                  alrmr;
 } rtc_alarm_t;]]></verbatim>
       <verbatim><![CDATA[
+/**
+ * @brief       Periodic-wakeup configuration.
+ * @details     The encoding of @p wutr is defined by the low level driver.
+ */
+typedef struct {
+  uint32_t                  wutr;
+} rtc_wakeup_t;]]></verbatim>
+      <verbatim><![CDATA[
 /* Inclusion of LLD header.*/
-#include "hal_rtc_lld.h"]]></verbatim>
+#include "hal_rtc_lld.h"
+
+/**
+ * @brief       Whether the LLD supports periodic-wakeup programming.
+ * @note        Defaults to false for LLDs without the optional interface.
+ */
+#if !defined(RTC_SUPPORTS_PERIODIC_WAKEUP)
+#define RTC_SUPPORTS_PERIODIC_WAKEUP         FALSE
+#endif]]></verbatim>
       <struct name="hal_rtc_config">
         <brief>Driver configuration structure.</brief>
         <note>Implementations may extend this structure to contain more,
@@ -160,6 +176,56 @@ self->events = 0U;]]></implementation>
 ]]></implementation>
           </dispose>
           <regular>
+            <method name="rtcSetPeriodicWakeup" ctype="msg_t">
+              <brief>Programs or disables the periodic-wakeup timer.</brief>
+              <details>Notifications use @p RTC_FLAGS_WAKEUP and the driver
+                callback, in ISR context outside system locks. This operation
+                discards pending hardware wakeup notifications, but leaves
+                previously cached events available to the application.</details>
+              <note>This API programs the RTC only; entering low-power modes
+                and configuring system wakeup routing are application tasks.</note>
+              <param name="wakeupspec" ctype="const rtc_wakeup_t *" dir="in">
+                LLD-specific configuration, or @p NULL to disable wakeups.
+              </param>
+              <return>The operation status.</return>
+              <retval value="HAL_RET_CONFIG_ERROR">Unsupported operation or
+                invalid wakeup configuration.</retval>
+              <api />
+              <implementation><![CDATA[
+chDbgCheck(self != NULL);
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+
+#if RTC_SUPPORTS_PERIODIC_WAKEUP
+return rtc_lld_set_periodic_wakeup(self, wakeupspec);
+#else
+(void)self;
+(void)wakeupspec;
+return HAL_RET_CONFIG_ERROR;
+#endif]]></implementation>
+            </method>
+            <method name="rtcGetPeriodicWakeup" ctype="msg_t">
+              <brief>Reads the periodic-wakeup timer configuration.</brief>
+              <note>The configuration is readable even when the timer is
+                disabled. Reading it does not report whether it is enabled.</note>
+              <param name="wakeupspec" ctype="rtc_wakeup_t *" dir="out">
+                Current LLD-specific configuration.
+              </param>
+              <return>The operation status.</return>
+              <retval value="HAL_RET_CONFIG_ERROR">Periodic wakeup is not
+                supported by the low level driver.</retval>
+              <api />
+              <implementation><![CDATA[
+chDbgCheck((self != NULL) && (wakeupspec != NULL));
+chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+
+#if RTC_SUPPORTS_PERIODIC_WAKEUP
+return rtc_lld_get_periodic_wakeup(self, wakeupspec);
+#else
+(void)self;
+(void)wakeupspec;
+return HAL_RET_CONFIG_ERROR;
+#endif]]></implementation>
+            </method>
             <method name="rtcSetDateTime" ctype="msg_t">
               <brief>Sets the RTC broken-down date/time.</brief>
               <param name="timespec" ctype="const rtc_datetime_t *" dir="in">

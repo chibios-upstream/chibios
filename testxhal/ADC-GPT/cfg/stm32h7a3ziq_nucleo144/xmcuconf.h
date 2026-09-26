@@ -180,9 +180,6 @@
 #define STM32_IRQ_EXTI5_9_PRIORITY          6
 #define STM32_IRQ_EXTI10_15_PRIORITY        6
 #define STM32_IRQ_EXTI16_PRIORITY           6
-#define STM32_IRQ_EXTI17_PRIORITY           6
-#define STM32_IRQ_EXTI18_PRIORITY           6
-#define STM32_IRQ_EXTI19_PRIORITY           6
 #define STM32_IRQ_EXTI20_21_PRIORITY        6
 
 #define STM32_IRQ_FDCAN1_PRIORITY           10
@@ -200,6 +197,10 @@
 #define STM32_IRQ_OCTOSPI2_PRIORITY         STM32_IRQ_MDMA_PRIORITY
 
 #define STM32_IRQ_OTG2_PRIORITY             14
+
+#define STM32_IRQ_RTC_TAMP_STAMP_PRIORITY    6
+#define STM32_IRQ_RTC_WKUP_PRIORITY          6
+#define STM32_IRQ_RTC_ALARM_PRIORITY         6
 
 #define STM32_IRQ_SDMMC1_PRIORITY           9
 #define STM32_IRQ_SDMMC2_PRIORITY           9
@@ -354,7 +355,10 @@
 #define STM32_RTC_PRESA_VALUE               32
 #define STM32_RTC_PRESS_VALUE               1024
 #define STM32_RTC_CR_INIT                   0
-#define STM32_RTC_TAMPCR_INIT               0
+#define STM32_TAMP_CR1_INIT                 0
+#define STM32_TAMP_CR2_INIT                 0
+#define STM32_TAMP_FLTCR_INIT               0
+#define STM32_TAMP_IER_INIT                 0
 
 /*
  * SDC driver system settings.
