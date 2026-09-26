@@ -132,7 +132,9 @@ CC_WEAK void __port_do_syscall_return(void) {
 
 #if (PORT_ENABLE_GUARD_PAGES == TRUE) || defined(__DOXYGEN__)
 /**
- * @brief   Setting up MPU region for the current thread.
+ * @brief   Setting up MPU region for the selected incoming thread.
+ * @note    Called by the switch handlers after saving the outgoing context
+ *          and before releasing the kernel lock.
  */
 void __port_set_region(void) {
 
@@ -157,13 +159,11 @@ uint64_t __port_schedule_next(void) {
     otp = chThdGetSelfX();
     ntp = chSchSelectFirst();
 
-#if PORT_ENABLE_GUARD_PAGES == TRUE
-    mpuSetRegionAddress(PORT_USE_GUARD_MPU_REGION, ntp->wabase);
-#endif
-
+#if defined(__CHIBIOS_RT__)
     __trace_switch(ntp, otp);
     __stats_ctxswc(ntp, otp);
     CH_CFG_CONTEXT_SWITCH_HOOK(ntp, otp);
+#endif
 
     return ((uint64_t)(uint32_t)otp << 32) | ((uint64_t)(uint32_t)ntp << 0);
   }
@@ -234,17 +234,23 @@ void port_init(os_instance_t *oip) {
 #if PORT_MPU_INITIALIZE == TRUE
   /* MPU initialization as specified in port options.*/
   {
-    static const uint32_t regs0[]  = {PORT_MPU_RBAR0_INIT | MPU_REGION_0, PORT_MPU_RASR0_INIT,
-                                      PORT_MPU_RBAR1_INIT | MPU_REGION_1, PORT_MPU_RASR1_INIT,
-                                      PORT_MPU_RBAR2_INIT | MPU_REGION_2, PORT_MPU_RASR2_INIT,
-                                      PORT_MPU_RBAR3_INIT | MPU_REGION_3, PORT_MPU_RASR3_INIT};
-    port_init_regions(regs0, &MPU->RBAR);
-
+    static const uint32_t regs0[] = {
+      PORT_MPU_RBAR0_INIT | MPU_RBAR_VALID | MPU_REGION_0, PORT_MPU_RASR0_INIT,
+      PORT_MPU_RBAR1_INIT | MPU_RBAR_VALID | MPU_REGION_1, PORT_MPU_RASR1_INIT,
+      PORT_MPU_RBAR2_INIT | MPU_RBAR_VALID | MPU_REGION_2, PORT_MPU_RASR2_INIT,
+      PORT_MPU_RBAR3_INIT | MPU_RBAR_VALID | MPU_REGION_3, PORT_MPU_RASR3_INIT
+    };
 #if CORTEX_MPU_REGIONS > 4
-    static const uint32_t regs4[]  = {PORT_MPU_RBAR4_INIT | MPU_REGION_4, PORT_MPU_RASR4_INIT,
-                                      PORT_MPU_RBAR5_INIT | MPU_REGION_5, PORT_MPU_RASR5_INIT,
-                                      PORT_MPU_RBAR6_INIT | MPU_REGION_6, PORT_MPU_RASR6_INIT,
-                                      PORT_MPU_RBAR7_INIT | MPU_REGION_7, PORT_MPU_RASR7_INIT};
+    static const uint32_t regs4[] = {
+      PORT_MPU_RBAR4_INIT | MPU_RBAR_VALID | MPU_REGION_4, PORT_MPU_RASR4_INIT,
+      PORT_MPU_RBAR5_INIT | MPU_RBAR_VALID | MPU_REGION_5, PORT_MPU_RASR5_INIT,
+      PORT_MPU_RBAR6_INIT | MPU_RBAR_VALID | MPU_REGION_6, PORT_MPU_RASR6_INIT,
+      PORT_MPU_RBAR7_INIT | MPU_RBAR_VALID | MPU_REGION_7, PORT_MPU_RASR7_INIT
+    };
+#endif
+
+    port_init_regions(regs0, &MPU->RBAR);
+#if CORTEX_MPU_REGIONS > 4
     port_init_regions(regs4, &MPU->RBAR);
 #endif
   }

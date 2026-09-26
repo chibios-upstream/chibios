@@ -35,12 +35,9 @@ emulating their effects.
 ## Validation
 
 - All five host variants pass with sanitizers enabled.
-- Using the original LLD from commit `c0e6bc76be`, the dual-controller test
-  fails because SETUP reception on the second controller overwrites the first
-  controller's packet.
-- With the per-controller storage fix alone, the reconfiguration regression
-  fails because endpoint disabling loses the EP0 FIFO reservation. Both fixes
-  are needed for the full suite to pass.
+- Negative controls during development reproduced cross-controller SETUP
+  corruption and loss of the EP0 FIFO reservation when their respective
+  fixes were absent.
 - USB CDC builds pass with `USE_COPT=-Werror` for
   `stm32f407_discovery`, `stm32h743zi_nucleo144` (both controllers enabled),
   and `stm32l4r5zi_nucleo144` (OTG1 only).
@@ -48,6 +45,12 @@ emulating their effects.
   and `USE_OPT='-Og -ggdb'`. The same non-LTO build at `-O2` encounters an
   unrelated `-Wmaybe-uninitialized` warning for `interval` in
   `test/rt/source/test/rt_test_sequence_003.c`.
+- Before PR submission, all five host variants and the F407, H743, H723
+  and L4R5 default CDC builds were repeated on current `master`. H723 used
+  the debug-check overrides described below. The POSIX simulator target
+  compiled, and style checking passed on all changed C/H files. Hardware
+  testing used identical OTGv1 source in the development worktree before
+  updating the PR base.
 
 ## H723 hardware smoke test (2026-09-23)
 

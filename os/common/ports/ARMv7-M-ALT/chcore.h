@@ -226,9 +226,10 @@
  * @brief   Enables MPU static initialization.
  * @details The initialization is performed according to the various
  *          @p PORT_MPU_RBARx_INIT and @p PORT_MPU_RASRx_INIT settings.
+ * @note    Enabled by default only on devices with an MPU.
  */
 #if !defined(PORT_MPU_INITIALIZE) || defined(__DOXYGEN__)
-#define PORT_MPU_INITIALIZE             TRUE
+#define PORT_MPU_INITIALIZE             (__MPU_PRESENT == 1)
 #endif
 
 /**
@@ -539,9 +540,8 @@
 
 /**
  * @brief   PendSV priority level.
- * @note    This priority is enforced to be equal to
- *          @p CORTEX_MAX_KERNEL_PRIORITY, this handler always have the
- *          highest priority that cannot preempt the kernel.
+ * @note    Deferred preemption runs at the lowest priority, below all
+ *          normal kernel-aware interrupt handlers.
  */
 #define CORTEX_PRIORITY_PENDSV          CORTEX_MINIMUM_PRIORITY
 
@@ -566,15 +566,17 @@
    asm module.*/
 #if !defined(_FROM_ASM_)
 
+#if ((PORT_MPU_INITIALIZE == TRUE) || (PORT_SWITCHED_REGIONS_NUMBER > 0) || \
+     (PORT_ENABLE_GUARD_PAGES == TRUE)) && (__MPU_PRESENT == 0)
+#error "MPU not present in current device"
+#endif
+
 /**
  * @brief   MPU guard page size.
  */
 #if (PORT_ENABLE_GUARD_PAGES == TRUE) || defined(__DOXYGEN__)
   #if CH_DBG_ENABLE_STACK_CHECK == FALSE
     #error "PORT_ENABLE_GUARD_PAGES requires CH_DBG_ENABLE_STACK_CHECK"
-  #endif
-  #if __MPU_PRESENT == 0
-    #error "MPU not present in current device"
   #endif
   #define PORT_GUARD_PAGE_SIZE          32U
 #else
@@ -850,13 +852,7 @@ struct port_context {
     } while (false)
 
   #else
-    #define port_switch(ntp, otp) do {                                      \
-      __port_switch(ntp, otp);                                              \
-                                                                            \
-      /* Setting up the guard page for the switched-in thread.*/            \
-      mpuSetRegionAddress(PORT_USE_GUARD_MPU_REGION,                        \
-                          chThdGetSelfX()->wabase);                         \
-    } while (false)
+    #define port_switch(ntp, otp) __port_switch(ntp, otp)
   #endif
 #endif /* CH_DBG_ENABLE_STACK_CHECK == TRUE */
 

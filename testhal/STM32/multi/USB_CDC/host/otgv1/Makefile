@@ -1,4 +1,4 @@
-# Host regressions for EP0 ownership and FIFO preservation in HAL OTGv1.
+# Host regressions for PHY timing, EP0 ownership and FIFO preservation.
 CHIBIOS := ../../../../../..
 LLD ?= $(CHIBIOS)/os/hal/ports/STM32/LLD/OTGv1
 BUILDDIR ?= ../../build/host/otgv1
