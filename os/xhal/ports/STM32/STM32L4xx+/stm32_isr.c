@@ -53,6 +53,8 @@
 
 #include "stm32_adc1.inc"
 
+#include "stm32_can1.inc"
+
 #include "stm32_exti0.inc"
 #include "stm32_exti1.inc"
 #include "stm32_exti2.inc"
@@ -110,6 +112,8 @@ void irqInit(void) {
 
   adc1_irq_init();
 
+  can1_irq_init();
+
   exti0_irq_init();
   exti1_irq_init();
   exti2_irq_init();
@@ -163,6 +167,8 @@ void irqInit(void) {
 void irqDeinit(void) {
 
   adc1_irq_deinit();
+
+  can1_irq_deinit();
 
   exti0_irq_deinit();
   exti1_irq_deinit();
