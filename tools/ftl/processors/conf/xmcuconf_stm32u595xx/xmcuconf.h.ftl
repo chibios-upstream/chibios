@@ -540,6 +540,7 @@
  * USB driver system settings.
  */
 #define STM32_USB_USE_OTG2                  ${doc.STM32_USB_USE_OTG2!"FALSE"}
+#define STM32_USE_USB_OTG2_HS               ${doc.STM32_USE_USB_OTG2_HS!"TRUE"}
 #define STM32_USB_OTG2_RX_FIFO_SIZE         ${doc.STM32_USB_OTG2_RX_FIFO_SIZE!"1024"}
 #define STM32_USB_HOST_WAKEUP_DURATION      ${doc.STM32_USB_HOST_WAKEUP_DURATION!"2"}
 

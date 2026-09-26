@@ -285,7 +285,7 @@
 #define STM32_IRQ_UART5_PRIORITY            12
 #define STM32_IRQ_LPUART1_PRIORITY          12
 
-#define STM32_IRQ_USB1_PRIORITY             13
+#define STM32_IRQ_OTG1_PRIORITY             13
 
 /*
  * ADC driver system settings.
@@ -492,9 +492,8 @@
 /*
  * USB driver system settings.
  */
-#define STM32_USB_USE_USB1                  FALSE
-#define STM32_USB_USE_ISOCHRONOUS           FALSE
-#define STM32_USB_USE_FAST_COPY             FALSE
+#define STM32_USB_USE_OTG1                  FALSE
+#define STM32_USB_OTG1_RX_FIFO_SIZE         512
 #define STM32_USB_HOST_WAKEUP_DURATION      2
 #define STM32_USB_48MHZ_DELTA               120000
 

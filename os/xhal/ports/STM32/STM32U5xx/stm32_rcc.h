@@ -689,6 +689,10 @@
 #define rccEnableUSBPHYC(lp) rccEnableAHB2R1(RCC_AHB2ENR1_USBPHYCEN, lp)
 #define rccDisableUSBPHYC() rccDisableAHB2R1(RCC_AHB2ENR1_USBPHYCEN)
 
+#define rccEnableOTG_FS(lp) rccEnableUSB(lp)
+#define rccDisableOTG_FS() rccDisableUSB()
+#define rccResetOTG_FS() rccResetUSB()
+
 #define rccEnableOTG_HS(lp) rccEnableUSB(lp)
 #define rccDisableOTG_HS() rccDisableUSB()
 #define rccResetOTG_HS() rccResetUSB()

@@ -1,4 +1,5 @@
-# STM32U575/U585 and STM32U59x/U5Ax/U5Fx/U5Gx (OTG FS/HS).
+# STM32U535/U545 (USB DRD).
+# Device registry and clock-tree support for these variants is still pending.
 
 # Required platform files.
 PLATFORMSRC := $(CHIBIOS)/os/xhal/ports/common/ARMCMx/nvic.c \
@@ -36,7 +37,6 @@ include $(CHIBIOS)/os/xhal/ports/STM32/LLD/GPIOv2/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/I2Cv4/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/ICACHEv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/OCTOSPIv3/driver.mk
-include $(CHIBIOS)/os/xhal/ports/STM32/LLD/OTGv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/RCCv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/RNGv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/RTCv3/driver.mk
@@ -45,6 +45,7 @@ include $(CHIBIOS)/os/xhal/ports/STM32/LLD/SPIv4/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/SYSTICKv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/TIMv1/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/USARTv3/driver.mk
+include $(CHIBIOS)/os/xhal/ports/STM32/LLD/USBv2/driver.mk
 include $(CHIBIOS)/os/xhal/ports/STM32/LLD/xWDGv1/driver.mk
 
 # Shared variables.

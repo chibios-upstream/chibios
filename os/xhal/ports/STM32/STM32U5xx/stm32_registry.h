@@ -484,17 +484,17 @@
 #define STM32_HAS_LPUART1                   TRUE
 
 /* USB attributes.*/
+#define STM32_HAS_USB1                      FALSE
 #if defined(STM32U575xx) || defined(STM32U585xx) || defined(__DOXYGEN__)
-#define STM32_HAS_USB1                      TRUE
-#define STM32_USB_PMA_SIZE                  2048
-#define STM32_HAS_OTG1                      FALSE
+#define STM32_OTG_STEPPING                  2
+#define STM32_HAS_OTG1                      TRUE
+#define STM32_OTG1_ENDPOINTS                5
 #define STM32_HAS_OTG2                      FALSE
 #else
 #define STM32_OTG_STEPPING                  3
-#define STM32_HAS_USB1                      FALSE
 #define STM32_HAS_OTG1                      FALSE
 #define STM32_HAS_OTG2                      TRUE
-#define STM32_OTG2_ENDPOINTS                9
+#define STM32_OTG2_ENDPOINTS                8
 #define STM32_OTG2_PHY_CAPABILITIES         STM32_OTG_PHY_INTEGRATED_HS
 #define STM32_OTG2_PHY_DEFAULT              STM32_OTG_PHY_INTEGRATED_HS
 #endif

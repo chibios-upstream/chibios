@@ -24,7 +24,11 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#if defined(TEST_U5)
+#include TEST_DEVICE_HEADER
+#else
 #include "stm32h743xx.h"
+#endif
 
 #define TRUE 1
 #define FALSE 0
@@ -40,6 +44,12 @@
 #endif
 #define STM32_USB_USE_OTG1 TEST_OTG1
 #define STM32_USB_USE_OTG2 TEST_OTG2
+#if defined(TEST_U5)
+#define STM32U5XX
+#include "stm32_registry.h"
+#include "stm32_isr.h"
+#include "stm32_clock_usage.h"
+#else
 #define STM32_HAS_OTG1 TRUE
 #define STM32_HAS_OTG2 TRUE
 #define STM32_OTG1_ENDPOINTS 5U
@@ -49,8 +59,11 @@
 #define STM32_OTG2_HANDLER test_irq2
 #define STM32_OTG1_NUMBER 101
 #define STM32_OTG2_NUMBER 77
-#define CH_IRQ_IS_VALID_PRIORITY(p) ((p) >= 0 && (p) < 16)
 #define STM32H7XX
+#endif
+#define STM32_IRQ_OTG1_PRIORITY 13
+#define STM32_IRQ_OTG2_PRIORITY 14
+#define CH_IRQ_IS_VALID_PRIORITY(p) ((p) >= 0 && (p) < 16)
 #define STM32_USBCLK test_clock
 #define HAL_RET_SUCCESS 0
 #define HAL_RET_CONFIG_ERROR -16
@@ -122,6 +135,7 @@ static uint32_t test_clock = 48000000U;
 static uint32_t test_basepri;
 static unsigned test_enables[2], test_disables[2], test_resets[2];
 static unsigned test_ulpi_enables, test_ulpi_disables;
+static unsigned test_phy_starts, test_phy_stops;
 static unsigned test_in, test_out, test_setup, test_sofs;
 static unsigned test_suspends, test_wakeups, test_bus_resets;
 static bool test_isr, test_locked;
@@ -148,6 +162,16 @@ static void test_polled_delay(uint32_t cycles);
 #define rccDisableUSB2_HSULPI() (test_ulpi_disables++)
 #define rccDisableUSB1_HSULPI() (test_ulpi_disables++)
 #define rccEnableUSB1_HSULPI(lp) ((void)(lp), test_ulpi_enables++)
+#if defined(TEST_U5)
+#define rccEnableOTG_FS(lp) ((void)(lp), test_enables[0]++)
+#define rccEnableOTG_HS(lp) ((void)(lp), test_enables[1]++)
+#define rccDisableOTG_FS() (test_disables[0]++)
+#define rccDisableOTG_HS() (test_disables[1]++)
+#define rccResetOTG_FS() (test_resets[0]++)
+#define rccResetOTG_HS() (test_resets[1]++)
+#define stm32_otg2_phy_start() (test_phy_starts++)
+#define stm32_otg2_phy_stop() (test_phy_stops++)
+#endif
 #define CORTEX_PRIO_MASK(p) ((p) << 4U)
 #define __get_BASEPRI() test_basepri
 #define __set_BASEPRI(p) (test_basepri = (p))

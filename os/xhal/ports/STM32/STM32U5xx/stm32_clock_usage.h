@@ -147,16 +147,22 @@
 #define STM32_SYSTICK_CLOCK_REQUIRED
 #endif
 
-/* USB clock requirement atoms.*/
-#if defined(HAL_USE_USB) && (HAL_USE_USB == TRUE) &&                        \
-    defined(STM32_USB_USE_USB1) && (STM32_USB_USE_USB1 == TRUE)
+/* USB clock requirement atoms. The controller types are mutually exclusive.*/
+#if defined(HAL_USE_USB) && (HAL_USE_USB == TRUE)
+#if STM32_HAS_USB1
+#if defined(STM32_USB_USE_USB1) && (STM32_USB_USE_USB1 == TRUE)
 #define STM32_USB_CLOCK_REQUIRED
 #endif
-
-#if defined(HAL_USE_USB) && (HAL_USE_USB == TRUE) &&                        \
-    defined(STM32_USB_USE_OTG2) && (STM32_USB_USE_OTG2 == TRUE)
+#elif STM32_HAS_OTG1
+#if defined(STM32_USB_USE_OTG1) && (STM32_USB_USE_OTG1 == TRUE)
+#define STM32_USB_CLOCK_REQUIRED
+#endif
+#elif STM32_HAS_OTG2
+#if defined(STM32_USB_USE_OTG2) && (STM32_USB_USE_OTG2 == TRUE)
 #define STM32_OTGHS_CLOCK_REQUIRED
 #endif
+#endif /* Controller type. */
+#endif /* HAL_USE_USB */
 
 /* SDMMC clock requirement atoms.*/
 #if defined(HAL_USE_SDC) && (HAL_USE_SDC == TRUE) &&                        \

@@ -6,7 +6,8 @@ It is a USB **device** driver, not a USB host stack.
 
 ## Scope and targets
 
-Both H7 platform makefiles and both L4+ platform makefiles include the LLD.
+Both H7 platform makefiles, both L4+ platform makefiles and the U5 OTG
+platform makefile include the LLD.
 Shared OTG1/OTG2 interrupt fragments are included by the platform ISR code.
 Vector names and numbers remain in each platform's `stm32_isr.h`.
 
@@ -22,9 +23,48 @@ instances for compile/link coverage; its CDC application starts only OTG1.
 Board initialization supplies the USB pin configuration. Check connector
 routing, jumpers and USB power before running on a board.
 
-U5 is intentionally not integrated. Its U575/U585 USB registry correction
-and integrated-HS PHY/platform work remain separate follow-ups. The donor's
-integrated-HS code is retained but is not exercised by this import.
+### U5 integration
+
+The U5 platform makefiles select mutually exclusive USB LLDs:
+
+- `STM32U5xx/platform.mk`: OTGv1 for U575/U585 (OTG1, embedded FS PHY)
+  and U59x/U5Ax/U5Fx/U5Gx (OTG2, integrated HS PHY).
+- `STM32U5xx/platform_u535_u545.mk`: USBv2 for U535/U545 (USB DRD).
+  This is the build split only: those devices still need registry and
+  clock-tree support before they can be built as complete XHAL platforms.
+
+The XHAL registry now describes U575/U585 as OTG FS, not USB DRD/PMA.
+Their core uses stepping 2, with EP0 plus five endpoints and 320 FIFO words.
+The HS variants use stepping 3, EP0 plus eight endpoints and 1024 FIFO words.
+The endpoint registry constants exclude EP0 (RM0456 sections 72.2 and 73.2).
+Shared IRQ fragments own vector 73, and OTG FS has the required RCC aliases.
+Automatic clock demand now recognizes `STM32_USB_USE_OTG1`; OTG2 demands
+the integrated PHY reference clock instead of the 48 MHz FS clock.
+The registry selects the USB1, OTG1 or OTG2 branch before testing its enable
+setting, so stale settings for other controller types cannot request clocks.
+The U3 and G4 USB clock-demand checks also require hardware presence
+(`STM32_HAS_USB1` and `STM32_HAS_USB`, respectively).
+
+U575/U585 configurations use `STM32_IRQ_OTG1_PRIORITY`,
+`STM32_USB_USE_OTG1` and `STM32_USB_OTG1_RX_FIFO_SIZE`. The old USB1/PMA
+settings have been removed from the template. The U595-family template
+also exposes `STM32_USE_USB_OTG2_HS` (default TRUE) to allow full-speed-only
+operation on the integrated HS PHY. PHY selection remains a registry/board
+property, not an `xmcuconf.h` setting. Both updaters were run globally and
+the second pass was unchanged.
+
+Validation used temporary U575 and U5A5 CDC configurations with smart build
+and LTO both enabled and disabled, all with `-Werror`. The linked ELFs have
+a strong `Vector164` and the intended USBD1 or USBD2 instance. Static checks
+verify automatic clock demand and the selected clock frequency. Existing
+U575 SPI and ADC-GPT projects also build with USB disabled.
+
+U5A5 compile checks explicitly assume a 16 MHz HSE and enable it: the
+current Nucleo board header otherwise specifies no HSE. The shared CDC
+descriptors remain full-speed-only, so HS-enabled firmware is only a
+compile/link check, not a ready-to-run HS CDC application. No U5 firmware
+was flashed; clock accuracy, board routing, PHY startup and USB traffic
+still require on-board validation.
 
 ## Port details
 
@@ -98,6 +138,19 @@ and BASEPRI/sequence-workaround configurations. They exercise start/stop,
 clock boundaries, EP0 isolation, unaligned copies, FIFO allocation, 70 KB
 transfers, short packets, ZLPs, stale events, suspend/wakeup and isochronous
 missed-frame callbacks.
+
+Eleven additional U5 variants use the real registry, IRQ definitions, clock
+usage header and CMSIS device headers: U575, U585, U595, U599, U5A5, U5A9,
+U5F7, U5F9, U5G7, U5G9, plus U5A5 forced to full speed. They check endpoint
+limits, FIFO sizes, controller addresses, PHY setup bits, clock requests,
+shared IRQ enable/dispatch/disable and integrated-PHY start/stop hooks.
+The PHY hooks are mocked; these tests do not emulate the analog PHY.
+
+`make -C host/clock_usage -j4` runs 432 compile-only clock-demand checks:
+all ten supported U5 variants, G474, U385, an isolated U5 DRD capability
+model and three hardware-absent models. Each covers USB disabled/undefined,
+missing instance settings and all combinations of USB1/OTG1/OTG2 enables.
+The capability models only test clock selection, not complete device ports.
 
 PHY-delay regressions check pre-reset and post-reset placement, both FIFO
 flush delays, and CPU-clock scaling at 48, 168, 520 and 520.000001 MHz. All
