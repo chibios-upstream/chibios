@@ -90,5 +90,6 @@ make -C testxhal/SPI/host/hld clean
 - Repository is git, hosted at github.com/chibios-upstream/chibios. Use git commands; there is no `.svn` directory.
 - The repository is self-contained; `tools/ftl` is regular tracked content, not a submodule. Do not use `git -C tools/ftl ...` as a separate repository workflow.
 - Branch model: `master` plus `stable-*` maintenance branches; releases are `ver_*` tags. Target PRs at `master`; maintenance branches receive maintainer-selected backports. Do not force-push or move tags.
+- Keep notes and Markdown (`.md`) files on development branches by default. Exclude their additions and edits from commits or PRs targeting `master` or `stable-*` unless explicitly specified otherwise.
 - Preserve unrelated working-tree changes. Ask before overwriting or deleting existing user-owned untracked files unless already authorized. Creating files needed for the requested task and generating or cleaning task-owned build outputs do not require additional confirmation.
 - Generated `build/` and `.dep/` outputs are git-ignored; avoid a blanket `git add -A` in freshly built demo/test trees and stage only intended files.
