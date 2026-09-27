@@ -411,6 +411,17 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
+/* H7 QUADSPI uses MDMA and relies on non-preempting peripheral/DMA handlers.
+   This header precedes the LLDs, so use configuration settings rather than
+   STM32_MDMA_REQUIRED here.*/
+#if HAL_USE_WSPI && STM32_HAS_QUADSPI1
+#if defined(STM32_WSPI_USE_QUADSPI1) && STM32_WSPI_USE_QUADSPI1
+#if STM32_IRQ_QUADSPI1_PRIORITY != STM32_IRQ_MDMA_PRIORITY
+#error "QUADSPI1 and MDMA IRQ priorities must match"
+#endif
+#endif
+#endif
+
 /*===========================================================================*/
 /* Driver data structures and types.                                         */
 /*===========================================================================*/

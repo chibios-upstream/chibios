@@ -116,6 +116,9 @@
 #include "stm32_tim16.inc"
 #include "stm32_tim17.inc"
 
+#if STM32_HAS_QUADSPI1
+#include "stm32_quadspi1.inc"
+#endif
 #if STM32_HAS_OCTOSPI1
 #include "stm32_octospi1.inc"
 #endif
@@ -188,6 +191,9 @@ void irqInit(void) {
   tim16_irq_init();
   tim17_irq_init();
 
+#if STM32_HAS_QUADSPI1
+  quadspi1_irq_init();
+#endif
 #if STM32_HAS_OCTOSPI1
   octospi1_irq_init();
 #endif
@@ -272,6 +278,9 @@ void irqDeinit(void) {
   tim16_irq_deinit();
   tim17_irq_deinit();
 
+#if STM32_HAS_QUADSPI1
+  quadspi1_irq_deinit();
+#endif
 #if STM32_HAS_OCTOSPI1
   octospi1_irq_deinit();
 #endif
