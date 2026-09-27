@@ -115,8 +115,6 @@ From `testxhal/USB_CDC`, for each target above:
 ```sh
 make -f make/stm32h743zi_nucleo144.make -j4 USE_COPT=-Werror
 make -f make/stm32h743zi_nucleo144.make clean
-make -C host/otgv1 -j4
-make -C host/otgv1 clean
 ```
 
 Checked configurations:
@@ -131,6 +129,17 @@ Checked configurations:
 
 ULPI builds are compile checks, not ready-to-run HS CDC fixtures: the shared
 CDC descriptors and board pin setup are still full-speed configurations.
+
+### Host regression
+
+The OTG and clock-usage harnesses are retained on the
+[development branch](https://github.com/chibios-upstream/chibios/tree/dev/stm32-driver-host-tests/testxhal/USB_CDC/host),
+not in `master`. From `testxhal/USB_CDC` on that branch:
+
+```sh
+make -C host/otgv1 -j4
+make -C host/otgv1 clean
+```
 
 The seven AddressSanitizer/UndefinedBehaviorSanitizer host variants cover
 dual-controller, OTG1-only, OTG2-only, ULPI FS, ULPI HS, configuration tables,
@@ -165,6 +174,7 @@ tests explicitly supply register snapshots. This is not a USB bus emulator.
 No XHAL firmware was flashed. Enumeration, CDC control requests and traffic,
 unplug/replug, suspend/remote wakeup, simultaneous controllers, ULPI timing,
 isochronous behavior and FIFO behavior on real silicon still need testing.
-Matching classic HAL fixes are prepared separately in this worktree. See
-`testhal/STM32/multi/USB_CDC/host/otgv1/README.md` for HAL H723 hardware results;
+See the preserved
+[HAL OTG notes](https://github.com/chibios-upstream/chibios/blob/dev/stm32-driver-host-tests/testhal/STM32/multi/USB_CDC/host/otgv1/README.md)
+for HAL H723 hardware results;
 those do not constitute XHAL hardware validation.

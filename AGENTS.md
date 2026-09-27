@@ -75,14 +75,15 @@ Configuration migration example for one SPI test, starting from the repository r
 ## Build & Test Hygiene
 
 - Choose host regressions and target demo/test builds relevant to the changed code. Report which checks ran and any hardware validation that remains unperformed.
+- Keep driver host-only regression harnesses on development branches, not in PRs targeting `master` or `stable-*`. The STM32 harnesses are preserved on `dev/stm32-driver-host-tests`; run them from that branch or a dedicated development worktree. Board test targets and demos remain in the main branches.
 - Clean task-generated build outputs after testing unless otherwise specified; preserve pre-existing user-owned artifacts.
 - Eclipse metadata policy: keep `.project` and `.cproject` when useful for multi-target projects, but do not add generated `debug/*.launch` files unless there is a specific request to version them.
 
-Example SPI HLD host regression, run from the repository root; no board is required:
+Example read-only STM32U083 EFL target build, run from the repository root; no board is required to compile:
 
 ```sh
-make -C testxhal/SPI/host/hld
-make -C testxhal/SPI/host/hld clean
+make -C testxhal/EFL-MFS -f make/stm32u083rc_nucleo64.make
+make -C testxhal/EFL-MFS -f make/stm32u083rc_nucleo64.make clean
 ```
 
 ## Repository

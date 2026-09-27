@@ -72,6 +72,10 @@ custom `BUILDDIR` and `DEPDIR` arguments used for its build.
 
 ## Host regression tests
 
+The harness is retained on the
+[development branch](https://github.com/chibios-upstream/chibios/tree/dev/stm32-driver-host-tests/testxhal/ADC-GPT/host/adcv4),
+not in `master`. Run the following commands from that branch:
+
 ```sh
 make -j6 -C host/adcv4
 make -C host/adcv4 clean

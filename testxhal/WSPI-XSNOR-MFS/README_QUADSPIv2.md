@@ -45,14 +45,17 @@ Limits:
 
 ## Native tests
 
-From this directory:
+The harness is retained on the
+[development branch](https://github.com/chibios-upstream/chibios/tree/dev/stm32-driver-host-tests/testxhal/WSPI-XSNOR-MFS/host/quadspiv2),
+not in `master`. From this directory on that branch:
 
 ```sh
 make -C host/quadspiv2 -j4
 make -C host/quadspiv2 clean
 ```
 
-See [the harness notes](host/quadspiv2/README.md) for coverage and limitations.
+See [the harness notes](https://github.com/chibios-upstream/chibios/blob/dev/stm32-driver-host-tests/testxhal/WSPI-XSNOR-MFS/host/quadspiv2/README.md)
+for coverage and limitations.
 
 ## NUCLEO-H743ZI read-only fixture
 
