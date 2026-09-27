@@ -76,11 +76,13 @@ Registers and RTOS scheduling are mocked. This is not a peripheral simulator:
 FIFO depth, hardware W1C side effects, arbitration, bus timing and electrical
 behavior still require board tests.
 
-## NUCLEO-L4R5ZI loopback target
+## NUCLEO-L4R5ZI and NUCLEO-L4P5ZG loopback targets
 
 ```sh
 make -f make/stm32l4r5zi_nucleo144.make -j8
 make -f make/stm32l4r5zi_nucleo144.make clean
+make -f make/stm32l4p5zg_nucleo144.make -j8
+make -f make/stm32l4p5zg_nucleo144.make clean
 ```
 
 The standalone `canv1.c` fixture uses internal silent loopback and checks
@@ -94,7 +96,9 @@ Debugger observables:
 - `can_test_result == 0x2468ACE0`: failed; inspect `can_test_failure`.
 - `can_test_stage`: progress, with 7 indicating completion.
 
-The target is build-verified, **not board-tested**. Bus-triggered wakeup,
+Both targets are build-verified, **not board-tested**. The L4P5 target also
+checks the separate L4P5/L4Q5 platform makefile and shared CAN IRQ includes.
+Bus-triggered wakeup,
 real bus errors and external CAN traffic are not covered by this fixture.
-Eclipse project `XHAL-CAN` includes this target and the existing three H7
+Eclipse project `XHAL-CAN` includes both targets and the existing three H7
 FDCAN targets. Its default build uses the multi-target Makefile.
