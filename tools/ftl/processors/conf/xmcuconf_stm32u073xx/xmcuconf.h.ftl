@@ -80,6 +80,7 @@
  * FLASH settings.
  */
 #define STM32_FLASH_ACR                     ${doc.STM32_FLASH_ACR!"(FLASH_ACR_DBG_SWEN | FLASH_ACR_ICEN | FLASH_ACR_PRFTEN)"}
+#define STM32_FLASH_WAIT_TIME_MS            ${doc.STM32_FLASH_WAIT_TIME_MS!"5"}
 
 /*
  * Clock settings.
