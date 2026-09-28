@@ -211,6 +211,11 @@ static void adc_lld_drain_fifo(ADC_TypeDef *adc) {
  *          a chain target, @p dmaChannelSetModeX() enforces
  *          self-chaining, hence the direct register access through the
  *          channel pointer.
+ * @note    Events are only served while a conversion is active. Late
+ *          events are discarded, in particular while the driver is
+ *          stopping: @p adc_lld_stop() owns the teardown and it only
+ *          happens in the @p HAL_DRV_STATE_STOPPING state, which a
+ *          completion served before it must not leave.
  *
  * @param[in] adcp      pointer to the @p hal_adc_driver_c object
  * @param[in] ct        content of the CTRL_TRIG register
@@ -220,6 +225,12 @@ static void adc_lld_drain_fifo(ADC_TypeDef *adc) {
 static void adc_lld_serve_channel_interrupt(hal_adc_driver_c *adcp,
                                             uint32_t ct,
                                             bool second) {
+
+  /* Late events are discarded.*/
+  if ((adcp->state != ADC_ACTIVE_LINEAR) &&
+      (adcp->state != ADC_ACTIVE_CIRCULAR)) {
+    return;
+  }
 
   /* DMA errors handling.*/
   if ((ct & (DMA_CTRL_TRIG_READ_ERROR | DMA_CTRL_TRIG_WRITE_ERROR)) != 0U) {
@@ -419,6 +430,15 @@ void adc_lld_stop(hal_adc_driver_c *adcp) {
 
   /* If stopping then disables the ADC and releases the DMA channel.*/
   if (adcp->state == HAL_DRV_STATE_STOPPING) {
+    /* An active conversion is stopped here, the late events it may
+       still raise are discarded, and a waiting thread is released
+       without callback.*/
+    chSysLock();
+    adc_lld_stop_conversion(adcp);
+    adcp->grpp = NULL;
+    _adc_reset_s(adcp);
+    chSysUnlock();
+
     /* Stop conversions. NOTE: CLR alias may also clear W1C ERR_STICKY
        as a side-effect; acceptable during shutdown.*/
     adcp->adc->CLR.CS = ADC_CS_START_MANY | ADC_CS_TS_EN;
