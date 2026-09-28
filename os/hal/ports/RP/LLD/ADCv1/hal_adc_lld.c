@@ -80,6 +80,16 @@ static void adc_lld_drain_fifo(ADC_TypeDef *adc) {
 
 /**
  * @brief   ADC DMA service routine.
+ * @details In linear mode the ADC is stopped by the stop channel chained
+ *          to the data channel, a single DMA transfer after the end of the
+ *          data transfer, long before the FIFO could fill up again. The
+ *          FIFO status checked here therefore covers the transfer and not
+ *          the conversions which would otherwise continue until this
+ *          routine is served, whatever its latency.
+ * @note    The conversion already in progress when the stop channel clears
+ *          START_MANY still completes, an error in that conversion is
+ *          reported as @p ADC_ERR_CONVERSION although it is not part of
+ *          the transfer.
  *
  * @param[in] p         parameter for the registered function
  * @param[in] ct        content of the CTRL_TRIG register
@@ -98,6 +108,13 @@ static void adc_lld_serve_dma_interrupt(void *p, uint32_t ct) {
       if ((ct & DMA_CTRL_TRIG_BUSY) == 0U) {
         /* Check for ADC-level errors during transfer.*/
         adcerror_t emask = 0U;
+        if (!adcp->grpp->circular &&
+            ((adcp->dmastop->channel->CTRL_TRIG &
+              (DMA_CTRL_TRIG_READ_ERROR | DMA_CTRL_TRIG_WRITE_ERROR)) != 0U)) {
+          /* The stop channel failed, the ADC is only stopped by the
+             error handling below.*/
+          emask |= ADC_ERR_DMAFAILURE;
+        }
         if ((adcp->adc->FCS & ADC_FCS_OVER) != 0U) {
           emask |= ADC_ERR_OVERFLOW;
         }
@@ -179,6 +196,7 @@ void adc_lld_init(void) {
   adcObjectInit(&ADCD1);
   ADCD1.adc     = ADC;
   ADCD1.dma     = NULL;
+  ADCD1.dmastop = NULL;
   ADCD1.dmamode = DMA_CTRL_TRIG_DATA_SIZE_HWORD |
                   DMA_CTRL_TRIG_INCR_WRITE      |
                   DMA_CTRL_TRIG_TREQ_ADC        |
@@ -186,12 +204,16 @@ void adc_lld_init(void) {
                   DMA_CTRL_TRIG_HIGH_PRIORITY   |
 #endif
                   0U;
+  ADCD1.csstop  = 0U;
   ADCD1.half    = false;
 #endif
 }
 
 /**
  * @brief   Configures and activates the ADC peripheral.
+ * @details Two DMA channels are claimed: the data channel draining the
+ *          ADC FIFO and the stop channel which linear conversions chain
+ *          to the data channel.
  *
  * @param[in] adcp      pointer to the @p ADCDriver object
  * @return              The operation status.
@@ -204,12 +226,21 @@ msg_t adc_lld_start(ADCDriver *adcp) {
   if (adcp->state == ADC_STOP) {
 #if RP_ADC_USE_ADC1
     if (&ADCD1 == adcp) {
-      /* Allocate DMA channel.*/
+      /* Allocate DMA channels.*/
       adcp->dma = dmaChannelAllocI(RP_DMA_CHANNEL_ID_ANY,
                                   RP_ADC_ADC1_DMA_IRQ_PRIORITY,
                                   adc_lld_serve_dma_interrupt,
                                   (void *)adcp);
       if (adcp->dma == NULL) {
+        return HAL_RET_NO_RESOURCE;
+      }
+      adcp->dmastop = dmaChannelAllocI(RP_DMA_CHANNEL_ID_ANY,
+                                       RP_ADC_ADC1_DMA_IRQ_PRIORITY,
+                                       NULL,
+                                       NULL);
+      if (adcp->dmastop == NULL) {
+        dmaChannelFreeI(adcp->dma);
+        adcp->dma = NULL;
         return HAL_RET_NO_RESOURCE;
       }
 
@@ -232,6 +263,12 @@ msg_t adc_lld_start(ADCDriver *adcp) {
 
       /* Set DMA source to ADC FIFO (constant across conversions).*/
       dmaChannelSetSourceX(adcp->dma, (uint32_t)&adcp->adc->FIFO);
+
+      /* The stop channel transfers a single word from csstop to CS
+         (constant across conversions).*/
+      dmaChannelSetSourceX(adcp->dmastop, (uint32_t)&adcp->csstop);
+      dmaChannelSetDestinationX(adcp->dmastop, (uint32_t)&adcp->adc->CS);
+      dmaChannelSetCounterX(adcp->dmastop, 1U);
     }
 #endif /* RP_ADC_USE_ADC1 */
   }
@@ -265,7 +302,9 @@ void adc_lld_stop(ADCDriver *adcp) {
       /* Disable ADC.*/
       adcp->adc->CS = 0U;
 
-      /* Release DMA channel.*/
+      /* Release DMA channels.*/
+      dmaChannelFreeI(adcp->dmastop);
+      adcp->dmastop = NULL;
       dmaChannelFreeI(adcp->dma);
       adcp->dma = NULL;
 
@@ -315,6 +354,12 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
      START_MANY transitions 0->1 to set the round-robin starting channel.*/
   adcp->adc->CS = cs_val;
 
+  /* Same value written by the stop channel, it is only read by the DMA
+     after the end of a linear transfer. It is written to the CS register
+     and not to its CLR alias because an atomic alias write would also
+     clear ERR_STICKY, which is checked on transfer completion.*/
+  adcp->csstop = cs_val;
+
   /* Configure clock divisor.*/
   adcp->adc->DIV = grpp->div;
 
@@ -338,7 +383,31 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
   /* Configure DMA transfer (source address set once in adc_lld_start).*/
   dmaChannelSetDestinationX(adcp->dma, (uint32_t)adcp->samples);
   dmaChannelSetCounterX(adcp->dma, dma_count);
-  dmaChannelSetModeX(adcp->dma, mode);
+  if (grpp->circular) {
+    dmaChannelSetModeX(adcp->dma, mode);
+  }
+  else {
+    /* Linear conversion, the ADC is free-running and would keep filling
+       the FIFO after the last transfer until the completion interrupt
+       is served, overflowing it if the interrupt is served late. The
+       data channel chains into the stop channel which clears START_MANY
+       right after the end of the transfer.
+       NOTE: rp_dma.h offers no helper accepting a chain target,
+       dmaChannelSetModeX() enforces self-chaining, the control registers
+       are therefore programmed directly through the channel pointers.
+       The AL1_CTRL alias is not a trigger register so the stop channel
+       can be armed enabled without being started, only the chain event
+       raised by the data channel completion starts it.*/
+    adcp->dmastop->channel->AL1_CTRL =
+      DMA_CTRL_TRIG_DATA_SIZE_WORD                        |
+      DMA_CTRL_TRIG_TREQ_PERMANENT                        |
+      (mode & DMA_CTRL_TRIG_HIGH_PRIORITY)                |
+      DMA_CTRL_TRIG_CHAIN_TO(adcp->dmastop->chnidx)       |
+      DMA_CTRL_TRIG_EN;
+    adcp->dma->channel->AL1_CTRL =
+      (mode & ~DMA_CTRL_TRIG_CHAIN_TO_Msk) |
+      DMA_CTRL_TRIG_CHAIN_TO(adcp->dmastop->chnidx);
+  }
 
   /* Enable DMA channel interrupt.*/
   dmaChannelEnableInterruptX(adcp->dma);
@@ -365,6 +434,10 @@ void adc_lld_stop_conversion(ADCDriver *adcp) {
 
   /* Stop conversions. Using CLR alias for atomic bit clear.*/
   adcp->adc->CLR.CS = ADC_CS_START_MANY;
+
+  /* The stop channel is disabled first so that a completion of the data
+     channel cannot chain into it during the teardown.*/
+  dmaChannelDisableX(adcp->dmastop);
 
   /* Disable DMA channel.*/
   dmaChannelDisableX(adcp->dma);
