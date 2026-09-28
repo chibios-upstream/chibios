@@ -22,15 +22,19 @@
  * @addtogroup  HAL_CRYPTO
  * @brief       Cryptographic operation-class APIs and driver lifecycle.
  * @details     All cryptographic operations use unlocked thread context and
- *              may block. The HLD validates public parameters, tracks stream
- *              progress and manages the driver lifecycle. Key identifiers are
- *              interpreted by the selected LLD; the HLD does not maintain a
- *              key store or impose key access policy. The LLD checks key
- *              suitability for each operation and owns its implementation
- *              state. Callers must serialize access to each operation context.
- *              Different contexts may be used concurrently from different
- *              threads; the driver remains in HAL_DRV_STATE_READY while
- *              streams are open and tracks them in a use counter. Live
+ *              may block. The HLD checks call parameters, accounts for active
+ *              streams and calls and manages the driver lifecycle. Stream
+ *              contexts are defined and managed by the LLD, which also checks
+ *              context state. Parameter and context-state violations are
+ *              programming errors caught by debug checks and assertions;
+ *              return codes report only conditions that depend on runtime data
+ *              or on the backend. Key identifiers are interpreted by the
+ *              selected LLD; the HLD does not maintain a key store or impose
+ *              key access policy. The LLD checks key suitability for each
+ *              operation. Callers must serialize access to each operation
+ *              context. Different contexts may be used concurrently from
+ *              different threads; the driver remains in HAL_DRV_STATE_READY
+ *              while streams are open and tracks them in a use counter. Live
  *              reconfiguration is rejected while the counter is nonzero.
  *              Before drvStop() or disposal, prevent new calls, finish or
  *              abort all streams and wait for active calls to return. An LLD
@@ -64,12 +68,13 @@
 #define CRY_ERR_UNSUPPORTED                 ((msg_t)-64)
 
 /**
- * @brief       Invalid parameter or buffer.
+ * @brief       Invalid runtime data such as key parameters, message lengths or
+ *              encodings.
  */
 #define CRY_ERR_ARGUMENT                    ((msg_t)-65)
 
 /**
- * @brief       Invalid or unavailable key identifier.
+ * @brief       Key identifier unknown to the LLD or holding no key material.
  */
 #define CRY_ERR_KEY                         ((msg_t)-66)
 
@@ -84,7 +89,7 @@
 #define CRY_ERR_AUTH_FAILED                 ((msg_t)-68)
 
 /**
- * @brief       Insufficient output capacity.
+ * @brief       Insufficient capacity for a key- or data-dependent output.
  */
 #define CRY_ERR_BUFFER                      ((msg_t)-69)
 
@@ -94,19 +99,14 @@
 #define CRY_ERR_ENTROPY                     ((msg_t)-70)
 
 /**
- * @brief       Invalid operation state.
- */
-#define CRY_ERR_STATE                       ((msg_t)-71)
-
-/**
  * @brief       Requested resource or operation is busy.
  */
-#define CRY_ERR_BUSY                        ((msg_t)-72)
+#define CRY_ERR_BUSY                        ((msg_t)-71)
 
 /**
  * @brief       Backend operation failure.
  */
-#define CRY_ERR_FAILURE                     ((msg_t)-73)
+#define CRY_ERR_FAILURE                     ((msg_t)-72)
 /** @} */
 
 /**
@@ -620,27 +620,15 @@ typedef struct {
 } cry_derivation_params_t;
 
 /**
- * @brief       Caller-owned cryptographic operation context.
+ * @brief       Caller-owned stream context, defined by the LLD.
+ * @details     The LLD provides the complete structure definition in its
+ *              header, so the size is known and contexts can be allocated
+ *              statically or on the stack. Fields are private to the LLD; the
+ *              HLD does not inspect them. Initialize using
+ *              cryOperationObjectInit() before first use. Do not copy a live
+ *              context and do not access it concurrently.
  */
 typedef struct cry_operation cry_operation_t;
-
-/**
- * @brief       Backend stream-setup parameters, selected by operation class.
- */
-typedef union {
-  /**
-   * @brief       Cipher parameters selected for the cipher class.
-   */
-  cry_cipher_params_t       cipher;
-  /**
-   * @brief       AEAD parameters selected for the AEAD class.
-   */
-  cry_aead_params_t         aead;
-  /**
-   * @brief       MAC tag length in bytes, selected for the MAC class.
-   */
-  size_t                    mac_tag_size;
-} cry_stream_params_t;
 
 /**
  * @brief       Backend single-call descriptor.
@@ -707,57 +695,6 @@ typedef struct {
 } cry_job_t;
 
 #include "hal_crypto_lld.h"
-
-/**
- * @brief       Caller-owned stream context.
- * @details     Initialize using cryOperationObjectInit() before first use. Do
- *              not copy or concurrently access a live context. The common
- *              fields hold only HLD operation state. LLD extension fields are
- *              initialized by cry_lld_operation_init() and managed by the LLD
- *              thereafter. A failed backend call aborts the stream; argument
- *              errors detected before dispatch leave it available for
- *              correction or explicit abort.
- */
-struct cry_operation {
-  /**
-   * @brief       Logical driver owning this operation; NULL while idle.
-   */
-  hal_crypto_driver_c       *driver;
-  /**
-   * @brief       Selected algorithm; CRY_ALG_NONE while idle.
-   */
-  cry_algorithm_t           algorithm;
-  /**
-   * @brief       Cipher or AEAD direction selected at stream creation.
-   */
-  cry_direction_t           direction;
-  /**
-   * @brief       Configured MAC or AEAD tag length in bytes.
-   */
-  size_t                    tag_size;
-  /**
-   * @brief       Declared AAD total, or CRY_LENGTH_UNKNOWN when permitted.
-   */
-  size_t                    aad_expected;
-  /**
-   * @brief       Declared payload total, or CRY_LENGTH_UNKNOWN when permitted.
-   */
-  size_t                    data_expected;
-  /**
-   * @brief       Successfully processed AEAD associated-data bytes.
-   */
-  size_t                    aad_count;
-  /**
-   * @brief       Successfully processed AEAD payload bytes.
-   */
-  size_t                    data_count;
-#if (defined(cry_lld_operation_fields)) || defined (__DOXYGEN__)
-  /**
-   * @brief       Optional LLD-specific operation fields.
-   */
-  cry_lld_operation_fields;
-#endif /* defined(cry_lld_operation_fields) */
-};
 
 /**
  * @brief       Crypto driver configuration.
@@ -913,7 +850,7 @@ extern "C" {
                      size_t *out_length, size_t tag_size, uint8_t *tag);
   msg_t cryAeadVerify(cry_operation_t *op, size_t out_size, uint8_t *out,
                       size_t *out_length, size_t tag_size, const uint8_t *tag);
-  msg_t cryOperationAbort(cry_operation_t *op);
+  void cryOperationAbort(cry_operation_t *op);
   msg_t crySignDigest(hal_crypto_driver_c *cryp, crykey_t key,
                       cry_algorithm_t algorithm,
                       const cry_signature_params_t *params, size_t size,

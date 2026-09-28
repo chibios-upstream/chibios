@@ -31,6 +31,9 @@
  */
 #define cry_lld_config_fields       uint32_t dummy
 
+/* Ports may define cry_lld_driver_fields to declare implementation-specific
+   driver fields. Leave it undefined when not needed. */
+
 /* Concurrency contract. The HLD does not serialize LLD calls. Callers must
    serialize access to each operation context; the LLD may rely on that
    caller contract but receives no protection from the HLD. Stream and
@@ -41,10 +44,48 @@
    resource cannot be shared. Key load, generation and unload may also run
    concurrently with active streams and must not affect them. */
 
-/* Ports may define cry_lld_driver_fields and cry_lld_operation_fields to
-   declare implementation-specific fields. Leave them undefined when not needed.
-   Fields may hold inline state, handles or any other representation chosen by
-   the LLD; no pointer-based storage model is required. */
+/* Error model. The HLD checks call parameters with chDbgCheck(). The LLD
+   owns the stream context and checks its state with chDbgAssert(): wrong
+   operation class or direction, AEAD associated data after payload, lengths
+   exceeding declared totals, a generation tag size differing from Begin, or
+   an output buffer smaller than a size the caller can determine (digest, MAC
+   tag, buffered cipher bytes). Return codes report only conditions that
+   depend on runtime data or on the backend: authentication failures
+   (including received tags or signatures of the wrong size), malformed
+   message data, key-dependent output sizes, unavailable keys, unsupported
+   features, busy resources and hardware failures. */
+
+/**
+ * @brief   Caller-owned stream context.
+ * @details The structure is entirely defined by the LLD, the HLD accesses it
+ *          only through cry_lld_operation_driver(). It must hold the state
+ *          needed to continue the stream on another call, and it must be
+ *          possible to tell an idle context from an active one. The template
+ *          keeps the owning driver and the operation class, a port adds its
+ *          algorithm state, buffered partial blocks and engine save areas.
+ */
+struct cry_operation {
+  /**
+   * @brief   Driver owning the active stream, NULL while idle.
+   */
+  hal_crypto_driver_c       *driver;
+  /**
+   * @brief   Class of the active stream.
+   */
+  cry_class_t               cl;
+};
+
+/**
+ * @brief   Returns the driver owning an operation context.
+ * @details Required by the HLD. Returns NULL while the context is idle and the
+ *          driver passed to the begin function while a stream is active. May
+ *          be a macro or a function.
+ *
+ * @param[in] op        Initialized operation context.
+ * @return              The owning driver, or NULL if idle.
+ * @notapi
+ */
+#define cry_lld_operation_driver(op) ((op)->driver)
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,13 +110,11 @@ extern "C" {
   void cry_lld_object_init(hal_crypto_driver_c *cryp);
 
 /**
- * @brief   Initializes LLD-specific operation fields.
- * @details Called by cryOperationObjectInit() after common fields are
- *          initialized. The HLD leaves extension fields untouched during
- *          begin, finalization and abort; their initialization, reuse and
- *          cleanup belong to the LLD.
+ * @brief   Initializes an operation context to the idle state.
+ * @details Called by cryOperationObjectInit() on fresh storage or an idle
+ *          context.
  *
- * @param[in,out] op Initialized operation context.
+ * @param[out] op Operation context.
  * @notapi
  */
   void cry_lld_operation_init(cry_operation_t *op);
@@ -132,12 +171,13 @@ extern "C" {
 
 /**
  * @brief   Queries algorithm capabilities.
- * @details Report capabilities supported by this driver. The template
- *          advertises none.
+ * @details Report capabilities supported by this driver. Return
+ *          CRY_ERR_UNSUPPORTED for algorithms the driver does not implement.
+ *          The template advertises none.
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[in] algorithm Explicit algorithm selector.
- * @param[out] caps Algorithm capabilities.
+ * @param[out] caps Algorithm capabilities, cleared by the HLD.
  * @return  HAL_RET_SUCCESS or an error code.
  * @notapi
  */
@@ -195,15 +235,16 @@ extern "C" {
 
 /**
  * @brief   Exports the public component of an asymmetric key.
- * @details Check the key type, requested format and output bounds. This
- *          operation never exports private or symmetric key material.
+ * @details Check the key type and requested format. Return CRY_ERR_BUFFER if
+ *          the key-dependent encoding does not fit. This operation never
+ *          exports private or symmetric key material.
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[in] key Key identifier interpreted by the LLD.
  * @param[in] format Key material encoding.
  * @param[in] out_size Output buffer capacity, in bytes.
  * @param[out] out Output buffer.
- * @param[out] out_length Actual output length, or zero on failure.
+ * @param[out] out_length Actual output length, preset to zero by the HLD.
  * @return  HAL_RET_SUCCESS or an error code.
  * @notapi
  */
@@ -212,79 +253,268 @@ extern "C" {
                                   uint8_t *out, size_t *out_length);
 
 /**
- * @brief   Begins a cipher, AEAD, MAC or hash operation.
- * @details Select parameters from op->algorithm; params is NULL and key is
- *          CRY_KEY_INVALID for hashes. For keyed operations, validate key
- *          type, size and suitability for the requested algorithm and
- *          direction. The same key must be used throughout the stream; the
- *          LLD chooses how to guarantee this. Consume pointer-backed
- *          parameters before return. Preserve operation state in LLD
- *          extension fields or other LLD-owned storage. Return CRY_ERR_BUSY
- *          if required resources are unavailable. The HLD calls abort after a
- *          failed begin, allowing partial setup to be released.
+ * @brief   Begins a hash stream.
+ * @details The begin functions receive an idle context. On success the
+ *          context is bound to @p cryp and cry_lld_operation_driver() returns
+ *          it. Consume pointer-backed parameters before return. Return
+ *          CRY_ERR_BUSY if required resources are unavailable. After a failed
+ *          begin the HLD calls cry_lld_abort(), allowing partial setup to be
+ *          released.
  *
- * @param[in,out] op Initialized operation context.
- * @param[in] key Key identifier interpreted by the LLD.
- * @param[in] params Parameters for the selected operation class.
+ * @param[in] cryp Pointer to the Crypto driver.
+ * @param[in,out] op Idle operation context.
+ * @param[in] algorithm Hash algorithm.
  * @return  HAL_RET_SUCCESS or an error code.
  * @notapi
  */
-  msg_t cry_lld_begin(cry_operation_t *op, crykey_t key,
-                      const cry_stream_params_t *params);
+  msg_t cry_lld_hash_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
+                           cry_algorithm_t algorithm);
 
 /**
- * @brief   Processes associated data or a payload fragment.
- * @details Consume input before return and never exceed out_size. Preserve
- *          algorithm state and partial blocks between calls. AEAD decryption
- *          output remains provisional until successful verification; the
- *          caller must quarantine it.
+ * @brief   Begins a cipher stream.
+ * @details Same contract as cry_lld_hash_begin(). Validate key type, size and
+ *          suitability for the algorithm and direction. The same key must be
+ *          used throughout the stream; the LLD chooses how to guarantee this.
  *
- * @param[in,out] op Initialized operation context.
- * @param[in] aad True for associated data, false for payload.
+ * @param[in] cryp Pointer to the Crypto driver.
+ * @param[in,out] op Idle operation context.
+ * @param[in] key Key identifier interpreted by the LLD.
+ * @param[in] algorithm Cipher algorithm.
+ * @param[in] direction Encryption or decryption.
+ * @param[in] params Cipher parameters.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_cipher_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
+                             crykey_t key, cry_algorithm_t algorithm,
+                             cry_direction_t direction,
+                             const cry_cipher_params_t *params);
+
+/**
+ * @brief   Begins a MAC generation or verification stream.
+ * @details Same contract as cry_lld_cipher_begin(). Return
+ *          CRY_ERR_UNSUPPORTED for unsupported tag sizes.
+ *
+ * @param[in] cryp Pointer to the Crypto driver.
+ * @param[in,out] op Idle operation context.
+ * @param[in] key Key identifier interpreted by the LLD.
+ * @param[in] algorithm MAC algorithm.
+ * @param[in] verify True for verification, false for generation.
+ * @param[in] tag_size Tag size, in bytes.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_mac_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
+                          crykey_t key, cry_algorithm_t algorithm,
+                          bool verify, size_t tag_size);
+
+/**
+ * @brief   Begins an AEAD stream.
+ * @details Same contract as cry_lld_cipher_begin(). The LLD keeps the declared
+ *          totals and the processed lengths needed to enforce AEAD phase
+ *          ordering and to build the final length block.
+ *
+ * @param[in] cryp Pointer to the Crypto driver.
+ * @param[in,out] op Idle operation context.
+ * @param[in] key Key identifier interpreted by the LLD.
+ * @param[in] algorithm AEAD algorithm.
+ * @param[in] direction Encryption or decryption.
+ * @param[in] params AEAD parameters.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_aead_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
+                           crykey_t key, cry_algorithm_t algorithm,
+                           cry_direction_t direction,
+                           const cry_aead_params_t *params);
+
+/**
+ * @brief   Adds bytes to a hash stream.
+ * @details The update functions receive an active context of their class.
+ *          Consume input before return and preserve algorithm state and
+ *          partial blocks between calls. After a failed update the HLD calls
+ *          cry_lld_abort().
+ *
+ * @param[in,out] op Active hash context.
+ * @param[in] size Input length, in bytes.
+ * @param[in] in Input buffer.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_hash_update(cry_operation_t *op, size_t size,
+                            const uint8_t *in);
+
+/**
+ * @brief   Adds bytes to a MAC stream.
+ *
+ * @param[in,out] op Active MAC context.
+ * @param[in] size Input length, in bytes.
+ * @param[in] in Input buffer.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_mac_update(cry_operation_t *op, size_t size,
+                           const uint8_t *in);
+
+/**
+ * @brief   Processes a cipher payload fragment.
+ * @details Never exceed out_size; an output buffer too small for the bytes
+ *          the caller can predict is a programming error.
+ *
+ * @param[in,out] op Active cipher context.
  * @param[in] size Input length, in bytes.
  * @param[in] in Input buffer.
  * @param[in] out_size Output buffer capacity, in bytes.
  * @param[out] out Output buffer.
- * @param[out] out_length Actual output length, or zero on failure.
+ * @param[out] out_length Actual output length, preset to zero by the HLD.
  * @return  HAL_RET_SUCCESS or an error code.
  * @notapi
  */
-  msg_t cry_lld_update(cry_operation_t *op, bool aad, size_t size,
-                       const uint8_t *in, size_t out_size, uint8_t *out,
-                       size_t *out_length);
+  msg_t cry_lld_cipher_update(cry_operation_t *op, size_t size,
+                              const uint8_t *in, size_t out_size,
+                              uint8_t *out, size_t *out_length);
 
 /**
- * @brief   Finalizes an operation and optionally generates or verifies a tag.
- * @details Hash and MAC generation use out. AEAD generation uses tag with
- *          op->tag_size bytes. A non-NULL expected_tag requests
- *          authentication using a constant-time comparison. Return
- *          CRY_ERR_AUTH_FAILED on mismatch. The HLD calls abort afterward to
- *          release remaining LLD resources, including on successful
- *          finalization.
+ * @brief   Processes an AEAD payload fragment.
+ * @details Assert that the payload stays within the declared total and, when
+ *          the AAD total is declared, that all AAD has been supplied before
+ *          nonempty payload. Decryption output remains provisional until
+ *          successful verification.
  *
- * @param[in,out] op Initialized operation context.
+ * @param[in,out] op Active AEAD context.
+ * @param[in] size Input length, in bytes.
+ * @param[in] in Input buffer.
  * @param[in] out_size Output buffer capacity, in bytes.
  * @param[out] out Output buffer.
- * @param[out] out_length Actual output length, or zero on failure.
- * @param[out] tag AEAD tag to generate, or NULL.
- * @param[in] expected_tag Tag to verify, or NULL.
+ * @param[out] out_length Actual output length, preset to zero by the HLD.
  * @return  HAL_RET_SUCCESS or an error code.
  * @notapi
  */
-  msg_t cry_lld_final(cry_operation_t *op, size_t out_size, uint8_t *out,
-                      size_t *out_length, uint8_t *tag,
-                      const uint8_t *expected_tag);
+  msg_t cry_lld_aead_update(cry_operation_t *op, size_t size,
+                            const uint8_t *in, size_t out_size,
+                            uint8_t *out, size_t *out_length);
 
 /**
- * @brief   Cleans up LLD operation state.
+ * @brief   Adds AEAD associated data.
+ * @details Assert that no payload has been processed yet and that the AAD
+ *          stays within the declared total.
+ *
+ * @param[in,out] op Active AEAD context.
+ * @param[in] size Associated-data length, in bytes.
+ * @param[in] in Associated data.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_aead_update_aad(cry_operation_t *op, size_t size,
+                                const uint8_t *in);
+
+/**
+ * @brief   Finalizes a hash stream.
+ * @details The final functions receive an active context of their class.
+ *          The HLD calls cry_lld_abort() afterward, on success or failure, to
+ *          release remaining resources and return the context to idle.
+ *
+ * @param[in,out] op Active hash context.
+ * @param[in] out_size Output buffer capacity, at least the digest size.
+ * @param[out] out Digest output.
+ * @param[out] out_length Digest size, preset to zero by the HLD.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_hash_final(cry_operation_t *op, size_t out_size,
+                           uint8_t *out, size_t *out_length);
+
+/**
+ * @brief   Finalizes a cipher stream.
+ * @details Unpadded modes assert that no partial block remains where the mode
+ *          requires block alignment.
+ *
+ * @param[in,out] op Active cipher context.
+ * @param[in] out_size Output buffer capacity, in bytes.
+ * @param[out] out Output buffer.
+ * @param[out] out_length Actual output length, preset to zero by the HLD.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_cipher_final(cry_operation_t *op, size_t out_size,
+                             uint8_t *out, size_t *out_length);
+
+/**
+ * @brief   Finalizes a MAC generation stream.
+ * @details Assert a generation context and an output capacity of at least the
+ *          tag size selected at Begin.
+ *
+ * @param[in,out] op Active MAC generation context.
+ * @param[in] out_size Output buffer capacity, in bytes.
+ * @param[out] out Tag output.
+ * @param[out] out_length Tag size, preset to zero by the HLD.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_mac_final(cry_operation_t *op, size_t out_size,
+                          uint8_t *out, size_t *out_length);
+
+/**
+ * @brief   Verifies a MAC stream.
+ * @details Assert a verification context. The received tag is data: return
+ *          CRY_ERR_AUTH_FAILED if its size differs from the size selected at
+ *          Begin or if it does not match, comparing in constant time.
+ *
+ * @param[in,out] op Active MAC verification context.
+ * @param[in] tag_size Received tag size, in bytes.
+ * @param[in] tag Received tag.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_mac_verify(cry_operation_t *op, size_t tag_size,
+                           const uint8_t *tag);
+
+/**
+ * @brief   Finalizes AEAD encryption and generates the tag.
+ * @details Assert an encryption context, declared totals reached and
+ *          @p tag_size equal to the size selected at Begin.
+ *
+ * @param[in,out] op Active AEAD encryption context.
+ * @param[in] out_size Output buffer capacity, in bytes.
+ * @param[out] out Output buffer for deferred payload bytes.
+ * @param[out] out_length Actual output length, preset to zero by the HLD.
+ * @param[in] tag_size Tag size, in bytes.
+ * @param[out] tag Generated tag.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_aead_final(cry_operation_t *op, size_t out_size,
+                           uint8_t *out, size_t *out_length,
+                           size_t tag_size, uint8_t *tag);
+
+/**
+ * @brief   Verifies the AEAD tag.
+ * @details Assert a decryption context and declared totals reached. The
+ *          received tag is data: return CRY_ERR_AUTH_FAILED if its size
+ *          differs from the size selected at Begin or if it does not match,
+ *          comparing in constant time.
+ *
+ * @param[in,out] op Active AEAD decryption context.
+ * @param[in] out_size Output buffer capacity, in bytes.
+ * @param[out] out Output buffer for deferred payload bytes.
+ * @param[out] out_length Actual output length, preset to zero by the HLD.
+ * @param[in] tag_size Received tag size, in bytes.
+ * @param[in] tag Received tag.
+ * @return  HAL_RET_SUCCESS or an error code.
+ * @notapi
+ */
+  msg_t cry_lld_aead_verify(cry_operation_t *op, size_t out_size,
+                            uint8_t *out, size_t *out_length,
+                            size_t tag_size, const uint8_t *tag);
+
+/**
+ * @brief   Cleans up a stream and returns the context to idle.
  * @details Must handle failed partial begin, failed updates and completed
  *          operations. Finish all accesses to caller memory, release
  *          operation resources and erase intermediate secrets before
- *          returning. The HLD resets only its common fields afterward;
- *          initialization and cleanup of extension fields remain the
- *          responsibility of the LLD.
+ *          returning. On return cry_lld_operation_driver() must return NULL.
  *
- * @param[in,out] op Initialized operation context.
+ * @param[in,out] op Operation context.
  * @notapi
  */
   void cry_lld_abort(cry_operation_t *op);
@@ -293,12 +523,11 @@ extern "C" {
  * @brief   Executes a single-call public-key or derivation operation.
  * @details Interpret the key identifier and validate suitability for the
  *          selected operation, encoding, scheme parameters and peer point as
- *          applicable. Use suitable randomness when required. Check output
- *          bounds and report actual output length. Agreement returns the
- *          full-width shared secret; HKDF returns exactly job->output_size
- *          bytes. Complete all accesses and clean up all operation resources
- *          before returning, on success or failure. There is no subsequent
- *          stream cleanup hook for single-call operations.
+ *          applicable. Use suitable randomness when required. Return
+ *          CRY_ERR_BUFFER if a key-dependent output does not fit. Agreement
+ *          returns the full-width shared secret; HKDF returns exactly
+ *          job->output_size bytes. Complete all accesses and clean up all
+ *          operation resources before returning, on success or failure.
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[in] key Key identifier interpreted by the LLD.

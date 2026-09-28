@@ -53,24 +53,6 @@
 /*===========================================================================*/
 
 /**
- * @brief       Resets HLD stream state without modifying LLD extension fields.
- *
- * @param[in]     op            Operation context.
- *
- * @notapi
- */
-static void cry_reset_operation(cry_operation_t *op) {
-  op->driver = NULL;
-  op->algorithm = CRY_ALG_NONE;
-  op->direction = CRY_ENCRYPT;
-  op->tag_size = 0U;
-  op->aad_expected = 0U;
-  op->data_expected = 0U;
-  op->aad_count = 0U;
-  op->data_count = 0U;
-}
-
-/**
  * @brief       Checks the mathematical description of key material.
  *
  * @param[in]     params        Key parameters.
@@ -81,7 +63,7 @@ static void cry_reset_operation(cry_operation_t *op) {
 static bool cry_key_params_valid(const cry_key_params_t *params) {
   size_t curve_bits;
 
-  if ((params == NULL) || (params->bits == 0U)) {
+  if (params->bits == 0U) {
     return false;
   }
   switch (params->type) {
@@ -109,9 +91,10 @@ static bool cry_key_params_valid(const cry_key_params_t *params) {
 /**
  * @brief       Checks a pointer/length pair.
  *
- * @param[in]     buf           Buf.
- * @param[in]     size          Number of input bytes.
- * @return                      The requested result.
+ * @param[in]     buf           Buffer pointer, may be NULL only when the size
+ *                              is zero.
+ * @param[in]     size          Buffer size, in bytes.
+ * @return                      True if the pair is consistent.
  *
  * @notapi
  */
@@ -122,9 +105,9 @@ static bool cry_buffer_valid(const void *buf, size_t size) {
 /**
  * @brief       Identifies known algorithms without consulting key metadata.
  *
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @return                      The requested result.
+ * @param[in]     algorithm     Algorithm selector.
+ * @return                      The operation class, CRY_CLASS_NONE for unknown
+ *                              selectors.
  *
  * @notapi
  */
@@ -177,9 +160,9 @@ static cry_class_t cry_algorithm_class(cry_algorithm_t algorithm) {
 /**
  * @brief       Returns the fixed digest or MAC size.
  *
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @return                      The requested result.
+ * @param[in]     algorithm     Algorithm selector.
+ * @return                      The hash output size, zero for algorithms
+ *                              without one.
  *
  * @notapi
  */
@@ -221,33 +204,43 @@ static size_t cry_digest_size(cry_algorithm_t algorithm) {
 }
 
 /**
+ * @brief       Checks signature parameters independently of the key.
+ *
+ * @param[in]     algorithm     Signature algorithm.
+ * @param[in]     params        Signature parameters, or NULL for defaults.
+ * @return                      True if the parameters are valid for the
+ *                              algorithm.
+ *
+ * @notapi
+ */
+static bool cry_signature_valid(cry_algorithm_t algorithm,
+                                const cry_signature_params_t *params) {
+  bool pss;
+
+  if (cry_algorithm_class(algorithm) != CRY_CLASS_SIGNATURE) {
+    return false;
+  }
+  pss = (algorithm == CRY_ALG_RSA_PSS_SHA256) ||
+        (algorithm == CRY_ALG_RSA_PSS_SHA384) ||
+        (algorithm == CRY_ALG_RSA_PSS_SHA512);
+  return (params == NULL) || pss || (params->salt_size == 0U);
+}
+
+/**
  * @brief       Accounts for an active driver call or stream.
  * @details     The driver state is not changed; concurrent streams and calls
  *              only increment the use counter.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
  *
  * @notapi
  */
-static msg_t cry_acquire(hal_crypto_driver_c *cryp) {
-  msg_t msg = HAL_RET_SUCCESS;
-
-  if (cryp == NULL) {
-    return CRY_ERR_ARGUMENT;
-  }
+static void cry_acquire(hal_crypto_driver_c *cryp) {
   chSysLock();
-  if (cryp->state != HAL_DRV_STATE_READY) {
-    msg = HAL_RET_INV_STATE;
-  }
-  else if (cryp->operations == SIZE_MAX) {
-    msg = HAL_RET_NO_RESOURCE;
-  }
-  else {
-    ++cryp->operations;
-  }
+  chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+  chDbgAssert(cryp->operations < SIZE_MAX, "counter overflow");
+  ++cryp->operations;
   chSysUnlock();
-  return msg;
 }
 
 /**
@@ -265,209 +258,104 @@ static void cry_release(hal_crypto_driver_c *cryp) {
 }
 
 /**
- * @brief       Releases LLD stream state and returns the operation to idle.
+ * @brief       Checks the LLD output length and clears it on failure.
+ * @details     An output length exceeding the buffer capacity is an LLD
+ *              programming error.
  *
- * @param[in]     op            Initialized, caller-owned operation context.
+ * @param[in]     msg           LLD result.
+ * @param[in]     out_size      Output buffer capacity, in bytes.
+ * @param[in,out] out_length    Output length reported by the LLD.
  *
  * @notapi
  */
-static void cry_cleanup(cry_operation_t *op) {
-  hal_crypto_driver_c *cryp = op->driver;
+static void cry_output_check(msg_t msg, size_t out_size, size_t *out_length) {
+  if (msg == HAL_RET_SUCCESS) {
+    chDbgAssert(*out_length <= out_size, "output overflow");
+  }
+  else {
+    *out_length = 0U;
+  }
+}
 
-  /* Cleanup must also handle partial setup and successful finalization. */
+/**
+ * @brief       Releases LLD stream state and returns the context to idle.
+ *
+ * @param[in]     cryp          Driver owning the stream.
+ * @param[in]     op            Operation context.
+ *
+ * @notapi
+ */
+static void cry_stream_cleanup(hal_crypto_driver_c *cryp, cry_operation_t *op) {
+  /* Cleanup must also handle partial setup and successful finalization.*/
   cry_lld_abort(op);
-  cry_reset_operation(op);
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
   cry_release(cryp);
 }
 
 /**
- * @brief       Initializes HLD stream state and invokes the LLD.
+ * @brief       Accounts for a new stream on an idle context.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     op            Initialized, caller-owned operation context.
- * @param[in]     cl            Cl.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     direction     Encryption or decryption.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     op            Idle, caller-owned operation context.
  *
  * @notapi
  */
-static msg_t cry_stream_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
-                              cry_class_t cl, cry_algorithm_t algorithm,
-                              crykey_t key, cry_direction_t direction,
-                              const cry_stream_params_t *params) {
-  msg_t msg;
-
-  if ((op == NULL) || (cry_algorithm_class(algorithm) != cl)) {
-    return CRY_ERR_ARGUMENT;
-  }
-  if (op->driver != NULL) {
-    return CRY_ERR_STATE;
-  }
-  if ((cl != CRY_CLASS_HASH) && (key == CRY_KEY_INVALID)) {
-    return CRY_ERR_KEY;
-  }
-  msg = cry_acquire(cryp);
-  if (msg != HAL_RET_SUCCESS) {
-    return msg;
-  }
-  cry_reset_operation(op);
-  op->driver = cryp;
-  op->algorithm = algorithm;
-  op->direction = direction;
-  if (cl == CRY_CLASS_AEAD) {
-    op->tag_size = params->aead.tag_size;
-    op->aad_expected = params->aead.aad_size;
-    op->data_expected = params->aead.data_size;
-  }
-  else if (cl == CRY_CLASS_MAC) {
-    op->tag_size = params->mac_tag_size;
-  }
-  msg = cry_lld_begin(op, key, params);
-  if (msg != HAL_RET_SUCCESS) {
-    cry_cleanup(op);
-  }
-  return msg;
+static void cry_stream_acquire(hal_crypto_driver_c *cryp, cry_operation_t *op) {
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation in use");
+  cry_acquire(cryp);
 }
 
 /**
- * @brief       Checks that the stream is active and belongs to the requested
- *              class.
+ * @brief       Completes a stream begin; a failed begin leaves the context
+ *              idle.
  *
- * @param[in]     op            Initialized, caller-owned operation context.
- * @param[in]     cl            Cl.
- * @return                      The requested result.
+ * @param[in]     cryp          Pointer to the Crypto driver.
+ * @param[in]     op            Operation context passed to the LLD begin.
+ * @param[in]     msg           LLD begin result.
  *
  * @notapi
  */
-static bool cry_stream_valid(const cry_operation_t *op, cry_class_t cl) {
-  return (op != NULL) && (op->driver != NULL) &&
-         (cry_algorithm_class(op->algorithm) == cl);
+static void cry_stream_started(hal_crypto_driver_c *cryp, cry_operation_t *op,
+                               msg_t msg) {
+  if (msg == HAL_RET_SUCCESS) {
+    chDbgAssert(cry_lld_operation_driver(op) == cryp, "stream not bound");
+  }
+  else {
+    /* Releasing any partial setup.*/
+    cry_stream_cleanup(cryp, op);
+  }
 }
 
 /**
- * @brief       Dispatches a stream fragment with length and phase accounting.
+ * @brief       Returns the driver owning an active stream.
  *
- * @param[in]     op            Initialized, caller-owned operation context.
- * @param[in]     cl            Cl.
- * @param[in]     aad           Aad.
- * @param[in]     size          Number of input bytes.
- * @param[in]     in            Input buffer, or NULL when its size is zero.
- * @param[in]     out_size      Output buffer capacity, in bytes.
- * @param[in]     out           Output buffer, or NULL when its capacity is
- *                              zero.
- * @param[out]    out_length    Receives the number of bytes produced, or zero
- *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     op            Active operation context.
+ * @return                      The driver bound to the stream at Begin.
  *
  * @notapi
  */
-static msg_t cry_stream_update(cry_operation_t *op, cry_class_t cl, bool aad,
-                               size_t size, const uint8_t *in, size_t out_size,
-                               uint8_t *out, size_t *out_length) {
-  msg_t msg;
-  size_t *count = NULL;
-  size_t expected;
+static hal_crypto_driver_c *cry_stream_driver(const cry_operation_t *op) {
+  hal_crypto_driver_c *cryp = cry_lld_operation_driver(op);
 
-  if (out_length != NULL) {
-    *out_length = 0U;
-  }
-  if (!cry_stream_valid(op, cl)) {
-    return CRY_ERR_STATE;
-  }
-  if ((out_length == NULL) || !cry_buffer_valid(in, size) ||
-      !cry_buffer_valid(out, out_size)) {
-    return CRY_ERR_ARGUMENT;
-  }
-  if (cl == CRY_CLASS_AEAD) {
-    count = aad ? &op->aad_count : &op->data_count;
-    if (size > SIZE_MAX - *count) {
-      return CRY_ERR_ARGUMENT;
-    }
-    expected = aad ? op->aad_expected : op->data_expected;
-    if ((aad && (op->data_count != 0U)) ||
-        (!aad && (size != 0U) &&
-         (op->aad_expected != CRY_LENGTH_UNKNOWN) &&
-         (op->aad_count != op->aad_expected)) ||
-        ((expected != CRY_LENGTH_UNKNOWN) &&
-         ((*count > expected) || (size > expected - *count)))) {
-      return CRY_ERR_ARGUMENT;
-    }
-  }
-  msg = cry_lld_update(op, aad, size, in, out_size, out, out_length);
-  if ((msg == HAL_RET_SUCCESS) && (*out_length > out_size)) {
-    msg = CRY_ERR_FAILURE;
-  }
-  if (msg != HAL_RET_SUCCESS) {
-    *out_length = 0U;
-    cry_cleanup(op);
-  }
-  else if (count != NULL) {
-    *count += size;
-  }
-  return msg;
+  chDbgAssert(cryp != NULL, "idle operation");
+
+  return cryp;
 }
 
 /**
- * @brief       Finalizes and retires a stream on either backend success or
- *              failure.
+ * @brief       Aborts the stream after a failed update.
  *
- * @param[in]     op            Initialized, caller-owned operation context.
- * @param[in]     cl            Cl.
- * @param[in]     out_size      Output buffer capacity, in bytes.
- * @param[in]     out           Output buffer, or NULL when its capacity is
- *                              zero.
- * @param[out]    out_length    Receives the number of bytes produced, or zero
- *                              on failure.
- * @param[in]     tag           Authentication tag to generate or verify.
- * @param[in]     expected_tag  Expected tag.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     cryp          Driver owning the stream.
+ * @param[in]     op            Active operation context.
+ * @param[in]     msg           LLD update result.
  *
  * @notapi
  */
-static msg_t cry_stream_final(cry_operation_t *op, cry_class_t cl,
-                              size_t out_size, uint8_t *out,
-                              size_t *out_length, uint8_t *tag,
-                              const uint8_t *expected_tag) {
-  msg_t msg;
-
-  if (out_length != NULL) {
-    *out_length = 0U;
-  }
-  if (!cry_stream_valid(op, cl)) {
-    return CRY_ERR_STATE;
-  }
-  if ((out_length == NULL) || !cry_buffer_valid(out, out_size)) {
-    return CRY_ERR_ARGUMENT;
-  }
-  if (cl == CRY_CLASS_AEAD) {
-    if (((op->aad_expected != CRY_LENGTH_UNKNOWN) &&
-         (op->aad_count != op->aad_expected)) ||
-        ((op->data_expected != CRY_LENGTH_UNKNOWN) &&
-         (op->data_count != op->data_expected))) {
-      return CRY_ERR_ARGUMENT;
-    }
-  }
-  msg = cry_lld_final(op, out_size, out, out_length, tag, expected_tag);
-  if ((msg == HAL_RET_SUCCESS) && (*out_length > out_size)) {
-    msg = CRY_ERR_FAILURE;
-  }
-  if ((msg == HAL_RET_SUCCESS) &&
-      (((cl == CRY_CLASS_HASH) &&
-        (*out_length != cry_digest_size(op->algorithm))) ||
-       ((cl == CRY_CLASS_MAC) && (expected_tag == NULL) &&
-        (*out_length != op->tag_size)))) {
-    msg = CRY_ERR_FAILURE;
-  }
+static void cry_stream_updated(hal_crypto_driver_c *cryp, cry_operation_t *op,
+                               msg_t msg) {
   if (msg != HAL_RET_SUCCESS) {
-    *out_length = 0U;
+    cry_stream_cleanup(cryp, op);
   }
-  cry_cleanup(op);
-  return msg;
 }
 
 /**
@@ -475,65 +363,30 @@ static msg_t cry_stream_final(cry_operation_t *op, cry_class_t cl,
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @param[in]     cl            Cl.
- * @param[in]     job           Job.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     algorithm     Algorithm, already checked against the job
+ *                              kind.
+ * @param[in]     job           Operation descriptor.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @notapi
  */
 static msg_t cry_execute(hal_crypto_driver_c *cryp, crykey_t key,
-                         cry_algorithm_t algorithm, cry_class_t cl,
-                         const cry_job_t *job) {
+                         cry_algorithm_t algorithm, const cry_job_t *job) {
   msg_t msg;
 
-  if (cry_algorithm_class(algorithm) != cl) {
-    return CRY_ERR_ARGUMENT;
-  }
-  if (key == CRY_KEY_INVALID) {
-    return CRY_ERR_KEY;
-  }
-  msg = cry_acquire(cryp);
-  if (msg != HAL_RET_SUCCESS) {
-    return msg;
-  }
+  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID));
+
+  cry_acquire(cryp);
   msg = cry_lld_execute(cryp, key, algorithm, job);
-  if ((msg == HAL_RET_SUCCESS) && (job->output_length != NULL) &&
-      ((*job->output_length > job->output_size) ||
-       ((job->kind == CRY_JOB_DERIVE) &&
-        (*job->output_length != job->output_size)))) {
-    msg = CRY_ERR_FAILURE;
-  }
-  if ((msg != HAL_RET_SUCCESS) && (job->output_length != NULL)) {
-    *job->output_length = 0U;
+  if (job->output_length != NULL) {
+    cry_output_check(msg, job->output_size, job->output_length);
+    chDbgAssert((msg != HAL_RET_SUCCESS) || (job->kind != CRY_JOB_DERIVE) ||
+                (*job->output_length == job->output_size),
+                "short derivation");
   }
   cry_release(cryp);
+
   return msg;
-}
-
-/**
- * @brief       Checks signature parameters independently of the key.
- *
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
- * @return                      The requested result.
- *
- * @notapi
- */
-static bool cry_signature_valid(cry_algorithm_t algorithm,
-                                const cry_signature_params_t *params) {
-  bool pss;
-
-  if ((cry_algorithm_class(algorithm) != CRY_CLASS_SIGNATURE) || (params == NULL)) {
-    return false;
-  }
-  pss = (algorithm == CRY_ALG_RSA_PSS_SHA256) ||
-        (algorithm == CRY_ALG_RSA_PSS_SHA384) ||
-        (algorithm == CRY_ALG_RSA_PSS_SHA512);
-  return pss || (params->salt_size == 0U);
 }
 
 /*===========================================================================*/
@@ -552,16 +405,17 @@ void cryInit(void) {
 /**
  * @brief       Initializes a caller-owned operation context.
  * @details     Use only on fresh storage or an already idle context. Live
- *              contexts must first be aborted. Initializes HLD state and
- *              invokes the LLD operation initializer.
+ *              contexts must first be finalized or aborted. The LLD
+ *              initializes the context to the idle state.
  *
- * @param[out]    op            Initialized, caller-owned operation context.
+ * @param[out]    op            Caller-owned operation context.
  *
  * @api
  */
 void cryOperationObjectInit(cry_operation_t *op) {
+
   chDbgCheck(op != NULL);
-  cry_reset_operation(op);
+
   cry_lld_operation_init(op);
 }
 
@@ -569,11 +423,13 @@ void cryOperationObjectInit(cry_operation_t *op) {
  * @brief       Queries per-driver algorithm capabilities.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
+ * @param[in]     algorithm     Explicit algorithm selector.
  * @param[out]    caps          Receives capabilities; cleared when the query
  *                              fails.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval HAL_RET_SUCCESS      The algorithm is supported, capabilities
+ *                              returned.
+ * @retval CRY_ERR_UNSUPPORTED  The algorithm is not supported by this driver.
  *
  * @api
  */
@@ -581,21 +437,17 @@ msg_t cryGetCapabilities(hal_crypto_driver_c *cryp, cry_algorithm_t algorithm,
                          cry_capabilities_t *caps) {
   msg_t msg;
 
-  if (caps == NULL) {
-    return CRY_ERR_ARGUMENT;
-  }
+  chDbgCheck((cryp != NULL) && (caps != NULL) &&
+             (cry_algorithm_class(algorithm) != CRY_CLASS_NONE));
+
   memset(caps, 0, sizeof (*caps));
-  if (cry_algorithm_class(algorithm) == CRY_CLASS_NONE) {
-    return CRY_ERR_UNSUPPORTED;
+  cry_acquire(cryp);
+  msg = cry_lld_get_capabilities(cryp, algorithm, caps);
+  if (msg != HAL_RET_SUCCESS) {
+    memset(caps, 0, sizeof (*caps));
   }
-  msg = cry_acquire(cryp);
-  if (msg == HAL_RET_SUCCESS) {
-    msg = cry_lld_get_capabilities(cryp, algorithm, caps);
-    if (msg != HAL_RET_SUCCESS) {
-      memset(caps, 0, sizeof (*caps));
-    }
-    cry_release(cryp);
-  }
+  cry_release(cryp);
+
   return msg;
 }
 
@@ -604,14 +456,17 @@ msg_t cryGetCapabilities(hal_crypto_driver_c *cryp, cry_algorithm_t algorithm,
  * @details     The LLD defines supported identifiers and loading or
  *              replacement behavior. It consumes the supplied material before
  *              returning and checks its encoding and mathematical validity.
+ *              Key parameters are checked at runtime because they usually
+ *              describe imported material.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
  * @param[in]     params        Mathematical key parameters.
  * @param[in]     format        Explicit key-material encoding.
- * @param[in]     size          Number of input bytes.
+ * @param[in]     size          Encoded key material size, in bytes.
  * @param[in]     data          Encoded key material, consumed before return.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_ARGUMENT     Invalid key parameters or key material.
  *
  * @api
  */
@@ -620,16 +475,17 @@ msg_t cryKeyLoad(hal_crypto_driver_c *cryp, crykey_t key,
                  size_t size, const uint8_t *data) {
   msg_t msg;
 
-  if ((key == CRY_KEY_INVALID) || !cry_key_params_valid(params) ||
-      !cry_buffer_valid(data, size) || (size == 0U) ||
-      ((unsigned)format > (unsigned)CRY_KEY_FORMAT_BACKEND)) {
+  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) && (params != NULL) &&
+             (data != NULL) && (size > 0U) &&
+             ((unsigned)format <= (unsigned)CRY_KEY_FORMAT_BACKEND));
+
+  if (!cry_key_params_valid(params)) {
     return CRY_ERR_ARGUMENT;
   }
-  msg = cry_acquire(cryp);
-  if (msg == HAL_RET_SUCCESS) {
-    msg = cry_lld_key_load(cryp, key, params, format, size, data);
-    cry_release(cryp);
-  }
+  cry_acquire(cryp);
+  msg = cry_lld_key_load(cryp, key, params, format, size, data);
+  cry_release(cryp);
+
   return msg;
 }
 
@@ -641,8 +497,10 @@ msg_t cryKeyLoad(hal_crypto_driver_c *cryp, crykey_t key,
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     params        Mathematical key parameters.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     params        Mathematical key parameters, not a public-only
+ *                              key type.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_ARGUMENT     Invalid key parameters.
  *
  * @api
  */
@@ -650,16 +508,17 @@ msg_t cryKeyGenerate(hal_crypto_driver_c *cryp, crykey_t key,
                      const cry_key_params_t *params) {
   msg_t msg;
 
-  if ((key == CRY_KEY_INVALID) || !cry_key_params_valid(params) ||
-      (params->type == CRY_KEY_RSA_PUBLIC) ||
-      (params->type == CRY_KEY_ECC_PUBLIC)) {
+  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) && (params != NULL) &&
+             (params->type != CRY_KEY_RSA_PUBLIC) &&
+             (params->type != CRY_KEY_ECC_PUBLIC));
+
+  if (!cry_key_params_valid(params)) {
     return CRY_ERR_ARGUMENT;
   }
-  msg = cry_acquire(cryp);
-  if (msg == HAL_RET_SUCCESS) {
-    msg = cry_lld_key_generate(cryp, key, params);
-    cry_release(cryp);
-  }
+  cry_acquire(cryp);
+  msg = cry_lld_key_generate(cryp, key, params);
+  cry_release(cryp);
+
   return msg;
 }
 
@@ -671,21 +530,19 @@ msg_t cryKeyGenerate(hal_crypto_driver_c *cryp, crykey_t key,
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryKeyUnload(hal_crypto_driver_c *cryp, crykey_t key) {
   msg_t msg;
 
-  if (key == CRY_KEY_INVALID) {
-    return CRY_ERR_KEY;
-  }
-  msg = cry_acquire(cryp);
-  if (msg == HAL_RET_SUCCESS) {
-    msg = cry_lld_key_unload(cryp, key);
-    cry_release(cryp);
-  }
+  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID));
+
+  cry_acquire(cryp);
+  msg = cry_lld_key_unload(cryp, key);
+  cry_release(cryp);
+
   return msg;
 }
 
@@ -694,13 +551,14 @@ msg_t cryKeyUnload(hal_crypto_driver_c *cryp, crykey_t key) {
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     format        Explicit key-material encoding.
+ * @param[in]     format        SEC1 for ECC keys or PKCS1_DER for RSA keys.
  * @param[in]     out_size      Output buffer capacity, in bytes.
  * @param[out]    out           Output buffer, or NULL when its capacity is
  *                              zero.
  * @param[out]    out_length    Receives the number of bytes produced, or zero
  *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_BUFFER       The key-dependent output does not fit.
  *
  * @api
  */
@@ -709,25 +567,17 @@ msg_t cryKeyExportPublic(hal_crypto_driver_c *cryp, crykey_t key,
                          uint8_t *out, size_t *out_length) {
   msg_t msg;
 
-  if (out_length != NULL) {
-    *out_length = 0U;
-  }
-  if ((key == CRY_KEY_INVALID) || (out_length == NULL) ||
-      !cry_buffer_valid(out, out_size) ||
-      ((format != CRY_KEY_FORMAT_SEC1) && (format != CRY_KEY_FORMAT_PKCS1_DER))) {
-    return CRY_ERR_ARGUMENT;
-  }
-  msg = cry_acquire(cryp);
-  if (msg == HAL_RET_SUCCESS) {
-    msg = cry_lld_key_export_public(cryp, key, format, out_size, out, out_length);
-    if ((msg == HAL_RET_SUCCESS) && (*out_length > out_size)) {
-      msg = CRY_ERR_FAILURE;
-    }
-    cry_release(cryp);
-  }
-  if (msg != HAL_RET_SUCCESS) {
-    *out_length = 0U;
-  }
+  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
+             cry_buffer_valid(out, out_size) && (out_length != NULL) &&
+             ((format == CRY_KEY_FORMAT_SEC1) ||
+              (format == CRY_KEY_FORMAT_PKCS1_DER)));
+
+  *out_length = 0U;
+  cry_acquire(cryp);
+  msg = cry_lld_key_export_public(cryp, key, format, out_size, out, out_length);
+  cry_output_check(msg, out_size, out_length);
+  cry_release(cryp);
+
   return msg;
 }
 
@@ -735,31 +585,36 @@ msg_t cryKeyExportPublic(hal_crypto_driver_c *cryp, crykey_t key,
  * @brief       Starts a hash stream.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in,out] op            Initialized, caller-owned operation context.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in,out] op            Idle, caller-owned operation context.
+ * @param[in]     algorithm     Hash algorithm.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryHashBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
                    cry_algorithm_t algorithm) {
-  return cry_stream_begin(cryp, op, CRY_CLASS_HASH, algorithm,
-                          CRY_KEY_INVALID, CRY_ENCRYPT, NULL);
+  msg_t msg;
+
+  chDbgCheck((cryp != NULL) && (op != NULL) &&
+             (cry_algorithm_class(algorithm) == CRY_CLASS_HASH));
+
+  cry_stream_acquire(cryp, op);
+  msg = cry_lld_hash_begin(cryp, op, algorithm);
+  cry_stream_started(cryp, op, msg);
+
+  return msg;
 }
 
 /**
  * @brief       Starts an unpadded symmetric cipher stream.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in,out] op            Initialized, caller-owned operation context.
+ * @param[in,out] op            Idle, caller-owned operation context.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
+ * @param[in]     algorithm     Cipher algorithm.
  * @param[in]     direction     Encryption or decryption.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     params        Cipher parameters, consumed before return.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
@@ -767,18 +622,19 @@ msg_t cryCipherBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
                      crykey_t key, cry_algorithm_t algorithm,
                      cry_direction_t direction,
                      const cry_cipher_params_t *params) {
-  cry_stream_params_t setup;
+  msg_t msg;
 
-  if ((cry_algorithm_class(algorithm) != CRY_CLASS_CIPHER) ||
-      (params == NULL) ||
-      ((direction != CRY_ENCRYPT) && (direction != CRY_DECRYPT)) ||
-      !cry_buffer_valid(params->iv, params->iv_size) ||
-      (params->iv_size != (algorithm == CRY_ALG_AES_ECB ? 0U : 16U))) {
-    return CRY_ERR_ARGUMENT;
-  }
-  setup.cipher = *params;
-  return cry_stream_begin(cryp, op, CRY_CLASS_CIPHER, algorithm, key,
-                          direction, &setup);
+  chDbgCheck((cryp != NULL) && (op != NULL) && (key != CRY_KEY_INVALID) &&
+             (cry_algorithm_class(algorithm) == CRY_CLASS_CIPHER) &&
+             ((direction == CRY_ENCRYPT) || (direction == CRY_DECRYPT)) &&
+             (params != NULL) && cry_buffer_valid(params->iv, params->iv_size) &&
+             (params->iv_size == (algorithm == CRY_ALG_AES_ECB ? 0U : 16U)));
+
+  cry_stream_acquire(cryp, op);
+  msg = cry_lld_cipher_begin(cryp, op, key, algorithm, direction, params);
+  cry_stream_started(cryp, op, msg);
+
+  return msg;
 }
 
 /**
@@ -786,27 +642,29 @@ msg_t cryCipherBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
  * @details     Tag size is explicit; the LLD reports unsupported tag sizes.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in,out] op            Initialized, caller-owned operation context.
+ * @param[in,out] op            Idle, caller-owned operation context.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
+ * @param[in]     algorithm     MAC algorithm.
  * @param[in]     verify        True for verification, false for generation.
- * @param[in]     tag_size      Authentication tag size, in bytes.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     tag_size      Tag size, from one byte up to the algorithm
+ *                              output size.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryMacBegin(hal_crypto_driver_c *cryp, cry_operation_t *op, crykey_t key,
                   cry_algorithm_t algorithm, bool verify, size_t tag_size) {
-  cry_stream_params_t setup;
+  msg_t msg;
 
-  if ((cry_algorithm_class(algorithm) != CRY_CLASS_MAC) ||
-      (tag_size == 0U) || (tag_size > cry_digest_size(algorithm))) {
-    return CRY_ERR_ARGUMENT;
-  }
-  setup.mac_tag_size = tag_size;
-  return cry_stream_begin(cryp, op, CRY_CLASS_MAC, algorithm, key,
-                          verify ? CRY_DECRYPT : CRY_ENCRYPT, &setup);
+  chDbgCheck((cryp != NULL) && (op != NULL) && (key != CRY_KEY_INVALID) &&
+             (cry_algorithm_class(algorithm) == CRY_CLASS_MAC) &&
+             (tag_size > 0U) && (tag_size <= cry_digest_size(algorithm)));
+
+  cry_stream_acquire(cryp, op);
+  msg = cry_lld_mac_begin(cryp, op, key, algorithm, verify, tag_size);
+  cry_stream_started(cryp, op, msg);
+
+  return msg;
 }
 
 /**
@@ -817,46 +675,43 @@ msg_t cryMacBegin(hal_crypto_driver_c *cryp, cry_operation_t *op, crykey_t key,
  *              cryAeadVerify() succeeds.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in,out] op            Initialized, caller-owned operation context.
+ * @param[in,out] op            Idle, caller-owned operation context.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
+ * @param[in]     algorithm     AEAD algorithm.
  * @param[in]     direction     Encryption or decryption.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     params        AEAD parameters, consumed before return.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_ARGUMENT     The declared CCM payload size exceeds the
+ *                              length field selected by the nonce size.
  *
  * @api
  */
 msg_t cryAeadBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
                    crykey_t key, cry_algorithm_t algorithm,
                    cry_direction_t direction, const cry_aead_params_t *params) {
-  cry_stream_params_t setup;
+  msg_t msg;
   size_t length_bytes;
   size_t remaining;
 
-  if ((cry_algorithm_class(algorithm) != CRY_CLASS_AEAD) ||
-      (params == NULL) ||
-      ((direction != CRY_ENCRYPT) && (direction != CRY_DECRYPT)) ||
-      !cry_buffer_valid(params->nonce, params->nonce_size) ||
-      (params->nonce_size == 0U)) {
-    return CRY_ERR_ARGUMENT;
-  }
+  chDbgCheck((cryp != NULL) && (op != NULL) && (key != CRY_KEY_INVALID) &&
+             (cry_algorithm_class(algorithm) == CRY_CLASS_AEAD) &&
+             ((direction == CRY_ENCRYPT) || (direction == CRY_DECRYPT)) &&
+             (params != NULL) && (params->nonce != NULL) &&
+             (params->nonce_size > 0U));
+
   if (algorithm == CRY_ALG_AES_GCM) {
-    if ((params->tag_size != 4U) && (params->tag_size != 8U) &&
-        ((params->tag_size < 12U) || (params->tag_size > 16U))) {
-      return CRY_ERR_ARGUMENT;
-    }
+    chDbgCheck((params->tag_size == 4U) || (params->tag_size == 8U) ||
+               ((params->tag_size >= 12U) && (params->tag_size <= 16U)));
   }
   else {
-    if ((params->nonce_size < 7U) || (params->nonce_size > 13U) ||
-        (params->tag_size < 4U) || (params->tag_size > 16U) ||
-        ((params->tag_size & 1U) != 0U) ||
-        (params->aad_size == CRY_LENGTH_UNKNOWN) ||
-        (params->data_size == CRY_LENGTH_UNKNOWN)) {
-      return CRY_ERR_ARGUMENT;
-    }
-    /* Avoid word-width-dependent shifts in the CCM length-field check. */
+    chDbgCheck((params->nonce_size >= 7U) && (params->nonce_size <= 13U) &&
+               (params->tag_size >= 4U) && (params->tag_size <= 16U) &&
+               ((params->tag_size & 1U) == 0U) &&
+               (params->aad_size != CRY_LENGTH_UNKNOWN) &&
+               (params->data_size != CRY_LENGTH_UNKNOWN));
+
+    /* The payload size is message data, checked at runtime. Avoiding
+       word-width-dependent shifts in the CCM length-field check.*/
     remaining = params->data_size;
     for (length_bytes = 15U - params->nonce_size; length_bytes > 0U; --length_bytes) {
       remaining >>= 8;
@@ -865,51 +720,67 @@ msg_t cryAeadBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
       return CRY_ERR_ARGUMENT;
     }
   }
-  setup.aead = *params;
-  return cry_stream_begin(cryp, op, CRY_CLASS_AEAD, algorithm, key,
-                          direction, &setup);
+  cry_stream_acquire(cryp, op);
+  msg = cry_lld_aead_begin(cryp, op, key, algorithm, direction, params);
+  cry_stream_started(cryp, op, msg);
+
+  return msg;
 }
 
 /**
  * @brief       Adds bytes to a hash stream.
+ * @details     A backend error aborts the stream.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
+ * @param[in,out] op            Active hash operation context.
  * @param[in]     size          Number of input bytes.
  * @param[in]     in            Input buffer, or NULL when its size is zero.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryHashUpdate(cry_operation_t *op, size_t size, const uint8_t *in) {
-  size_t ignored;
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
 
-  return cry_stream_update(op, CRY_CLASS_HASH, false, size, in, 0U, NULL, &ignored);
+  chDbgCheck((op != NULL) && cry_buffer_valid(in, size));
+
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_hash_update(op, size, in);
+  cry_stream_updated(cryp, op, msg);
+
+  return msg;
 }
 
 /**
  * @brief       Adds bytes to a MAC stream.
+ * @details     A backend error aborts the stream.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
+ * @param[in,out] op            Active MAC operation context.
  * @param[in]     size          Number of input bytes.
  * @param[in]     in            Input buffer, or NULL when its size is zero.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryMacUpdate(cry_operation_t *op, size_t size, const uint8_t *in) {
-  size_t ignored;
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
 
-  return cry_stream_update(op, CRY_CLASS_MAC, false, size, in, 0U, NULL, &ignored);
+  chDbgCheck((op != NULL) && cry_buffer_valid(in, size));
+
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_mac_update(op, size, in);
+  cry_stream_updated(cryp, op, msg);
+
+  return msg;
 }
 
 /**
  * @brief       Processes a cipher payload fragment.
  * @details     Input and output must not overlap unless the backend explicitly
- *              supports the overlap. Backend errors abort the context. AEAD
- *              decryption output is provisional and must not be released to an
- *              untrusted consumer before verification.
+ *              supports the overlap. A backend error aborts the stream.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
+ * @param[in,out] op            Active cipher operation context.
  * @param[in]     size          Number of input bytes.
  * @param[in]     in            Input buffer, or NULL when its size is zero.
  * @param[in]     out_size      Output buffer capacity, in bytes.
@@ -917,24 +788,35 @@ msg_t cryMacUpdate(cry_operation_t *op, size_t size, const uint8_t *in) {
  *                              zero.
  * @param[out]    out_length    Receives the number of bytes produced, or zero
  *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryCipherUpdate(cry_operation_t *op, size_t size, const uint8_t *in,
                       size_t out_size, uint8_t *out, size_t *out_length) {
-  return cry_stream_update(op, CRY_CLASS_CIPHER, false, size, in,
-                           out_size, out, out_length);
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
+
+  chDbgCheck((op != NULL) && cry_buffer_valid(in, size) &&
+             cry_buffer_valid(out, out_size) && (out_length != NULL));
+
+  *out_length = 0U;
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_cipher_update(op, size, in, out_size, out, out_length);
+  cry_output_check(msg, out_size, out_length);
+  cry_stream_updated(cryp, op, msg);
+
+  return msg;
 }
 
 /**
  * @brief       Processes an AEAD payload fragment.
  * @details     Input and output must not overlap unless the backend explicitly
- *              supports the overlap. Backend errors abort the context. AEAD
+ *              supports the overlap. A backend error aborts the stream. AEAD
  *              decryption output is provisional and must not be released to an
  *              untrusted consumer before verification.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
+ * @param[in,out] op            Active AEAD operation context.
  * @param[in]     size          Number of input bytes.
  * @param[in]     in            Input buffer, or NULL when its size is zero.
  * @param[in]     out_size      Output buffer capacity, in bytes.
@@ -942,216 +824,261 @@ msg_t cryCipherUpdate(cry_operation_t *op, size_t size, const uint8_t *in,
  *                              zero.
  * @param[out]    out_length    Receives the number of bytes produced, or zero
  *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryAeadUpdate(cry_operation_t *op, size_t size, const uint8_t *in,
                     size_t out_size, uint8_t *out, size_t *out_length) {
-  return cry_stream_update(op, CRY_CLASS_AEAD, false, size, in,
-                           out_size, out, out_length);
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
+
+  chDbgCheck((op != NULL) && cry_buffer_valid(in, size) &&
+             cry_buffer_valid(out, out_size) && (out_length != NULL));
+
+  *out_length = 0U;
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_aead_update(op, size, in, out_size, out, out_length);
+  cry_output_check(msg, out_size, out_length);
+  cry_stream_updated(cryp, op, msg);
+
+  return msg;
 }
 
 /**
  * @brief       Adds associated data before the first nonempty payload
  *              fragment.
+ * @details     A backend error aborts the stream.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
- * @param[in]     size          Number of input bytes.
- * @param[in]     in            Input buffer, or NULL when its size is zero.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in,out] op            Active AEAD operation context.
+ * @param[in]     size          Number of associated-data bytes.
+ * @param[in]     in            Associated data, or NULL when its size is zero.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryAeadUpdateAAD(cry_operation_t *op, size_t size, const uint8_t *in) {
-  size_t ignored;
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
 
-  return cry_stream_update(op, CRY_CLASS_AEAD, true, size, in, 0U, NULL, &ignored);
+  chDbgCheck((op != NULL) && cry_buffer_valid(in, size));
+
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_aead_update_aad(op, size, in);
+  cry_stream_updated(cryp, op, msg);
+
+  return msg;
 }
 
 /**
  * @brief       Finalizes a hash stream and releases its resources.
+ * @details     The context is idle on return, on success or failure.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
- * @param[in]     out_size      Output buffer capacity, in bytes.
- * @param[out]    out           Output buffer, or NULL when its capacity is
- *                              zero.
- * @param[out]    out_length    Receives the number of bytes produced, or zero
- *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in,out] op            Active hash operation context.
+ * @param[in]     out_size      Output buffer capacity, at least the digest
+ *                              size.
+ * @param[out]    out           Digest output buffer.
+ * @param[out]    out_length    Receives the digest size, or zero on failure.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryHashFinal(cry_operation_t *op, size_t out_size, uint8_t *out,
                    size_t *out_length) {
-  if (cry_stream_valid(op, CRY_CLASS_HASH) &&
-      (out_size < cry_digest_size(op->algorithm))) {
-    if (out_length != NULL) {
-      *out_length = 0U;
-    }
-    return CRY_ERR_BUFFER;
-  }
-  return cry_stream_final(op, CRY_CLASS_HASH, out_size, out, out_length, NULL, NULL);
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
+
+  chDbgCheck((op != NULL) && (out != NULL) && (out_length != NULL));
+
+  *out_length = 0U;
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_hash_final(op, out_size, out, out_length);
+  cry_output_check(msg, out_size, out_length);
+  cry_stream_cleanup(cryp, op);
+
+  return msg;
 }
 
 /**
  * @brief       Finalizes a cipher stream and releases its resources.
+ * @details     The context is idle on return, on success or failure.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
+ * @param[in,out] op            Active cipher operation context.
  * @param[in]     out_size      Output buffer capacity, in bytes.
  * @param[out]    out           Output buffer, or NULL when its capacity is
  *                              zero.
  * @param[out]    out_length    Receives the number of bytes produced, or zero
  *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryCipherFinal(cry_operation_t *op, size_t out_size, uint8_t *out,
                      size_t *out_length) {
-  return cry_stream_final(op, CRY_CLASS_CIPHER, out_size, out, out_length, NULL, NULL);
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
+
+  chDbgCheck((op != NULL) && cry_buffer_valid(out, out_size) &&
+             (out_length != NULL));
+
+  *out_length = 0U;
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_cipher_final(op, out_size, out, out_length);
+  cry_output_check(msg, out_size, out_length);
+  cry_stream_cleanup(cryp, op);
+
+  return msg;
 }
 
 /**
- * @brief       Finalizes a MAC stream and releases its resources.
+ * @brief       Finalizes a MAC generation stream and releases its resources.
+ * @details     The context is idle on return, on success or failure.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
- * @param[in]     out_size      Output buffer capacity, in bytes.
- * @param[out]    out           Output buffer, or NULL when its capacity is
- *                              zero.
- * @param[out]    out_length    Receives the number of bytes produced, or zero
- *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in,out] op            Active MAC generation context.
+ * @param[in]     out_size      Output buffer capacity, at least the tag size
+ *                              selected at Begin.
+ * @param[out]    out           Tag output buffer.
+ * @param[out]    out_length    Receives the tag size, or zero on failure.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryMacFinal(cry_operation_t *op, size_t out_size, uint8_t *out,
                   size_t *out_length) {
-  if (cry_stream_valid(op, CRY_CLASS_MAC)) {
-    if (out_length != NULL) {
-      *out_length = 0U;
-    }
-    if (op->direction != CRY_ENCRYPT) {
-      return CRY_ERR_STATE;
-    }
-    if (out_size < op->tag_size) {
-      return CRY_ERR_BUFFER;
-    }
-  }
-  return cry_stream_final(op, CRY_CLASS_MAC, out_size, out, out_length, NULL, NULL);
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
+
+  chDbgCheck((op != NULL) && (out != NULL) && (out_length != NULL));
+
+  *out_length = 0U;
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_mac_final(op, out_size, out, out_length);
+  cry_output_check(msg, out_size, out_length);
+  cry_stream_cleanup(cryp, op);
+
+  return msg;
 }
 
 /**
  * @brief       Verifies a MAC and retires the stream.
- * @details     The backend compares tags in constant time. A mismatching tag
- *              returns CRY_ERR_AUTH_FAILED.
+ * @details     The tag is message data: a tag whose size differs from the size
+ *              selected at Begin is an authentication failure, not a
+ *              programming error. The backend compares tags in constant time.
+ *              The context is idle on return, on success or failure.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
- * @param[in]     tag_size      Authentication tag size, in bytes.
- * @param[in]     tag           Authentication tag to generate or verify.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in,out] op            Active MAC verification context.
+ * @param[in]     tag_size      Received tag size, in bytes.
+ * @param[in]     tag           Received tag, or NULL when its size is zero.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_AUTH_FAILED  The tag does not authenticate the message.
  *
  * @api
  */
 msg_t cryMacVerify(cry_operation_t *op, size_t tag_size, const uint8_t *tag) {
-  size_t ignored;
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
 
-  if (!cry_stream_valid(op, CRY_CLASS_MAC) || (op->direction != CRY_DECRYPT)) {
-    return CRY_ERR_STATE;
-  }
-  if ((tag == NULL) || (tag_size != op->tag_size)) {
-    return CRY_ERR_ARGUMENT;
-  }
-  return cry_stream_final(op, CRY_CLASS_MAC, 0U, NULL, &ignored, NULL, tag);
+  chDbgCheck((op != NULL) && cry_buffer_valid(tag, tag_size));
+
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_mac_verify(op, tag_size, tag);
+  cry_stream_cleanup(cryp, op);
+
+  return msg;
 }
 
 /**
  * @brief       Finalizes AEAD encryption and generates its tag.
  * @details     Tag_size must equal the size selected at Begin; output receives
- *              any deferred payload bytes.
+ *              any deferred payload bytes. The context is idle on return, on
+ *              success or failure.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
+ * @param[in,out] op            Active AEAD encryption context.
  * @param[in]     out_size      Output buffer capacity, in bytes.
  * @param[out]    out           Output buffer, or NULL when its capacity is
  *                              zero.
  * @param[out]    out_length    Receives the number of bytes produced, or zero
  *                              on failure.
- * @param[in]     tag_size      Authentication tag size, in bytes.
- * @param[out]    tag           Authentication tag to generate or verify.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     tag_size      Tag size selected at Begin, in bytes.
+ * @param[out]    tag           Receives the generated tag.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
 msg_t cryAeadFinal(cry_operation_t *op, size_t out_size, uint8_t *out,
                    size_t *out_length, size_t tag_size, uint8_t *tag) {
-  if (out_length != NULL) {
-    *out_length = 0U;
-  }
-  if (!cry_stream_valid(op, CRY_CLASS_AEAD) ||
-      (op->direction != CRY_ENCRYPT)) {
-    return CRY_ERR_STATE;
-  }
-  if ((tag == NULL) || (tag_size != op->tag_size)) {
-    return CRY_ERR_ARGUMENT;
-  }
-  return cry_stream_final(op, CRY_CLASS_AEAD, out_size, out, out_length,
-                          tag, NULL);
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
+
+  chDbgCheck((op != NULL) && cry_buffer_valid(out, out_size) &&
+             (out_length != NULL) && (tag != NULL) && (tag_size > 0U));
+
+  *out_length = 0U;
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_aead_final(op, out_size, out, out_length, tag_size, tag);
+  cry_output_check(msg, out_size, out_length);
+  cry_stream_cleanup(cryp, op);
+
+  return msg;
 }
 
 /**
  * @brief       Verifies the AEAD tag and retires the stream.
  * @details     Only successful verification authenticates all provisional
  *              plaintext from this operation. On failure the caller must
- *              discard and erase it.
+ *              discard and erase it. The tag is message data: a tag whose size
+ *              differs from the size selected at Begin is an authentication
+ *              failure. The context is idle on return, on success or failure.
  *
- * @param[in,out] op            Initialized, caller-owned operation context.
+ * @param[in,out] op            Active AEAD decryption context.
  * @param[in]     out_size      Output buffer capacity, in bytes.
  * @param[out]    out           Output buffer, or NULL when its capacity is
  *                              zero.
  * @param[out]    out_length    Receives the number of bytes produced, or zero
  *                              on failure.
- * @param[in]     tag_size      Authentication tag size, in bytes.
- * @param[in]     tag           Authentication tag to generate or verify.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     tag_size      Received tag size, in bytes.
+ * @param[in]     tag           Received tag, or NULL when its size is zero.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_AUTH_FAILED  The tag does not authenticate the message.
  *
  * @api
  */
 msg_t cryAeadVerify(cry_operation_t *op, size_t out_size, uint8_t *out,
                     size_t *out_length, size_t tag_size, const uint8_t *tag) {
-  if (out_length != NULL) {
-    *out_length = 0U;
-  }
-  if (!cry_stream_valid(op, CRY_CLASS_AEAD) ||
-      (op->direction != CRY_DECRYPT)) {
-    return CRY_ERR_STATE;
-  }
-  if ((tag == NULL) || (tag_size != op->tag_size)) {
-    return CRY_ERR_ARGUMENT;
-  }
-  return cry_stream_final(op, CRY_CLASS_AEAD, out_size, out, out_length,
-                          NULL, tag);
+  hal_crypto_driver_c *cryp;
+  msg_t msg;
+
+  chDbgCheck((op != NULL) && cry_buffer_valid(out, out_size) &&
+             (out_length != NULL) && cry_buffer_valid(tag, tag_size));
+
+  *out_length = 0U;
+  cryp = cry_stream_driver(op);
+  msg = cry_lld_aead_verify(op, out_size, out, out_length, tag_size, tag);
+  cry_output_check(msg, out_size, out_length);
+  cry_stream_cleanup(cryp, op);
+
+  return msg;
 }
 
 /**
  * @brief       Aborts any operation class; aborting an idle context is
  *              harmless.
  * @details     No concurrent call may be executing on this context. On return
- *              all LLD accesses have completed and the context is reusable.
- *              The LLD owns cleanup of its extension fields.
+ *              all LLD accesses have completed and the context is idle.
  *
  * @param[in,out] op            Initialized, caller-owned operation context.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
  *
  * @api
  */
-msg_t cryOperationAbort(cry_operation_t *op) {
-  if (op == NULL) {
-    return CRY_ERR_ARGUMENT;
+void cryOperationAbort(cry_operation_t *op) {
+  hal_crypto_driver_c *cryp;
+
+  chDbgCheck(op != NULL);
+
+  cryp = cry_lld_operation_driver(op);
+  if (cryp != NULL) {
+    cry_stream_cleanup(cryp, op);
   }
-  if (op->driver != NULL) {
-    cry_cleanup(op);
-  }
-  return HAL_RET_SUCCESS;
 }
 
 /**
@@ -1164,18 +1091,18 @@ msg_t cryOperationAbort(cry_operation_t *op) {
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
- * @param[in]     size          Number of input bytes.
- * @param[in]     in            Input buffer, or NULL when its size is zero.
+ * @param[in]     algorithm     Signature algorithm.
+ * @param[in]     params        Signature parameters, or NULL for defaults
+ *                              (zero salt).
+ * @param[in]     size          Digest size, equal to the algorithm hash size.
+ * @param[in]     in            Digest to sign.
  * @param[in]     out_size      Output buffer capacity, in bytes.
  * @param[out]    out           Output buffer, or NULL when its capacity is
  *                              zero.
- * @param[out]    out_length    Receives the number of bytes produced, or zero
- *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[out]    out_length    Receives the signature size, or zero on
+ *                              failure.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_BUFFER       The key-dependent signature does not fit.
  *
  * @api
  */
@@ -1186,22 +1113,21 @@ msg_t crySignDigest(hal_crypto_driver_c *cryp, crykey_t key,
                     size_t *out_length) {
   cry_job_t job = {0};
 
-  if (out_length != NULL) {
-    *out_length = 0U;
-  }
-  if (!cry_signature_valid(algorithm, params) || !cry_buffer_valid(in, size) ||
-      (out_length == NULL) || !cry_buffer_valid(out, out_size) ||
-      (size != cry_digest_size(algorithm))) {
-    return CRY_ERR_ARGUMENT;
-  }
+  chDbgCheck(cry_signature_valid(algorithm, params) && (in != NULL) &&
+             (size == cry_digest_size(algorithm)) &&
+             cry_buffer_valid(out, out_size) && (out_length != NULL));
+
+  *out_length = 0U;
   job.kind = CRY_JOB_SIGN_DIGEST;
   job.input = in;
   job.input_size = size;
-  job.params.signature = *params;
+  if (params != NULL) {
+    job.params.signature = *params;
+  }
   job.output = out;
   job.output_size = out_size;
   job.output_length = out_length;
-  return cry_execute(cryp, key, algorithm, CRY_CLASS_SIGNATURE, &job);
+  return cry_execute(cryp, key, algorithm, &job);
 }
 
 /**
@@ -1214,18 +1140,18 @@ msg_t crySignDigest(hal_crypto_driver_c *cryp, crykey_t key,
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
- * @param[in]     size          Number of input bytes.
- * @param[in]     in            Input buffer, or NULL when its size is zero.
+ * @param[in]     algorithm     Signature algorithm.
+ * @param[in]     params        Signature parameters, or NULL for defaults
+ *                              (zero salt).
+ * @param[in]     size          Message size, in bytes.
+ * @param[in]     in            Message, or NULL when its size is zero.
  * @param[in]     out_size      Output buffer capacity, in bytes.
  * @param[out]    out           Output buffer, or NULL when its capacity is
  *                              zero.
- * @param[out]    out_length    Receives the number of bytes produced, or zero
- *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[out]    out_length    Receives the signature size, or zero on
+ *                              failure.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_BUFFER       The key-dependent signature does not fit.
  *
  * @api
  */
@@ -1236,42 +1162,43 @@ msg_t crySignMessage(hal_crypto_driver_c *cryp, crykey_t key,
                      size_t *out_length) {
   cry_job_t job = {0};
 
-  if (out_length != NULL) {
-    *out_length = 0U;
-  }
-  if (!cry_signature_valid(algorithm, params) || !cry_buffer_valid(in, size) ||
-      (out_length == NULL) || !cry_buffer_valid(out, out_size)) {
-    return CRY_ERR_ARGUMENT;
-  }
+  chDbgCheck(cry_signature_valid(algorithm, params) &&
+             cry_buffer_valid(in, size) &&
+             cry_buffer_valid(out, out_size) && (out_length != NULL));
+
+  *out_length = 0U;
   job.kind = CRY_JOB_SIGN_MESSAGE;
   job.input = in;
   job.input_size = size;
-  job.params.signature = *params;
+  if (params != NULL) {
+    job.params.signature = *params;
+  }
   job.output = out;
   job.output_size = out_size;
   job.output_length = out_length;
-  return cry_execute(cryp, key, algorithm, CRY_CLASS_SIGNATURE, &job);
+  return cry_execute(cryp, key, algorithm, &job);
 }
 
 /**
- * @brief       Verifies a precomputed digest.
+ * @brief       Verifies a signature over a precomputed digest.
  * @details     The explicit algorithm includes its hash. RSA-PSS uses MGF1
  *              with that hash and an explicit salt length. RSA signatures are
  *              modulus-sized big-endian bytes; ECDSA is fixed-width big-endian
- *              r || s. Backends validate key-dependent lengths and scheme
- *              parameters.
+ *              r || s. The signature is message data: malformed or wrongly
+ *              sized signatures fail verification.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
- * @param[in]     size          Number of input bytes.
- * @param[in]     in            Input buffer, or NULL when its size is zero.
- * @param[in]     signature_size Signature size, in bytes.
- * @param[in]     signature     Signature to verify.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     algorithm     Signature algorithm.
+ * @param[in]     params        Signature parameters, or NULL for defaults
+ *                              (zero salt).
+ * @param[in]     size          Digest size, equal to the algorithm hash size.
+ * @param[in]     in            Digest to verify.
+ * @param[in]     signature_size Received signature size, in bytes.
+ * @param[in]     signature     Received signature, or NULL when its size is
+ *                              zero.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_AUTH_FAILED  The signature does not verify.
  *
  * @api
  */
@@ -1282,39 +1209,41 @@ msg_t cryVerifyDigest(hal_crypto_driver_c *cryp, crykey_t key,
                       const uint8_t *signature) {
   cry_job_t job = {0};
 
-  if (!cry_signature_valid(algorithm, params) || !cry_buffer_valid(in, size) ||
-      !cry_buffer_valid(signature, signature_size) || (signature_size == 0U) ||
-      (size != cry_digest_size(algorithm))) {
-    return CRY_ERR_ARGUMENT;
-  }
+  chDbgCheck(cry_signature_valid(algorithm, params) && (in != NULL) &&
+             (size == cry_digest_size(algorithm)) &&
+             cry_buffer_valid(signature, signature_size));
+
   job.kind = CRY_JOB_VERIFY_DIGEST;
   job.input = in;
   job.input_size = size;
-  job.params.signature = *params;
+  if (params != NULL) {
+    job.params.signature = *params;
+  }
   job.signature = signature;
   job.signature_size = signature_size;
-  return cry_execute(cryp, key, algorithm, CRY_CLASS_SIGNATURE, &job);
+  return cry_execute(cryp, key, algorithm, &job);
 }
 
 /**
- * @brief       Verifies a message using the selected signature scheme.
+ * @brief       Verifies a signature over a message.
  * @details     The explicit algorithm includes its hash. RSA-PSS uses MGF1
  *              with that hash and an explicit salt length. RSA signatures are
  *              modulus-sized big-endian bytes; ECDSA is fixed-width big-endian
- *              r || s. Backends validate key-dependent lengths and scheme
- *              parameters.
+ *              r || s. The signature is message data: malformed or wrongly
+ *              sized signatures fail verification.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
- * @param[in]     size          Number of input bytes.
- * @param[in]     in            Input buffer, or NULL when its size is zero.
- * @param[in]     signature_size Signature size, in bytes.
- * @param[in]     signature     Signature to verify.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[in]     algorithm     Signature algorithm.
+ * @param[in]     params        Signature parameters, or NULL for defaults
+ *                              (zero salt).
+ * @param[in]     size          Message size, in bytes.
+ * @param[in]     in            Message, or NULL when its size is zero.
+ * @param[in]     signature_size Received signature size, in bytes.
+ * @param[in]     signature     Received signature, or NULL when its size is
+ *                              zero.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_AUTH_FAILED  The signature does not verify.
  *
  * @api
  */
@@ -1325,39 +1254,40 @@ msg_t cryVerifyMessage(hal_crypto_driver_c *cryp, crykey_t key,
                        const uint8_t *signature) {
   cry_job_t job = {0};
 
-  if (!cry_signature_valid(algorithm, params) || !cry_buffer_valid(in, size) ||
-      !cry_buffer_valid(signature, signature_size) || (signature_size == 0U)) {
-    return CRY_ERR_ARGUMENT;
-  }
+  chDbgCheck(cry_signature_valid(algorithm, params) &&
+             cry_buffer_valid(in, size) &&
+             cry_buffer_valid(signature, signature_size));
+
   job.kind = CRY_JOB_VERIFY_MESSAGE;
   job.input = in;
   job.input_size = size;
-  job.params.signature = *params;
+  if (params != NULL) {
+    job.params.signature = *params;
+  }
   job.signature = signature;
   job.signature_size = signature_size;
-  return cry_execute(cryp, key, algorithm, CRY_CLASS_SIGNATURE, &job);
+  return cry_execute(cryp, key, algorithm, &job);
 }
 
 /**
  * @brief       Encrypts using an asymmetric encryption scheme.
  * @details     RSA-OAEP uses the selected hash for both OAEP and MGF1. The
- *              backend enforces modulus-dependent bounds and rejects malformed
- *              encodings without reporting padding details.
+ *              backend enforces modulus-dependent bounds.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
- * @param[in]     size          Number of input bytes.
- * @param[in]     in            Input buffer, or NULL when its size is zero.
+ * @param[in]     algorithm     Asymmetric encryption algorithm.
+ * @param[in]     params        OAEP parameters, or NULL for no label.
+ * @param[in]     size          Plaintext size, in bytes.
+ * @param[in]     in            Plaintext, or NULL when its size is zero.
  * @param[in]     out_size      Output buffer capacity, in bytes.
  * @param[out]    out           Output buffer, or NULL when its capacity is
  *                              zero.
- * @param[out]    out_length    Receives the number of bytes produced, or zero
- *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[out]    out_length    Receives the ciphertext size, or zero on
+ *                              failure.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_ARGUMENT     The plaintext exceeds the key-dependent limit.
+ * @retval CRY_ERR_BUFFER       The key-dependent ciphertext does not fit.
  *
  * @api
  */
@@ -1368,45 +1298,46 @@ msg_t cryAsymEncrypt(hal_crypto_driver_c *cryp, crykey_t key,
                      size_t *out_length) {
   cry_job_t job = {0};
 
-  if (out_length != NULL) {
-    *out_length = 0U;
-  }
-  if ((cry_algorithm_class(algorithm) != CRY_CLASS_ASYMMETRIC) ||
-      (params == NULL) || !cry_buffer_valid(params->label, params->label_size) ||
-      !cry_buffer_valid(in, size) || !cry_buffer_valid(out, out_size) ||
-      (out_length == NULL)) {
-    return CRY_ERR_ARGUMENT;
-  }
+  chDbgCheck((cry_algorithm_class(algorithm) == CRY_CLASS_ASYMMETRIC) &&
+             ((params == NULL) ||
+              cry_buffer_valid(params->label, params->label_size)) &&
+             cry_buffer_valid(in, size) &&
+             cry_buffer_valid(out, out_size) && (out_length != NULL));
+
+  *out_length = 0U;
   job.kind = CRY_JOB_ASYM_ENCRYPT;
   job.input = in;
   job.input_size = size;
   job.output = out;
   job.output_size = out_size;
   job.output_length = out_length;
-  job.params.asymmetric = *params;
-  return cry_execute(cryp, key, algorithm, CRY_CLASS_ASYMMETRIC, &job);
+  if (params != NULL) {
+    job.params.asymmetric = *params;
+  }
+  return cry_execute(cryp, key, algorithm, &job);
 }
 
 /**
  * @brief       Decrypts using an asymmetric encryption scheme.
  * @details     RSA-OAEP uses the selected hash for both OAEP and MGF1. The
- *              backend enforces modulus-dependent bounds and rejects malformed
- *              encodings without reporting padding details.
+ *              ciphertext is message data: the backend rejects malformed
+ *              encodings with CRY_ERR_ARGUMENT without reporting padding
+ *              details.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
- * @param[in]     size          Number of input bytes.
- * @param[in]     in            Input buffer, or NULL when its size is zero.
+ * @param[in]     algorithm     Asymmetric encryption algorithm.
+ * @param[in]     params        OAEP parameters, or NULL for no label.
+ * @param[in]     size          Ciphertext size, in bytes.
+ * @param[in]     in            Ciphertext, or NULL when its size is zero.
  * @param[in]     out_size      Output buffer capacity, in bytes.
  * @param[out]    out           Output buffer, or NULL when its capacity is
  *                              zero.
- * @param[out]    out_length    Receives the number of bytes produced, or zero
- *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @param[out]    out_length    Receives the plaintext size, or zero on
+ *                              failure.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_ARGUMENT     Malformed ciphertext.
+ * @retval CRY_ERR_BUFFER       The plaintext does not fit.
  *
  * @api
  */
@@ -1417,42 +1348,45 @@ msg_t cryAsymDecrypt(hal_crypto_driver_c *cryp, crykey_t key,
                      size_t *out_length) {
   cry_job_t job = {0};
 
-  if (out_length != NULL) {
-    *out_length = 0U;
-  }
-  if ((cry_algorithm_class(algorithm) != CRY_CLASS_ASYMMETRIC) ||
-      (params == NULL) || !cry_buffer_valid(params->label, params->label_size) ||
-      !cry_buffer_valid(in, size) || !cry_buffer_valid(out, out_size) ||
-      (out_length == NULL)) {
-    return CRY_ERR_ARGUMENT;
-  }
+  chDbgCheck((cry_algorithm_class(algorithm) == CRY_CLASS_ASYMMETRIC) &&
+             ((params == NULL) ||
+              cry_buffer_valid(params->label, params->label_size)) &&
+             cry_buffer_valid(in, size) &&
+             cry_buffer_valid(out, out_size) && (out_length != NULL));
+
+  *out_length = 0U;
   job.kind = CRY_JOB_ASYM_DECRYPT;
   job.input = in;
   job.input_size = size;
   job.output = out;
   job.output_size = out_size;
   job.output_length = out_length;
-  job.params.asymmetric = *params;
-  return cry_execute(cryp, key, algorithm, CRY_CLASS_ASYMMETRIC, &job);
+  if (params != NULL) {
+    job.params.asymmetric = *params;
+  }
+  return cry_execute(cryp, key, algorithm, &job);
 }
 
 /**
  * @brief       Computes an ECDH shared secret.
  * @details     Peer encoding is an uncompressed SEC1 point on the private key
- *              curve. The LLD validates the point and secret. Output is the
+ *              curve. The peer point is message data: the LLD validates it and
+ *              reports invalid points with CRY_ERR_ARGUMENT. Output is the
  *              full-width big-endian x coordinate. The caller owns the secret
  *              output and its lifetime.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
+ * @param[in]     algorithm     Key agreement algorithm.
  * @param[in]     peer_size     Encoded peer public-key size, in bytes.
- * @param[in]     peer          Encoded peer public key.
+ * @param[in]     peer          Encoded peer public key, or NULL when its size
+ *                              is zero.
  * @param[in]     out_size      Output buffer capacity, in bytes.
  * @param[out]    out           Output buffer for the shared secret.
  * @param[out]    out_length    Receives the secret length, or zero on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
+ * @retval CRY_ERR_ARGUMENT     Invalid peer public key.
+ * @retval CRY_ERR_BUFFER       The curve-dependent secret does not fit.
  *
  * @api
  */
@@ -1462,21 +1396,18 @@ msg_t cryKeyAgreement(hal_crypto_driver_c *cryp, crykey_t key,
                       size_t *out_length) {
   cry_job_t job = {0};
 
-  if (out_length != NULL) {
-    *out_length = 0U;
-  }
-  if ((cry_algorithm_class(algorithm) != CRY_CLASS_AGREEMENT) ||
-      !cry_buffer_valid(peer, peer_size) || (peer_size == 0U) ||
-      !cry_buffer_valid(out, out_size) || (out_length == NULL)) {
-    return CRY_ERR_ARGUMENT;
-  }
+  chDbgCheck((cry_algorithm_class(algorithm) == CRY_CLASS_AGREEMENT) &&
+             cry_buffer_valid(peer, peer_size) && (out != NULL) &&
+             (out_length != NULL));
+
+  *out_length = 0U;
   job.kind = CRY_JOB_AGREEMENT;
   job.input = peer;
   job.input_size = peer_size;
   job.output = out;
   job.output_size = out_size;
   job.output_length = out_length;
-  return cry_execute(cryp, key, algorithm, CRY_CLASS_AGREEMENT, &job);
+  return cry_execute(cryp, key, algorithm, &job);
 }
 
 /**
@@ -1487,14 +1418,13 @@ msg_t cryKeyAgreement(hal_crypto_driver_c *cryp, crykey_t key,
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Explicit algorithm selector for this operation
- *                              class.
- * @param[in]     params        Parameters for the selected operation class and
- *                              algorithm.
+ * @param[in]     algorithm     Key derivation algorithm.
+ * @param[in]     params        HKDF parameters, or NULL for no salt and no
+ *                              context information.
  * @param[in]     size          Number of bytes to derive, from 1 to 255 times
  *                              the hash size.
  * @param[out]    out           Output buffer with at least size bytes.
- * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
+ * @return                      HAL_RET_SUCCESS or a Crypto error code.
  *
  * @api
  */
@@ -1505,18 +1435,21 @@ msg_t cryDeriveKey(hal_crypto_driver_c *cryp, crykey_t key,
   cry_job_t job = {0};
   size_t length = 0U;
 
-  if ((cry_algorithm_class(algorithm) != CRY_CLASS_DERIVATION) ||
-      (params == NULL) || !cry_buffer_valid(params->salt, params->salt_size) ||
-      !cry_buffer_valid(params->info, params->info_size) ||
-      (size == 0U) || (size > 255U * cry_digest_size(algorithm)) || (out == NULL)) {
-    return CRY_ERR_ARGUMENT;
-  }
+  chDbgCheck((cry_algorithm_class(algorithm) == CRY_CLASS_DERIVATION) &&
+             ((params == NULL) ||
+              (cry_buffer_valid(params->salt, params->salt_size) &&
+               cry_buffer_valid(params->info, params->info_size))) &&
+             (size > 0U) && (size <= 255U * cry_digest_size(algorithm)) &&
+             (out != NULL));
+
   job.kind = CRY_JOB_DERIVE;
-  job.params.derivation = *params;
+  if (params != NULL) {
+    job.params.derivation = *params;
+  }
   job.output = out;
   job.output_size = size;
   job.output_length = &length;
-  return cry_execute(cryp, key, algorithm, CRY_CLASS_DERIVATION, &job);
+  return cry_execute(cryp, key, algorithm, &job);
 }
 
 /*===========================================================================*/
