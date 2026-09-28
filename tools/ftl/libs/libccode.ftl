@@ -485,7 +485,7 @@ ${(indent + s + "")?right_pad(backslash_align) + "\\"}
 [/#macro]
 
 [#--
-  -- This macro generates a simple type definition from an XML node.
+  -- This macro generates a type definition from an XML node.
   -- @note Processes the $N token in the ctype.
   --]
 [#macro GenerateTypedefFromNode indent="" node=[]]
@@ -499,8 +499,40 @@ ${indent}typedef ${basectype};
     [#else]
 ${indent}typedef ${basectype} ${typename};
     [/#if]
-  [#elseif typedef.structtype[0]??]
+  [#elseif typedef.structtype[0]?? || typedef.uniontype[0]??]
+    [#if typedef.structtype[0]??]
+      [#local aggregate = typedef.structtype[0]]
+      [#local kind = "struct"]
+    [#else]
+      [#local aggregate = typedef.uniontype[0]]
+      [#local kind = "union"]
+    [/#if]
+    [#local tag = GetName(aggregate, "")]
+    [#if tag?length > 0]
+      [#local tag = tag + " "]
+    [/#if]
+${indent}typedef ${kind} ${tag}{
+[@GenerateStructureFieldsFromNode indent+indentation aggregate.fields /]
+${indent}} ${typename};
   [#elseif typedef.enumtype[0]??]
+    [#local enumeration = typedef.enumtype[0]]
+    [#local tag = GetName(enumeration, "")]
+    [#if tag?length > 0]
+      [#local tag = tag + " "]
+    [/#if]
+${indent}typedef enum ${tag}{
+    [#list enumeration.enumerator as member]
+[@doxygen.EmitFullCommentFromNode indent+indentation member /]
+      [#local declaration = GetName(member)]
+      [#if member.@value[0]??]
+        [#local declaration = declaration + " = " + member.@value[0]?trim]
+      [/#if]
+      [#if member?has_next]
+        [#local declaration = declaration + ","]
+      [/#if]
+${indent}${indentation}${declaration}
+    [/#list]
+${indent}} ${typename};
   [#elseif typedef.functype[0]??]
   [#else]
   [/#if]
@@ -546,6 +578,8 @@ ${indent}};
     [#elseif this?node_name == "union"]
 [@doxygen.EmitFullCommentFromNode indent this /]
 [@GenerateUnionFromNode indent this /]
+    [#elseif this?node_name == "includes"]
+[@GenerateInclusionsFromNode node=this /]
     [#elseif this?node_name == "class"]
 [@cclasses.GenerateClass this /]
     [#elseif this?node_name == "interface"]
@@ -645,9 +679,19 @@ ${varstring}
       [#local field = node]
       [#local fieldname  = (field.@name[0]!"no-name")?trim
               fieldctype = (field.@ctype[0]!"no-ctype")?trim
-              fieldstring = MakeVariableDeclaration(indentation fieldname fieldctype)]
-[@doxygen.EmitFullCommentFromNode indent=indentation node=field /]
+              fieldstring = MakeVariableDeclaration(indent fieldname fieldctype)]
+[@doxygen.EmitFullCommentFromNode indent=indent node=field /]
 ${fieldstring}
+    [#elseif node?node_name == "structfield" || node?node_name == "unionfield"]
+      [#local kind = node?node_name?remove_ending("field")]
+      [#local name = GetName(node)]
+[@doxygen.EmitFullCommentFromNode indent node /]
+${indent}${kind} {
+[@GenerateStructureFieldsFromNode indent+indentation node.fields /]
+${indent}} ${name};
+    [#elseif node?node_name == "fieldmacro"]
+[@doxygen.EmitFullCommentFromNode indent node /]
+${indent}${GetName(node)};
     [#elseif node?node_name == "condition"]
       [#local condition = node]
       [#local condcheck = (condition.@check[0]!"1")?trim]

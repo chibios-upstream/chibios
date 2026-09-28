@@ -10,6 +10,7 @@
   <!ENTITY hal_efl             SYSTEM "hal_efl.xml">
   <!ENTITY hal_adc             SYSTEM "hal_adc.xml">
   <!ENTITY hal_can             SYSTEM "hal_can.xml">
+  <!ENTITY hal_crypto          SYSTEM "hal_crypto.xml">
   <!ENTITY hal_dac             SYSTEM "hal_dac.xml">
   <!ENTITY hal_eth             SYSTEM "hal_eth.xml">
   <!ENTITY hal_gpt             SYSTEM "hal_gpt.xml">
@@ -43,6 +44,7 @@
     &hal_efl;
     &hal_adc;
     &hal_can;
+    &hal_crypto;
     &hal_dac;
     &hal_eth;
     &hal_gpt;

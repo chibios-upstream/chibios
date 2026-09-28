@@ -359,7 +359,7 @@ static inline bool halClockResume(void) {
 #include "hal_pal.h"
 #include "hal_adc.h"
 #include "hal_can.h"
-//#include "hal_crypto.h"
+#include "hal_crypto.h"
 #include "hal_dac.h"
 #include "hal_efl.h"
 #include "hal_eth.h"

@@ -48,6 +48,7 @@
 #define HAL_USE_ADC                         FALSE
 #define HAL_USE_DAC                         FALSE
 #define HAL_USE_CAN                         FALSE
+#define HAL_USE_CRY                         FALSE
 #define HAL_USE_EFL                         FALSE
 #define HAL_USE_ETH                         FALSE
 #define HAL_USE_GPT                         FALSE
