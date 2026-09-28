@@ -31,6 +31,16 @@
  */
 #define cry_lld_config_fields       uint32_t dummy
 
+/* Concurrency contract. The HLD does not serialize LLD calls. Callers must
+   serialize access to each operation context; the LLD may rely on that
+   caller contract but receives no protection from the HLD. Stream and
+   single-call entry points may run concurrently from different threads for
+   different contexts while the driver stays READY. The LLD owns
+   arbitration of shared hardware: it may save and restore per-stream engine
+   context, lock internally around engine use, or return CRY_ERR_BUSY when a
+   resource cannot be shared. Key load, generation and unload may also run
+   concurrently with active streams and must not affect them. */
+
 /* Ports may define cry_lld_driver_fields and cry_lld_operation_fields to
    declare implementation-specific fields. Leave them undefined when not needed.
    Fields may hold inline state, handles or any other representation chosen by
@@ -94,8 +104,10 @@ extern "C" {
 
 /**
  * @brief   Selects a Crypto configuration.
- * @details Called during start or through the base-driver configuration API.
- *          Must not block. Return NULL for unsupported configurations.
+ * @details Called during start, unlocked and with no stream or call active,
+ *          or through the base-driver live configuration APIs with the system
+ *          lock held. Must not block. Return NULL for unsupported
+ *          configurations.
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[in] config Requested configuration.

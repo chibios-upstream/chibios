@@ -222,6 +222,8 @@ static size_t cry_digest_size(cry_algorithm_t algorithm) {
 
 /**
  * @brief       Accounts for an active driver call or stream.
+ * @details     The driver state is not changed; concurrent streams and calls
+ *              only increment the use counter.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @return                      HAL_RET_SUCCESS or a Crypto/HAL error code.
@@ -235,8 +237,7 @@ static msg_t cry_acquire(hal_crypto_driver_c *cryp) {
     return CRY_ERR_ARGUMENT;
   }
   chSysLock();
-  if ((cryp->state != HAL_DRV_STATE_READY) &&
-      (cryp->state != HAL_DRV_STATE_ACTIVE)) {
+  if (cryp->state != HAL_DRV_STATE_READY) {
     msg = HAL_RET_INV_STATE;
   }
   else if (cryp->operations == SIZE_MAX) {
@@ -244,7 +245,6 @@ static msg_t cry_acquire(hal_crypto_driver_c *cryp) {
   }
   else {
     ++cryp->operations;
-    cryp->state = HAL_DRV_STATE_ACTIVE;
   }
   chSysUnlock();
   return msg;
@@ -261,9 +261,6 @@ static void cry_release(hal_crypto_driver_c *cryp) {
   chSysLock();
   chDbgAssert(cryp->operations > 0U, "unbalanced crypto release");
   --cryp->operations;
-  if ((cryp->operations == 0U) && (cryp->state == HAL_DRV_STATE_ACTIVE)) {
-    cryp->state = HAL_DRV_STATE_READY;
-  }
   chSysUnlock();
 }
 
@@ -1579,6 +1576,7 @@ void __cry_dispose_impl(void *ip) {
  */
 msg_t __cry_start_impl(void *ip, const void *config) {
   hal_crypto_driver_c *self = (hal_crypto_driver_c *)ip;
+
   if (config != NULL) {
     self->config = __cry_setcfg_impl(self, config);
   }
@@ -1598,6 +1596,7 @@ msg_t __cry_start_impl(void *ip, const void *config) {
  */
 void __cry_stop_impl(void *ip) {
   hal_crypto_driver_c *self = (hal_crypto_driver_c *)ip;
+
   chDbgAssert(self->operations == 0U, "active crypto operations");
   cry_lld_stop(self);
 }
@@ -1611,6 +1610,9 @@ void __cry_stop_impl(void *ip) {
  */
 const void *__cry_setcfg_impl(void *ip, const void *config) {
   hal_crypto_driver_c *self = (hal_crypto_driver_c *)ip;
+
+  /* Live reconfiguration runs under the system lock, atomically with the
+     base-driver pointer publication; during start the counter is zero.*/
   if (self->operations != 0U) {
     return NULL;
   }
@@ -1626,6 +1628,9 @@ const void *__cry_setcfg_impl(void *ip, const void *config) {
  */
 const void *__cry_selcfg_impl(void *ip, unsigned cfgnum) {
   hal_crypto_driver_c *self = (hal_crypto_driver_c *)ip;
+
+  /* Live reconfiguration runs under the system lock, atomically with the
+     base-driver pointer publication; during start the counter is zero.*/
   if (self->operations != 0U) {
     return NULL;
   }

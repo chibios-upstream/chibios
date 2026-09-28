@@ -98,8 +98,10 @@ void cry_lld_stop(hal_crypto_driver_c *cryp) {
 
 /**
  * @brief   Selects a Crypto configuration.
- * @details Called during start or through the base-driver configuration API.
- *          Must not block. Return NULL for unsupported configurations.
+ * @details Called during start, unlocked and with no stream or call active,
+ *          or through the base-driver live configuration APIs with the system
+ *          lock held. Must not block. Return NULL for unsupported
+ *          configurations.
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[in] config Requested configuration.

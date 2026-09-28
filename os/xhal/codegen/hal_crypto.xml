@@ -6,10 +6,13 @@
     driver lifecycle. Key identifiers are interpreted by the selected LLD; the
     HLD does not maintain a key store or impose key access policy. The LLD checks
     key suitability for each operation and owns its implementation state.
-    Callers must serialize access to each operation context. Before drvStop() or
-    disposal, prevent new calls, finish or abort all streams and wait for active
-    calls to return. An LLD may report CRY_ERR_BUSY when it cannot service another
-    operation. LLD extension fields and APIs may implement additional behavior
+    Callers must serialize access to each operation context. Different contexts
+    may be used concurrently from different threads; the driver remains in
+    HAL_DRV_STATE_READY while streams are open and tracks them in a use counter.
+    Live reconfiguration is rejected while the counter is nonzero. Before
+    drvStop() or disposal, prevent new calls, finish or abort all streams and wait
+    for active calls to return. An LLD may report CRY_ERR_BUSY when it cannot
+    service another operation. LLD extension fields and APIs may implement additional behavior
     without changing the common operation interface. Caller buffers must remain
     valid for each synchronous call. This API is not source or binary compatible
     with the legacy HAL Crypto API.</details>
@@ -525,6 +528,8 @@
         <fields>
           <field name="operations" ctype="size_t">
             <brief>Number of live contexts and in-progress single-call operations.</brief>
+            <details>Protected by the system lock. The driver state stays
+              HAL_DRV_STATE_READY while this counter is nonzero.</details>
           </field>
           <condition check="defined(cry_lld_driver_fields)">
             <fieldmacro name="cry_lld_driver_fields">
@@ -545,6 +550,7 @@ chDbgAssert((self->state == HAL_DRV_STATE_STOP) && (self->operations == 0U),
           </dispose>
           <override>
             <method shortname="start"><implementation><![CDATA[
+
 if (config != NULL) {
   self->config = __cry_setcfg_impl(self, config);
 }
@@ -556,14 +562,21 @@ if (self->config == NULL) {
 }
 return cry_lld_start(self);]]></implementation></method>
             <method shortname="stop"><implementation><![CDATA[
+
 chDbgAssert(self->operations == 0U, "active crypto operations");
 cry_lld_stop(self);]]></implementation></method>
             <method shortname="setcfg"><implementation><![CDATA[
+
+/* Live reconfiguration runs under the system lock, atomically with the
+   base-driver pointer publication; during start the counter is zero.*/
 if (self->operations != 0U) {
   return NULL;
 }
 return cry_lld_setcfg(self, (const hal_crypto_config_t *)config);]]></implementation></method>
             <method shortname="selcfg"><implementation><![CDATA[
+
+/* Live reconfiguration runs under the system lock, atomically with the
+   base-driver pointer publication; during start the counter is zero.*/
 if (self->operations != 0U) {
   return NULL;
 }
@@ -1434,6 +1447,8 @@ default:
       </function>
       <function name="cry_acquire" ctype="msg_t">
         <brief>Accounts for an active driver call or stream.</brief>
+        <details>The driver state is not changed; concurrent streams and calls
+          only increment the use counter.</details>
         <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Pointer to the Crypto driver.</param>
         <return>HAL_RET_SUCCESS or a Crypto/HAL error code.</return>
         <notapi/>
@@ -1444,8 +1459,7 @@ if (cryp == NULL) {
   return CRY_ERR_ARGUMENT;
 }
 chSysLock();
-if ((cryp->state != HAL_DRV_STATE_READY) &&
-    (cryp->state != HAL_DRV_STATE_ACTIVE)) {
+if (cryp->state != HAL_DRV_STATE_READY) {
   msg = HAL_RET_INV_STATE;
 }
 else if (cryp->operations == SIZE_MAX) {
@@ -1453,7 +1467,6 @@ else if (cryp->operations == SIZE_MAX) {
 }
 else {
   ++cryp->operations;
-  cryp->state = HAL_DRV_STATE_ACTIVE;
 }
 chSysUnlock();
 return msg;]]></implementation>
@@ -1466,9 +1479,6 @@ return msg;]]></implementation>
 chSysLock();
 chDbgAssert(cryp->operations > 0U, "unbalanced crypto release");
 --cryp->operations;
-if ((cryp->operations == 0U) && (cryp->state == HAL_DRV_STATE_ACTIVE)) {
-  cryp->state = HAL_DRV_STATE_READY;
-}
 chSysUnlock();]]></implementation>
       </function>
       <function name="cry_cleanup" ctype="void">

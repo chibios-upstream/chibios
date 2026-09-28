@@ -28,6 +28,10 @@
  *              key store or impose key access policy. The LLD checks key
  *              suitability for each operation and owns its implementation
  *              state. Callers must serialize access to each operation context.
+ *              Different contexts may be used concurrently from different
+ *              threads; the driver remains in HAL_DRV_STATE_READY while
+ *              streams are open and tracks them in a use counter. Live
+ *              reconfiguration is rejected while the counter is nonzero.
  *              Before drvStop() or disposal, prevent new calls, finish or
  *              abort all streams and wait for active calls to return. An LLD
  *              may report CRY_ERR_BUSY when it cannot service another
@@ -837,6 +841,8 @@ struct hal_crypto_driver {
   /**
    * @brief       Number of live contexts and in-progress single-call
    *              operations.
+   * @details     Protected by the system lock. The driver state stays
+   *              HAL_DRV_STATE_READY while this counter is nonzero.
    */
   size_t                    operations;
 #if (defined(cry_lld_driver_fields)) || defined (__DOXYGEN__)
