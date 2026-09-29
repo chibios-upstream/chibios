@@ -229,36 +229,6 @@ static bool cry_signature_valid(cry_algorithm_t algorithm,
   return (params == NULL) || pss || (params->salt_size == 0U);
 }
 
-/**
- * @brief       Executes a single-call operation through the LLD.
- *
- * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     algorithm     Algorithm, already checked against the job
- *                              kind.
- * @param[in]     job           Operation descriptor.
- * @return                      HAL_RET_SUCCESS or a Crypto error code.
- *
- * @notapi
- */
-static msg_t cry_execute(hal_crypto_driver_c *cryp, crykey_t key,
-                         cry_algorithm_t algorithm, const cry_job_t *job) {
-  msg_t msg;
-
-  msg = cry_lld_execute(cryp, key, algorithm, job);
-  if (job->output_length != NULL) {
-    chDbgAssert((msg != HAL_RET_SUCCESS) ||
-                (*job->output_length <= job->output_size), "output overflow");
-    chDbgAssert((msg != HAL_RET_SUCCESS) || (job->kind != CRY_JOB_DERIVE) ||
-                (*job->output_length == job->output_size), "short derivation");
-    if (msg != HAL_RET_SUCCESS) {
-      *job->output_length = 0U;
-    }
-  }
-
-  return msg;
-}
-
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
@@ -306,21 +276,33 @@ msg_t cryGetCapabilities(hal_crypto_driver_c *cryp, cry_algorithm_t algorithm,
 }
 
 /**
- * @brief       Loads key material for subsequent cryptographic operations.
- * @details     The LLD defines supported identifiers and loading or
- *              replacement behavior. It consumes the supplied material before
- *              returning and checks its encoding and mathematical validity.
- *              Key parameters are checked at runtime because they usually
- *              describe imported material.
+ * @brief       Loads a key.
+ * @details     CRY_KEY_TRANSIENT can always be loaded: it is volatile and
+ *              erased by drvStop(). Whether other identifiers can be loaded,
+ *              and with which lifetime, is backend-defined; identifiers that
+ *              cannot be loaded are rejected with CRY_ERR_UNSUPPORTED.
+ *              Operations using a loadable key hold it, from begin to
+ *              finalization or abort for streams and for the duration of the
+ *              call for single-call operations; loading a key fails while it
+ *              is held, so an operation always uses the key it started with.
+ *              Loading and the begin using the key are not atomic: callers
+ *              sharing a driver serialize them, for example with drvLock().
+ *              The LLD consumes the material before returning and checks its
+ *              encoding and mathematical validity. Key parameters are checked
+ *              at runtime because they usually describe imported material.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a loadable
+ *                              backend key.
  * @param[in]     params        Mathematical key parameters.
  * @param[in]     format        Explicit key-material encoding.
  * @param[in]     size          Encoded key material size, in bytes.
  * @param[in]     data          Encoded key material, consumed before return.
  * @return                      HAL_RET_SUCCESS or a Crypto error code.
  * @retval CRY_ERR_ARGUMENT     Invalid key parameters or key material.
+ * @retval CRY_ERR_UNSUPPORTED  The identifier cannot be loaded by this
+ *                              backend.
+ * @retval CRY_ERR_BUSY         The key is held by an operation.
  *
  * @api
  */
@@ -329,112 +311,16 @@ msg_t cryKeyLoad(hal_crypto_driver_c *cryp, crykey_t key,
                  size_t size, const uint8_t *data) {
   msg_t msg;
 
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) && (params != NULL) &&
-             (data != NULL) && (size > 0U) &&
+  chDbgCheck((cryp != NULL) && (params != NULL) && (data != NULL) &&
+             (size > 0U) &&
              ((unsigned)format <= (unsigned)CRY_KEY_FORMAT_BACKEND));
 
+  chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+
   if (!cry_key_params_valid(params)) {
     return CRY_ERR_ARGUMENT;
   }
-  chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
-
   msg = cry_lld_key_load(cryp, key, params, format, size, data);
-
-  return msg;
-}
-
-/**
- * @brief       Generates key material for cryptographic operations.
- * @details     The LLD defines supported identifiers, key types and sizes. Key
- *              generation requires a suitable random source and reports
- *              entropy failures.
- *
- * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     params        Mathematical key parameters, not a public-only
- *                              key type.
- * @return                      HAL_RET_SUCCESS or a Crypto error code.
- * @retval CRY_ERR_ARGUMENT     Invalid key parameters.
- *
- * @api
- */
-msg_t cryKeyGenerate(hal_crypto_driver_c *cryp, crykey_t key,
-                     const cry_key_params_t *params) {
-  msg_t msg;
-
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) && (params != NULL) &&
-             (params->type != CRY_KEY_RSA_PUBLIC) &&
-             (params->type != CRY_KEY_ECC_PUBLIC));
-
-  if (!cry_key_params_valid(params)) {
-    return CRY_ERR_ARGUMENT;
-  }
-  chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
-
-  msg = cry_lld_key_generate(cryp, key, params);
-
-  return msg;
-}
-
-/**
- * @brief       Releases key material loaded or generated through the driver.
- * @details     The LLD defines which identifiers can be unloaded. Loading,
- *              generation and unloading must not change the key used by an
- *              already active operation.
- *
- * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
- * @return                      HAL_RET_SUCCESS or a Crypto error code.
- *
- * @api
- */
-msg_t cryKeyUnload(hal_crypto_driver_c *cryp, crykey_t key) {
-  msg_t msg;
-
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID));
-
-  chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
-
-  msg = cry_lld_key_unload(cryp, key);
-
-  return msg;
-}
-
-/**
- * @brief       Exports an asymmetric public key; never private key material.
- *
- * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
- * @param[in]     format        SEC1 for ECC keys or PKCS1_DER for RSA keys.
- * @param[in]     out_size      Output buffer capacity, in bytes.
- * @param[out]    out           Output buffer, or NULL when its capacity is
- *                              zero.
- * @param[out]    out_length    Receives the number of bytes produced, or zero
- *                              on failure.
- * @return                      HAL_RET_SUCCESS or a Crypto error code.
- * @retval CRY_ERR_BUFFER       The key-dependent output does not fit.
- *
- * @api
- */
-msg_t cryKeyExportPublic(hal_crypto_driver_c *cryp, crykey_t key,
-                         cry_key_format_t format, size_t out_size,
-                         uint8_t *out, size_t *out_length) {
-  msg_t msg;
-
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
-             cry_buffer_valid(out, out_size) && (out_length != NULL) &&
-             ((format == CRY_KEY_FORMAT_SEC1) ||
-              (format == CRY_KEY_FORMAT_PKCS1_DER)));
-
-  chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
-
-  *out_length = 0U;
-  msg = cry_lld_key_export_public(cryp, key, format, out_size, out, out_length);
-  chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
-              "output overflow");
-  if (msg != HAL_RET_SUCCESS) {
-    *out_length = 0U;
-  }
 
   return msg;
 }
@@ -460,12 +346,9 @@ msg_t cryHashBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
   msg = cry_lld_hash_begin(cryp, op, algorithm);
-  chDbgAssert((msg != HAL_RET_SUCCESS) ||
-              (cry_lld_operation_driver(op) == cryp), "stream not bound");
   if (msg != HAL_RET_SUCCESS) {
     /* Releasing any partial setup.*/
     cry_lld_abort(op);
-    chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
   }
 
   return msg;
@@ -477,7 +360,8 @@ msg_t cryHashBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[out]    op            Caller-owned operation context, initialized by
  *                              this call.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     Cipher algorithm.
  * @param[in]     direction     Encryption or decryption.
  * @param[in]     params        Cipher parameters, consumed before return.
@@ -491,22 +375,18 @@ msg_t cryCipherBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
                      const cry_cipher_params_t *params) {
   msg_t msg;
 
-  chDbgCheck((cryp != NULL) && (op != NULL) && (key != CRY_KEY_INVALID) &&
-             (cry_algorithm_class(algorithm) == CRY_CLASS_CIPHER) &&
-             ((direction == CRY_ENCRYPT) || (direction == CRY_DECRYPT)) &&
-             (params != NULL) &&
-             cry_buffer_valid(params->iv, params->iv_size) &&
-             (params->iv_size == (algorithm == CRY_ALG_AES_ECB ? 0U : 16U)));
+  chDbgCheck((cryp != NULL) && (op != NULL));
+  chDbgCheck((cry_algorithm_class(algorithm) == CRY_CLASS_CIPHER) &&
+             ((direction == CRY_ENCRYPT) || (direction == CRY_DECRYPT)));
+  chDbgCheck((params != NULL) && cry_buffer_valid(params->iv, params->iv_size));
+  chDbgCheck(params->iv_size == (algorithm == CRY_ALG_AES_ECB ? 0U : 16U));
 
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
   msg = cry_lld_cipher_begin(cryp, op, key, algorithm, direction, params);
-  chDbgAssert((msg != HAL_RET_SUCCESS) ||
-              (cry_lld_operation_driver(op) == cryp), "stream not bound");
   if (msg != HAL_RET_SUCCESS) {
     /* Releasing any partial setup.*/
     cry_lld_abort(op);
-    chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
   }
 
   return msg;
@@ -519,7 +399,8 @@ msg_t cryCipherBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[out]    op            Caller-owned operation context, initialized by
  *                              this call.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     MAC algorithm.
  * @param[in]     verify        True for verification, false for generation.
  * @param[in]     tag_size      Tag size, from one byte up to the algorithm
@@ -532,19 +413,16 @@ msg_t cryMacBegin(hal_crypto_driver_c *cryp, cry_operation_t *op, crykey_t key,
                   cry_algorithm_t algorithm, bool verify, size_t tag_size) {
   msg_t msg;
 
-  chDbgCheck((cryp != NULL) && (op != NULL) && (key != CRY_KEY_INVALID) &&
+  chDbgCheck((cryp != NULL) && (op != NULL) &&
              (cry_algorithm_class(algorithm) == CRY_CLASS_MAC) &&
              (tag_size > 0U) && (tag_size <= cry_digest_size(algorithm)));
 
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
   msg = cry_lld_mac_begin(cryp, op, key, algorithm, verify, tag_size);
-  chDbgAssert((msg != HAL_RET_SUCCESS) ||
-              (cry_lld_operation_driver(op) == cryp), "stream not bound");
   if (msg != HAL_RET_SUCCESS) {
     /* Releasing any partial setup.*/
     cry_lld_abort(op);
-    chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
   }
 
   return msg;
@@ -560,7 +438,8 @@ msg_t cryMacBegin(hal_crypto_driver_c *cryp, cry_operation_t *op, crykey_t key,
  * @param[in]     cryp          Pointer to the Crypto driver.
  * @param[out]    op            Caller-owned operation context, initialized by
  *                              this call.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     AEAD algorithm.
  * @param[in]     direction     Encryption or decryption.
  * @param[in]     params        AEAD parameters, consumed before return.
@@ -576,32 +455,29 @@ msg_t cryAeadBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
                    cry_direction_t direction, const cry_aead_params_t *params) {
   msg_t msg;
 
-  chDbgCheck((cryp != NULL) && (op != NULL) && (key != CRY_KEY_INVALID) &&
-             (cry_algorithm_class(algorithm) == CRY_CLASS_AEAD) &&
-             ((direction == CRY_ENCRYPT) || (direction == CRY_DECRYPT)) &&
-             (params != NULL) && (params->nonce != NULL) &&
+  chDbgCheck((cryp != NULL) && (op != NULL));
+  chDbgCheck((cry_algorithm_class(algorithm) == CRY_CLASS_AEAD) &&
+             ((direction == CRY_ENCRYPT) || (direction == CRY_DECRYPT)));
+  chDbgCheck((params != NULL) && (params->nonce != NULL) &&
              (params->nonce_size > 0U));
+  chDbgCheck((algorithm != CRY_ALG_AES_GCM) ||
+             (params->tag_size == 4U) || (params->tag_size == 8U) ||
+             ((params->tag_size >= 12U) && (params->tag_size <= 16U)));
+  chDbgCheck((algorithm != CRY_ALG_AES_CCM) ||
+             ((params->nonce_size >= 7U) && (params->nonce_size <= 13U)));
+  chDbgCheck((algorithm != CRY_ALG_AES_CCM) ||
+             ((params->tag_size >= 4U) && (params->tag_size <= 16U) &&
+              ((params->tag_size & 1U) == 0U)));
+  chDbgCheck((algorithm != CRY_ALG_AES_CCM) ||
+             ((params->aad_size != CRY_LENGTH_UNKNOWN) &&
+              (params->data_size != CRY_LENGTH_UNKNOWN)));
 
-  if (algorithm == CRY_ALG_AES_GCM) {
-    chDbgCheck((params->tag_size == 4U) || (params->tag_size == 8U) ||
-               ((params->tag_size >= 12U) && (params->tag_size <= 16U)));
-  }
-  else {
-    chDbgCheck((params->nonce_size >= 7U) && (params->nonce_size <= 13U) &&
-               (params->tag_size >= 4U) && (params->tag_size <= 16U) &&
-               ((params->tag_size & 1U) == 0U) &&
-               (params->aad_size != CRY_LENGTH_UNKNOWN) &&
-               (params->data_size != CRY_LENGTH_UNKNOWN));
-  }
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
   msg = cry_lld_aead_begin(cryp, op, key, algorithm, direction, params);
-  chDbgAssert((msg != HAL_RET_SUCCESS) ||
-              (cry_lld_operation_driver(op) == cryp), "stream not bound");
   if (msg != HAL_RET_SUCCESS) {
     /* Releasing any partial setup.*/
     cry_lld_abort(op);
-    chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
   }
 
   return msg;
@@ -628,7 +504,6 @@ msg_t cryHashUpdate(cry_operation_t *op, size_t size, const uint8_t *in) {
   msg = cry_lld_hash_update(op, size, in);
   if (msg != HAL_RET_SUCCESS) {
     cry_lld_abort(op);
-    chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
   }
 
   return msg;
@@ -655,7 +530,6 @@ msg_t cryMacUpdate(cry_operation_t *op, size_t size, const uint8_t *in) {
   msg = cry_lld_mac_update(op, size, in);
   if (msg != HAL_RET_SUCCESS) {
     cry_lld_abort(op);
-    chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
   }
 
   return msg;
@@ -689,12 +563,9 @@ msg_t cryCipherUpdate(cry_operation_t *op, size_t size, const uint8_t *in,
 
   *out_length = 0U;
   msg = cry_lld_cipher_update(op, size, in, out_size, out, out_length);
-  chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
-              "output overflow");
   if (msg != HAL_RET_SUCCESS) {
     *out_length = 0U;
     cry_lld_abort(op);
-    chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
   }
 
   return msg;
@@ -730,12 +601,9 @@ msg_t cryAeadUpdate(cry_operation_t *op, size_t size, const uint8_t *in,
 
   *out_length = 0U;
   msg = cry_lld_aead_update(op, size, in, out_size, out, out_length);
-  chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
-              "output overflow");
   if (msg != HAL_RET_SUCCESS) {
     *out_length = 0U;
     cry_lld_abort(op);
-    chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
   }
 
   return msg;
@@ -763,7 +631,6 @@ msg_t cryAeadUpdateAAD(cry_operation_t *op, size_t size, const uint8_t *in) {
   msg = cry_lld_aead_update_aad(op, size, in);
   if (msg != HAL_RET_SUCCESS) {
     cry_lld_abort(op);
-    chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
   }
 
   return msg;
@@ -792,13 +659,10 @@ msg_t cryHashFinal(cry_operation_t *op, size_t out_size, uint8_t *out,
 
   *out_length = 0U;
   msg = cry_lld_hash_final(op, out_size, out, out_length);
-  chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
-              "output overflow");
   if (msg != HAL_RET_SUCCESS) {
     *out_length = 0U;
   }
   cry_lld_abort(op);
-  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
   return msg;
 }
@@ -828,13 +692,10 @@ msg_t cryCipherFinal(cry_operation_t *op, size_t out_size, uint8_t *out,
 
   *out_length = 0U;
   msg = cry_lld_cipher_final(op, out_size, out, out_length);
-  chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
-              "output overflow");
   if (msg != HAL_RET_SUCCESS) {
     *out_length = 0U;
   }
   cry_lld_abort(op);
-  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
   return msg;
 }
@@ -862,13 +723,10 @@ msg_t cryMacFinal(cry_operation_t *op, size_t out_size, uint8_t *out,
 
   *out_length = 0U;
   msg = cry_lld_mac_final(op, out_size, out, out_length);
-  chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
-              "output overflow");
   if (msg != HAL_RET_SUCCESS) {
     *out_length = 0U;
   }
   cry_lld_abort(op);
-  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
   return msg;
 }
@@ -897,7 +755,6 @@ msg_t cryMacVerify(cry_operation_t *op, size_t tag_size, const uint8_t *tag) {
 
   msg = cry_lld_mac_verify(op, tag_size, tag);
   cry_lld_abort(op);
-  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
   return msg;
 }
@@ -931,13 +788,10 @@ msg_t cryAeadFinal(cry_operation_t *op, size_t out_size, uint8_t *out,
 
   *out_length = 0U;
   msg = cry_lld_aead_final(op, out_size, out, out_length, tag_size, tag);
-  chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
-              "output overflow");
   if (msg != HAL_RET_SUCCESS) {
     *out_length = 0U;
   }
   cry_lld_abort(op);
-  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
   return msg;
 }
@@ -974,13 +828,10 @@ msg_t cryAeadVerify(cry_operation_t *op, size_t out_size, uint8_t *out,
 
   *out_length = 0U;
   msg = cry_lld_aead_verify(op, out_size, out, out_length, tag_size, tag);
-  chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
-              "output overflow");
   if (msg != HAL_RET_SUCCESS) {
     *out_length = 0U;
   }
   cry_lld_abort(op);
-  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
   return msg;
 }
@@ -1005,7 +856,6 @@ void cryOperationAbort(cry_operation_t *op) {
   chDbgCheck(op != NULL);
 
   cry_lld_abort(op);
-  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 }
 
 /**
@@ -1017,7 +867,8 @@ void cryOperationAbort(cry_operation_t *op) {
  *              parameters.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     Signature algorithm.
  * @param[in]     params        Signature parameters, or NULL for defaults
  *                              (zero salt).
@@ -1039,10 +890,10 @@ msg_t crySignDigest(hal_crypto_driver_c *cryp, crykey_t key,
                     const uint8_t *in, size_t out_size, uint8_t *out,
                     size_t *out_length) {
   cry_job_t job = {0};
+  msg_t msg;
 
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
-             cry_signature_valid(algorithm, params) && (in != NULL) &&
-             (size == cry_digest_size(algorithm)) &&
+  chDbgCheck((cryp != NULL) && cry_signature_valid(algorithm, params) &&
+             (in != NULL) && (size == cry_digest_size(algorithm)) &&
              cry_buffer_valid(out, out_size) && (out_length != NULL));
 
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
@@ -1057,7 +908,12 @@ msg_t crySignDigest(hal_crypto_driver_c *cryp, crykey_t key,
   job.output = out;
   job.output_size = out_size;
   job.output_length = out_length;
-  return cry_execute(cryp, key, algorithm, &job);
+  msg = cry_lld_execute(cryp, key, algorithm, &job);
+  if (msg != HAL_RET_SUCCESS) {
+    *out_length = 0U;
+  }
+
+  return msg;
 }
 
 /**
@@ -1069,7 +925,8 @@ msg_t crySignDigest(hal_crypto_driver_c *cryp, crykey_t key,
  *              parameters.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     Signature algorithm.
  * @param[in]     params        Signature parameters, or NULL for defaults
  *                              (zero salt).
@@ -1091,11 +948,11 @@ msg_t crySignMessage(hal_crypto_driver_c *cryp, crykey_t key,
                      const uint8_t *in, size_t out_size, uint8_t *out,
                      size_t *out_length) {
   cry_job_t job = {0};
+  msg_t msg;
 
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
-             cry_signature_valid(algorithm, params) &&
-             cry_buffer_valid(in, size) &&
-             cry_buffer_valid(out, out_size) && (out_length != NULL));
+  chDbgCheck((cryp != NULL) && cry_signature_valid(algorithm, params) &&
+             cry_buffer_valid(in, size) && cry_buffer_valid(out, out_size) &&
+             (out_length != NULL));
 
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
@@ -1109,7 +966,12 @@ msg_t crySignMessage(hal_crypto_driver_c *cryp, crykey_t key,
   job.output = out;
   job.output_size = out_size;
   job.output_length = out_length;
-  return cry_execute(cryp, key, algorithm, &job);
+  msg = cry_lld_execute(cryp, key, algorithm, &job);
+  if (msg != HAL_RET_SUCCESS) {
+    *out_length = 0U;
+  }
+
+  return msg;
 }
 
 /**
@@ -1121,7 +983,8 @@ msg_t crySignMessage(hal_crypto_driver_c *cryp, crykey_t key,
  *              sized signatures fail verification.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     Signature algorithm.
  * @param[in]     params        Signature parameters, or NULL for defaults
  *                              (zero salt).
@@ -1142,9 +1005,8 @@ msg_t cryVerifyDigest(hal_crypto_driver_c *cryp, crykey_t key,
                       const uint8_t *signature) {
   cry_job_t job = {0};
 
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
-             cry_signature_valid(algorithm, params) && (in != NULL) &&
-             (size == cry_digest_size(algorithm)) &&
+  chDbgCheck((cryp != NULL) && cry_signature_valid(algorithm, params) &&
+             (in != NULL) && (size == cry_digest_size(algorithm)) &&
              cry_buffer_valid(signature, signature_size));
 
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
@@ -1157,7 +1019,7 @@ msg_t cryVerifyDigest(hal_crypto_driver_c *cryp, crykey_t key,
   }
   job.signature = signature;
   job.signature_size = signature_size;
-  return cry_execute(cryp, key, algorithm, &job);
+  return cry_lld_execute(cryp, key, algorithm, &job);
 }
 
 /**
@@ -1169,7 +1031,8 @@ msg_t cryVerifyDigest(hal_crypto_driver_c *cryp, crykey_t key,
  *              sized signatures fail verification.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     Signature algorithm.
  * @param[in]     params        Signature parameters, or NULL for defaults
  *                              (zero salt).
@@ -1190,8 +1053,7 @@ msg_t cryVerifyMessage(hal_crypto_driver_c *cryp, crykey_t key,
                        const uint8_t *signature) {
   cry_job_t job = {0};
 
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
-             cry_signature_valid(algorithm, params) &&
+  chDbgCheck((cryp != NULL) && cry_signature_valid(algorithm, params) &&
              cry_buffer_valid(in, size) &&
              cry_buffer_valid(signature, signature_size));
 
@@ -1205,7 +1067,7 @@ msg_t cryVerifyMessage(hal_crypto_driver_c *cryp, crykey_t key,
   }
   job.signature = signature;
   job.signature_size = signature_size;
-  return cry_execute(cryp, key, algorithm, &job);
+  return cry_lld_execute(cryp, key, algorithm, &job);
 }
 
 /**
@@ -1214,7 +1076,8 @@ msg_t cryVerifyMessage(hal_crypto_driver_c *cryp, crykey_t key,
  *              backend enforces modulus-dependent bounds.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     Asymmetric encryption algorithm.
  * @param[in]     params        OAEP parameters, or NULL for no label.
  * @param[in]     size          Plaintext size, in bytes.
@@ -1236,13 +1099,14 @@ msg_t cryAsymEncrypt(hal_crypto_driver_c *cryp, crykey_t key,
                      const uint8_t *in, size_t out_size, uint8_t *out,
                      size_t *out_length) {
   cry_job_t job = {0};
+  msg_t msg;
 
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
-             (cry_algorithm_class(algorithm) == CRY_CLASS_ASYMMETRIC) &&
-             ((params == NULL) ||
-              cry_buffer_valid(params->label, params->label_size)) &&
-             cry_buffer_valid(in, size) &&
-             cry_buffer_valid(out, out_size) && (out_length != NULL));
+  chDbgCheck((cryp != NULL) &&
+             (cry_algorithm_class(algorithm) == CRY_CLASS_ASYMMETRIC));
+  chDbgCheck((params == NULL) ||
+             cry_buffer_valid(params->label, params->label_size));
+  chDbgCheck(cry_buffer_valid(in, size) && cry_buffer_valid(out, out_size) &&
+             (out_length != NULL));
 
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
@@ -1256,7 +1120,12 @@ msg_t cryAsymEncrypt(hal_crypto_driver_c *cryp, crykey_t key,
   if (params != NULL) {
     job.params.asymmetric = *params;
   }
-  return cry_execute(cryp, key, algorithm, &job);
+  msg = cry_lld_execute(cryp, key, algorithm, &job);
+  if (msg != HAL_RET_SUCCESS) {
+    *out_length = 0U;
+  }
+
+  return msg;
 }
 
 /**
@@ -1267,7 +1136,8 @@ msg_t cryAsymEncrypt(hal_crypto_driver_c *cryp, crykey_t key,
  *              details.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     Asymmetric encryption algorithm.
  * @param[in]     params        OAEP parameters, or NULL for no label.
  * @param[in]     size          Ciphertext size, in bytes.
@@ -1289,13 +1159,14 @@ msg_t cryAsymDecrypt(hal_crypto_driver_c *cryp, crykey_t key,
                      const uint8_t *in, size_t out_size, uint8_t *out,
                      size_t *out_length) {
   cry_job_t job = {0};
+  msg_t msg;
 
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
-             (cry_algorithm_class(algorithm) == CRY_CLASS_ASYMMETRIC) &&
-             ((params == NULL) ||
-              cry_buffer_valid(params->label, params->label_size)) &&
-             cry_buffer_valid(in, size) &&
-             cry_buffer_valid(out, out_size) && (out_length != NULL));
+  chDbgCheck((cryp != NULL) &&
+             (cry_algorithm_class(algorithm) == CRY_CLASS_ASYMMETRIC));
+  chDbgCheck((params == NULL) ||
+             cry_buffer_valid(params->label, params->label_size));
+  chDbgCheck(cry_buffer_valid(in, size) && cry_buffer_valid(out, out_size) &&
+             (out_length != NULL));
 
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
@@ -1309,7 +1180,12 @@ msg_t cryAsymDecrypt(hal_crypto_driver_c *cryp, crykey_t key,
   if (params != NULL) {
     job.params.asymmetric = *params;
   }
-  return cry_execute(cryp, key, algorithm, &job);
+  msg = cry_lld_execute(cryp, key, algorithm, &job);
+  if (msg != HAL_RET_SUCCESS) {
+    *out_length = 0U;
+  }
+
+  return msg;
 }
 
 /**
@@ -1321,7 +1197,8 @@ msg_t cryAsymDecrypt(hal_crypto_driver_c *cryp, crykey_t key,
  *              output and its lifetime.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     Key agreement algorithm.
  * @param[in]     peer_size     Encoded peer public-key size, in bytes.
  * @param[in]     peer          Encoded peer public key, or NULL when its size
@@ -1340,10 +1217,11 @@ msg_t cryKeyAgreement(hal_crypto_driver_c *cryp, crykey_t key,
                       const uint8_t *peer, size_t out_size, uint8_t *out,
                       size_t *out_length) {
   cry_job_t job = {0};
+  msg_t msg;
 
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
-             (cry_algorithm_class(algorithm) == CRY_CLASS_AGREEMENT) &&
-             cry_buffer_valid(peer, peer_size) && (out != NULL) &&
+  chDbgCheck((cryp != NULL) &&
+             (cry_algorithm_class(algorithm) == CRY_CLASS_AGREEMENT));
+  chDbgCheck(cry_buffer_valid(peer, peer_size) && (out != NULL) &&
              (out_length != NULL));
 
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
@@ -1355,7 +1233,12 @@ msg_t cryKeyAgreement(hal_crypto_driver_c *cryp, crykey_t key,
   job.output = out;
   job.output_size = out_size;
   job.output_length = out_length;
-  return cry_execute(cryp, key, algorithm, &job);
+  msg = cry_lld_execute(cryp, key, algorithm, &job);
+  if (msg != HAL_RET_SUCCESS) {
+    *out_length = 0U;
+  }
+
+  return msg;
 }
 
 /**
@@ -1365,7 +1248,8 @@ msg_t cryKeyAgreement(hal_crypto_driver_c *cryp, crykey_t key,
  *              capacity. The caller owns the derived bytes and their lifetime.
  *
  * @param[in]     cryp          Pointer to the Crypto driver.
- * @param[in]     key           Key identifier interpreted by the LLD.
+ * @param[in]     key           Key identifier, CRY_KEY_TRANSIENT or a backend
+ *                              key.
  * @param[in]     algorithm     Key derivation algorithm.
  * @param[in]     params        HKDF parameters, or NULL for no salt and no
  *                              context information.
@@ -1383,12 +1267,12 @@ msg_t cryDeriveKey(hal_crypto_driver_c *cryp, crykey_t key,
   cry_job_t job = {0};
   size_t length = 0U;
 
-  chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
-             (cry_algorithm_class(algorithm) == CRY_CLASS_DERIVATION) &&
-             ((params == NULL) ||
-              (cry_buffer_valid(params->salt, params->salt_size) &&
-               cry_buffer_valid(params->info, params->info_size))) &&
-             (size > 0U) && (size <= 255U * cry_digest_size(algorithm)) &&
+  chDbgCheck((cryp != NULL) &&
+             (cry_algorithm_class(algorithm) == CRY_CLASS_DERIVATION));
+  chDbgCheck((params == NULL) ||
+             (cry_buffer_valid(params->salt, params->salt_size) &&
+              cry_buffer_valid(params->info, params->info_size)));
+  chDbgCheck((size > 0U) && (size <= 255U * cry_digest_size(algorithm)) &&
              (out != NULL));
 
   chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
@@ -1400,7 +1284,7 @@ msg_t cryDeriveKey(hal_crypto_driver_c *cryp, crykey_t key,
   job.output = out;
   job.output_size = size;
   job.output_length = &length;
-  return cry_execute(cryp, key, algorithm, &job);
+  return cry_lld_execute(cryp, key, algorithm, &job);
 }
 
 /*===========================================================================*/

@@ -22,16 +22,22 @@
  * @addtogroup  HAL_CRYPTO
  * @brief       Cryptographic operation-class APIs and driver lifecycle.
  * @details     All cryptographic operations use unlocked thread context and
- *              may block. The HLD checks call parameters, accounts for active
- *              streams and calls and manages the driver lifecycle. Stream
- *              contexts are defined and managed by the LLD, which also checks
- *              context state. Parameter and context-state violations are
- *              programming errors caught by debug checks and assertions;
- *              return codes report only conditions that depend on runtime data
- *              or on the backend. Key identifiers are interpreted by the
- *              selected LLD; the HLD does not maintain a key store or impose
- *              key access policy. The LLD checks key suitability for each
- *              operation. Callers must serialize access to each operation
+ *              may block. The HLD checks call parameters and manages the
+ *              driver lifecycle. Stream contexts are defined and managed by
+ *              the LLD, which also checks context state. Parameter and
+ *              context-state violations are programming errors caught by debug
+ *              checks and assertions; return codes report only conditions that
+ *              depend on runtime data or on the backend. The driver does not
+ *              manage keys: key zero is a volatile transient key and the only
+ *              key every driver can load with cryKeyLoad(). Other identifiers
+ *              refer to keys the backend provides in an unspecified way, for
+ *              example provisioned into an HSM; whether some of them can also
+ *              be loaded, and with which lifetime, is backend-defined. The LLD
+ *              rejects identifiers without a key and keys unsuitable for an
+ *              operation. Operations using a loadable key hold it, and loading
+ *              that key fails while it is held; callers sharing a driver
+ *              serialize loading and the begin that uses the key, for example
+ *              with drvLock(). Callers must serialize access to each operation
  *              context. Different contexts may be used concurrently from
  *              different threads; the driver remains in HAL_DRV_STATE_READY
  *              while streams are open. Hardware and other resources are
@@ -66,7 +72,7 @@
  * @{
  */
 /**
- * @brief       Unsupported algorithm or capability.
+ * @brief       Unsupported algorithm, capability or key operation.
  */
 #define CRY_ERR_UNSUPPORTED                 ((msg_t)-64)
 
@@ -77,7 +83,8 @@
 #define CRY_ERR_ARGUMENT                    ((msg_t)-65)
 
 /**
- * @brief       Key identifier unknown to the LLD or holding no key material.
+ * @brief       No key with this identifier, or the transient key is not
+ *              loaded.
  */
 #define CRY_ERR_KEY                         ((msg_t)-66)
 
@@ -117,9 +124,9 @@
  * @{
  */
 /**
- * @brief       Invalid key identifier; zero is a valid explicit identifier.
+ * @brief       Transient key, the only identifier every driver can load.
  */
-#define CRY_KEY_INVALID                     UINT32_MAX
+#define CRY_KEY_TRANSIENT                   0U
 
 /**
  * @brief       Unknown AEAD total length where permitted.
@@ -135,11 +142,6 @@
  * @brief       Backend supports multipart operations.
  */
 #define CRY_CAP_STREAM                      2U
-
-/**
- * @brief       Backend can generate keys for the selected algorithm.
- */
-#define CRY_CAP_KEY_GENERATE                8U
 /** @} */
 
 /*===========================================================================*/
@@ -179,10 +181,14 @@ typedef hal_crypto_driver_c CRYDriver;
 typedef hal_crypto_config_t CRYConfig;
 
 /**
- * @brief       Key identifier interpreted by the selected LLD.
- * @details     The HLD passes identifiers to the LLD without requiring a key
- *              table, allocation scheme or storage representation.
- *              CRY_KEY_INVALID is reserved.
+ * @brief       Key identifier.
+ * @details     CRY_KEY_TRANSIENT is a volatile key, erased by drvStop(), that
+ *              every driver can load with cryKeyLoad(). Other identifiers are
+ *              defined by the backend, which provides their keys in an
+ *              unspecified way; loading some of them may be possible, with a
+ *              backend-defined lifetime. The driver never generates, exports
+ *              or deletes keys. The HLD passes identifiers to the LLD
+ *              unchecked.
  */
 typedef uint32_t crykey_t;
 
@@ -498,7 +504,7 @@ typedef enum {
 } cry_job_kind_t;
 
 /**
- * @brief       Mathematical key parameters for loading or generation.
+ * @brief       Mathematical key parameters for loading a key.
  * @details     These parameters describe key material, not permissions or a
  *              fixed operation algorithm. The LLD checks compatibility with
  *              each requested operation.
@@ -812,12 +818,6 @@ extern "C" {
   msg_t cryKeyLoad(hal_crypto_driver_c *cryp, crykey_t key,
                    const cry_key_params_t *params, cry_key_format_t format,
                    size_t size, const uint8_t *data);
-  msg_t cryKeyGenerate(hal_crypto_driver_c *cryp, crykey_t key,
-                       const cry_key_params_t *params);
-  msg_t cryKeyUnload(hal_crypto_driver_c *cryp, crykey_t key);
-  msg_t cryKeyExportPublic(hal_crypto_driver_c *cryp, crykey_t key,
-                           cry_key_format_t format, size_t out_size,
-                           uint8_t *out, size_t *out_length);
   msg_t cryHashBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,
                      cry_algorithm_t algorithm);
   msg_t cryCipherBegin(hal_crypto_driver_c *cryp, cry_operation_t *op,

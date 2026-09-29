@@ -71,7 +71,8 @@ msg_t cry_lld_start(hal_crypto_driver_c *cryp) {
 /**
  * @brief   Stops the Crypto driver.
  * @details Called in thread context with no call in progress; streams may be
- *          open. Reclaim all resource pools, erase secrets held by the
+ *          open. Reclaim all resource pools including the transient key
+ *          hold, erase the transient key and other secrets held by the
  *          hardware and the driver, and increment the generation so all
  *          open contexts become invalid.
  *
@@ -146,14 +147,18 @@ msg_t cry_lld_get_capabilities(hal_crypto_driver_c *cryp,
 }
 
 /**
- * @brief   Loads key material for cryptographic operations.
- * @details Interpret the key identifier and validate material, encoding and
- *          parameters. Consume the input before return. Supported identifiers
- *          and loading or replacement behavior are defined by the LLD.
- *          Loading must not change the key used by an active operation.
+ * @brief   Loads a key.
+ * @details CRY_KEY_TRANSIENT must be supported. Return CRY_ERR_UNSUPPORTED for
+ *          identifiers this backend cannot load. Validate material, encoding
+ *          and parameters and consume the input before return. Return
+ *          CRY_ERR_BUSY, leaving the current key in place, while the key is
+ *          held by an operation; check the hold count and install the key
+ *          under the system lock, or reserve the key storage under the lock
+ *          before a longer import. Wrapped backend formats are unwrapped
+ *          inside the backend.
  *
  * @param[in] cryp Pointer to the Crypto driver.
- * @param[in] key Key identifier interpreted by the LLD.
+ * @param[in] key Key identifier, CRY_KEY_TRANSIENT or a loadable backend key.
  * @param[in] params Mathematical key parameters.
  * @param[in] format Key material encoding.
  * @param[in] size Encoded key length, in bytes.
@@ -172,75 +177,6 @@ msg_t cry_lld_key_load(hal_crypto_driver_c *cryp, crykey_t key,
   (void)format;
   (void)size;
   (void)data;
-
-  return CRY_ERR_UNSUPPORTED;
-}
-
-/**
- * @brief   Generates key material.
- * @details Validate supported key type and size and use a suitable random
- *          source. Propagate entropy failures. Generation must not change the
- *          key used by an active operation.
- *
- * @param[in] cryp Pointer to the Crypto driver.
- * @param[in] key Key identifier interpreted by the LLD.
- * @param[in] params Mathematical key parameters.
- * @return  HAL_RET_SUCCESS or an error code.
- * @notapi
- */
-msg_t cry_lld_key_generate(hal_crypto_driver_c *cryp, crykey_t key,
-                           const cry_key_params_t *params) {
-
-  (void)cryp;
-  (void)key;
-  (void)params;
-
-  return CRY_ERR_UNSUPPORTED;
-}
-
-/**
- * @brief   Releases loaded or generated key material.
- * @details The LLD defines supported identifiers and cleanup behavior.
- *          Unloading must not invalidate an active operation.
- *
- * @param[in] cryp Pointer to the Crypto driver.
- * @param[in] key Key identifier interpreted by the LLD.
- * @return  HAL_RET_SUCCESS or an error code.
- * @notapi
- */
-msg_t cry_lld_key_unload(hal_crypto_driver_c *cryp, crykey_t key) {
-
-  (void)cryp;
-  (void)key;
-
-  return CRY_ERR_UNSUPPORTED;
-}
-
-/**
- * @brief   Exports the public component of an asymmetric key.
- * @details Check the key type and requested format. Return CRY_ERR_BUFFER if
- *          the key-dependent encoding does not fit. This operation never
- *          exports private or symmetric key material.
- *
- * @param[in] cryp Pointer to the Crypto driver.
- * @param[in] key Key identifier interpreted by the LLD.
- * @param[in] format Key material encoding.
- * @param[in] out_size Output buffer capacity, in bytes.
- * @param[out] out Output buffer.
- * @param[out] out_length Actual output length, preset to zero by the HLD.
- * @return  HAL_RET_SUCCESS or an error code.
- * @notapi
- */
-msg_t cry_lld_key_export_public(hal_crypto_driver_c *cryp, crykey_t key,
-                                cry_key_format_t format, size_t out_size,
-                                uint8_t *out, size_t *out_length) {
-
-  (void)cryp;
-  (void)key;
-  (void)format;
-  (void)out_size;
-  (void)out;
-  (void)out_length;
 
   return CRY_ERR_UNSUPPORTED;
 }
@@ -276,13 +212,14 @@ msg_t cry_lld_hash_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
 
 /**
  * @brief   Begins a cipher stream.
- * @details Same contract as cry_lld_hash_begin(). Validate key type, size and
- *          suitability for the algorithm and direction. The same key must be
- *          used throughout the stream; the LLD chooses how to guarantee this.
+ * @details Same contract as cry_lld_hash_begin(). Return CRY_ERR_KEY or
+ *          CRY_ERR_KEY_MISMATCH, after initializing the context, for a missing
+ *          key or one unsuitable for the algorithm and direction. A stream on
+ *          a loadable key records a hold on it, released by cry_lld_abort().
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[out] op Operation context, initialized by this call.
- * @param[in] key Key identifier interpreted by the LLD.
+ * @param[in] key Key identifier, CRY_KEY_TRANSIENT or a backend key.
  * @param[in] algorithm Cipher algorithm.
  * @param[in] direction Encryption or decryption.
  * @param[in] params Cipher parameters.
@@ -312,7 +249,7 @@ msg_t cry_lld_cipher_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[out] op Operation context, initialized by this call.
- * @param[in] key Key identifier interpreted by the LLD.
+ * @param[in] key Key identifier, CRY_KEY_TRANSIENT or a backend key.
  * @param[in] algorithm MAC algorithm.
  * @param[in] verify True for verification, false for generation.
  * @param[in] tag_size Tag size, in bytes.
@@ -346,7 +283,7 @@ msg_t cry_lld_mac_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[out] op Operation context, initialized by this call.
- * @param[in] key Key identifier interpreted by the LLD.
+ * @param[in] key Key identifier, CRY_KEY_TRANSIENT or a backend key.
  * @param[in] algorithm AEAD algorithm.
  * @param[in] direction Encryption or decryption.
  * @param[in] params AEAD parameters.
@@ -661,17 +598,18 @@ void cry_lld_abort(cry_operation_t *op) {
 
 /**
  * @brief   Executes a single-call public-key or derivation operation.
- * @details Interpret the key identifier and validate suitability for the
- *          selected operation, encoding, scheme parameters and peer point as
- *          applicable. Hold any required units only for the duration of the
- *          call. Use suitable randomness when required. Return
- *          CRY_ERR_BUFFER if a key-dependent output does not fit. Agreement
- *          returns the full-width shared secret; HKDF returns exactly
- *          job->output_size bytes. Complete all accesses and clean up all
- *          operation resources before returning, on success or failure.
+ * @details Return CRY_ERR_KEY or CRY_ERR_KEY_MISMATCH for a missing or
+ *          unsuitable key, and validate encoding, scheme parameters and peer
+ *          point as applicable. Hold any required units, including a
+ *          loadable key, only for the duration of the call. Use suitable
+ *          randomness when required. Return CRY_ERR_BUFFER if a key-dependent
+ *          output does not fit. Agreement returns the full-width shared secret;
+ *          HKDF returns exactly job->output_size bytes. Complete all accesses
+ *          and clean up all operation resources before returning, on success or
+ *          failure.
  *
  * @param[in] cryp Pointer to the Crypto driver.
- * @param[in] key Key identifier interpreted by the LLD.
+ * @param[in] key Key identifier, CRY_KEY_TRANSIENT or a backend key.
  * @param[in] algorithm Explicit algorithm selector.
  * @param[in] job Operation parameters and buffers.
  * @return  HAL_RET_SUCCESS or an error code.
