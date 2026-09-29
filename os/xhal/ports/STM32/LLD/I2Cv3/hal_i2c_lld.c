@@ -622,8 +622,8 @@ msg_t i2c_lld_start(hal_i2c_driver_c *i2cp) {
       dmaSetRequestSource(i2cp->dmatx, STM32_DMAMUX1_I2C1_TX);
 #endif
 
-      rccResetI2C1();
       rccEnableI2C1(true);
+      rccResetI2C1();
     }
 #endif /* STM32_I2C_USE_I2C1 */
 
@@ -645,8 +645,8 @@ msg_t i2c_lld_start(hal_i2c_driver_c *i2cp) {
       dmaSetRequestSource(i2cp->dmatx, STM32_DMAMUX1_I2C2_TX);
 #endif
 
-      rccResetI2C2();
       rccEnableI2C2(true);
+      rccResetI2C2();
     }
 #endif /* STM32_I2C_USE_I2C2 */
 
@@ -668,8 +668,8 @@ msg_t i2c_lld_start(hal_i2c_driver_c *i2cp) {
       dmaSetRequestSource(i2cp->dmatx, STM32_DMAMUX1_I2C3_TX);
 #endif
 
-      rccResetI2C3();
       rccEnableI2C3(true);
+      rccResetI2C3();
     }
 #endif /* STM32_I2C_USE_I2C3 */
 
@@ -707,8 +707,8 @@ msg_t i2c_lld_start(hal_i2c_driver_c *i2cp) {
 #endif
 #endif
 
-      rccResetI2C4();
       rccEnableI2C4(true);
+      rccResetI2C4();
     }
 #endif /* STM32_I2C_USE_I2C4 */
 
@@ -730,8 +730,8 @@ msg_t i2c_lld_start(hal_i2c_driver_c *i2cp) {
       dmaSetRequestSource(i2cp->dmatx, STM32_DMAMUX1_I2C5_TX);
 #endif
 
-      rccResetI2C5();
       rccEnableI2C5(true);
+      rccResetI2C5();
     }
 #endif /* STM32_I2C_USE_I2C5 */
   }
