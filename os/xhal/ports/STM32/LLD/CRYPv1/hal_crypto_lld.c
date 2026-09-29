@@ -909,7 +909,12 @@ msg_t cry_lld_hash_update(cry_operation_t *op, size_t size,
 
   chDbgAssert(op->cl == CRY_CLASS_HASH, "wrong operation class");
 
-  /* Completing a deferred partial word, if any.*/
+  if (size == 0U) {
+    return HAL_RET_SUCCESS;
+  }
+
+  /* Completing a deferred partial word, if any. The context may not be
+     DMA-accessible, the word is written by the CPU.*/
   if (op->partial_size > 0U) {
     fill = 4U - op->partial_size;
     if (size < fill) {
@@ -918,7 +923,7 @@ msg_t cry_lld_hash_update(cry_operation_t *op, size_t size,
       return HAL_RET_SUCCESS;
     }
     memcpy(&op->partial[op->partial_size], in, fill);
-    hash_push(op->driver, 1U, op->partial);
+    HASH->DIN = __UNALIGNED_UINT32_READ(op->partial);
     op->partial_size = 0U;
     in   += fill;
     size -= fill;
@@ -997,7 +1002,12 @@ msg_t cry_lld_cipher_update(cry_operation_t *op, size_t size,
   chDbgAssert(out_size >= ((op->partial_size + size) & ~(size_t)15U),
               "output buffer too small");
 
-  /* Completing a buffered partial block, if any.*/
+  if (size == 0U) {
+    return HAL_RET_SUCCESS;
+  }
+
+  /* Completing a buffered partial block, if any. The context may not be
+     DMA-accessible, the block is transferred by the CPU.*/
   if (op->partial_size > 0U) {
     take = CRYP_BLOCK_SIZE - op->partial_size;
     if (take > size) {
@@ -1010,7 +1020,7 @@ msg_t cry_lld_cipher_update(cry_operation_t *op, size_t size,
     if (op->partial_size < CRYP_BLOCK_SIZE) {
       return HAL_RET_SUCCESS;
     }
-    cryp_transfer(op->driver, CRYP_BLOCK_SIZE, op->partial, out);
+    cryp_transfer_polled(CRYP_BLOCK_SIZE / 4U, op->partial, out);
     memset(op->partial, 0, sizeof (op->partial));
     op->partial_size = 0U;
     out         += CRYP_BLOCK_SIZE;

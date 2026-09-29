@@ -21,8 +21,9 @@
  *          streams on HASH1. The CRYP and HASH engines are resource units
  *          held by a stream from begin to abort; a second concurrent stream
  *          needing the same engine gets CRY_ERR_BUSY. The only key is the
- *          transient AES key. Buffers transferred by DMA must be
- *          cache-coherent.
+ *          transient AES key. Caller buffers transferred by DMA must be
+ *          DMA-accessible and cache-coherent; buffers in the operation
+ *          context are always transferred by the CPU.
  *
  * @addtogroup HAL_CRYPTO
  * @{

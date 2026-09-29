@@ -106,7 +106,8 @@ msg_t xcry_load_key(cry_key_type_t type, size_t size, const uint8_t *key) {
                     CRY_KEY_FORMAT_RAW, size, key);
 }
 
-/* Runs a cipher vector in fragments, returns the first failure.*/
+/* Runs a cipher vector in fragments, each followed by an empty update,
+   returns the first failure.*/
 msg_t xcry_cipher(const xcry_cipher_vector_t *v, cry_direction_t direction,
                   const uint8_t *in, uint8_t *out, size_t frag) {
   cry_cipher_params_t params = {v->iv, v->iv_size};
@@ -134,6 +135,10 @@ msg_t xcry_cipher(const xcry_cipher_vector_t *v, cry_direction_t direction,
     }
     done += n;
     produced += len;
+    msg = cryCipherUpdate(&op, 0U, NULL, 0U, NULL, &len);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
   }
   msg = cryCipherFinal(&op, v->size - produced, &out[produced], &len);
   if (msg != HAL_RET_SUCCESS) {
@@ -144,8 +149,8 @@ msg_t xcry_cipher(const xcry_cipher_vector_t *v, cry_direction_t direction,
   return produced == v->size ? HAL_RET_SUCCESS : CRY_ERR_FAILURE;
 }
 
-/* Runs an AEAD vector in fragments, the tag is generated on encryption and
-   verified on decryption.*/
+/* Runs an AEAD vector in fragments, each followed by an empty update, the
+   tag is generated on encryption and verified on decryption.*/
 msg_t xcry_aead(const xcry_aead_vector_t *v, cry_direction_t direction,
                 const uint8_t *in, uint8_t *out, uint8_t *tag,
                 size_t tag_size, size_t frag, bool declare) {
@@ -171,6 +176,10 @@ msg_t xcry_aead(const xcry_aead_vector_t *v, cry_direction_t direction,
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
+    msg = cryAeadUpdateAAD(&op, 0U, NULL);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
   }
   produced = 0U;
   for (done = 0U; done < v->size; done += n) {
@@ -181,6 +190,10 @@ msg_t xcry_aead(const xcry_aead_vector_t *v, cry_direction_t direction,
       return msg;
     }
     produced += len;
+    msg = cryAeadUpdate(&op, 0U, NULL, 0U, NULL, &len);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
   }
   if (direction == CRY_ENCRYPT) {
     msg = cryAeadFinal(&op, v->size - produced, &out[produced], &len,
@@ -198,7 +211,8 @@ msg_t xcry_aead(const xcry_aead_vector_t *v, cry_direction_t direction,
   return produced == v->size ? HAL_RET_SUCCESS : CRY_ERR_FAILURE;
 }
 
-/* Runs a MAC vector in fragments, the tag is generated or verified.*/
+/* Runs a MAC vector in fragments, each followed by an empty update, the tag
+   is generated or verified.*/
 msg_t xcry_mac(const xcry_mac_vector_t *v, bool verify, uint8_t *tag,
                size_t tag_size, size_t frag) {
   cry_key_type_t type;
@@ -222,6 +236,10 @@ msg_t xcry_mac(const xcry_mac_vector_t *v, bool verify, uint8_t *tag,
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
+    msg = cryMacUpdate(&op, 0U, NULL);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
   }
   if (verify) {
     return cryMacVerify(&op, tag_size, tag);
@@ -234,8 +252,8 @@ msg_t xcry_mac(const xcry_mac_vector_t *v, bool verify, uint8_t *tag,
   return len == v->tag_size ? HAL_RET_SUCCESS : CRY_ERR_FAILURE;
 }
 
-/* Hashes a message in fragments, the output buffer holds XCRY_DIGEST_MAX
-   bytes.*/
+/* Hashes a message in fragments, each followed by an empty update, the
+   output buffer holds XCRY_DIGEST_MAX bytes.*/
 msg_t xcry_hash(cry_algorithm_t algorithm, const uint8_t *msg, size_t size,
                 uint8_t *out, size_t frag) {
   cry_operation_t op;
@@ -249,6 +267,10 @@ msg_t xcry_hash(cry_algorithm_t algorithm, const uint8_t *msg, size_t size,
   for (done = 0U; done < size; done += n) {
     n = (size - done) < frag ? (size - done) : frag;
     ret = cryHashUpdate(&op, n, &msg[done]);
+    if (ret != HAL_RET_SUCCESS) {
+      return ret;
+    }
+    ret = cryHashUpdate(&op, 0U, NULL);
     if (ret != HAL_RET_SUCCESS) {
       return ret;
     }
