@@ -1,5 +1,7 @@
 <instance locked="false"
-  id="org.chibios.spc5.components.portable.chibios_unitary_tests_engine">
+  id="org.chibios.spc5.components.portable.chibios_unitary_tests_engine"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/unittest.xsd">
   <description>
     <brief>
       <value>ChibiOS/VFS Test Suite.</value>

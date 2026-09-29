@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <instance
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/unittest/unittest.xsd">
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/unittest.xsd">
   <description>
     <brief>
       <value>Example Test Suite.</value>
