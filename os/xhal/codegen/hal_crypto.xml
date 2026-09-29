@@ -9,13 +9,16 @@
     report only conditions that depend on runtime data or on the backend. Key
     identifiers are interpreted by the selected LLD; the HLD does not maintain a
     key store or impose key access policy. The LLD checks key suitability for
-    each operation. Callers must serialize access to each operation context. Different contexts
-    may be used concurrently from different threads; the driver remains in
-    HAL_DRV_STATE_READY while streams are open and tracks them in a use counter.
-    Live reconfiguration is rejected while the counter is nonzero. Before
-    drvStop() or disposal, prevent new calls, finish or abort all streams and wait
-    for active calls to return. An LLD may report CRY_ERR_BUSY when it cannot
-    service another operation. LLD extension fields and APIs may implement additional behavior
+    each operation. Callers must serialize access to each operation context.
+    Different contexts may be used concurrently from different threads; the
+    driver remains in HAL_DRV_STATE_READY while streams are open. Hardware and
+    other resources are accounted by the LLD, which reports CRY_ERR_BUSY when a
+    resource is exhausted and may reject live reconfiguration while resources
+    are in use. drvStop() requires that no call is in progress; it reclaims all
+    resources and invalidates every open stream, and invalidated contexts
+    behave as idle. Begin functions initialize the context they receive,
+    which must not hold an active stream. Before disposal, abort or stop
+    using all contexts. LLD extension fields and APIs may implement additional behavior
     without changing the common operation interface. Caller buffers must remain
     valid for each synchronous call. This API is not source or binary compatible
     with the legacy HAL Crypto API.</details>
@@ -418,8 +421,12 @@
         <details>The LLD provides the complete structure definition in its
           header, so the size is known and contexts can be allocated
           statically or on the stack. Fields are private to the LLD; the HLD
-          does not inspect them. Initialize using cryOperationObjectInit()
-          before first use. Do not copy a live context and do not access it
+          does not inspect them. A begin function initializes the context;
+          its previous content is ignored, so fresh storage needs no
+          initialization. Every return from a begin function, including
+          failures, leaves the context initialized. Beginning on a context that holds an active stream
+          is a programming error that leaks the resources of that stream.
+          Do not copy a live context and do not access it
           concurrently.</details>
         <basetype ctype="struct cry_operation"/>
       </typedef>
@@ -483,11 +490,6 @@
       <class type="regular" name="hal_crypto_driver" namespace="cry" ancestorname="hal_base_driver" descr="Crypto driver">
         <brief>Crypto driver with independent operation contexts.</brief>
         <fields>
-          <field name="operations" ctype="size_t">
-            <brief>Number of live contexts and in-progress single-call operations.</brief>
-            <details>Protected by the system lock. The driver state stays
-              HAL_DRV_STATE_READY while this counter is nonzero.</details>
-          </field>
           <condition check="defined(cry_lld_driver_fields)">
             <fieldmacro name="cry_lld_driver_fields">
               <brief>Optional LLD-specific driver fields.</brief>
@@ -497,12 +499,11 @@
         <methods>
           <objinit callsuper="true">
             <implementation><![CDATA[
-self->operations = 0U;
 cry_lld_object_init(self);]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[
-chDbgAssert((self->state == HAL_DRV_STATE_STOP) && (self->operations == 0U),
+chDbgAssert(self->state == HAL_DRV_STATE_STOP,
             "dispose of active crypto driver");]]></implementation>
           </dispose>
           <override>
@@ -520,23 +521,17 @@ if (self->config == NULL) {
 return cry_lld_start(self);]]></implementation></method>
             <method shortname="stop"><implementation><![CDATA[
 
-chDbgAssert(self->operations == 0U, "active crypto operations");
+/* The LLD reclaims all resources and invalidates open streams.*/
 cry_lld_stop(self);]]></implementation></method>
             <method shortname="setcfg"><implementation><![CDATA[
 
-/* Live reconfiguration runs under the system lock, atomically with the
-   base-driver pointer publication; during start the counter is zero.*/
-if (self->operations != 0U) {
-  return NULL;
-}
+/* Live reconfiguration runs under the system lock, the LLD rejects it
+   while resources are in use.*/
 return cry_lld_setcfg(self, (const hal_crypto_config_t *)config);]]></implementation></method>
             <method shortname="selcfg"><implementation><![CDATA[
 
-/* Live reconfiguration runs under the system lock, atomically with the
-   base-driver pointer publication; during start the counter is zero.*/
-if (self->operations != 0U) {
-  return NULL;
-}
+/* Live reconfiguration runs under the system lock, the LLD rejects it
+   while resources are in use.*/
 return cry_lld_selcfg(self, cfgnum);]]></implementation></method>
           </override>
         </methods>
@@ -547,18 +542,8 @@ return cry_lld_selcfg(self, cfgnum);]]></implementation></method>
         <brief>Initializes the Crypto subsystem.</brief>
         <init/>
         <implementation><![CDATA[
+
 cry_lld_init();]]></implementation>
-      </function>
-      <function name="cryOperationObjectInit" ctype="void">
-        <brief>Initializes a caller-owned operation context.</brief>
-        <details>Use only on fresh storage or an already idle context. Live contexts must first be finalized or aborted. The LLD initializes the context to the idle state.</details>
-        <param name="op" ctype="cry_operation_t *" dir="out">Caller-owned operation context.</param>
-        <api/>
-        <implementation><![CDATA[
-
-chDbgCheck(op != NULL);
-
-cry_lld_operation_init(op);]]></implementation>
       </function>
       <function name="cryGetCapabilities" ctype="msg_t">
         <brief>Queries per-driver algorithm capabilities.</brief>
@@ -575,13 +560,13 @@ msg_t msg;
 chDbgCheck((cryp != NULL) && (caps != NULL) &&
            (cry_algorithm_class(algorithm) != CRY_CLASS_NONE));
 
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+
 memset(caps, 0, sizeof (*caps));
-cry_acquire(cryp);
 msg = cry_lld_get_capabilities(cryp, algorithm, caps);
 if (msg != HAL_RET_SUCCESS) {
   memset(caps, 0, sizeof (*caps));
 }
-cry_release(cryp);
 
 return msg;]]></implementation>
       </function>
@@ -607,9 +592,9 @@ chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) && (params != NULL) &&
 if (!cry_key_params_valid(params)) {
   return CRY_ERR_ARGUMENT;
 }
-cry_acquire(cryp);
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+
 msg = cry_lld_key_load(cryp, key, params, format, size, data);
-cry_release(cryp);
 
 return msg;]]></implementation>
       </function>
@@ -632,9 +617,9 @@ chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) && (params != NULL) &&
 if (!cry_key_params_valid(params)) {
   return CRY_ERR_ARGUMENT;
 }
-cry_acquire(cryp);
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+
 msg = cry_lld_key_generate(cryp, key, params);
-cry_release(cryp);
 
 return msg;]]></implementation>
       </function>
@@ -650,9 +635,9 @@ msg_t msg;
 
 chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID));
 
-cry_acquire(cryp);
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+
 msg = cry_lld_key_unload(cryp, key);
-cry_release(cryp);
 
 return msg;]]></implementation>
       </function>
@@ -675,18 +660,22 @@ chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
            ((format == CRY_KEY_FORMAT_SEC1) ||
             (format == CRY_KEY_FORMAT_PKCS1_DER)));
 
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+
 *out_length = 0U;
-cry_acquire(cryp);
 msg = cry_lld_key_export_public(cryp, key, format, out_size, out, out_length);
-cry_output_check(msg, out_size, out_length);
-cry_release(cryp);
+chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
+            "output overflow");
+if (msg != HAL_RET_SUCCESS) {
+  *out_length = 0U;
+}
 
 return msg;]]></implementation>
       </function>
       <function name="cryHashBegin" ctype="msg_t">
         <brief>Starts a hash stream.</brief>
         <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Pointer to the Crypto driver.</param>
-        <param name="op" ctype="cry_operation_t *" dir="both">Idle, caller-owned operation context.</param>
+        <param name="op" ctype="cry_operation_t *" dir="out">Caller-owned operation context, initialized by this call.</param>
         <param name="algorithm" ctype="cry_algorithm_t" dir="in">Hash algorithm.</param>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
         <api/>
@@ -696,16 +685,23 @@ msg_t msg;
 chDbgCheck((cryp != NULL) && (op != NULL) &&
            (cry_algorithm_class(algorithm) == CRY_CLASS_HASH));
 
-cry_stream_acquire(cryp, op);
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+
 msg = cry_lld_hash_begin(cryp, op, algorithm);
-cry_stream_started(cryp, op, msg);
+chDbgAssert((msg != HAL_RET_SUCCESS) ||
+            (cry_lld_operation_driver(op) == cryp), "stream not bound");
+if (msg != HAL_RET_SUCCESS) {
+  /* Releasing any partial setup.*/
+  cry_lld_abort(op);
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
+}
 
 return msg;]]></implementation>
       </function>
       <function name="cryCipherBegin" ctype="msg_t">
         <brief>Starts an unpadded symmetric cipher stream.</brief>
         <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Pointer to the Crypto driver.</param>
-        <param name="op" ctype="cry_operation_t *" dir="both">Idle, caller-owned operation context.</param>
+        <param name="op" ctype="cry_operation_t *" dir="out">Caller-owned operation context, initialized by this call.</param>
         <param name="key" ctype="crykey_t" dir="in">Key identifier interpreted by the LLD.</param>
         <param name="algorithm" ctype="cry_algorithm_t" dir="in">Cipher algorithm.</param>
         <param name="direction" ctype="cry_direction_t" dir="in">Encryption or decryption.</param>
@@ -718,12 +714,20 @@ msg_t msg;
 chDbgCheck((cryp != NULL) && (op != NULL) && (key != CRY_KEY_INVALID) &&
            (cry_algorithm_class(algorithm) == CRY_CLASS_CIPHER) &&
            ((direction == CRY_ENCRYPT) || (direction == CRY_DECRYPT)) &&
-           (params != NULL) && cry_buffer_valid(params->iv, params->iv_size) &&
+           (params != NULL) &&
+           cry_buffer_valid(params->iv, params->iv_size) &&
            (params->iv_size == (algorithm == CRY_ALG_AES_ECB ? 0U : 16U)));
 
-cry_stream_acquire(cryp, op);
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+
 msg = cry_lld_cipher_begin(cryp, op, key, algorithm, direction, params);
-cry_stream_started(cryp, op, msg);
+chDbgAssert((msg != HAL_RET_SUCCESS) ||
+            (cry_lld_operation_driver(op) == cryp), "stream not bound");
+if (msg != HAL_RET_SUCCESS) {
+  /* Releasing any partial setup.*/
+  cry_lld_abort(op);
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
+}
 
 return msg;]]></implementation>
       </function>
@@ -731,7 +735,7 @@ return msg;]]></implementation>
         <brief>Starts a MAC generation or verification stream.</brief>
         <details>Tag size is explicit; the LLD reports unsupported tag sizes.</details>
         <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Pointer to the Crypto driver.</param>
-        <param name="op" ctype="cry_operation_t *" dir="both">Idle, caller-owned operation context.</param>
+        <param name="op" ctype="cry_operation_t *" dir="out">Caller-owned operation context, initialized by this call.</param>
         <param name="key" ctype="crykey_t" dir="in">Key identifier interpreted by the LLD.</param>
         <param name="algorithm" ctype="cry_algorithm_t" dir="in">MAC algorithm.</param>
         <param name="verify" ctype="bool" dir="in">True for verification, false for generation.</param>
@@ -745,9 +749,16 @@ chDbgCheck((cryp != NULL) && (op != NULL) && (key != CRY_KEY_INVALID) &&
            (cry_algorithm_class(algorithm) == CRY_CLASS_MAC) &&
            (tag_size > 0U) && (tag_size <= cry_digest_size(algorithm)));
 
-cry_stream_acquire(cryp, op);
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+
 msg = cry_lld_mac_begin(cryp, op, key, algorithm, verify, tag_size);
-cry_stream_started(cryp, op, msg);
+chDbgAssert((msg != HAL_RET_SUCCESS) ||
+            (cry_lld_operation_driver(op) == cryp), "stream not bound");
+if (msg != HAL_RET_SUCCESS) {
+  /* Releasing any partial setup.*/
+  cry_lld_abort(op);
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
+}
 
 return msg;]]></implementation>
       </function>
@@ -755,18 +766,16 @@ return msg;]]></implementation>
         <brief>Starts authenticated encryption or decryption.</brief>
         <details>All lengths are bytes. CCM requires declared AAD and payload totals. GCM permits CRY_LENGTH_UNKNOWN. Backends enforce further limits. Decryption output must remain quarantined until cryAeadVerify() succeeds.</details>
         <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Pointer to the Crypto driver.</param>
-        <param name="op" ctype="cry_operation_t *" dir="both">Idle, caller-owned operation context.</param>
+        <param name="op" ctype="cry_operation_t *" dir="out">Caller-owned operation context, initialized by this call.</param>
         <param name="key" ctype="crykey_t" dir="in">Key identifier interpreted by the LLD.</param>
         <param name="algorithm" ctype="cry_algorithm_t" dir="in">AEAD algorithm.</param>
         <param name="direction" ctype="cry_direction_t" dir="in">Encryption or decryption.</param>
         <param name="params" ctype="const cry_aead_params_t *" dir="in">AEAD parameters, consumed before return.</param>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
-        <retval value="CRY_ERR_ARGUMENT">The declared CCM payload size exceeds the length field selected by the nonce size.</retval>
+        <retval value="CRY_ERR_ARGUMENT">The declared CCM payload size exceeds the length field selected by the nonce size, reported by the LLD.</retval>
         <api/>
         <implementation><![CDATA[
 msg_t msg;
-size_t length_bytes;
-size_t remaining;
 
 chDbgCheck((cryp != NULL) && (op != NULL) && (key != CRY_KEY_INVALID) &&
            (cry_algorithm_class(algorithm) == CRY_CLASS_AEAD) &&
@@ -784,20 +793,17 @@ else {
              ((params->tag_size & 1U) == 0U) &&
              (params->aad_size != CRY_LENGTH_UNKNOWN) &&
              (params->data_size != CRY_LENGTH_UNKNOWN));
-
-  /* The payload size is message data, checked at runtime. Avoiding
-     word-width-dependent shifts in the CCM length-field check.*/
-  remaining = params->data_size;
-  for (length_bytes = 15U - params->nonce_size; length_bytes > 0U; --length_bytes) {
-    remaining >>= 8;
-  }
-  if (remaining != 0U) {
-    return CRY_ERR_ARGUMENT;
-  }
 }
-cry_stream_acquire(cryp, op);
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
+
 msg = cry_lld_aead_begin(cryp, op, key, algorithm, direction, params);
-cry_stream_started(cryp, op, msg);
+chDbgAssert((msg != HAL_RET_SUCCESS) ||
+            (cry_lld_operation_driver(op) == cryp), "stream not bound");
+if (msg != HAL_RET_SUCCESS) {
+  /* Releasing any partial setup.*/
+  cry_lld_abort(op);
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
+}
 
 return msg;]]></implementation>
       </function>
@@ -810,14 +816,17 @@ return msg;]]></implementation>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && cry_buffer_valid(in, size));
 
-cryp = cry_stream_driver(op);
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 msg = cry_lld_hash_update(op, size, in);
-cry_stream_updated(cryp, op, msg);
+if (msg != HAL_RET_SUCCESS) {
+  cry_lld_abort(op);
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
+}
 
 return msg;]]></implementation>
       </function>
@@ -830,14 +839,17 @@ return msg;]]></implementation>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && cry_buffer_valid(in, size));
 
-cryp = cry_stream_driver(op);
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 msg = cry_lld_mac_update(op, size, in);
-cry_stream_updated(cryp, op, msg);
+if (msg != HAL_RET_SUCCESS) {
+  cry_lld_abort(op);
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
+}
 
 return msg;]]></implementation>
       </function>
@@ -853,17 +865,22 @@ return msg;]]></implementation>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && cry_buffer_valid(in, size) &&
            cry_buffer_valid(out, out_size) && (out_length != NULL));
 
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 *out_length = 0U;
-cryp = cry_stream_driver(op);
 msg = cry_lld_cipher_update(op, size, in, out_size, out, out_length);
-cry_output_check(msg, out_size, out_length);
-cry_stream_updated(cryp, op, msg);
+chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
+            "output overflow");
+if (msg != HAL_RET_SUCCESS) {
+  *out_length = 0U;
+  cry_lld_abort(op);
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
+}
 
 return msg;]]></implementation>
       </function>
@@ -879,17 +896,22 @@ return msg;]]></implementation>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && cry_buffer_valid(in, size) &&
            cry_buffer_valid(out, out_size) && (out_length != NULL));
 
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 *out_length = 0U;
-cryp = cry_stream_driver(op);
 msg = cry_lld_aead_update(op, size, in, out_size, out, out_length);
-cry_output_check(msg, out_size, out_length);
-cry_stream_updated(cryp, op, msg);
+chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
+            "output overflow");
+if (msg != HAL_RET_SUCCESS) {
+  *out_length = 0U;
+  cry_lld_abort(op);
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
+}
 
 return msg;]]></implementation>
       </function>
@@ -902,14 +924,17 @@ return msg;]]></implementation>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && cry_buffer_valid(in, size));
 
-cryp = cry_stream_driver(op);
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 msg = cry_lld_aead_update_aad(op, size, in);
-cry_stream_updated(cryp, op, msg);
+if (msg != HAL_RET_SUCCESS) {
+  cry_lld_abort(op);
+  chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
+}
 
 return msg;]]></implementation>
       </function>
@@ -923,16 +948,21 @@ return msg;]]></implementation>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && (out != NULL) && (out_length != NULL));
 
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 *out_length = 0U;
-cryp = cry_stream_driver(op);
 msg = cry_lld_hash_final(op, out_size, out, out_length);
-cry_output_check(msg, out_size, out_length);
-cry_stream_cleanup(cryp, op);
+chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
+            "output overflow");
+if (msg != HAL_RET_SUCCESS) {
+  *out_length = 0U;
+}
+cry_lld_abort(op);
+chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
 return msg;]]></implementation>
       </function>
@@ -946,17 +976,22 @@ return msg;]]></implementation>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && cry_buffer_valid(out, out_size) &&
            (out_length != NULL));
 
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 *out_length = 0U;
-cryp = cry_stream_driver(op);
 msg = cry_lld_cipher_final(op, out_size, out, out_length);
-cry_output_check(msg, out_size, out_length);
-cry_stream_cleanup(cryp, op);
+chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
+            "output overflow");
+if (msg != HAL_RET_SUCCESS) {
+  *out_length = 0U;
+}
+cry_lld_abort(op);
+chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
 return msg;]]></implementation>
       </function>
@@ -970,16 +1005,21 @@ return msg;]]></implementation>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && (out != NULL) && (out_length != NULL));
 
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 *out_length = 0U;
-cryp = cry_stream_driver(op);
 msg = cry_lld_mac_final(op, out_size, out, out_length);
-cry_output_check(msg, out_size, out_length);
-cry_stream_cleanup(cryp, op);
+chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
+            "output overflow");
+if (msg != HAL_RET_SUCCESS) {
+  *out_length = 0U;
+}
+cry_lld_abort(op);
+chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
 return msg;]]></implementation>
       </function>
@@ -993,14 +1033,15 @@ return msg;]]></implementation>
         <retval value="CRY_ERR_AUTH_FAILED">The tag does not authenticate the message.</retval>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && cry_buffer_valid(tag, tag_size));
 
-cryp = cry_stream_driver(op);
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 msg = cry_lld_mac_verify(op, tag_size, tag);
-cry_stream_cleanup(cryp, op);
+cry_lld_abort(op);
+chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
 return msg;]]></implementation>
       </function>
@@ -1016,17 +1057,22 @@ return msg;]]></implementation>
         <return>HAL_RET_SUCCESS or a Crypto error code.</return>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && cry_buffer_valid(out, out_size) &&
            (out_length != NULL) && (tag != NULL) && (tag_size > 0U));
 
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 *out_length = 0U;
-cryp = cry_stream_driver(op);
 msg = cry_lld_aead_final(op, out_size, out, out_length, tag_size, tag);
-cry_output_check(msg, out_size, out_length);
-cry_stream_cleanup(cryp, op);
+chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
+            "output overflow");
+if (msg != HAL_RET_SUCCESS) {
+  *out_length = 0U;
+}
+cry_lld_abort(op);
+chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
 return msg;]]></implementation>
       </function>
@@ -1043,34 +1089,36 @@ return msg;]]></implementation>
         <retval value="CRY_ERR_AUTH_FAILED">The tag does not authenticate the message.</retval>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 msg_t msg;
 
 chDbgCheck((op != NULL) && cry_buffer_valid(out, out_size) &&
            (out_length != NULL) && cry_buffer_valid(tag, tag_size));
 
+chDbgAssert(cry_lld_operation_driver(op) != NULL, "idle operation");
+
 *out_length = 0U;
-cryp = cry_stream_driver(op);
 msg = cry_lld_aead_verify(op, out_size, out, out_length, tag_size, tag);
-cry_output_check(msg, out_size, out_length);
-cry_stream_cleanup(cryp, op);
+chDbgAssert((msg != HAL_RET_SUCCESS) || (*out_length <= out_size),
+            "output overflow");
+if (msg != HAL_RET_SUCCESS) {
+  *out_length = 0U;
+}
+cry_lld_abort(op);
+chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
 
 return msg;]]></implementation>
       </function>
       <function name="cryOperationAbort" ctype="void">
         <brief>Aborts any operation class; aborting an idle context is harmless.</brief>
-        <details>No concurrent call may be executing on this context. On return all LLD accesses have completed and the context is idle.</details>
-        <param name="op" ctype="cry_operation_t *" dir="both">Initialized, caller-owned operation context.</param>
+        <details>Valid on any context initialized by a begin function: active, finalized, failed or invalidated by drvStop(), while the driver object exists. Not valid on storage never passed to a begin function. No concurrent call may be executing on this context. On return all LLD accesses have completed, intermediate secrets are erased and the context is idle.</details>
+        <param name="op" ctype="cry_operation_t *" dir="both">Operation context previously initialized by a begin function.</param>
         <api/>
         <implementation><![CDATA[
-hal_crypto_driver_c *cryp;
 
 chDbgCheck(op != NULL);
 
-cryp = cry_lld_operation_driver(op);
-if (cryp != NULL) {
-  cry_stream_cleanup(cryp, op);
-}]]></implementation>
+cry_lld_abort(op);
+chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");]]></implementation>
       </function>
       <function name="crySignDigest" ctype="msg_t">
         <brief>Signs a precomputed digest.</brief>
@@ -1090,9 +1138,12 @@ if (cryp != NULL) {
         <implementation><![CDATA[
 cry_job_t job = {0};
 
-chDbgCheck(cry_signature_valid(algorithm, params) && (in != NULL) &&
+chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
+           cry_signature_valid(algorithm, params) && (in != NULL) &&
            (size == cry_digest_size(algorithm)) &&
            cry_buffer_valid(out, out_size) && (out_length != NULL));
+
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
 *out_length = 0U;
 job.kind = CRY_JOB_SIGN_DIGEST;
@@ -1124,9 +1175,12 @@ return cry_execute(cryp, key, algorithm, &job);]]></implementation>
         <implementation><![CDATA[
 cry_job_t job = {0};
 
-chDbgCheck(cry_signature_valid(algorithm, params) &&
+chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
+           cry_signature_valid(algorithm, params) &&
            cry_buffer_valid(in, size) &&
            cry_buffer_valid(out, out_size) && (out_length != NULL));
+
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
 *out_length = 0U;
 job.kind = CRY_JOB_SIGN_MESSAGE;
@@ -1157,9 +1211,12 @@ return cry_execute(cryp, key, algorithm, &job);]]></implementation>
         <implementation><![CDATA[
 cry_job_t job = {0};
 
-chDbgCheck(cry_signature_valid(algorithm, params) && (in != NULL) &&
+chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
+           cry_signature_valid(algorithm, params) && (in != NULL) &&
            (size == cry_digest_size(algorithm)) &&
            cry_buffer_valid(signature, signature_size));
+
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
 job.kind = CRY_JOB_VERIFY_DIGEST;
 job.input = in;
@@ -1188,9 +1245,12 @@ return cry_execute(cryp, key, algorithm, &job);]]></implementation>
         <implementation><![CDATA[
 cry_job_t job = {0};
 
-chDbgCheck(cry_signature_valid(algorithm, params) &&
+chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
+           cry_signature_valid(algorithm, params) &&
            cry_buffer_valid(in, size) &&
            cry_buffer_valid(signature, signature_size));
+
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
 job.kind = CRY_JOB_VERIFY_MESSAGE;
 job.input = in;
@@ -1221,11 +1281,14 @@ return cry_execute(cryp, key, algorithm, &job);]]></implementation>
         <implementation><![CDATA[
 cry_job_t job = {0};
 
-chDbgCheck((cry_algorithm_class(algorithm) == CRY_CLASS_ASYMMETRIC) &&
+chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
+           (cry_algorithm_class(algorithm) == CRY_CLASS_ASYMMETRIC) &&
            ((params == NULL) ||
             cry_buffer_valid(params->label, params->label_size)) &&
            cry_buffer_valid(in, size) &&
            cry_buffer_valid(out, out_size) && (out_length != NULL));
+
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
 *out_length = 0U;
 job.kind = CRY_JOB_ASYM_ENCRYPT;
@@ -1258,11 +1321,14 @@ return cry_execute(cryp, key, algorithm, &job);]]></implementation>
         <implementation><![CDATA[
 cry_job_t job = {0};
 
-chDbgCheck((cry_algorithm_class(algorithm) == CRY_CLASS_ASYMMETRIC) &&
+chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
+           (cry_algorithm_class(algorithm) == CRY_CLASS_ASYMMETRIC) &&
            ((params == NULL) ||
             cry_buffer_valid(params->label, params->label_size)) &&
            cry_buffer_valid(in, size) &&
            cry_buffer_valid(out, out_size) && (out_length != NULL));
+
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
 *out_length = 0U;
 job.kind = CRY_JOB_ASYM_DECRYPT;
@@ -1294,9 +1360,12 @@ return cry_execute(cryp, key, algorithm, &job);]]></implementation>
         <implementation><![CDATA[
 cry_job_t job = {0};
 
-chDbgCheck((cry_algorithm_class(algorithm) == CRY_CLASS_AGREEMENT) &&
+chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
+           (cry_algorithm_class(algorithm) == CRY_CLASS_AGREEMENT) &&
            cry_buffer_valid(peer, peer_size) && (out != NULL) &&
            (out_length != NULL));
+
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
 *out_length = 0U;
 job.kind = CRY_JOB_AGREEMENT;
@@ -1322,12 +1391,15 @@ return cry_execute(cryp, key, algorithm, &job);]]></implementation>
 cry_job_t job = {0};
 size_t length = 0U;
 
-chDbgCheck((cry_algorithm_class(algorithm) == CRY_CLASS_DERIVATION) &&
+chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID) &&
+           (cry_algorithm_class(algorithm) == CRY_CLASS_DERIVATION) &&
            ((params == NULL) ||
             (cry_buffer_valid(params->salt, params->salt_size) &&
              cry_buffer_valid(params->info, params->info_size))) &&
            (size > 0U) && (size <= 255U * cry_digest_size(algorithm)) &&
            (out != NULL));
+
+chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
 
 job.kind = CRY_JOB_DERIVE;
 if (params != NULL) {
@@ -1382,6 +1454,7 @@ default:
         <return>True if the pair is consistent.</return>
         <notapi/>
         <implementation><![CDATA[
+
 return (size == 0U) || (buf != NULL);]]></implementation>
       </function>
       <function name="cry_algorithm_class" ctype="cry_class_t">
@@ -1390,6 +1463,7 @@ return (size == 0U) || (buf != NULL);]]></implementation>
         <return>The operation class, CRY_CLASS_NONE for unknown selectors.</return>
         <notapi/>
         <implementation><![CDATA[
+
 switch (algorithm) {
 case CRY_ALG_AES_ECB:
 case CRY_ALG_AES_CBC:
@@ -1440,6 +1514,7 @@ default:
         <return>The hash output size, zero for algorithms without one.</return>
         <notapi/>
         <implementation><![CDATA[
+
 switch (algorithm) {
 case CRY_ALG_SHA1:
   return 20U;
@@ -1492,103 +1567,6 @@ pss = (algorithm == CRY_ALG_RSA_PSS_SHA256) ||
       (algorithm == CRY_ALG_RSA_PSS_SHA512);
 return (params == NULL) || pss || (params->salt_size == 0U);]]></implementation>
       </function>
-      <function name="cry_acquire" ctype="void">
-        <brief>Accounts for an active driver call or stream.</brief>
-        <details>The driver state is not changed; concurrent streams and calls
-          only increment the use counter.</details>
-        <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Pointer to the Crypto driver.</param>
-        <notapi/>
-        <implementation><![CDATA[
-chSysLock();
-chDbgAssert(cryp->state == HAL_DRV_STATE_READY, "not ready");
-chDbgAssert(cryp->operations < SIZE_MAX, "counter overflow");
-++cryp->operations;
-chSysUnlock();]]></implementation>
-      </function>
-      <function name="cry_release" ctype="void">
-        <brief>Releases an active driver call or stream.</brief>
-        <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Pointer to the Crypto driver.</param>
-        <notapi/>
-        <implementation><![CDATA[
-chSysLock();
-chDbgAssert(cryp->operations > 0U, "unbalanced crypto release");
---cryp->operations;
-chSysUnlock();]]></implementation>
-      </function>
-      <function name="cry_output_check" ctype="void">
-        <brief>Checks the LLD output length and clears it on failure.</brief>
-        <details>An output length exceeding the buffer capacity is an LLD
-          programming error.</details>
-        <param name="msg" ctype="msg_t" dir="in">LLD result.</param>
-        <param name="out_size" ctype="size_t" dir="in">Output buffer capacity, in bytes.</param>
-        <param name="out_length" ctype="size_t *" dir="both">Output length reported by the LLD.</param>
-        <notapi/>
-        <implementation><![CDATA[
-if (msg == HAL_RET_SUCCESS) {
-  chDbgAssert(*out_length <= out_size, "output overflow");
-}
-else {
-  *out_length = 0U;
-}]]></implementation>
-      </function>
-      <function name="cry_stream_cleanup" ctype="void">
-        <brief>Releases LLD stream state and returns the context to idle.</brief>
-        <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Driver owning the stream.</param>
-        <param name="op" ctype="cry_operation_t *" dir="in">Operation context.</param>
-        <notapi/>
-        <implementation><![CDATA[
-/* Cleanup must also handle partial setup and successful finalization.*/
-cry_lld_abort(op);
-chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation not idle");
-cry_release(cryp);]]></implementation>
-      </function>
-      <function name="cry_stream_acquire" ctype="void">
-        <brief>Accounts for a new stream on an idle context.</brief>
-        <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Pointer to the Crypto driver.</param>
-        <param name="op" ctype="cry_operation_t *" dir="in">Idle, caller-owned operation context.</param>
-        <notapi/>
-        <implementation><![CDATA[
-chDbgAssert(cry_lld_operation_driver(op) == NULL, "operation in use");
-cry_acquire(cryp);]]></implementation>
-      </function>
-      <function name="cry_stream_started" ctype="void">
-        <brief>Completes a stream begin; a failed begin leaves the context idle.</brief>
-        <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Pointer to the Crypto driver.</param>
-        <param name="op" ctype="cry_operation_t *" dir="in">Operation context passed to the LLD begin.</param>
-        <param name="msg" ctype="msg_t" dir="in">LLD begin result.</param>
-        <notapi/>
-        <implementation><![CDATA[
-if (msg == HAL_RET_SUCCESS) {
-  chDbgAssert(cry_lld_operation_driver(op) == cryp, "stream not bound");
-}
-else {
-  /* Releasing any partial setup.*/
-  cry_stream_cleanup(cryp, op);
-}]]></implementation>
-      </function>
-      <function name="cry_stream_driver" ctype="hal_crypto_driver_c *">
-        <brief>Returns the driver owning an active stream.</brief>
-        <param name="op" ctype="const cry_operation_t *" dir="in">Active operation context.</param>
-        <return>The driver bound to the stream at Begin.</return>
-        <notapi/>
-        <implementation><![CDATA[
-hal_crypto_driver_c *cryp = cry_lld_operation_driver(op);
-
-chDbgAssert(cryp != NULL, "idle operation");
-
-return cryp;]]></implementation>
-      </function>
-      <function name="cry_stream_updated" ctype="void">
-        <brief>Aborts the stream after a failed update.</brief>
-        <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Driver owning the stream.</param>
-        <param name="op" ctype="cry_operation_t *" dir="in">Active operation context.</param>
-        <param name="msg" ctype="msg_t" dir="in">LLD update result.</param>
-        <notapi/>
-        <implementation><![CDATA[
-if (msg != HAL_RET_SUCCESS) {
-  cry_stream_cleanup(cryp, op);
-}]]></implementation>
-      </function>
       <function name="cry_execute" ctype="msg_t">
         <brief>Executes a single-call operation through the LLD.</brief>
         <param name="cryp" ctype="hal_crypto_driver_c *" dir="in">Pointer to the Crypto driver.</param>
@@ -1600,17 +1578,16 @@ if (msg != HAL_RET_SUCCESS) {
         <implementation><![CDATA[
 msg_t msg;
 
-chDbgCheck((cryp != NULL) && (key != CRY_KEY_INVALID));
-
-cry_acquire(cryp);
 msg = cry_lld_execute(cryp, key, algorithm, job);
 if (job->output_length != NULL) {
-  cry_output_check(msg, job->output_size, job->output_length);
+  chDbgAssert((msg != HAL_RET_SUCCESS) ||
+              (*job->output_length <= job->output_size), "output overflow");
   chDbgAssert((msg != HAL_RET_SUCCESS) || (job->kind != CRY_JOB_DERIVE) ||
-              (*job->output_length == job->output_size),
-              "short derivation");
+              (*job->output_length == job->output_size), "short derivation");
+  if (msg != HAL_RET_SUCCESS) {
+    *job->output_length = 0U;
+  }
 }
-cry_release(cryp);
 
 return msg;]]></implementation>
       </function>

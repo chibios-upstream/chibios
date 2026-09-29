@@ -21,6 +21,7 @@
  * @{
  */
 #include "hal.h"
+#include <string.h>
 
 #if (HAL_USE_CRY == TRUE) || defined(__DOXYGEN__)
 
@@ -47,21 +48,7 @@ void cry_lld_init(void) {
  */
 void cry_lld_object_init(hal_crypto_driver_c *cryp) {
 
-  (void)cryp;
-}
-
-/**
- * @brief   Initializes an operation context to the idle state.
- * @details Called by cryOperationObjectInit() on fresh storage or an idle
- *          context.
- *
- * @param[out] op Operation context.
- * @notapi
- */
-void cry_lld_operation_init(cry_operation_t *op) {
-
-  op->driver = NULL;
-  op->cl     = CRY_CLASS_NONE;
+  cryp->generation = 0U;
 }
 
 /**
@@ -82,16 +69,19 @@ msg_t cry_lld_start(hal_crypto_driver_c *cryp) {
 }
 
 /**
- * @brief   Stops an idle Crypto driver.
- * @details Called in thread context after all driver calls and streams have
- *          finished. Release resources owned by this driver.
+ * @brief   Stops the Crypto driver.
+ * @details Called in thread context with no call in progress; streams may be
+ *          open. Reclaim all resource pools, erase secrets held by the
+ *          hardware and the driver, and increment the generation so all
+ *          open contexts become invalid.
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @notapi
  */
 void cry_lld_stop(hal_crypto_driver_c *cryp) {
 
-  (void)cryp;
+  /* No pools to reclaim in the template, invalidating open contexts.*/
+  cryp->generation++;
 }
 
 /**
@@ -99,7 +89,7 @@ void cry_lld_stop(hal_crypto_driver_c *cryp) {
  * @details Called during start, unlocked and with no stream or call active,
  *          or through the base-driver live configuration APIs with the system
  *          lock held. Must not block. Return NULL for unsupported
- *          configurations.
+ *          configurations, or while resource units are in use.
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[in] config Requested configuration.
@@ -257,15 +247,18 @@ msg_t cry_lld_key_export_public(hal_crypto_driver_c *cryp, crykey_t key,
 
 /**
  * @brief   Begins a hash stream.
- * @details The begin functions receive an idle context. On success the
- *          context is bound to @p cryp and cry_lld_operation_driver() returns
- *          it. Consume pointer-backed parameters before return. Return
- *          CRY_ERR_BUSY if required resources are unavailable. After a failed
- *          begin the HLD calls cry_lld_abort(), allowing partial setup to be
- *          released.
+ * @details For the begin functions the context is output only: never read
+ *          its previous content, it may be uninitialized storage. Initialize
+ *          it completely before any failure path, recording @p cryp, its
+ *          current generation and no units, then record each unit as it is
+ *          acquired. On success cry_lld_operation_driver() returns @p cryp.
+ *          Consume pointer-backed parameters before return. Return
+ *          CRY_ERR_BUSY if a required unit type is exhausted. After a failed
+ *          begin the HLD calls cry_lld_abort(), releasing the recorded units
+ *          and returning the context to idle.
  *
  * @param[in] cryp Pointer to the Crypto driver.
- * @param[in,out] op Idle operation context.
+ * @param[out] op Operation context, initialized by this call.
  * @param[in] algorithm Hash algorithm.
  * @return  HAL_RET_SUCCESS or an error code.
  * @notapi
@@ -273,8 +266,9 @@ msg_t cry_lld_key_export_public(hal_crypto_driver_c *cryp, crykey_t key,
 msg_t cry_lld_hash_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
                          cry_algorithm_t algorithm) {
 
+  /* Output-only context, initialized before any failure path.*/
+  memset(op, 0, sizeof (*op));
   (void)cryp;
-  (void)op;
   (void)algorithm;
 
   return CRY_ERR_UNSUPPORTED;
@@ -287,7 +281,7 @@ msg_t cry_lld_hash_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
  *          used throughout the stream; the LLD chooses how to guarantee this.
  *
  * @param[in] cryp Pointer to the Crypto driver.
- * @param[in,out] op Idle operation context.
+ * @param[out] op Operation context, initialized by this call.
  * @param[in] key Key identifier interpreted by the LLD.
  * @param[in] algorithm Cipher algorithm.
  * @param[in] direction Encryption or decryption.
@@ -300,8 +294,9 @@ msg_t cry_lld_cipher_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
                            cry_direction_t direction,
                            const cry_cipher_params_t *params) {
 
+  /* Output-only context, initialized before any failure path.*/
+  memset(op, 0, sizeof (*op));
   (void)cryp;
-  (void)op;
   (void)key;
   (void)algorithm;
   (void)direction;
@@ -316,7 +311,7 @@ msg_t cry_lld_cipher_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
  *          CRY_ERR_UNSUPPORTED for unsupported tag sizes.
  *
  * @param[in] cryp Pointer to the Crypto driver.
- * @param[in,out] op Idle operation context.
+ * @param[out] op Operation context, initialized by this call.
  * @param[in] key Key identifier interpreted by the LLD.
  * @param[in] algorithm MAC algorithm.
  * @param[in] verify True for verification, false for generation.
@@ -328,8 +323,9 @@ msg_t cry_lld_mac_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
                         crykey_t key, cry_algorithm_t algorithm,
                         bool verify, size_t tag_size) {
 
+  /* Output-only context, initialized before any failure path.*/
+  memset(op, 0, sizeof (*op));
   (void)cryp;
-  (void)op;
   (void)key;
   (void)algorithm;
   (void)verify;
@@ -342,10 +338,14 @@ msg_t cry_lld_mac_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
  * @brief   Begins an AEAD stream.
  * @details Same contract as cry_lld_cipher_begin(). The LLD keeps the declared
  *          totals and the processed lengths needed to enforce AEAD phase
- *          ordering and to build the final length block.
+ *          ordering and to build the final length block. For CCM, return
+ *          CRY_ERR_ARGUMENT if the declared payload size does not fit the
+ *          length field of 15 - nonce_size bytes; the size is message data.
+ *          The HLD performs no runtime check before calling a begin
+ *          function, so every begin return leaves the context initialized.
  *
  * @param[in] cryp Pointer to the Crypto driver.
- * @param[in,out] op Idle operation context.
+ * @param[out] op Operation context, initialized by this call.
  * @param[in] key Key identifier interpreted by the LLD.
  * @param[in] algorithm AEAD algorithm.
  * @param[in] direction Encryption or decryption.
@@ -358,8 +358,9 @@ msg_t cry_lld_aead_begin(hal_crypto_driver_c *cryp, cry_operation_t *op,
                          cry_direction_t direction,
                          const cry_aead_params_t *params) {
 
+  /* Output-only context, initialized before any failure path.*/
+  memset(op, 0, sizeof (*op));
   (void)cryp;
-  (void)op;
   (void)key;
   (void)algorithm;
   (void)direction;
@@ -641,9 +642,11 @@ msg_t cry_lld_aead_verify(cry_operation_t *op, size_t out_size,
 
 /**
  * @brief   Cleans up a stream and returns the context to idle.
- * @details Must handle failed partial begin, failed updates and completed
- *          operations. Finish all accesses to caller memory, release
- *          operation resources and erase intermediate secrets before
+ * @details Must handle idle contexts, failed partial begin, failed updates,
+ *          completed operations and contexts invalidated by cry_lld_stop().
+ *          Release the units recorded in a valid context only; an invalidated
+ *          context holds nothing, its units were reclaimed at stop. Finish all
+ *          accesses to caller memory and erase intermediate secrets before
  *          returning. On return cry_lld_operation_driver() must return NULL.
  *
  * @param[in,out] op Operation context.
@@ -651,16 +654,17 @@ msg_t cry_lld_aead_verify(cry_operation_t *op, size_t out_size,
  */
 void cry_lld_abort(cry_operation_t *op) {
 
-  /* Nothing to release in the template, returning to idle.*/
-  op->driver = NULL;
-  op->cl     = CRY_CLASS_NONE;
+  /* A valid context would release its recorded units here, under the
+     system lock. The template holds none; erasing returns it to idle.*/
+  memset(op, 0, sizeof (*op));
 }
 
 /**
  * @brief   Executes a single-call public-key or derivation operation.
  * @details Interpret the key identifier and validate suitability for the
  *          selected operation, encoding, scheme parameters and peer point as
- *          applicable. Use suitable randomness when required. Return
+ *          applicable. Hold any required units only for the duration of the
+ *          call. Use suitable randomness when required. Return
  *          CRY_ERR_BUFFER if a key-dependent output does not fit. Agreement
  *          returns the full-width shared secret; HKDF returns exactly
  *          job->output_size bytes. Complete all accesses and clean up all

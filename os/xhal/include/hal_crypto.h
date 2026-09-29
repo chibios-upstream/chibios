@@ -34,12 +34,15 @@
  *              operation. Callers must serialize access to each operation
  *              context. Different contexts may be used concurrently from
  *              different threads; the driver remains in HAL_DRV_STATE_READY
- *              while streams are open and tracks them in a use counter. Live
- *              reconfiguration is rejected while the counter is nonzero.
- *              Before drvStop() or disposal, prevent new calls, finish or
- *              abort all streams and wait for active calls to return. An LLD
- *              may report CRY_ERR_BUSY when it cannot service another
- *              operation. LLD extension fields and APIs may implement
+ *              while streams are open. Hardware and other resources are
+ *              accounted by the LLD, which reports CRY_ERR_BUSY when a
+ *              resource is exhausted and may reject live reconfiguration while
+ *              resources are in use. drvStop() requires that no call is in
+ *              progress; it reclaims all resources and invalidates every open
+ *              stream, and invalidated contexts behave as idle. Begin
+ *              functions initialize the context they receive, which must not
+ *              hold an active stream. Before disposal, abort or stop using all
+ *              contexts. LLD extension fields and APIs may implement
  *              additional behavior without changing the common operation
  *              interface. Caller buffers must remain valid for each
  *              synchronous call. This API is not source or binary compatible
@@ -624,8 +627,12 @@ typedef struct {
  * @details     The LLD provides the complete structure definition in its
  *              header, so the size is known and contexts can be allocated
  *              statically or on the stack. Fields are private to the LLD; the
- *              HLD does not inspect them. Initialize using
- *              cryOperationObjectInit() before first use. Do not copy a live
+ *              HLD does not inspect them. A begin function initializes the
+ *              context; its previous content is ignored, so fresh storage
+ *              needs no initialization. Every return from a begin function,
+ *              including failures, leaves the context initialized. Beginning
+ *              on a context that holds an active stream is a programming error
+ *              that leaks the resources of that stream. Do not copy a live
  *              context and do not access it concurrently.
  */
 typedef struct cry_operation cry_operation_t;
@@ -775,13 +782,6 @@ struct hal_crypto_driver {
    */
   hal_regent_t              regent;
 #endif /* HAL_USE_REGISTRY == TRUE */
-  /**
-   * @brief       Number of live contexts and in-progress single-call
-   *              operations.
-   * @details     Protected by the system lock. The driver state stays
-   *              HAL_DRV_STATE_READY while this counter is nonzero.
-   */
-  size_t                    operations;
 #if (defined(cry_lld_driver_fields)) || defined (__DOXYGEN__)
   /**
    * @brief       Optional LLD-specific driver fields.
@@ -807,7 +807,6 @@ extern "C" {
   const void *__cry_selcfg_impl(void *ip, unsigned cfgnum);
   /* Regular functions.*/
   void cryInit(void);
-  void cryOperationObjectInit(cry_operation_t *op);
   msg_t cryGetCapabilities(hal_crypto_driver_c *cryp,
                            cry_algorithm_t algorithm, cry_capabilities_t *caps);
   msg_t cryKeyLoad(hal_crypto_driver_c *cryp, crykey_t key,
