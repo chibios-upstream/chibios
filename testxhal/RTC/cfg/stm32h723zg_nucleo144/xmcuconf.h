@@ -259,6 +259,22 @@
 #define STM32_CAN_USE_FDCAN3                FALSE
 
 /*
+ * CRY driver system settings.
+ */
+#define STM32_CRY_USE_CRYP1                 FALSE
+#define STM32_CRY_USE_HASH1                 FALSE
+#define STM32_CRY_CRYP1_IRQ_PRIORITY        9
+#define STM32_CRY_HASH1_IRQ_PRIORITY        9
+#define STM32_CRY_CRYP1_IN_DMA_STREAM       STM32_DMA_STREAM_ID_ANY
+#define STM32_CRY_CRYP1_OUT_DMA_STREAM      STM32_DMA_STREAM_ID_ANY
+#define STM32_CRY_HASH1_DMA_STREAM          STM32_DMA_STREAM_ID_ANY
+#define STM32_CRY_CRYP1_IN_DMA_PRIORITY     0
+#define STM32_CRY_CRYP1_OUT_DMA_PRIORITY    1
+#define STM32_CRY_HASH1_DMA_PRIORITY        0
+#define STM32_CRY_HASH_SIZE_THRESHOLD       1024
+#define STM32_CRY_CRYP_SIZE_THRESHOLD       1024
+
+/*
  * DAC driver system settings.
  */
 #define STM32_DAC_DUAL_MODE                 FALSE
