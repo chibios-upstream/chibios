@@ -67,6 +67,17 @@
 #define CRYP_GCM_NONCE_SIZE                 12U
 
 /**
+ * @brief   Maximum GCM payload size, in bytes (2^39 - 256 bits).
+ * @note    Beyond it the 32 bits block counter would wrap.
+ */
+#define CRYP_GCM_MAX_DATA                   ((1ULL << 36) - 32ULL)
+
+/**
+ * @brief   Maximum GCM AAD size, in bytes (2^64 - 1 bits).
+ */
+#define CRYP_GCM_MAX_AAD                    ((1ULL << 61) - 1ULL)
+
+/**
  * @brief   STM32H74x/75x device identifier.
  */
 #define CRYP_DEV_ID_H74X_H75X               0x450U
@@ -422,8 +433,8 @@ static void cryp_gcm_finish(cry_operation_t *op, uint8_t *out,
 
   /* Final phase, ALGODIR must be cleared.*/
   cryp_gcm_set_phase(CRYP_CR_GCM_CCMPH, CRYP_CR_ALGODIR);
-  aad_bits  = (uint64_t)op->aad_len * 8U;
-  data_bits = (uint64_t)op->data_len * 8U;
+  aad_bits  = op->aad_len * 8U;
+  data_bits = op->data_len * 8U;
   CRYP->DIN = (uint32_t)(aad_bits >> 32);
   CRYP->DIN = (uint32_t)aad_bits;
   CRYP->DIN = (uint32_t)(data_bits >> 32);
@@ -1334,7 +1345,8 @@ msg_t cry_lld_cipher_update(cry_operation_t *op, size_t size,
  * @brief   Processes an AEAD payload fragment.
  * @details The first payload bytes end the header phase. Whole blocks are
  *          output immediately, a trailing partial block is deferred to the
- *          final or verify call.
+ *          final or verify call. A payload exceeding the GCM limit of
+ *          2^39 - 256 bits returns CRY_ERR_ARGUMENT.
  *
  * @param[in,out] op    active AEAD context
  * @param[in] size      input length, in bytes
@@ -1368,6 +1380,11 @@ msg_t cry_lld_aead_update(cry_operation_t *op, size_t size,
     return HAL_RET_SUCCESS;
   }
 
+  /* The total is message data, it may be unknown until now.*/
+  if ((uint64_t)size > CRYP_GCM_MAX_DATA - op->data_len) {
+    return CRY_ERR_ARGUMENT;
+  }
+
   if (op->gcm_phase != CRYP_GCM_PH_PAYLOAD) {
     cryp_gcm_start_payload(op);
   }
@@ -1395,7 +1412,9 @@ msg_t cry_lld_aead_update(cry_operation_t *op, size_t size,
 /**
  * @brief   Adds AEAD associated data.
  * @details The first AAD bytes start the header phase. Whole blocks are
- *          processed immediately, a trailing partial block is buffered.
+ *          processed immediately, a trailing partial block is buffered. AAD
+ *          exceeding the GCM limit of 2^64 - 1 bits returns
+ *          CRY_ERR_ARGUMENT.
  *
  * @param[in,out] op    active AEAD context
  * @param[in] size      associated-data length, in bytes
@@ -1418,6 +1437,11 @@ msg_t cry_lld_aead_update_aad(cry_operation_t *op, size_t size,
 
   if (size == 0U) {
     return HAL_RET_SUCCESS;
+  }
+
+  /* The total is message data, it may be unknown until now.*/
+  if ((uint64_t)size > CRYP_GCM_MAX_AAD - op->aad_len) {
+    return CRY_ERR_ARGUMENT;
   }
 
   if (op->gcm_phase == CRYP_GCM_PH_INIT) {

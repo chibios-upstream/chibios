@@ -320,12 +320,14 @@ struct cry_operation {
   size_t                    data_total;
   /**
    * @brief   AEAD AAD processed so far, in bytes.
+   * @note    64 bits because unknown totals can exceed @p size_t.
    */
-  size_t                    aad_len;
+  uint64_t                  aad_len;
   /**
    * @brief   AEAD payload processed so far, in bytes.
+   * @note    64 bits because unknown totals can exceed @p size_t.
    */
-  size_t                    data_len;
+  uint64_t                  data_len;
 };
 
 /*===========================================================================*/
