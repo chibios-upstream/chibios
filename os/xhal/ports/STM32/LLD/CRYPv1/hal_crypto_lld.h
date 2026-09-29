@@ -17,8 +17,10 @@
 /**
  * @file    CRYPv1/hal_crypto_lld.h
  * @brief   STM32 CRYP/HASH low level driver header.
- * @details AES-ECB and AES-CBC cipher streams on CRYP1 and SHA-256 hash
- *          streams on HASH1. The CRYP and HASH engines are resource units
+ * @details AES-ECB and AES-CBC cipher streams and AES-GCM AEAD streams on
+ *          CRYP1, SHA-256 hash streams on HASH1. AES-GCM requires 96 bits
+ *          nonces and is not available on STM32H74x/75x revision Y. The
+ *          CRYP and HASH engines are resource units
  *          held by a stream from begin to abort; a second concurrent stream
  *          needing the same engine gets CRY_ERR_BUSY. The only key is the
  *          transient AES key. Caller buffers transferred by DMA must be
@@ -296,6 +298,34 @@ struct cry_operation {
    * @brief   Buffered partial AES block, or deferred hash bytes.
    */
   uint8_t                   partial[16];
+  /**
+   * @brief   AEAD direction.
+   */
+  cry_direction_t           direction;
+  /**
+   * @brief   AEAD GCM phase, one of the CRYP_GCM_PH_* values.
+   */
+  unsigned                  gcm_phase;
+  /**
+   * @brief   AEAD tag size selected at begin, in bytes.
+   */
+  size_t                    tag_size;
+  /**
+   * @brief   AEAD declared AAD size, or CRY_LENGTH_UNKNOWN.
+   */
+  size_t                    aad_total;
+  /**
+   * @brief   AEAD declared payload size, or CRY_LENGTH_UNKNOWN.
+   */
+  size_t                    data_total;
+  /**
+   * @brief   AEAD AAD processed so far, in bytes.
+   */
+  size_t                    aad_len;
+  /**
+   * @brief   AEAD payload processed so far, in bytes.
+   */
+  size_t                    data_len;
 };
 
 /*===========================================================================*/

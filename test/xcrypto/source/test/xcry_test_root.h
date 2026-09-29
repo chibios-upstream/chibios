@@ -83,6 +83,7 @@ msg_t xcry_cipher(const xcry_cipher_vector_t *v, cry_direction_t direction,
 msg_t xcry_aead(const xcry_aead_vector_t *v, cry_direction_t direction,
                 const uint8_t *in, uint8_t *out, uint8_t *tag,
                 size_t tag_size, size_t frag, bool declare);
+bool xcry_aead_optional(const xcry_aead_vector_t *v, msg_t msg);
 msg_t xcry_mac(const xcry_mac_vector_t *v, bool verify, uint8_t *tag,
                size_t tag_size, size_t frag);
 msg_t xcry_hash(cry_algorithm_t algorithm, const uint8_t *msg, size_t size,

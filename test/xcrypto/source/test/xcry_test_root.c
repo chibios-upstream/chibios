@@ -219,6 +219,21 @@ msg_t xcry_aead(const xcry_aead_vector_t *v, cry_direction_t direction,
   return produced == v->size ? HAL_RET_SUCCESS : CRY_ERR_FAILURE;
 }
 
+/* Returns true, reporting a skip, if an AEAD vector was rejected only
+   because it uses parameters that are optional for backends: GCM nonces
+   other than 96 bits.*/
+bool xcry_aead_optional(const xcry_aead_vector_t *v, msg_t msg) {
+
+  if ((msg != CRY_ERR_UNSUPPORTED) || (v->algorithm != CRY_ALG_AES_GCM) ||
+      (v->nonce_size == 12U)) {
+    return false;
+  }
+  test_print("--- Skipped, optional parameters: ");
+  test_println(v->name);
+
+  return true;
+}
+
 /* Runs a MAC vector in fragments, each followed by an empty update, the tag
    is generated or verified.*/
 msg_t xcry_mac(const xcry_mac_vector_t *v, bool verify, uint8_t *tag,

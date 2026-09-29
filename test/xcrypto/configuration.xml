@@ -63,6 +63,7 @@ msg_t xcry_cipher(const xcry_cipher_vector_t *v, cry_direction_t direction,
 msg_t xcry_aead(const xcry_aead_vector_t *v, cry_direction_t direction,
                 const uint8_t *in, uint8_t *out, uint8_t *tag,
                 size_t tag_size, size_t frag, bool declare);
+bool xcry_aead_optional(const xcry_aead_vector_t *v, msg_t msg);
 msg_t xcry_mac(const xcry_mac_vector_t *v, bool verify, uint8_t *tag,
                size_t tag_size, size_t frag);
 msg_t xcry_hash(cry_algorithm_t algorithm, const uint8_t *msg, size_t size,
@@ -209,6 +210,21 @@ msg_t xcry_aead(const xcry_aead_vector_t *v, cry_direction_t direction,
   produced += len;
 
   return produced == v->size ? HAL_RET_SUCCESS : CRY_ERR_FAILURE;
+}
+
+/* Returns true, reporting a skip, if an AEAD vector was rejected only
+   because it uses parameters that are optional for backends: GCM nonces
+   other than 96 bits.*/
+bool xcry_aead_optional(const xcry_aead_vector_t *v, msg_t msg) {
+
+  if ((msg != CRY_ERR_UNSUPPORTED) || (v->algorithm != CRY_ALG_AES_GCM) ||
+      (v->nonce_size == 12U)) {
+    return false;
+  }
+  test_print("--- Skipped, optional parameters: ");
+  test_println(v->name);
+
+  return true;
 }
 
 /* Runs a MAC vector in fragments, each followed by an empty update, the tag
@@ -1993,8 +2009,12 @@ msg_t msg;]]></value>
   }
   msg = xcry_aead(vp, CRY_ENCRYPT, vp->pt, xcry_out, tag, vp->tag_size,
                   XCRY_BUFFER_SIZE, true);
+  if (xcry_aead_optional(vp, msg)) {
+    continue;
+  }
   test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
-  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+  test_assert((vp->size == 0U) ||
+              (memcmp(xcry_out, vp->ct, vp->size) == 0),
               "ciphertext mismatch");
   test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
 }]]></value>
@@ -2017,8 +2037,12 @@ msg_t msg;]]></value>
   memcpy(tag, vp->tag, vp->tag_size);
   msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size,
                   XCRY_BUFFER_SIZE, true);
+  if (xcry_aead_optional(vp, msg)) {
+    continue;
+  }
   test_assert(msg == HAL_RET_SUCCESS, "verification failed");
-  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+  test_assert((vp->size == 0U) ||
+              (memcmp(xcry_out, vp->pt, vp->size) == 0),
               "plaintext mismatch");
 }]]></value>
               </code>
@@ -2078,8 +2102,12 @@ msg_t msg;]]></value>
   }
   msg = xcry_aead(vp, CRY_ENCRYPT, vp->pt, xcry_out, tag, vp->tag_size,
                   5U, false);
+  if (xcry_aead_optional(vp, msg)) {
+    continue;
+  }
   test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
-  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+  test_assert((vp->size == 0U) ||
+              (memcmp(xcry_out, vp->ct, vp->size) == 0),
               "ciphertext mismatch");
   test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
 }]]></value>
@@ -2102,8 +2130,12 @@ msg_t msg;]]></value>
   memcpy(tag, vp->tag, vp->tag_size);
   msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size,
                   1U, true);
+  if (xcry_aead_optional(vp, msg)) {
+    continue;
+  }
   test_assert(msg == HAL_RET_SUCCESS, "verification failed");
-  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+  test_assert((vp->size == 0U) ||
+              (memcmp(xcry_out, vp->pt, vp->size) == 0),
               "plaintext mismatch");
 }]]></value>
               </code>

@@ -98,8 +98,12 @@ static void xcry_test_006_001_execute(void) {
       }
       msg = xcry_aead(vp, CRY_ENCRYPT, vp->pt, xcry_out, tag, vp->tag_size,
                       XCRY_BUFFER_SIZE, true);
+      if (xcry_aead_optional(vp, msg)) {
+        continue;
+      }
       test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
-      test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+      test_assert((vp->size == 0U) ||
+                  (memcmp(xcry_out, vp->ct, vp->size) == 0),
                   "ciphertext mismatch");
       test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
     }
@@ -119,8 +123,12 @@ static void xcry_test_006_001_execute(void) {
       memcpy(tag, vp->tag, vp->tag_size);
       msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size,
                       XCRY_BUFFER_SIZE, true);
+      if (xcry_aead_optional(vp, msg)) {
+        continue;
+      }
       test_assert(msg == HAL_RET_SUCCESS, "verification failed");
-      test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+      test_assert((vp->size == 0U) ||
+                  (memcmp(xcry_out, vp->pt, vp->size) == 0),
                   "plaintext mismatch");
     }
   }
@@ -186,8 +194,12 @@ static void xcry_test_006_002_execute(void) {
       }
       msg = xcry_aead(vp, CRY_ENCRYPT, vp->pt, xcry_out, tag, vp->tag_size,
                       5U, false);
+      if (xcry_aead_optional(vp, msg)) {
+        continue;
+      }
       test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
-      test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+      test_assert((vp->size == 0U) ||
+                  (memcmp(xcry_out, vp->ct, vp->size) == 0),
                   "ciphertext mismatch");
       test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
     }
@@ -207,8 +219,12 @@ static void xcry_test_006_002_execute(void) {
       memcpy(tag, vp->tag, vp->tag_size);
       msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size,
                       1U, true);
+      if (xcry_aead_optional(vp, msg)) {
+        continue;
+      }
       test_assert(msg == HAL_RET_SUCCESS, "verification failed");
-      test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+      test_assert((vp->size == 0U) ||
+                  (memcmp(xcry_out, vp->pt, vp->size) == 0),
                   "plaintext mismatch");
     }
   }

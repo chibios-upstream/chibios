@@ -84,29 +84,66 @@ def aes_encrypt(mode, key, iv, data):
     return enc.update(data) + enc.finalize()
 
 
-# GCM specification (McGrew, Viega) test cases 4 and 16, NIST CAVP.
+# GCM specification (McGrew, Viega) test cases and NIST CAVP. Entries are
+# (title, key, nonce, AAD, plaintext, published 128-bit tag, tag size); a
+# shorter tag is the leading part of the full tag. The first entry is used
+# by the authentication failure test. Nonces other than 96 bits are
+# optional for backends.
 GCM_TC_P = h('d9313225f88406e5a55909c5aff5269a'
              '86a7a9531534f7da2e4c303d8a318a72'
              '1c3c0c95956809532fcf0e2449a6b525'
              'b16aedf5aa0de657ba637b39')
+GCM_TC3_P = GCM_TC_P + h('1aafd255')
 GCM_TC_A = h('feedfacedeadbeeffeedfacedeadbeefabaddad2')
 GCM_TC_N = h('cafebabefacedbaddecaf888')
+GCM_TC_K128 = h('feffe9928665731c6d6a8f9467308308')
+GCM_TC_K192 = h('feffe9928665731c6d6a8f9467308308feffe9928665731c')
+GCM_TC_K256 = h('feffe9928665731c6d6a8f9467308308'
+                'feffe9928665731c6d6a8f9467308308')
 GCM_VECTORS = [
-    ('GCM spec test case 4, AES-128', h('feffe9928665731c6d6a8f9467308308'),
-     GCM_TC_N, GCM_TC_A, GCM_TC_P, '5bc94fbc3221a5db94fae95ae7121a47'),
-    ('GCM spec test case 16, AES-256',
-     h('feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308'),
-     GCM_TC_N, GCM_TC_A, GCM_TC_P, '76fc6ece0f4e1768cddf8853bb2d551b'),
+    ('GCM spec test case 4, AES-128', GCM_TC_K128,
+     GCM_TC_N, GCM_TC_A, GCM_TC_P, '5bc94fbc3221a5db94fae95ae7121a47', 16),
+    ('GCM spec test case 16, AES-256', GCM_TC_K256,
+     GCM_TC_N, GCM_TC_A, GCM_TC_P, '76fc6ece0f4e1768cddf8853bb2d551b', 16),
     ('CAVP gcmEncryptExtIV128, 128-bit P',
      h('c939cc13397c1d37de6ae0e1cb7c423c'), h('b3d8cc017cbb89b39e0f67e2'),
      h('24825602bd12a984e0092d3e448eda5f'),
      h('c3b3c41f113a31b73d9a5cd432103069'),
-     '0032a1dc85f1c9786925a2e71d8272dd'),
+     '0032a1dc85f1c9786925a2e71d8272dd', 16),
     ('CAVP gcmEncryptExtIV128, 256-bit P',
      h('298efa1ccf29cf62ae6824bfc19557fc'), h('6f58a93fe1d207fae4ed2f6d'),
      h('021fafd238463973ffe80256e5b1c6b1'),
      h('cc38bccd6bc536ad919b1395f5d63801f99f8068d65ca5ac63872daf16b93901'),
-     '542465ef599316f73a7a560509a2d9f2'),
+     '542465ef599316f73a7a560509a2d9f2', 16),
+    ('GCM spec test case 1, empty AAD and P', bytes(16), bytes(12), b'', b'',
+     '58e2fccefa7e3061367f1d57a4e7455a', 16),
+    ('GCM spec test case 2, empty AAD', bytes(16), bytes(12), b'', bytes(16),
+     'ab6e47d42cec13bdf53a67b21257bddf', 16),
+    ('GCM spec test case 3, empty AAD', GCM_TC_K128, GCM_TC_N, b'', GCM_TC3_P,
+     '4d5c2af327cd64a62cf35abd2ba6fab4', 16),
+    ('GCM spec test case 7, AES-192, empty AAD and P', bytes(24), bytes(12),
+     b'', b'', 'cd33b28ac773f74ba00ed1f312572435', 16),
+    ('GCM spec test case 10, AES-192', GCM_TC_K192,
+     GCM_TC_N, GCM_TC_A, GCM_TC_P, '2519498e80f1478f37ba55bd6d27618c', 16),
+    ('CAVP gcmEncryptExtIV128, empty P',
+     h('77be63708971c4e240d1cb79e8d77feb'), h('e0e00f19fed7ba0136a797f3'),
+     h('7a43ec1d9c0a5a78a0b16533a6213cab'), b'',
+     '209fcc8d3675ed938e9c7166709dd946', 16),
+    ('GCM spec test case 4, 96-bit tag', GCM_TC_K128,
+     GCM_TC_N, GCM_TC_A, GCM_TC_P, '5bc94fbc3221a5db94fae95ae7121a47', 12),
+    ('GCM spec test case 4, 64-bit tag', GCM_TC_K128,
+     GCM_TC_N, GCM_TC_A, GCM_TC_P, '5bc94fbc3221a5db94fae95ae7121a47', 8),
+    ('GCM spec test case 4, 32-bit tag', GCM_TC_K128,
+     GCM_TC_N, GCM_TC_A, GCM_TC_P, '5bc94fbc3221a5db94fae95ae7121a47', 4),
+    ('GCM spec test case 5, 64-bit nonce', GCM_TC_K128,
+     h('cafebabefacedbad'), GCM_TC_A, GCM_TC_P,
+     '3612d2e79e3b0785561be14aaca2fccb', 16),
+    ('GCM spec test case 6, 480-bit nonce', GCM_TC_K128,
+     h('9313225df88406e555909c5aff5269aa'
+       '6a7a9538534f7da1e4c303d2a318a728'
+       'c3c0c95156809539fcf0e2429a6b5254'
+       '16aedbf5a0de6a57a637b39b'), GCM_TC_A, GCM_TC_P,
+     '619cc5aefffe0bfa462af43c1699d050', 16),
 ]
 
 # NIST SP 800-38C, appendix C.
@@ -250,12 +287,13 @@ def main():
 
     # AEAD vectors.
     rows = []
-    for title, key, nonce, aad, pt, tag in GCM_VECTORS:
+    for title, key, nonce, aad, pt, tag, tlen in GCM_VECTORS:
         out = AESGCM(key).encrypt(nonce, pt, aad)
         check(title, out[-16:], tag)
         rows.append([cstr(title), 'CRY_ALG_AES_GCM'] + buf(e, key) +
                     buf(e, nonce) + buf(e, aad) + buf(e, pt) +
-                    [e.array(out[:-16]), '16U', e.array(out[-16:])])
+                    [e.array(out[:-16]), '%dU' % tlen,
+                     e.array(out[-16:][:tlen])])
     e.table('xcry_aead_vector_t', 'xcry_aes_gcm_vectors', rows,
             'AES-GCM, GCM specification and NIST CAVP.')
     key, nonce, aad = SP38A_KEYS[128], GCM_TC_N, GCM_TC_A

@@ -115,8 +115,8 @@ extern const xcry_cipher_vector_t xcry_aes_ctr_vectors[3];
 #define XCRY_AES_CTR_VECTORS_COUNT 3U
 extern const xcry_cipher_vector_t xcry_aes_ctr_long[1];
 #define XCRY_AES_CTR_LONG_COUNT 1U
-extern const xcry_aead_vector_t xcry_aes_gcm_vectors[4];
-#define XCRY_AES_GCM_VECTORS_COUNT 4U
+extern const xcry_aead_vector_t xcry_aes_gcm_vectors[15];
+#define XCRY_AES_GCM_VECTORS_COUNT 15U
 extern const xcry_aead_vector_t xcry_aes_gcm_long[1];
 #define XCRY_AES_GCM_LONG_COUNT 1U
 extern const xcry_aead_vector_t xcry_aes_ccm_vectors[3];
