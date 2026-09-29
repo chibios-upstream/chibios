@@ -1378,8 +1378,7 @@ void __cry_stop_impl(void *ip) {
 const void *__cry_setcfg_impl(void *ip, const void *config) {
   hal_crypto_driver_c *self = (hal_crypto_driver_c *)ip;
 
-  /* Live reconfiguration runs under the system lock, the LLD rejects it
-     while resources are in use.*/
+  /* The LLD rejects live reconfiguration while resources are in use.*/
   return cry_lld_setcfg(self, (const hal_crypto_config_t *)config);
 }
 
@@ -1393,8 +1392,7 @@ const void *__cry_setcfg_impl(void *ip, const void *config) {
 const void *__cry_selcfg_impl(void *ip, unsigned cfgnum) {
   hal_crypto_driver_c *self = (hal_crypto_driver_c *)ip;
 
-  /* Live reconfiguration runs under the system lock, the LLD rejects it
-     while resources are in use.*/
+  /* The LLD rejects live reconfiguration while resources are in use.*/
   return cry_lld_selcfg(self, cfgnum);
 }
 /** @} */

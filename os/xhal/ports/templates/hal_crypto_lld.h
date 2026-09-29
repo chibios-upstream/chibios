@@ -48,12 +48,13 @@
    context records the units it holds (engine, slot, core indexes or masks).
    Units are acquired in a begin function, or for the duration of a single
    call, and released by cry_lld_abort() or before a call returns. Pool
-   updates happen inside a system-lock critical section so they are atomic
-   with the configuration hooks, which run under the system lock and reject
-   a new configuration while units are in use. Pools must read as free while
-   the driver is stopped: initialize them in cry_lld_object_init() and
-   restore them in cry_lld_stop(), because the configuration hook runs before
-   cry_lld_start(). Exhaustion of a unit type is reported with CRY_ERR_BUSY.
+   updates happen inside a system-lock critical section because streams in
+   different threads compete for the same units. The configuration hooks
+   reject a new configuration while units are in use. Pools must read as
+   free while the driver is stopped: initialize them in cry_lld_object_init()
+   and restore them in cry_lld_stop(), because the configuration hook runs
+   before cry_lld_start(). Exhaustion of a unit type is reported with
+   CRY_ERR_BUSY.
 
    Keys. The driver does not manage keys. CRY_KEY_TRANSIENT (zero) is a
    volatile key that every LLD must be able to load with cry_lld_key_load();
@@ -188,10 +189,9 @@ extern "C" {
 
 /**
  * @brief   Selects a Crypto configuration.
- * @details Called during start, unlocked and with no stream or call active,
- *          or through the base-driver live configuration APIs with the system
- *          lock held. Must not block. Return NULL for unsupported
- *          configurations, or while resource units are in use.
+ * @details Called during start, with no stream or call active, or through
+ *          the base-driver live configuration APIs. Return NULL for
+ *          unsupported configurations, or while resource units are in use.
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[in] config Requested configuration.
@@ -203,8 +203,8 @@ extern "C" {
 
 /**
  * @brief   Selects a configuration by index.
- * @details Same nonblocking contract as cry_lld_setcfg(). Index zero selects
- *          the default configuration.
+ * @details Same contract as cry_lld_setcfg(). Index zero selects the
+ *          default configuration.
  *
  * @param[in] cryp Pointer to the Crypto driver.
  * @param[in] cfgnum Configuration index.

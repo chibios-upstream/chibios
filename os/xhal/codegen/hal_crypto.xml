@@ -530,13 +530,11 @@ return cry_lld_start(self);]]></implementation></method>
 cry_lld_stop(self);]]></implementation></method>
             <method shortname="setcfg"><implementation><![CDATA[
 
-/* Live reconfiguration runs under the system lock, the LLD rejects it
-   while resources are in use.*/
+/* The LLD rejects live reconfiguration while resources are in use.*/
 return cry_lld_setcfg(self, (const hal_crypto_config_t *)config);]]></implementation></method>
             <method shortname="selcfg"><implementation><![CDATA[
 
-/* Live reconfiguration runs under the system lock, the LLD rejects it
-   while resources are in use.*/
+/* The LLD rejects live reconfiguration while resources are in use.*/
 return cry_lld_selcfg(self, cfgnum);]]></implementation></method>
           </override>
         </methods>
