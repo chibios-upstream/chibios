@@ -758,12 +758,15 @@ void dmaStreamFreeI(const stm32_dma_stream_t *dmastp) {
   dma.streams[selfindex].func  = NULL;
   dma.streams[selfindex].param = NULL;
 
-  /* Shutting down clocks that are no more required, if any.*/
-  if ((dma.allocated_mask & STM32_DMA1_STREAMS_MASK) == 0U) {
+  /* Shutting down the clock of the stream controller if no more required,
+     the other controller could have never been enabled.*/
+  if (((STM32_DMA1_STREAMS_MASK & (1U << selfindex)) != 0U) &&
+      ((dma.allocated_mask & STM32_DMA1_STREAMS_MASK) == 0U)) {
     rccDisableDMA1();
   }
 #if STM32_DMA2_NUM_CHANNELS > 0
-  if ((dma.allocated_mask & STM32_DMA2_STREAMS_MASK) == 0U) {
+  if (((STM32_DMA2_STREAMS_MASK & (1U << selfindex)) != 0U) &&
+      ((dma.allocated_mask & STM32_DMA2_STREAMS_MASK) == 0U)) {
     rccDisableDMA2();
   }
 #endif
