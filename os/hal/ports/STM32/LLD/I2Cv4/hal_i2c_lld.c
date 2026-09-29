@@ -721,8 +721,8 @@ msg_t i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C1
     if (&I2CD1 == i2cp) {
 
-      rccResetI2C1();
       rccEnableI2C1(true);
+      rccResetI2C1();
 
 #if STM32_I2C_USE_DMA == TRUE
       i2c_dma_alloc(i2cp, STM32_I2C_I2C1_DMA_CHANNEL, STM32_IRQ_I2C1_PRIORITY);
@@ -736,8 +736,8 @@ msg_t i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C2
     if (&I2CD2 == i2cp) {
 
-      rccResetI2C2();
       rccEnableI2C2(true);
+      rccResetI2C2();
 
 #if STM32_I2C_USE_DMA == TRUE
       i2c_dma_alloc(i2cp, STM32_I2C_I2C2_DMA_CHANNEL, STM32_IRQ_I2C2_PRIORITY);
@@ -751,8 +751,8 @@ msg_t i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C3
     if (&I2CD3 == i2cp) {
 
-      rccResetI2C3();
       rccEnableI2C3(true);
+      rccResetI2C3();
 
 #if STM32_I2C_USE_DMA == TRUE
       i2c_dma_alloc(i2cp, STM32_I2C_I2C3_DMA_CHANNEL, STM32_IRQ_I2C3_PRIORITY);
@@ -766,8 +766,8 @@ msg_t i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C4
     if (&I2CD4 == i2cp) {
 
-      rccResetI2C4();
       rccEnableI2C4(true);
+      rccResetI2C4();
 
 #if STM32_I2C_USE_DMA == TRUE
       i2c_dma_alloc(i2cp, STM32_I2C_I2C4_DMA_CHANNEL, STM32_IRQ_I2C4_PRIORITY);
@@ -781,8 +781,8 @@ msg_t i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C5
     if (&I2CD5 == i2cp) {
 
-      rccResetI2C5();
       rccEnableI2C5(true);
+      rccResetI2C5();
 
 #if STM32_I2C_USE_DMA == TRUE
       i2c_dma_alloc(i2cp, STM32_I2C_I2C5_DMA_CHANNEL, STM32_IRQ_I2C5_PRIORITY);
@@ -796,8 +796,8 @@ msg_t i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C6
     if (&I2CD6 == i2cp) {
 
-      rccResetI2C6();
       rccEnableI2C6(true);
+      rccResetI2C6();
 
 #if STM32_I2C_USE_DMA == TRUE
       i2c_dma_alloc(i2cp, STM32_I2C_I2C6_DMA_CHANNEL, STM32_IRQ_I2C6_PRIORITY);

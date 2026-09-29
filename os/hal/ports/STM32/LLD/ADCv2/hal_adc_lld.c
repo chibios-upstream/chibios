@@ -253,10 +253,10 @@ void adc_lld_start(ADCDriver *adcp) {
                                      (void *)adcp);
       osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
       dmaStreamSetPeripheral(adcp->dmastp, &ADC1->DR);
+      rccEnableADC1(true);
 #if defined(rccResetADC1)
       rccResetADC1();
 #endif
-      rccEnableADC1(true);
     }
 #endif /* STM32_ADC_USE_ADC1 */
 
@@ -268,10 +268,10 @@ void adc_lld_start(ADCDriver *adcp) {
                                      (void *)adcp);
       osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
       dmaStreamSetPeripheral(adcp->dmastp, &ADC2->DR);
+      rccEnableADC2(true);
 #if defined(rccResetADC2)
       rccResetADC2();
 #endif
-      rccEnableADC2(true);
     }
 #endif /* STM32_ADC_USE_ADC2 */
 
@@ -283,10 +283,10 @@ void adc_lld_start(ADCDriver *adcp) {
                                      (void *)adcp);
       osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
       dmaStreamSetPeripheral(adcp->dmastp, &ADC3->DR);
+      rccEnableADC3(true);
 #if defined(rccResetADC3)
       rccResetADC3();
 #endif
-      rccEnableADC3(true);
     }
 #endif /* STM32_ADC_USE_ADC3 */
 

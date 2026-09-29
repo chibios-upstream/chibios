@@ -208,8 +208,8 @@ void adc_lld_start(ADCDriver *adcp) {
                                      (stm32_dmaisr_t)adc_lld_serve_rx_interrupt,
                                      (void *)adcp);
       osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
-      rccResetADC1();
       rccEnableADC1(true);
+      rccResetADC1();
 
       /* DMA setup.*/
       dmaStreamSetPeripheral(adcp->dmastp, &ADC1->DR);

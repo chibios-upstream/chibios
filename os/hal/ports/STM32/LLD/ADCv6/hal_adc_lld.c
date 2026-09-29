@@ -538,8 +538,8 @@ void adc_lld_init(void) {
   /* ADC units pre-initializations.*/
 #if defined(STM32H5XX)
 #if STM32_ADC_USE_ADC1 || STM32_ADC_USE_ADC2
-  rccResetADC12();
   rccEnableADC12(true);
+  rccResetADC12();
   ADC12_COMMON->CCR = STM32_ADC_ADC12_PRESC | STM32_ADC_ADC12_CLOCK_MODE | ADC_CCR_MDMA_MODE;
   rccDisableADC12();
 #endif
