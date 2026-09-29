@@ -363,68 +363,68 @@ msg_t sio_lld_start(SIODriver *siop) {
   }
 #if STM32_SIO_USE_USART1 == TRUE
   else if (&SIOD1 == siop) {
-    rccResetUSART1();
     rccEnableUSART1(true);
+    rccResetUSART1();
   }
 #endif
 #if STM32_SIO_USE_USART2 == TRUE
   else if (&SIOD2 == siop) {
-    rccResetUSART2();
     rccEnableUSART2(true);
+    rccResetUSART2();
   }
 #endif
 #if STM32_SIO_USE_USART3 == TRUE
   else if (&SIOD3 == siop) {
-    rccResetUSART3();
     rccEnableUSART3(true);
+    rccResetUSART3();
   }
 #endif
 #if STM32_SIO_USE_UART4 == TRUE
   else if (&SIOD4 == siop) {
-    rccResetUART4();
     rccEnableUART4(true);
+    rccResetUART4();
   }
 #endif
 #if STM32_SIO_USE_UART5 == TRUE
   else if (&SIOD5 == siop) {
-    rccResetUART5();
     rccEnableUART5(true);
+    rccResetUART5();
   }
 #endif
 #if STM32_SIO_USE_USART6 == TRUE
   else if (&SIOD6 == siop) {
-    rccResetUSART6();
     rccEnableUSART6(true);
+    rccResetUSART6();
   }
 #endif
 #if STM32_SIO_USE_UART7 == TRUE
   else if (&SIOD7 == siop) {
-    rccResetUART7();
     rccEnableUART7(true);
+    rccResetUART7();
   }
 #endif
 #if STM32_SIO_USE_UART8 == TRUE
   else if (&SIOD8 == siop) {
-    rccResetUART8();
     rccEnableUART8(true);
+    rccResetUART8();
   }
 #endif
 #if STM32_SIO_USE_UART9 == TRUE
   else if (&SIOD9 == siop) {
-    rccResetUART9();
     rccEnableUART9(true);
+    rccResetUART9();
   }
 #endif
 #if STM32_SIO_USE_USART10 == TRUE
   else if (&SIOD10 == siop) {
-    rccResetUSART10();
     rccEnableUSART10(true);
+    rccResetUSART10();
   }
 #endif
 #if STM32_SIO_USE_LPUART1 == TRUE
   else if (&LPSIOD1 == siop) {
-    rccResetLPUART1();
     rccEnableLPUART1(true);
+    rccResetLPUART1();
   }
 #endif
   else {
