@@ -199,8 +199,8 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
       if (adcp->dmastp == NULL) {
         return HAL_RET_NO_RESOURCE;
       }
-      rccResetADC1();
       rccEnableADC1(true);
+      rccResetADC1();
 
       /* DMA setup.*/
       dmaStreamSetPeripheral(adcp->dmastp, &ADC1->DR);

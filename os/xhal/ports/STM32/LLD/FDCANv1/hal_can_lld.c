@@ -188,10 +188,10 @@ static bool fdcan_active_mode(hal_can_driver_c *canp) {
 void can_lld_init(void) {
 
 #if STM32_CAN_USE_FDCAN1
-  /* Unit reset.*/
-  rccResetFDCAN();
   /* Enable FDCAN.*/
   rccEnableFDCAN(true);
+  /* Unit reset.*/
+  rccResetFDCAN();
 
   /* Driver initialization.*/
   canObjectInit(&CAND1);
