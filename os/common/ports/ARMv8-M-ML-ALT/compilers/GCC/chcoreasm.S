@@ -381,6 +381,20 @@ __port_thread_start:
                 bl      chThdExit
 1:              b       1b
 
+#if (PORT_ENABLE_WFI_IDLE == TRUE) &&                                   \
+    (PORT_WFI_INSTRUCTION_ALIGNMENT == 16)
+
+/*--------------------------------------------------------------------------*
+ * Wait for interrupt with an explicitly aligned WFI instruction.
+ *--------------------------------------------------------------------------*/
+                .balign 16
+                .thumb_func
+                .globl  __port_wait_for_interrupt
+__port_wait_for_interrupt:
+                wfi
+                bx      lr
+#endif
+
 #endif /* !defined(__DOXYGEN__) */
 
 /** @} */
