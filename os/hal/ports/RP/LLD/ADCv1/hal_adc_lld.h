@@ -237,8 +237,13 @@ typedef uint32_t adcerror_t;
   ADC_TypeDef               *adc;                                           \
   /* Pointer to associated DMA channel.*/                                   \
   const rp_dma_channel_t    *dma;                                           \
+  /* Pointer to the DMA channel chained to the data channel by linear       \
+     conversions, it stops the ADC at the end of the transfer.*/            \
+  const rp_dma_channel_t    *dmastop;                                       \
   /* DMA mode bit mask.*/                                                   \
   uint32_t                  dmamode;                                        \
+  /* CS register value written by the stop channel.*/                       \
+  uint32_t                  csstop;                                         \
   /* Circular mode half-buffer tracking flag.                               \
      false = filling first half, true = filling second half.*/              \
   bool                      half;

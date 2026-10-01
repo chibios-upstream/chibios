@@ -264,12 +264,14 @@ typedef uint32_t adcerror_t;
   ADC_TypeDef               *adc;                                           \
   /* Pointer to associated DMA channel.*/                                   \
   const rp_dma_channel_t    *dma;                                           \
-  /* Pointer to the second DMA channel chained to the first one by         \
-     circular conversions, NULL when no circular conversion is             \
-     active.*/                                                              \
+  /* Pointer to the second DMA channel chained to the first one, the       \
+     ping-pong partner of circular conversions or the stop channel of      \
+     linear conversions.*/                                                  \
   const rp_dma_channel_t    *dma2;                                          \
   /* DMA mode bit mask.*/                                                   \
   uint32_t                  dmamode;                                        \
+  /* CS register value written by the stop channel.*/                       \
+  uint32_t                  csstop;                                         \
   /* True while the temperature sensor bias is enabled on behalf of        \
      the active conversion group.*/                                         \
   bool                      ts_owned
