@@ -35,6 +35,10 @@ validation; a successful build is not a hardware test.
 
 ## Host regression
 
+The harness is retained on the
+[development branch](https://github.com/chibios-upstream/chibios/tree/dev/stm32-driver-host-tests/testxhal/SPI/host),
+not in `master`. Run the following commands from that branch:
+
 ```sh
 make -C host
 make -C host clean

@@ -259,7 +259,7 @@
 #define FDCAN_EXT_FILTER_EFID2_Msk         (0x1FFFFFFFu << FDCAN_EXT_FILTER_EFID2_Pos)
 #define FDCAN_EXT_FILTER_EFID2(n)          ((FDCAN_EXT_FILTER_EFID2_Msk & ((n) << FDCAN_EXT_FILTER_EFID2_Pos)))
 #define FDCAN_EXT_FILTER_EFT_Pos           (30)
-#define FDCAN_EXT_FILTER_EFT_Msk           (0x2u << FDCAN_EXT_FILTER_EFT_Pos)
+#define FDCAN_EXT_FILTER_EFT_Msk           (0x3u << FDCAN_EXT_FILTER_EFT_Pos)
 #define FDCAN_EXT_FILTER_EFT(n)            ((FDCAN_EXT_FILTER_EFT_Msk & ((n) << FDCAN_EXT_FILTER_EFT_Pos)))
 /** @} */
 

@@ -307,16 +307,22 @@ static void adc_lld_set_internal_channels(hal_adc_driver_c *adcp,
 static void adc_lld_serve_dma_interrupt(void *p, uint32_t csr) {
   hal_adc_driver_c *adcp = (hal_adc_driver_c *)p;
 
+  /* An ADC error or a callback may already have stopped the conversion.*/
+  if ((adcp->grpp == NULL) ||
+      ((adcp->state != ADC_ACTIVE_LINEAR) &&
+       (adcp->state != ADC_ACTIVE_CIRCULAR))) {
+    return;
+  }
+
   if ((csr & STM32_DMA3_CSR_ERRORS) != 0U) {
     _adc_isr_error_code(adcp, ADC_ERR_DMAFAILURE);
   }
-  else if (adcp->grpp != NULL) {
-    if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
-      _adc_isr_full_code(adcp);
-    }
-    else if ((csr & STM32_DMA3_CSR_HTF) != 0U) {
-      _adc_isr_half_code(adcp);
-    }
+  else if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
+    /* Transfer complete takes priority over a pending half transfer.*/
+    _adc_isr_full_code(adcp);
+  }
+  else if ((csr & STM32_DMA3_CSR_HTF) != 0U) {
+    _adc_isr_half_code(adcp);
   }
 }
 
@@ -326,38 +332,40 @@ static void adc_lld_serve_dma_interrupt(void *p, uint32_t csr) {
  * @param[in] adcp      pointer to the @p hal_adc_driver_c object
  */
 void adc_lld_serve_interrupt(hal_adc_driver_c *adcp) {
-  uint32_t isr;
+  uint32_t isr, flags;
 #if STM32_ADC_DUAL_MODE
   uint32_t sisr;
 #endif
   adcerror_t emask;
 
   isr = adcp->adcm->ISR;
+  flags = isr & adcp->adcm->IER;
   adcp->adcm->ISR = isr;
 #if STM32_ADC_DUAL_MODE
   sisr = adcp->adcs->ISR;
+  flags |= sisr & adcp->adcs->IER;
   adcp->adcs->ISR = sisr;
-  isr |= sisr;
 #endif
 
-  if (adcp->grpp == NULL) {
+  /* Ignore errors occurring after the conversion has ended.*/
+  if ((adcp->grpp == NULL) ||
+      ((adcp->state != ADC_ACTIVE_LINEAR) &&
+       (adcp->state != ADC_ACTIVE_CIRCULAR))) {
     return;
   }
 
   emask = 0U;
 
-  if (((isr & ADC_ISR_OVR) != 0U) &&
-      ((adcp->state == ADC_ACTIVE_LINEAR) ||
-       (adcp->state == ADC_ACTIVE_CIRCULAR))) {
+  if ((flags & ADC_ISR_OVR) != 0U) {
     emask |= ADC_ERR_OVERFLOW;
   }
-  if ((isr & ADC_ISR_AWD1) != 0U) {
+  if ((flags & ADC_ISR_AWD1) != 0U) {
     emask |= ADC_ERR_AWD1;
   }
-  if ((isr & ADC_ISR_AWD2) != 0U) {
+  if ((flags & ADC_ISR_AWD2) != 0U) {
     emask |= ADC_ERR_AWD2;
   }
-  if ((isr & ADC_ISR_AWD3) != 0U) {
+  if ((flags & ADC_ISR_AWD3) != 0U) {
     emask |= ADC_ERR_AWD3;
   }
   if (emask != 0U) {
@@ -597,29 +605,31 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
   }
 
   grpp = &cfg->grps->grps[grpnum];
-  adcp->grpp = grpp;
-  circular = adcp->state == ADC_ACTIVE_CIRCULAR;
 
 #if STM32_ADC_DUAL_MODE
-  chDbgAssert((grpp->num_channels >= 2U) &&
-                (grpp->num_channels <= 32U) &&
-                ((grpp->num_channels & 1U) == 0U),
-                "invalid number of channels");
-  chDbgAssert(adc_lld_is_valid_dual_mode(grpp->ccr),
-                "invalid dual mode");
+  if ((grpp->num_channels < 2U) || (grpp->num_channels > 32U) ||
+      ((grpp->num_channels & 1U) != 0U) ||
+      !adc_lld_is_valid_dual_mode(grpp->ccr)) {
+    return HAL_RET_CONFIG_ERROR;
+  }
 #else
-  chDbgAssert((grpp->num_channels >= 1U) &&
-                (grpp->num_channels <= 16U),
-                "invalid number of channels");
+  if ((grpp->num_channels < 1U) || (grpp->num_channels > 16U)) {
+    return HAL_RET_CONFIG_ERROR;
+  }
 #endif
 
 #if STM32_ADC_COMPACT_SAMPLES
-  chDbgAssert((grpp->cfgr & ADC_CFGR1_RES_MASK) == ADC_CFGR1_RES_8BITS,
-                "compact samples require 8-bit resolution");
+  if ((grpp->cfgr & ADC_CFGR1_RES_MASK) != ADC_CFGR1_RES_8BITS) {
+    return HAL_RET_CONFIG_ERROR;
+  }
 #elif STM32_ADC_DUAL_MODE
-  chDbgAssert((grpp->cfgr & ADC_CFGR1_RES_MASK) != ADC_CFGR1_RES_8BITS,
-                "8-bit dual mode requires compact samples");
+  if ((grpp->cfgr & ADC_CFGR1_RES_MASK) == ADC_CFGR1_RES_8BITS) {
+    return HAL_RET_CONFIG_ERROR;
+  }
 #endif
+
+  adcp->grpp = grpp;
+  circular = adcp->state == ADC_ACTIVE_CIRCULAR;
 
 #if STM32_ADC_DUAL_MODE
   /* Common dual-mode fields can only be changed with both ADCs disabled.*/

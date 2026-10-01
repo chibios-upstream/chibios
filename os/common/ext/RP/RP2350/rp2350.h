@@ -3311,6 +3311,7 @@ typedef struct {
  * @{
  */
 #define POWMAN_PASSWORD                   (0x5AFEU << 16)
+#define POWMAN_VREG_CTRL_UNLOCK           (1U << 13)
 #define POWMAN_VREG_VSEL_Pos              4U
 #define POWMAN_VREG_VSEL_Msk              (0x1FU << POWMAN_VREG_VSEL_Pos)
 #define POWMAN_VREG_VSEL(n)               ((n) << POWMAN_VREG_VSEL_Pos)

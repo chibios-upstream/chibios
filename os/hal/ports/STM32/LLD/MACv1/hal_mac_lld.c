@@ -261,11 +261,9 @@ void mac_lld_init(void) {
 #error "unsupported STM32 platform for MAC driver"
 #endif
 
-  /* Reset of the MAC core.*/
-  rccResetETH();
-
-  /* MAC clocks temporary activation.*/
+  /* MAC clocks temporary activation then reset of the MAC core.*/
   rccEnableETH(true);
+  rccResetETH();
 
   /* PHY address setup.*/
 #if defined(BOARD_PHY_ADDRESS)

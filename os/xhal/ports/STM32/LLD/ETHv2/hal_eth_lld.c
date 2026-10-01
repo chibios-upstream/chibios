@@ -345,9 +345,9 @@ void eth_lld_init(void) {
 #error "unsupported STM32 platform for ETHv2 driver"
 #endif
 
-  /* Reset of the MAC core then enabling clocks.*/
-  rccResetETH();
+  /* Enabling clocks then resetting the MAC core.*/
   rccEnableETH(true);
+  rccResetETH();
 
   /* PHY address setup.*/
 #if defined(BOARD_PHY_ADDRESS)
@@ -393,8 +393,8 @@ msg_t eth_lld_start(hal_eth_driver_c *ethp) {
   ethp->link_up = false;
 
   /* ETH clocks activation and commanded reset procedure.*/
-  rccResetETH();
   rccEnableETH(true);
+  rccResetETH();
 
 #if STM32_ETH_ETH1_CHANGE_PHY_STATE
   /* PHY in power up mode.*/

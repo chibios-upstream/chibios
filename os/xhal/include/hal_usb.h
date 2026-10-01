@@ -183,6 +183,11 @@
  * @brief       Endpoint-zero stall event flag.
  */
 #define USB_FLAGS_STALLED                   (1U << 6)
+
+/**
+ * @brief       Hardware failure, the driver requires an application restart.
+ */
+#define USB_FLAGS_HW_FAILURE                (1U << 7)
 /** @} */
 
 /*===========================================================================*/
@@ -361,6 +366,7 @@ struct hal_usb_binder;
 #define USB_SELECTED                       (HAL_DRV_STATE_ACTIVE + 1U)
 #define USB_ACTIVE                         (HAL_DRV_STATE_ACTIVE + 2U)
 #define USB_SUSPENDED                      (HAL_DRV_STATE_ACTIVE + 3U)
+#define USB_ERROR                          (HAL_DRV_STATE_ACTIVE + 4U)
 
 typedef enum {
   EP_STATUS_DISABLED = 0,
@@ -623,6 +629,17 @@ struct hal_usb_binder {
  * @extends     hal_base_driver_c
  *
  * @brief       Class of a USB driver.
+ * @details     A runtime hardware failure disconnects the device and latches
+ *              @p USB_ERROR, posting @p USB_FLAGS_HW_FAILURE in the cached
+ *              events. Pending and subsequent blocking operations return @p
+ *              HAL_RET_HW_FAILURE. Endpoint initialization, transfer starts
+ *              and bus connection are ignored while faulted. Clearing the
+ *              event does not clear the fault. The application must serialize
+ *              recovery with its USB workers, call @p drvStop(), then @p
+ *              drvStart(), rebind its binder and reconnect after the required
+ *              disconnect interval. Services remain bound until stop; no
+ *              successful transfer or bus-reset callback is synthesized for a
+ *              hardware failure.
  *
  * @name        Class @p hal_usb_driver_c structures
  * @{
@@ -815,6 +832,7 @@ extern "C" {
   void usbBinderOutI(void *ip, usbep_t ep);
   msg_t usbBinderSetup(void *ip, bool *handledp);
   void usbInit(void);
+  void _usb_error_i(hal_usb_driver_c *usbp);
   void _usb_reset(hal_usb_driver_c *usbp);
   void _usb_suspend(hal_usb_driver_c *usbp);
   void _usb_wakeup(hal_usb_driver_c *usbp);
@@ -1497,9 +1515,12 @@ static inline usbeventflags_t usbGetAndClearEventsX(void *ip,
 
 /**
  * @brief       Returns the current USB frame number.
+ * @details     The 11-bit frame number advances every millisecond and wraps
+ *              after 2047. At high speed, microframe bits are not included.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_driver_c instance.
- * @return                      The current USB frame number.
+ * @return                      The current USB frame number, in the range 0 to
+ *                              2047.
  *
  * @xclass
  */

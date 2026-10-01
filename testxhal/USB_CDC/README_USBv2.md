@@ -72,7 +72,9 @@ C071 uses its 16-bit system timer. U083 enables HSI48 for USB and uses a
 1 kHz system tick, which divides its modeled MSI/PLL timer frequency exactly.
 Assertions, parameter checks, and the kernel state checker remain enabled.
 
-Host regression command:
+The host harness is retained on the
+[development branch](https://github.com/chibios-upstream/chibios/tree/dev/stm32-driver-host-tests/testxhal/USB_CDC/host/usbv2),
+not in `master`. Run the following commands from that branch:
 
 ```sh
 make -C host/usbv2 -j4

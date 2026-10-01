@@ -100,8 +100,9 @@ static void adc_lld_stop_adc(ADC_TypeDef *adc) {
     adc->CR |= ADC_CR_ADSTP;
     while (adc->CR & ADC_CR_ADSTP)
       ;
-    adc->IER = 0;
   }
+  /* ADSTART may already be clear after a linear conversion.*/
+  adc->IER = 0U;
 
   /* Disabling the ADC.*/
   adc->CR |= ADC_CR_ADDIS;
@@ -118,25 +119,26 @@ static void adc_lld_stop_adc(ADC_TypeDef *adc) {
  */
 static void adc_lld_serve_rx_interrupt(hal_adc_driver_c *adcp, uint32_t flags) {
 
+  /* An ADC error or a callback may already have stopped the conversion.*/
+  if ((adcp->grpp == NULL) ||
+      ((adcp->state != ADC_ACTIVE_LINEAR) &&
+       (adcp->state != ADC_ACTIVE_CIRCULAR))) {
+    return;
+  }
+
   /* DMA errors handling.*/
   if ((flags & (STM32_DMA_ISR_TEIF | STM32_DMA_ISR_DMEIF)) != 0) {
     /* DMA, this could help only if the DMA tries to access an unmapped
        address space or violates alignment rules.*/
     _adc_isr_error_code(adcp, ADC_ERR_DMAFAILURE);
   }
-  else {
-    /* It is possible that the conversion group has already be reset by the
-       ADC error handler, in this case this interrupt is spurious.*/
-    if (adcp->grpp != NULL) {
-      if ((flags & STM32_DMA_ISR_TCIF) != 0) {
-        /* Transfer complete processing.*/
-        _adc_isr_full_code(adcp);
-      }
-      else if ((flags & STM32_DMA_ISR_HTIF) != 0) {
-        /* Half transfer processing.*/
-        _adc_isr_half_code(adcp);
-      }
-    }
+  else if ((flags & STM32_DMA_ISR_TCIF) != 0) {
+    /* Transfer complete takes priority over a pending half transfer.*/
+    _adc_isr_full_code(adcp);
+  }
+  else if ((flags & STM32_DMA_ISR_HTIF) != 0) {
+    /* Half transfer processing.*/
+    _adc_isr_half_code(adcp);
   }
 }
 
@@ -199,8 +201,8 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
       if (adcp->dmastp == NULL) {
         return HAL_RET_NO_RESOURCE;
       }
-      rccResetADC1();
       rccEnableADC1(true);
+      rccResetADC1();
 
       /* DMA setup.*/
       dmaStreamSetPeripheral(adcp->dmastp, &ADC1->DR);
@@ -406,34 +408,32 @@ void adc_lld_stop_conversion(hal_adc_driver_c *adcp) {
  * @notapi
  */
 void adc_lld_serve_interrupt(hal_adc_driver_c *adcp) {
-  uint32_t isr;
+  uint32_t isr, flags;
 
   isr = adcp->adc->ISR;
+  flags = isr & adcp->adc->IER;
   adcp->adc->ISR = isr;
 
-  /* It could be a spurious interrupt caused by overflows after DMA disabling,
-     just ignore it in this case.*/
-  if (adcp->grpp != NULL) {
+  /* Ignore errors occurring after the conversion has ended.*/
+  if ((adcp->grpp != NULL) &&
+      ((adcp->state == ADC_ACTIVE_LINEAR) ||
+       (adcp->state == ADC_ACTIVE_CIRCULAR))) {
     adcerror_t emask = 0U;
 
-    /* Note, an overflow may occur after the conversion ended before the driver
-       is able to stop the ADC, this is why the state is checked too.*/
-    if (((isr & ADC_ISR_OVR) != 0U) &&
-        ((adcp->state == ADC_ACTIVE_LINEAR) ||
-         (adcp->state == ADC_ACTIVE_CIRCULAR))) {
+    if (flags & ADC_ISR_OVR) {
       /* ADC overflow condition, this could happen only if the DMA is unable
          to read data fast enough.*/
       emask |= ADC_ERR_OVERFLOW;
     }
-    if (isr & ADC_ISR_AWD1) {
+    if (flags & ADC_ISR_AWD1) {
       /* Analog watchdog 1 error.*/
       emask |= ADC_ERR_AWD1;
     }
-    if (isr & ADC_ISR_AWD2) {
+    if (flags & ADC_ISR_AWD2) {
       /* Analog watchdog 2 error.*/
       emask |= ADC_ERR_AWD2;
     }
-    if (isr & ADC_ISR_AWD3) {
+    if (flags & ADC_ISR_AWD3) {
       /* Analog watchdog 3 error.*/
       emask |= ADC_ERR_AWD3;
     }

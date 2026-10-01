@@ -4,7 +4,7 @@ The SPIv3 port covers STM32H7 with DMA1/2 for SPI1..5 and BDMA for SPI6.
 Both H7 platform makefiles include the driver; shared SPI interrupts use the
 same `.inc` dispatchers as the other STM32 XHAL ports.
 
-## Build and host regression
+## Board builds
 
 From `testxhal/SPI`, with the ARM GNU toolchain on `PATH`:
 
@@ -12,7 +12,6 @@ From `testxhal/SPI`, with the ARM GNU toolchain on `PATH`:
 make -f make/stm32h743zi_nucleo144.make -j4 USE_COPT=-Werror
 make -f make/stm32h735ig_discovery.make -j4 USE_COPT=-Werror
 make -f make/stm32h7a3ziq_nucleo144.make -j4 USE_COPT=-Werror
-make -C host/spiv3
 ```
 
 Repeat each command with `clean` after testing. Clean before changing build
@@ -24,6 +23,17 @@ PA6 for MISO, PB5 for MOSI (all AF5), and PD14 as GPIO chip select. These are
 the classic HAL H743 test pin choices; check board routing before wiring
 other boards. A MOSI-to-MISO jumper enables loopback observation. No second
 SPI instance is wired as a slave. Hardware validation remains pending.
+
+## Host regression
+
+The harness is retained on the
+[development branch](https://github.com/chibios-upstream/chibios/tree/dev/stm32-driver-host-tests/testxhal/SPI/host/spiv3),
+not in `master`. From `testxhal/SPI` on that branch:
+
+```sh
+make -C host/spiv3
+make -C host/spiv3 clean
+```
 
 The host suite compiles the real LLD against modeled SPI/DMA registers.
 It covers DMA-only, BDMA-only and mixed builds, user configuration tables,

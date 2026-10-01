@@ -13,6 +13,7 @@ Vector names and numbers remain in each platform's `stm32_isr.h`.
 
 | CDC target | Enabled instances | CDC instance |
 | --- | --- | --- |
+| `stm32h723zg_nucleo144` | OTG2 | USBD2 / OTG2 |
 | `stm32h743zi_nucleo144` | OTG1 and OTG2 | USBD1 / OTG1 |
 | `stm32h735ig_discovery` | OTG2 | USBD2 / OTG2 |
 | `stm32h7a3ziq_nucleo144` | OTG2 | USBD2 / OTG2 |
@@ -75,17 +76,31 @@ still require on-board validation.
   packet-count/size limits; EP0 uses one packet per hardware transaction.
 - Handles zero-length OUT transfers and short packets, drains stale RX
   packets safely, and processes RX FIFO data before endpoint callbacks.
-- Gives SETUP and bus reset precedence over stale completion flags.
+- Completes an EP0 status stage before dispatching the next SETUP at its
+  RX FIFO completion marker; suppresses stale operations while SETUP is
+  pending. Bus reset cancels the previous transfers.
 - Preserves EP0 operation and its FIFO allocation when disabling other
   endpoints; rounds IN FIFO allocation to words and a minimum of 16 words.
+- Retires nonzero OUT endpoints asynchronously through global OUT NAK,
+  endpoint-disable completion and NAK release. Endpoint configurations and
+  receive starts are deferred until old packets and completions are retired.
+- Rejects invalid host endpoint addresses and resets bulk/interrupt data
+  toggles to DATA0 when clearing an endpoint halt.
 - Maps XHAL `ep_buffers` to the TX FIFO packet multiplier.
 - Copies unaligned buffers and packet tails without reading past the buffer.
 - Preserves the previous BASEPRI mask during optional FIFO-fill protection.
 - Starts disconnected and disables peripheral interrupt sources on stop.
 - Enables binder SOF handling at reset, including bind-after-start usage.
-- Allows PHY selection to settle before core reset; reset and FIFO-flush
-  waits use one-microsecond polled delays scaled from `SystemCoreClock`.
-- Keeps the donor's one-packet-per-frame isochronous limitation.
+- Allows PHY selection to settle before core reset. Reset, FIFO-flush and
+  EP0-disable waits use the HAL high-resolution counter with bounded waits
+  and a final register recheck at expiry. Required PHY settling delays remain.
+- Bounds asynchronous OUT teardown using system time and progress checks
+  on USB interrupts (SOF while active). During suspend, an outstanding
+  timeout is reported on the next USB interrupt. Runtime faults disconnect
+  and report `USB_FLAGS_HW_FAILURE` for application-controlled restart.
+- Uses one packet per isochronous hardware transaction; high-bandwidth HS
+  multi-packet transactions are not supported. ISO IN missed-frame recovery
+  waits asynchronously for endpoint disable before notifying the application.
 
 For FIFO sizing background, see ST's
 [OTG FIFO configuration guidance](https://wiki.st.com/stm32mpu/wiki/OTG_device_tree_configuration).
@@ -98,15 +113,10 @@ schema-validated, and regenerated; repeat generation was unchanged.
 
 ## Configuration migration
 
-H723/H743/H7A3 and L4+ templates now use `STM32_IRQ_OTGx_PRIORITY`.
-Updaters preserve old `STM32_USB_OTGx_IRQ_PRIORITY` values, with explicitly
-supplied new values taking precedence. An explicit `STM32_USB_OTG2_PHY`
-selection is preserved; otherwise the driver's board-dependent default
-remains in effect.
-
-All four updaters were run sequentially over the entire worktree. Repeating
-the update produced identical configurations. Migration probes checked old
-priority preservation, new-priority precedence and explicit PHY selection.
+H723/H743/H7A3 and L4+ templates use `STM32_IRQ_OTGx_PRIORITY`.
+Use those names in current configurations; the temporary legacy-setting
+migration code has been removed. PHY selection belongs in the board or
+registry definitions, not in `xmcuconf.h`.
 
 ## Validation
 
@@ -115,8 +125,6 @@ From `testxhal/USB_CDC`, for each target above:
 ```sh
 make -f make/stm32h743zi_nucleo144.make -j4 USE_COPT=-Werror
 make -f make/stm32h743zi_nucleo144.make clean
-make -C host/otgv1 -j4
-make -C host/otgv1 clean
 ```
 
 Checked configurations:
@@ -132,12 +140,27 @@ Checked configurations:
 ULPI builds are compile checks, not ready-to-run HS CDC fixtures: the shared
 CDC descriptors and board pin setup are still full-speed configurations.
 
-The seven AddressSanitizer/UndefinedBehaviorSanitizer host variants cover
+### Host regression
+
+The OTG and clock-usage harnesses are retained on the
+[development branch](https://github.com/chibios-upstream/chibios/tree/dev/stm32-driver-host-tests/testxhal/USB_CDC/host),
+not in `master`. From `testxhal/USB_CDC` on that branch:
+
+```sh
+make -C host/otgv1 -j4
+make -C host/otgv1 clean
+```
+
+The core AddressSanitizer/UndefinedBehaviorSanitizer host variants cover
 dual-controller, OTG1-only, OTG2-only, ULPI FS, ULPI HS, configuration tables,
 and BASEPRI/sequence-workaround configurations. They exercise start/stop,
 clock boundaries, EP0 isolation, unaligned copies, FIFO allocation, 70 KB
 transfers, short packets, ZLPs, stale events, suspend/wakeup and isochronous
-missed-frame callbacks.
+missed-frame callbacks. Three stepping-1 variants and a synchronization-
+disabled variant bring the full matrix, including U5 below, to 22 variants.
+Review regressions cover invalid endpoint addresses in every teardown phase,
+pending-SETUP gating, CLEAR_HALT data toggles, EP0 waiter cancellation, and
+post-deadline register checks for all 15 shared safety-wait variants.
 
 Eleven additional U5 variants use the real registry, IRQ definitions, clock
 usage header and CMSIS device headers: U575, U585, U595, U599, U5A5, U5A9,
@@ -154,7 +177,7 @@ The capability models only test clock selection, not complete device ports.
 
 PHY-delay regressions check pre-reset and post-reset placement, both FIFO
 flush delays, and CPU-clock scaling at 48, 168, 520 and 520.000001 MHz. All
-seven host variants pass. The timing update also builds with `-Werror` for
+22 host variants pass. The timing update also builds with `-Werror` for
 H735, L4R5, and H743 with external ULPI selected in high-speed mode.
 
 Host tests run the actual LLD against shared-memory registers. A child
@@ -162,9 +185,11 @@ process models only self-clearing reset, FIFO-flush and endpoint-disable
 bits. FIFO-pop and write-one-to-clear interrupt semantics are not emulated;
 tests explicitly supply register snapshots. This is not a USB bus emulator.
 
-No XHAL firmware was flashed. Enumeration, CDC control requests and traffic,
-unplug/replug, suspend/remote wakeup, simultaneous controllers, ULPI timing,
-isochronous behavior and FIFO behavior on real silicon still need testing.
-Matching classic HAL fixes are prepared separately in this worktree. See
-`testhal/STM32/multi/USB_CDC/host/otgv1/README.md` for HAL H723 hardware results;
-those do not constitute XHAL hardware validation.
+NUCLEO-H723ZG XHAL hardware checks at full speed include enumeration, CDC
+control requests, checked echo/bulk traffic, repeated configuration and
+deconfiguration, and capture of the 440 Hz tone from `testxhal/USB_AUDIO`.
+HS/ULPI, simultaneous controllers and other boards remain build/model
+coverage. Stuck OUT teardown and preemption regressions use the host model,
+not hardware fault injection. See the preserved
+[HAL OTG notes](https://github.com/chibios-upstream/chibios/blob/dev/stm32-driver-host-tests/testhal/STM32/multi/USB_CDC/host/otgv1/README.md)
+for the separate classic HAL H723 results.

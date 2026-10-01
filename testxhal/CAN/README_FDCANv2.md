@@ -44,7 +44,9 @@ ST reference manuals RM0433 (H743), RM0468 (H723), and RM0455 (H7A3).
 
 ## Host regression tests
 
-From this directory:
+The harness is retained on the
+[development branch](https://github.com/chibios-upstream/chibios/tree/dev/stm32-driver-host-tests/testxhal/CAN/host/fdcanv2),
+not in `master`. From this directory on that branch:
 
 ```sh
 make -j4 -C host/fdcanv2

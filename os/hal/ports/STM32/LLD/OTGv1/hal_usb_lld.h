@@ -145,6 +145,8 @@
  * @note    The value zero means disabled, when disabled calling USB
  *          functions is only safe from thread level or from USB
  *          callbacks.
+ * @note    A stronger pre-existing BASEPRI mask is preserved. The original
+ *          mask is restored after each packet copy.
  */
 #if !defined(STM32_USB_OTGFIFO_FILL_BASEPRI) || defined(__DOXYGEN__)
 #define STM32_USB_OTGFIFO_FILL_BASEPRI      0

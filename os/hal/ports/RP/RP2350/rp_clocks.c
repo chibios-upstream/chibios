@@ -419,7 +419,11 @@ static bool rp_clock_config_valid(const halclkcfg_t *ccp) {
  * @details Millivolts are mapped onto the VSEL encoding (1100 mV is
  *          VSEL 0x0B, 50 mV per step); voltages above 1300 mV would
  *          require the POWMAN voltage-limit unlock and are rejected by
- *          validation. Every POWMAN write carries the password.
+ *          validation. Software control through VREG requires the
+ *          regulator control interface to be unlocked first
+ *          (VREG_CTRL.UNLOCK); software cannot relock it, so repeating
+ *          the unlock on every call is harmless. Every POWMAN write
+ *          carries the password.
  *
  * @param[in] mv        target voltage, 1100..1300 in steps of 50
  * @return              @p true on regulator update timeout.
@@ -427,6 +431,10 @@ static bool rp_clock_config_valid(const halclkcfg_t *ccp) {
 static bool rp_clock_set_vreg(uint32_t mv) {
   uint32_t vsel = 0x0BU + ((mv - 1100U) / 50U);
   uint32_t vreg, start;
+
+  /* Unlocking the regulator control interface before writing VREG, the
+     SET alias leaves the other VREG_CTRL fields untouched. */
+  POWMAN->SET.VREG_CTRL = POWMAN_PASSWORD | POWMAN_VREG_CTRL_UNLOCK;
 
   vreg = (POWMAN->VREG & 0xFFFFU & ~POWMAN_VREG_VSEL_Msk) |
          POWMAN_VREG_VSEL(vsel);

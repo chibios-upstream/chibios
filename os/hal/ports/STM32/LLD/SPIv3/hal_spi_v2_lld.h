@@ -518,7 +518,9 @@
   /* Sink for discarded data.*/                                             \
   uint32_t                  rxsink;                                         \
   /* Source for default TX pattern.*/                                       \
-  uint32_t                  txsource;
+  uint32_t                  txsource;                                       \
+  /* Transaction identifier for callback-driven stop/restart detection.*/   \
+  uint32_t                  sequence;
 #endif
 
 #if defined(STM32_SPI_DMA_REQUIRED) && !defined(STM32_SPI_BDMA_REQUIRED)
@@ -542,7 +544,9 @@
   /* Sink for discarded data.*/                                             \
   uint32_t                  rxsink;                                         \
   /* Source for default TX pattern.*/                                       \
-  uint32_t                  txsource;
+  uint32_t                  txsource;                                       \
+  /* Transaction identifier for callback-driven stop/restart detection.*/   \
+  uint32_t                  sequence;
 #endif
 
 #if !defined(STM32_SPI_DMA_REQUIRED) && defined(STM32_SPI_BDMA_REQUIRED)
@@ -566,7 +570,9 @@
   /* Sink for discarded data.*/                                             \
   uint32_t                  rxsink;                                         \
   /* Source for default TX pattern.*/                                       \
-  uint32_t                  txsource;
+  uint32_t                  txsource;                                       \
+  /* Transaction identifier for callback-driven stop/restart detection.*/   \
+  uint32_t                  sequence;
 #endif
 
 /**

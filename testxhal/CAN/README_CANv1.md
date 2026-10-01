@@ -52,7 +52,9 @@ handling was checked against RM0432 Rev 8, chapter 55.
 
 ## Native regression tests
 
-From this directory:
+The harnesses are retained on the
+[development branch](https://github.com/chibios-upstream/chibios/tree/dev/stm32-driver-host-tests/testxhal/CAN/host),
+not in `master`. From this directory on that branch:
 
 ```sh
 make -C host/canv1

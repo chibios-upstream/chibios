@@ -70,19 +70,11 @@
     !defined(STM32_IRQ_ADC1_2_PRIORITY)
 #error "STM32_IRQ_ADC1_2_PRIORITY not defined in xmcuconf.h"
 #endif
-#if (STM32_ADC1_NUMBER != STM32_ADC2_NUMBER) &&                             \
-    !defined(STM32_IRQ_ADC2_PRIORITY)
-#error "STM32_IRQ_ADC2_PRIORITY not defined in xmcuconf.h"
-#endif
 
 /* Priority settings checks.*/
 #if (STM32_ADC1_NUMBER == STM32_ADC2_NUMBER) &&                             \
     !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC1_2_PRIORITY)
 #error "Invalid IRQ priority assigned to STM32_IRQ_ADC1_2_PRIORITY"
-#endif
-#if (STM32_ADC1_NUMBER != STM32_ADC2_NUMBER) &&                             \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC2_PRIORITY)
-#error "Invalid IRQ priority assigned to STM32_IRQ_ADC2_PRIORITY"
 #endif
 
 #endif /* STM32_HAS_ADC1 || STM32_HAS_ADC2 */
@@ -107,29 +99,17 @@
 #define STM32_ADC1_ADC2_SHARED_ISR_IS_USED   FALSE
 #endif
 
-#if HAL_USE_ADC && defined(STM32_ADC1_NUMBER) && defined(STM32_ADC2_NUMBER) &&\
-    (STM32_ADC1_NUMBER != STM32_ADC2_NUMBER) &&                              \
-    STM32_ADC_DUAL_MODE && STM32_ADC_USE_ADC1
-#define STM32_ADC1_ADC2_SLAVE_ISR_IS_USED    TRUE
-#else
-#define STM32_ADC1_ADC2_SLAVE_ISR_IS_USED    FALSE
-#endif
-
+/* Dedicated ADC1/ADC2 vectors, including dual-mode slave dispatch, are
+   handled by stm32_adc1.inc and stm32_adc2.inc.*/
 static inline void adc1_adc2_irq_init(void) {
 #if STM32_ADC1_ADC2_SHARED_ISR_IS_USED
   nvicEnableVector(STM32_ADC1_NUMBER, STM32_IRQ_ADC1_2_PRIORITY);
-#endif
-#if STM32_ADC1_ADC2_SLAVE_ISR_IS_USED
-  nvicEnableVector(STM32_ADC2_NUMBER, STM32_IRQ_ADC2_PRIORITY);
 #endif
 }
 
 static inline void adc1_adc2_irq_deinit(void) {
 #if STM32_ADC1_ADC2_SHARED_ISR_IS_USED
   nvicDisableVector(STM32_ADC1_NUMBER);
-#endif
-#if STM32_ADC1_ADC2_SLAVE_ISR_IS_USED
-  nvicDisableVector(STM32_ADC2_NUMBER);
 #endif
 }
 
@@ -171,28 +151,6 @@ CH_IRQ_HANDLER(STM32_ADC1_HANDLER) {
   adc_lld_serve_interrupt(&ADCD2);
 #endif
 #endif
-  (void)isr;
-
-  CH_IRQ_EPILOGUE();
-}
-#endif
-
-#if STM32_ADC1_ADC2_SLAVE_ISR_IS_USED || defined(__DOXYGEN__)
-/**
- * @brief   ADC2 interrupt handler (as ADC1 slave).
- *
- * @isr
- */
-CH_IRQ_HANDLER(STM32_ADC2_HANDLER) {
-  uint32_t isr;
-
-  CH_IRQ_PROLOGUE();
-
-  isr  = ADC2->ISR;
-#if defined(STM32_ADC_ADC2_IRQ_HOOK)
-  STM32_ADC_ADC2_IRQ_HOOK
-#endif
-  adc_lld_serve_interrupt(&ADCD1);
   (void)isr;
 
   CH_IRQ_EPILOGUE();

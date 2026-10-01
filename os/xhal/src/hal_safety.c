@@ -116,6 +116,7 @@ void halSftFail(const char *message) {
 bool halRegWaitMatch8X(volatile uint8_t *p, uint8_t mask,
                        uint8_t match, uint32_t tmo, uint8_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -123,7 +124,7 @@ bool halRegWaitMatch8X(volatile uint8_t *p, uint8_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint8_t v = *p;
     if (valp != NULL) {
@@ -134,9 +135,13 @@ bool halRegWaitMatch8X(volatile uint8_t *p, uint8_t mask,
     if ((v & mask) == match) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -159,6 +164,7 @@ bool halRegWaitMatch8X(volatile uint8_t *p, uint8_t mask,
 bool halRegWaitMatch16X(volatile uint16_t *p, uint16_t mask,
                         uint16_t match, uint32_t tmo, uint16_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -166,7 +172,7 @@ bool halRegWaitMatch16X(volatile uint16_t *p, uint16_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint16_t v = *p;
     if (valp != NULL) {
@@ -177,9 +183,13 @@ bool halRegWaitMatch16X(volatile uint16_t *p, uint16_t mask,
     if ((v & mask) == match) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -202,6 +212,7 @@ bool halRegWaitMatch16X(volatile uint16_t *p, uint16_t mask,
 bool halRegWaitMatch32X(volatile uint32_t *p, uint32_t mask,
                         uint32_t match, uint32_t tmo, uint32_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -209,7 +220,7 @@ bool halRegWaitMatch32X(volatile uint32_t *p, uint32_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint32_t v = *p;
     if (valp != NULL) {
@@ -220,9 +231,13 @@ bool halRegWaitMatch32X(volatile uint32_t *p, uint32_t mask,
     if ((v & mask) == match) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -244,6 +259,7 @@ bool halRegWaitMatch32X(volatile uint32_t *p, uint32_t mask,
 bool halRegWaitAllSet8X(volatile uint8_t *p, uint8_t mask,
                         uint32_t tmo, uint8_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -251,7 +267,7 @@ bool halRegWaitAllSet8X(volatile uint8_t *p, uint8_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint8_t v = *p;
     if (valp != NULL) {
@@ -262,9 +278,13 @@ bool halRegWaitAllSet8X(volatile uint8_t *p, uint8_t mask,
     if ((v & mask) == mask) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -286,6 +306,7 @@ bool halRegWaitAllSet8X(volatile uint8_t *p, uint8_t mask,
 bool halRegWaitAllSet16X(volatile uint16_t *p, uint16_t mask,
                          uint32_t tmo, uint16_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -293,7 +314,7 @@ bool halRegWaitAllSet16X(volatile uint16_t *p, uint16_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint16_t v = *p;
     if (valp != NULL) {
@@ -304,9 +325,13 @@ bool halRegWaitAllSet16X(volatile uint16_t *p, uint16_t mask,
     if ((v & mask) == mask) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -328,6 +353,7 @@ bool halRegWaitAllSet16X(volatile uint16_t *p, uint16_t mask,
 bool halRegWaitAllSet32X(volatile uint32_t *p, uint32_t mask,
                          uint32_t tmo, uint32_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -335,7 +361,7 @@ bool halRegWaitAllSet32X(volatile uint32_t *p, uint32_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint32_t v = *p;
     if (valp != NULL) {
@@ -346,9 +372,13 @@ bool halRegWaitAllSet32X(volatile uint32_t *p, uint32_t mask,
     if ((v & mask) == mask) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -370,6 +400,7 @@ bool halRegWaitAllSet32X(volatile uint32_t *p, uint32_t mask,
 bool halRegWaitAnySet8X(volatile uint8_t *p, uint8_t mask,
                         uint32_t tmo, uint8_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -377,7 +408,7 @@ bool halRegWaitAnySet8X(volatile uint8_t *p, uint8_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint8_t v = *p;
     if (valp != NULL) {
@@ -388,9 +419,13 @@ bool halRegWaitAnySet8X(volatile uint8_t *p, uint8_t mask,
     if ((v & mask) != (uint8_t)0) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -412,6 +447,7 @@ bool halRegWaitAnySet8X(volatile uint8_t *p, uint8_t mask,
 bool halRegWaitAnySet16X(volatile uint16_t *p, uint16_t mask,
                          uint32_t tmo, uint16_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -419,7 +455,7 @@ bool halRegWaitAnySet16X(volatile uint16_t *p, uint16_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint16_t v = *p;
     if (valp != NULL) {
@@ -430,9 +466,13 @@ bool halRegWaitAnySet16X(volatile uint16_t *p, uint16_t mask,
     if ((v & mask) != (uint16_t)0) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -454,6 +494,7 @@ bool halRegWaitAnySet16X(volatile uint16_t *p, uint16_t mask,
 bool halRegWaitAnySet32X(volatile uint32_t *p, uint32_t mask,
                          uint32_t tmo, uint32_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -461,7 +502,7 @@ bool halRegWaitAnySet32X(volatile uint32_t *p, uint32_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint32_t v = *p;
     if (valp != NULL) {
@@ -472,9 +513,13 @@ bool halRegWaitAnySet32X(volatile uint32_t *p, uint32_t mask,
     if ((v & mask) != (uint32_t)0) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -496,6 +541,7 @@ bool halRegWaitAnySet32X(volatile uint32_t *p, uint32_t mask,
 bool halRegWaitAllClear8X(volatile uint8_t *p, uint8_t mask,
                           uint32_t tmo, uint8_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -503,7 +549,7 @@ bool halRegWaitAllClear8X(volatile uint8_t *p, uint8_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint8_t v = *p;
     if (valp != NULL) {
@@ -514,9 +560,13 @@ bool halRegWaitAllClear8X(volatile uint8_t *p, uint8_t mask,
     if ((v & mask) == (uint8_t)0) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -538,6 +588,7 @@ bool halRegWaitAllClear8X(volatile uint8_t *p, uint8_t mask,
 bool halRegWaitAllClear16X(volatile uint16_t *p, uint16_t mask,
                            uint32_t tmo, uint16_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -545,7 +596,7 @@ bool halRegWaitAllClear16X(volatile uint16_t *p, uint16_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint16_t v = *p;
     if (valp != NULL) {
@@ -556,9 +607,13 @@ bool halRegWaitAllClear16X(volatile uint16_t *p, uint16_t mask,
     if ((v & mask) == (uint16_t)0) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -580,6 +635,7 @@ bool halRegWaitAllClear16X(volatile uint16_t *p, uint16_t mask,
 bool halRegWaitAllClear32X(volatile uint32_t *p, uint32_t mask,
                            uint32_t tmo, uint32_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -587,7 +643,7 @@ bool halRegWaitAllClear32X(volatile uint32_t *p, uint32_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint32_t v = *p;
     if (valp != NULL) {
@@ -598,9 +654,13 @@ bool halRegWaitAllClear32X(volatile uint32_t *p, uint32_t mask,
     if ((v & mask) == (uint32_t)0) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -622,6 +682,7 @@ bool halRegWaitAllClear32X(volatile uint32_t *p, uint32_t mask,
 bool halRegWaitAnyClear8X(volatile uint8_t *p, uint8_t mask,
                           uint32_t tmo, uint8_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -629,7 +690,7 @@ bool halRegWaitAnyClear8X(volatile uint8_t *p, uint8_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint8_t v = *p;
     if (valp != NULL) {
@@ -640,9 +701,13 @@ bool halRegWaitAnyClear8X(volatile uint8_t *p, uint8_t mask,
     if ((v & mask) != mask) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -664,6 +729,7 @@ bool halRegWaitAnyClear8X(volatile uint8_t *p, uint8_t mask,
 bool halRegWaitAnyClear16X(volatile uint16_t *p, uint16_t mask,
                            uint32_t tmo, uint16_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -671,7 +737,7 @@ bool halRegWaitAnyClear16X(volatile uint16_t *p, uint16_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint16_t v = *p;
     if (valp != NULL) {
@@ -682,9 +748,13 @@ bool halRegWaitAnyClear16X(volatile uint16_t *p, uint16_t mask,
     if ((v & mask) != mask) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /**
@@ -706,6 +776,7 @@ bool halRegWaitAnyClear16X(volatile uint16_t *p, uint16_t mask,
 bool halRegWaitAnyClear32X(volatile uint32_t *p, uint32_t mask,
                            uint32_t tmo, uint32_t *valp) {
   halcnt_t start, end;
+  bool expired = false;
 
   /* Time window for the operation to complete.*/
   start = get_counter();
@@ -713,7 +784,7 @@ bool halRegWaitAnyClear32X(volatile uint32_t *p, uint32_t mask,
 
   /* Testing the condition continuously until it becomes true or the
      timeout expires, it is done at least once.*/
-  do {
+  while (true) {
     /* Getting register value and storing it outside if required.*/
     uint32_t v = *p;
     if (valp != NULL) {
@@ -724,9 +795,13 @@ bool halRegWaitAnyClear32X(volatile uint32_t *p, uint32_t mask,
     if ((v & mask) != mask) {
       return false;
     }
-  } while (is_counter_within(start, end));
-
-  return true;
+    /* Recheck after observing the deadline: a preemption may have let
+       the hardware complete since the previous register read.*/
+    if (expired) {
+      return true;
+    }
+    expired = !is_counter_within(start, end);
+  }
 }
 
 /** @} */

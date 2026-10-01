@@ -224,14 +224,25 @@ const hal_wspi_config_t *wspi_lld_selcfg(hal_wspi_driver_c *wspip,
  * @notapi
  */
 void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
-  bool was_receive;
+  uint32_t sr;
 
-  was_receive = (wspip->state == WSPI_STATE_RECEIVE);
+  /* A pending IRQ can survive stop, when registers are clock-gated.*/
+  if (wspip->state == HAL_DRV_STATE_STOP) {
+    return;
+  }
 
-  wspip->qspi->FCR = QUADSPI_FCR_CTEF | QUADSPI_FCR_CTCF |
-                     QUADSPI_FCR_CSMF | QUADSPI_FCR_CTOF;
+  sr = wspip->qspi->SR;
+  /* Do not clear flags that could arrive after the status snapshot.*/
+  wspip->qspi->FCR = sr & (QUADSPI_FCR_CTEF | QUADSPI_FCR_CTCF |
+                          QUADSPI_FCR_CSMF | QUADSPI_FCR_CTOF);
 
-  _wspi_isr_complete_code(wspip);
+  /* Only an active command or data transfer with TCF set can complete.*/
+  if (((wspip->state != WSPI_STATE_COMMAND) &&
+       (wspip->state != WSPI_STATE_SEND) &&
+       (wspip->state != WSPI_STATE_RECEIVE)) ||
+      ((sr & QUADSPI_SR_TCF) == 0U)) {
+    return;
+  }
 
   while ((wspip->dma != NULL) &&
          (dmaStreamGetTransactionSize(wspip->dma) > 0U)) {
@@ -244,14 +255,15 @@ void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
 
 #if defined(STM32L471xx) || defined(STM32L475xx) ||                         \
     defined(STM32L476xx) || defined(STM32L486xx)
-  if (was_receive) {
+  if (wspip->state == WSPI_STATE_RECEIVE) {
     while ((wspip->qspi->SR & QUADSPI_SR_BUSY) != 0U) {
       (void)wspip->qspi->DR;
     }
   }
-#else
-  (void)was_receive;
 #endif
+
+  /* Notify completion only after DMA and peripheral cleanup.*/
+  _wspi_isr_complete_code(wspip);
 }
 
 /**

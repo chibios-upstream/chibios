@@ -177,7 +177,7 @@ static bool spi_lld_validate_config(hal_spi_driver_c *spip,
 /**
  * @brief   Checks DMA byte counts without overflowing the frame count.
  */
-static bool spi_lld_validate_transfer(hal_spi_driver_c *spip, size_t n) {
+static inline bool spi_lld_validate_transfer(hal_spi_driver_c *spip, size_t n) {
 
   return (n != 0U) &&
          (n <= ((size_t)STM32_DMA3_MAX_TRANSFER >> spip->dnshift)) &&
@@ -785,9 +785,7 @@ const hal_spi_config_t *spi_lld_selcfg(hal_spi_driver_c *spip,
 msg_t spi_lld_ignore(hal_spi_driver_c *spip, size_t n) {
   uint32_t crrx, llrrx, llrtx;
 
-  if (!spi_lld_validate_transfer(spip, n)) {
-    return HAL_RET_CONFIG_ERROR;
-  }
+  chDbgAssert(spi_lld_validate_transfer(spip, n), "invalid transfer size");
   chDbgAssert((spip->spi->SR & SPI_SR_RXPLVL_Msk) == 0U, "RX FIFO not empty");
 
 #if SPI_SUPPORTS_CIRCULAR
@@ -868,9 +866,7 @@ msg_t spi_lld_exchange(hal_spi_driver_c *spip, size_t n,
                        const void *txbuf, void *rxbuf) {
   uint32_t crrx, llrrx, llrtx;
 
-  if (!spi_lld_validate_transfer(spip, n)) {
-    return HAL_RET_CONFIG_ERROR;
-  }
+  chDbgAssert(spi_lld_validate_transfer(spip, n), "invalid transfer size");
   chDbgAssert((spip->spi->SR & SPI_SR_RXPLVL_Msk) == 0U, "RX FIFO not empty");
 
 #if SPI_SUPPORTS_CIRCULAR
@@ -950,9 +946,7 @@ msg_t spi_lld_exchange(hal_spi_driver_c *spip, size_t n,
 msg_t spi_lld_send(hal_spi_driver_c *spip, size_t n, const void *txbuf) {
   uint32_t crrx, llrrx, llrtx;
 
-  if (!spi_lld_validate_transfer(spip, n)) {
-    return HAL_RET_CONFIG_ERROR;
-  }
+  chDbgAssert(spi_lld_validate_transfer(spip, n), "invalid transfer size");
   chDbgAssert((spip->spi->SR & SPI_SR_RXPLVL_Msk) == 0U, "RX FIFO not empty");
 
 #if SPI_SUPPORTS_CIRCULAR
@@ -1031,9 +1025,7 @@ msg_t spi_lld_send(hal_spi_driver_c *spip, size_t n, const void *txbuf) {
 msg_t spi_lld_receive(hal_spi_driver_c *spip, size_t n, void *rxbuf) {
   uint32_t crrx, llrrx, llrtx;
 
-  if (!spi_lld_validate_transfer(spip, n)) {
-    return HAL_RET_CONFIG_ERROR;
-  }
+  chDbgAssert(spi_lld_validate_transfer(spip, n), "invalid transfer size");
   chDbgAssert((spip->spi->SR & SPI_SR_RXPLVL_Msk) == 0U, "RX FIFO not empty");
 
 #if SPI_SUPPORTS_CIRCULAR

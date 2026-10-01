@@ -489,12 +489,14 @@
 #define STM32_OTG_STEPPING                  2
 #define STM32_HAS_OTG1                      TRUE
 #define STM32_OTG1_ENDPOINTS                5
+#define STM32_OTG1_FIFO_MEM_SIZE            320  /* 32-bit words.*/
 #define STM32_HAS_OTG2                      FALSE
 #else
 #define STM32_OTG_STEPPING                  3
 #define STM32_HAS_OTG1                      FALSE
 #define STM32_HAS_OTG2                      TRUE
 #define STM32_OTG2_ENDPOINTS                8
+#define STM32_OTG2_FIFO_MEM_SIZE            1024 /* 32-bit words.*/
 #define STM32_OTG2_PHY_CAPABILITIES         STM32_OTG_PHY_INTEGRATED_HS
 #define STM32_OTG2_PHY_DEFAULT              STM32_OTG_PHY_INTEGRATED_HS
 #endif

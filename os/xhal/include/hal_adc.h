@@ -209,6 +209,9 @@
 
 /**
  * @brief       Common ISR code, full buffer event.
+ * @note        Linear completion notifies the matching waiter before the
+ *              callback. A conversion restarted by the callback retains its
+ *              group.
  *
  * @param[in,out] adcp          Pointer to the ADC driver instance.
  *
@@ -226,16 +229,20 @@
     else {                                                                  \
       adc_lld_stop_conversion(adcp);                                        \
       (adcp)->events |= ADC_EVENT_COMPLETE;                                 \
+      _adc_wakeup_isr(adcp, HAL_DRV_STATE_COMPLETE);                        \
       __cbdrv_invoke_cb_with_transition(adcp,                               \
                                         HAL_DRV_STATE_COMPLETE,             \
                                         HAL_DRV_STATE_READY);               \
-      (adcp)->grpp = NULL;                                                  \
-      _adc_wakeup_isr(adcp, HAL_DRV_STATE_COMPLETE);                        \
+      if ((adcp)->state == HAL_DRV_STATE_READY) {                           \
+        (adcp)->grpp = NULL;                                                \
+      }                                                                     \
     }                                                                       \
   } while (false)
 
 /**
  * @brief       Common ISR code, error event.
+ * @note        The existing waiter is notified before the callback. A
+ *              conversion restarted by the callback retains its group.
  *
  * @param[in,out] adcp          Pointer to the ADC driver instance.
  * @param[in]     err           Platform dependent error code.
@@ -246,11 +253,13 @@
   do {                                                                      \
     adc_lld_stop_conversion(adcp);                                          \
     (adcp)->errors |= (err);                                                \
+    _adc_error_wakeup_isr(adcp);                                            \
     __cbdrv_invoke_cb_with_transition(adcp,                                 \
                                       HAL_DRV_STATE_ERROR,                  \
                                       HAL_DRV_STATE_READY);                 \
-    (adcp)->grpp = NULL;                                                    \
-    _adc_error_wakeup_isr(adcp);                                            \
+    if ((adcp)->state == HAL_DRV_STATE_READY) {                             \
+      (adcp)->grpp = NULL;                                                  \
+    }                                                                       \
   } while (false)
 /** @} */
 

@@ -520,7 +520,9 @@ typedef struct spi_dmabuf {
   /* DMA TX settings.*/                                                     \
   uint32_t                          dtr1tx;                                 \
   /* DMA buffers.*/                                                         \
-  spi_dmabuf_t                      *dbuf;
+  spi_dmabuf_t                      *dbuf;                                  \
+  /* Identifies transfers restarted from within a callback.*/               \
+  uint32_t                          sequence;
 
 /**
  * @brief   Low level fields of the SPI configuration structure.

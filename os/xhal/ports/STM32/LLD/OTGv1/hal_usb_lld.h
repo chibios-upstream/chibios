@@ -236,6 +236,11 @@
 #error "USB driver activated but no USB peripheral assigned"
 #endif
 
+/* The safety module fallback counter cannot bound hardware waits.*/
+#if !defined(HAL_LLD_GET_CNT_VALUE) || !defined(HAL_LLD_GET_CNT_FREQUENCY)
+#error "OTGv1 requires HAL timeout counter hooks"
+#endif
+
 /* Maximum endpoint address.*/
 #if STM32_HAS_OTG1 && STM32_USB_USE_OTG1 && STM32_HAS_OTG2 && STM32_USB_USE_OTG2
   #if STM32_OTG1_ENDPOINTS < STM32_OTG2_ENDPOINTS
@@ -326,11 +331,19 @@ typedef struct {
  */
 #define usb_lld_driver_fields                                              \
   stm32_otg_t                   *otg;                                      \
-  const stm32_otg_params_t       *otgparams;                                \
+  const stm32_otg_params_t      *otgparams;                                \
   uint32_t                      pmnext;                                    \
+  uint32_t                      isoc_in_pending;                           \
+  uint32_t                      out_disable_pending;                       \
+  uint32_t                      out_disable_wait;                          \
+  uint32_t                      out_restart;                               \
+  uint32_t                      out_ctl[USB_MAX_ENDPOINTS];                 \
+  systime_t                     out_disable_start;                         \
+  unsigned                      out_disable_phase;                         \
   USBEndpointConfig             ep0config;                                 \
   USBInEndpointState            ep0in;                                     \
   USBOutEndpointState           ep0out;                                    \
+  bool                          ep0setup_pending;                          \
   uint8_t                       ep0setup_buffer[8]
 
 /*===========================================================================*/
@@ -353,47 +366,6 @@ typedef struct {
  */
 #define usb_lld_get_transaction_size(usbp, ep)                              \
   ((usbp)->epc[ep]->out_state->rxcnt)
-
-/**
- * @brief   Connects the USB device.
- *
- * @notapi
- */
-#if (STM32_OTG_STEPPING == 1) || defined(__DOXYGEN__)
-#define usb_lld_connect_bus(usbp) ((usbp)->otg->GCCFG |= GCCFG_VBUSBSEN)
-#else
-#define usb_lld_connect_bus(usbp) ((usbp)->otg->DCTL &= ~DCTL_SDIS)
-#endif
-
-/**
- * @brief   Disconnect the USB device.
- *
- * @notapi
- */
-#if (STM32_OTG_STEPPING == 1) || defined(__DOXYGEN__)
-#define usb_lld_disconnect_bus(usbp) ((usbp)->otg->GCCFG &= ~GCCFG_VBUSBSEN)
-#else
-#define usb_lld_disconnect_bus(usbp) ((usbp)->otg->DCTL |= DCTL_SDIS)
-#endif
-
-/**
- * @brief   Start of host wake-up procedure.
- *
- * @notapi
- */
-#define usb_lld_wakeup_host(usbp)                                           \
-  do {                                                                      \
-    /* Turning clocks back on (may be required if coming out of suspend
-       mode).*/                                                             \
-    (usbp)->otg->PCGCCTL &= ~(PCGCCTL_STPPCLK | PCGCCTL_GATEHCLK);          \
-    (usbp)->otg->DCTL |= DCTL_RWUSIG;                                       \
-    /* remote wakeup doesn't trigger the wakeup interrupt, therefore
-       we use the SOF interrupt to detect resume of the bus.*/              \
-    (usbp)->otg->GINTSTS = GINTSTS_SOF;                                     \
-    (usbp)->otg->GINTMSK |= GINTMSK_SOFM;                                   \
-    chThdSleepMilliseconds(STM32_USB_HOST_WAKEUP_DURATION);                 \
-    (usbp)->otg->DCTL &= ~DCTL_RWUSIG;                                      \
-  } while (false)
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -418,12 +390,6 @@ extern struct usb_configurations usb_configurations;
 #define STM32_OTG2_IS_USED
 #endif
 
-/**
- * @brief   Returns the current frame number.
- */
-#define usb_lld_get_frame_number(usbp)                                     \
-  (((usbp)->otg->DSTS & DSTS_FNSOF_MASK) >> 8U)
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -439,6 +405,10 @@ extern "C" {
   void usb_lld_set_address(hal_usb_driver_c *usbp);
   void usb_lld_init_endpoint(hal_usb_driver_c *usbp, usbep_t ep);
   void usb_lld_disable_endpoints(hal_usb_driver_c *usbp);
+  void usb_lld_connect_bus(hal_usb_driver_c *usbp);
+  void usb_lld_disconnect_bus(hal_usb_driver_c *usbp);
+  void usb_lld_wakeup_host(hal_usb_driver_c *usbp);
+  uint16_t usb_lld_get_frame_number(hal_usb_driver_c *usbp);
   usbepstatus_t usb_lld_get_status_in(hal_usb_driver_c *usbp, usbep_t ep);
   usbepstatus_t usb_lld_get_status_out(hal_usb_driver_c *usbp, usbep_t ep);
   void usb_lld_read_setup(hal_usb_driver_c *usbp, usbep_t ep, uint8_t *buf);

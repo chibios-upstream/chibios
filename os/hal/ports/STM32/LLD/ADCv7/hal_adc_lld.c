@@ -211,16 +211,21 @@ static void adc_lld_stop_adc(ADCDriver *adcp) {
 static void adc_lld_serve_dma_interrupt(void *p, uint32_t csr) {
   ADCDriver *adcp = (ADCDriver *)p;
 
+  /* An ADC error or a callback may already have stopped the conversion.*/
+  if ((adcp->grpp == NULL) || (adcp->state != ADC_ACTIVE)) {
+    return;
+  }
+
   if ((csr & STM32_DMA3_CSR_ERRORS) != 0U) {
     _adc_isr_error_code(adcp, ADC_ERR_DMAFAILURE);
   }
-  else if (adcp->grpp != NULL) {
-    if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
-      _adc_isr_full_code(adcp);
-    }
-    else if ((csr & STM32_DMA3_CSR_HTF) != 0U) {
-      _adc_isr_half_code(adcp);
-    }
+  else if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
+    /* Transfer complete takes priority over a pending half transfer.*/
+    _adc_isr_full_code(adcp);
+  }
+  else if ((csr & STM32_DMA3_CSR_HTF) != 0U) {
+    /* Half transfer processing.*/
+    _adc_isr_half_code(adcp);
   }
 }
 

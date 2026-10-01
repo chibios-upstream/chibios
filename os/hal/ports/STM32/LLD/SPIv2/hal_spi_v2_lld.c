@@ -883,21 +883,31 @@ msg_t spi_lld_receive(SPIDriver *spip, size_t n, void *rxbuf) {
  */
 msg_t spi_lld_stop_transfer(SPIDriver *spip, size_t *sizep) {
 
-  /* Stopping TX DMA.*/
-  dmaStreamDisable(spip->dmatx);
+  if (!spip->config->slave) {
+    /* Stopping TX DMA.*/
+    dmaStreamDisable(spip->dmatx);
 
-  /* Waiting for current frame completion then stop SPI.*/
-  while ((spip->spi->SR & SPI_SR_BSY) != 0U) {
-    /* Still busy.*/
+    /* Waiting for current frame completion then stop RX DMA.*/
+    while ((spip->spi->SR & SPI_SR_BSY) != 0U) {
+      /* Still busy.*/
+    }
+    dmaStreamDisable(spip->dmarx);
+  }
+  else {
+    /* A slave cannot finish a frame without clocks from the master.
+       Stop both DMAs and reset SPI instead of waiting for BSY.*/
+    spi_lld_disable(spip);
   }
 
-  /* Size of unprocessed data.*/
+  /* Size of unprocessed data, stable now that RX DMA has stopped.*/
   if (sizep != NULL) {
     *sizep = dmaStreamGetTransactionSize(spip->dmarx);
   }
 
-  /* Stopping RX DMA.*/
-  dmaStreamDisable(spip->dmarx);
+  if (spip->config->slave) {
+    /* Restore the configuration so another transfer can start directly.*/
+    spi_lld_enable(spip);
+  }
 
   return HAL_RET_SUCCESS;
 }

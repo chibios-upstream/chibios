@@ -305,11 +305,21 @@ void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
   bool data_transfer;
   uint32_t sr;
 
+  /* A pending IRQ can survive stop, when registers are clock-gated.*/
+  if (wspip->state == HAL_DRV_STATE_STOP) {
+    return;
+  }
+
+  sr = wspip->ospi->SR;
+  /* Do not clear flags that could arrive after the status snapshot.*/
+  wspip->ospi->FCR = sr & (OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
+                          OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF);
+
   data_transfer = (wspip->state == WSPI_STATE_SEND) ||
                   (wspip->state == WSPI_STATE_RECEIVE);
-  sr = wspip->ospi->SR;
-  wspip->ospi->FCR = OCTOSPI_FCR_CTEF | OCTOSPI_FCR_CTCF |
-                     OCTOSPI_FCR_CSMF | OCTOSPI_FCR_CTOF;
+  if (!data_transfer && (wspip->state != WSPI_STATE_COMMAND)) {
+    return;
+  }
 
   if ((sr & OCTOSPI_SR_TEF) != 0U) {
     if (data_transfer && (wspip->dma != NULL)) {
@@ -320,7 +330,10 @@ void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
     return;
   }
 
-  _wspi_isr_complete_code(wspip);
+  /* Transfer errors take precedence; other flags cannot complete a transfer.*/
+  if ((sr & OCTOSPI_SR_TCF) == 0U) {
+    return;
+  }
 
   while (data_transfer && (wspip->dma != NULL) &&
          (dmaStreamGetTransactionSize(wspip->dma) > 0U)) {
@@ -330,6 +343,9 @@ void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
     dmaStreamClearInterrupt(wspip->dma);
     dmaStreamDisable(wspip->dma);
   }
+
+  /* Notify completion only after DMA cleanup.*/
+  _wspi_isr_complete_code(wspip);
 }
 
 /**

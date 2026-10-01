@@ -44,6 +44,17 @@
  */
 #define BUF_CTRL(ep)      (USB_DPSRAM->BUFCTRL[ep])
 
+/**
+ * @brief   No operation instruction of the buffer control publish delay.
+ * @note    The 32-bit encoding is used on ARMv8-M Mainline (RP2350
+ *          Cortex-M33), see @p usb_buffer_control_publish().
+ */
+#if defined(__ARM_ARCH_8M_MAIN__) || defined(__DOXYGEN__)
+#define USB_PUBLISH_NOP   "nop.w\n\t"
+#else
+#define USB_PUBLISH_NOP   "nop\n\t"
+#endif
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -128,6 +139,64 @@ static inline void usb_dpram_memcpy(void *dst, const void *src, size_t n) {
 #endif
 
 /**
+ * @brief   Publishes a buffer control word, arming AVAILABLE separately.
+ * @details The USB controller can sample a buffer control register while a
+ *          processor write to it is still in flight and then act on a
+ *          partially updated word. Both the RP2040 and the RP2350
+ *          datasheets therefore require the AVAILABLE bits to be written
+ *          in a separate, later write than the rest of the word. The word
+ *          is published with the AVAILABLE bits masked off, that write is
+ *          completed by a barrier, a short fixed delay is executed and
+ *          only then the complete word is written. Words carrying no
+ *          AVAILABLE bit hand nothing over to the controller and are
+ *          published in a single write.
+ * @note    Masking both AVAILABLE bits covers all the arming shapes used
+ *          by this driver: buffer 0 alone, buffer 1 alone (the word
+ *          shifted left by 16) and both buffers armed by one word.
+ * @note    The delay is a fixed sequence of twelve no operation
+ *          instructions, the budget used by the vendor reference
+ *          implementation, lasting at least twelve processor cycles on
+ *          every core. The RP2040 Cortex-M0+ and the RP2350 Hazard3 cores
+ *          execute each NOP in one cycle. The RP2350 Cortex-M33 folds a
+ *          NOP with a preceding 16-bit instruction, twelve 16-bit NOPs
+ *          would execute in pairs in about six cycles, so the 32-bit
+ *          encoding is used there: a 32-bit NOP following the barrier or
+ *          another 32-bit NOP is not folded and takes one cycle. Twelve
+ *          processor cycles cover one 48 MHz USB clock period for any
+ *          system clock up to 576 MHz (48 MHz * 12), well above the RP2350
+ *          overclocking bound of 300 MHz and any RP2040 system clock, six
+ *          cycles would only cover it up to 288 MHz. A fixed instruction
+ *          sequence is used rather than a cycle counter because ARMv6-M
+ *          (RP2040) has none.
+ *
+ * @param[out] bcp      pointer to the buffer control register
+ * @param[in] buf_ctrl  buffer control word to be published
+ */
+static void usb_buffer_control_publish(volatile uint32_t *bcp,
+                                       uint32_t buf_ctrl) {
+  uint32_t avail;
+
+  avail = buf_ctrl & (USB_BUFFER_BUFFER0_AVAILABLE |
+                      USB_BUFFER_BUFFER1_AVAILABLE);
+
+  if (avail != 0U) {
+    /* Everything but the hand over to the controller. */
+    *bcp = buf_ctrl & ~avail;
+    __DSB();
+
+    /* Separation of the two writes, see the note above. */
+    __asm__ volatile (USB_PUBLISH_NOP USB_PUBLISH_NOP USB_PUBLISH_NOP
+                      USB_PUBLISH_NOP USB_PUBLISH_NOP USB_PUBLISH_NOP
+                      USB_PUBLISH_NOP USB_PUBLISH_NOP USB_PUBLISH_NOP
+                      USB_PUBLISH_NOP USB_PUBLISH_NOP USB_PUBLISH_NOP
+                      : : : "memory");
+  }
+
+  *bcp = buf_ctrl;
+  __DSB();
+}
+
+/**
  * @brief   Buffer mode for isochronous in buffer control register.
  */
 static uint16_t usb_isochronous_buffer_mode(uint16_t size) {
@@ -154,10 +223,13 @@ static uint16_t usb_isochronous_buffer_size(uint16_t max_size) {
 
   /* Double buffer offset must be one of 128, 256, 512 or 1024. */
   size = ((max_size - 1) / 128 + 1) * 128;
-  if (size == 384) {
-    size = 512;
-  } else if (size == 640 || size == 768 || size > 1024) {
+  if (size > 512) {
+    /* 640, 768, 896, 1024 and above, 1024 is the only legal offset from
+       here on. */
     size = 1024;
+  } else if (size > 256) {
+    /* 384 rounds up to the next legal offset, 512 is already legal. */
+    size = 512;
   }
   return size;
 }
@@ -287,8 +359,7 @@ static void usb_prepare_out_ep(hal_usb_driver_c *usbp, usbep_t ep) {
     EP_CTRL(ep).OUT = ep_ctrl;
   }
 
-  BUF_CTRL(ep).OUT = buf_ctrl;
-  __DSB();
+  usb_buffer_control_publish(&BUF_CTRL(ep).OUT, buf_ctrl);
 }
 
 /**
@@ -345,6 +416,7 @@ static void usb_prepare_in_ep(hal_usb_driver_c *usbp, usbep_t ep) {
   uint32_t buf_ctrl;
   uint32_t ep_ctrl;
   USBInEndpointState *iesp = usbp->epc[ep]->in_state;
+  rp_usb_ep_side_t *iepd = &usbp->epd[ep].in;
 
   if (ep == 0) {
     ep_ctrl = USB->SIECTRL;
@@ -359,6 +431,16 @@ static void usb_prepare_in_ep(hal_usb_driver_c *usbp, usbep_t ep) {
   /* The txsize - txlast difference is the size not yet in the buffer */
   if (iesp->txsize - iesp->txlast > 0) {
     buf_ctrl |= usb_prepare_in_ep_buffer(usbp, ep, 1);
+  }
+
+  /* An isochronous buffer 1 lies at the offset encoded in bits 27:28, in
+     the buffer 1 half of the word, which must match the buf_size used to
+     place the copy. The controller writes that half back with everything
+     but length, PID and LAST cleared, so the offset is encoded again on
+     every arm rather than preserved.*/
+  if ((usbp->epc[ep]->ep_mode & USB_EP_MODE_TYPE) == USB_EP_MODE_TYPE_ISOC) {
+    buf_ctrl |= (uint32_t)usb_isochronous_buffer_mode(iepd->buf_size) <<
+                USB_BUFFER_DOUBLE_BUFFER_OFFSET_Pos;
   }
 
   if (buf_ctrl & USB_BUFFER_BUFFER1_AVAILABLE) {
@@ -381,8 +463,7 @@ static void usb_prepare_in_ep(hal_usb_driver_c *usbp, usbep_t ep) {
   usb_e15_defer_if_frame_end(usbp->epc[ep]);
 #endif
 
-  BUF_CTRL(ep).IN = buf_ctrl;
-  __DSB();
+  usb_buffer_control_publish(&BUF_CTRL(ep).IN, buf_ctrl);
 }
 
 /**
@@ -414,6 +495,19 @@ static void usb_serve_endpoint(hal_usb_driver_c *usbp, usbep_t ep, bool is_in) {
 
     /* Length received */
     n = BUF_CTRL(ep).OUT & USB_BUFFER_BUFFER0_TRANS_LENGTH_Msk;
+
+    /* The programmed buffer length is already the smaller of the remaining
+       transfer size and the endpoint packet size, so a longer reported
+       length would be a hardware anomaly. Clamping it to both bounds the
+       copy by the programmed length: it stays inside the endpoint DPRAM
+       buffer and the user buffer, and the remaining size cannot
+       underflow. */
+    if (n > oesp->rxsize) {
+      n = oesp->rxsize;
+    }
+    if (n > epcp->out_maxsize) {
+      n = epcp->out_maxsize;
+    }
 
     /* Copy received data into user buffer */
     usb_dpram_memcpy((void *)oesp->rxbuf, (void *)usbp->epd[ep].out.hw_buf, n);

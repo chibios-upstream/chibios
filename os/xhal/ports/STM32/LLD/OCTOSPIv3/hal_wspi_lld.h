@@ -21,6 +21,9 @@
  *          shared OCTOSPI IRQ handler, is also used for the DMA3 channel
  *          interrupt, so the DMA and peripheral handlers cannot preempt
  *          each other.
+ * @note    Indirect data transfers must contain 1..65535 bytes. Larger
+ *          transfers must be split by the caller. Invalid lengths are checked
+ *          only when assertions are enabled.
  *
  * @addtogroup WSPI
  * @{

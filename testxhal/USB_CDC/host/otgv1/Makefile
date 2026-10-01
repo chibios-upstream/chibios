@@ -1,20 +1,24 @@
 # Actual OTGv1 LLD with shared-memory registers and a reset/flush helper.
-CHIBIOS := ../../../..
+CHIBIOS ?= ../../../..
 LLD := $(CHIBIOS)/os/xhal/ports/STM32/LLD/OTGv1
-BUILDDIR := ../../build/host/otgv1
-CPPFLAGS := -D_DEFAULT_SOURCE -I. -I$(LLD) \
+BUILDDIR := build
+CPPFLAGS := -D_DEFAULT_SOURCE -I. -I$(BUILDDIR) -I$(LLD) \
+            -I$(CHIBIOS)/os/xhal/src \
+            -I$(CHIBIOS)/os/xhal/ports/STM32 \
             -I$(CHIBIOS)/os/common/ext/ST/STM32H7xx \
             -I$(CHIBIOS)/os/common/ext/ARM/CMSIS/Core/Include
 CFLAGS := -std=c11 -O1 -g -Wall -Wextra -Werror \
           -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast \
-          -fsanitize=address,undefined
+          -fsanitize=address,undefined -fno-sanitize-recover=undefined
 TESTS := dual fs hs ulpi_fs ulpi_hs configurations basepri
+TESTS += stepping1 stepping1_novbus stepping1_ulpi_hs
 U5_FS := u575 u585
 U5_HS := u595 u599 u5a5 u5a9 u5f7 u5f9 u5g7 u5g9
 TESTS += $(U5_FS) $(U5_HS) u5a5_fs
+TESTS += no_sync
 BINARIES := $(addprefix $(BUILDDIR)/,$(TESTS))
-.PHONY: all clean
-all: $(BINARIES)
+.PHONY: all clean registry
+all: $(BINARIES) registry
 	@for test in $(BINARIES); do $$test || exit; done
 
 $(BUILDDIR):
@@ -25,7 +29,11 @@ $(BUILDDIR)/hs: CPPFLAGS += -DTEST_OTG1=0
 $(BUILDDIR)/ulpi_fs: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=0
 $(BUILDDIR)/ulpi_hs: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=1
 $(BUILDDIR)/configurations: CPPFLAGS += -DUSB_USE_CONFIGURATIONS=1
+$(BUILDDIR)/no_sync: CPPFLAGS += -DUSB_USE_SYNCHRONIZATION=0
 $(BUILDDIR)/basepri: CPPFLAGS += -DSTM32_USB_OTGFIFO_FILL_BASEPRI=6 -DSTM32_OTG_SEQUENCE_WORKAROUND
+$(BUILDDIR)/stepping1 $(BUILDDIR)/stepping1_novbus $(BUILDDIR)/stepping1_ulpi_hs: CPPFLAGS += -DSTM32_OTG_STEPPING=1
+$(BUILDDIR)/stepping1_novbus: CPPFLAGS += -DBOARD_OTG_NOVBUSSENS
+$(BUILDDIR)/stepping1_ulpi_hs: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=1
 
 $(addprefix $(BUILDDIR)/,$(U5_FS) $(U5_HS) u5a5_fs): CPPFLAGS += -DTEST_U5 \
   -I$(CHIBIOS)/os/xhal/ports/STM32/STM32U5xx \
@@ -44,8 +52,17 @@ $(BUILDDIR)/u5f9: CPPFLAGS += -DSTM32U5F9xx -DTEST_DEVICE_HEADER=\"stm32u5f9xx.h
 $(BUILDDIR)/u5g7: CPPFLAGS += -DSTM32U5G7xx -DTEST_DEVICE_HEADER=\"stm32u5g7xx.h\"
 $(BUILDDIR)/u5g9: CPPFLAGS += -DSTM32U5G9xx -DTEST_DEVICE_HEADER=\"stm32u5g9xx.h\"
 
-$(BINARIES): otg_v1.c hal.h $(LLD)/hal_usb_lld.c $(LLD)/hal_usb_lld.h $(LLD)/stm32_otg.h | $(BUILDDIR)
+$(BUILDDIR)/hld_fault.inc: $(CHIBIOS)/os/xhal/src/hal_usb.c $(CHIBIOS)/os/xhal/src/hal_base_driver.c extract_hld.awk | $(BUILDDIR)
+	awk -f extract_hld.awk $(filter %.c,$^) > $@
+
+$(BUILDDIR)/usb_constants.inc: $(CHIBIOS)/os/xhal/include/hal_usb.h | $(BUILDDIR)
+	awk '/^#define USB_(RTYPE|REQ_|FEATURE_|LATE_SET_ADDRESS|FLAGS_)/ {print "#ifndef " $$2; print; print "#endif"}' $< > $@
+
+$(BINARIES): otg_v1.c hal.h out_disable.inc reviewer.inc $(LLD)/hal_usb_lld.c $(LLD)/hal_usb_lld.h $(LLD)/stm32_otg.h $(BUILDDIR)/usb_constants.inc $(BUILDDIR)/hld_fault.inc | $(BUILDDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@
+
+$(BINARIES): $(CHIBIOS)/os/xhal/ports/STM32/STM32H7xx/stm32_registry.h \
+             $(CHIBIOS)/os/xhal/src/hal_safety.c
 
 $(addprefix $(BUILDDIR)/,$(U5_FS) $(U5_HS) u5a5_fs): \
   $(CHIBIOS)/os/xhal/ports/STM32/STM32U5xx/stm32_registry.h \
@@ -53,5 +70,8 @@ $(addprefix $(BUILDDIR)/,$(U5_FS) $(U5_HS) u5a5_fs): \
   $(CHIBIOS)/os/xhal/ports/STM32/STM32U5xx/stm32_clock_usage.h \
   $(LLD)/stm32_otg1.inc $(LLD)/stm32_otg2.inc
 
+registry: $(BUILDDIR)/usb_constants.inc
+	CHIBIOS="$(abspath $(CHIBIOS))" python3 registry_checks.py
+
 clean:
-	$(RM) $(BINARIES)
+	$(RM) $(BINARIES) $(BUILDDIR)/hld_fault.inc $(BUILDDIR)/usb_constants.inc

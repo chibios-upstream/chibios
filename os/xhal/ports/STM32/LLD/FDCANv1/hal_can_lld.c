@@ -188,10 +188,10 @@ static bool fdcan_active_mode(hal_can_driver_c *canp) {
 void can_lld_init(void) {
 
 #if STM32_CAN_USE_FDCAN1
-  /* Unit reset.*/
-  rccResetFDCAN();
   /* Enable FDCAN.*/
   rccEnableFDCAN(true);
+  /* Unit reset.*/
+  rccResetFDCAN();
 
   /* Driver initialization.*/
   canObjectInit(&CAND1);
@@ -256,6 +256,17 @@ msg_t can_lld_start(hal_can_driver_c *canp) {
     return HAL_RET_CONFIG_ERROR;
   }
 
+  /* Configuration of element size (RAM words). */
+  if (config->op_mode == OPMODE_FDCAN) {
+    canp->word_size = FDCAN_SIZE_RAM_WORDS;
+  }
+  else if (config->op_mode == OPMODE_CAN) {
+    canp->word_size = CAN_SIZE_RAM_WORDS;
+  }
+  else {
+    return HAL_RET_CONFIG_ERROR;
+  }
+
   canp->config = config;
 
   /* Clock activation.*/
@@ -279,18 +290,6 @@ msg_t can_lld_start(hal_can_driver_c *canp) {
   if (fdcan_init_mode(canp)) {
     chDbgAssert(false, "CAN initialization failed, check clocks and pin config");
     return HAL_RET_HW_FAILURE;
-  }
-
-  /* Configuration of element size (RAM words). */
-  if (config->op_mode == OPMODE_FDCAN) {
-    canp->word_size = FDCAN_SIZE_RAM_WORDS;
-  }
-  else if (config->op_mode == OPMODE_CAN) {
-    canp->word_size = CAN_SIZE_RAM_WORDS;
-  }
-  else {
-    chDbgAssert(false, "CAN initialization failed, invalid FDCAN operation mode");
-    return HAL_RET_CONFIG_ERROR;
   }
 
   /* Configuration can be performed now.*/

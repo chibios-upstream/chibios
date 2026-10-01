@@ -330,13 +330,13 @@ void gpt_lld_init(void) {
  */
 msg_t gpt_lld_start(hal_gpt_driver_c *gptp) {
   const hal_gpt_config_t *cfg;
-  uint16_t psc;
+  uint32_t psc;
 
   cfg = (const hal_gpt_config_t *)gptp->config;
   if (cfg == NULL) {
     cfg = gpt_lld_selcfg(gptp, 0U);
   }
-  if (cfg == NULL) {
+  if ((cfg == NULL) || (cfg->frequency == 0U)) {
     return HAL_RET_CONFIG_ERROR;
   }
 
@@ -584,9 +584,12 @@ msg_t gpt_lld_start(hal_gpt_driver_c *gptp) {
 #endif
   }
 
-  psc = (uint16_t)((gptp->clock / cfg->frequency) - 1U);
-  chDbgAssert(((uint32_t)(psc + 1U) * cfg->frequency) == gptp->clock,
-                "invalid frequency");
+  psc = (gptp->clock / cfg->frequency) - 1U;
+  if ((psc > 0xFFFFU) ||
+      (((psc + 1U) * cfg->frequency) != gptp->clock)) {
+    gpt_lld_stop(gptp);
+    return HAL_RET_CONFIG_ERROR;
+  }
 
   gptp->tim->CR1  = 0U;
   gptp->tim->CR2  = cfg->cr2;

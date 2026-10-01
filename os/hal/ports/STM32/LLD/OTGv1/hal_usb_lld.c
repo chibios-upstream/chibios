@@ -490,6 +490,9 @@ static bool otg_txfifo_handler(USBDriver *usbp, usbep_t ep) {
   /* The TXFIFO is filled until there is space and data to be transmitted.*/
   while (true) {
     uint32_t n;
+#if STM32_USB_OTGFIFO_FILL_BASEPRI
+    uint32_t basepri;
+#endif
 
     /* Transaction end condition.*/
     if (usbp->epc[ep]->in_state->txcnt >= usbp->epc[ep]->in_state->txsize) {
@@ -510,7 +513,8 @@ static bool otg_txfifo_handler(USBDriver *usbp, usbep_t ep) {
       return false;
 
 #if STM32_USB_OTGFIFO_FILL_BASEPRI
-    __set_BASEPRI(CORTEX_PRIO_MASK(STM32_USB_OTGFIFO_FILL_BASEPRI));
+    basepri = __get_BASEPRI();
+    __set_BASEPRI_MAX(CORTEX_PRIO_MASK(STM32_USB_OTGFIFO_FILL_BASEPRI));
 #endif
     otg_fifo_write_from_buffer(usbp->otg->FIFO[ep],
                                usbp->epc[ep]->in_state->txbuf,
@@ -518,7 +522,7 @@ static bool otg_txfifo_handler(USBDriver *usbp, usbep_t ep) {
     usbp->epc[ep]->in_state->txbuf += n;
     usbp->epc[ep]->in_state->txcnt += n;
 #if STM32_USB_OTGFIFO_FILL_BASEPRI
-  __set_BASEPRI(0);
+    __set_BASEPRI(basepri);
 #endif
   }
 }
@@ -1181,10 +1185,14 @@ void usb_lld_init_endpoint(USBDriver *usbp, usbep_t ep) {
   /* IN endpoint activation or deactivation.*/
   otgp->ie[ep].DIEPTSIZ = 0;
   if (usbp->epc[ep]->in_state != NULL) {
-    /* FIFO allocation for the IN endpoint.*/
-    fsize = usbp->epc[ep]->in_maxsize / 4;
-    if (usbp->epc[ep]->in_multiplier > 1)
+    /* Round each packet up to words and enforce the 16-word FIFO minimum.*/
+    fsize = (usbp->epc[ep]->in_maxsize + 3U) / 4U;
+    if (usbp->epc[ep]->in_multiplier > 1U) {
       fsize *= usbp->epc[ep]->in_multiplier;
+    }
+    if (fsize < 16U) {
+      fsize = 16U;
+    }
     otgp->DIEPTXF[ep - 1] = DIEPTXF_INEPTXFD(fsize) |
                             DIEPTXF_INEPTXSA(otg_ram_alloc(usbp, fsize));
     otg_txfifo_flush(usbp, ep);

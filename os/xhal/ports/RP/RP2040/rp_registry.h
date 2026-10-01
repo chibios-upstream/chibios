@@ -110,7 +110,7 @@
 #define RP_ADC_NUM_CHANNELS                 5U
 #define RP_ADC_HAS_TEMPERATURE_SENSOR       TRUE
 #define RP_ADC_TEMPERATURE_CHANNEL          4U
-#define RP_ADC_FIFO_DEPTH                   4U
+#define RP_ADC_FIFO_DEPTH                   8U
 #define RP_ADC_BASE_PIN                     26U
 #define RP_ADC_DREQ                         36U
 #define RP_ADC_AINSEL_BITS                  3U

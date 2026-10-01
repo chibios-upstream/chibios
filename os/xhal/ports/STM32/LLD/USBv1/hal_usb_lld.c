@@ -93,6 +93,26 @@ static uint32_t usb_pm_alloc(hal_usb_driver_c *usbp, size_t size) {
   return next;
 }
 
+/**
+ * @brief   Resets the packet memory allocator while preserving EP0 buffers.
+ * @details Endpoint zero remains active when the other endpoints are
+ *          disabled, therefore its packet memory cannot be made available to
+ *          a subsequently initialized endpoint.
+ *
+ * @param[in] usbp      pointer to the @p hal_usb_driver_c object
+ */
+static void usb_pm_reset_after_ep0(hal_usb_driver_c *usbp) {
+  const USBEndpointConfig *epcp = usbp->epc[0];
+
+  usb_pm_reset(usbp);
+  if (epcp->in_state != NULL) {
+    (void)usb_pm_alloc(usbp, epcp->in_maxsize);
+  }
+  if (epcp->out_state != NULL) {
+    (void)usb_pm_alloc(usbp, epcp->out_maxsize);
+  }
+}
+
 static size_t usb_packet_read_to_buffer(usbep_t ep, uint8_t *buf) {
   size_t i, n;
   stm32_usb_descriptor_t *udp = USB_GET_DESCRIPTOR(ep);
@@ -463,7 +483,8 @@ void usb_lld_init_endpoint(hal_usb_driver_c *usbp, usbep_t ep) {
 void usb_lld_disable_endpoints(hal_usb_driver_c *usbp) {
   unsigned i;
 
-  usb_pm_reset(usbp);
+  /* Retain the packet memory owned by the still-active endpoint zero.*/
+  usb_pm_reset_after_ep0(usbp);
 
   for (i = 1U; i <= USB_ENDPOINTS_NUMBER; i++) {
     STM32_USB->EPR[i] = STM32_USB->EPR[i];

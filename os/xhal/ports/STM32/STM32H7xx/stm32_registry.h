@@ -362,9 +362,11 @@
 #define STM32_OTG_STEPPING                  2
 #define STM32_HAS_OTG1                      TRUE
 #define STM32_OTG1_ENDPOINTS                8
+#define STM32_OTG1_FIFO_MEM_SIZE            1024 /* 32-bit words.*/
 
 #define STM32_HAS_OTG2                      TRUE
 #define STM32_OTG2_ENDPOINTS                8
+#define STM32_OTG2_FIFO_MEM_SIZE            1024 /* 32-bit words.*/
 
 #define STM32_HAS_USB                       FALSE
 
@@ -594,6 +596,7 @@
 
 #define STM32_HAS_OTG2                      TRUE
 #define STM32_OTG2_ENDPOINTS                8
+#define STM32_OTG2_FIFO_MEM_SIZE            1024 /* 32-bit words.*/
 
 #define STM32_HAS_USB                       FALSE
 
@@ -825,6 +828,7 @@
 
 #define STM32_HAS_OTG2                      TRUE
 #define STM32_OTG2_ENDPOINTS                8
+#define STM32_OTG2_FIFO_MEM_SIZE            1024 /* 32-bit words.*/
 
 #define STM32_HAS_USB                       FALSE
 
@@ -1043,9 +1047,11 @@
 #define STM32_OTG_STEPPING                  2
 #define STM32_HAS_OTG1                      TRUE
 #define STM32_OTG1_ENDPOINTS                8
+#define STM32_OTG1_FIFO_MEM_SIZE            1024 /* 32-bit words.*/
 
 #define STM32_HAS_OTG2                      TRUE
 #define STM32_OTG2_ENDPOINTS                8
+#define STM32_OTG2_FIFO_MEM_SIZE            1024 /* 32-bit words.*/
 
 #define STM32_HAS_USB                       FALSE
 

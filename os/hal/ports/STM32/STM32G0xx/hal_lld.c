@@ -827,8 +827,8 @@ void stm32_clock_init(void) {
   int32_t div;
 
   /* Enabling TIM17 for timeout handling.*/
-  rccResetTIM17();
   rccEnableTIM17(false);
+  rccResetTIM17();
   /* Clamp divider to avoid underflow on low TIM17CLK values. */
 #if defined(STM32_TIM17CLK)
   div = ((int32_t)STM32_TIM17CLK / 1000000) - 1;

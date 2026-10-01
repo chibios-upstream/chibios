@@ -14,19 +14,14 @@
     limitations under the License.
 */
 
-/* Header-only check: no LLD or STM32_MDMA_REQUIRED dependency. */
-#ifndef HAL_USE_WSPI
-#define HAL_USE_WSPI 1
-#endif
-#ifndef STM32_HAS_QUADSPI1
-#define STM32_HAS_QUADSPI1 1
-#endif
-#ifndef STM32_WSPI_USE_QUADSPI1
-#define STM32_WSPI_USE_QUADSPI1 1
-#endif
-#ifndef STM32_IRQ_QUADSPI1_PRIORITY
-#define STM32_IRQ_QUADSPI1_PRIORITY 10
-#endif
-#define STM32_IRQ_MDMA_PRIORITY 10
+/**
+ * @file    xcry_test_sequence_005.h
+ * @brief   Test Sequence 005 header.
+ */
 
-#include "stm32_isr.h"
+#ifndef XCRY_TEST_SEQUENCE_005_H
+#define XCRY_TEST_SEQUENCE_005_H
+
+extern const testsequence_t xcry_test_sequence_005;
+
+#endif /* XCRY_TEST_SEQUENCE_005_H */

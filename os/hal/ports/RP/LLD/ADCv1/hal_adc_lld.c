@@ -38,6 +38,9 @@
 #define PADS_GPIO_OD                        (1U << 7)
 #define PADS_GPIO_PUE                       (1U << 3)
 #define PADS_GPIO_PDE                       (1U << 2)
+/* RP2350 pad isolation latch, set out of reset. Reserved and reading
+   as zero on RP2040.*/
+#define PADS_GPIO_ISO                       (1U << 8)
 /** @} */
 
 /*===========================================================================*/
@@ -419,9 +422,11 @@ void adcRPGpioInit(uint32_t gpio) {
   /* FUNCSEL = NULL (31): disconnect digital output driver.*/
   IO_BANK0->GPIO[gpio].CTRL = 31U;
 
-  /* Disable pulls and digital input, enable output disable.*/
+  /* Disable pulls and digital input, enable output disable. The same
+     write also releases the RP2350 pad isolation latch, which would
+     otherwise keep the reset-state pull-down on the analog input.*/
   padbits = PADS_BANK0->GPIO[gpio];
-  padbits &= ~(PADS_GPIO_PUE | PADS_GPIO_PDE | PADS_GPIO_IE);
+  padbits &= ~(PADS_GPIO_PUE | PADS_GPIO_PDE | PADS_GPIO_IE | PADS_GPIO_ISO);
   padbits |= PADS_GPIO_OD;
   PADS_BANK0->GPIO[gpio] = padbits;
 }

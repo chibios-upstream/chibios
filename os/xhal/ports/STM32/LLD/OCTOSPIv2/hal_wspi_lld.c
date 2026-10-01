@@ -346,11 +346,12 @@ void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
     return;
   }
 
-  _wspi_isr_complete_code(wspip);
-
   while (data_transfer && (wspip->mdma != NULL) &&
          mdmaChannelIsEnabled(wspip->mdma)) {
   }
+
+  /* Notify completion only after MDMA has finished the transfer.*/
+  _wspi_isr_complete_code(wspip);
 }
 
 /**

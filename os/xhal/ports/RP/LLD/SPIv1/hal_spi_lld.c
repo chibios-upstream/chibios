@@ -57,7 +57,11 @@ SPIDriver SPID1;
  */
 static const hal_spi_config_t spi_default_config = SPI_DEFAULT_CONFIGURATION;
 
-static const uint16_t dummytx = 0xFFFFU;
+/* Deliberately not const: the TX DMA reads this word once per frame during
+   ignore and receive operations, keeping it in RAM avoids DMA fetches
+   through XIP, which is unavailable while the flash is erased or
+   programmed.*/
+static uint16_t dummytx = 0xFFFFU;
 static uint16_t dummyrx;
 
 /*===========================================================================*/
@@ -309,15 +313,24 @@ static msg_t spi_lld_get_dma(SPIDriver *spip, uint32_t rxchn,
 
 /**
  * @brief   SPI deactivation.
- * @details Stops any DMA activity, disables the SSP, releases the DMA
- *          channels and finally puts the peripheral back in reset.
+ * @details Masks the DMA interrupts, stops any DMA activity, disables the
+ *          SSP, releases the DMA channels and finally puts the peripheral
+ *          back in reset.
  *          Shared by the stop path and by the start failure rollback.
  *
  * @param[in] spip      pointer to the @p SPIDriver object
  */
 static void spi_lld_deactivate(SPIDriver *spip) {
 
-  /* Stopping any ongoing DMA activity first, the channels must be idle
+  /* DMA interrupts disabled on both cores first, the stop can be
+     performed by the core that did not start the driver and a
+     cross-core channel release requires the enables to be clear.
+     Masking before the aborts below also keeps a completion raised
+     during the teardown from being served on either core.*/
+  dmaChannelDisableInterruptX(spip->dmatx);
+  dmaChannelDisableInterruptX(spip->dmarx);
+
+  /* Stopping any ongoing DMA activity, the channels must be idle
      before being released.*/
   dmaChannelDisableX(spip->dmatx);
   dmaChannelDisableX(spip->dmarx);

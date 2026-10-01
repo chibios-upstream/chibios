@@ -98,8 +98,9 @@
 #define HAL_RET_SUCCESS         MSG_OK
 /**
  * @brief   Configuration error.
- * @details An error has been detected in the driver configuration structure
- *          or in the requested operation parameters.
+ * @details An error has been detected in a driver configuration structure
+ *          or conversion group. Operation preconditions such as transfer
+ *          sizes and buffer alignment are checked using debug assertions.
  */
 #define HAL_RET_CONFIG_ERROR    (msg_t)-16
 /**
@@ -359,7 +360,7 @@ static inline bool halClockResume(void) {
 #include "hal_pal.h"
 #include "hal_adc.h"
 #include "hal_can.h"
-//#include "hal_crypto.h"
+#include "hal_crypto.h"
 #include "hal_dac.h"
 #include "hal_efl.h"
 #include "hal_eth.h"

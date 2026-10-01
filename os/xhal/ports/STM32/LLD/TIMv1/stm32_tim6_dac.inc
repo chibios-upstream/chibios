@@ -152,8 +152,10 @@ CH_IRQ_HANDLER(STM32_TIM6_HANDLER) {
   st_lld_serve_interrupt();
 #endif
 
-#if HAL_USE_DAC
+#if HAL_USE_DAC && (STM32_DAC_USE_DAC1_CH1 || STM32_DAC_USE_DAC1_CH2)
   dac_lld_serve_interrupt_dac1();
+#endif
+#if HAL_USE_DAC && (STM32_DAC_USE_DAC3_CH1 || STM32_DAC_USE_DAC3_CH2)
   dac_lld_serve_interrupt_dac3();
 #endif
 

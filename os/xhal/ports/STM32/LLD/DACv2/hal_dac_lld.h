@@ -480,13 +480,43 @@ typedef enum {
   /* Pointer to associated DMA.*/                                           \
   const stm32_dma3_channel_t        *dmachp;                                \
   /* DMA buffers.*/                                                         \
-  dac_dmabuf_t                      *dbuf;
+  dac_dmabuf_t                      *dbuf;                                  \
+  /* Conversion sequence counter.*/                                         \
+  uint32_t                          sequence;
 
 /**
  * @brief   Low level fields of the DAC configuration structure.
+ * @note    In single mode, cr and mcr hold the selected channel's settings
+ *          in their lower 16 bits, including DMADOUBLE1 for either channel.
  * @note    In DUAL mode init, cr and mcr (if available) fields hold CH1
  *          settings in their lower 16 bits and CH2 settings in the upper
  *          16 bits.
+ * @note    Initial start and READY reconfiguration disable DMA requests and
+ *          double DMA, and load initial values before enabling the owned
+ *          channels. Live reconfiguration briefly disables the owned channels,
+ *          preserves the other independent channel and does not change clock
+ *          or DMA resource ownership.
+ * @note    Unsupported data formats are rejected without changing hardware
+ *          or the current configuration.
+ * @note    EN, DMAEN and DMAUDRIE are managed by the driver. Underrun IRQs
+ *          are enabled only during conversions, using CH1 in dual mode.
+ *          HFSEL is derived from the DAC clock; configuration values for
+ *          these fields are ignored.
+ * @note    Double DMA supports single-channel conversions with an even depth
+ *          of at least two samples. In 12-bit modes, the sample buffer must
+ *          be aligned to a 32-bit word; in 8-bit mode, to a 16-bit halfword.
+ * @note    Dual-channel conversions do not support double DMA. In 12-bit
+ *          dual modes, num_channels is two and each word-aligned sample pair
+ *          contains CH1 followed by CH2. In 8-bit dual mode, num_channels is
+ *          one and each halfword packs CH1 in bits 7:0 and CH2 in bits 15:8.
+ * @note    Conversion depth must be one or a positive even number, subject
+ *          to the double-DMA restriction above. The full circular buffer
+ *          must fit STM32_DMA3_MAX_TRANSFER bytes (depth times 1/2 bytes in
+ *          single 8/12-bit mode, or 2/4 bytes in dual 8/12-bit mode).
+ *          Depth, size and alignment requirements are operation preconditions,
+ *          checked when debug assertions are enabled.
+ * @note    Depth-one conversions report full-buffer events only, without
+ *          half-buffer callbacks, regardless of the data format.
  */
 #define dac_lld_config_fields                                               \
   /* Initial output on DAC channel.*/                                       \
@@ -500,11 +530,13 @@ typedef enum {
 
 /**
  * @brief   Low level fields of the DAC group configuration structure.
+ * @note    The trigger replaces the selected channel's configured TSEL during
+ *          conversion. In dual mode this applies to CH1; CH2 retains its
+ *          independent trigger settings from the upper halfword of cr.
  */
 #define dac_lld_conversion_group_fields                                     \
-  /* DAC initialization data. This field contains the (not shifted) value   \
-     to be put into the TSEL field of the DAC CR register during            \
-     initialization. All other fields are handled internally.*/             \
+  /* Unshifted TSEL value, from 0 to DAC_TRG_MASK. Trigger sources are        \
+     device-specific. TEN and DMAEN are enabled by the driver.*/             \
   uint32_t                  trigger;
 
 /*===========================================================================*/
@@ -574,7 +606,9 @@ extern "C" {
                             dacsample_t sample);
   msg_t dac_lld_start_conversion(DACDriver *dacp);
   void  dac_lld_stop_conversion(DACDriver *dacp);
-  void dac_lld_serve_interrupt(DACDriver *dacp);
+#if STM32_DAC_USE_DAC1_CH1 || STM32_DAC_USE_DAC1_CH2 || defined(__DOXYGEN__)
+  void dac_lld_serve_interrupt_dac1(void);
+#endif
 #ifdef __cplusplus
 }
 #endif

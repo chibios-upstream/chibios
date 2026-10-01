@@ -83,6 +83,11 @@
 
 #elif STM32_DMA_SUPPORTS_DMAMUX == TRUE
 
+/* DMA2 normally follows DMA1 in the DMAMUX register layout.*/
+#if !defined(STM32_DMA2_DMAMUX_OFFSET)
+#define STM32_DMA2_DMAMUX_OFFSET    STM32_DMA1_NUM_CHANNELS
+#endif
+
 #define DMAMUX1_CHANNEL(id)         (DMAMUX1_BASE + ((id) * 4U))
 
 #define DMA1_CH1_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(0))
@@ -93,14 +98,14 @@
 #define DMA1_CH6_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(5))
 #define DMA1_CH7_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(6))
 #define DMA1_CH8_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(7))
-#define DMA2_CH1_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(0 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH2_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(1 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH3_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(2 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH4_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(3 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH5_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(4 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH6_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(5 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH7_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(6 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH8_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(7 + STM32_DMA1_NUM_CHANNELS))
+#define DMA2_CH1_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(0 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH2_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(1 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH3_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(2 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH4_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(3 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH5_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(4 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH6_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(5 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH7_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(6 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH8_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(7 + STM32_DMA2_DMAMUX_OFFSET))
 
 #else /* !(STM32_DMA_SUPPORTS_DMAMUX == TRUE) */
 
@@ -758,12 +763,15 @@ void dmaStreamFreeI(const stm32_dma_stream_t *dmastp) {
   dma.streams[selfindex].func  = NULL;
   dma.streams[selfindex].param = NULL;
 
-  /* Shutting down clocks that are no more required, if any.*/
-  if ((dma.allocated_mask & STM32_DMA1_STREAMS_MASK) == 0U) {
+  /* Shutting down the clock of the stream controller if no more required,
+     the other controller could have never been enabled.*/
+  if (((STM32_DMA1_STREAMS_MASK & (1U << selfindex)) != 0U) &&
+      ((dma.allocated_mask & STM32_DMA1_STREAMS_MASK) == 0U)) {
     rccDisableDMA1();
   }
 #if STM32_DMA2_NUM_CHANNELS > 0
-  if ((dma.allocated_mask & STM32_DMA2_STREAMS_MASK) == 0U) {
+  if (((STM32_DMA2_STREAMS_MASK & (1U << selfindex)) != 0U) &&
+      ((dma.allocated_mask & STM32_DMA2_STREAMS_MASK) == 0U)) {
     rccDisableDMA2();
   }
 #endif

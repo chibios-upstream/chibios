@@ -34,6 +34,11 @@
 /*===========================================================================*/
 
 /**
+ * @brief   This driver reports startup failures to the portable layer.
+ */
+#define CAN_LLD_ENHANCED_API
+
+/**
  * @brief   Maximum number of bytes in data of CAN packets.
  */
 #define CAN_MAX_DLC_BYTES           64
@@ -593,7 +598,7 @@ extern CANDriver CAND3;
 extern "C" {
 #endif
   void can_lld_init(void);
-  bool can_lld_start(CANDriver *canp);
+  msg_t can_lld_start(CANDriver *canp);
   void can_lld_stop(CANDriver *canp);
   bool can_lld_is_tx_empty(CANDriver *canp, canmbx_t mailbox);
   void can_lld_transmit(CANDriver *canp,

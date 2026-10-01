@@ -341,8 +341,6 @@ void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
     return;
   }
 
-  _wspi_isr_complete_code(wspip);
-
   while (data_transfer && (wspip->dmachp != NULL) &&
          (dma3ChannelGetTransactionSize(wspip->dmachp) > 0U)) {
   }
@@ -350,6 +348,9 @@ void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
   if (data_transfer && (wspip->dmachp != NULL)) {
     (void)dma3ChannelDisable(wspip->dmachp);
   }
+
+  /* Notify completion only after DMA cleanup.*/
+  _wspi_isr_complete_code(wspip);
 }
 
 /**
@@ -390,6 +391,9 @@ void wspi_lld_send(hal_wspi_driver_c *wspip, const wspi_command_t *cmdp,
                  STM32_DMA3_CCR_ULEIE |
                  STM32_DMA3_CCR_DTEIE;
 
+  chDbgAssert((n > 0U) && (n <= STM32_DMA3_MAX_TRANSFER),
+              "invalid GPDMA transfer size");
+
   dma3ChannelSetSource(wspip->dmachp, txbuf);
   dma3ChannelSetDestination(wspip->dmachp, &wspip->ospi->DR);
   dma3ChannelSetTransactionSize(wspip->dmachp, n);
@@ -400,7 +404,8 @@ void wspi_lld_send(hal_wspi_driver_c *wspip, const wspi_command_t *cmdp,
                      STM32_DMA3_CTR1_SAP_MEM |
                      STM32_DMA3_CTR1_SINC |
                      STM32_DMA3_CTR1_SDW_BYTE,
-                     STM32_DMA3_CTR2_REQSEL(wspip->dreq),
+                     STM32_DMA3_CTR2_REQSEL(wspip->dreq) |
+                     STM32_DMA3_CTR2_DREQ,
                      0U);
 
   wspip->ospi->CR &= ~OCTOSPI_CR_FMODE;
@@ -432,6 +437,9 @@ void wspi_lld_receive(hal_wspi_driver_c *wspip, const wspi_command_t *cmdp,
                  STM32_DMA3_CCR_USEIE |
                  STM32_DMA3_CCR_ULEIE |
                  STM32_DMA3_CCR_DTEIE;
+
+  chDbgAssert((n > 0U) && (n <= STM32_DMA3_MAX_TRANSFER),
+              "invalid GPDMA transfer size");
 
   dma3ChannelSetSource(wspip->dmachp, &wspip->ospi->DR);
   dma3ChannelSetDestination(wspip->dmachp, rxbuf);

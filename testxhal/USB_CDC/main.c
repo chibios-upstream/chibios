@@ -160,6 +160,12 @@ static THD_FUNCTION(Ep0Thread, arg) {
 
     /* Blocks until a new SETUP packet arrives or the bus is reset. */
     msg = usbEp0WaitSetup(&PORTAB_USB1);
+    if (msg == HAL_RET_HW_FAILURE) {
+      /* Leave application-controlled recovery possible without spinning
+         on the latched controller fault.*/
+      chThdSleepMilliseconds(100);
+      continue;
+    }
     if (msg != MSG_OK) {
       continue;
     }
@@ -204,10 +210,10 @@ int main(void) {
                                        sduGetServiceX(&PORTAB_SDU1)) ==
               HAL_RET_SUCCESS);
 
-  usbDisconnectBus(&PORTAB_USB1);
-  chThdSleepMilliseconds(USB_RECONNECT_DELAY_MS);
   test_assert(drvStart(&PORTAB_USB1, NULL) == HAL_RET_SUCCESS);
+  usbDisconnectBus(&PORTAB_USB1);
   test_assert(usbBind(&PORTAB_USB1, &usbcdc_binder) == HAL_RET_SUCCESS);
+  chThdSleepMilliseconds(USB_RECONNECT_DELAY_MS);
   usbConnectBus(&PORTAB_USB1);
 
   chThdCreateStatic(waBlinkerThread, sizeof(waBlinkerThread),
