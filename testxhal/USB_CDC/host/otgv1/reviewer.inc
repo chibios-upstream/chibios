@@ -82,6 +82,11 @@ static void check_ep0_gating(hal_usb_driver_c *usbp) {
 
 static void check_clear_halt(hal_usb_driver_c *usbp) {
   stm32_otg_t *otgp = usbp->otg;
+  unsigned index = otgp == &test_hw->regs[0] ? 0U : 1U;
+
+  /* The register model exposes the value written, not the hardware's
+     write-only command semantics. Keep its disable helper out of this test.*/
+  test_hw->stuck_in[index] = 1U << 1U;
 
   for (unsigned mode = 0U; mode < 4U; mode++) {
     uint32_t ctl = DOEPCTL_USBAEP | DOEPCTL_STALL | (mode << 18U);
@@ -91,14 +96,22 @@ static void check_clear_halt(hal_usb_driver_c *usbp) {
         (mode == USB_EP_MODE_TYPE_INTR)) {
       expected |= DOEPCTL_SD0PID;
     }
-    otgp->oe[1].DOEPCTL = ctl;
-    otgp->ie[1].DIEPCTL = ctl;
+    otgp->oe[1].DOEPCTL = ctl | OTG_OUT_COMMANDS;
+    otgp->ie[1].DIEPCTL = ctl | OTG_IN_COMMANDS;
     chSysLock();
     usb_lld_clear_out(usbp, 1U);
     usb_lld_clear_in(usbp, 1U);
     chSysUnlock();
     assert(otgp->oe[1].DOEPCTL == expected);
     assert(otgp->ie[1].DIEPCTL == expected);
+    otgp->oe[1].DOEPCTL = (ctl & ~DOEPCTL_STALL) | OTG_OUT_COMMANDS;
+    otgp->ie[1].DIEPCTL = (ctl & ~DIEPCTL_STALL) | OTG_IN_COMMANDS;
+    chSysLock();
+    usb_lld_stall_out(usbp, 1U);
+    usb_lld_stall_in(usbp, 1U);
+    chSysUnlock();
+    assert(otgp->oe[1].DOEPCTL == ctl);
+    assert(otgp->ie[1].DIEPCTL == ctl);
     for (unsigned phase = OTG_OUT_NAK; phase <= OTG_OUT_RELEASE; phase++) {
       usbp->out_disable_phase = phase;
       usbp->out_ctl[0] = ctl;
@@ -108,36 +121,106 @@ static void check_clear_halt(hal_usb_driver_c *usbp) {
       chSysUnlock();
       assert(usbp->out_ctl[0] == expected);
       assert(otgp->oe[1].DOEPCTL == ctl);
+      /* A stall queued after CLEAR_HALT must keep its pending DATA0 command
+         in the software shadow and must not touch the retiring endpoint.*/
+      chSysLock();
+      usb_lld_stall_out(usbp, 1U);
+      chSysUnlock();
+      assert(usbp->out_ctl[0] == (expected | DOEPCTL_STALL));
+      assert(otgp->oe[1].DOEPCTL == ctl);
     }
     usbp->out_disable_phase = OTG_OUT_IDLE;
   }
-  puts("PASS: CLEAR_HALT requests DATA0 only for bulk/interrupt, including deferred OUT");
+  test_hw->stuck_in[index] = 0U;
+  puts("PASS: stall/clear do not replay commands; CLEAR_HALT retains DATA0 including deferred OUT");
 }
 
-static void check_stop_waiter(hal_usb_driver_c *usbp) {
-  hal_usb_config_t config = {};
+static hal_usb_driver_c *review_stop_driver;
+static unsigned review_stop_event, review_stop_step;
 
-  for (unsigned phase = USB_EP0_STP_WAITING; phase <= USB_EP0_ERROR; phase++) {
-    test_waiter_t waiter = {0};
+static void check_stop_window(bool entering) {
+  hal_usb_driver_c *usbp = review_stop_driver;
 
-    assert(drvStart(usbp, &config) == HAL_RET_SUCCESS);
-    serve(usbp, GINTSTS_USBRST);
-    usbp->ep0state = phase;
-    usbp->ep0thread = &waiter;
-    drvStop(usbp);
-    assert(waiter.resumes == 1U && waiter.msg == MSG_RESET);
-    assert(usbp->ep0thread == NULL && usbp->state == HAL_DRV_STATE_STOP);
-    assert(usbEp0WaitSetup(usbp) == MSG_RESET);
-    /* A woken thread can run before the base class finishes drvStop().*/
-    usbp->state = HAL_DRV_STATE_STOPPING;
+  if (entering || (usbp->state != HAL_DRV_STATE_STOPPING)) {
+    return;
+  }
+  if (review_stop_step == 0U) {
+    thread_reference_t waiter = usbp->ep0thread;
+    usbeventflags_t events = usbp->events;
+
+    /* Inject an ISR at drvStop's first unlock, before the LLD masks IRQs.*/
+    review_stop_step = 1U;
+    test_locked = false;
+    test_isr = true;
+    if (review_stop_event == 0U) {
+      _usb_reset(usbp);
+    }
+    else if (review_stop_event == 1U) {
+      _usb_suspend(usbp);
+    }
+    else {
+      _usb_wakeup(usbp);
+    }
+    test_isr = false;
+    test_locked = true;
+    assert(usbp->state == HAL_DRV_STATE_STOPPING);
+    assert(usbp->ep0thread == waiter && usbp->events == events);
+  }
+  else if (usbp->ep0thread == NULL) {
+    /* Run the woken high-priority worker before drvStop publishes STOP.
+       The suspend stub asserts if any EP0 operation tries to park again.*/
+    test_thread_lock_observer = NULL;
+    test_locked = false;
     assert(usbEp0WaitSetup(usbp) == MSG_RESET);
     assert(usbEp0Reply(usbp, NULL, 0U) == MSG_RESET);
     assert(usbEp0Receive(usbp, NULL, 0U) == MSG_RESET);
     assert(usbEp0Acknowledge(usbp) == MSG_RESET);
-    usbp->state = HAL_DRV_STATE_STOP;
+    test_locked = true;
+    review_stop_step = 2U;
   }
+}
+
+static void check_stop_waiter(hal_usb_driver_c *usbp) {
+  hal_usb_config_t config = {};
+  pid_t child;
+  int status;
+
+  for (review_stop_event = 0U; review_stop_event < 3U; review_stop_event++) {
+    for (unsigned phase = USB_EP0_STP_WAITING; phase <= USB_EP0_ERROR; phase++) {
+      test_waiter_t waiter = {0};
+
+      assert(drvStart(usbp, &config) == HAL_RET_SUCCESS);
+      serve(usbp, GINTSTS_USBRST);
+      usbp->ep0state = phase;
+      usbp->ep0thread = &waiter;
+      if (review_stop_event == 2U) {
+        usbp->saved_state = usbp->state;
+        usbp->state = USB_SUSPENDED;
+      }
+      review_stop_driver = usbp;
+      review_stop_step = 0U;
+      test_thread_lock_observer = check_stop_window;
+      drvStop(usbp);
+      assert(review_stop_step == 2U && test_thread_lock_observer == NULL);
+      assert(waiter.resumes == 1U && waiter.msg == MSG_RESET);
+      assert(usbp->ep0thread == NULL && usbp->state == HAL_DRV_STATE_STOP);
+      assert(usbEp0WaitSetup(usbp) == MSG_RESET);
+    }
+  }
+  child = fork();
+  assert(child >= 0);
+  if (child == 0) {
+    test_waiter_t waiter = {0};
+
+    close(STDERR_FILENO);
+    usbp->ep0thread = &waiter;
+    (void)drvStart(usbp, &config);
+    _exit(1);
+  }
+  assert(waitpid(child, &status, 0) == child);
+  assert(WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT);
   memset(usbp->ep0setup_buffer, 0x73, 8U);
-  puts("PASS: stop cancels EP0 waiter in every state and rejects reentry while stopping");
+  puts("PASS: reset/suspend/wakeup cannot undo STOPPING or repark EP0; start asserts on orphan");
 }
 
 static void *review_reg;

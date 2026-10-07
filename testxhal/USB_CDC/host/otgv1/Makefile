@@ -20,9 +20,10 @@ TESTS += novbus ulpi_fs_novbus ulpi_hs_novbus stepping1_ulpi_novbus
 TESTS += u575_novbus u5a5_novbus u5a5_fs_novbus
 BINARIES := $(addprefix $(BUILDDIR)/,$(TESTS))
 PHY_BINARIES := $(addprefix $(BUILDDIR)/phy_,$(U5_HS))
+WORKER_BINARIES := $(BUILDDIR)/worker_cdc $(BUILDDIR)/worker_audio
 .PHONY: all clean registry
-all: $(BINARIES) $(PHY_BINARIES) registry
-	@for test in $(BINARIES) $(PHY_BINARIES); do $$test || exit; done
+all: $(BINARIES) $(PHY_BINARIES) $(WORKER_BINARIES) registry
+	@for test in $(BINARIES) $(PHY_BINARIES) $(WORKER_BINARIES); do $$test || exit; done
 
 $(BUILDDIR):
 	mkdir -p $@
@@ -86,5 +87,18 @@ $(PHY_BINARIES): $(BUILDDIR)/phy_%: phy/u5_phy.c phy/hal.h $(BUILDDIR)/phy_code.
 	$(CC) -Iphy $(CPPFLAGS) -I$(CHIBIOS)/os/common/ext/ST/STM32U5xx \
 	  -DTEST_DEVICE_HEADER='"stm32$*xx.h"' $(CFLAGS) $< -o $@
 
+$(BUILDDIR)/worker_cdc.inc: $(CHIBIOS)/testxhal/USB_CDC/main.c
+$(BUILDDIR)/worker_audio.inc: $(CHIBIOS)/testxhal/USB_AUDIO/main.c
+$(BUILDDIR)/worker_cdc.inc $(BUILDDIR)/worker_audio.inc: | $(BUILDDIR)
+	awk '/^static THD_FUNCTION\(Ep0Thread, arg\)/ {copy=1} copy {print} copy && /^}/ {copy=0; found++} END {if (found != 1) exit 1}' $< > $@
+
+$(BUILDDIR)/worker_states.inc: $(CHIBIOS)/os/xhal/include/hal_base_driver.h $(CHIBIOS)/os/xhal/include/hal_usb.h | $(BUILDDIR)
+	awk '/^#define HAL_DRV_STATE_|^#define USB_(ACTIVE|SUSPENDED|ERROR) / {print}' $^ > $@
+
+$(BUILDDIR)/worker_cdc: CPPFLAGS += -DTEST_CDC
+$(WORKER_BINARIES): $(BUILDDIR)/worker_%: ep0_worker.c $(BUILDDIR)/worker_%.inc $(BUILDDIR)/worker_states.inc
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DWORKER_FILE='"worker_$*.inc"' $< -o $@
+
 clean:
 	$(RM) $(BINARIES) $(PHY_BINARIES) $(BUILDDIR)/hld_fault.inc $(BUILDDIR)/usb_constants.inc $(BUILDDIR)/phy_code.inc $(BUILDDIR)/phy_constants.inc
+	$(RM) $(WORKER_BINARIES) $(BUILDDIR)/worker_cdc.inc $(BUILDDIR)/worker_audio.inc $(BUILDDIR)/worker_states.inc

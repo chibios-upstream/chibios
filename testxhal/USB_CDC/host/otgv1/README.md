@@ -58,8 +58,19 @@ Regressions include:
   deadline, stuck disable/flush faults, reset/stop cleanup and EP0 isolation.
 - Invalid host endpoint addresses and directions, including accesses beyond
   the controller endpoint limit under UBSan, with teardown idle and in every phase.
-- CLEAR_HALT DATA0 reset for bulk/interrupt endpoints, including deferred OUT.
-- Stop cancellation of EP0 waiters even with synchronization disabled.
+- Stall/clear writes discard sampled hardware commands; CLEAR_HALT resets
+  DATA0 for bulk/interrupt endpoints, including deferred OUT. A later deferred
+  stall preserves that pending DATA0 command in the software shadow.
+- Stop cancellation of EP0 waiters even with synchronization disabled: inject
+  reset/suspend/wakeup at drvStop's unlock before interrupts are masked, then
+  exercise a high-priority worker before STOP is published. It must not park
+  again. Start asserts rather than silently forgetting a leftover waiter.
+- Two additional probes execute the actual CDC/audio EP0 workers extracted
+  from their demo sources. They require exit with MSG_RESET on STOP/STOPPING
+  cancellation, 100 ms sleeps on hardware failure until the application stops
+  the driver, and immediate retry on bus-reset cancellation while running.
+  These scripted checks verify blocking and exit policy, not
+  preemptive scheduling; the LLD/HLD harness alone does not catch worker spins.
 - All 15 safety wait predicates/widths: completion during preemption, genuine
   timeout, counter wrap and the final returned register value. EP0 abort checks
   both registers again after expiry.
@@ -137,6 +148,74 @@ The host fixture restored device PM policy and kernel interfaces, and restored
 and verified the original 1-MiB flash image. The initial run stopped before
 USB checks because LTO removed the clock symbol; an explicit volatile clock
 probe corrected the fixture, and both repeated cases passed.
+
+## EP0 worker lifecycle hardware validation (2026-10-07)
+
+This historical run used the sleep-on-stop policy. It does not qualify the
+subsequently selected exit-on-stop policy or worker recreation after joining.
+
+NUCLEO-H723ZG, ID `0x10016483`, embedded FS OTG2, 520 MHz. Scratch wrappers
+included the actual CDC/audio `main.c` workers unchanged, counting wait
+returns and sleeps; production HLD/LLD sources were compiled directly.
+Assertions, parameter checks and the system-state checker were enabled.
+The EP0 worker ran at priority 130; a debugger-commanded lifecycle thread
+ran at priority 127. OpenOCD sampled memory without halting during the tests.
+
+Both applications completed five stop/restart cycles: three idle stops and
+two during bulk IN/audio IN traffic. Before every stop the EP0 worker was
+parked on its setup waiter. In all ten cases the worker observed MSG_RESET
+while the driver was still STOPPING, then slept, allowing the lower-priority
+thread to finish drvStop(). Readback showed STOP, ep0thread NULL and the
+worker in CH_STATE_SLEEPING. Over a further 650 ms the control heartbeat
+advanced while the worker slept at roughly 100 ms intervals. No orphan,
+starvation, panic or USB_FLAGS_HW_FAILURE was observed.
+
+All ten restarts re-enumerated and handled new SETUP requests. CDC verified
+120 echo round trips across the run and 131280 bulk bytes before the two
+traffic stops. Audio verified six two-second captures (96000 samples each),
+including after the final restart: 440.000011 Hz, peak 8192, maximum adjacent
+sample step 472, sine-fit residual RMS 0.481. The two deliberately interrupted
+audio recordings reported host read errors when drvStop disconnected USB;
+subsequent captures were clean.
+
+Evidence and scratch sources: `tmp/otgv1-worker-hw.UQgrOF/hardware.log` in the
+workspace alongside the worktrees. The first attempt stopped before testing
+because a static debugger symbol was ambiguous; it restored the original
+firmware. A uniquely named probe symbol fixed the fixture and the complete
+repeat passed. The original 1-MiB flash image was restored and verified again
+at the end (SHA-256 `3f095cb997c0aa5d01e38c11c513618e34b27577e67e0a39163758b281bd38a3`).
+This qualified the earlier sleep-on-stop behavior on H723 FS, not HS/ULPI or
+the still-deferred active-endpoint stall/ISO OUT recovery sequences.
+
+## Exit-on-stop worker validation (2026-10-07)
+
+The selected policy polls hardware failure with a 100 ms sleep and exits with
+MSG_RESET on STOP/STOPPING. Both actual demo workers pass scripted checks for
+fault polling followed by application stop, immediate exit on stop, and normal
+bus-reset retries. All 29 LLD variants, eight PHY variants and 35 registry
+selections pass. Target builds pass with `-Werror`: all 13 CDC targets, H723
+audio with/without LTO and smart build, and H723 CDC without synchronization.
+XML validates, and a second regeneration is unchanged.
+
+On H723 FS, a priority-127 owner stopped and joined each priority-130 demo
+worker, then restarted/rebound the driver and recreated the worker in the same
+working area before reconnecting. Both demos completed five cycles (three
+idle, two during IN traffic). Every worker exited while STOPPING; joining
+returned MSG_RESET, the EP0 waiter cleared, and the thread remained FINAL
+with no further waits or sleeps during a 650 ms stopped interval. The owner
+heartbeat progressed, with no panic or hardware-failure event.
+
+All ten restarts enumerated. CDC passed 120 echo round trips and checked
+131280 bulk bytes before traffic stops. Six two-second audio captures retained
+the clean 440 Hz tone (96000 samples each, sine-fit residual RMS 0.481).
+Hardware failure polling itself is covered by scripted host tests, not physical
+fault injection. HS/ULPI remain unqualified by this run.
+
+Evidence: `tmp/otgv1-worker-exit-hw.9o8GMx/hardware.log` alongside the worktrees.
+The host test continued through the Codex server restart and completed normally;
+the original 1-MiB firmware was restored and verified, with the same SHA-256
+as the preceding lifecycle run. Scratch wrappers only changed lifecycle
+instrumentation; production demo workers and HLD/LLD were compiled unchanged.
 
 ## Separate follow-ups
 
