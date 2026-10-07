@@ -49,8 +49,8 @@
 #error "this demo requires a 16-bit system timer"
 #endif
 
-#if CH_CFG_ST_FREQUENCY != 1024
-#error "this demo requires a 1024 Hz system timer"
+#if CH_CFG_ST_FREQUENCY != 8192
+#error "this demo requires an 8192 Hz system timer"
 #endif
 
 #if !defined(STM32_ST_LPTIM_BACKEND)
@@ -416,7 +416,7 @@ int main(void) {
 
   initial = chVTGetTimeStamp();
   chprintf(chp, "\r\nSTM32U575 SYSTICKv3 Smart Run Domain demo\r\n");
-  chprintf(chp, "ST: LPTIM3/LSE/32, 1024 Hz, 16-bit\r\n");
+  chprintf(chp, "ST: LPTIM3/LSE/4, 8192 Hz, 16-bit\r\n");
   chprintf(chp, "timestamp=%08lX%08lX; refresh interval=%lu ticks\r\n",
            (unsigned long)(uint32_t)(initial >> 32),
            (unsigned long)(uint32_t)initial,

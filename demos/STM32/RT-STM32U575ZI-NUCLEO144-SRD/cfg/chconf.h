@@ -98,9 +98,18 @@
  *          setting also defines the system tick time unit.
  * @note    This must be a frequency that is obtainable from the system tick
  *          timer frequency.
+ * @note    LPTIM compare-write acknowledgement (CMP1OK) depends on the
+ *          prescaled counter clock, lptim_ker_ck / prescaler, not just the
+ *          APB clock. Custom-board measurements of the remaining wait were
+ *          about 2.81 ms at LSE/32, 1.40-1.42 ms at LSE/16 and 0.30 ms at
+ *          LSE/4. These observations are not an exact universal cycle count.
+ *          LSE/4 reduces synchronous compare-update blocking. Tickless mode
+ *          does not generate 8192 periodic interrupts per second; however,
+ *          the 16-bit timestamp needs half-range maintenance about every
+ *          four seconds. Keep that maintenance enabled when changing rates.
  */
 #if !defined(CH_CFG_ST_FREQUENCY)
-#define CH_CFG_ST_FREQUENCY                 1024
+#define CH_CFG_ST_FREQUENCY                 8192
 #endif
 
 /**
@@ -128,6 +137,9 @@
  *          this value.
  */
 #if !defined(CH_CFG_ST_TIMEDELTA)
+/* Eight counter ticks are about 0.977 ms at 8192 Hz. Do not scale this to
+   64 ticks merely to preserve the former 1024 Hz minimum timeout. The margin
+   must cover register synchronization and interrupt latency on the target. */
 #define CH_CFG_ST_TIMEDELTA                 8
 #endif
 

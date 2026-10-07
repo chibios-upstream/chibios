@@ -1,11 +1,26 @@
 # STM32U575ZI NUCLEO144 Smart Run Domain demo
 
 This demo exercises the SYSTICKv3 LPTIM backend on a NUCLEO-U575ZI-Q. It uses
-LPTIM3, clocked from LSE through the divide-by-32 prescaler, as a 1024 Hz,
+LPTIM3, clocked from LSE through the divide-by-4 prescaler, as an 8192 Hz,
 16-bit ChibiOS system timer.
 
-`CH_CFG_ST_TIMEDELTA` is eight ST ticks. This satisfies the SYSTICKv3 default
-minimum margin for asynchronous LPTIM register updates and interrupt latency.
+`CH_CFG_ST_TIMEDELTA` remains eight ST ticks (approximately 0.977 ms).
+This retains the SYSTICKv3 default tick margin; target-specific interrupt
+latency and register synchronization still require validation.
+
+Compare-write acknowledgement (`CMP1OK`) depends on `lptim_ker_ck / prescaler`.
+Custom-board measurements of the remaining acknowledgement wait were about
+2.81 ms at LSE/32 (1024 Hz), 1.40-1.42 ms at LSE/16 (2048 Hz), and 0.30 ms at
+LSE/4 (8192 Hz). These are observations, not an exact universal three-cycle
+guarantee. Faster counter clocking reduces time blocked by compare updates.
+Tickless 8192 Hz does not mean 8192 periodic IRQs per second. With a 16-bit
+counter it does shorten wrap time to eight seconds and half-range timestamp
+maintenance to about four seconds. The application-owned CCR2 maintenance
+below must therefore remain enabled.
+
+The 8192 Hz/delta-8 configuration has custom-board application evidence, but
+this exact updated NUCLEO demo and its autonomous PA1 probe still require
+hardware validation. Earlier 1024 Hz demo results do not qualify this build.
 
 The user button starts a two-second STOP2 interval. The LPTIM3 CCR1 compare wakes
 the core, and the common ChibiOS IRQ-prologue hook restores the default RUN
@@ -71,7 +86,7 @@ expansion board.
 4. Press and release the blue user button.
 5. Observe the two-second output pause and the green LED at the timer wake.
 6. Check that the report shows one timer wake, a confirmed STOP flag, no clock
-   restore failure, and approximately 2048 elapsed timestamp ticks.
+   restore failure, and approximately 16384 elapsed timestamp ticks.
 
 For a meaningful STOP2 current measurement, low-power debug must not be held
 active by the debugger. The demo clears `DBG_STOP` before arming STOP2.
