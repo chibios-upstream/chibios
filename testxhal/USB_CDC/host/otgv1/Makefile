@@ -19,9 +19,10 @@ TESTS += no_sync
 TESTS += novbus ulpi_fs_novbus ulpi_hs_novbus stepping1_ulpi_novbus
 TESTS += u575_novbus u5a5_novbus u5a5_fs_novbus
 BINARIES := $(addprefix $(BUILDDIR)/,$(TESTS))
+PHY_BINARIES := $(addprefix $(BUILDDIR)/phy_,$(U5_HS))
 .PHONY: all clean registry
-all: $(BINARIES) registry
-	@for test in $(BINARIES); do $$test || exit; done
+all: $(BINARIES) $(PHY_BINARIES) registry
+	@for test in $(BINARIES) $(PHY_BINARIES); do $$test || exit; done
 
 $(BUILDDIR):
 	mkdir -p $@
@@ -75,5 +76,15 @@ $(addprefix $(BUILDDIR)/,$(U5_FS) $(U5_HS) u5a5_fs u575_novbus u5a5_novbus u5a5_
 registry: $(BUILDDIR)/usb_constants.inc
 	CHIBIOS="$(abspath $(CHIBIOS))" python3 registry_checks.py
 
+$(BUILDDIR)/phy_code.inc: $(CHIBIOS)/os/xhal/ports/STM32/STM32U5xx/hal_lld.c phy/extract.awk | $(BUILDDIR)
+	awk -f phy/extract.awk $< > $@
+
+$(BUILDDIR)/phy_constants.inc: $(CHIBIOS)/os/xhal/ports/STM32/STM32U5xx/hal_lld.h | $(BUILDDIR)
+	awk '/^#define STM32_USB_BOOSTER_STARTUP_TIME / {print; found++} END {if (found != 1) exit 1}' $< > $@
+
+$(PHY_BINARIES): $(BUILDDIR)/phy_%: phy/u5_phy.c phy/hal.h $(BUILDDIR)/phy_code.inc $(BUILDDIR)/phy_constants.inc $(CHIBIOS)/os/xhal/src/hal_safety.c
+	$(CC) -Iphy $(CPPFLAGS) -I$(CHIBIOS)/os/common/ext/ST/STM32U5xx \
+	  -DTEST_DEVICE_HEADER='"stm32$*xx.h"' $(CFLAGS) $< -o $@
+
 clean:
-	$(RM) $(BINARIES) $(BUILDDIR)/hld_fault.inc $(BUILDDIR)/usb_constants.inc
+	$(RM) $(BINARIES) $(PHY_BINARIES) $(BUILDDIR)/hld_fault.inc $(BUILDDIR)/usb_constants.inc $(BUILDDIR)/phy_code.inc $(BUILDDIR)/phy_constants.inc

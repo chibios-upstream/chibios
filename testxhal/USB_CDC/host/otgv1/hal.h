@@ -207,6 +207,9 @@ static uint32_t test_basepri;
 static unsigned test_enables[2], test_disables[2], test_resets[2];
 static unsigned test_ulpi_enables, test_ulpi_disables;
 static unsigned test_phy_starts, test_phy_stops;
+#if defined(TEST_U5) && STM32_USB_USE_OTG2
+static bool test_phy_failure;
+#endif
 static unsigned test_in, test_out, test_setup, test_sofs;
 static uint8_t test_last_setup[8];
 static bool test_record_ep0;
@@ -335,7 +338,7 @@ static const void *__usb_setcfg_impl(void *ip, const void *config) {
 #define rccDisableOTG_HS() (test_disables[1]++)
 #define rccResetOTG_FS() (test_resets[0]++)
 #define rccResetOTG_HS() (test_resets[1]++)
-#define stm32_otg2_phy_start() (test_phy_starts++)
+#define stm32_otg2_phy_start() (test_phy_failure || (test_phy_starts++, false))
 #define stm32_otg2_phy_stop() (test_phy_stops++)
 #endif
 #define CORTEX_PRIO_MASK(p) ((p) << 4U)

@@ -251,6 +251,32 @@ static void check_reset_timeouts(hal_usb_driver_c *usbp, unsigned index) {
          index + 1U);
 }
 
+#if defined(TEST_U5) && STM32_USB_USE_OTG2
+static void check_phy_start_failure(void) {
+  stm32_otg_t *saved = USBD2.otg;
+  unsigned enables = test_enables[1], disables = test_disables[1];
+  unsigned resets = test_resets[1], stops = test_phy_stops;
+  unsigned callbacks = test_in + test_out + test_setup + test_sofs;
+
+  /* Any access to the unclocked OTG core, including the normal stop path,
+     is forbidden before the integrated PHY has become ready.*/
+  USBD2.otg = (stm32_otg_t *)(uintptr_t)1U;
+  USBD2.state = HAL_DRV_STATE_STOP;
+  test_phy_failure = true;
+  assert(drvStart(&USBD2, NULL) == HAL_RET_HW_FAILURE);
+  assert(USBD2.state == HAL_DRV_STATE_STOP && USBD2.config == NULL);
+  assert(test_enables[1] == enables && test_disables[1] == disables);
+  assert(test_resets[1] == resets && test_phy_stops == stops);
+  assert(test_in + test_out + test_setup + test_sofs == callbacks);
+  test_phy_failure = false;
+  USBD2.otg = saved;
+  assert(drvStart(&USBD2, NULL) == HAL_RET_SUCCESS);
+  assert(USBD2.state == HAL_DRV_STATE_READY);
+  drvStop(&USBD2);
+  puts("PASS: PHY startup failure leaves core untouched and drvStart retryable");
+}
+#endif
+
 #if USB_USE_CONFIGURATIONS
 struct usb_configurations usb_configurations = {2U, {{}, {}}};
 #endif
@@ -1542,6 +1568,9 @@ int main(void) {
   check_ep0_timeout_recheck(&USBD1);
 #endif
 #if STM32_USB_USE_OTG2
+#if defined(TEST_U5)
+  check_phy_start_failure();
+#endif
   check_vbus_configure(&USBD2);
   check_phy_delays(&USBD2, 1U);
   check_reset_timeouts(&USBD2, 1U);
