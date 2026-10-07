@@ -308,6 +308,8 @@
 #endif
 #define STM32_PLL_STARTUP_TIME              (800U * STM32_RELAXED_TIMEOUT_FACTOR)
 #define STM32_SYSCLK_SWITCH_TIME            (50U * STM32_RELAXED_TIMEOUT_FACTOR)
+/* Software deadline for the USB HS power booster, not a PHY startup delay.*/
+#define STM32_USB_BOOSTER_STARTUP_TIME      1000U
 /** @} */
 
 /**
@@ -575,7 +577,7 @@ extern "C" {
   void hal_lld_init(void);
   void stm32_clock_init(void);
 #if ((HAL_USE_USB == TRUE) && STM32_HAS_OTG2) || defined(__DOXYGEN__)
-  void stm32_otg2_phy_start(void);
+  bool stm32_otg2_phy_start(void);
   void stm32_otg2_phy_stop(void);
 #endif
 #if defined(HAL_LLD_USE_CLOCK_MANAGEMENT) || defined(__DOXYGEN__)

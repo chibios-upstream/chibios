@@ -1220,7 +1220,7 @@ const hal_usb_config_t *usb_lld_selcfg(hal_usb_driver_c *usbp,
  * @return              The operation status.
  * @retval HAL_RET_SUCCESS        if the peripheral has been started.
  * @retval HAL_RET_CONFIG_ERROR   if the USB clock is invalid.
- * @retval HAL_RET_HW_FAILURE     if a core-reset handshake times out.
+ * @retval HAL_RET_HW_FAILURE     if PHY startup or core reset times out.
  *
  * @notapi
  */
@@ -1265,7 +1265,11 @@ msg_t usb_lld_start(hal_usb_driver_c *usbp) {
   if (&USBD2 == usbp) {
 #if STM32_USB_OTG2_PHY == STM32_OTG_PHY_INTEGRATED_HS
     /* The integrated PHY must be ready before clocking the OTG core.*/
-    stm32_otg2_phy_start();
+    if (stm32_otg2_phy_start()) {
+      /* The helper restored the power configuration. Do not use the
+         normal stop path: the PHY and core clocks are still disabled.*/
+      return HAL_RET_HW_FAILURE;
+    }
 #endif
 
     /* OTG HS clock enable and reset.*/

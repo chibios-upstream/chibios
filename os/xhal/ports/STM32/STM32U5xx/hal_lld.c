@@ -1555,15 +1555,27 @@ void hal_lld_init(void) {
 #if (HAL_USE_USB == TRUE) && STM32_HAS_OTG2
 /**
  * @brief   Enables and starts the integrated OTG2 high-speed PHY.
+ * @return              The operation result.
+ * @retval false        if the PHY has been started.
+ * @retval true         if the power booster did not become ready.
+ * @note    On failure the previous USB power configuration is restored;
+ *          the PHY and OTG core clocks have not been enabled.
  *
  * @notapi
  */
-void stm32_otg2_phy_start(void) {
+bool stm32_otg2_phy_start(void) {
+  const uint32_t mask = PWR_VOSR_VDD11USBDIS | PWR_VOSR_USBPWREN |
+                        PWR_VOSR_USBBOOSTEN;
+  uint32_t saved = PWR->VOSR & mask;
 
   /* The USB power booster must be ready before clocking the PHY.*/
   PWR->VOSR &= ~PWR_VOSR_VDD11USBDIS;
   PWR->VOSR |= PWR_VOSR_USBPWREN | PWR_VOSR_USBBOOSTEN;
-  while ((PWR->VOSR & PWR_VOSR_USBBOOSTRDY) == 0U) {
+  if (halRegWaitAllSet32X(&PWR->VOSR, PWR_VOSR_USBBOOSTRDY,
+                         STM32_USB_BOOSTER_STARTUP_TIME, NULL)) {
+    PWR->VOSR = (PWR->VOSR & ~mask) | saved;
+
+    return true;
   }
 
   /* Integrated high-speed PHY clocks.*/
@@ -1583,6 +1595,8 @@ void stm32_otg2_phy_start(void) {
   chSysPolledDelayX(MS2RTC(STM32_HCLK, 2U));
   SYSCFG->OTGHSPHYCR |= SYSCFG_OTGHSPHYCR_PDCTRL;
   chSysPolledDelayX(MS2RTC(STM32_HCLK, 2U));
+
+  return false;
 }
 
 /**
