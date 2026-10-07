@@ -61,7 +61,7 @@ $(BUILDDIR)/hld_fault.inc: $(CHIBIOS)/os/xhal/src/hal_usb.c $(CHIBIOS)/os/xhal/s
 $(BUILDDIR)/usb_constants.inc: $(CHIBIOS)/os/xhal/include/hal_usb.h | $(BUILDDIR)
 	awk '/^#define USB_(RTYPE|REQ_|FEATURE_|LATE_SET_ADDRESS|FLAGS_)/ {print "#ifndef " $$2; print; print "#endif"}' $< > $@
 
-$(BINARIES): otg_v1.c hal.h out_disable.inc reviewer.inc $(LLD)/hal_usb_lld.c $(LLD)/hal_usb_lld.h $(LLD)/stm32_otg.h $(BUILDDIR)/usb_constants.inc $(BUILDDIR)/hld_fault.inc | $(BUILDDIR)
+$(BINARIES): otg_v1.c hal.h in_disable.inc out_disable.inc reviewer.inc $(LLD)/hal_usb_lld.c $(LLD)/hal_usb_lld.h $(LLD)/stm32_otg.h $(BUILDDIR)/usb_constants.inc $(BUILDDIR)/hld_fault.inc | $(BUILDDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@
 
 $(BINARIES): $(CHIBIOS)/os/xhal/ports/STM32/STM32H7xx/stm32_registry.h \

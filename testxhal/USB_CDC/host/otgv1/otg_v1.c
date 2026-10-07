@@ -331,8 +331,9 @@ static void finish_out_disable(hal_usb_driver_c *usbp) {
 }
 
 static void disable_endpoints(hal_usb_driver_c *usbp) {
+  /* The HLD owns epc[] invalidation; the LLD derives deferred state from it.*/
   chSysLock();
-  usb_lld_disable_endpoints(usbp);
+  usbDisableEndpointsI(usbp);
   chSysUnlock();
   finish_out_disable(usbp);
 }
@@ -745,6 +746,7 @@ static void check_iso_recovery(hal_usb_driver_c *usbp, unsigned index) {
   disable_endpoints(usbp);
   assert(usbp->isoc_in_pending == 0U);
   usbp->isoc_in_pending = 1U << 1U;
+  usbp->epc[1] = saved;
   usb_lld_init_endpoint(usbp, 1U);
   assert(usbp->isoc_in_pending == 0U);
   flushes = test_hw->tx_flushes[index];
@@ -985,6 +987,7 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   otgp->DSTS = DSTS_FNSOF(0x234U) | DSTS_ENUMSPD_FS_48;
   assert(usb_lld_get_frame_number(usbp) == 0x234U);
 
+  usbp->state = USB_ACTIVE;
   usbp->epc[1] = &ep;
   usb_lld_init_endpoint(usbp, 1U);
   assert((otgp->DIEPTXF[0] & 0xFFFFU) ==
@@ -1096,10 +1099,12 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   assert(usbp->pmnext == usbp->otgparams->rx_fifo_size + 16U);
   assert(usb_lld_get_status_in(usbp, 1U) == EP_STATUS_DISABLED);
   ep.in_maxsize = 65U;
+  usbp->epc[1] = &ep;
   usb_lld_init_endpoint(usbp, 1U);
   assert((otgp->DIEPTXF[0] >> 16U) == 17U);
   disable_endpoints(usbp);
   ep.in_maxsize = 8U;
+  usbp->epc[1] = &ep;
   usb_lld_init_endpoint(usbp, 1U);
   assert((otgp->DIEPTXF[0] >> 16U) == 16U);
 
@@ -1108,6 +1113,7 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   ep.ep_mode = USB_EP_MODE_TYPE_ISOC;
   ep.in_maxsize = ep.out_maxsize = 64U;
   ep.ep_buffers = 2U;
+  usbp->epc[1] = &ep;
   usb_lld_init_endpoint(usbp, 1U);
   assert((otgp->DIEPTXF[0] >> 16U) == 32U);
   otgp->DSTS = DSTS_FNSOF_ODD;
@@ -1436,6 +1442,7 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
 /* Only self-clearing reset/flush/disable bits are modeled. FIFO pop and W1C
    semantics are deliberately not emulated; tests drive event snapshots.*/
 #include "out_disable.inc"
+#include "in_disable.inc"
 #include "reviewer.inc"
 
 static void peripheral_process(void) {
@@ -1530,11 +1537,31 @@ static void check_event_posting(void) {
   puts("PASS: I-class event posting, thread/ISR callers and fault filtering");
 }
 
+static void check_endpoint_masks(void) {
+  stm32_otg_t otg = {0};
+  const stm32_otg_params_t params = {0};
+  hal_usb_driver_c usb = {0};
+
+  _Static_assert(sizeof usb.isoc_in_pending == sizeof(uint16_t) &&
+                 sizeof usb.in_flush == sizeof(uint16_t),
+                 "IN endpoint masks must remain 16-bit");
+
+  /* Exercise the full mask width without accessing a nonexistent endpoint.
+     UBSan catches signed promotion when OUT bit 15 is shifted into bit 31. */
+  usb.otg = &otg;
+  usb.otgparams = &params;
+  usb.out_disable_wait = 0x8000U;
+  otg_enable_ep(&usb);
+  assert(otg.DAINTMSK == 0x80000000U);
+  puts("PASS: 16-bit endpoint masks and unsigned OUT interrupt-mask shift");
+}
+
 int main(void) {
   pid_t child;
   int status;
 
   alarm(20);
+  check_endpoint_masks();
   check_event_posting();
   check_frame_number();
   check_safety_recheck();
@@ -1561,6 +1588,7 @@ int main(void) {
   check_sof_resume(&USBD1, 0U);
   check_runtime_faults(&USBD1, 0U);
   check_out_teardown(&USBD1, 0U);
+  check_in_teardown(&USBD1, 0U);
   check_endpoint_bounds(&USBD1);
   check_ep0_gating(&USBD1);
   check_clear_halt(&USBD1);
@@ -1578,6 +1606,7 @@ int main(void) {
   check_sof_resume(&USBD2, 1U);
   check_runtime_faults(&USBD2, 1U);
   check_out_teardown(&USBD2, 1U);
+  check_in_teardown(&USBD2, 1U);
   check_endpoint_bounds(&USBD2);
   check_ep0_gating(&USBD2);
   check_clear_halt(&USBD2);

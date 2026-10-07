@@ -51,3 +51,22 @@ for hook in ("VALUE", "FREQUENCY"):
     message = "OTGv1 requires HAL timeout counter hooks"
     assert result.returncode != 0 and message in result.stderr, result.stderr
     print(f"PASS: missing HAL counter {hook.lower()} hook rejected")
+
+for unit in (1, 2):
+    for endpoint in (15, 16):
+        source = (
+            '#define TRUE 1\n#define FALSE 0\n#define STM32H743xx\n'
+            '#include "STM32H7xx/stm32_registry.h"\n'
+            f'#undef STM32_OTG{unit}_ENDPOINTS\n'
+            f'#define STM32_OTG{unit}_ENDPOINTS {endpoint}\n'
+            '#include "hal.h"\n')
+        result = subprocess.run(
+            ["cc", "-E", "-x", "c"] +
+            [f"-I{path}" for path in includes] + ["-"],
+            input=source, text=True, capture_output=True, check=False)
+        if endpoint == 15:
+            assert result.returncode == 0, result.stderr
+        else:
+            message = "OTG endpoint masks support endpoint addresses 0 through 15"
+            assert result.returncode != 0 and message in result.stderr, result.stderr
+    print(f"PASS: OTG{unit} endpoint-mask width accepts 15 and rejects 16")

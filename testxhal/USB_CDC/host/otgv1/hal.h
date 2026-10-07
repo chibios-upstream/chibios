@@ -385,11 +385,9 @@ static void _usb_ep0out(hal_usb_driver_c *usbp, usbep_t ep) {
   }
   test_out++;
 }
-static void _usb_suspend(hal_usb_driver_c *usbp) {
+static void usbBinderSuspendI(void *binder) {
 
-  assert(test_isr && !test_locked);
-  usbp->saved_state = usbp->state;
-  usbp->state = USB_SUSPENDED;
+  assert(test_isr && test_locked && binder != NULL);
   test_suspends++;
 }
 #define _usb_isr_invoke_sof_cb(usbp) do { \
