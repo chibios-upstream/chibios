@@ -12,9 +12,10 @@ static void check_endpoint_bounds(hal_usb_driver_c *usbp) {
   for (unsigned phase = OTG_OUT_IDLE; phase <= OTG_OUT_RELEASE; phase++) {
     usbp->out_disable_phase = phase;
     for (unsigned ep = usbp->otgparams->num_endpoints + 1U; ep <= 15U; ep++) {
-      /* UBSan covers the shadow array; sentinels cover invalid MMIO too.*/
+      /* UBSan covers the shadow array; sentinels cover invalid MMIO too.
+         Keep EPDIS clear so the peripheral helper cannot consume it.*/
       otgp->oe[ep].DOEPCTL = 0x12345678U;
-      otgp->ie[ep].DIEPCTL = 0x76543210U;
+      otgp->ie[ep].DIEPCTL = 0x36543210U;
       chSysLock();
       usb_lld_stall_out(usbp, ep);
       usb_lld_clear_out(usbp, ep);
@@ -24,7 +25,7 @@ static void check_endpoint_bounds(hal_usb_driver_c *usbp) {
       assert(usb_lld_get_status_in(usbp, ep) == EP_STATUS_DISABLED);
       chSysUnlock();
       assert(otgp->oe[ep].DOEPCTL == 0x12345678U);
-      assert(otgp->ie[ep].DIEPCTL == 0x76543210U);
+      assert(otgp->ie[ep].DIEPCTL == 0x36543210U);
       for (unsigned dir = 0U; dir < 2U; dir++) {
         for (unsigned r = 0U; r < sizeof requests; r++) {
           bool handled;

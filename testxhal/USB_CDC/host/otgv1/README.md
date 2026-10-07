@@ -15,9 +15,11 @@ POSIX process/shared-memory APIs, make, awk and Python 3. LeakSanitizer cannot
 run under a ptrace-based sandbox; run the sanitizer tests outside that sandbox.
 Clean before changing CHIBIOS because generated HLD extracts are cached.
 
-The 22 variants cover both controllers, FS/HS/ULPI settings, stepping 1,
+The 29 variants cover both controllers, FS/HS/ULPI settings, stepping 1,
 configuration tables, BASEPRI, synchronization disabled and eleven real U5
-registry/CMSIS selections. The registry checks cover 35 device selections and
+registry/CMSIS selections. Sensing-enabled and no-sensing configurations cover
+all three steppings, including ULPI and integrated HS PHYs at FS and HS.
+The registry checks cover 35 device selections and
 reject missing FIFO capacities and missing safety counter hooks.
 
 The actual LLD and safety sources are compiled, and selected generated HLD
@@ -27,6 +29,9 @@ write-one-to-clear transitions explicitly; this is not a USB bus emulator.
 
 Regressions include:
 
+- Stepping-specific VBUS bypass, normal hardware sensing, stale overrides,
+  reserved stepping-1 GOTGCTL bits, ULPI PHY selection and sensing settings
+  preserved across repeated connect/disconnect cycles.
 - EP0 status/SETUP ordering, queued SETUP packets, aborted IN data and pending
   SETUP gating of starts/stalls.
 - OUT global-NAK/disable/release ordering, deferred configuration and receive
@@ -46,6 +51,6 @@ Regressions include:
 
 Classic HAL OTGv1 also omits the DATA0 reset when clearing endpoint halt.
 Backport that fix separately; this development update changes XHAL only.
-VBUS-sensing override and the U5 platform PHY-booster wait remain separate
-driver-review items. High-speed/ULPI and stuck-handshake fault coverage here
-is modeled, not hardware qualification.
+The U5 platform PHY-booster wait remains a separate driver-review item.
+High-speed/ULPI and stuck-handshake fault coverage here is modeled, not
+hardware qualification.

@@ -57,8 +57,12 @@ _Static_assert(USB_MAX_ENDPOINTS == 5U, "EP0 plus five FS endpoints");
 _Static_assert(OTG_FS_ADDR == USB_OTG_FS_BASE, "FS register address");
 _Static_assert(STM32_OTG1_NUMBER == OTG_FS_IRQn, "FS IRQ number");
 _Static_assert(STM32_OTG1_FIFO_MEM_SIZE == 320U, "FS FIFO size in words");
+#if defined(BOARD_OTG_NOVBUSSENS)
+_Static_assert(GCCFG_INIT_VALUE == USB_OTG_GCCFG_PWRDWN, "FS PHY power");
+#else
 _Static_assert(GCCFG_INIT_VALUE == (USB_OTG_GCCFG_VBDEN |
                                     USB_OTG_GCCFG_PWRDWN), "FS PHY power");
+#endif
 #else
 #if defined(STM32_USB_CLOCK_REQUIRED) || !defined(STM32_OTGHS_CLOCK_REQUIRED)
 #error "OTG HS must demand the PHY reference clock only"
@@ -67,7 +71,12 @@ _Static_assert(USB_MAX_ENDPOINTS == 8U, "EP0 plus eight HS endpoints");
 _Static_assert(OTG_HS_ADDR == USB_OTG_HS_BASE, "HS register address");
 _Static_assert(STM32_OTG2_NUMBER == OTG_HS_IRQn, "HS IRQ number");
 _Static_assert(STM32_OTG2_FIFO_MEM_SIZE == 1024U, "HS FIFO size in words");
+#if defined(BOARD_OTG_NOVBUSSENS)
+_Static_assert(GCCFG_INIT_VALUE == (USB_OTG_GCCFG_VBVALEXTOEN |
+                                    USB_OTG_GCCFG_VBVALOVAL), "HS VBUS override");
+#else
 _Static_assert(GCCFG_INIT_VALUE == USB_OTG_GCCFG_VBDEN, "HS VBUS sensing");
+#endif
 #endif
 
 static void check_irq(void) {
@@ -743,9 +752,6 @@ static void check_disconnect_lock(bool entering) {
   assert(test_locked && !test_isr);
   if (!entering) {
     dctl |= DCTL_SDIS;
-#if STM32_OTG_STEPPING == 1
-    gccfg &= ~GCCFG_VBUSBSEN;
-#endif
   }
   assert(test_disconnect_regs->DCTL == dctl);
   assert(test_disconnect_regs->GCCFG == gccfg);
@@ -756,6 +762,7 @@ static void check_bus_connection(hal_usb_driver_c *usbp) {
   stm32_otg_t *otgp = usbp->otg;
   uint32_t dctl = otgp->DCTL;
   uint32_t gccfg = otgp->GCCFG;
+  uint32_t gotgctl = otgp->GOTGCTL;
   uint32_t unrelated = (dctl & ~DCTL_SDIS) | DCTL_RWUSIG;
 
   /* Start disconnected, as usb_lld_start does. Connect/disconnect must be
@@ -764,12 +771,9 @@ static void check_bus_connection(hal_usb_driver_c *usbp) {
   for (unsigned i = 0U; i < 3U; i++) {
     usb_lld_connect_bus(usbp);
     assert(otgp->DCTL == unrelated);
-#if STM32_OTG_STEPPING == 1
-    assert(otgp->GCCFG == (gccfg | GCCFG_VBUSBSEN));
-#else
     assert(otgp->GCCFG == gccfg);
-#endif
-    /* Exercise the real public HLD entry point. Both register updates must
+    assert(otgp->GOTGCTL == gotgctl);
+    /* Exercise the real public HLD entry point. Register updates must
        be inside one thread lock, with no lock leaked to the caller.*/
     test_disconnect_regs = otgp;
     test_disconnect_dctl = otgp->DCTL;
@@ -781,15 +785,60 @@ static void check_bus_connection(hal_usb_driver_c *usbp) {
     assert(test_disconnect_locks == 2U);
     assert(!test_locked && !test_isr);
     assert(otgp->DCTL == (unrelated | DCTL_SDIS));
-#if STM32_OTG_STEPPING == 1
-    assert(otgp->GCCFG == (gccfg & ~GCCFG_VBUSBSEN));
-#else
     assert(otgp->GCCFG == gccfg);
-#endif
+    assert(otgp->GOTGCTL == gotgctl);
   }
   otgp->DCTL = dctl;
   otgp->GCCFG = gccfg;
   puts("PASS: connect/disconnect controls SDIS, preserves other bits and locks register updates");
+}
+
+static void check_vbus_configure(hal_usb_driver_c *usbp) {
+  stm32_otg_t *otgp = usbp->otg;
+  uint32_t gotgctl = 0U;
+  uint32_t gccfg;
+  bool ulpi = false;
+
+#if STM32_USB_USE_OTG2 && (STM32_USB_OTG2_PHY == STM32_OTG_PHY_EXTERNAL_ULPI)
+  ulpi = usbp == &USBD2;
+#endif
+#if STM32_OTG_STEPPING == 1
+#if defined(BOARD_OTG_NOVBUSSENS)
+  gccfg = GCCFG_NOVBUSSENS;
+#else
+  gccfg = ulpi ? 0U : GCCFG_VBUSASEN | GCCFG_VBUSBSEN;
+#endif
+  if (!ulpi) {
+    gccfg |= GCCFG_PWRDWN;
+  }
+#elif STM32_OTG_STEPPING == 2
+  gccfg = ulpi ? 0U : GCCFG_PWRDWN;
+#if defined(BOARD_OTG_NOVBUSSENS)
+  gotgctl = GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;
+#else
+  if (!ulpi) {
+    gccfg |= GCCFG_VBDEN;
+  }
+#endif
+#else
+  assert(!ulpi);
+#if defined(BOARD_OTG_NOVBUSSENS)
+  gccfg = GCCFG_VBVALEXTOEN | GCCFG_VBVALOVAL;
+#else
+  gccfg = GCCFG_VBDEN;
+#endif
+#endif
+  /* Initialize from both reset and stale settings, then exercise reconnects.
+     Stepping 1 must not set GOTGCTL[7:2], which are reserved there.*/
+  for (unsigned i = 0U; i < 2U; i++) {
+    otgp->GOTGCTL = i == 0U ? 0U : UINT32_MAX;
+    otgp->GCCFG = i == 0U ? 0U : UINT32_MAX;
+    otg_vbus_configure(usbp);
+    assert(otgp->GOTGCTL == gotgctl);
+    assert(otgp->GCCFG == gccfg);
+    check_bus_connection(usbp);
+  }
+  puts("PASS: stepping/PHY-specific VBUS sensing and bypass survive reconnects");
 }
 
 static void check_frame_number(void) {
@@ -1479,6 +1528,7 @@ int main(void) {
 #endif
   check_copy();
 #if STM32_USB_USE_OTG1
+  check_vbus_configure(&USBD1);
   check_phy_delays(&USBD1, 0U);
   check_reset_timeouts(&USBD1, 0U);
   check_driver(&USBD1, 0U);
@@ -1492,6 +1542,7 @@ int main(void) {
   check_ep0_timeout_recheck(&USBD1);
 #endif
 #if STM32_USB_USE_OTG2
+  check_vbus_configure(&USBD2);
   check_phy_delays(&USBD2, 1U);
   check_reset_timeouts(&USBD2, 1U);
   check_driver(&USBD2, 1U);

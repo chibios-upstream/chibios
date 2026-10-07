@@ -16,6 +16,8 @@ U5_FS := u575 u585
 U5_HS := u595 u599 u5a5 u5a9 u5f7 u5f9 u5g7 u5g9
 TESTS += $(U5_FS) $(U5_HS) u5a5_fs
 TESTS += no_sync
+TESTS += novbus ulpi_fs_novbus ulpi_hs_novbus stepping1_ulpi_novbus
+TESTS += u575_novbus u5a5_novbus u5a5_fs_novbus
 BINARIES := $(addprefix $(BUILDDIR)/,$(TESTS))
 .PHONY: all clean registry
 all: $(BINARIES) registry
@@ -26,26 +28,26 @@ $(BUILDDIR):
 
 $(BUILDDIR)/fs: CPPFLAGS += -DTEST_OTG2=0
 $(BUILDDIR)/hs: CPPFLAGS += -DTEST_OTG1=0
-$(BUILDDIR)/ulpi_fs: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=0
-$(BUILDDIR)/ulpi_hs: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=1
+$(BUILDDIR)/ulpi_fs $(BUILDDIR)/ulpi_fs_novbus: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=0
+$(BUILDDIR)/ulpi_hs $(BUILDDIR)/ulpi_hs_novbus: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=1
 $(BUILDDIR)/configurations: CPPFLAGS += -DUSB_USE_CONFIGURATIONS=1
 $(BUILDDIR)/no_sync: CPPFLAGS += -DUSB_USE_SYNCHRONIZATION=0
 $(BUILDDIR)/basepri: CPPFLAGS += -DSTM32_USB_OTGFIFO_FILL_BASEPRI=6 -DSTM32_OTG_SEQUENCE_WORKAROUND
-$(BUILDDIR)/stepping1 $(BUILDDIR)/stepping1_novbus $(BUILDDIR)/stepping1_ulpi_hs: CPPFLAGS += -DSTM32_OTG_STEPPING=1
-$(BUILDDIR)/stepping1_novbus: CPPFLAGS += -DBOARD_OTG_NOVBUSSENS
-$(BUILDDIR)/stepping1_ulpi_hs: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=1
+$(BUILDDIR)/stepping1 $(BUILDDIR)/stepping1_novbus $(BUILDDIR)/stepping1_ulpi_hs $(BUILDDIR)/stepping1_ulpi_novbus: CPPFLAGS += -DSTM32_OTG_STEPPING=1
+$(BUILDDIR)/novbus $(filter %_novbus,$(BINARIES)): CPPFLAGS += -DBOARD_OTG_NOVBUSSENS
+$(BUILDDIR)/stepping1_ulpi_hs $(BUILDDIR)/stepping1_ulpi_novbus: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=1
 
-$(addprefix $(BUILDDIR)/,$(U5_FS) $(U5_HS) u5a5_fs): CPPFLAGS += -DTEST_U5 \
+$(addprefix $(BUILDDIR)/,$(U5_FS) $(U5_HS) u5a5_fs u575_novbus u5a5_novbus u5a5_fs_novbus): CPPFLAGS += -DTEST_U5 \
   -I$(CHIBIOS)/os/xhal/ports/STM32/STM32U5xx \
   -I$(CHIBIOS)/os/common/ext/ST/STM32U5xx
-$(addprefix $(BUILDDIR)/,$(U5_FS)): CPPFLAGS += -DTEST_OTG2=0
-$(addprefix $(BUILDDIR)/,$(U5_HS) u5a5_fs): CPPFLAGS += -DTEST_OTG1=0
-$(BUILDDIR)/u5a5_fs: CPPFLAGS += -DSTM32_USE_USB_OTG2_HS=0
-$(BUILDDIR)/u575: CPPFLAGS += -DSTM32U575xx -DTEST_DEVICE_HEADER=\"stm32u575xx.h\"
+$(addprefix $(BUILDDIR)/,$(U5_FS) u575_novbus): CPPFLAGS += -DTEST_OTG2=0
+$(addprefix $(BUILDDIR)/,$(U5_HS) u5a5_fs u5a5_novbus u5a5_fs_novbus): CPPFLAGS += -DTEST_OTG1=0
+$(BUILDDIR)/u5a5_fs $(BUILDDIR)/u5a5_fs_novbus: CPPFLAGS += -DSTM32_USE_USB_OTG2_HS=0
+$(BUILDDIR)/u575 $(BUILDDIR)/u575_novbus: CPPFLAGS += -DSTM32U575xx -DTEST_DEVICE_HEADER=\"stm32u575xx.h\"
 $(BUILDDIR)/u585: CPPFLAGS += -DSTM32U585xx -DTEST_DEVICE_HEADER=\"stm32u585xx.h\"
 $(BUILDDIR)/u595: CPPFLAGS += -DSTM32U595xx -DTEST_DEVICE_HEADER=\"stm32u595xx.h\"
 $(BUILDDIR)/u599: CPPFLAGS += -DSTM32U599xx -DTEST_DEVICE_HEADER=\"stm32u599xx.h\"
-$(BUILDDIR)/u5a5 $(BUILDDIR)/u5a5_fs: CPPFLAGS += -DSTM32U5A5xx -DTEST_DEVICE_HEADER=\"stm32u5a5xx.h\"
+$(BUILDDIR)/u5a5 $(BUILDDIR)/u5a5_fs $(BUILDDIR)/u5a5_novbus $(BUILDDIR)/u5a5_fs_novbus: CPPFLAGS += -DSTM32U5A5xx -DTEST_DEVICE_HEADER=\"stm32u5a5xx.h\"
 $(BUILDDIR)/u5a9: CPPFLAGS += -DSTM32U5A9xx -DTEST_DEVICE_HEADER=\"stm32u5a9xx.h\"
 $(BUILDDIR)/u5f7: CPPFLAGS += -DSTM32U5F7xx -DTEST_DEVICE_HEADER=\"stm32u5f7xx.h\"
 $(BUILDDIR)/u5f9: CPPFLAGS += -DSTM32U5F9xx -DTEST_DEVICE_HEADER=\"stm32u5f9xx.h\"
@@ -64,7 +66,7 @@ $(BINARIES): otg_v1.c hal.h out_disable.inc reviewer.inc $(LLD)/hal_usb_lld.c $(
 $(BINARIES): $(CHIBIOS)/os/xhal/ports/STM32/STM32H7xx/stm32_registry.h \
              $(CHIBIOS)/os/xhal/src/hal_safety.c
 
-$(addprefix $(BUILDDIR)/,$(U5_FS) $(U5_HS) u5a5_fs): \
+$(addprefix $(BUILDDIR)/,$(U5_FS) $(U5_HS) u5a5_fs u575_novbus u5a5_novbus u5a5_fs_novbus): \
   $(CHIBIOS)/os/xhal/ports/STM32/STM32U5xx/stm32_registry.h \
   $(CHIBIOS)/os/xhal/ports/STM32/STM32U5xx/stm32_isr.h \
   $(CHIBIOS)/os/xhal/ports/STM32/STM32U5xx/stm32_clock_usage.h \
