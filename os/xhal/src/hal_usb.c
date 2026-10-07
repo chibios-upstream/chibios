@@ -819,7 +819,8 @@ void _usb_error_i(hal_usb_driver_c *usbp) {
 void _usb_reset(hal_usb_driver_c *usbp) {
   unsigned i;
 
-  if (usbp->state == USB_ERROR) {
+  /* Bus events must not undo the lifecycle transition made by drvStop().*/
+  if ((usbp->state == HAL_DRV_STATE_STOPPING) || (usbp->state == USB_ERROR)) {
     return;
   }
   usbp->state         = HAL_DRV_STATE_READY;
@@ -869,8 +870,11 @@ void _usb_reset(hal_usb_driver_c *usbp) {
  * @notapi
  */
 void _usb_suspend(hal_usb_driver_c *usbp) {
-  if ((usbp->state != USB_SUSPENDED) && (usbp->state != USB_ERROR)) {
+  if ((usbp->state != HAL_DRV_STATE_STOPPING) &&
+      (usbp->state != USB_SUSPENDED) && (usbp->state != USB_ERROR)) {
+#if USB_USE_SYNCHRONIZATION == TRUE
     unsigned i;
+#endif
 
     usbp->saved_state = usbp->state;
     usbp->state = USB_SUSPENDED;
@@ -1566,6 +1570,8 @@ msg_t __usb_start_impl(void *ip, const void *config) {
   msg_t msg;
   unsigned i;
 
+  chDbgAssert(self->ep0thread == NULL, "EP0 waiter still pending");
+
   if (config != NULL) {
     self->config = __usb_setcfg_impl(self, config);
     if (self->config == NULL) {
@@ -1580,7 +1586,6 @@ msg_t __usb_start_impl(void *ip, const void *config) {
   self->ep0next       = NULL;
   self->ep0n          = 0U;
   self->ep0endcb      = NULL;
-  self->ep0thread     = NULL;
   self->ep0seq        = 0U;
   self->ep0rseq       = 0U;
   self->ep0setup      = 0U;
@@ -2028,6 +2033,21 @@ msg_t usbTransmit(void *ip, usbep_t ep, const uint8_t *buf, size_t n) {
 
 /**
  * @brief       Waits for a new endpoint-zero setup packet.
+ * @note        After @p MSG_RESET, if @p drvGetStateX() reports @p
+ *              HAL_DRV_STATE_STOP or @p HAL_DRV_STATE_STOPPING, the driver is
+ *              stopped or stopping. The worker must wait for an application
+ *              restart or exit, not retry in a tight loop: this function
+ *              returns immediately in those states. If the worker exits, the
+ *              application must join it after @p drvStop() and before
+ *              restarting the driver or reusing the worker's storage, then
+ *              create a new worker before connecting the bus. For a bus-reset
+ *              cancellation while the driver is running, the worker can retry
+ *              immediately.
+ * @note        @p HAL_RET_HW_FAILURE is latched until the application stops
+ *              the driver. Retrying does not recover the controller; a worker
+ *              polling for stop must sleep between retries to let the
+ *              application handle @p USB_FLAGS_HW_FAILURE and call @p
+ *              drvStop().
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_driver_c instance.
  * @return                      @p MSG_OK if a setup packet is available, @p

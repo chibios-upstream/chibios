@@ -208,6 +208,18 @@
 #error "ADCv5 only supports C0, G0, U0 and WL STM32 devices"
 #endif
 
+/**
+ * @brief   Calibration factor write-back requirement.
+ * @details On STM32U0 the calibration leaves the factor minus one in
+ *          @p ADC_CALFACT, software must increment it and write it back
+ *          while the ADC is enabled and not converting (RM0503 14.4.3).
+ */
+#if defined(STM32U0XX) || defined(__DOXYGEN__)
+#define STM32_ADC_CALFACT_WRITEBACK         TRUE
+#else
+#define STM32_ADC_CALFACT_WRITEBACK         FALSE
+#endif
+
 /* Registry checks.*/
 #if !defined(STM32_HAS_ADC1)
 #error "STM32_HAS_ADC1 not defined in registry"
@@ -303,6 +315,17 @@ typedef uint32_t adcerror_t;
 /*===========================================================================*/
 
 /**
+ * @brief   Calibration factor field of the ADC driver structure.
+ */
+#if STM32_ADC_CALFACT_WRITEBACK || defined(__DOXYGEN__)
+#define adc_lld_calfact_field                                               \
+  /* Corrected calibration factor, written back on each ADC enable.*/       \
+  uint32_t                  calfact;
+#else
+#define adc_lld_calfact_field
+#endif
+
+/**
  * @brief   Low level fields of the ADC driver structure.
  */
 #define adc_lld_driver_fields                                               \
@@ -311,7 +334,8 @@ typedef uint32_t adcerror_t;
   /* Pointer to associated DMA channel.*/                                   \
   const stm32_dma_stream_t  *dmastp;                                        \
   /* DMA mode bit mask.*/                                                   \
-  uint32_t                  dmamode;
+  uint32_t                  dmamode;                                        \
+  adc_lld_calfact_field
 
 /**
  * @brief   Low level fields of the ADC configuration structure.

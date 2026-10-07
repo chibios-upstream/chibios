@@ -79,14 +79,25 @@ NOINLINE static void adc_lld_vreg_on(ADC_TypeDef *adc) {
 /**
  * @brief   Calibrates an ADC unit.
  *
- * @param[in] adc       pointer to the ADC registers block
+ * @param[in] adcp      pointer to the @p hal_adc_driver_c object
  */
-static void adc_lld_calibrate(ADC_TypeDef *adc) {
+static void adc_lld_calibrate(hal_adc_driver_c *adcp) {
+  ADC_TypeDef *adc = adcp->adc;
 
   adc->CR |= ADC_CR_ADCAL;
   while (adc->CR & ADC_CR_ADCAL) {
     /* Waiting for calibration end.*/
   }
+
+#if STM32_ADC_CALFACT_WRITEBACK
+  /* The calibration leaves the factor minus one in CALFACT, the corrected
+     value is saturated to the field width (RM0503 14.4.3). It can only be
+     written back with the ADC enabled, see adc_lld_start_conversion().*/
+  adcp->calfact = (adc->CALFACT & ADC_CALFACT_CALFACT_Msk) + 1U;
+  if (adcp->calfact > ADC_CALFACT_CALFACT_Msk) {
+    adcp->calfact = ADC_CALFACT_CALFACT_Msk;
+  }
+#endif
 }
 
 /**
@@ -162,6 +173,9 @@ void adc_lld_init(void) {
   adcObjectInit(&ADCD1);
   ADCD1.adc     = ADC1;
   ADCD1.dmastp  = NULL;
+#if STM32_ADC_CALFACT_WRITEBACK
+  ADCD1.calfact = 0U;
+#endif
   ADCD1.dmamode = STM32_DMA_CR_CHSEL(ADC1_DMA_CHANNEL) |
                   STM32_DMA_CR_PL(STM32_ADC_ADC1_DMA_PRIORITY) |
                   STM32_DMA_CR_DIR_P2M |
@@ -220,7 +234,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
     adc_lld_vreg_on(adcp->adc);
 
     /* Calibrating ADC.*/
-    adc_lld_calibrate(adcp->adc);
+    adc_lld_calibrate(adcp);
   }
 
   return HAL_RET_SUCCESS;
@@ -377,6 +391,12 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
   while ((adcp->adc->ISR & ADC_ISR_ADRDY) == 0U) {
     /* Wait for the ADC to become ready.*/
   }
+
+#if STM32_ADC_CALFACT_WRITEBACK
+  /* Corrected calibration factor, it can only be written with ADEN set and
+     ADSTART clear and it is injected at the next conversion start.*/
+  adcp->adc->CALFACT = adcp->calfact;
+#endif
 
   /* Enable DMA controller stream.*/
   dmaStreamEnable(adcp->dmastp);

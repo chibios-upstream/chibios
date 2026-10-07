@@ -39,7 +39,7 @@
  * HAL driver general settings.
  */
 #define STM32_NO_INIT                       FALSE
-#define STM32_CLOCK_DYNAMIC                 TRUE
+#define STM32_CLOCK_DYNAMIC                 FALSE
 
 /*
  * SYSCFG settings.
@@ -74,7 +74,7 @@
 /*
  * Clock settings.
  */
-#define STM32_HSI16_ENABLED                 FALSE
+#define STM32_HSI16_ENABLED                 TRUE
 #define STM32_HSI48_ENABLED                 FALSE
 #define STM32_HSE_ENABLED                   FALSE
 #define STM32_LSI_ENABLED                   FALSE
@@ -84,9 +84,9 @@
 #define STM32_MSIRANGE                      RCC_CR_MSIRANGE_4M
 #define STM32_MSISRANGE                     RCC_CSR_MSISRANGE_4M
 #define STM32_SW                            RCC_CFGR_SW_PLLR
-#define STM32_PLLSRC                        RCC_PLLCFGR_PLLSRC_MSI
+#define STM32_PLLSRC                        RCC_PLLCFGR_PLLSRC_HSI16
 #define STM32_PLLM_VALUE                    1
-#define STM32_PLLN_VALUE                    28
+#define STM32_PLLN_VALUE                    7
 #define STM32_PLLP_VALUE                    2
 #define STM32_PLLQ_VALUE                    2
 #define STM32_PLLR_VALUE                    2
@@ -152,7 +152,7 @@
 /*
  * ADC driver system settings.
  */
-#define STM32_ADC_USE_ADC1                  FALSE
+#define STM32_ADC_USE_ADC1                  TRUE
 #define STM32_ADC_ADC1_CFGR2                ADC_CFGR2_CKMODE_ADCCLK
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
 #define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     2
@@ -174,7 +174,7 @@
 #define STM32_GPT_USE_TIM1                  FALSE
 #define STM32_GPT_USE_TIM2                  FALSE
 #define STM32_GPT_USE_TIM3                  FALSE
-#define STM32_GPT_USE_TIM6                  FALSE
+#define STM32_GPT_USE_TIM6                  TRUE
 #define STM32_GPT_USE_TIM7                  FALSE
 #define STM32_GPT_USE_TIM15                 FALSE
 #define STM32_GPT_USE_TIM16                 FALSE
@@ -228,7 +228,7 @@
 #define STM32_SERIAL_USE_USART2             FALSE
 #define STM32_SERIAL_USE_USART3             FALSE
 #define STM32_SERIAL_USE_UART4              FALSE
-#define STM32_SERIAL_USE_LPUART1            FALSE
+#define STM32_SERIAL_USE_LPUART1            TRUE
 #define STM32_SERIAL_USE_LPUART2            FALSE
 #define STM32_SERIAL_USE_LPUART3            FALSE
 
@@ -239,7 +239,7 @@
 #define STM32_SIO_USE_USART2                FALSE
 #define STM32_SIO_USE_USART3                FALSE
 #define STM32_SIO_USE_UART4                 FALSE
-#define STM32_SIO_USE_LPUART1               TRUE
+#define STM32_SIO_USE_LPUART1               FALSE
 #define STM32_SIO_USE_LPUART2               FALSE
 #define STM32_SIO_USE_LPUART3               FALSE
 

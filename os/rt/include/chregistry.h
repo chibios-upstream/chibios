@@ -33,6 +33,26 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+/** @brief The registry is shared by all instances in this firmware image. */
+#define CH_REGISTRY_FLAG_SMP             1U
+
+/** @brief Absent member offset (zero is a valid offset). */
+#define CH_REGISTRY_OFFSET_NONE          0xFFFFU
+
+/**
+ * @name    Debugger port architecture identifiers
+ * @note    Port identifiers are scoped to the architecture. The assignments
+ *          and the byte-level interface are in @ref registry_debug_abi.
+ * @{
+ */
+#define CH_REGISTRY_ARCH_UNKNOWN         0U
+#define CH_REGISTRY_ARCH_SIMULATOR       1U
+#define CH_REGISTRY_ARCH_ARM             2U
+#define CH_REGISTRY_ARCH_RISCV           3U
+#define CH_REGISTRY_ARCH_POWERPC         4U
+#define CH_REGISTRY_ARCH_AVR             5U
+/** @} */
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -41,52 +61,86 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
+/* Older and external ports can provide just the common kernel descriptor.*/
+#if !defined(PORT_REGISTRY_ARCH)
+#define PORT_REGISTRY_ARCH               CH_REGISTRY_ARCH_UNKNOWN
+#endif
+#if !defined(PORT_REGISTRY_ID)
+#define PORT_REGISTRY_ID                 0U
+#endif
+
+/* Ports supply the extra fields and their constant initializer as macros.*/
+#if defined(PORT_REGISTRY_HEADER)
+#if !defined(PORT_REGISTRY_INITIALIZER)
+#error "incomplete port registry descriptor"
+#endif
+#if (PORT_REGISTRY_ARCH == 0U) || (PORT_REGISTRY_ID == 0U)
+#error "port registry descriptor requires a nonzero architecture and ID"
+#endif
+#endif
+
 /*===========================================================================*/
 /* Module data structures and types.                                         */
 /*===========================================================================*/
 
 /**
- * @brief   ChibiOS/RT memory signature record.
- * @note    The legacy names @p off_newer, @p off_older and @p off_stklimit
- *          are retained for debugger compatibility. They contain the offsets
- *          of @p rqueue.next, @p rqueue.prev and @p wabase respectively.
+ * @brief   ChibiOS/RT8 debugger memory layout record.
+ * @details Only the discovery header through version (bytes 0..7) retains
+ *          the legacy format. The RT version selects the remaining layout.
+ *          All sizes and offsets count bytes and use target byte order.
+ *          Scalar widths are encoded as log2(sizeof(type)), four per byte.
+ * @note    The binary interface is specified in @ref registry_debug_abi;
+ *          consumers do not need this header or compiler type information.
  */
 typedef struct {
+  /* General information, bytes 0..17.*/
   char      identifier[4];          /**< @brief Always set to "main".       */
   uint8_t   zero;                   /**< @brief Must be zero.               */
-  uint8_t   size;                   /**< @brief Size of this structure.     */
+  uint8_t   size;                   /**< @brief Total record size.          */
   uint16_t  version;                /**< @brief Encoded ChibiOS/RT version. */
-  uint8_t   ptrsize;                /**< @brief Size of a pointer.          */
-  uint8_t   timesize;               /**< @brief Size of a @p systime_t.     */
-  uint8_t   threadsize;             /**< @brief Size of a @p thread_t.      */
-  uint8_t   off_prio;               /**< @brief Offset of @p prio field.    */
-  uint8_t   off_ctx;                /**< @brief Offset of @p ctx field.     */
-  uint8_t   off_newer;              /**< @brief Offset of @p newer field.   */
-  uint8_t   off_older;              /**< @brief Offset of @p older field.   */
-  uint8_t   off_name;               /**< @brief Offset of @p name field.    */
-  uint8_t   off_stklimit;           /**< @brief Offset of @p stklimit field.*/
-  uint8_t   off_state;              /**< @brief Offset of @p state field.   */
-  uint8_t   off_flags;              /**< @brief Offset of @p flags field.   */
-  uint8_t   off_refs;               /**< @brief Offset of @p refs field.    */
-  uint8_t   off_preempt;            /**< @brief Offset of @p ticks field.   */
-  uint8_t   off_time;               /**< @brief Offset of @p time field.    */
-  uint8_t   off_reserved[4];
-  uint8_t   intctxsize;             /**< @brief Size of a @p port_intctx.   */
-  uint8_t   intervalsize;           /**< @brief Size of a @p sysinterval_t. */
-  uint8_t   instancesnum;           /**< @brief Number of instances.        */
-  uint8_t   off_sys_state;          /**< @brief Offset of @p state field.   */
-  uint8_t   off_sys_instances;      /**< @brief Offset of @p instances array
-                                                field.                      */
-  uint8_t   off_sys_reglist;        /**< @brief Offset of @p reglist field. */
-  uint8_t   off_sys_rfcu;           /**< @brief Offset of @p rfcu field.    */
-  uint8_t   off_sys_reserved[4];
-  uint8_t   off_inst_rlist_current; /**< @brief Offset of @p rlist.current
-                                                field.                      */
-  uint8_t   off_inst_rlist;         /**< @brief Offset of @p rlist field.   */
-  uint8_t   off_inst_vtlist;        /**< @brief Offset of @p vtlist field.  */
-  uint8_t   off_inst_reglist;       /**< @brief Offset of @p reglist field. */
-  uint8_t   off_inst_core_id;       /**< @brief Offset of @p core_id field. */
-  uint8_t   off_inst_rfcu;          /**< @brief Offset of @p rfcu field.    */
+  uint8_t   flags;                  /**< @brief CH_REGISTRY_FLAG_* bits.    */
+  uint8_t   type_sizes[3];          /**< @brief Packed two-bit scalar widths.*/
+  uint8_t   port_arch;              /**< @brief Port architecture, 0 unknown.*/
+  uint8_t   port_id;                /**< @brief Architecture-local port ID. */
+  uint16_t  port_offset;            /**< @brief Offset, 0xFFFF if absent.   */
+  uint16_t  port_size;              /**< @brief Port data size, 0 if no data.*/
+
+  /* System information, bytes 18..29.*/
+  uint16_t  sys_size;               /**< @brief Size of ch_system_t.        */
+  uint16_t  sys_instances_num;      /**< @brief Instance pointer array count.*/
+  uint16_t  sys_state;              /**< @brief Offset of state.            */
+  uint16_t  sys_instances;          /**< @brief Offset of instances[0].     */
+  uint16_t  sys_reg_node;           /**< @brief Offset of reglist.queue.    */
+  uint16_t  sys_rfcu;               /**< @brief Offset of rfcu.             */
+
+  /* Instance information, bytes 30..43.*/
+  uint16_t  inst_size;              /**< @brief Size of os_instance_t.      */
+  uint16_t  inst_core_id;           /**< @brief Offset of core_id.          */
+  uint16_t  inst_current;           /**< @brief Offset of rlist.current.    */
+  uint16_t  inst_rlist;             /**< @brief Offset of rlist.            */
+  uint16_t  inst_vtlist;            /**< @brief Offset of vtlist.           */
+  uint16_t  inst_reg_node;          /**< @brief Offset of reglist.queue.    */
+  uint16_t  inst_rfcu;              /**< @brief Offset of rfcu.             */
+
+  /* Thread information, bytes 44..73, followed by the port context data.*/
+  uint16_t  thread_size;            /**< @brief Size of thread_t.           */
+  uint16_t  thread_ctx_size;        /**< @brief Size of port_context.       */
+  uint16_t  thread_intctx_size;     /**< @brief Size of port_intctx.        */
+  uint16_t  thread_reg_node;        /**< @brief Offset of rqueue.           */
+  uint16_t  thread_owner;           /**< @brief Offset of owner.            */
+  uint16_t  thread_name;            /**< @brief Offset of name.             */
+  uint16_t  thread_prio;            /**< @brief Offset of hdr.pqueue.prio.   */
+  uint16_t  thread_state;           /**< @brief Offset of state.            */
+  uint16_t  thread_flags;           /**< @brief Offset of flags.            */
+  uint16_t  thread_refs;            /**< @brief Offset of refs.             */
+  uint16_t  thread_ticks;           /**< @brief Offset of ticks.            */
+  uint16_t  thread_time;            /**< @brief Offset of time.             */
+  uint16_t  thread_wabase;          /**< @brief Offset of wabase.           */
+  uint16_t  thread_waend;           /**< @brief Offset of waend.            */
+  uint16_t  thread_ctx;             /**< @brief Offset of ctx.              */
+#if defined(PORT_REGISTRY_HEADER)
+  PORT_REGISTRY_HEADER
+#endif
 } chdebug_t;
 
 /*===========================================================================*/

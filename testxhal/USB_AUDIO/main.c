@@ -51,14 +51,18 @@ static THD_FUNCTION(Ep0Thread, arg) {
     msg_t msg;
 
     msg = usbEp0WaitSetup(&PORTAB_USB1);
-    if (msg == HAL_RET_HW_FAILURE) {
-      /* The fault stays latched for application-controlled stop/restart.
-         Do not starve the rest of the application by retrying a failed
-         controller in a tight loop.*/
-      chThdSleepMilliseconds(100);
-      continue;
-    }
     if (msg != MSG_OK) {
+      driver_state_t state = drvGetStateX(&PORTAB_USB1);
+
+      if ((msg == MSG_RESET) && ((state == HAL_DRV_STATE_STOP) ||
+                                (state == HAL_DRV_STATE_STOPPING))) {
+        chThdExit(MSG_RESET);
+      }
+      if (msg == HAL_RET_HW_FAILURE) {
+        /* The fault is latched. Yield while the application handles it
+           and stops the driver; the next wait then lets this worker exit.*/
+        chThdSleepMilliseconds(100);
+      }
       continue;
     }
 

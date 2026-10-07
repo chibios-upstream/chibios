@@ -254,6 +254,10 @@
   #define USB_MAX_ENDPOINTS                 STM32_OTG2_ENDPOINTS
 #endif
 
+#if USB_MAX_ENDPOINTS > 15
+#error "OTG endpoint masks support endpoint addresses 0 through 15"
+#endif
+
 #if STM32_USB_USE_OTG1 &&                                                \
     !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_OTG1_PRIORITY)
 #error "Invalid IRQ priority assigned to OTG1"
@@ -333,7 +337,8 @@ typedef struct {
   stm32_otg_t                   *otg;                                      \
   const stm32_otg_params_t      *otgparams;                                \
   uint32_t                      pmnext;                                    \
-  uint32_t                      isoc_in_pending;                           \
+  uint16_t                      isoc_in_pending;                           \
+  uint16_t                      in_flush;                                  \
   uint32_t                      out_disable_pending;                       \
   uint32_t                      out_disable_wait;                          \
   uint32_t                      out_restart;                               \
