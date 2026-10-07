@@ -250,13 +250,24 @@ static void otg_device_configure(hal_usb_driver_c *usbp) {
 static void otg_vbus_configure(hal_usb_driver_c *usbp) {
   stm32_otg_t *otgp = usbp->otg;
 
-  /* VBUS sensing and transceiver enabled.*/
+  /* Only stepping 2 needs the GOTGCTL bypass. Steppings 1 and 3 use
+     GCCFG instead; GOTGCTL[7:2] are reserved on stepping 1.*/
+#if (STM32_OTG_STEPPING == 2) && defined(BOARD_OTG_NOVBUSSENS)
   otgp->GOTGCTL = GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;
+#else
+  otgp->GOTGCTL = 0U;
+#endif
 
 #if STM32_USB_USE_OTG2 &&                                             \
     (STM32_USB_OTG2_PHY == STM32_OTG_PHY_EXTERNAL_ULPI)
   if (&USBD2 == usbp) {
+    /* VBUS is detected by the ULPI PHY, not the embedded FS PHY.
+       Preserve the legacy no-sensing bypass without powering the FS PHY.*/
+#if STM32_OTG_STEPPING == 1
+    otgp->GCCFG = GCCFG_INIT_VALUE & GCCFG_NOVBUSSENS;
+#else
     otgp->GCCFG = 0U;
+#endif
   }
   else {
     otgp->GCCFG = GCCFG_INIT_VALUE;
@@ -355,9 +366,6 @@ static void otg_disconnect_i(hal_usb_driver_c *usbp) {
   chDbgCheckClassI();
 
   usbp->otg->DCTL |= DCTL_SDIS;
-#if STM32_OTG_STEPPING == 1
-  usbp->otg->GCCFG &= ~GCCFG_VBUSBSEN;
-#endif
 }
 
 /* Called from unlocked IRQ handlers or locked endpoint initialization.
@@ -1598,9 +1606,7 @@ void usb_lld_connect_bus(hal_usb_driver_c *usbp) {
   /* Keep the check and pull-up control atomic against the fault handler.*/
   chSysLock();
   if (usbp->state != USB_ERROR) {
-#if STM32_OTG_STEPPING == 1
-    usbp->otg->GCCFG |= GCCFG_VBUSBSEN;
-#endif
+    /* Soft disconnect controls attachment without changing VBUS sensing.*/
     usbp->otg->DCTL &= ~DCTL_SDIS;
   }
   chSysUnlock();
