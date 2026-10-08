@@ -50,6 +50,13 @@
 #include "stm32_isr_m0.inc"
 #endif
 
+/* Individual IRQ priorities are derived from the shared vector priorities,
+   drivers expect individual definitions to exist.*/
+#if STM32_TARGET_CORE == 2
+#define STM32_IRQ_ADC1_PRIORITY             STM32_IRQ_ADC1_COMP_DAC1_PRIORITY
+#define STM32_IRQ_DAC1_PRIORITY             STM32_IRQ_ADC1_COMP_DAC1_PRIORITY
+#endif
+
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */
 /*===========================================================================*/

@@ -81,6 +81,18 @@
 #include "stm32_i2c5.inc"
 #include "stm32_i2c6.inc"
 
+#include "stm32_octospi1.inc"
+#include "stm32_octospi2.inc"
+
+#if STM32_HAS_USB1
+#include "stm32_usb1.inc"
+#else
+#include "stm32_otg1.inc"
+#include "stm32_otg2.inc"
+#endif
+
+#include "stm32_rtc_h5.inc"
+
 #include "stm32_spi1.inc"
 #include "stm32_spi2.inc"
 #include "stm32_spi3.inc"
@@ -149,6 +161,18 @@ void irqInit(void) {
   i2c5_irq_init();
   i2c6_irq_init();
 
+  octospi1_irq_init();
+  octospi2_irq_init();
+
+#if STM32_HAS_USB1
+  usb1_irq_init();
+#else
+  otg1_irq_init();
+  otg2_irq_init();
+#endif
+
+  rtc_irq_init();
+
   spi1_irq_init();
   spi2_irq_init();
   spi3_irq_init();
@@ -214,6 +238,18 @@ void irqDeinit(void) {
   i2c4_irq_deinit();
   i2c5_irq_deinit();
   i2c6_irq_deinit();
+
+  octospi1_irq_deinit();
+  octospi2_irq_deinit();
+
+#if STM32_HAS_USB1
+  usb1_irq_deinit();
+#else
+  otg1_irq_deinit();
+  otg2_irq_deinit();
+#endif
+
+  rtc_irq_deinit();
 
   spi1_irq_deinit();
   spi2_irq_deinit();

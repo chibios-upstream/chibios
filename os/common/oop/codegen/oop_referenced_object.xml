@@ -53,20 +53,20 @@ return self;]]></implementation>
               <brief>Release of an object reference.</brief>
               <details><![CDATA[The reference counter is decreased, if the counter
                        reaches zero then the object is disposed.]]></details>
-              <return>The value of the reference counter.</return>
+              <return>The reference count immediately after the decrement.</return>
               <implementation><![CDATA[
+object_references_t references;
 
 oopLock();
 oopAssert(self->references > 0U, "zero references");
-if (--self->references == 0U) {
-  oopUnlock();
+references = --self->references;
+oopUnlock();
+
+if (references == 0U) {
   boDispose(self);
 }
-else {
-  oopUnlock();
-}
 
-return self->references;]]></implementation>
+return references;]]></implementation>
             </method>
           </virtual>
         </methods>

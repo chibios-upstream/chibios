@@ -70,6 +70,7 @@
  * FLASH settings.
  */
 #define STM32_FLASH_ACR                     (FLASH_ACR_DBG_SWEN | FLASH_ACR_ICEN | FLASH_ACR_PRFTEN)
+#define STM32_FLASH_WAIT_TIME_MS            5
 
 /*
  * Clock settings.
@@ -120,6 +121,8 @@
 /*
  * IRQ system settings.
  */
+#define STM32_IRQ_ADC1_COMP_PRIORITY        2
+
 #define STM32_IRQ_DAC1_PRIORITY             2
 
 #define STM32_IRQ_EXTI0_1_PRIORITY          3
@@ -130,13 +133,14 @@
 #define STM32_IRQ_I2C2_3_4_PRIORITY         3
 
 #define STM32_IRQ_SPI1_PRIORITY             2
-#define STM32_IRQ_SPI2_PRIORITY             2
-#define STM32_IRQ_SPI3_PRIORITY             2
+#define STM32_IRQ_SPI2_3_PRIORITY           2
 
 #define STM32_IRQ_USART1_PRIORITY           2
 #define STM32_IRQ_USART2_LP2_PRIORITY       2
 #define STM32_IRQ_USART3_LP1_PRIORITY       2
 #define STM32_IRQ_USART4_LP3_PRIORITY       2
+
+#define STM32_IRQ_RTC_TAMP_PRIORITY         3
 
 #define STM32_IRQ_TIM1_UP_PRIORITY          1
 #define STM32_IRQ_TIM1_CC_PRIORITY          1
@@ -153,11 +157,10 @@
  * ADC driver system settings.
  */
 #define STM32_ADC_USE_ADC1                  FALSE
-#define STM32_ADC_COMPACT_SAMPLES           FALSE
-#define STM32_ADC_ADC1_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
+#define STM32_ADC_ADC1_CFGR2                ADC_CFGR2_CKMODE_ADCCLK
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     5
-#define STM32_ADC_ADC1_IRQ_PRIORITY         5
+#define STM32_ADC_ADC1_DMA_STREAM           STM32_DMA_STREAM_ID_ANY
+#define STM32_ADC_PRESCALER_VALUE           2
 
 /*
  * DAC driver system settings.
@@ -219,6 +222,10 @@
 #define STM32_RTC_PRESA_VALUE               32
 #define STM32_RTC_PRESS_VALUE               1024
 #define STM32_RTC_CR_INIT                   0
+#define STM32_TAMP_CR1_INIT                 0
+#define STM32_TAMP_CR2_INIT                 0
+#define STM32_TAMP_FLTCR_INIT               0
+#define STM32_TAMP_IER_INIT                 0
 
 /*
  * SIO driver system settings.
@@ -246,9 +253,6 @@
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
 #define STM32_SPI_SPI3_DMA_PRIORITY         1
-#define STM32_SPI_SPI1_IRQ_PRIORITY         10
-#define STM32_SPI_SPI2_IRQ_PRIORITY         10
-#define STM32_SPI_SPI3_IRQ_PRIORITY         10
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*

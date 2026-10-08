@@ -160,6 +160,14 @@
 #define STM32_FDCAN1_IT1_NUMBER             40
 
 /*
+ * RTC/TAMP units.
+ */
+#define STM32_RTC_GLOBAL_HANDLER            Vector48
+#define STM32_RTC_TAMP_HANDLER              Vector50
+#define STM32_RTC_GLOBAL_NUMBER             2
+#define STM32_RTC_TAMP_NUMBER               4
+
+/*
  * I2C units.
  */
 #define STM32_I2C1_EV_HANDLER               Vector11C
@@ -335,6 +343,11 @@
 #define STM32_OTG1_NUMBER                   73
 #define STM32_OTG2_NUMBER                   73
 /** @} */
+
+/* Individual IRQ priorities are derived from the shared vector priorities,
+   drivers expect individual definitions to exist.*/
+#define STM32_IRQ_ADC1_PRIORITY             STM32_IRQ_ADC1_2_PRIORITY
+#define STM32_IRQ_ADC2_PRIORITY             STM32_IRQ_ADC1_2_PRIORITY
 
 /*===========================================================================*/
 /* External declarations.                                                    */

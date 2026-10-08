@@ -179,6 +179,9 @@
 /*
  * IRQ system settings.
  */
+#define STM32_IRQ_ADC1_PRIORITY             5
+#define STM32_IRQ_ADC2_PRIORITY             5
+
 #define STM32_IRQ_DAC1_PRIORITY             9
 
 #define STM32_IRQ_EXTI0_PRIORITY            6
@@ -203,6 +206,9 @@
 #define STM32_IRQ_I2C1_PRIORITY             5
 #define STM32_IRQ_I2C2_PRIORITY             5
 #define STM32_IRQ_I2C3_PRIORITY             5
+
+#define STM32_IRQ_RTC_GLOBAL_PRIORITY       6
+#define STM32_IRQ_RTC_TAMP_PRIORITY         6
 
 #define STM32_IRQ_SPI1_PRIORITY             10
 #define STM32_IRQ_SPI2_PRIORITY             10
@@ -242,10 +248,6 @@
 #define STM32_ADC_ADC2_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
 #define STM32_ADC_ADC2_DMA_PRIORITY         2
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     5
-#define STM32_ADC_ADC2_DMA_IRQ_PRIORITY     5
-#define STM32_ADC_ADC1_IRQ_PRIORITY         5
-#define STM32_ADC_ADC2_IRQ_PRIORITY         5
 
 /*
  * CAN driver system settings.
@@ -319,6 +321,10 @@
 #define STM32_RTC_PRESA_VALUE               32
 #define STM32_RTC_PRESS_VALUE               1024
 #define STM32_RTC_CR_INIT                   0
+#define STM32_TAMP_CR1_INIT                 0
+#define STM32_TAMP_CR2_INIT                 0
+#define STM32_TAMP_FLTCR_INIT               0
+#define STM32_TAMP_IER_INIT                 0
 
 /*
  * SDC driver system settings.
@@ -342,6 +348,11 @@
 /*
  * SPI driver system settings.
  */
+#define STM32_SPI_SELECT_MODE              STM32_SPI_SELECT_MODE_LINE
+#define STM32_SPI_DEFAULT_PORT             GPIOA
+#define STM32_SPI_DEFAULT_PAD              0U
+#define STM32_SPI_DEFAULT_CFG1             (SPI_CFG1_MBR_DIV128 | SPI_CFG1_DSIZE_8BITS)
+#define STM32_SPI_DEFAULT_CFG2             0U
 #define STM32_SPI_USE_SPI1                  FALSE
 #define STM32_SPI_USE_SPI2                  FALSE
 #define STM32_SPI_USE_SPI3                  FALSE
@@ -354,9 +365,6 @@
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
 #define STM32_SPI_SPI3_DMA_PRIORITY         1
-#define STM32_SPI_SPI1_IRQ_PRIORITY         10
-#define STM32_SPI_SPI2_IRQ_PRIORITY         10
-#define STM32_SPI_SPI3_IRQ_PRIORITY         10
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*

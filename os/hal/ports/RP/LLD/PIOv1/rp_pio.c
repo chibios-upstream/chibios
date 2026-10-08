@@ -90,6 +90,16 @@ static struct {
      */
     uint32_t        c1_allocated_mask;
     /**
+     * @brief   Priority of the core 0 vector of the block.
+     * @note    Meaningful only while @p c0_allocated_mask is not zero.
+     */
+    uint32_t        c0_priority;
+    /**
+     * @brief   Priority of the core 1 vector of the block.
+     * @note    Meaningful only while @p c1_allocated_mask is not zero.
+     */
+    uint32_t        c1_priority;
+    /**
      * @brief   Instruction memory allocation bitmap.
      */
     uint32_t        imem_allocated;
@@ -268,12 +278,44 @@ void pioInit(void) {
 
 /**
  * @brief   Allocates a PIO state machine.
+ * @details The state machine is allocated and the calling core IRQ vector
+ *          of the PIO block enabled, its priority is raised if
+ *          @p irq_priority is more urgent than the current one.
+ * @note    The state machines of a block taken by a core share one IRQ
+ *          vector, it serves the block interrupts enabled from that core.
+ *          Allocations without a handling function also take part in the
+ *          vector priority.
+ * @note    The block callback and the handling functions of every state
+ *          machine of the block are also invoked from the vector of the
+ *          other core, at the priority of that vector, while that core has
+ *          a state machine of the block allocated and interrupts of the
+ *          block enabled.
+ * @note    The PIO vectors are OS-aware IRQ handlers, so @p irq_priority
+ *          must always be a kernel-compatible priority, with or without a
+ *          handling function, see @p OSAL_IRQ_IS_VALID_PRIORITY(). Because
+ *          the vector is shared, a single allocation at a fast priority
+ *          would run the block callback and the handling functions of
+ *          every state machine of the block as a fast interrupt.
+ * @note    The vector priority is not relaxed when state machines are
+ *          freed, it is re-initialized by the first allocation after the
+ *          last state machine of the block taken by the core has been
+ *          released.
+ * @note    On the RP2350 Hazard3 cores, raising the priority of a live
+ *          vector from ISR context can make the PIO handler preempt
+ *          itself while its interrupt is pending, see the RP2350
+ *          datasheet section 3.8.6.1.4. Allocations that can raise the
+ *          vector priority are expected from thread context, debug
+ *          builds assert on such a raise from ISR context while the
+ *          calling core has state machines of the block allocated.
  *
  * @param[in] block     pointer to the PIO block descriptor
  * @param[in] smid      numeric identifier of a specific state machine or:
  *                      - @p RP_PIO_SM_ID_ANY for any state machine.
  *                      .
- * @param[in] irq_priority IRQ priority for the PIO state machine
+ * @param[in] irq_priority IRQ priority requested for the state machine,
+ *                      the state machines of a block taken by a core share
+ *                      one vector which runs at the most urgent priority
+ *                      requested among them
  * @param[in] func      handling function pointer, can be @p NULL
  * @param[in] param     a parameter to be passed to the handling function
  * @return              Pointer to the allocated @p rp_pio_sm_t structure.
@@ -321,9 +363,23 @@ const rp_pio_sm_t *pioSmAllocI(const rp_pio_block_t *block,
         rp_peripheral_unreset(block->resets_mask);
       }
 
+      /* The state machines of a block taken by a core share the vector
+         of that core, it runs at the most urgent priority requested while
+         it is enabled. Re-enabling a live vector is safe because the PIO
+         IRQ lines are level sensitive, a cleared pending state is latched
+         again. On Hazard3, however, a raise from ISR context can make a
+         pending handler preempt itself, debug builds assert against it,
+         see the function notes.*/
       if (SIO->CPUID == 0U) {
         /* State machine taken by core 0.*/
-        if (pio.blocks[b].c0_allocated_mask == 0U) {
+        if ((pio.blocks[b].c0_allocated_mask == 0U) ||
+            (irq_priority < pio.blocks[b].c0_priority)) {
+#if defined(__riscv)
+          osalDbgAssert((pio.blocks[b].c0_allocated_mask == 0U) ||
+                        !port_is_isr_context(),
+                        "vector priority raised from ISR");
+#endif
+          pio.blocks[b].c0_priority = irq_priority;
           switch (b) {
           case 0U:
             nvicEnableVector(RP_PIO0_IRQ_0_NUMBER, irq_priority);
@@ -344,7 +400,14 @@ const rp_pio_sm_t *pioSmAllocI(const rp_pio_block_t *block,
       }
       else {
         /* State machine taken by core 1.*/
-        if (pio.blocks[b].c1_allocated_mask == 0U) {
+        if ((pio.blocks[b].c1_allocated_mask == 0U) ||
+            (irq_priority < pio.blocks[b].c1_priority)) {
+#if defined(__riscv)
+          osalDbgAssert((pio.blocks[b].c1_allocated_mask == 0U) ||
+                        !port_is_isr_context(),
+                        "vector priority raised from ISR");
+#endif
+          pio.blocks[b].c1_priority = irq_priority;
           switch (b) {
           case 0U:
             nvicEnableVector(RP_PIO0_IRQ_1_NUMBER, irq_priority);
@@ -373,12 +436,37 @@ const rp_pio_sm_t *pioSmAllocI(const rp_pio_block_t *block,
 
 /**
  * @brief   Allocates a PIO state machine.
+ * @details The state machine is allocated and the calling core IRQ vector
+ *          of the PIO block enabled, its priority is raised if
+ *          @p irq_priority is more urgent than the current one.
+ * @note    The state machines of a block taken by a core share one IRQ
+ *          vector, it serves the block interrupts enabled from that core.
+ *          Allocations without a handling function also take part in the
+ *          vector priority.
+ * @note    The block callback and the handling functions of every state
+ *          machine of the block are also invoked from the vector of the
+ *          other core, at the priority of that vector, while that core has
+ *          a state machine of the block allocated and interrupts of the
+ *          block enabled.
+ * @note    The PIO vectors are OS-aware IRQ handlers, so @p irq_priority
+ *          must always be a kernel-compatible priority, with or without a
+ *          handling function, see @p OSAL_IRQ_IS_VALID_PRIORITY(). Because
+ *          the vector is shared, a single allocation at a fast priority
+ *          would run the block callback and the handling functions of
+ *          every state machine of the block as a fast interrupt.
+ * @note    The vector priority is not relaxed when state machines are
+ *          freed, it is re-initialized by the first allocation after the
+ *          last state machine of the block taken by the core has been
+ *          released.
  *
  * @param[in] block     pointer to the PIO block descriptor
  * @param[in] smid      numeric identifier of a specific state machine or:
  *                      - @p RP_PIO_SM_ID_ANY for any state machine.
  *                      .
- * @param[in] irq_priority IRQ priority for the PIO state machine
+ * @param[in] irq_priority IRQ priority requested for the state machine,
+ *                      the state machines of a block taken by a core share
+ *                      one vector which runs at the most urgent priority
+ *                      requested among them
  * @param[in] func      handling function pointer, can be @p NULL
  * @param[in] param     a parameter to be passed to the handling function
  * @return              Pointer to the allocated @p rp_pio_sm_t structure.

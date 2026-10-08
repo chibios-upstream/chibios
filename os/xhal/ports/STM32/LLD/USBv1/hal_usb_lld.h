@@ -58,13 +58,13 @@
 #define STM32_USB_LOW_POWER_ON_SUSPEND      FALSE
 #endif
 
-#if (!defined(STM32_USB_USB1_HP_IRQ_PRIORITY) &&                           \
+#if (!defined(STM32_IRQ_USB1_HP_PRIORITY) &&                               \
      (STM32_USB1_HP_NUMBER != STM32_USB1_LP_NUMBER)) || defined(__DOXYGEN__)
-#define STM32_USB_USB1_HP_IRQ_PRIORITY      13
+#define STM32_IRQ_USB1_HP_PRIORITY         13
 #endif
 
-#if !defined(STM32_USB_USB1_LP_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_USB_USB1_LP_IRQ_PRIORITY      14
+#if !defined(STM32_IRQ_USB1_LP_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_IRQ_USB1_LP_PRIORITY         14
 #endif
 
 #if !defined(STM32_USB_USE_ISOCHRONOUS) || defined(__DOXYGEN__)
@@ -101,12 +101,12 @@
 
 #if STM32_USB_USE_USB1 &&                                                   \
     (STM32_USB1_HP_NUMBER != STM32_USB1_LP_NUMBER) &&                       \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_USB_USB1_HP_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_USB1_HP_PRIORITY)
 #error "Invalid IRQ priority assigned to USB HP"
 #endif
 
 #if STM32_USB_USE_USB1 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_USB_USB1_LP_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_USB1_LP_PRIORITY)
 #error "Invalid IRQ priority assigned to USB LP"
 #endif
 

@@ -185,14 +185,14 @@ __sb_vector29:
 __sb_vector30:
         .thumb_func
 __sb_vector31:
-        bl          __unhandled_vrq
+        /* Preserving the return address into the common VRQ epilogue.*/
+        b           __unhandled_vrq
 
         .thumb_func
         .weak       __unhandled_vrq
 __unhandled_vrq:
-        /* TODO terminate SB???*/
-        svc         #127    /* SB_FASTC_VRQ_RETURN */
-.stay:  b           .stay
+        /* Ignoring unhandled VRQs, returning through the common epilogue.*/
+        bx          lr
 
 #endif /* !defined(__DOXYGEN__) */
 

@@ -282,6 +282,15 @@
 #define STM32_USB1_LP_NUMBER                20
 /** @} */
 
+/* Individual IRQ priorities are derived from the shared vector priorities,
+   drivers expect individual definitions to exist.*/
+#define STM32_IRQ_ADC1_PRIORITY             STM32_IRQ_ADC1_2_PRIORITY
+#define STM32_IRQ_ADC2_PRIORITY             STM32_IRQ_ADC1_2_PRIORITY
+#define STM32_IRQ_DAC1_PRIORITY             STM32_IRQ_TIM6_DAC_PRIORITY
+#define STM32_IRQ_DAC2_PRIORITY             STM32_IRQ_TIM7_DAC_PRIORITY
+#define STM32_IRQ_DAC3_PRIORITY             STM32_IRQ_TIM6_DAC_PRIORITY
+#define STM32_IRQ_DAC4_PRIORITY             STM32_IRQ_TIM7_DAC_PRIORITY
+
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */
 /*===========================================================================*/

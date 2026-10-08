@@ -14,3 +14,42 @@ STM32_ADC1_HANDLER              - IRQ vector name.
 STM32_ADC1_NUMBER               - IRQ vector number.
 STM32_ADC1_DMA_MSK              - Mask of the compatible DMA channels.
 STM32_ADC1_DMA_CHN              - Mask of the channels mapping.
+
+IRQ priorities:
+
+- STM32_IRQ_ADC1_PRIORITY for dedicated ADC1 vectors (C0, smaller G0 parts,
+  and WL core 1).
+- STM32_IRQ_ADC1_COMP_PRIORITY for the shared ADC1/COMP vector on G0.
+- STM32_IRQ_ADC1_COMP_DAC1_PRIORITY for the shared ADC1/COMP/DAC1 vector on
+  WL core 2.
+
+The platform stm32_isr.h exports STM32_IRQ_ADC1_PRIORITY as an alias of the
+shared vector priority where needed. The driver uses this per-peripheral
+name when allocating the ADC DMA stream and does not select the vector.
+For shared DMA vectors, all users must request the same priority to rely on
+non-preemption; the first callback-bearing allocation sets the effective
+priority. STM32_ADC_ADC1_DMA_PRIORITY still controls DMA arbitration only.
+
+IRQ ownership:
+
+- Dedicated ADC1 (C0, smaller G0 parts, WL core 1): ADC/stm32_adc1.inc.
+- G0 ADC1/COMP: ADC/stm32_adc1_comp.inc.
+- WL core 2 ADC1/COMP/DAC1: ADC/stm32_adc1_comp_dac1.inc.
+
+The platform includes these fragments and owns vector initialization and
+deinitialization. The fragments validate the IRQ priorities supplied
+by xmcuconf.h; ADCv5 provides no defaults or checks for those settings.
+ADCv5 has no driver-local IRQ handler or NVIC setup.
+
+Dedicated ADC1 platforms define STM32_ADC1_IRQ_HOOK_AFTER_SERVICE internally
+to retain ADCv5's post-service hook ordering. This is not an xmcuconf.h option.
+The common ADC1 fragment retains its existing pre-service hook ordering and
+ISR snapshot for other users, including H5.
+
+ADC is the primary owner. The WL shared handler also dispatches to the DAC1
+service routine when DAC1 is enabled, even if ADC is disabled. There is no
+XHAL comparator driver; STM32_ADC_ADC1_IRQ_HOOK remains the extension point
+for comparator handling. It runs after ADC service, as before, and can also
+be used without enabling ADC on shared peripheral vectors. Dedicated ADC1
+vectors are enabled only when ADC1 is enabled, as before. The hook must
+acknowledge its own IRQ sources.

@@ -148,6 +148,23 @@ typedef struct ch_os_instance os_instance_t;
 #define __CH_STRINGIFY(a)   #a
 
 /**
+ * @brief   Compile-time assertion.
+ * @details Uses a static assertion in C11 and later, otherwise a typedef
+ *          with a negative array size rejects a false condition.
+ * @note    The assertion name must be a unique identifier in its scope.
+ *
+ * @param[in] name      assertion identifier, also used as the diagnostic
+ * @param[in] condition integer constant expression that must be nonzero
+ */
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+#define __CH_STATIC_ASSERT(name, condition)                                 \
+  _Static_assert(condition, __CH_STRINGIFY(name))
+#else
+#define __CH_STATIC_ASSERT(name, condition)                                 \
+  typedef char name[(condition) ? 1 : -1]
+#endif
+
+/**
  * @brief   Structure field offset utility.
  *
  * @param[in] st        structured type name

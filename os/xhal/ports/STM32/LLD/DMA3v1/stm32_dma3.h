@@ -389,9 +389,12 @@
 
 /**
  * @brief   Type of a DMA3 callback.
+ * @details Only pending flags whose interrupt sources are enabled are passed.
+ *          Status without an interrupt enable (IDLEF and FIFOL) is preserved.
+ *          The callback is not invoked if no enabled source is pending.
  *
  * @param[in] p         parameter for the registered function
- * @param[in] csr       content of the CxSR register
+ * @param[in] csr       filtered content of the CxSR register
  */
 typedef void (*stm32_dma3isr_t)(void *p, uint32_t csr);
 

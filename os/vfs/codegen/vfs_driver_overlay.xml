@@ -65,6 +65,12 @@ self->overlaid_root = NULL;]]></implementation>
       </class>
       <class type="regular" name="vfs_overlay_driver" namespace="ovldrv"
         ancestorname="vfs_fs" descr="VFS overlay driver">
+        <brief>File system overlay with caller-managed backing file systems.</brief>
+        <details>The overlaid and registered file systems are borrowed.
+          Unregistering a file system or disposing the overlay does not
+          dispose them. The caller must keep them alive while accessible
+          through an overlay or while their nodes or operations remain
+          active.</details>
         <fields>
           <field name="overlaid_drv" ctype="vfs_fs_c$I*"></field>
           <field name="path_prefix" ctype="const char$I*"></field>
@@ -87,23 +93,16 @@ self->path_prefix  = path_prefix;
 self->next_driver  = 0U;]]></implementation>
           </objinit>
           <dispose>
-            <implementation><![CDATA[
-unsigned i;
-
-/* Releasing all registered drivers.*/
-i = 0U;
-while (i < self->next_driver) {
-  roRelease(self->drivers[i]);
-  i++;
-}]]></implementation>
+            <implementation><![CDATA[]]></implementation>
           </dispose>
           <regular>
             <method name="ovldrvRegisterDriver" ctype="msg_t">
               <brief>Registers a VFS file system as an overlay.</brief>
-              <note><![CDATA[The overlay becomes the owner of the registered file
-                system, the reference is released when the file system is
-                unregistered or when the whole overlay object is disposed.]]></note>
-              <param name="fsp" ctype="vfs_fs_c *" dir="in"><![CDATA[File system object reference to be registered.]]></param>
+              <note>The file system remains owned by the caller. It must
+                remain alive while registered and until all its nodes and
+                operations have finished. The name string must remain valid
+                while registered.</note>
+              <param name="fsp" ctype="vfs_fs_c *" dir="in"><![CDATA[Pointer to the caller-owned file system to be registered.]]></param>
               <param name="name" ctype="const char *" dir="in"><![CDATA[Name for the
                 new overlay directory, must be alphanumeric.]]></param>
               <return>The operation result.</return>
@@ -129,7 +128,9 @@ return ret;]]></implementation>
             </method>
             <method name="ovldrvUnregisterDriver" ctype="msg_t">
               <brief>Unregisters a VFS file system.</brief>
-              <note>The reference to the registered file system is released.</note>
+              <note>Only the mapping is removed. The file system and its
+                existing nodes are not disposed. Its lifetime remains the
+                caller's responsibility.</note>
               <param name="name" ctype="const char *" dir="in"><![CDATA[Name of the
                 overlay directory to be unregistered.]]></param>
               <return>The operation result.</return>
@@ -144,7 +145,6 @@ while (i < self->next_driver) {
 
   /* Is name matching?*/
   if (strcmp(self->names[i], name) == 0) {
-    vfs_fs_c *fsp = self->drivers[i];
 
     /* Found match, move following entries down, if any.*/
     while (i < self->next_driver - 1) {
@@ -155,9 +155,6 @@ while (i < self->next_driver) {
     self->next_driver--;
 
     chSysUnlock();
-
-    /* Releasing the unregistered object.*/
-    roRelease(fsp);
 
     return CH_RET_SUCCESS;
   }

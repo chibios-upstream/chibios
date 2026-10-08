@@ -420,6 +420,11 @@ void canWakeup(void *ip) {
     can_lld_wakeup(self);
     self->state = HAL_DRV_STATE_READY;
     self->events |= CAN_EVENT_WAKEUP;
+#if CAN_USE_SYNCHRONIZATION == TRUE
+    chThdDequeueAllI(&self->txqueue, MSG_OK);
+    chThdDequeueAllI(&self->rxqueue, MSG_OK);
+    chSchRescheduleS();
+#endif
   }
   chSysUnlock();
 }

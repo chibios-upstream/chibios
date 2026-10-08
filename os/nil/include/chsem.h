@@ -33,6 +33,14 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   Maximum semaphore counter value.
+ * @details This is the maximum number of available units that can be
+ *          represented by a semaphore.
+ */
+#define SEMAPHORE_MAX_COUNT                                                \
+  ((cnt_t)(((ucnt_t)-1) / (ucnt_t)2))
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/

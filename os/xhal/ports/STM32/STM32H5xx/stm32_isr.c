@@ -57,6 +57,8 @@
 #include "stm32_adc1_2.inc"
 #include "stm32_adc2.inc"
 
+#include "stm32_eth1.inc"
+
 #include "stm32_exti0.inc"
 #include "stm32_exti1.inc"
 #include "stm32_exti2.inc"
@@ -85,12 +87,12 @@
 #include "stm32_sdmmc1.inc"
 #include "stm32_sdmmc2.inc"
 
-//#include "stm32_spi1.inc"
-//#include "stm32_spi2.inc"
-//#include "stm32_spi3.inc"
-//#include "stm32_spi4.inc"
-//#include "stm32_spi5.inc"
-//#include "stm32_spi6.inc"
+#include "stm32_spi1.inc"
+#include "stm32_spi2.inc"
+#include "stm32_spi3.inc"
+#include "stm32_spi4.inc"
+#include "stm32_spi5.inc"
+#include "stm32_spi6.inc"
 
 #include "stm32_octospi1.inc"
 
@@ -125,7 +127,7 @@
 
 #include "stm32_rtc_h5.inc"
 
-//#include "stm32_usb1.inc"
+#include "stm32_usb1.inc"
 
 /*===========================================================================*/
 /* Driver exported functions.                                                */
@@ -143,6 +145,8 @@ void irqInit(void) {
   adc1_irq_init();
   adc1_adc2_irq_init();
   adc2_irq_init();
+
+  eth1_irq_init();
 
   exti0_irq_init();
   exti1_irq_init();
@@ -172,12 +176,12 @@ void irqInit(void) {
   sdmmc1_irq_init();
   sdmmc2_irq_init();
 
-//  spi1_irq_init();
-//  spi2_irq_init();
-//  spi3_irq_init();
-//  spi4_irq_init();
-//  spi5_irq_init();
-//  spi6_irq_init();
+  spi1_irq_init();
+  spi2_irq_init();
+  spi3_irq_init();
+  spi4_irq_init();
+  spi5_irq_init();
+  spi6_irq_init();
 
   octospi1_irq_init();
   rtc_irq_init();
@@ -211,7 +215,7 @@ void irqInit(void) {
   uart12_irq_init();
   lpuart1_irq_init();
 
-//  usb1_irq_init();
+  usb1_irq_init();
 }
 
 /**
@@ -226,6 +230,8 @@ void irqDeinit(void) {
   adc1_irq_deinit();
   adc1_adc2_irq_deinit();
   adc2_irq_deinit();
+
+  eth1_irq_deinit();
 
   exti0_irq_deinit();
   exti1_irq_deinit();
@@ -255,12 +261,12 @@ void irqDeinit(void) {
   sdmmc1_irq_deinit();
   sdmmc2_irq_deinit();
 
-//  spi1_irq_deinit();
-//  spi2_irq_deinit();
-//  spi3_irq_deinit();
-//  spi4_irq_deinit();
-//  spi5_irq_deinit();
-//  spi6_irq_deinit();
+  spi1_irq_deinit();
+  spi2_irq_deinit();
+  spi3_irq_deinit();
+  spi4_irq_deinit();
+  spi5_irq_deinit();
+  spi6_irq_deinit();
 
   octospi1_irq_deinit();
   rtc_irq_deinit();
@@ -294,7 +300,7 @@ void irqDeinit(void) {
   uart12_irq_deinit();
   lpuart1_irq_deinit();
 
-//  usb1_irq_deinit();
+  usb1_irq_deinit();
 }
 
 /** @} */

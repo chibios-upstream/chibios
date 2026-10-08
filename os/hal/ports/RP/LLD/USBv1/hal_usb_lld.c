@@ -44,6 +44,17 @@
  */
 #define BUF_CTRL(ep)      (USB_DPSRAM->BUFCTRL[ep])
 
+/**
+ * @brief   No operation instruction of the buffer control publish delay.
+ * @note    The 32-bit encoding is used on ARMv8-M Mainline (RP2350
+ *          Cortex-M33), see @p usb_buffer_control_publish().
+ */
+#if defined(__ARM_ARCH_8M_MAIN__) || defined(__DOXYGEN__)
+#define USB_PUBLISH_NOP   "nop.w\n\t"
+#else
+#define USB_PUBLISH_NOP   "nop\n\t"
+#endif
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -134,12 +145,19 @@ static inline void usb_dpram_memcpy(void *dst, const void *src, size_t n) {
  *          shifted left by 16) and both buffers armed by one word.
  * @note    The delay is a fixed sequence of twelve no operation
  *          instructions, the budget used by the vendor reference
- *          implementation. Twelve processor cycles exceed one 48 MHz USB
- *          clock period for any system clock below 576 MHz (48 MHz * 12),
- *          far above the fastest system clock supported by either device.
- *          A fixed instruction sequence is used rather than a cycle
- *          counter because ARMv6-M (RP2040) has none, and it is equally
- *          valid on ARMv8-M and on the RISC-V core of the RP2350.
+ *          implementation, lasting at least twelve processor cycles on
+ *          every core. The RP2040 Cortex-M0+ and the RP2350 Hazard3 cores
+ *          execute each NOP in one cycle. The RP2350 Cortex-M33 folds a
+ *          NOP with a preceding 16-bit instruction, twelve 16-bit NOPs
+ *          would execute in pairs in about six cycles, so the 32-bit
+ *          encoding is used there: a 32-bit NOP following the barrier or
+ *          another 32-bit NOP is not folded and takes one cycle. Twelve
+ *          processor cycles cover one 48 MHz USB clock period for any
+ *          system clock up to 576 MHz (48 MHz * 12), well above the RP2350
+ *          overclocking bound of 300 MHz and any RP2040 system clock, six
+ *          cycles would only cover it up to 288 MHz. A fixed instruction
+ *          sequence is used rather than a cycle counter because ARMv6-M
+ *          (RP2040) has none.
  *
  * @param[out] bcp      pointer to the buffer control register
  * @param[in] buf_ctrl  buffer control word to be published
@@ -157,9 +175,10 @@ static void usb_buffer_control_publish(volatile uint32_t *bcp,
     __DSB();
 
     /* Separation of the two writes, see the note above. */
-    __asm__ volatile ("nop\n\tnop\n\tnop\n\tnop\n\t"
-                      "nop\n\tnop\n\tnop\n\tnop\n\t"
-                      "nop\n\tnop\n\tnop\n\tnop"
+    __asm__ volatile (USB_PUBLISH_NOP USB_PUBLISH_NOP USB_PUBLISH_NOP
+                      USB_PUBLISH_NOP USB_PUBLISH_NOP USB_PUBLISH_NOP
+                      USB_PUBLISH_NOP USB_PUBLISH_NOP USB_PUBLISH_NOP
+                      USB_PUBLISH_NOP USB_PUBLISH_NOP USB_PUBLISH_NOP
                       : : : "memory");
   }
 
@@ -396,6 +415,16 @@ static void usb_prepare_in_ep(USBDriver *usbp, usbep_t ep) {
     buf_ctrl |= usb_prepare_in_ep_buffer(usbp, ep, 1);
   }
 
+  /* An isochronous buffer 1 lies at the offset encoded in bits 27:28, in
+     the buffer 1 half of the word, which must match the buf_size used to
+     place the copy. The controller writes that half back with everything
+     but length, PID and LAST cleared, so the offset is encoded again on
+     every arm rather than preserved.*/
+  if ((usbp->epc[ep]->ep_mode & USB_EP_MODE_TYPE) == USB_EP_MODE_TYPE_ISOC) {
+    buf_ctrl |= (uint32_t)usb_isochronous_buffer_mode(iesp->buf_size) <<
+                USB_BUFFER_DOUBLE_BUFFER_OFFSET_Pos;
+  }
+
   if (buf_ctrl & USB_BUFFER_BUFFER1_AVAILABLE) {
     /* Double buffered */
     ep_ctrl &= ~USB_EP_BUFFER_IRQ_EN;
@@ -451,10 +480,15 @@ static void usb_serve_endpoint(USBDriver *usbp, usbep_t ep, bool is_in) {
 
     /* The programmed buffer length is already the smaller of the remaining
        transfer size and the endpoint packet size, so a longer reported
-       length would be a hardware anomaly. Clamping it keeps the copy
-       inside the user buffer and the remaining size from underflowing. */
+       length would be a hardware anomaly. Clamping it to both bounds the
+       copy by the programmed length: it stays inside the endpoint DPRAM
+       buffer and the user buffer, and the remaining size cannot
+       underflow. */
     if (n > oesp->rxsize) {
       n = oesp->rxsize;
+    }
+    if (n > epcp->out_maxsize) {
+      n = epcp->out_maxsize;
     }
 
     /* Copy received data into user buffer */

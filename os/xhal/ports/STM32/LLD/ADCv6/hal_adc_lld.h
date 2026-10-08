@@ -353,30 +353,24 @@
 #error "ADC driver activated but no ADC peripheral assigned"
 #endif
 
-/* IRQ priorities mapping.*/
-#define STM32_ADCV6_ADC1_IRQ_PRIORITY       STM32_IRQ_ADC1_PRIORITY
-#define STM32_ADCV6_ADC2_IRQ_PRIORITY       STM32_IRQ_ADC2_PRIORITY
-#define STM32_ADCV6_ADC3_IRQ_PRIORITY       STM32_IRQ_ADC3_PRIORITY
-#define STM32_ADCV6_ADC4_IRQ_PRIORITY       STM32_IRQ_ADC4_PRIORITY
-
 /* ADC IRQ priority tests.*/
 #if STM32_ADC_USE_ADC1 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC1_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC1_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC1"
 #endif
 
 #if STM32_ADC_USE_ADC2 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC2_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC2_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC2"
 #endif
 
 #if STM32_ADC_USE_ADC3 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC3_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC3_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC3"
 #endif
 
 #if STM32_ADC_USE_ADC4 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_ADCV6_ADC4_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_ADC4_PRIORITY)
 #error "Invalid IRQ priority assigned to ADC4"
 #endif
 

@@ -115,7 +115,11 @@ void chInstanceObjectInit(os_instance_t *oip,
   /* Registering into the global system structure.*/
   chDbgAssert(ch_system.instances[core_id] == NULL,
               "instance already registered");
-  ch_system.instances[core_id] = oip;
+#if CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED
+  /* Volatile stores keep trace readiness reset before instance publication.*/
+  *(trace_event_t * volatile *)&oip->trace_buffer.ptr = NULL;
+#endif
+  *(os_instance_t * volatile *)&ch_system.instances[core_id] = oip;
 
 #if CH_CFG_USE_TM == TRUE
   /* Time Measurement calibration for this instance.*/

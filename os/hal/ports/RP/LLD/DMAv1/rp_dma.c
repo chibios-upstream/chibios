@@ -82,6 +82,16 @@ static struct {
    */
   uint32_t          c1_allocated_mask;
   /**
+   * @brief   Priority of the core 0 DMA vector.
+   * @note    Meaningful only while @p c0_allocated_mask is not zero.
+   */
+  uint32_t          c0_priority;
+  /**
+   * @brief   Priority of the core 1 DMA vector.
+   * @note    Meaningful only while @p c1_allocated_mask is not zero.
+   */
+  uint32_t          c1_priority;
+  /**
    * @brief   DMA IRQ redirectors.
    */
   struct {
@@ -102,6 +112,8 @@ static struct {
 
 static void serve_interrupt(const rp_dma_channel_t *dmachp) {
   uint32_t ct;
+  rp_dmaisr_t func;
+  void *param;
 
   /* Get channel control, disable then clear any bus error flags.*/
   ct = dmachp->channel->CTRL_TRIG;
@@ -111,9 +123,20 @@ static void serve_interrupt(const rp_dma_channel_t *dmachp) {
   dmachp->channel->CTRL_TRIG = DMA_CTRL_TRIG_READ_ERROR |
                                DMA_CTRL_TRIG_WRITE_ERROR;
 
+  /* The handler can be removed or replaced concurrently by the other
+     core, the function and its parameter are sampled together, once,
+     under the system lock so that they come from the same allocation.
+     The handler is then invoked outside the lock, so a channel freed by
+     the other core after the sampling still gets its previous handler
+     invoked, see the cross-core notes in dmaChannelFreeI().*/
+  osalSysLockFromISR();
+  func  = dma.channels[dmachp->chnidx].func;
+  param = dma.channels[dmachp->chnidx].param;
+  osalSysUnlockFromISR();
+
   /* Calling the associated function, if defined.*/
-  if (dma.channels[dmachp->chnidx].func != NULL) {
-    dma.channels[dmachp->chnidx].func(dma.channels[dmachp->chnidx].param, ct);
+  if (func != NULL) {
+    func(param, ct);
   }
 }
 
@@ -198,11 +221,38 @@ void dmaInit(void) {
 
 /**
  * @brief   Allocates a DMA channel.
+ * @details The function enables the calling core DMA IRQ vector and raises
+ *          its priority if @p priority is more urgent than the current one.
+ * @note    The channels taken by a core share one IRQ vector, it serves
+ *          the channel interrupts enabled from that core. The interrupts
+ *          of a channel are expected to be enabled from the core that
+ *          allocated it, @p dmaChannelEnableInterruptX() routes them to
+ *          the calling core while the vector priority is tracked for the
+ *          allocating core. Allocations without a handling function also
+ *          take part in the vector priority.
+ * @note    The DMA vectors are OS-aware IRQ handlers, so @p priority must
+ *          always be a kernel-compatible priority, with or without a
+ *          handling function, see @p OSAL_IRQ_IS_VALID_PRIORITY().
+ *          Because the vector is shared, a single allocation at a fast
+ *          priority would run the handling functions of every channel
+ *          taken by the calling core as a fast interrupt.
+ * @note    The vector priority is not relaxed when channels are freed, it
+ *          is re-initialized by the first allocation after the last channel
+ *          of the core has been released.
+ * @note    On the RP2350 Hazard3 cores, raising the priority of a live
+ *          vector from ISR context can make the DMA handler preempt
+ *          itself while its interrupt is pending, see the RP2350
+ *          datasheet section 3.8.6.1.4. Allocations that can raise the
+ *          vector priority are expected from thread context, debug
+ *          builds assert on such a raise from ISR context while the
+ *          calling core has channels allocated.
  *
  * @param[in] id        numeric identifiers of a specific channel or:
  *                      - @p RP_DMA_CHANNEL_ID_ANY for any channel.
  *                      .
- * @param[in] priority  IRQ priority for the DMA stream
+ * @param[in] priority  IRQ priority requested for the channel, the channels
+ *                      taken by a core share one vector which runs at the
+ *                      most urgent priority requested among them
  * @param[in] func      handling function pointer, can be @p NULL
  * @param[in] param     a parameter to be passed to the handling function
  * @return              Pointer to the allocated @p rp_dma_channel_t
@@ -247,16 +297,35 @@ const rp_dma_channel_t *dmaChannelAllocI(uint32_t id,
         rp_peripheral_unreset(RESETS_ALLREG_DMA);
       }
 
+      /* The channels taken by a core share the vector of that core, it
+         runs at the most urgent priority requested while it is enabled.
+         Re-enabling a live vector is safe because the DMA IRQ lines are
+         level sensitive, a cleared pending state is latched again. On
+         Hazard3, however, a raise from ISR context can make a pending
+         handler preempt itself, debug builds assert against it, see the
+         function notes.*/
       if (SIO->CPUID == 0U) {
         /* Channel taken by core 0.*/
-        if (dma.c0_allocated_mask == 0U) {
+        if ((dma.c0_allocated_mask == 0U) || (priority < dma.c0_priority)) {
+#if defined(__riscv)
+          osalDbgAssert((dma.c0_allocated_mask == 0U) ||
+                        !port_is_isr_context(),
+                        "vector priority raised from ISR");
+#endif
+          dma.c0_priority = priority;
           nvicEnableVector(RP_DMA_IRQ_0_NUMBER, priority);
         }
         dma.c0_allocated_mask |= dmachp->chnmask;
       }
       else {
         /* Channel taken by core 1.*/
-        if (dma.c1_allocated_mask == 0U) {
+        if ((dma.c1_allocated_mask == 0U) || (priority < dma.c1_priority)) {
+#if defined(__riscv)
+          osalDbgAssert((dma.c1_allocated_mask == 0U) ||
+                        !port_is_isr_context(),
+                        "vector priority raised from ISR");
+#endif
+          dma.c1_priority = priority;
           nvicEnableVector(RP_DMA_IRQ_1_NUMBER, priority);
         }
         dma.c1_allocated_mask |= dmachp->chnmask;
@@ -271,14 +340,34 @@ const rp_dma_channel_t *dmaChannelAllocI(uint32_t id,
 
 /**
  * @brief   Allocates a DMA channel.
- * @details The channel is allocated and, if required, the DMA clock enabled.
- *          The function also enables the IRQ vector associated to the channel
- *          and initializes its priority.
+ * @details The channel is allocated and, if required, the DMA block
+ *          released from reset.
+ *          The function also enables the calling core DMA IRQ vector and
+ *          raises its priority if @p priority is more urgent than the
+ *          current one.
+ * @note    The channels taken by a core share one IRQ vector, it serves
+ *          the channel interrupts enabled from that core. The interrupts
+ *          of a channel are expected to be enabled from the core that
+ *          allocated it, @p dmaChannelEnableInterruptX() routes them to
+ *          the calling core while the vector priority is tracked for the
+ *          allocating core. Allocations without a handling function also
+ *          take part in the vector priority.
+ * @note    The DMA vectors are OS-aware IRQ handlers, so @p priority must
+ *          always be a kernel-compatible priority, with or without a
+ *          handling function, see @p OSAL_IRQ_IS_VALID_PRIORITY().
+ *          Because the vector is shared, a single allocation at a fast
+ *          priority would run the handling functions of every channel
+ *          taken by the calling core as a fast interrupt.
+ * @note    The vector priority is not relaxed when channels are freed, it
+ *          is re-initialized by the first allocation after the last channel
+ *          of the core has been released.
  *
  * @param[in] id        numeric identifiers of a specific channel or:
  *                      - @p RP_DMA_CHANNEL_ID_ANY for any channel.
  *                      .
- * @param[in] priority  IRQ priority for the DMA stream
+ * @param[in] priority  IRQ priority requested for the channel, the channels
+ *                      taken by a core share one vector which runs at the
+ *                      most urgent priority requested among them
  * @param[in] func      handling function pointer, can be @p NULL
  * @param[in] param     a parameter to be passed to the handling function
  * @return              Pointer to the allocated @p rp_dma_channel_t

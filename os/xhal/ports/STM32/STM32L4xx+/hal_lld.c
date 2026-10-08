@@ -765,6 +765,10 @@ void hal_lld_init(void) {
 #if defined(HAL_LLD_USE_CLOCK_MANAGEMENT) || defined(__DOXYGEN__)
 void stm32_clock_init(void) {
 
+  /* DWT cycles counter enabled, used for timeouts.*/
+  halRegSet32X(&CoreDebug->DEMCR, CoreDebug_DEMCR_TRCENA_Msk, true);
+  halRegSet32X(&DWT->CTRL, DWT_CTRL_CYCCNTENA_Msk, true);
+
 #if !STM32_NO_INIT
   /* Reset of all peripherals.
      Note, GPIOs are not reset because initialized before this point in
@@ -824,6 +828,10 @@ void stm32_clock_init(void) {
  * @special
  */
 void stm32_clock_init(void) {
+
+  /* DWT cycles counter enabled, used for timeouts.*/
+  halRegSet32X(&CoreDebug->DEMCR, CoreDebug_DEMCR_TRCENA_Msk, true);
+  halRegSet32X(&DWT->CTRL, DWT_CTRL_CYCCNTENA_Msk, true);
 
 #if !STM32_NO_INIT
   /* Reset of all peripherals.

@@ -51,6 +51,8 @@
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
+#include "stm32_adc1_comp.inc"
+
 #include "stm32_dma1_ch23.inc"
 #include "stm32_dma1_ch4567_dma2_ch12345.inc"
 
@@ -60,6 +62,8 @@
 
 #include "stm32_i2c1.inc"
 #include "stm32_i2c2_3_4.inc"
+
+#include "stm32_rtc_tamp.inc"
 
 #include "stm32_tim1.inc"
 #include "stm32_tim2.inc"
@@ -89,12 +93,16 @@
  */
 void irqInit(void) {
 
+  adc1_comp_irq_init();
+
   exti0_1_irq_init();
   exti2_3_irq_init();
   exti4_15_irq_init();
 
   i2c1_irq_init();
   i2c2_i2c3_i2c4_irq_init();
+
+  rtc_irq_init();
 
   tim1_irq_init();
   tim2_irq_init();
@@ -121,12 +129,16 @@ void irqInit(void) {
  */
 void irqDeinit(void) {
 
+  adc1_comp_irq_deinit();
+
   exti0_1_irq_deinit();
   exti2_3_irq_deinit();
   exti4_15_irq_deinit();
 
   i2c1_irq_deinit();
   i2c2_i2c3_i2c4_irq_deinit();
+
+  rtc_irq_deinit();
 
   tim1_irq_deinit();
   tim2_irq_deinit();

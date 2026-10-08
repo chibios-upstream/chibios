@@ -90,6 +90,7 @@ CC_WEAK const memory_area_t __ch_mem_executable_areas[] = {
  * @brief   String check.
  * @details Checks if specified string is entirely contained in the specified
  *          memory area.
+ * @note    A whole-address-space area does not remove the @p max limit.
  *
  * @param[in] map       pointer to a @p memory_area_t structure
  * @param[in] s         pointer to the string to be checked
@@ -103,18 +104,30 @@ CC_WEAK const memory_area_t __ch_mem_executable_areas[] = {
 size_t chMemIsStringWithinX(const memory_area_t *map,
                             const char *s,
                             size_t max) {
-  const char *base = (const char *)map->base;
+  uintptr_t base = (uintptr_t)map->base;
+  uintptr_t end = base + (uintptr_t)map->size - (uintptr_t)1;
+  uintptr_t p = (uintptr_t)s;
 
-  if ((map->size > (size_t)0) && (s >= base)) {
-    const char *end = (const char *)base + map->size - (size_t)1;
+  if ((p >= base) && (p <= end)) {
+    size_t last;
     size_t n;
 
+    /* Last permitted byte offset, avoiding address wrap during the scan.*/
+    end -= p;
+    /* The size_t type can be narrower than a pointer on some architectures.*/
+#if UINTPTR_MAX > SIZE_MAX
+    /* Clamping before narrowing the offset to size_t.*/
+    if (end > (uintptr_t)SIZE_MAX) {
+      end = (uintptr_t)SIZE_MAX;
+    }
+#endif
+    last = (size_t)end;
     n = (size_t)0;
-    while ((s <= end) && (n < max)) {
-      n++;
-      if (*s++ == '\0') {
-        return n;
+    while ((n <= last) && (n < max)) {
+      if (s[n] == '\0') {
+        return n + (size_t)1;
       }
+      n++;
     }
   }
 
@@ -125,11 +138,12 @@ size_t chMemIsStringWithinX(const memory_area_t *map,
  * @brief   Pointers array check.
  * @details Checks if specified pointers array is entirely contained in the
  *          specified memory area.
+ * @note    A whole-address-space area does not remove the @p max limit.
  *
  * @param[in] map       pointer to a @p memory_area_t structure
  * @param[in] pp        zero-terminated pointers array to be checked
- * @param[in] max       maximum expected size of the pointers array inclusive
- *                      of the final zero
+ * @param[in] max       maximum expected size in bytes of the pointers array,
+ *                      inclusive of the final @p NULL pointer
  * @return              The pointers array size in bytes inclusive of the
  *                      final @p NULL pointer.
  * @retval 0            if the pointers array check failed.
@@ -139,18 +153,31 @@ size_t chMemIsStringWithinX(const memory_area_t *map,
 size_t chMemIsPointersArrayWithinX(const memory_area_t *map,
                                    const void *pp[],
                                    size_t max) {
-  const void **base = (const void **)(void *)map->base;
+  uintptr_t base = (uintptr_t)map->base;
+  uintptr_t end = base + (uintptr_t)map->size - (uintptr_t)1;
+  uintptr_t p = (uintptr_t)pp;
 
-  if ((map->size >= sizeof (void *)) && (pp >= base)) {
-    const void **end = (const void **)(void *)(map->base + map->size - sizeof (void *));
+  if ((p >= base) && (p <= end) &&
+      ((end - p) >= (uintptr_t)sizeof (void *) - (uintptr_t)1)) {
+    size_t last;
     size_t n;
 
+    /* Last complete slot offset, avoiding address wrap during the scan.*/
+    end -= p + (uintptr_t)sizeof (void *) - (uintptr_t)1;
+    /* The size_t type can be narrower than a pointer on some architectures.*/
+#if UINTPTR_MAX > SIZE_MAX
+    /* Clamping before narrowing the offset to size_t.*/
+    if (end > (uintptr_t)SIZE_MAX) {
+      end = (uintptr_t)SIZE_MAX;
+    }
+#endif
+    last = (size_t)end;
     n = (size_t)0;
-    while ((pp <= end) && (n < max)) {
-      n += sizeof (void *);
-      if (*pp++ == NULL) {
-        return n;
+    while ((n <= last) && ((max - n) >= sizeof (void *))) {
+      if (pp[n / sizeof (void *)] == NULL) {
+        return n + sizeof (void *);
       }
+      n += sizeof (void *);
     }
   }
 
@@ -166,7 +193,8 @@ size_t chMemIsPointersArrayWithinX(const memory_area_t *map,
  *                      marker (base=-1)
  * @param[in] p         pointer to the memory space to be checked
  * @param[in] size      size of the memory space to be checked, zero is
- *                      considered the whole address space
+ *                      only valid when also @p p is zero and means a whole
+ *                      address-space match
  * @return              The test result.
  * @retval true         if the memory space is entirely contained within one
  *                      of the specified areas.
@@ -177,9 +205,9 @@ size_t chMemIsPointersArrayWithinX(const memory_area_t *map,
 bool chMemIsSpaceContainedX(const memory_area_t areas[],
                             const void *p,
                             size_t size) {
-  const memory_area_t *map = &areas[0];
+  const memory_area_t *map = areas;
 
-  chDbgCheck(p != NULL);
+  chDbgCheck(areas != NULL);
 
   /* Scanning the array of the valid areas for a mismatch.*/
   while (map->base != (uint8_t *)-1) {
@@ -203,9 +231,10 @@ bool chMemIsSpaceContainedX(const memory_area_t areas[],
  *
  * @param[in] p         pointer to the memory space to be checked
  * @param[in] size      size of the memory space to be checked, zero is
- *                      considered the whole address space
+ *                      only valid when also @p p is zero and means a whole
+ *                      address-space match
  * @param[in] align     required pointer alignment to be checked, must be
- *                      a power of two
+ *                      a nonzero power of two
  * @return              The test result.
  * @retval true         if the memory space is entirely contained within one
  *                      memory space system-defined writable areas.
@@ -217,7 +246,7 @@ bool chMemIsSpaceWritableX(void *p,
                            size_t size,
                            unsigned align) {
 
-  chDbgCheck((align & (align - 1U)) == 0U);
+  chDbgCheck((align != 0U) && ((align & (align - 1U)) == 0U));
 
   if (!MEM_IS_ALIGNED(p, align)) {
     return false;
@@ -235,9 +264,10 @@ bool chMemIsSpaceWritableX(void *p,
  *
  * @param[in] p         pointer to the memory space to be checked
  * @param[in] size      size of the memory space to be checked, zero is
- *                      considered the whole address space
+ *                      only valid when also @p p is zero and means a whole
+ *                      address-space match
  * @param[in] align     required pointer alignment to be checked, must be
- *                      a power of two
+ *                      a nonzero power of two
  * @return              The test result.
  * @retval true         if the memory space is entirely contained within one
  *                      of the system-defined readable areas.
@@ -249,7 +279,7 @@ bool chMemIsSpaceReadableX(const void *p,
                            size_t size,
                            unsigned align) {
 
-  chDbgCheck((align & (align - 1U)) == 0U);
+  chDbgCheck((align != 0U) && ((align & (align - 1U)) == 0U));
 
   if (!MEM_IS_ALIGNED(p, align)) {
     return false;

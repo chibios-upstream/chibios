@@ -145,6 +145,12 @@ struct vfs_overlay_dir_node {
  * @class       vfs_overlay_driver_c
  * @extends     vfs_fs_c
  *
+ * @brief       File system overlay with caller-managed backing file systems.
+ * @details     The overlaid and registered file systems are borrowed.
+ *              Unregistering a file system or disposing the overlay does not
+ *              dispose them. The caller must keep them alive while accessible
+ *              through an overlay or while their nodes or operations remain
+ *              active.
  *
  * @name        Class @p vfs_overlay_driver_c structures
  * @{

@@ -27,6 +27,13 @@
 #ifndef CHCORE_H
 #define CHCORE_H
 
+/**
+ * @brief   Registry debugger architecture and port ID.
+ * @note    Identifiers are assigned in @ref registry_debug_abi.
+ */
+#define PORT_REGISTRY_ARCH              2U
+#define PORT_REGISTRY_ID                2U
+
 /* Inclusion of the Cortex-Mx implementation specific parameters.*/
 #include "cmparams.h"
 
@@ -331,6 +338,85 @@ struct port_context {
 /*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/
+
+#if !defined(_FROM_ASM_) && defined(__CHIBIOS_RT__)
+#if CH_CFG_USE_REGISTRY == TRUE
+
+/**
+ * @brief   Port fields appended to the RT8 registry descriptor.
+ * @details Offsets and sizes count bytes. Absent offsets use
+ *          CH_REGISTRY_OFFSET_NONE. The binary layout and context validity
+ *          rules are specified in @ref registry_debug_abi.
+ */
+#define PORT_REGISTRY_HEADER                                                \
+  struct {                                                                  \
+    uint16_t flags;              /**< @brief FPU/MPU context enabled flags. */\
+    uint16_t ctx_sp;             /**< @brief Saved stack pointer.           */\
+    uint16_t ctx_regs;           /**< @brief Inline registers, else on stack.*/\
+    uint16_t int_r4;             /**< @brief R4..R7 group.                  */\
+    uint16_t int_r8;             /**< @brief R8..R11 group.                 */\
+    uint16_t int_lr;             /**< @brief Software resume address.       */\
+    uint16_t int_exc_return;     /**< @brief Exception return value.        */\
+    uint16_t int_control;        /**< @brief CONTROL.                       */\
+    uint16_t int_basepri;        /**< @brief BASEPRI.                       */\
+    uint16_t int_psplim;         /**< @brief PSPLIM.                        */\
+    uint16_t int_s16;            /**< @brief S16..S31 group.                */\
+    uint16_t int_fpscr;          /**< @brief Software-saved FPSCR.          */\
+    uint16_t extctxsize;         /**< @brief Maximum exception frame size. */\
+    uint16_t ext_r0;             /**< @brief R0..R3 group.                  */\
+    uint16_t ext_r12;            /**< @brief R12.                           */\
+    uint16_t ext_lr;             /**< @brief Thread LR.                     */\
+    uint16_t ext_pc;             /**< @brief Thread PC.                     */\
+    uint16_t ext_xpsr;           /**< @brief Thread xPSR.                   */\
+    uint16_t ext_s0;             /**< @brief S0..S15 group.                 */\
+    uint16_t ext_fpscr;          /**< @brief Hardware-saved FPSCR.          */\
+    uint16_t fpumode;            /**< @brief 0 disabled, 1 always, 2 active. */\
+    uint16_t ctx_regions;        /**< @brief MPU table pointer in context.  */\
+    uint16_t regionsnum;         /**< @brief Switched region count, 0 if none.*/\
+    uint16_t regionsize;         /**< @brief Entry size, 0 if no regions.    */\
+    uint16_t region_rbar;        /**< @brief RBAR offset within an entry.   */\
+    uint16_t region_attr;        /**< @brief RASR/RLAR offset within entry.  */\
+  } port;
+
+/** @brief Constant initializer for the port registry fields. */
+#define PORT_REGISTRY_INITIALIZER                                           \
+  {                                                                         \
+    .flags          = (uint16_t)0U,                                         \
+    .ctx_sp         = (uint16_t)offsetof(struct port_context, sp),          \
+    .ctx_regs       = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .int_r4         = (uint16_t)offsetof(struct port_intctx, r4),           \
+    .int_r8         = (uint16_t)offsetof(struct port_intctx, r8),           \
+    .int_lr         = (uint16_t)offsetof(struct port_intctx, lr),           \
+    .int_exc_return = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .int_control    = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .int_basepri    = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .int_psplim     = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .int_s16        = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .int_fpscr      = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .extctxsize     = (uint16_t)sizeof (struct port_extctx),                \
+    .ext_r0         = (uint16_t)offsetof(struct port_extctx, r0),           \
+    .ext_r12        = (uint16_t)offsetof(struct port_extctx, r12),          \
+    .ext_lr         = (uint16_t)offsetof(struct port_extctx, lr_thd),       \
+    .ext_pc         = (uint16_t)offsetof(struct port_extctx, pc),           \
+    .ext_xpsr       = (uint16_t)offsetof(struct port_extctx, xpsr),         \
+    .ext_s0         = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .ext_fpscr      = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .fpumode        = (uint16_t)0U,                                         \
+    .ctx_regions    = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .regionsnum     = (uint16_t)0U,                                         \
+    .regionsize     = (uint16_t)0U,                                         \
+    .region_rbar    = (uint16_t)CH_REGISTRY_OFFSET_NONE,                    \
+    .region_attr    = (uint16_t)CH_REGISTRY_OFFSET_NONE                     \
+  }
+
+/* Every exported context offset must fit below the absent sentinel.*/
+__CH_STATIC_ASSERT(port_registry_context_sizes,
+  ((sizeof (struct port_extctx) <= (size_t)UINT16_MAX) &&
+   (sizeof (struct port_intctx) <= (size_t)UINT16_MAX) &&
+   (sizeof (struct port_context) <= (size_t)UINT16_MAX)));
+
+#endif /* CH_CFG_USE_REGISTRY == TRUE */
+#endif /* !defined(_FROM_ASM_) && defined(__CHIBIOS_RT__) */
 
 /**
  * @brief   Priority level verification macro.

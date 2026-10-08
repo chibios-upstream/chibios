@@ -115,6 +115,12 @@ union heap_header {
 struct memory_heap {
   /**
    * @brief   Memory blocks provider for this heap.
+   * @note    Called in thread context with the heap lock released. Calls
+   *          can occur concurrently, so the provider must be thread-safe.
+   * @note    The returned pointer must satisfy the requested alignment, with
+   *          at least @p offset bytes reserved before it and @p size bytes
+   *          after it. Return @p NULL if the request cannot be satisfied.
+   *          @p chCoreAllocAlignedWithOffset() is a suitable provider.
    */
   memgetfunc2_t         provider;
   /**

@@ -66,11 +66,17 @@
 
 /**
  * @brief   Memory get function.
+ * @note    The caller defines the execution context; this type does not
+ *          imply an API class. For memory pools, see
+ *          @p chPoolObjectInitAligned().
  */
 typedef void *(*memgetfunc_t)(size_t size, unsigned align);
 
 /**
  * @brief   Enhanced memory get function.
+ * @note    The caller defines the execution context; this type does not
+ *          imply an API class. For memory heaps, see the provider field of
+ *          @p memory_heap_t.
  */
 typedef void *(*memgetfunc2_t)(size_t size, unsigned align, size_t offset);
 

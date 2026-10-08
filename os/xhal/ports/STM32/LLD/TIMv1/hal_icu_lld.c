@@ -488,17 +488,19 @@ msg_t icu_lld_start(hal_icu_driver_c *icup) {
   }
 #endif
 
+  psc = (icup->clock / cfg->frequency) - 1U;
+  if ((psc > 0xFFFFU) ||
+      (((psc + 1U) * cfg->frequency) != icup->clock)) {
+    icu_lld_stop(icup);
+    return HAL_RET_CONFIG_ERROR;
+  }
+
   icup->tim->CR1    = 0U;
   icup->tim->CCR[0] = 0U;
   icup->tim->CCR[1] = 0U;
   icup->tim->CNT    = 0U;
   icup->tim->SR     = 0U;
   icup->tim->DIER   = cfg->dier & ~STM32_TIM_DIER_IRQ_MASK;
-
-  psc = (icup->clock / cfg->frequency) - 1U;
-  chDbgAssert((psc <= 0xFFFFU) &&
-                (((psc + 1U) * cfg->frequency) == icup->clock),
-                "invalid frequency");
 
   icup->tim->PSC = psc;
   if (cfg->arr == 0U) {

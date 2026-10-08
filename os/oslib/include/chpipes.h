@@ -134,6 +134,7 @@ extern "C" {
 #endif
   void chPipeObjectInit(pipe_t *pp, uint8_t *buf, size_t n);
   void chPipeReset(pipe_t *pp);
+  void chPipeResume(pipe_t *pp);
   size_t chPipeWriteTimeout(pipe_t *pp, const uint8_t *bp,
                             size_t n, sysinterval_t timeout);
   size_t chPipeReadTimeout(pipe_t *pp, uint8_t *bp,
@@ -186,18 +187,6 @@ static inline size_t chPipeGetUsedCount(const pipe_t *pp) {
 static inline size_t chPipeGetFreeCount(const pipe_t *pp) {
 
   return chPipeGetSize(pp) - chPipeGetUsedCount(pp);
-}
-
-/**
- * @brief   Terminates the reset state.
- *
- * @param[in] pp        the pointer to an initialized @p pipe_t object
- *
- * @api
- */
-static inline void chPipeResume(pipe_t *pp) {
-
-  pp->reset = false;
 }
 
 #endif /* CH_CFG_USE_PIPES == TRUE */

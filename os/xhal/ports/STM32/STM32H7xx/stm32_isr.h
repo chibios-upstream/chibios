@@ -133,6 +133,17 @@
 #define STM32_DMA2_CH7_NUMBER               70
 
 /*
+ * RTC unit.
+ */
+#define STM32_RTC_TAMP_STAMP_HANDLER        Vector48
+#define STM32_RTC_WKUP_HANDLER              Vector4C
+#define STM32_RTC_ALARM_HANDLER             VectorE4
+
+#define STM32_RTC_TAMP_STAMP_NUMBER         2
+#define STM32_RTC_WKUP_NUMBER               3
+#define STM32_RTC_ALARM_NUMBER              41
+
+/*
  * MDMA units.
  */
 #define STM32_MDMA_HANDLER                  Vector228
@@ -157,9 +168,6 @@
 #define STM32_EXTI5_9_HANDLER               Vector9C
 #define STM32_EXTI10_15_HANDLER             VectorE0
 #define STM32_EXTI16_HANDLER                Vector44    /* PVD              */
-#define STM32_EXTI17_HANDLER                VectorE4    /* RTC ALARM        */
-#define STM32_EXTI18_HANDLER                Vector48    /* RTC TAMP CSS     */
-#define STM32_EXTI19_HANDLER                Vector4C    /* RTC WAKEUP       */
 #define STM32_EXTI2021_HANDLER              Vector264   /* COMP1 COMP2      */
 
 #define STM32_EXTI0_NUMBER                  6
@@ -170,9 +178,6 @@
 #define STM32_EXTI5_9_NUMBER                23
 #define STM32_EXTI10_15_NUMBER              40
 #define STM32_EXTI16_NUMBER                 1
-#define STM32_EXTI17_NUMBER                 41
-#define STM32_EXTI18_NUMBER                 42
-#define STM32_EXTI19_NUMBER                 3
 #define STM32_EXTI2021_NUMBER               137
 
 /*
@@ -238,26 +243,6 @@
 #define STM32_I2C4_ER_NUMBER                STM32_I2C4_ERROR_NUMBER
 #define STM32_I2C5_EV_NUMBER                STM32_I2C5_EVENT_NUMBER
 #define STM32_I2C5_ER_NUMBER                STM32_I2C5_ERROR_NUMBER
-
-#if !defined(STM32_IRQ_I2C1_PRIORITY) && defined(STM32_I2C_I2C1_IRQ_PRIORITY)
-#define STM32_IRQ_I2C1_PRIORITY             STM32_I2C_I2C1_IRQ_PRIORITY
-#endif
-
-#if !defined(STM32_IRQ_I2C2_PRIORITY) && defined(STM32_I2C_I2C2_IRQ_PRIORITY)
-#define STM32_IRQ_I2C2_PRIORITY             STM32_I2C_I2C2_IRQ_PRIORITY
-#endif
-
-#if !defined(STM32_IRQ_I2C3_PRIORITY) && defined(STM32_I2C_I2C3_IRQ_PRIORITY)
-#define STM32_IRQ_I2C3_PRIORITY             STM32_I2C_I2C3_IRQ_PRIORITY
-#endif
-
-#if !defined(STM32_IRQ_I2C4_PRIORITY) && defined(STM32_I2C_I2C4_IRQ_PRIORITY)
-#define STM32_IRQ_I2C4_PRIORITY             STM32_I2C_I2C4_IRQ_PRIORITY
-#endif
-
-#if !defined(STM32_IRQ_I2C5_PRIORITY) && defined(STM32_I2C_I2C5_IRQ_PRIORITY)
-#define STM32_IRQ_I2C5_PRIORITY             STM32_I2C_I2C5_IRQ_PRIORITY
-#endif
 
 /*
  * QUADSPI units.
@@ -415,6 +400,9 @@
 #define STM32_DCMI_NUMBER                   78
 /** @} */
 
+/* Individual IRQ priorities derived from the shared vector priority.*/
+#define STM32_IRQ_DAC1_PRIORITY             STM32_IRQ_TIM6_DAC_PRIORITY
+
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -422,6 +410,17 @@
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
+
+/* H7 QUADSPI uses MDMA and relies on non-preempting peripheral/DMA handlers.
+   This header precedes the LLDs, so use configuration settings rather than
+   STM32_MDMA_REQUIRED here.*/
+#if HAL_USE_WSPI && STM32_HAS_QUADSPI1
+#if defined(STM32_WSPI_USE_QUADSPI1) && STM32_WSPI_USE_QUADSPI1
+#if STM32_IRQ_QUADSPI1_PRIORITY != STM32_IRQ_MDMA_PRIORITY
+#error "QUADSPI1 and MDMA IRQ priorities must match"
+#endif
+#endif
+#endif
 
 /*===========================================================================*/
 /* Driver data structures and types.                                         */

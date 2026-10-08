@@ -23,7 +23,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#define NEWLINE_STR         "\r\n"
+#define NEWLINE_STR         "\n"
 
 typedef struct {
   bool                    aflg;

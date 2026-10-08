@@ -34,9 +34,15 @@
 #define TEST_RESULT_PASSED                  0x13579BDFU
 #define TEST_RESULT_FAILED                  0x2468ACE0U
 
-static adcsample_t samples1[ADC_GRP1_NUM_CHANNELS * ADC_GRP1_BUF_DEPTH];
-static adcsample_t samples2[ADC_GRP2_NUM_CHANNELS * ADC_GRP2_BUF_DEPTH];
-static adcsample_t samples3[ADC_GRP3_NUM_CHANNELS * ADC_GRP3_BUF_DEPTH];
+#if !defined(PORTAB_ADC_BUFFER_ATTRIBUTE)
+#define PORTAB_ADC_BUFFER_ATTRIBUTE
+#endif
+static PORTAB_ADC_BUFFER_ATTRIBUTE
+adcsample_t samples1[ADC_GRP1_NUM_CHANNELS * ADC_GRP1_BUF_DEPTH];
+static PORTAB_ADC_BUFFER_ATTRIBUTE
+adcsample_t samples2[ADC_GRP2_NUM_CHANNELS * ADC_GRP2_BUF_DEPTH];
+static PORTAB_ADC_BUFFER_ATTRIBUTE
+adcsample_t samples3[ADC_GRP3_NUM_CHANNELS * ADC_GRP3_BUF_DEPTH];
 
 volatile uint32_t adc_gpt_test_stage = TEST_STAGE_INIT;
 volatile uint32_t adc_gpt_test_failure = 0U;
@@ -132,7 +138,7 @@ static void adc_linear_test(void) {
 
   adc_gpt_test_stage = TEST_STAGE_LINEAR;
   reset_adc_counters();
-  msg = adcConvert(&ADCD1, ADC_GRP1, samples1, ADC_GRP1_BUF_DEPTH);
+  msg = adcConvert(&PORTAB_ADC1, ADC_GRP1, samples1, ADC_GRP1_BUF_DEPTH);
   test_assert(msg == HAL_RET_SUCCESS, TEST_STAGE_LINEAR | 0x01U);
   test_assert(adc_cb_count > 0U, TEST_STAGE_LINEAR | 0x02U);
   test_assert(adc_complete_count == 1U, TEST_STAGE_LINEAR | 0x03U);
@@ -150,13 +156,13 @@ static void adc_stream_test(void) {
 
   adc_gpt_test_stage = TEST_STAGE_STREAM;
   reset_adc_counters();
-  msg = adcStartConversionCircular(&ADCD1, ADC_GRP2, samples2,
+  msg = adcStartConversionCircular(&PORTAB_ADC1, ADC_GRP2, samples2,
                                    ADC_GRP2_BUF_DEPTH);
   test_assert(msg == HAL_RET_SUCCESS, TEST_STAGE_STREAM | 0x01U);
 
   elapsed = wait_for_stream_events();
 
-  adcStopConversion(&ADCD1);
+  adcStopConversion(&PORTAB_ADC1);
 
   test_assert(elapsed < ADC_STREAM_TIMEOUT_MS, TEST_STAGE_STREAM | 0x02U);
   test_assert(adc_cb_count >= 2U, TEST_STAGE_STREAM | 0x03U);
@@ -177,14 +183,14 @@ static void adc_hw_trigger_test(void) {
 
   adc_gpt_test_stage = TEST_STAGE_HW_TRIGGER;
   reset_adc_counters();
-  msg = adcStartConversionCircular(&ADCD1, ADC_GRP3, samples3,
+  msg = adcStartConversionCircular(&PORTAB_ADC1, ADC_GRP3, samples3,
                                    ADC_GRP3_BUF_DEPTH);
   test_assert(msg == HAL_RET_SUCCESS, TEST_STAGE_HW_TRIGGER | 0x01U);
 
   gptStartContinuous(&PORTAB_GPT1, PORTAB_GPT1_PERIOD);
   elapsed = wait_for_stream_events();
   gptStopTimer(&PORTAB_GPT1);
-  adcStopConversion(&ADCD1);
+  adcStopConversion(&PORTAB_ADC1);
 
   test_assert(elapsed < ADC_STREAM_TIMEOUT_MS, TEST_STAGE_HW_TRIGGER | 0x02U);
   test_assert(adc_cb_count >= 2U, TEST_STAGE_HW_TRIGGER | 0x03U);
@@ -229,7 +235,7 @@ int main(void) {
   test_assert(drvStart(&PORTAB_GPT1, &portab_gptcfg1) == HAL_RET_SUCCESS,
               TEST_STAGE_STARTUP | 0x02U);
   drvSetCallbackX(&PORTAB_GPT1, NULL);
-  drvSetCallbackX(&ADCD1, adc_test_cb);
+  drvSetCallbackX(&PORTAB_ADC1, adc_test_cb);
 
   adc_linear_test();
   adc_stream_test();

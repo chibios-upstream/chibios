@@ -41,6 +41,15 @@
 #define STM32_ADC1_HANDLER                  Vector88
 #define STM32_ADC1_NUMBER                   18
 
+/* Preserve ADCv5's post-service IRQ hook ordering.*/
+#define STM32_ADC1_IRQ_HOOK_AFTER_SERVICE
+
+/*
+ * DAC unit.
+ */
+#define STM32_DAC1_HANDLER                  Vector8C
+#define STM32_DAC1_NUMBER                   19
+
 /*
  * DMA unit.
  */

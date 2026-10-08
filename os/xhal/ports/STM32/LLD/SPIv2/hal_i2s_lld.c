@@ -379,7 +379,7 @@ msg_t i2s_lld_start(I2SDriver *i2sp) {
       rccEnableSPI1(true);
 #if STM32_I2S_RX_ENABLED(STM32_I2S_SPI1_MODE)
       i2sp->dmarx = dmaStreamAlloc(STM32_I2S_SPI1_RX_DMA_STREAM,
-                                   STM32_I2S_SPI1_IRQ_PRIORITY,
+                                   STM32_IRQ_SPI1_PRIORITY,
                                    (stm32_dmaisr_t)i2s_lld_serve_rx_interrupt,
                                    (void *)i2sp);
       if (i2sp->dmarx == NULL) {
@@ -392,7 +392,7 @@ msg_t i2s_lld_start(I2SDriver *i2sp) {
 #endif
 #if STM32_I2S_TX_ENABLED(STM32_I2S_SPI1_MODE)
       i2sp->dmatx = dmaStreamAlloc(STM32_I2S_SPI1_TX_DMA_STREAM,
-                                   STM32_I2S_SPI1_IRQ_PRIORITY,
+                                   STM32_IRQ_SPI1_PRIORITY,
                                    (stm32_dmaisr_t)i2s_lld_serve_tx_interrupt,
                                    (void *)i2sp);
       if (i2sp->dmatx == NULL) {
@@ -414,7 +414,7 @@ msg_t i2s_lld_start(I2SDriver *i2sp) {
       rccEnableSPI2(true);
 #if STM32_I2S_RX_ENABLED(STM32_I2S_SPI2_MODE)
       i2sp->dmarx = dmaStreamAlloc(STM32_I2S_SPI2_RX_DMA_STREAM,
-                                   STM32_I2S_SPI2_IRQ_PRIORITY,
+                                   STM32_IRQ_SPI2_PRIORITY,
                                    (stm32_dmaisr_t)i2s_lld_serve_rx_interrupt,
                                    (void *)i2sp);
       if (i2sp->dmarx == NULL) {
@@ -427,7 +427,7 @@ msg_t i2s_lld_start(I2SDriver *i2sp) {
 #endif
 #if STM32_I2S_TX_ENABLED(STM32_I2S_SPI2_MODE)
       i2sp->dmatx = dmaStreamAlloc(STM32_I2S_SPI2_TX_DMA_STREAM,
-                                   STM32_I2S_SPI2_IRQ_PRIORITY,
+                                   STM32_IRQ_SPI2_PRIORITY,
                                    (stm32_dmaisr_t)i2s_lld_serve_tx_interrupt,
                                    (void *)i2sp);
       if (i2sp->dmatx == NULL) {
@@ -449,7 +449,7 @@ msg_t i2s_lld_start(I2SDriver *i2sp) {
       rccEnableSPI3(true);
 #if STM32_I2S_RX_ENABLED(STM32_I2S_SPI3_MODE)
       i2sp->dmarx = dmaStreamAlloc(STM32_I2S_SPI3_RX_DMA_STREAM,
-                                   STM32_I2S_SPI3_IRQ_PRIORITY,
+                                   STM32_IRQ_SPI3_PRIORITY,
                                    (stm32_dmaisr_t)i2s_lld_serve_rx_interrupt,
                                    (void *)i2sp);
       if (i2sp->dmarx == NULL) {
@@ -462,7 +462,7 @@ msg_t i2s_lld_start(I2SDriver *i2sp) {
 #endif
 #if STM32_I2S_TX_ENABLED(STM32_I2S_SPI3_MODE)
       i2sp->dmatx = dmaStreamAlloc(STM32_I2S_SPI3_TX_DMA_STREAM,
-                                   STM32_I2S_SPI3_IRQ_PRIORITY,
+                                   STM32_IRQ_SPI3_PRIORITY,
                                    (stm32_dmaisr_t)i2s_lld_serve_tx_interrupt,
                                    (void *)i2sp);
       if (i2sp->dmatx == NULL) {

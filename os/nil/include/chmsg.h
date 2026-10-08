@@ -73,8 +73,8 @@
 
 /**
  * @brief   Returns the message carried by the specified thread.
- * @pre     This function must be invoked immediately after exiting a call
- *          to @p chMsgWait().
+ * @pre     The sender must have been returned by a receive or poll operation
+ *          and must not have been released yet.
  *
  * @param[in] tp        pointer to the thread
  * @return              The message carried by the sender.
@@ -84,9 +84,9 @@
 #define chMsgGet(tp) ((tp)->sntmsg)
 
 /**
- * @brief   Releases the thread waiting on top of the messages queue.
- * @pre     Invoke this function only after a message has been received
- *          using @p chMsgWait().
+ * @brief   Releases a sender waiting for the current thread.
+ * @pre     The sender must have been returned by a receive or poll operation
+ *          on the current thread and must not have been released yet.
  *
  * @param[in] tp        pointer to the thread
  * @param[in] msg       message to be returned to the sender
@@ -110,6 +110,8 @@ extern "C" {
   thread_t *chMsgWait(void);
   thread_t *chMsgWaitTimeout(sysinterval_t timeout);
   thread_t *chMsgWaitTimeoutS(sysinterval_t timeout);
+  thread_t *chMsgPoll(void);
+  thread_t *chMsgPollS(void);
   void chMsgRelease(thread_t *tp, msg_t msg);
 #ifdef __cplusplus
 }

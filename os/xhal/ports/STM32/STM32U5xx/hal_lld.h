@@ -308,6 +308,8 @@
 #endif
 #define STM32_PLL_STARTUP_TIME              (800U * STM32_RELAXED_TIMEOUT_FACTOR)
 #define STM32_SYSCLK_SWITCH_TIME            (50U * STM32_RELAXED_TIMEOUT_FACTOR)
+/* Software deadline for the USB HS power booster, not a PHY startup delay.*/
+#define STM32_USB_BOOSTER_STARTUP_TIME      1000U
 /** @} */
 
 /**
@@ -390,6 +392,7 @@
 
 #if STM32_CFG_CLOCK_DYNAMIC == TRUE
 #define HAL_LLD_USE_CLOCK_MANAGEMENT
+#define HAL_LLD_USE_CLOCK_RESUME
 #endif
 
 /*===========================================================================*/
@@ -564,7 +567,7 @@ extern const halclkcfg_t hal_clkcfg_default;
 #endif
 
 #if HAL_USE_ADC || HAL_USE_DAC || HAL_USE_I2C || HAL_USE_SPI ||             \
-    defined(__DOXYGEN__)
+    HAL_USE_WSPI || defined(__DOXYGEN__)
 #include "stm32_dma3.h"
 #endif
 
@@ -574,12 +577,15 @@ extern "C" {
   void hal_lld_init(void);
   void stm32_clock_init(void);
 #if ((HAL_USE_USB == TRUE) && STM32_HAS_OTG2) || defined(__DOXYGEN__)
-  void stm32_otg2_phy_start(void);
+  bool stm32_otg2_phy_start(void);
   void stm32_otg2_phy_stop(void);
 #endif
 #if defined(HAL_LLD_USE_CLOCK_MANAGEMENT) || defined(__DOXYGEN__)
   bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp);
   halfreq_t hal_lld_get_clock_point(halclkpt_t clkpt);
+#endif
+#if defined(HAL_LLD_USE_CLOCK_RESUME) || defined(__DOXYGEN__)
+  bool hal_lld_clock_resume(void);
 #endif
 #ifdef __cplusplus
 }

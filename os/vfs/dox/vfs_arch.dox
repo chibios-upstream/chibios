@@ -68,6 +68,22 @@
  * the core VFS API, concrete file systems and non-root overlays can be used
  * with root support disabled.
  *
+ * @section vfs_arch_lifetime Object lifetime
+ *
+ * File-system objects derive from @p base_object_c and are not reference
+ * counted. Their lifetime is managed by the caller. Overlays and roots borrow
+ * their backing and registered file systems. Unregistering a file system only
+ * removes its mapping, and disposing an overlay or root does not dispose any
+ * backing or registered file systems. The same file system can therefore be
+ * shared by multiple overlays or roots.
+ *
+ * Nodes are reference counted, but their owner pointers do not retain a
+ * reference to the file system. Each file system, including an overlay or
+ * root, must remain alive until all its nodes have been released and all its
+ * operations have finished. Before disposing a file system, the caller must
+ * also remove every mapping or backing relationship that could access it.
+ * Unregistering a mapping does not close nodes previously opened through it.
+ *
  * @section vfs_arch_fs_paths File-system path contract
  *
  * Every path passed to a @p vfs_fs_c virtual method shall be:

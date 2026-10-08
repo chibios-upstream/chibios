@@ -35,6 +35,9 @@
 #define MMCSD_BLOCK_SIZE        512U
 #define MMCSD_R1_ERROR_MASK     0xFDFFE008U
 #define MMCSD_STS_TRAN          4U
+#define MMCSD_STS_DATA          5U
+#define MMCSD_STS_RCV           6U
+#define MMCSD_STS_PRG           7U
 #define MMCSD_CMD_SEND_STATUS   13U
 #define MMCSD_CMD_STOP_TRANSMISSION 12U
 #define MMCSD_CMD_READ_SINGLE_BLOCK 17U
@@ -115,12 +118,21 @@ static bool sdc_lld_wait_for_transfer_state(hal_sdc_driver_c *sdcp) {
     if (MMCSD_R1_ERROR(resp[0])) {
       return HAL_FAILED;
     }
-    if (((resp[0] >> 9U) & 0xFU) == MMCSD_STS_TRAN) {
+    switch ((resp[0] >> 9U) & 0xFU) {
+    case MMCSD_STS_TRAN:
       return HAL_SUCCESS;
-    }
+    case MMCSD_STS_DATA:
+    case MMCSD_STS_RCV:
+    case MMCSD_STS_PRG:
 #if SDC_NICE_WAITING == TRUE
-    chThdSleepMilliseconds(1);
+      chThdSleepMilliseconds(1);
 #endif
+      continue;
+    default:
+      /* The card should have been initialized so any other state is not
+         valid and is reported as an error.*/
+      return HAL_FAILED;
+    }
   }
 }
 

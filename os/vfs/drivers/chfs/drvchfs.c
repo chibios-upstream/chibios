@@ -139,7 +139,7 @@ struct vfs_chfs_file_node_vmt {
   ssize_t (*write)(void *ip, const uint8_t *buf, size_t n);
   msg_t (*setpos)(void *ip, vfs_offset_t offset, vfs_seekmode_t whence);
   vfs_offset_t (*getpos)(void *ip);
-  random_stream_i * (*getstream)(void *ip);
+  msg_t (*control)(void *ip, vfs_control_op_t operation, void *arg);
   /* From vfs_chfs_file_node_c.*/
 };
 
@@ -163,10 +163,6 @@ struct vfs_chfs_file_node {
    * @brief       Node mode information.
    */
   vfs_mode_t                mode;
-  /**
-   * @brief       Implemented interface @p random_stream_i.
-   */
-  random_stream_i           rstm;
 };
 /** @} */
 

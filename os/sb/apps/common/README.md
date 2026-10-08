@@ -13,6 +13,31 @@ The maintained command set currently includes:
 - `sbsh` as the enhanced shell with scripts, quoting, redirection, and
   serialized pipelines.
 
+## Text and terminal output
+
+Commands emit LF (`\n`) line endings on stdout and stderr, including when
+redirected to files or plain streams. On a serial console, the TTY supplies
+CRLF translation through `OPOST | ONLCR`; a plain serial stream requires
+equivalent terminal-side handling. Applications do not select output line
+endings based on `isatty()`.
+
+Commands that copy file or standard-input data, such as `cat`, `cp`, and
+`head`, preserve the payload bytes. CRLF input handling is unchanged.
+Explicit cursor-control CR characters in the shell editors and CRLF screen
+positioning in `chedit`'s raw-mode renderer are not text line endings and
+remain unchanged. Raw-mode applications must arrange their required terminal
+settings separately.
+
+Interactive `msh` and `sbsh` save terminal attributes before each prompt,
+disable canonical input and echo while their own line editors run, and restore
+the saved attributes before executing commands or leaving the reader. They
+preserve output processing, signals and flow control, and do not flush queued
+input. Commands inherit the pre-editing mode (normally canonical), not forced
+defaults; changes made by commands persist. Plain streams require no termios
+operations. Shell input uses a fixed command buffer, not canonical records.
+At the prompt Ctrl-D exits an empty line; it does not submit a nonempty line.
+Inside commands with canonical input, Ctrl-D retains the TTY's EOF semantics.
+
 ## Command execution model
 
 A relocatable command is linked at address zero using `ram_sandbox.ld`. The

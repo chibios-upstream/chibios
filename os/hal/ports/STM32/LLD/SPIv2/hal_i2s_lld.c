@@ -141,9 +141,10 @@ I2SDriver I2SD3;
 /* Driver local functions.                                                   */
 /*===========================================================================*/
 
-#if STM32_I2S_RX_ENABLED(STM32_I2S_SPI1_MODE) ||                            \
-    STM32_I2S_RX_ENABLED(STM32_I2S_SPI2_MODE) ||                            \
-    STM32_I2S_RX_ENABLED(STM32_I2S_SPI3_MODE) || defined(__DOXYGEN__)
+#if (STM32_I2S_USE_SPI1 && STM32_I2S_RX_ENABLED(STM32_I2S_SPI1_MODE)) ||     \
+    (STM32_I2S_USE_SPI2 && STM32_I2S_RX_ENABLED(STM32_I2S_SPI2_MODE)) ||     \
+    (STM32_I2S_USE_SPI3 && STM32_I2S_RX_ENABLED(STM32_I2S_SPI3_MODE)) ||     \
+    defined(__DOXYGEN__)
 /**
  * @brief   Shared end-of-rx service routine.
  *
@@ -174,9 +175,10 @@ static void i2s_lld_serve_rx_interrupt(I2SDriver *i2sp, uint32_t flags) {
 }
 #endif
 
-#if STM32_I2S_TX_ENABLED(STM32_I2S_SPI1_MODE) ||                            \
-    STM32_I2S_TX_ENABLED(STM32_I2S_SPI2_MODE) ||                            \
-    STM32_I2S_TX_ENABLED(STM32_I2S_SPI3_MODE) || defined(__DOXYGEN__)
+#if (STM32_I2S_USE_SPI1 && STM32_I2S_TX_ENABLED(STM32_I2S_SPI1_MODE)) ||     \
+    (STM32_I2S_USE_SPI2 && STM32_I2S_TX_ENABLED(STM32_I2S_SPI2_MODE)) ||     \
+    (STM32_I2S_USE_SPI3 && STM32_I2S_TX_ENABLED(STM32_I2S_SPI3_MODE)) ||     \
+    defined(__DOXYGEN__)
 /**
  * @brief   Shared end-of-tx service routine.
  *
@@ -341,10 +343,13 @@ void i2s_lld_init(void) {
  * @brief   Configures and activates the I2S peripheral.
  *
  * @param[in] i2sp      pointer to the @p I2SDriver object
+ * @return              The operation status.
+ * @retval HAL_RET_SUCCESS          operation successful.
+ * @retval HAL_RET_NO_RESOURCE      DMA stream unavailable.
  *
  * @notapi
  */
-void i2s_lld_start(I2SDriver *i2sp) {
+msg_t i2s_lld_start(I2SDriver *i2sp) {
 
   /* If in stopped state then enables the SPI and DMA clocks.*/
   if (i2sp->state == I2S_STOP) {
@@ -360,7 +365,10 @@ void i2s_lld_start(I2SDriver *i2sp) {
                                     STM32_I2S_SPI1_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)i2s_lld_serve_rx_interrupt,
                                     (void *)i2sp);
-      osalDbgAssert(i2sp->dmarx != NULL, "unable to allocate stream");
+      if (i2sp->dmarx == NULL) {
+        rccDisableSPI1();
+        return HAL_RET_NO_RESOURCE;
+      }
 
       /* CRs settings are done here because those never changes until
          the driver is stopped.*/
@@ -375,7 +383,10 @@ void i2s_lld_start(I2SDriver *i2sp) {
                                     STM32_I2S_SPI1_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)i2s_lld_serve_tx_interrupt,
                                     (void *)i2sp);
-      osalDbgAssert(i2sp->dmatx != NULL, "unable to allocate stream");
+      if (i2sp->dmatx == NULL) {
+        rccDisableSPI1();
+        return HAL_RET_NO_RESOURCE;
+      }
 
       /* CRs settings are done here because those never changes until
          the driver is stopped.*/
@@ -399,7 +410,10 @@ void i2s_lld_start(I2SDriver *i2sp) {
                                     STM32_I2S_SPI2_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)i2s_lld_serve_rx_interrupt,
                                     (void *)i2sp);
-      osalDbgAssert(i2sp->dmarx != NULL, "unable to allocate stream");
+      if (i2sp->dmarx == NULL) {
+        rccDisableSPI2();
+        return HAL_RET_NO_RESOURCE;
+      }
 
       /* CRs settings are done here because those never changes until
          the driver is stopped.*/
@@ -414,7 +428,10 @@ void i2s_lld_start(I2SDriver *i2sp) {
                                     STM32_I2S_SPI2_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)i2s_lld_serve_tx_interrupt,
                                     (void *)i2sp);
-      osalDbgAssert(i2sp->dmatx != NULL, "unable to allocate stream");
+      if (i2sp->dmatx == NULL) {
+        rccDisableSPI2();
+        return HAL_RET_NO_RESOURCE;
+      }
 
       /* CRs settings are done here because those never changes until
          the driver is stopped.*/
@@ -438,24 +455,36 @@ void i2s_lld_start(I2SDriver *i2sp) {
                                     STM32_I2S_SPI3_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)i2s_lld_serve_rx_interrupt,
                                     (void *)i2sp);
-      osalDbgAssert(i2sp->dmarx != NULL, "unable to allocate stream");
+      if (i2sp->dmarx == NULL) {
+        rccDisableSPI3();
+        return HAL_RET_NO_RESOURCE;
+      }
 
       /* CRs settings are done here because those never changes until
          the driver is stopped.*/
       i2sp->spi->CR1 = 0;
       i2sp->spi->CR2 = SPI_CR2_RXDMAEN;
+#if STM32_DMA_SUPPORTS_DMAMUX
+      dmaSetRequestSource(i2sp->dmarx, STM32_DMAMUX1_SPI3_RX);
+#endif
 #endif
 #if STM32_I2S_TX_ENABLED(STM32_I2S_SPI3_MODE)
       i2sp->dmatx = dmaStreamAllocI(STM32_I2S_SPI3_TX_DMA_STREAM,
                                     STM32_I2S_SPI3_IRQ_PRIORITY,
                                     (stm32_dmaisr_t)i2s_lld_serve_tx_interrupt,
                                     (void *)i2sp);
-      osalDbgAssert(i2sp->dmatx != NULL, "unable to allocate stream");
+      if (i2sp->dmatx == NULL) {
+        rccDisableSPI3();
+        return HAL_RET_NO_RESOURCE;
+      }
 
       /* CRs settings are done here because those never changes until
          the driver is stopped.*/
       i2sp->spi->CR1 = 0;
       i2sp->spi->CR2 = SPI_CR2_TXDMAEN;
+#if STM32_DMA_SUPPORTS_DMAMUX
+      dmaSetRequestSource(i2sp->dmatx, STM32_DMAMUX1_SPI3_TX);
+#endif
 #endif
     }
 #endif
@@ -464,6 +493,8 @@ void i2s_lld_start(I2SDriver *i2sp) {
   /* I2S (re)configuration.*/
   i2sp->spi->I2SPR   = i2sp->config->i2spr;
   i2sp->spi->I2SCFGR = i2sp->config->i2scfgr | i2sp->cfg | SPI_I2SCFGR_I2SMOD;
+
+  return HAL_RET_SUCCESS;
 }
 
 /**

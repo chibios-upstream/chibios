@@ -12,6 +12,8 @@
         </xs:element>
         <xs:element name="sequences" type="sequencesType" maxOccurs="1" minOccurs="1"></xs:element>
       </xs:sequence>
+      <xs:attribute name="locked" type="xs:boolean" use="optional" />
+      <xs:attribute name="id" type="xs:string" use="optional" />
     </xs:complexType>
 
     <xs:complexType name="descriptionType">
@@ -53,7 +55,7 @@
         <xs:element name="brief" type="textValueType" maxOccurs="1"
           minOccurs="1">
         </xs:element>
-        <xs:element name="details" maxOccurs="1" minOccurs="1"
+        <xs:element name="description" maxOccurs="1" minOccurs="1"
           type="textValueType">
         </xs:element>
         <xs:element name="condition" type="conditionType" maxOccurs="1"
@@ -81,6 +83,7 @@
           </xs:simpleType>
         </xs:element>
       </xs:sequence>
+      <xs:attribute name="index" type="xs:nonNegativeInteger" use="optional" />
     </xs:complexType>
 
     <xs:complexType name="conditionType">
@@ -120,13 +123,13 @@
         <xs:element name="brief" type="textValueType" maxOccurs="1"
           minOccurs="1">
         </xs:element>
-        <xs:element name="details" type="textValueType" maxOccurs="1"
+        <xs:element name="description" type="textValueType" maxOccurs="1"
           minOccurs="1">
         </xs:element>
         <xs:element name="condition" type="textValueType" maxOccurs="1"
           minOccurs="1">
         </xs:element>
-        <xs:element name="wrappers" type="wrappersType" maxOccurs="1"
+        <xs:element name="various_code" type="various_codeType" maxOccurs="1"
           minOccurs="1">
         </xs:element>
         <xs:element name="steps" type="stepsType" maxOccurs="1"
@@ -135,7 +138,7 @@
       </xs:sequence>
     </xs:complexType>
 
-    <xs:complexType name="wrappersType">
+    <xs:complexType name="various_codeType">
       <xs:sequence>
         <xs:element name="setup_code" type="codeWrapperType"
           maxOccurs="1" minOccurs="1">
@@ -160,13 +163,13 @@
     </xs:complexType>
     <xs:complexType name="stepsType">
       <xs:sequence>
-        <xs:element name="step" type="stepType" maxOccurs="1" minOccurs="1"></xs:element>
+        <xs:element name="step" type="stepType" maxOccurs="unbounded" minOccurs="1"></xs:element>
       </xs:sequence>
     </xs:complexType>
 
     <xs:complexType name="stepType">
       <xs:sequence>
-        <xs:element name="details" type="textValueType" maxOccurs="1"
+        <xs:element name="description" type="textValueType" maxOccurs="1"
           minOccurs="1">
         </xs:element>
         <xs:element name="tags" type="textValueType" maxOccurs="1"

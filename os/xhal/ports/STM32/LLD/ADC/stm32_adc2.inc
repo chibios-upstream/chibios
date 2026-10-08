@@ -74,7 +74,10 @@
 /* Driver local functions.                                                   */
 /*===========================================================================*/
 
-#if HAL_USE_ADC && STM32_ADC_USE_ADC2 &&                                    \
+#if HAL_USE_ADC &&                                                         \
+    (STM32_ADC_USE_ADC2 ||                                                 \
+     (defined(STM32_ADC_DUAL_MODE) && STM32_ADC_DUAL_MODE &&                 \
+      STM32_ADC_USE_ADC1)) &&                                              \
     (!defined(STM32_ADC1_NUMBER) || (STM32_ADC1_NUMBER != STM32_ADC2_NUMBER))
 #define STM32_ADC2_ISR_IS_USED              TRUE
 #else
@@ -83,7 +86,12 @@
 
 static inline void adc2_irq_init(void) {
 #if STM32_ADC2_ISR_IS_USED
+#if defined(STM32_ADC_DUAL_MODE) && STM32_ADC_DUAL_MODE
+  /* The slave reports to ADCD1, at the master's DMA/peripheral priority.*/
+  nvicEnableVector(STM32_ADC2_NUMBER, STM32_IRQ_ADC1_PRIORITY);
+#else
   nvicEnableVector(STM32_ADC2_NUMBER, STM32_IRQ_ADC2_PRIORITY);
+#endif
 #endif
 }
 
@@ -112,7 +120,11 @@ CH_IRQ_HANDLER(STM32_ADC2_HANDLER) {
 #if defined(STM32_ADC_ADC2_IRQ_HOOK)
   STM32_ADC_ADC2_IRQ_HOOK
 #endif
+#if defined(STM32_ADC_DUAL_MODE) && STM32_ADC_DUAL_MODE
+  adc_lld_serve_interrupt(&ADCD1);
+#else
   adc_lld_serve_interrupt(&ADCD2);
+#endif
   (void)isr;
 
   CH_IRQ_EPILOGUE();

@@ -53,6 +53,9 @@
 
 #if STM32_TARGET_CORE == 1
 
+#include "stm32_adc1.inc"
+#include "stm32_dac1.inc"
+
 #include "stm32_exti0.inc"
 #include "stm32_exti1.inc"
 #include "stm32_exti2.inc"
@@ -66,6 +69,8 @@
 #include "stm32_tim1.inc"
 
 #else /* STM32_TARGET_CORE == 2 */
+
+#include "stm32_adc1_comp_dac1.inc"
 
 #include "stm32_dma1_ch123.inc"
 #include "stm32_dma1_ch4567.inc"
@@ -101,6 +106,9 @@
 void irqInit(void) {
 
 #if STM32_TARGET_CORE == 1
+  adc1_irq_init();
+  dac1_irq_init();
+
   exti0_irq_init();
   exti1_irq_init();
   exti2_irq_init();
@@ -111,6 +119,8 @@ void irqInit(void) {
   exti16_exti34_irq_init();
   exti45_irq_init();
 #else
+  adc1_comp_dac1_irq_init();
+
   exti0_1_irq_init();
   exti2_3_irq_init();
   exti4_15_irq_init();
@@ -136,6 +146,9 @@ void irqInit(void) {
 void irqDeinit(void) {
 
 #if STM32_TARGET_CORE == 1
+  adc1_irq_deinit();
+  dac1_irq_deinit();
+
   exti0_irq_deinit();
   exti1_irq_deinit();
   exti2_irq_deinit();
@@ -146,6 +159,8 @@ void irqDeinit(void) {
   exti16_exti34_irq_deinit();
   exti45_irq_deinit();
 #else
+  adc1_comp_dac1_irq_deinit();
+
   exti0_1_irq_deinit();
   exti2_3_irq_deinit();
   exti4_15_irq_deinit();

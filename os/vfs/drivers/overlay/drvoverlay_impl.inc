@@ -452,15 +452,8 @@ void *__ovldrv_objinit_impl(void *ip, const void *vmt,
 void __ovldrv_dispose_impl(void *ip) {
   vfs_overlay_driver_c *self = (vfs_overlay_driver_c *)ip;
 
-  /* Finalization code.*/
-  unsigned i;
-
-  /* Releasing all registered drivers.*/
-  i = 0U;
-  while (i < self->next_driver) {
-    roRelease(self->drivers[i]);
-    i++;
-  }
+  /* No finalization code.*/
+  (void)self;
 
   /* Finalization of the ancestors-defined parts.*/
   __vfsfs_dispose_impl(self);
@@ -888,12 +881,14 @@ const struct vfs_overlay_driver_vmt __vfs_overlay_driver_vmt = {
  * @public
  *
  * @brief       Registers a VFS file system as an overlay.
- * @note        The overlay becomes the owner of the registered file system,
- *              the reference is released when the file system is unregistered
- *              or when the whole overlay object is disposed.
+ * @note        The file system remains owned by the caller. It must remain
+ *              alive while registered and until all its nodes and operations
+ *              have finished. The name string must remain valid while
+ *              registered.
  *
  * @param[in,out] ip            Pointer to a @p vfs_overlay_driver_c instance.
- * @param[in]     fsp           File system object reference to be registered.
+ * @param[in]     fsp           Pointer to the caller-owned file system to be
+ *                              registered.
  * @param[in]     name          Name for the new overlay directory, must be
  *                              alphanumeric.
  * @return                      The operation result.
@@ -943,7 +938,9 @@ msg_t ovldrvRegisterDriver(void *ip, vfs_fs_c *fsp, const char *name) {
  * @public
  *
  * @brief       Unregisters a VFS file system.
- * @note        The reference to the registered file system is released.
+ * @note        Only the mapping is removed. The file system and its existing
+ *              nodes are not disposed. Its lifetime remains the caller's
+ *              responsibility.
  *
  * @param[in,out] ip            Pointer to a @p vfs_overlay_driver_c instance.
  * @param[in]     name          Name of the overlay directory to be
@@ -963,7 +960,6 @@ msg_t ovldrvUnregisterDriver(void *ip, const char *name) {
 
     /* Is name matching?*/
     if (strcmp(self->names[i], name) == 0) {
-      vfs_fs_c *fsp = self->drivers[i];
 
       /* Found match, move following entries down, if any.*/
       while (i < self->next_driver - 1) {
@@ -974,9 +970,6 @@ msg_t ovldrvUnregisterDriver(void *ip, const char *name) {
       self->next_driver--;
 
       chSysUnlock();
-
-      /* Releasing the unregistered object.*/
-      roRelease(fsp);
 
       return CH_RET_SUCCESS;
     }

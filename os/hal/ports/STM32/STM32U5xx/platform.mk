@@ -21,7 +21,12 @@ endif
 
 HALCONF := $(strip $(shell cat $(HALCONFDIR)/halconf.h | egrep -e "\#define"))
 
+ifneq ($(findstring HAL_USE_EFL TRUE,$(HALCONF)),)
+PLATFORMSRC += $(CHIBIOS)/os/hal/ports/STM32/STM32U5xx/hal_efl_lld.c
+endif
+
 else
+PLATFORMSRC += $(CHIBIOS)/os/hal/ports/STM32/STM32U5xx/hal_efl_lld.c
 endif
 
 # Drivers compatible with the platform.
@@ -38,7 +43,14 @@ include $(CHIBIOS)/os/hal/ports/STM32/LLD/RCCv1/driver.mk
 include $(CHIBIOS)/os/hal/ports/STM32/LLD/RTCv3/driver.mk
 include $(CHIBIOS)/os/hal/ports/STM32/LLD/SPIv4/driver.mk
 include $(CHIBIOS)/os/hal/ports/STM32/LLD/SDMMCv2/driver.mk
-include $(CHIBIOS)/os/hal/ports/STM32/LLD/SYSTICKv1/driver.mk
+# The default ST backend supports both 16-bit and 32-bit general-purpose
+# timers. USE_ST_LPTIM=yes selects the 16-bit SmartRun domain LPTIM backend;
+# STM32_ST_USE_TIMER selects the instance.
+ifeq ($(USE_ST_LPTIM),yes)
+  include $(CHIBIOS)/os/hal/ports/STM32/LLD/SYSTICKv3/driver.mk
+else
+  include $(CHIBIOS)/os/hal/ports/STM32/LLD/SYSTICKv1/driver.mk
+endif
 include $(CHIBIOS)/os/hal/ports/STM32/LLD/RNGv1/driver.mk
 include $(CHIBIOS)/os/hal/ports/STM32/LLD/TIMv1/driver.mk
 include $(CHIBIOS)/os/hal/ports/STM32/LLD/USARTv3/driver.mk

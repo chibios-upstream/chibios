@@ -366,7 +366,7 @@ static void rt_test_003_004_teardown(void) {
 }
 
 static void rt_test_003_004_execute(void) {
-  sysinterval_t interval;
+  sysinterval_t interval = (sysinterval_t)0;
   bool pending;
 
   /* [3.4.1] A maximum-interval timer is queried. Addition of the

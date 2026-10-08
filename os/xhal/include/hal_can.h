@@ -283,6 +283,34 @@
   } while (false)
 #endif /* CAN_USE_SYNCHRONIZATION == TRUE */
 
+#if (CAN_USE_SYNCHRONIZATION == TRUE) || defined (__DOXYGEN__)
+/**
+ * @brief       Releases threads waiting while the controller was asleep.
+ *
+ * @param[in,out] canp          Pointer to the CAN driver instance.
+ *
+ * @notapi
+ */
+#define _can_wakeup_waiters_isr(canp)                                       \
+  do {                                                                      \
+    chSysLockFromISR();                                                     \
+    chThdDequeueAllI(&(canp)->txqueue, MSG_OK);                             \
+    chThdDequeueAllI(&(canp)->rxqueue, MSG_OK);                             \
+    chSysUnlockFromISR();                                                   \
+  } while (false)
+
+#else
+
+/**
+ * @brief       No synchronization queues to release.
+ *
+ * @param[in,out] canp          Pointer to the CAN driver instance.
+ *
+ * @notapi
+ */
+#define _can_wakeup_waiters_isr(canp)
+#endif /* CAN_USE_SYNCHRONIZATION == TRUE */
+
 /**
  * @brief       Common ISR code, CAN wakeup event.
  *
@@ -294,6 +322,7 @@
   do {                                                                      \
     (canp)->state  = HAL_DRV_STATE_READY;                                   \
     (canp)->events |= CAN_EVENT_WAKEUP;                                     \
+    _can_wakeup_waiters_isr(canp);                                          \
     __cbdrv_invoke_cb(canp);                                                \
   } while (false)
 

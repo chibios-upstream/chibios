@@ -370,18 +370,22 @@ vfs_offset_t vfsGetFilePosition(vfs_file_node_c *vfnp) {
 }
 
 /**
- * @brief   Returns the inner stream associated to the file.
+ * @brief   Performs a file-specific control operation.
  *
  * @param[in] vfnp      Pointer to the @p vfs_file_node_c object.
- * @return              The random stream interface.
+ * @param[in] operation Control operation code.
+ * @param[in,out] arg   Pointer to operation-specific arguments or @p NULL.
+ * @return              The operation result.
  *
  * @api
  */
-random_stream_i *vfsGetFileStream(vfs_file_node_c *vfnp) {
+msg_t vfsControlFile(vfs_file_node_c *vfnp,
+                     vfs_control_op_t operation,
+                     void *arg) {
 
   chDbgAssert(vfnp->references > 0U, "zero count");
 
-  return vfsFileGetStream((void *)vfnp);
+  return vfsFileControl((void *)vfnp, operation, arg);
 }
 
 /** @} */

@@ -334,6 +334,9 @@ void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
 
   if ((sr & OCTOSPI_SR_TEF) != 0U) {
     if (data_transfer && (wspip->mdma != NULL)) {
+      /* MDMA has a shared IRQ priority, which can differ from OCTOSPI's.
+         Prevent its ISR from clearing completion flags while the channel
+         disable operation waits for them.*/
       chSysLockFromISR();
       mdmaChannelDisableX(wspip->mdma);
       chSysUnlockFromISR();
@@ -343,11 +346,12 @@ void wspi_lld_serve_interrupt(hal_wspi_driver_c *wspip) {
     return;
   }
 
-  _wspi_isr_complete_code(wspip);
-
   while (data_transfer && (wspip->mdma != NULL) &&
          mdmaChannelIsEnabled(wspip->mdma)) {
   }
+
+  /* Notify completion only after MDMA has finished the transfer.*/
+  _wspi_isr_complete_code(wspip);
 }
 
 /**

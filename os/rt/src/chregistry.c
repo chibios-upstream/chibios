@@ -58,50 +58,63 @@
 /* Module local types.                                                       */
 /*===========================================================================*/
 
-/* The debugger layout record uses eight-bit sizes and offsets. */
-typedef char chdebug_layout_fits_uint8_t[
-  ((sizeof (chdebug_t) <= (size_t)UINT8_MAX) &&
-    (sizeof (void *) <= (size_t)UINT8_MAX) &&
-    (sizeof (systime_t) <= (size_t)UINT8_MAX) &&
-    (sizeof (sysinterval_t) <= (size_t)UINT8_MAX) &&
-    (sizeof (thread_t) <= (size_t)UINT8_MAX) &&
-    (sizeof (struct port_intctx) <= (size_t)UINT8_MAX) &&
-    (PORT_CORES_NUMBER <= (unsigned)UINT8_MAX) &&
-    (offsetof(thread_t, hdr.pqueue.prio) <= (size_t)UINT8_MAX) &&
-    (offsetof(thread_t, ctx) <= (size_t)UINT8_MAX) &&
-    (offsetof(thread_t, rqueue.next) <= (size_t)UINT8_MAX) &&
-    (offsetof(thread_t, rqueue.prev) <= (size_t)UINT8_MAX) &&
-    (offsetof(thread_t, name) <= (size_t)UINT8_MAX) &&
-#if (CH_DBG_ENABLE_STACK_CHECK == TRUE) || (CH_CFG_USE_DYNAMIC == TRUE)
-    (offsetof(thread_t, wabase) <= (size_t)UINT8_MAX) &&
+/* The record uses two-byte alignment only, with no implicit padding.
+   The eight-byte discovery header is the only legacy-compatible portion.*/
+__CH_STATIC_ASSERT(chdebug_record_layout,
+  ((offsetof(chdebug_t, version) == 6U) &&
+   (offsetof(chdebug_t, flags) == 8U) &&
+   (offsetof(chdebug_t, type_sizes) == 9U) &&
+   (offsetof(chdebug_t, port_arch) == 12U) &&
+   (offsetof(chdebug_t, port_id) == 13U) &&
+   (offsetof(chdebug_t, port_offset) == 14U) &&
+   (offsetof(chdebug_t, sys_size) == 18U) &&
+   (offsetof(chdebug_t, inst_size) == 30U) &&
+   (offsetof(chdebug_t, thread_size) == 44U) &&
+   (offsetof(chdebug_t, thread_ctx) == 72U) &&
+   (sizeof (chdebug_t) <= (size_t)UINT8_MAX) &&
+   (PORT_REGISTRY_ARCH <= UINT8_MAX) &&
+   (PORT_REGISTRY_ID <= UINT8_MAX)));
+
+#if defined(PORT_REGISTRY_HEADER)
+__CH_STATIC_ASSERT(chdebug_port_layout,
+  ((offsetof(chdebug_t, port) == 74U) &&
+   (sizeof (chdebug_t) == 74U + sizeof (ch_debug.port))));
+#else
+__CH_STATIC_ASSERT(chdebug_common_size, (sizeof (chdebug_t) == 74U));
 #endif
-    (offsetof(thread_t, state) <= (size_t)UINT8_MAX) &&
-    (offsetof(thread_t, flags) <= (size_t)UINT8_MAX) &&
-    (offsetof(thread_t, refs) <= (size_t)UINT8_MAX) &&
-#if CH_CFG_TIME_QUANTUM > 0
-    (offsetof(thread_t, ticks) <= (size_t)UINT8_MAX) &&
-#endif
-#if CH_DBG_THREADS_PROFILING == TRUE
-    (offsetof(thread_t, time) <= (size_t)UINT8_MAX) &&
-#endif
-    (offsetof(ch_system_t, state) <= (size_t)UINT8_MAX) &&
-    (offsetof(ch_system_t, instances[0]) <= (size_t)UINT8_MAX) &&
-#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == TRUE)
-    (offsetof(ch_system_t, reglist) <= (size_t)UINT8_MAX) &&
-#endif
-#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == TRUE)
-    (offsetof(ch_system_t, rfcu) <= (size_t)UINT8_MAX) &&
-#endif
-    (offsetof(os_instance_t, rlist.current) <= (size_t)UINT8_MAX) &&
-    (offsetof(os_instance_t, rlist) <= (size_t)UINT8_MAX) &&
-    (offsetof(os_instance_t, vtlist) <= (size_t)UINT8_MAX) &&
-#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == FALSE)
-    (offsetof(os_instance_t, reglist) <= (size_t)UINT8_MAX) &&
-#endif
-#if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == FALSE)
-    (offsetof(os_instance_t, rfcu) <= (size_t)UINT8_MAX) &&
-#endif
-    (offsetof(os_instance_t, core_id) <= (size_t)UINT8_MAX)) ? 1 : -1];
+
+/* RT8's centralized queue layout is part of the debugger contract.*/
+__CH_STATIC_ASSERT(chdebug_queue_layout,
+  ((offsetof(ch_queue_t, next) == 0U) &&
+   (offsetof(ch_queue_t, prev) == sizeof (void *)) &&
+   (sizeof (ch_queue_t) == 2U * sizeof (void *))));
+
+/* Bounding the whole objects also bounds every member offset. 0xFFFF is
+   reserved for an absent member; no present member can have that offset.*/
+__CH_STATIC_ASSERT(chdebug_objects_fit_uint16_t,
+  ((sizeof (ch_system_t) <= (size_t)UINT16_MAX) &&
+   (sizeof (os_instance_t) <= (size_t)UINT16_MAX) &&
+   (sizeof (thread_t) <= (size_t)UINT16_MAX) &&
+   (sizeof (struct port_context) <= (size_t)UINT16_MAX) &&
+   (sizeof (struct port_intctx) <= (size_t)UINT16_MAX) &&
+   (PORT_CORES_NUMBER <= UINT16_MAX)));
+
+/* A scalar size is a two-bit logarithm, never a truncated byte count.*/
+#define REG_SIZE_VALID(t) ((sizeof (t) == 1U) || (sizeof (t) == 2U) ||     \
+                           (sizeof (t) == 4U) || (sizeof (t) == 8U))
+#define REG_SIZE_CODE(t)  ((sizeof (t) == 1U) ? 0U :                       \
+                           (sizeof (t) == 2U) ? 1U :                       \
+                           (sizeof (t) == 4U) ? 2U : 3U)
+#define REG_SIZE_PACK(a, b, c, d) ((uint8_t)(REG_SIZE_CODE(a) |             \
+                                            (REG_SIZE_CODE(b) << 2U) |     \
+                                            (REG_SIZE_CODE(c) << 4U) |     \
+                                            (REG_SIZE_CODE(d) << 6U)))
+__CH_STATIC_ASSERT(chdebug_scalar_sizes_supported,
+  (REG_SIZE_VALID(void *) && REG_SIZE_VALID(systime_t) &&
+   REG_SIZE_VALID(sysinterval_t) && REG_SIZE_VALID(tprio_t) &&
+   REG_SIZE_VALID(tstate_t) && REG_SIZE_VALID(tmode_t) &&
+   REG_SIZE_VALID(trefs_t) && REG_SIZE_VALID(tslices_t) &&
+   REG_SIZE_VALID(core_id_t) && REG_SIZE_VALID(system_state_t)));
 
 /*===========================================================================*/
 /* Module local variables.                                                   */
@@ -127,68 +140,93 @@ static bool reg_ranges_overlap(uintptr_t astart, uintptr_t aend,
  * OS signature in ROM plus debug-related information.
  */
 ROMCONST chdebug_t ch_debug = {
-  .identifier               = {'m', 'a', 'i', 'n'},
-  .zero                     = (uint8_t)0,
-  .size                     = (uint8_t)sizeof (chdebug_t),
-  .version                  = (uint16_t)(((unsigned)CH_KERNEL_MAJOR << 11U) |
-                                         ((unsigned)CH_KERNEL_MINOR << 6U) |
-                                         ((unsigned)CH_KERNEL_PATCH << 0U)),
-  .ptrsize                  = (uint8_t)sizeof (void *),
-  .timesize                 = (uint8_t)sizeof (systime_t),
-  .intervalsize             = (uint8_t)sizeof (sysinterval_t),
-  .threadsize               = (uint8_t)sizeof (thread_t),
-  .intctxsize               = (uint8_t)sizeof (struct port_intctx),
-  .off_prio                 = (uint8_t)__CH_OFFSETOF(thread_t, hdr.pqueue.prio),
-  .off_ctx                  = (uint8_t)__CH_OFFSETOF(thread_t, ctx),
-  .off_newer                = (uint8_t)__CH_OFFSETOF(thread_t, rqueue.next),
-  .off_older                = (uint8_t)__CH_OFFSETOF(thread_t, rqueue.prev),
-  .off_name                 = (uint8_t)__CH_OFFSETOF(thread_t, name),
-#if (CH_DBG_ENABLE_STACK_CHECK == TRUE) || (CH_CFG_USE_DYNAMIC == TRUE)
-  .off_stklimit             = (uint8_t)__CH_OFFSETOF(thread_t, wabase),
+  /* General.*/
+  .identifier         = {'m', 'a', 'i', 'n'},
+  .zero               = (uint8_t)0,
+  .size               = (uint8_t)sizeof (chdebug_t),
+  .version            = (uint16_t)(((unsigned)CH_KERNEL_MAJOR << 11U) |
+                                   ((unsigned)CH_KERNEL_MINOR << 6U) |
+                                   ((unsigned)CH_KERNEL_PATCH << 0U)),
+#if CH_CFG_SMP_MODE == TRUE
+  .flags              = (uint8_t)CH_REGISTRY_FLAG_SMP,
 #else
-  .off_stklimit             = (uint8_t)0,
+  .flags              = (uint8_t)0,
 #endif
-  .off_state                = (uint8_t)__CH_OFFSETOF(thread_t, state),
-  .off_flags                = (uint8_t)__CH_OFFSETOF(thread_t, flags),
-  .off_refs                 = (uint8_t)__CH_OFFSETOF(thread_t, refs),
-#if CH_CFG_TIME_QUANTUM > 0
-  .off_preempt              = (uint8_t)__CH_OFFSETOF(thread_t, ticks),
+  .type_sizes         = {
+    REG_SIZE_PACK(void *, systime_t, sysinterval_t, tprio_t),
+    REG_SIZE_PACK(tstate_t, tmode_t, trefs_t, tslices_t),
+    (uint8_t)(REG_SIZE_CODE(core_id_t) |
+              (REG_SIZE_CODE(system_state_t) << 2U))
+  },
+  .port_arch          = (uint8_t)PORT_REGISTRY_ARCH,
+  .port_id            = (uint8_t)PORT_REGISTRY_ID,
+#if defined(PORT_REGISTRY_HEADER)
+  .port_offset        = (uint16_t)offsetof(chdebug_t, port),
+  .port_size          = (uint16_t)sizeof (ch_debug.port),
 #else
-  .off_preempt              = (uint8_t)0,
+  .port_offset        = (uint16_t)CH_REGISTRY_OFFSET_NONE,
+  .port_size          = (uint16_t)0,
 #endif
-#if CH_DBG_THREADS_PROFILING == TRUE
-  .off_time                 = (uint8_t)__CH_OFFSETOF(thread_t, time),
+
+  /* System.*/
+  .sys_size           = (uint16_t)sizeof (ch_system_t),
+  .sys_instances_num  = (uint16_t)PORT_CORES_NUMBER,
+  .sys_state          = (uint16_t)offsetof(ch_system_t, state),
+  .sys_instances      = (uint16_t)offsetof(ch_system_t, instances[0]),
+#if CH_CFG_SMP_MODE == TRUE
+  .sys_reg_node       = (uint16_t)offsetof(ch_system_t, reglist.queue),
 #else
-  .off_time                 = (uint8_t)0,
-#endif
-  .off_reserved             = {(uint8_t)0, (uint8_t)0, (uint8_t)0, (uint8_t)0},
-  .instancesnum             = (uint8_t)PORT_CORES_NUMBER,
-  .off_sys_state            = (uint8_t)__CH_OFFSETOF(ch_system_t, state),
-  .off_sys_instances        = (uint8_t)__CH_OFFSETOF(ch_system_t, instances[0]),
-#if (CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == TRUE)
-  .off_sys_reglist          = (uint8_t)__CH_OFFSETOF(ch_system_t, reglist),
-#else
-  .off_sys_reglist          = (uint8_t)0,
+  .sys_reg_node       = (uint16_t)CH_REGISTRY_OFFSET_NONE,
 #endif
 #if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == TRUE)
-  .off_sys_rfcu             = (uint8_t)__CH_OFFSETOF(ch_system_t, rfcu),
+  .sys_rfcu           = (uint16_t)offsetof(ch_system_t, rfcu),
 #else
-  .off_sys_rfcu             = (uint8_t)0,
+  .sys_rfcu           = (uint16_t)CH_REGISTRY_OFFSET_NONE,
 #endif
-  .off_sys_reserved         = {(uint8_t)0, (uint8_t)0, (uint8_t)0, (uint8_t)0},
-  .off_inst_rlist_current   = (uint8_t)__CH_OFFSETOF(os_instance_t, rlist.current),
-  .off_inst_rlist           = (uint8_t)__CH_OFFSETOF(os_instance_t, rlist),
-  .off_inst_vtlist          = (uint8_t)__CH_OFFSETOF(os_instance_t, vtlist),
-#if ((CH_CFG_USE_REGISTRY == TRUE) && (CH_CFG_SMP_MODE == FALSE))
-  .off_inst_reglist         = (uint8_t)__CH_OFFSETOF(os_instance_t, reglist),
+
+  /* Instance.*/
+  .inst_size          = (uint16_t)sizeof (os_instance_t),
+  .inst_core_id       = (uint16_t)offsetof(os_instance_t, core_id),
+  .inst_current       = (uint16_t)offsetof(os_instance_t, rlist.current),
+  .inst_rlist         = (uint16_t)offsetof(os_instance_t, rlist),
+  .inst_vtlist        = (uint16_t)offsetof(os_instance_t, vtlist),
+#if CH_CFG_SMP_MODE == FALSE
+  .inst_reg_node      = (uint16_t)offsetof(os_instance_t, reglist.queue),
 #else
-  .off_inst_reglist         = (uint8_t)0,
+  .inst_reg_node      = (uint16_t)CH_REGISTRY_OFFSET_NONE,
 #endif
-  .off_inst_core_id         = (uint8_t)__CH_OFFSETOF(os_instance_t, core_id),
 #if (CH_CFG_USE_RFCU == TRUE) && (CH_CFG_SMP_MODE == FALSE)
-  .off_inst_rfcu            = (uint8_t)__CH_OFFSETOF(os_instance_t, rfcu)
+  .inst_rfcu          = (uint16_t)offsetof(os_instance_t, rfcu),
 #else
-  .off_inst_rfcu            = (uint8_t)0
+  .inst_rfcu          = (uint16_t)CH_REGISTRY_OFFSET_NONE,
+#endif
+
+  /* Thread.*/
+  .thread_size        = (uint16_t)sizeof (thread_t),
+  .thread_ctx_size    = (uint16_t)sizeof (struct port_context),
+  .thread_intctx_size = (uint16_t)sizeof (struct port_intctx),
+  .thread_reg_node    = (uint16_t)offsetof(thread_t, rqueue),
+  .thread_owner       = (uint16_t)offsetof(thread_t, owner),
+  .thread_name        = (uint16_t)offsetof(thread_t, name),
+  .thread_prio        = (uint16_t)offsetof(thread_t, hdr.pqueue.prio),
+  .thread_state       = (uint16_t)offsetof(thread_t, state),
+  .thread_flags       = (uint16_t)offsetof(thread_t, flags),
+  .thread_refs        = (uint16_t)offsetof(thread_t, refs),
+#if CH_CFG_TIME_QUANTUM > 0
+  .thread_ticks       = (uint16_t)offsetof(thread_t, ticks),
+#else
+  .thread_ticks       = (uint16_t)CH_REGISTRY_OFFSET_NONE,
+#endif
+#if CH_DBG_THREADS_PROFILING == TRUE
+  .thread_time        = (uint16_t)offsetof(thread_t, time),
+#else
+  .thread_time        = (uint16_t)CH_REGISTRY_OFFSET_NONE,
+#endif
+  .thread_wabase      = (uint16_t)offsetof(thread_t, wabase),
+  .thread_waend       = (uint16_t)offsetof(thread_t, waend),
+  .thread_ctx         = (uint16_t)offsetof(thread_t, ctx),
+#if defined(PORT_REGISTRY_HEADER)
+  .port               = PORT_REGISTRY_INITIALIZER
 #endif
 };
 

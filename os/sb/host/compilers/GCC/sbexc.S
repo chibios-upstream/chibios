@@ -24,6 +24,19 @@
  * @{
  */
 
+#if !defined(FALSE) || defined(__DOXYGEN__)
+#define FALSE   0
+#endif
+
+#if !defined(TRUE) || defined(__DOXYGEN__)
+#define TRUE    1
+#endif
+
+#define _FROM_ASM_
+#include "chlicense.h"
+#include "chconf.h"
+#include "chcore.h"
+
 /*===========================================================================*/
 /* Module constants.                                                         */
 /*===========================================================================*/
@@ -41,7 +54,11 @@
 #if !defined(__DOXYGEN__)
 
                 .syntax unified
+#if defined(PORT_ARCHITECTURE_ARM_V8M_MAINLINE)
+                .cpu    cortex-m33
+#else
                 .cpu    cortex-m3
+#endif
                 .thumb
 
                 .text
@@ -113,6 +130,15 @@ UsageFault_Handler:
  */
 .Lexit_thd:
                 mov.w       r4, lr
+
+#if CORTEX_USE_FPU
+                /* Discarding any lazy save to the faulting sandbox stack
+                   and forcing FP unstacking from the exit frame.*/
+                ldr         r2, =FPU
+                ldr         r3, [r2, #4]    /* FPCCR */
+                bic.w       r3, r3, #1      /* LSPACT */
+                str         r3, [r2, #4]
+#endif
 
                 /* This thread is going to die so going back on
                    S-PSP and working safely from there.*/

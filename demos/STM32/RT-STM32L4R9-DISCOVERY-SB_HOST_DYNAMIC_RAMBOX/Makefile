@@ -95,7 +95,7 @@ BUILDDIR := ./build
 DEPDIR   := ./.dep
 
 # Required modules.
-OOPSELECT := base referenced
+OOPSELECT := base referenced chprintf nullstreams
 UTILSSELECT :=
 
 # Licensing files.
@@ -105,11 +105,10 @@ include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32l4xx.m
 # Common files.
 include $(CHIBIOS)/os/common/oop/oop.mk
 include $(CHIBIOS)/os/common/utils/utils.mk
-# HAL-OSAL files (optional).
-include $(CHIBIOS)/os/hal/hal.mk
-include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx+/platform.mk
+# XHAL files.
+include $(CHIBIOS)/os/xhal/xhal.mk
+include $(CHIBIOS)/os/xhal/ports/STM32/STM32L4xx+/platform.mk
 include $(CHIBIOS)/os/hal/boards/ST_STM32L4R9I_DISCOVERY/board.mk
-include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMv7-M-ALT/compilers/GCC/mk/port.mk
@@ -118,11 +117,12 @@ include $(CHIBIOS)/os/sb/host/compilers/GCC/sbhost.mk
 #include $(CHIBIOS)/os/sb/vio/sbvio.mk
 # VFS files (optional).
 include $(CHIBIOS)/os/vfs/vfs.mk
+# POSIX TTY over SIO files.
+include $(CHIBIOS)/os/xhal/lib/complex/posix_tty-sio/hal_posix_tty_sio.mk
 # Auto-build files in ./source recursively.
 include $(CHIBIOS)/tools/mk/autobuild.mk
 # Other files (optional).
 include $(CHIBIOS)/os/various/newlib_bindings/newlib.mk
-include $(CHIBIOS)/os/hal/lib/streams/streams.mk
 include $(CHIBIOS)/os/various/fatfs_bindings/fatfs.mk
 
 # Define linker script file here
@@ -162,7 +162,7 @@ CPPWARN = -Wall -Wextra -Wundef
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS =
+UDEFS = -DOOP_USE_LEGACY
 
 # Define ASM defines here
 UADEFS =

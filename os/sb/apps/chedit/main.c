@@ -23,11 +23,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <termios.h>
 #include <unistd.h>
 
 #if defined(SBAPP_NATIVE)
 #include <sys/ioctl.h>
-#include <termios.h>
 #endif
 
 #include "cmdutil.h"
@@ -104,10 +104,8 @@ struct editor_config {
   char *filename;
   char status_message[80];
   const struct editor_syntax *syntax;
-#if defined(SBAPP_NATIVE)
   struct termios original_termios;
   int raw_mode_enabled;
-#endif
 };
 
 struct append_buffer {
@@ -168,14 +166,28 @@ static void editorRefreshScreen(void);
 static char *editorPrompt(const char *prompt,
                           void (*callback)(char *, int));
 
-static void terminalDisableRawMode(void) {
+static int terminalSetAttributes(const struct termios *attrp) {
+  int ret;
 
-#if defined(SBAPP_NATIVE)
+  do {
+    ret = tcsetattr(STDIN_FILENO, TCSADRAIN, attrp);
+  } while ((ret < 0) && (errno == EINTR));
+  return ret;
+}
+
+static void terminalDisableRawMode(void) {
+  int saved_errno;
+
+  saved_errno = errno;
   if (editor.raw_mode_enabled != 0) {
-    (void)tcsetattr(STDIN_FILENO, TCSAFLUSH, &editor.original_termios);
-    editor.raw_mode_enabled = 0;
+    if (terminalSetAttributes(&editor.original_termios) == 0) {
+      editor.raw_mode_enabled = 0;
+    }
+    else {
+      perror("tcsetattr");
+    }
   }
-#endif
+  errno = saved_errno;
 }
 
 static void editorDie(const char *operation) {
@@ -220,29 +232,33 @@ static char *editorDuplicateString(const char *s) {
 }
 
 static void terminalEnableRawMode(void) {
-
-#if defined(SBAPP_NATIVE)
   struct termios raw;
+  int ret;
 
-  if (tcgetattr(STDIN_FILENO, &editor.original_termios) == -1) {
+  do {
+    ret = tcgetattr(STDIN_FILENO, &editor.original_termios);
+  } while ((ret < 0) && (errno == EINTR));
+  if (ret < 0) {
     editorDie("tcgetattr");
   }
   raw = editor.original_termios;
-  raw.c_iflag &= (tcflag_t)~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+  raw.c_iflag &= (tcflag_t)~(IGNBRK | BRKINT | PARMRK | INPCK | ISTRIP |
+                           INLCR | IGNCR | ICRNL | IXON);
   raw.c_oflag &= (tcflag_t)~OPOST;
+  raw.c_cflag &= (tcflag_t)~(CSIZE | PARENB);
   raw.c_cflag |= CS8;
-  raw.c_lflag &= (tcflag_t)~(ECHO | ICANON | IEXTEN | ISIG);
+  raw.c_lflag &= (tcflag_t)~(ECHO | ECHONL | ICANON | IEXTEN | ISIG);
   raw.c_cc[VMIN] = 0;
   raw.c_cc[VTIME] = 1;
 
-  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) {
+  /* Do not discard queued input when entering or leaving the editor.*/
+  if (terminalSetAttributes(&raw) < 0) {
     editorDie("tcsetattr");
   }
   editor.raw_mode_enabled = 1;
   if (atexit(terminalDisableRawMode) != 0) {
     editorDie("atexit");
   }
-#endif
 }
 
 static ssize_t terminalReadByte(unsigned char *cp) {
@@ -251,6 +267,9 @@ static ssize_t terminalReadByte(unsigned char *cp) {
   do {
     nread = read(STDIN_FILENO, cp, 1U);
   } while ((nread < 0) && (errno == EINTR));
+  if (nread < 0) {
+    editorDie("read");
+  }
   return nread;
 }
 
@@ -261,9 +280,6 @@ static int editorReadKey(void) {
 
   do {
     nread = terminalReadByte(&c);
-    if (nread < 0) {
-      editorDie("read");
-    }
   } while (nread != 1);
 
   if (c != '\x1b') {

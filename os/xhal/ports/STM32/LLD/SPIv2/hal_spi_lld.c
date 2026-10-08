@@ -337,14 +337,8 @@ static void spi_lld_serve_rx_interrupt(SPIDriver *spip, uint32_t flags) {
     _spi_isr_error_code(spip);
   }
   else if ((__spi_getfield(spip, mode) & SPI_MODE_CIRCULAR) != 0U) {
-    if ((flags & STM32_DMA_ISR_HTIF) != 0U) {
-      /* Half buffer interrupt.*/
-      _spi_isr_half_code(spip);
-    }
-    if ((flags & STM32_DMA_ISR_TCIF) != 0U) {
-      /* Full buffer interrupt.*/
-      _spi_isr_full_code(spip);
-    }
+    _spi_isr_circular_code(spip, (flags & STM32_DMA_ISR_HTIF) != 0U,
+                           (flags & STM32_DMA_ISR_TCIF) != 0U);
   }
   else {
     /* Stopping DMAs.*/
@@ -566,7 +560,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI1_RX_DMA_STREAM,
                           STM32_SPI_SPI1_TX_DMA_STREAM,
-                          STM32_SPI_SPI1_IRQ_PRIORITY);
+                          STM32_IRQ_SPI1_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
@@ -584,7 +578,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI2_RX_DMA_STREAM,
                           STM32_SPI_SPI2_TX_DMA_STREAM,
-                          STM32_SPI_SPI2_IRQ_PRIORITY);
+                          STM32_IRQ_SPI2_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
@@ -602,7 +596,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI3_RX_DMA_STREAM,
                           STM32_SPI_SPI3_TX_DMA_STREAM,
-                          STM32_SPI_SPI3_IRQ_PRIORITY);
+                          STM32_IRQ_SPI3_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
@@ -620,7 +614,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI4_RX_DMA_STREAM,
                           STM32_SPI_SPI4_TX_DMA_STREAM,
-                          STM32_SPI_SPI4_IRQ_PRIORITY);
+                          STM32_IRQ_SPI4_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
@@ -638,7 +632,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI5_RX_DMA_STREAM,
                           STM32_SPI_SPI5_TX_DMA_STREAM,
-                          STM32_SPI_SPI5_IRQ_PRIORITY);
+                          STM32_IRQ_SPI5_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }
@@ -656,7 +650,7 @@ msg_t spi_lld_start(SPIDriver *spip) {
     msg = spi_lld_get_dma(spip,
                           STM32_SPI_SPI6_RX_DMA_STREAM,
                           STM32_SPI_SPI6_TX_DMA_STREAM,
-                          STM32_SPI_SPI6_IRQ_PRIORITY);
+                          STM32_IRQ_SPI6_PRIORITY);
     if (msg != HAL_RET_SUCCESS) {
       return msg;
     }

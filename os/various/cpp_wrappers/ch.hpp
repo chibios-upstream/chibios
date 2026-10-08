@@ -82,11 +82,16 @@ namespace chibios_rt {
      * @details Performs an integrity check of the important ChibiOS/RT data
      *          structures.
      * @note    The reaction in case of failure is to invoke the
-     *          @p CH_CFG_INTEGRITY_HOOK which, by default, halts the system.
+     *          @p CH_CFG_SAFETY_CHECK_HOOK which, by default, halts the system.
+     *          A replacement hook must not return to the failed operation.
      * @note    This functionality is available at any hardening level.
-     * @note    Pointers validation is enabled at hardening level 2 or greater,
-     *          at lower levels a corrupted pointer can cause an exception.
-     *          Exceptions should be monitored as well as possible outcomes.
+     * @note    Forward/backward link consistency checks always execute. Pointer
+     *          validation before dereferencing is enabled at hardening level 2
+     *          or higher, or when @p CH_DBG_ENABLE_ASSERTS is enabled.
+     * @note    The default pointer validator checks only @p NULL and natural
+     *          alignment. An aligned invalid address can still cause an
+     *          exception, even at hardening level 3. Applications should also
+     *          monitor exceptions as possible outcomes of an integrity scan.
      * @note    This function is not used internally, it is up to the
      *          application to define if and where to perform system
      *          checking.

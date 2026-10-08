@@ -178,7 +178,7 @@ static void adc_lld_calibrate(ADCDriver *adcp) {
   osalSysPolledDelayX(OSAL_US2RTC(STM32_HCLK, 20));
 
 #if STM32_ADC_DUAL_MODE
-  osalDbgAssert(adcp->adcs->CR == ADC_CR_ADVREGEN, "invalid register state");
+  osalDbgAssert(adcp->adcs->CR == STM32_ADC_CR_ADVREGEN, "invalid register state");
 
   /* Differential calibration for slave ADC.*/
   adcp->adcs->CR = STM32_ADC_CR_ADVREGEN | ADC_CR_ADCALDIF;
@@ -243,8 +243,12 @@ static void adc_lld_stop_adc(ADCDriver *adcp) {
     adcp->adcm->CR |= ADC_CR_ADSTP;
     while (adcp->adcm->CR & ADC_CR_ADSTP)
       ;
-    adcp->adcm->IER = 0;
   }
+  /* ADSTART may already be clear after a linear conversion.*/
+  adcp->adcm->IER = 0U;
+#if STM32_ADC_DUAL_MODE
+  adcp->adcs->IER = 0U;
+#endif
 }
 
 /**
@@ -255,25 +259,24 @@ static void adc_lld_stop_adc(ADCDriver *adcp) {
  */
 static void adc_lld_serve_dma_interrupt(ADCDriver *adcp, uint32_t flags) {
 
+  /* An ADC error or a callback may already have stopped the conversion.*/
+  if ((adcp->grpp == NULL) || (adcp->state != ADC_ACTIVE)) {
+    return;
+  }
+
   /* DMA errors handling.*/
   if ((flags & (STM32_DMA_ISR_TEIF | STM32_DMA_ISR_DMEIF)) != 0) {
     /* DMA, this could help only if the DMA tries to access an unmapped
        address space or violates alignment rules.*/
     _adc_isr_error_code(adcp, ADC_ERR_DMAFAILURE);
   }
-  else {
-    /* It is possible that the conversion group has already be reset by the
-       ADC error handler, in this case this interrupt is spurious.*/
-    if (adcp->grpp != NULL) {
-      if ((flags & STM32_DMA_ISR_TCIF) != 0) {
-        /* Transfer complete processing.*/
-        _adc_isr_full_code(adcp);
-      }
-      else if ((flags & STM32_DMA_ISR_HTIF) != 0) {
-        /* Half transfer processing.*/
-        _adc_isr_half_code(adcp);
-      }
-    }
+  else if ((flags & STM32_DMA_ISR_TCIF) != 0) {
+    /* Transfer complete takes priority over a pending half transfer.*/
+    _adc_isr_full_code(adcp);
+  }
+  else if ((flags & STM32_DMA_ISR_HTIF) != 0) {
+    /* Half transfer processing.*/
+    _adc_isr_half_code(adcp);
   }
 }
 
@@ -281,18 +284,15 @@ static void adc_lld_serve_dma_interrupt(ADCDriver *adcp, uint32_t flags) {
  * @brief   ADC IRQ service routine.
  *
  * @param[in] adcp      pointer to the @p ADCDriver object
- * @param[in] isr       content of the ISR register
+ * @param[in] isr       enabled interrupt flags, combined in dual mode
  */
 static void adc_lld_serve_interrupt(ADCDriver *adcp, uint32_t isr) {
 
-  /* It could be a spurious interrupt caused by overflows after DMA disabling,
-     just ignore it in this case.*/
-  if (adcp->grpp != NULL) {
+  /* Ignore errors occurring after the conversion has ended.*/
+  if ((adcp->grpp != NULL) && (adcp->state == ADC_ACTIVE)) {
     adcerror_t emask = 0U;
 
-    /* Note, an overflow may occur after the conversion ended before the driver
-       is able to stop the ADC, this is why the state is checked too.*/
-    if ((isr & ADC_ISR_OVR) && (adcp->state == ADC_ACTIVE)) {
+    if (isr & ADC_ISR_OVR) {
       /* ADC overflow condition, this could happen only if the DMA is unable
          to read data fast enough.*/
       emask |= ADC_ERR_OVERFLOW;
@@ -326,39 +326,47 @@ static void adc_lld_serve_interrupt(ADCDriver *adcp, uint32_t isr) {
  * @isr
  */
 OSAL_IRQ_HANDLER(STM32_ADC1_HANDLER) {
-  uint32_t isr;
+  uint32_t isr, flags;
+#if STM32_ADC_DUAL_MODE
+  uint32_t sisr;
+#endif
 
   OSAL_IRQ_PROLOGUE();
 
 #if STM32_ADC_DUAL_MODE
 
   isr  = ADC1->ISR;
-  isr |= ADC2->ISR;
+  sisr = ADC2->ISR;
+  flags = (isr & ADC1->IER) | (sisr & ADC2->IER);
   ADC1->ISR = isr;
-  ADC2->ISR = isr;
+  ADC2->ISR = sisr;
+  /* Preserve the shared hook's combined raw status.*/
+  isr |= sisr;
 #if defined(STM32_ADC_ADC12_IRQ_HOOK)
   STM32_ADC_ADC12_IRQ_HOOK
 #endif
-  adc_lld_serve_interrupt(&ADCD1, isr);
+  adc_lld_serve_interrupt(&ADCD1, flags);
 
 #else /* !STM32_ADC_DUAL_MODE */
 
 #if STM32_ADC_USE_ADC1
   isr  = ADC1->ISR;
+  flags = isr & ADC1->IER;
   ADC1->ISR = isr;
 #if defined(STM32_ADC_ADC1_IRQ_HOOK)
   STM32_ADC_ADC1_IRQ_HOOK
 #endif
-  adc_lld_serve_interrupt(&ADCD1, isr);
+  adc_lld_serve_interrupt(&ADCD1, flags);
 #endif
 
 #if STM32_ADC_USE_ADC2
   isr  = ADC2->ISR;
+  flags = isr & ADC2->IER;
   ADC2->ISR = isr;
 #if defined(STM32_ADC_ADC2_IRQ_HOOK)
   STM32_ADC_ADC2_IRQ_HOOK
 #endif
-  adc_lld_serve_interrupt(&ADCD2, isr);
+  adc_lld_serve_interrupt(&ADCD2, flags);
 #endif
 
 #endif /* !STM32_ADC_DUAL_MODE */
@@ -374,16 +382,26 @@ OSAL_IRQ_HANDLER(STM32_ADC1_HANDLER) {
  * @isr
  */
 OSAL_IRQ_HANDLER(STM32_ADC3_HANDLER) {
-  uint32_t isr;
+  uint32_t isr, flags;
+#if STM32_ADC_DUAL_MODE
+  uint32_t sisr;
+#endif
 
   OSAL_IRQ_PROLOGUE();
 
   isr  = ADC3->ISR;
+  flags = isr & ADC3->IER;
+#if STM32_ADC_DUAL_MODE
+  /* Capture and acknowledge both ADCs before a callback can restart them.*/
+  sisr = ADC4->ISR;
+  flags |= sisr & ADC4->IER;
+  ADC4->ISR = sisr;
+#endif
   ADC3->ISR = isr;
 #if defined(STM32_ADC_ADC3_IRQ_HOOK)
   STM32_ADC_ADC3_IRQ_HOOK
 #endif
-  adc_lld_serve_interrupt(&ADCD3, isr);
+  adc_lld_serve_interrupt(&ADCD3, flags);
 
   OSAL_IRQ_EPILOGUE();
 }
@@ -395,17 +413,20 @@ OSAL_IRQ_HANDLER(STM32_ADC3_HANDLER) {
  * @isr
  */
 OSAL_IRQ_HANDLER(STM32_ADC4_HANDLER) {
-  uint32_t isr;
+  uint32_t isr, misr, flags;
 
   OSAL_IRQ_PROLOGUE();
 
   isr  = ADC4->ISR;
+  misr = ADC3->ISR;
+  flags = (isr & ADC4->IER) | (misr & ADC3->IER);
   ADC4->ISR = isr;
+  ADC3->ISR = misr;
 #if defined(STM32_ADC_ADC4_IRQ_HOOK)
   STM32_ADC_ADC4_IRQ_HOOK
 #endif
 
-  adc_lld_serve_interrupt(&ADCD3, isr);
+  adc_lld_serve_interrupt(&ADCD3, flags);
 
   OSAL_IRQ_EPILOGUE();
 }
@@ -419,17 +440,18 @@ OSAL_IRQ_HANDLER(STM32_ADC4_HANDLER) {
  * @isr
  */
 OSAL_IRQ_HANDLER(STM32_ADC4_HANDLER) {
-  uint32_t isr;
+  uint32_t isr, flags;
 
   OSAL_IRQ_PROLOGUE();
 
   isr  = ADC4->ISR;
+  flags = isr & ADC4->IER;
   ADC4->ISR = isr;
 #if defined(STM32_ADC_ADC4_IRQ_HOOK)
   STM32_ADC_ADC4_IRQ_HOOK
 #endif
 
-  adc_lld_serve_interrupt(&ADCD4, isr);
+  adc_lld_serve_interrupt(&ADCD4, flags);
 
   OSAL_IRQ_EPILOGUE();
 }
@@ -442,17 +464,18 @@ OSAL_IRQ_HANDLER(STM32_ADC4_HANDLER) {
  * @isr
  */
 OSAL_IRQ_HANDLER(STM32_ADC5_HANDLER) {
-  uint32_t isr;
+  uint32_t isr, flags;
 
   OSAL_IRQ_PROLOGUE();
 
   isr  = ADC5->ISR;
+  flags = isr & ADC5->IER;
   ADC5->ISR = isr;
 #if defined(STM32_ADC_ADC5_IRQ_HOOK)
   STM32_ADC_ADC5_IRQ_HOOK
 #endif
 
-  adc_lld_serve_interrupt(&ADCD5, isr);
+  adc_lld_serve_interrupt(&ADCD5, flags);
 
   OSAL_IRQ_EPILOGUE();
 }
@@ -595,30 +618,30 @@ void adc_lld_init(void) {
 #if defined(STM32F3XX)
 #if STM32_HAS_ADC1 && STM32_HAS_ADC2
 #if STM32_ADC_USE_ADC1 || STM32_ADC_USE_ADC2
-  rccResetADC12();
   rccEnableADC12(true);
+  rccResetADC12();
   ADC1_2_COMMON->CCR = STM32_ADC_ADC12_CLOCK_MODE | ADC_DMA_MDMA;
   rccDisableADC12();
 #endif
 #else
 #if STM32_ADC_USE_ADC1
-  rccResetADC12();
   rccEnableADC12(true);
+  rccResetADC12();
   ADC1_COMMON->CCR = STM32_ADC_ADC12_CLOCK_MODE | ADC_DMA_MDMA;
   rccDisableADC12();
 #endif
 #endif
 #if STM32_ADC_USE_ADC3 || STM32_ADC_USE_ADC4
-  rccResetADC34();
   rccEnableADC34(true);
+  rccResetADC34();
   ADC3_4_COMMON->CCR = STM32_ADC_ADC34_CLOCK_MODE | ADC_DMA_MDMA;
   rccDisableADC34();
 #endif
 #endif
 
 #if defined(STM32L4XX) || defined(STM32L4XXP)
-  rccResetADC123();
   rccEnableADC123(true);
+  rccResetADC123();
 #if defined(ADC1_2_COMMON)
   ADC1_2_COMMON->CCR = STM32_ADC_ADC123_PRESC | STM32_ADC_ADC123_CLOCK_MODE | ADC_DMA_MDMA;
 #elif defined(ADC12_COMMON)
@@ -633,8 +656,8 @@ void adc_lld_init(void) {
 
 #if defined(STM32G4XX)
 #if STM32_ADC_USE_ADC1 || STM32_ADC_USE_ADC2
-  rccResetADC12();
   rccEnableADC12(true);
+  rccResetADC12();
   ADC12_COMMON->CCR = STM32_ADC_ADC12_PRESC | STM32_ADC_ADC12_CLOCK_MODE | ADC_DMA_MDMA;
   rccDisableADC12();
 #endif
@@ -648,8 +671,8 @@ void adc_lld_init(void) {
 
 #if defined(STM32WBXX)
 #if STM32_ADC_USE_ADC1
-  rccResetADC1();
   rccEnableADC1(true);
+  rccResetADC1();
   ADC1_COMMON->CCR = STM32_ADC_ADC1_PRESC | STM32_ADC_ADC1_CLOCK_MODE;
   rccDisableADC1();
 #endif
@@ -968,21 +991,21 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
   dmaStreamSetMode(adcp->dmastp, dmamode);
   dmaStreamEnable(adcp->dmastp);
 
-  /* ADC setup, if it is defined a callback for the analog watch dog then it
-     is enabled.*/
+  /* Errors also terminate conversions without an application callback.*/
   adcp->adcm->ISR   = adcp->adcm->ISR;
-  if (grpp->error_cb != NULL) {
-    adcp->adcm->IER    = ADC_IER_OVRIE | ADC_IER_AWD1IE
-                                       | ADC_IER_AWD2IE
-                                       | ADC_IER_AWD3IE;
-    adcp->adcm->TR1    = grpp->tr1;
-    adcp->adcm->TR2    = grpp->tr2;
-    adcp->adcm->TR3    = grpp->tr3;
-    adcp->adcm->AWD2CR = grpp->awd2cr;
-    adcp->adcm->AWD3CR = grpp->awd3cr;
-  }
+  adcp->adcm->TR1    = grpp->tr1;
+  adcp->adcm->TR2    = grpp->tr2;
+  adcp->adcm->TR3    = grpp->tr3;
+  adcp->adcm->AWD2CR = grpp->awd2cr;
+  adcp->adcm->AWD3CR = grpp->awd3cr;
+  adcp->adcm->IER    = ADC_IER_OVRIE | ADC_IER_AWD1IE |
+                       ADC_IER_AWD2IE | ADC_IER_AWD3IE;
 
 #if STM32_ADC_DUAL_MODE
+  /* Either ADC can overrun and block dual-mode DMA requests. The group
+     exposes watchdog settings only for the master ADC.*/
+  adcp->adcs->ISR = adcp->adcs->ISR;
+  adcp->adcs->IER = ADC_IER_OVRIE;
 
   /* Configuring the CCR register with the user-specified settings
      in the conversion group configuration structure, static settings are

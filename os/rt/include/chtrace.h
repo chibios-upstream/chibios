@@ -21,6 +21,14 @@
  * @brief   Tracer macros and structures.
  *
  * @addtogroup trace
+ * @details The built-in tracer keeps the latest events in a per-instance
+ *          circular buffer. Consume individual records synchronously through
+ *          @p CH_CFG_TRACE_HOOK(), or inspect a buffer while all its writers
+ *          are stopped or otherwise excluded. The kernel lock alone does not
+ *          exclude halt tracing.
+ * @note    Unsynchronized live reads are not guaranteed to return coherent
+ *          records or snapshots. Neither the next-slot pointer nor a record's
+ *          type is a publication marker for asynchronous readers.
  * @{
  */
 
@@ -85,6 +93,7 @@
  * @brief   Trace buffer entries.
  * @note    The trace buffer is only allocated if @p CH_DBG_TRACE_MASK is
  *          different from @p CH_DBG_TRACE_MASK_DISABLED.
+ * @note    The allowed range is 1..65535 when the trace buffer is enabled.
  */
 #if !defined(CH_DBG_TRACE_BUFFER_SIZE) || defined(__DOXYGEN__)
 #define CH_DBG_TRACE_BUFFER_SIZE            128
@@ -94,6 +103,12 @@
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
+
+#if CH_DBG_TRACE_MASK != CH_DBG_TRACE_MASK_DISABLED
+#if (CH_DBG_TRACE_BUFFER_SIZE < 1) || (CH_DBG_TRACE_BUFFER_SIZE > 65535)
+#error "invalid CH_DBG_TRACE_BUFFER_SIZE, allowed range is 1..65535"
+#endif
+#endif
 
 /*===========================================================================*/
 /* Module data structures and types.                                         */
@@ -208,6 +223,7 @@ typedef struct {
   uint16_t              size;
   /**
    * @brief   Pointer to the next slot to be written.
+   * @note    NULL until trace buffer initialization is complete.
    */
   trace_event_t         *ptr;
   /**
@@ -222,8 +238,8 @@ typedef struct {
 /*===========================================================================*/
 
 /* When a trace feature is disabled the associated functions are replaced by
-   an empty macro. Note that the macros can be externally redefined in
-   order to interface 3rd parties tracing tools.*/
+   an empty macro which does not evaluate its arguments. Note that the macros
+   can be externally redefined in order to interface 3rd parties tracing tools.*/
 #if CH_DBG_TRACE_MASK == CH_DBG_TRACE_MASK_DISABLED
 #if !defined(__trace_ready)
 #define __trace_ready(tp, msg)
@@ -239,6 +255,12 @@ typedef struct {
 #endif
 #if !defined(__trace_halt)
 #define __trace_halt(reason)
+#endif
+#if !defined(chTraceWriteI)
+#define chTraceWriteI(up1, up2)
+#endif
+#if !defined(chTraceWrite)
+#define chTraceWrite(up1, up2)
 #endif
 #if !defined(chDbgWriteTraceI)
 #define chDbgWriteTraceI(up1, up2)

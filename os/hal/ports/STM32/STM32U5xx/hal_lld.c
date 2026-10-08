@@ -300,6 +300,13 @@ typedef struct {
   halfreq_t             flash_thresholds[STM32_WS_THRESHOLDS];
 } system_limits_t;
 
+#if defined(HAL_LLD_USE_CLOCK_RESUME)
+/**
+ * @brief   Last successfully installed clock configuration.
+ */
+static halclkcfg_t hal_clkcfg_current;
+#endif
+
 /**
  * @brief   Dynamic clock points for this device.
  * @note    Pre-initialized because clock_init() runs before DATA/BSS
@@ -1253,6 +1260,266 @@ static bool hal_lld_clock_check_tree(const halclkcfg_t *ccp) {
 }
 #endif /* defined(HAL_LLD_USE_CLOCK_MANAGEMENT) */
 
+#if defined(HAL_LLD_USE_CLOCK_RESUME) || defined(__DOXYGEN__)
+/**
+ * @brief   Returns the live HCLK while executing on a Stop wake clock.
+ * @note    Only MSIS and HSI16 can be selected as Stop wake sources.
+ */
+static halfreq_t hal_lld_clock_get_current_hclk(void) {
+  static const uint16_t hprediv[16] = {
+    1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U,
+    2U, 4U, 8U, 16U, 64U, 128U, 256U, 512U
+  };
+  uint32_t n;
+  halfreq_t sysclk;
+
+  switch ((RCC->CFGR1 & RCC_CFGR1_SWS_Msk) >> RCC_CFGR1_SWS_Pos) {
+  case RCC_CFGR1_SW_MSIS:
+    n = (RCC->ICSCR1 & RCC_ICSCR1_MSISRANGE_Msk) >>
+        RCC_ICSCR1_MSISRANGE_Pos;
+    sysclk = hal_lld_get_msi_frequency(n);
+    break;
+  case RCC_CFGR1_SW_HSI16:
+    sysclk = STM32_HSI16_SOURCE_FREQ;
+    break;
+  default:
+    return 0U;
+  }
+
+  n = (RCC->CFGR2 & RCC_CFGR2_HPRE_Msk) >> RCC_CFGR2_HPRE_Pos;
+
+  return sysclk / hprediv[n];
+}
+
+/**
+ * @brief   Checks registers which must be retained across Stop modes.
+ *
+ * @param[in] ccp       pointer to a @p halclkcfg_t structure
+ * @return              The retained state check result.
+ * @retval false        if the retained state matches
+ * @retval true         if the retained state does not match
+ *
+ * @notapi
+ */
+static bool hal_lld_clock_check_retained(const halclkcfg_t *ccp) {
+  const uint32_t oscillator_enable_mask =
+    RCC_CR_MSISON | RCC_CR_MSIKON | RCC_CR_HSION | RCC_CR_HSI48ON |
+    RCC_CR_SHSION | RCC_CR_HSEON | RCC_CR_MSIKERON | RCC_CR_HSIKERON;
+  const uint32_t pll_enable_mask =
+    RCC_CR_PLL1ON | RCC_CR_PLL2ON | RCC_CR_PLL3ON;
+  const uint32_t static_cr_mask =
+    STM32_RCC_CR_CFG_MASK & ~(oscillator_enable_mask | pll_enable_mask);
+  const uint32_t static_icscr1_mask =
+    STM32_RCC_ICSCR1_CFG_MASK & ~RCC_ICSCR1_MSISRANGE_Msk;
+  const uint32_t static_cfgr1_mask =
+    STM32_RCC_CFGR1_CFG_MASK & ~RCC_CFGR1_SW_Msk;
+
+  if ((RCC->CR & static_cr_mask) != (ccp->rcc_cr & static_cr_mask)) {
+    return true;
+  }
+  if ((RCC->ICSCR1 & static_icscr1_mask) !=
+      (ccp->rcc_icscr1 & static_icscr1_mask)) {
+    return true;
+  }
+  if ((RCC->CFGR1 & static_cfgr1_mask) !=
+      (ccp->rcc_cfgr1 & static_cfgr1_mask)) {
+    return true;
+  }
+  if ((RCC->BDCR & STM32_RCC_BDCR_CFG_MASK) !=
+      (ccp->rcc_bdcr & STM32_RCC_BDCR_CFG_MASK)) {
+    return true;
+  }
+  if ((RCC->CFGR2 != ccp->rcc_cfgr2) ||
+      (RCC->CFGR3 != ccp->rcc_cfgr3) ||
+      (RCC->CCIPR1 != ccp->rcc_ccipr1) ||
+      (RCC->CCIPR2 != ccp->rcc_ccipr2) ||
+      (RCC->CCIPR3 != ccp->rcc_ccipr3)) {
+    return true;
+  }
+  if ((RCC->PLL1CFGR != ccp->plls[0].cfgr) ||
+      (RCC->PLL1DIVR != ccp->plls[0].divr) ||
+      (RCC->PLL1FRACR != ccp->plls[0].fracr) ||
+      (RCC->PLL2CFGR != ccp->plls[1].cfgr) ||
+      (RCC->PLL2DIVR != ccp->plls[1].divr) ||
+      (RCC->PLL2FRACR != ccp->plls[1].fracr) ||
+      (RCC->PLL3CFGR != ccp->plls[2].cfgr) ||
+      (RCC->PLL3DIVR != ccp->plls[2].divr) ||
+      (RCC->PLL3FRACR != ccp->plls[2].fracr)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * @brief   Resumes the current clock configuration after Stop 0, 1 or 2.
+ * @details Registers retained by Stop are validated and not rewritten. Only
+ *          voltage scaling, stopped oscillators, the booster, the Stop-limited
+ *          MSIS range, PLLs and the system clock source are restored.
+ * @note    The caller must keep interrupts masked until this function returns.
+ * @note    A failure may leave the clock state partially restored. The caller
+ *          must recover the clock state before interrupts are unmasked.
+ *
+ * @return              The clock resume result.
+ * @retval false        if the clock resume succeeded
+ * @retval true         if the clock resume failed
+ *
+ * @notapi
+ */
+bool hal_lld_clock_resume(void) {
+  const uint32_t oscillator_enable_mask =
+    RCC_CR_MSISON | RCC_CR_MSIKON | RCC_CR_HSION | RCC_CR_HSI48ON |
+    RCC_CR_SHSION | RCC_CR_HSEON | RCC_CR_MSIKERON | RCC_CR_HSIKERON;
+  const uint32_t pll_enable_mask =
+    RCC_CR_PLL1ON | RCC_CR_PLL2ON | RCC_CR_PLL3ON;
+  const halclkcfg_t *ccp = &hal_clkcfg_current;
+  uint32_t cr, wtmask, target_sws;
+  halfreq_t hclk;
+
+  hclk = hal_lld_clock_get_current_hclk();
+  if (hclk == 0U) {
+    return true;
+  }
+  hal_lld_set_coreclock(hclk);
+
+  if (hal_lld_clock_check_retained(ccp) ||
+      hal_lld_clock_check_tree(ccp)) {
+    return true;
+  }
+
+  /* The retained latency is normally already correct. Make it safe for the
+     final RUN frequency before increasing a clock frequency. */
+  if (FLASH->ACR != ccp->flash_acr) {
+    halRegWrite32X(&FLASH->ACR, ccp->flash_acr, true);
+  }
+
+  /* Restore voltage range first, leaving the booster disabled. */
+  halRegMaskedWrite32X(&PWR->VOSR,
+                       STM32_PWR_VOSR_CFG_MASK,
+                       (ccp->pwr_vosr & ~PWR_VOSR_BOOSTEN) &
+                       STM32_PWR_VOSR_CFG_MASK,
+                       true);
+  if (halRegWaitAllSet32X(&PWR->VOSR,
+                          PWR_VOSR_VOSRDY,
+                          STM32_REGULATORS_TRANSITION_TIME,
+                          NULL)) {
+    return true;
+  }
+
+  /* Start all requested non-PLL oscillators. The selected PLL input must be
+     ready before it can supply the booster through PLL1MBOOST. */
+  cr = ccp->rcc_cr & oscillator_enable_mask;
+  halRegSet32X(&RCC->CR, cr, true);
+
+  wtmask = 0U;
+  if ((ccp->rcc_cr & RCC_CR_MSISON) != 0U) {
+    wtmask |= RCC_CR_MSISRDY;
+  }
+  if ((ccp->rcc_cr & RCC_CR_MSIKON) != 0U) {
+    wtmask |= RCC_CR_MSIKRDY;
+  }
+  if ((ccp->rcc_cr & RCC_CR_HSION) != 0U) {
+    wtmask |= RCC_CR_HSIRDY;
+  }
+  if ((ccp->rcc_cr & RCC_CR_HSI48ON) != 0U) {
+    wtmask |= RCC_CR_HSI48RDY;
+  }
+  if ((ccp->rcc_cr & RCC_CR_SHSION) != 0U) {
+    wtmask |= RCC_CR_SHSIRDY;
+  }
+  if ((ccp->rcc_cr & RCC_CR_HSEON) != 0U) {
+    wtmask |= RCC_CR_HSERDY;
+  }
+  if (halRegWaitAllSet32X(&RCC->CR,
+                          wtmask,
+                          STM32_CFG_OSCILLATORS_STARTUP_TIME,
+                          NULL)) {
+    return true;
+  }
+
+  if ((ccp->pwr_vosr & PWR_VOSR_BOOSTEN) != 0U) {
+    halRegMaskedWrite32X(&PWR->VOSR,
+                         STM32_PWR_VOSR_CFG_MASK,
+                         ccp->pwr_vosr & STM32_PWR_VOSR_CFG_MASK,
+                         true);
+    if (halRegWaitAllSet32X(&PWR->VOSR,
+                            PWR_VOSR_BOOSTRDY,
+                            STM32_REGULATORS_TRANSITION_TIME,
+                            NULL)) {
+      return true;
+    }
+  }
+
+  /* Stop can limit the MSIS range. MSIK range and shared control fields are
+     retained and were validated above. */
+  if ((RCC->ICSCR1 & RCC_ICSCR1_MSISRANGE_Msk) !=
+      (ccp->rcc_icscr1 & RCC_ICSCR1_MSISRANGE_Msk)) {
+    halRegMaskedWrite32X(&RCC->ICSCR1,
+                         RCC_ICSCR1_MSISRANGE_Msk,
+                         ccp->rcc_icscr1 & RCC_ICSCR1_MSISRANGE_Msk,
+                         true);
+    if (((RCC->CR & RCC_CR_MSISON) != 0U) &&
+        halRegWaitAllSet32X(&RCC->CR,
+                            RCC_CR_MSISRDY,
+                            STM32_CFG_OSCILLATORS_STARTUP_TIME,
+                            NULL)) {
+      return true;
+    }
+    hclk = hal_lld_clock_get_current_hclk();
+    if (hclk == 0U) {
+      return true;
+    }
+    hal_lld_set_coreclock(hclk);
+  }
+
+  /* PLL configuration is retained, only their enable state is lost. */
+  cr = ccp->rcc_cr & pll_enable_mask;
+  halRegSet32X(&RCC->CR, cr, true);
+
+  wtmask = 0U;
+  if ((ccp->rcc_cr & RCC_CR_PLL1ON) != 0U) {
+    wtmask |= RCC_CR_PLL1RDY;
+  }
+  if ((ccp->rcc_cr & RCC_CR_PLL2ON) != 0U) {
+    wtmask |= RCC_CR_PLL2RDY;
+  }
+  if ((ccp->rcc_cr & RCC_CR_PLL3ON) != 0U) {
+    wtmask |= RCC_CR_PLL3RDY;
+  }
+  if (halRegWaitAllSet32X(&RCC->CR,
+                          wtmask,
+                          STM32_PLL_STARTUP_TIME,
+                          NULL)) {
+    return true;
+  }
+
+  /* Prescalers are retained, switch only the system clock source. */
+  target_sws = (ccp->rcc_cfgr1 & RCC_CFGR1_SW_Msk) << RCC_CFGR1_SWS_Pos;
+  halRegMaskedWrite32X(&RCC->CFGR1,
+                       RCC_CFGR1_SW_Msk,
+                       ccp->rcc_cfgr1 & RCC_CFGR1_SW_Msk,
+                       true);
+  if (halRegWaitMatch32X(&RCC->CFGR1,
+                         RCC_CFGR1_SWS_Msk,
+                         target_sws,
+                         STM32_SYSCLK_SWITCH_TIME,
+                         NULL)) {
+    return true;
+  }
+
+  /* Disable a wake source which is not part of the resumed configuration. */
+  halRegMaskedWrite32X(&RCC->CR,
+                       oscillator_enable_mask | pll_enable_mask,
+                       ccp->rcc_cr &
+                       (oscillator_enable_mask | pll_enable_mask),
+                       true);
+
+  hal_lld_set_coreclock(hal_lld_get_clock_point(CLK_HCLK));
+
+  return false;
+}
+#endif /* defined(HAL_LLD_USE_CLOCK_RESUME) */
+
 /*===========================================================================*/
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
@@ -1271,6 +1538,12 @@ void hal_lld_init(void) {
   /* Frequency after applying the default configuration or assumed set by the
      bootloader in case of NO_INIT.*/
   hal_lld_set_coreclock(STM32_HCLK_CLOCK);
+
+#if defined(HAL_LLD_USE_CLOCK_RESUME)
+  /* The default configuration is already active at this point and ordinary
+     runtime data has been initialized.*/
+  hal_clkcfg_current = hal_clkcfg_default;
+#endif
 
   /* NVIC initialization.*/
   nvicInit();
@@ -1390,6 +1663,11 @@ bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
 
   /* Updating the current system clock setting value.*/
   hal_lld_set_coreclock(hal_lld_get_clock_point(CLK_HCLK));
+
+#if defined(HAL_LLD_USE_CLOCK_RESUME)
+  /* Remember only a configuration which was installed successfully.*/
+  hal_clkcfg_current = *ccp;
+#endif
 
   return false;
 }

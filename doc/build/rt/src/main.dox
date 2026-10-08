@@ -55,5 +55,6 @@
  * .
  * <h2>Related pages</h2>
  * - @subpage concepts
+ * - @subpage registry_debug_abi
  * .
  */

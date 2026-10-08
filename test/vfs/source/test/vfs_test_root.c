@@ -137,8 +137,9 @@ bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp) {
 }
 
 static void vfs_test_fs_dispose(void *ip) {
+  vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
 
-  (void)ip;
+  self->disposals++;
 }
 
 static void vfs_test_fs_record(vfs_test_fs_c *self, unsigned operation,
@@ -252,6 +253,7 @@ void vfs_test_fs_reset(void) {
   (void)__vfsfs_objinit_impl(&vfs_test_fs, &vfs_test_fs_vmt);
   vfs_test_fs.operation       = VFS_TEST_FS_OP_NONE;
   vfs_test_fs.calls           = 0U;
+  vfs_test_fs.disposals       = 0U;
   vfs_test_fs.path[0]         = '\0';
   vfs_test_fs.newpath[0]      = '\0';
   vfs_test_fs.flags           = 0;

@@ -117,28 +117,9 @@ static inline void dac1_irq_deinit(void) {
  * @isr
  */
 CH_IRQ_HANDLER(STM32_DAC1_HANDLER) {
-  uint32_t isr;
-
   CH_IRQ_PROLOGUE();
 
-  isr  = DAC1->SR;
-  DAC1->SR = isr;
-
-#if defined(STM32_DAC_DAC1_IRQ_HOOK)
-  STM32_DAC_DAC1_IRQ_HOOK(isr);
-#endif
-
-#if STM32_DAC_USE_DAC1_CH1
-  if ((isr & DAC_SR_DMAUDR1) != 0U) {
-    dac_lld_serve_interrupt(&DACD1);
-  }
-#endif
-
-#if !STM32_DAC_DUAL_MODE && STM32_DAC_USE_DAC1_CH2
-  if ((isr & DAC_SR_DMAUDR2) != 0U) {
-    dac_lld_serve_interrupt(&DACD2);
-  }
-#endif
+  dac_lld_serve_interrupt_dac1();
 
   CH_IRQ_EPILOGUE();
 }

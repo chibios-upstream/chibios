@@ -76,6 +76,8 @@
 /*===========================================================================*/
 
 /* DAC attributes.*/
+#define STM32_HAS_DAC3_CH1                  FALSE
+#define STM32_HAS_DAC3_CH2                  FALSE
 #define STM32_DAC_HAS_MCR                   TRUE
 
 /* RNG attributes.*/
@@ -87,24 +89,11 @@
 #define STM32_RTC_HAS_PERIODIC_WAKEUPS      TRUE
 #define STM32_RTC_NUM_ALARMS                2
 #define STM32_RTC_STORAGE_SIZE              128
-#define STM32_RTC_TAMP_STAMP_HANDLER        Vector48
-#define STM32_RTC_WKUP_HANDLER              Vector4C
-#define STM32_RTC_ALARM_HANDLER             VectorE4
-#define STM32_RTC_TAMP_STAMP_NUMBER         2
-#define STM32_RTC_WKUP_NUMBER               3
-#define STM32_RTC_ALARM_NUMBER              41
 #define STM32_RTC_ALARM_EXTI                18
 #define STM32_RTC_TAMP_STAMP_EXTI           19
 #define STM32_RTC_WKUP_EXTI                 20
-#define STM32_RTC_IRQ_ENABLE() do {                                         \
-  nvicEnableVector(STM32_RTC_TAMP_STAMP_NUMBER, STM32_IRQ_EXTI19_PRIORITY); \
-  nvicEnableVector(STM32_RTC_WKUP_NUMBER, STM32_IRQ_EXTI20_PRIORITY);       \
-  nvicEnableVector(STM32_RTC_ALARM_NUMBER, STM32_IRQ_EXTI18_PRIORITY);      \
-} while (false)
 
-#if defined(STM32L4P5xx) || defined(STM32L4Q5xx)
-
- /* Enabling RTC-related EXTI lines.*/
+/* Enabling RTC-related EXTI lines.*/
 #define STM32_RTC_ENABLE_ALL_EXTI() do {                                    \
   extiEnableGroup1(EXTI_MASK1(STM32_RTC_ALARM_EXTI) |                       \
                    EXTI_MASK1(STM32_RTC_TAMP_STAMP_EXTI) |                  \
@@ -120,13 +109,22 @@
 } while (false)
 
 /* Masks used to preserve state of RTC and TAMP register reserved bits. */
+#if defined(STM32L4P5xx) || defined(STM32L4Q5xx)
 #define STM32_RTC_CR_MASK                   0xE7FFFF7F
 #define STM32_RTC_PRER_MASK                 0x007F7FFF
 #define STM32_TAMP_CR1_MASK                 0x003C0007
 #define STM32_TAMP_CR2_MASK                 0x07070007
 #define STM32_TAMP_FLTCR_MASK               0x000000FF
 #define STM32_TAMP_IER_MASK                 0x003C0007
-#endif/* !(defined(STM32L4P5xx) || defined(STM32L4Q5xx)) */
+#else
+#define STM32_RTC_CR_MASK                   0x01FFFF7FU
+#define STM32_RTC_PRER_MASK                 0x007F7FFFU
+#define STM32_RTC_HAS_TAMP2                 TRUE
+#define STM32_RTC_ISR_EVENT_MASK            0x0002FF00U
+#define STM32_RTC_ISR_W0C_MASK              (STM32_RTC_ISR_EVENT_MASK | 0x20U)
+#define STM32_RTC_TAMPCR_MASK               0x01FFFFFFU
+#define STM32_RTC_TAMPCR_IRQ_MASK            0x00490004U
+#endif
 
 #if defined(STM32L4P5xx) || defined(STM32L4Q5xx) || defined(STM32L4S5xx) || \
     defined(STM32L4S7xx) || defined(STM32L4S9xx) || defined(__DOXYGEN__)
@@ -324,6 +322,7 @@
 #define STM32_OTG_STEPPING                  2
 #define STM32_HAS_OTG1                      TRUE
 #define STM32_OTG1_ENDPOINTS                5
+#define STM32_OTG1_FIFO_MEM_SIZE            320  /* 32-bit words.*/
 
 #define STM32_HAS_OTG2                      FALSE
 #define STM32_HAS_USB                       FALSE

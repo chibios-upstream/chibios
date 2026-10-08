@@ -37,6 +37,8 @@
  *
  * <h2>Test Cases</h2>
  * - @subpage nil_test_007_001
+ * - @subpage nil_test_007_002
+ * - @subpage nil_test_007_003
  * .
  */
 
@@ -119,6 +121,146 @@ static const testcase_t nil_test_007_001 = {
   nil_test_007_001_execute
 };
 
+/**
+ * @page nil_test_007_002 [7.2] Message polling and wait timeouts
+ *
+ * <h2>Description</h2>
+ * Empty polls and immediate waits in normal and S-class context return
+ * NULL, and a finite wait expires normally.
+ *
+ * <h2>Test Steps</h2>
+ * - [7.2.1] Polling and waiting immediately with no pending sender in
+ *   both contexts.
+ * - [7.2.2] A finite wait expires with no sender.
+ * .
+ */
+
+static void nil_test_007_002_execute(void) {
+
+  /* [7.2.1] Polling and waiting immediately with no pending sender in
+     both contexts.*/
+  test_set_step(1);
+  {
+    thread_t *tp = chMsgPoll();
+
+    test_assert(tp == NULL, "unexpected polled sender");
+    chSysLock();
+    tp = chMsgPollS();
+    chSysUnlock();
+    test_assert(tp == NULL, "unexpected polled sender in S-class");
+    tp = chMsgWaitTimeout(TIME_IMMEDIATE);
+
+    test_assert(tp == NULL, "unexpected sender");
+    chSysLock();
+    tp = chMsgWaitTimeoutS(TIME_IMMEDIATE);
+    chSysUnlock();
+    test_assert(tp == NULL, "unexpected sender in S-class");
+  }
+  test_end_step(1);
+
+  /* [7.2.2] A finite wait expires with no sender.*/
+  test_set_step(2);
+  {
+    systime_t start = chVTGetSystemTimeX();
+    thread_t *tp = chMsgWaitTimeout(TIME_MS2I(20));
+    sysinterval_t elapsed = chTimeDiffX(start, chVTGetSystemTimeX());
+
+    test_assert(tp == NULL, "unexpected sender");
+    test_assert(elapsed >= TIME_MS2I(20), "early timeout");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t nil_test_007_002 = {
+  "Message polling and wait timeouts",
+  NULL,
+  NULL,
+  nil_test_007_002_execute
+};
+
+/**
+ * @page nil_test_007_003 [7.3] Polling pending messages
+ *
+ * <h2>Description</h2>
+ * Polls in normal and S-class context return a queued sender without
+ * consuming the message. The sender remains available until explicitly
+ * released.
+ *
+ * <h2>Test Steps</h2>
+ * - [7.3.1] Polling four queued messages, alternating contexts and
+ *   polling again before release, then joining the sender before
+ *   checking results.
+ * .
+ */
+
+static void nil_test_007_003_execute(void) {
+
+  /* [7.3.1] Polling four queued messages, alternating contexts and
+     polling again before release, then joining the sender before
+     checking results.*/
+  test_set_step(1);
+  {
+    thread_descriptor_t td = {
+      .name  = "messenger",
+      .wbase = wa_common,
+      .wend  = THD_WORKING_AREA_END(wa_common),
+      .prio  = chThdGetPriorityX() - 1,
+      .funcp = messenger,
+      .arg   = chThdGetSelfX()
+    };
+    thread_t *sender = chThdCreate(&td);
+    bool all_pending = true;
+    bool all_retained = true;
+    unsigned i;
+
+    for (i = 0; i < 4U; i++) {
+      thread_t *tp;
+      msg_t msg;
+
+      if ((i & 1U) == 0U) {
+        tp = chMsgPoll();
+      }
+      else {
+        chSysLock();
+        tp = chMsgPollS();
+        chSysUnlock();
+      }
+      if (tp == NULL) {
+        all_pending = false;
+        tp = chMsgWait();
+      }
+      msg = chMsgGet(tp);
+      if (chMsgPoll() != tp) {
+        all_retained = false;
+      }
+      chSysLock();
+      if (chMsgPollS() != tp) {
+        all_retained = false;
+      }
+      chSysUnlock();
+      chMsgRelease(tp, msg);
+      test_emit_token(msg);
+    }
+    (void)chThdWait(sender);
+    test_assert(all_pending, "queued sender missed");
+    test_assert(all_retained, "polled sender not retained");
+    test_assert_sequence("ABCD", "invalid sequence");
+    test_assert(chMsgPoll() == NULL, "released sender still pending");
+    chSysLock();
+    sender = chMsgPollS();
+    chSysUnlock();
+    test_assert(sender == NULL, "released sender still pending in S-class");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t nil_test_007_003 = {
+  "Polling pending messages",
+  NULL,
+  NULL,
+  nil_test_007_003_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -128,6 +270,8 @@ static const testcase_t nil_test_007_001 = {
  */
 const testcase_t * const nil_test_sequence_007_array[] = {
   &nil_test_007_001,
+  &nil_test_007_002,
+  &nil_test_007_003,
   NULL
 };
 

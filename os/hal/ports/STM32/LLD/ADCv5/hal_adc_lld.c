@@ -72,14 +72,25 @@ NOINLINE static void adc_lld_vreg_on(ADC_TypeDef *adc) {
 /**
  * @brief   Calibrates an ADC unit.
  *
- * @param[in] adc       pointer to the ADC registers block
+ * @param[in] adcp      pointer to the @p ADCDriver object
  */
-static void adc_lld_calibrate(ADC_TypeDef *adc) {
+static void adc_lld_calibrate(ADCDriver *adcp) {
+  ADC_TypeDef *adc = adcp->adc;
 
   adc->CR |= ADC_CR_ADCAL;
   while (adc->CR & ADC_CR_ADCAL) {
     /* Waiting for calibration end.*/
   }
+
+#if STM32_ADC_CALFACT_WRITEBACK
+  /* The calibration leaves the factor minus one in CALFACT, the corrected
+     value is saturated to the field width (RM0503 14.4.3). It can only be
+     written back with the ADC enabled, see adc_lld_start_conversion().*/
+  adcp->calfact = (adc->CALFACT & ADC_CALFACT_CALFACT_Msk) + 1U;
+  if (adcp->calfact > ADC_CALFACT_CALFACT_Msk) {
+    adcp->calfact = ADC_CALFACT_CALFACT_Msk;
+  }
+#endif
 }
 
 /**
@@ -93,8 +104,9 @@ static void adc_lld_stop_adc(ADC_TypeDef *adc) {
     adc->CR |= ADC_CR_ADSTP;
     while (adc->CR & ADC_CR_ADSTP)
       ;
-    adc->IER = 0;
   }
+  /* ADSTART may already be clear after a linear conversion.*/
+  adc->IER = 0U;
 
   /* Disabling the ADC.*/
   adc->CR |= ADC_CR_ADDIS;
@@ -111,25 +123,24 @@ static void adc_lld_stop_adc(ADC_TypeDef *adc) {
  */
 static void adc_lld_serve_rx_interrupt(ADCDriver *adcp, uint32_t flags) {
 
+  /* An ADC error or a callback may already have stopped the conversion.*/
+  if ((adcp->grpp == NULL) || (adcp->state != ADC_ACTIVE)) {
+    return;
+  }
+
   /* DMA errors handling.*/
   if ((flags & (STM32_DMA_ISR_TEIF | STM32_DMA_ISR_DMEIF)) != 0) {
     /* DMA, this could help only if the DMA tries to access an unmapped
        address space or violates alignment rules.*/
     _adc_isr_error_code(adcp, ADC_ERR_DMAFAILURE);
   }
-  else {
-    /* It is possible that the conversion group has already be reset by the
-       ADC error handler, in this case this interrupt is spurious.*/
-    if (adcp->grpp != NULL) {
-      if ((flags & STM32_DMA_ISR_TCIF) != 0) {
-        /* Transfer complete processing.*/
-        _adc_isr_full_code(adcp);
-      }
-      else if ((flags & STM32_DMA_ISR_HTIF) != 0) {
-        /* Half transfer processing.*/
-        _adc_isr_half_code(adcp);
-      }
-    }
+  else if ((flags & STM32_DMA_ISR_TCIF) != 0) {
+    /* Transfer complete takes priority over a pending half transfer.*/
+    _adc_isr_full_code(adcp);
+  }
+  else if ((flags & STM32_DMA_ISR_HTIF) != 0) {
+    /* Half transfer processing.*/
+    _adc_isr_half_code(adcp);
   }
 }
 
@@ -176,6 +187,9 @@ void adc_lld_init(void) {
   adcObjectInit(&ADCD1);
   ADCD1.adc     = ADC1;
   ADCD1.dmastp  = NULL;
+#if STM32_ADC_CALFACT_WRITEBACK
+  ADCD1.calfact = 0U;
+#endif
   ADCD1.dmamode = STM32_DMA_CR_CHSEL(ADC1_DMA_CHANNEL) |
                   STM32_DMA_CR_PL(STM32_ADC_ADC1_DMA_PRIORITY) |
                   STM32_DMA_CR_DIR_P2M |
@@ -208,8 +222,8 @@ void adc_lld_start(ADCDriver *adcp) {
                                      (stm32_dmaisr_t)adc_lld_serve_rx_interrupt,
                                      (void *)adcp);
       osalDbgAssert(adcp->dmastp != NULL, "unable to allocate stream");
-      rccResetADC1();
       rccEnableADC1(true);
+      rccResetADC1();
 
       /* DMA setup.*/
       dmaStreamSetPeripheral(adcp->dmastp, &ADC1->DR);
@@ -225,7 +239,7 @@ void adc_lld_start(ADCDriver *adcp) {
     adc_lld_vreg_on(adcp->adc);
 
     /* Calibrating ADC.*/
-    adc_lld_calibrate(adcp->adc);
+    adc_lld_calibrate(adcp);
   }
 }
 
@@ -306,17 +320,22 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
   /* Set the sample rate(s).*/
   adcp->adc->SMPR = grpp->smpr;
 
-  /* Enable ADC interrupts if callback specified.*/
-   if (grpp->error_cb != NULL) {
-    adcp->adc->IER    = ADC_IER_OVRIE | ADC_IER_AWD1IE
-                                      | ADC_IER_AWD2IE
-                                      | ADC_IER_AWD3IE;
-    adcp->adc->TR1    = grpp->tr1;
-    adcp->adc->TR2    = grpp->tr2;
-    adcp->adc->TR3    = grpp->tr3;
-    adcp->adc->AWD2CR = grpp->awd2cr;
-    adcp->adc->AWD3CR = grpp->awd3cr;
-  }
+  /* Errors also terminate conversions without an application callback.
+     The threshold registers are named AWDxTR in newer CMSIS headers, U0
+     headers have no TRx aliases.*/
+#if defined(ADC_AWD1TR_LT1)
+  adcp->adc->AWD1TR = grpp->tr1;
+  adcp->adc->AWD2TR = grpp->tr2;
+  adcp->adc->AWD3TR = grpp->tr3;
+#else
+  adcp->adc->TR1    = grpp->tr1;
+  adcp->adc->TR2    = grpp->tr2;
+  adcp->adc->TR3    = grpp->tr3;
+#endif
+  adcp->adc->AWD2CR = grpp->awd2cr;
+  adcp->adc->AWD3CR = grpp->awd3cr;
+  adcp->adc->IER    = ADC_IER_OVRIE | ADC_IER_AWD1IE |
+                      ADC_IER_AWD2IE | ADC_IER_AWD3IE;
 
   /* Enable the ADC. Note: Setting ADEN must be deferred as STM32G0 family
      reset RES[1:0] resolution bits if CFGR1 is modified with ADEN set
@@ -325,6 +344,12 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
   while ((adcp->adc->ISR & ADC_ISR_ADRDY) == 0U) {
     /* Wait for the ADC to become ready.*/
   }
+
+#if STM32_ADC_CALFACT_WRITEBACK
+  /* Corrected calibration factor, it can only be written with ADEN set and
+     ADSTART clear and it is injected at the next conversion start.*/
+  adcp->adc->CALFACT = adcp->calfact;
+#endif
 
   /* Enable DMA controller stream.*/
   dmaStreamEnable(adcp->dmastp);
@@ -354,32 +379,30 @@ void adc_lld_stop_conversion(ADCDriver *adcp) {
  * @notapi
  */
 void adc_lld_serve_interrupt(ADCDriver *adcp) {
-  uint32_t isr;
+  uint32_t isr, flags;
 
   isr = adcp->adc->ISR;
+  flags = isr & adcp->adc->IER;
   adcp->adc->ISR = isr;
 
-  /* It could be a spurious interrupt caused by overflows after DMA disabling,
-     just ignore it in this case.*/
-  if (adcp->grpp != NULL) {
+  /* Ignore errors occurring after the conversion has ended.*/
+  if ((adcp->grpp != NULL) && (adcp->state == ADC_ACTIVE)) {
     adcerror_t emask = 0U;
 
-    /* Note, an overflow may occur after the conversion ended before the driver
-       is able to stop the ADC, this is why the state is checked too.*/
-    if ((isr & ADC_ISR_OVR) && (adcp->state == ADC_ACTIVE)) {
+    if (flags & ADC_ISR_OVR) {
       /* ADC overflow condition, this could happen only if the DMA is unable
          to read data fast enough.*/
       emask |= ADC_ERR_OVERFLOW;
     }
-    if (isr & ADC_ISR_AWD1) {
+    if (flags & ADC_ISR_AWD1) {
       /* Analog watchdog 1 error.*/
       emask |= ADC_ERR_AWD1;
     }
-    if (isr & ADC_ISR_AWD2) {
+    if (flags & ADC_ISR_AWD2) {
       /* Analog watchdog 2 error.*/
       emask |= ADC_ERR_AWD2;
     }
-    if (isr & ADC_ISR_AWD3) {
+    if (flags & ADC_ISR_AWD3) {
       /* Analog watchdog 3 error.*/
       emask |= ADC_ERR_AWD3;
     }

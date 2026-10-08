@@ -82,15 +82,32 @@ static void rp_pal_pad_set_mode(ioportid_t port,
     return;
   }
 
-  /* Release the output driver while reprogramming mux and pad control. */
-  RP_PAL_SIO_REG(GPIO_OE_CLR, port) = bit;
+  /* A mode requesting the pad output disable asserts it before the mux
+     or the direction can drive the line.*/
+  if ((padbits & (PAL_RP_PAD_OD >> 24U)) != 0U) {
+    rp_pal_reg_set(&PADS_BANK0->GPIO[abspad], PAL_RP_PAD_OD >> 24U);
+  }
+
+  /* Non-output modes release the SIO driver before FUNCSEL can select it
+     because code changing FUNCSEL directly may have left OE set.*/
+  if (oebits == 0U) {
+    RP_PAL_SIO_REG(GPIO_OE_CLR, port) = bit;
+  }
 
   IO_BANK0->GPIO[abspad].CTRL = ctrlbits;
-  PADS_BANK0->GPIO[abspad] = padbits;
 
+  /* The line is driven no earlier than the mux write, so any output
+     override is in place by the time it is driven. Output modes skip
+     the release above, so re-applying one never floats a line that is
+     already driven.*/
   if (oebits != 0U) {
     RP_PAL_SIO_REG(GPIO_OE_SET, port) = bit;
   }
+
+  /* Pad control is written last to commit the pad configuration, removing
+     any previous pull or output disable and, on RP2350, releasing
+     isolation once function, direction and level are final.*/
+  PADS_BANK0->GPIO[abspad] = padbits;
 }
 
 /*===========================================================================*/
@@ -292,7 +309,8 @@ void _pal_lld_forcelineevent(ioline_t line) {
   uint32_t force_mask = IO_BANK0->PROC[RP_PAL_EVENT_CORE_AFFINITY].INTE[reg] &
                         RP_PAL_LINE_MASK(line);
 
-  /* Clear then set only the target bits, without an RMW race on sibling bits. */
+  /* Clear then set only the target bits, without an RMW race on sibling
+     bits.*/
   rp_pal_reg_clr(intf, force_mask);
   rp_pal_reg_set(intf, force_mask);
 }

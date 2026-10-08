@@ -14,5 +14,7 @@ PLATFORMSRC += $(CHIBIOS)/os/hal/ports/STM32/LLD/USARTv3/hal_sio_lld.c
 PLATFORMSRC += $(CHIBIOS)/os/hal/ports/STM32/LLD/USARTv3/hal_uart_lld.c
 endif
 
+PLATFORMSRC += $(CHIBIOS)/os/hal/ports/STM32/LLD/USART/stm32_usart_common.c
+
 PLATFORMINC += $(CHIBIOS)/os/hal/ports/STM32/LLD/USART \
                $(CHIBIOS)/os/hal/ports/STM32/LLD/USARTv3

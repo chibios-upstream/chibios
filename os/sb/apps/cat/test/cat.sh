@@ -25,7 +25,7 @@ printf 'alpha\nbeta\ngamma\n' >"$case_dir/expected"
 cmp -s "$case_dir/expected" "$case_dir/output" ||
   sbtest_fail "multiple-file output differs"
 
-printf 'stdin data\n' >"$case_dir/stdin"
+printf 'stdin data\r\nraw\000bytes\r\n' >"$case_dir/stdin"
 "$cat_exe" <"$case_dir/stdin" >"$case_dir/output"
 cmp -s "$case_dir/stdin" "$case_dir/output" ||
   sbtest_fail "standard-input output differs"
@@ -35,8 +35,9 @@ printf 'dash\n' >"$case_dir/-dash"
 cmp -s "$case_dir/-dash" "$case_dir/output" ||
   sbtest_fail "-- did not terminate option parsing"
 
-if "$cat_exe" "$case_dir/missing" >/dev/null 2>&1; then
+if output=$("$cat_exe" "$case_dir/missing" 2>&1); then
   sbtest_fail "missing file returned success"
 fi
+sbtest_not_contains "$output" "$(printf '\r')" "diagnostic contains CR"
 
 echo "cat behavioral checks passed"

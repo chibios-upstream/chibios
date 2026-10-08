@@ -166,6 +166,8 @@
 #define STM32_IRQ_ADC1_PRIORITY             5
 #define STM32_IRQ_ADC2_PRIORITY             5
 
+#define STM32_IRQ_ETH1_PRIORITY             13
+
 #define STM32_IRQ_EXTI0_PRIORITY            6
 #define STM32_IRQ_EXTI1_PRIORITY            6
 #define STM32_IRQ_EXTI2_PRIORITY            6
@@ -250,8 +252,8 @@
 #define STM32_ADC_COMPACT_SAMPLES           FALSE
 #define STM32_ADC_USE_ADC1                  FALSE
 #define STM32_ADC_USE_ADC2                  FALSE
-#define STM32_ADC_ADC1_DMA3_CHANNEL         STM32_DMA3_CHANNEL_ID_ANY
-#define STM32_ADC_ADC2_DMA3_CHANNEL         STM32_DMA3_CHANNEL_ID_ANY
+#define STM32_ADC_ADC1_DMA3_CHANNEL         STM32_DMA3_MASK_ANY
+#define STM32_ADC_ADC2_DMA3_CHANNEL         STM32_DMA3_MASK_ANY
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
 #define STM32_ADC_ADC2_DMA_PRIORITY         2
 #define STM32_ADC_ADC12_CLOCK_MODE          ADC_CCR_CKMODE_AHB_DIV4
@@ -361,6 +363,11 @@
 /*
  * SPI driver system settings.
  */
+#define STM32_SPI_SELECT_MODE              STM32_SPI_SELECT_MODE_LINE
+#define STM32_SPI_DEFAULT_PORT             GPIOA
+#define STM32_SPI_DEFAULT_PAD              0U
+#define STM32_SPI_DEFAULT_CFG1             (SPI_CFG1_MBR_DIV128 | SPI_CFG1_DSIZE_8BITS)
+#define STM32_SPI_DEFAULT_CFG2             0U
 #define STM32_SPI_USE_SPI1                  FALSE
 #define STM32_SPI_USE_SPI2                  FALSE
 #define STM32_SPI_USE_SPI3                  FALSE
@@ -421,7 +428,6 @@
 #define STM32_WSPI_OCTOSPI1_DHQC            FALSE
 #define STM32_WSPI_OCTOSPI1_DMA3_CHANNEL    STM32_DMA3_MASK_ANY
 #define STM32_WSPI_OCTOSPI1_DMA_PRIORITY    1
-#define STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY 10
 #define STM32_WSPI_DMA_ERROR_HOOK(wspip)    chSysHalt("DMA failure")
 
 /*
@@ -430,6 +436,15 @@
 #define STM32_TRNG_USE_RNG1                 FALSE
 #define STM32_TRNG_ERROR_CLEAR_ATTEMPTS     1000
 #define STM32_TRNG_DATA_FETCH_ATTEMPTS      1000
+
+/*
+ * USB driver system settings.
+ */
+#define STM32_USB_USE_USB1                  FALSE
+#define STM32_USB_USE_ISOCHRONOUS           FALSE
+#define STM32_USB_USE_FAST_COPY             FALSE
+#define STM32_USB_HOST_WAKEUP_DURATION      2
+#define STM32_USB_48MHZ_DELTA               120000
 
 /*
  * WDG driver system settings.

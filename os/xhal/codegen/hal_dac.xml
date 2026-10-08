@@ -119,18 +119,26 @@ do {
         </macro>
         <macro name="_dac_isr_error_code">
           <brief>Common ISR code, error event.</brief>
+          <note>Called from unlocked ISR context. Conversion cleanup is locked,
+          but the user callback is invoked after unlocking.</note>
+          <note>The existing waiter is notified before the callback. A conversion
+          restarted by the callback retains its group.</note>
           <param name="dacp" dir="both">Pointer to the DAC driver instance.</param>
           <param name="err" dir="in">Platform dependent error code.</param>
           <notapi />
           <implementation><![CDATA[
 do {
+  chSysLockFromISR();
   dac_lld_stop_conversion(dacp);
+  chSysUnlockFromISR();
   (dacp)->errors |= (err);
+  _dac_error_wakeup_isr(dacp);
   __cbdrv_invoke_cb_with_transition(dacp,
                                     HAL_DRV_STATE_ERROR,
                                     HAL_DRV_STATE_READY);
-  (dacp)->grpp = NULL;
-  _dac_error_wakeup_isr(dacp);
+  if ((dacp)->state == HAL_DRV_STATE_READY) {
+    (dacp)->grpp = NULL;
+  }
 } while (false)]]></implementation>
         </macro>
       </group>

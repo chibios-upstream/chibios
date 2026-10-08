@@ -141,6 +141,14 @@ int _isatty_r(struct _reent *r, int fd) {
   return 1;
 }
 
+/* Some newlib configurations route isatty() through this non-reentrant
+   entry point rather than calling _isatty_r() directly.*/
+__attribute__((used))
+int _isatty(int fd) {
+
+  return _isatty_r(_REENT, fd);
+}
+
 __attribute__((used))
 caddr_t _sbrk_r(struct _reent *r, int incr) {
   uint8_t *prevp;
@@ -175,6 +183,30 @@ int _getpid(void) {
 }
 
 /* Additional functions not part of newlib.*/
+
+int tcgetattr(int fd, struct termios *termiosp) {
+  msg_t err;
+
+  err = sbTcgetattr(fd, termiosp);
+  if (CH_RET_IS_ERROR(err)) {
+    errno = CH_DECODE_ERROR(err);
+    return -1;
+  }
+
+  return 0;
+}
+
+int tcsetattr(int fd, int optional_actions, const struct termios *termiosp) {
+  msg_t err;
+
+  err = sbTcsetattr(fd, optional_actions, termiosp);
+  if (CH_RET_IS_ERROR(err)) {
+    errno = CH_DECODE_ERROR(err);
+    return -1;
+  }
+
+  return 0;
+}
 
 int _getdents_r(struct _reent *r, int fd, void *dp, int count) {
   msg_t n;

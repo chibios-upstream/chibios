@@ -40,13 +40,13 @@
 /**
  * @brief   Gets the address of a RX buffer.
  */
-#define USB_GET_RX_BUFFER(udp)      (uint32_t *)(USB_DRD_PMAADDR +       \
+#define USB_GET_RX_BUFFER(udp)      (volatile uint32_t *)(USB_DRD_PMAADDR + \
                                                 ((udp)->RXBD0 & 0x0000FFFFU))
 
 /**
  * @brief   Gets the address of a TX buffer.
  */
-#define USB_GET_TX_BUFFER(udp)     (uint32_t *)(USB_DRD_PMAADDR +       \
+#define USB_GET_TX_BUFFER(udp)     (volatile uint32_t *)(USB_DRD_PMAADDR + \
                                                ((udp)->TXBD0 & 0x0000FFFFU))
 
 /**
@@ -215,6 +215,18 @@ static uint32_t usb_pm_alloc(USBDriver *usbp, size_t size) {
 }
 
 /**
+ * @brief   Rounds an OUT buffer to the size programmed in its descriptor.
+ */
+static size_t usb_pm_rx_size(size_t size) {
+
+  if (size > 62U) {
+    return (size + 31U) & ~(size_t)31U;
+  }
+
+  return (size + 1U) & ~(size_t)1U;
+}
+
+/**
  * @brief   Resets the packet memory allocator while preserving EP0 buffers.
  * @details Endpoint zero remains active when the other endpoints are
  *          disabled, therefore its packet memory cannot be made available to
@@ -230,7 +242,7 @@ static void usb_pm_reset_after_ep0(USBDriver *usbp) {
     (void)usb_pm_alloc(usbp, epcp->in_maxsize);
   }
   if (epcp->out_state != NULL) {
-    (void)usb_pm_alloc(usbp, epcp->out_maxsize);
+    (void)usb_pm_alloc(usbp, usb_pm_rx_size(epcp->out_maxsize));
   }
 }
 
@@ -250,7 +262,7 @@ static size_t usb_packet_read_to_buffer(USBDriver *usbp,
   size_t n;
   uint32_t w;
   stm32_usb_pmabufdesc_t *udp = USB_GET_DESCRIPTOR(ep);
-  uint32_t *pmap = USB_GET_RX_BUFFER(udp);
+  volatile uint32_t *pmap = USB_GET_RX_BUFFER(udp);
   int i;
 
 #if STM32_USB_USE_ISOCHRONOUS
@@ -356,7 +368,7 @@ static void usb_packet_write_from_buffer(USBDriver *usbp,
                                          const uint8_t *buf,
                                          size_t n) {
   stm32_usb_pmabufdesc_t *udp = USB_GET_DESCRIPTOR(ep);
-  uint32_t *pmap = USB_GET_TX_BUFFER(udp);
+  volatile uint32_t *pmap = USB_GET_TX_BUFFER(udp);
   int i;
 
 #if STM32_USB_USE_ISOCHRONOUS
@@ -712,7 +724,9 @@ void usb_lld_init_endpoint(USBDriver *usbp, usbep_t ep) {
     else {
       nblocks = (((((uint32_t)epcp->out_maxsize - 1U) | 1U) + 1U) / 2U) << 26;
     }
-    dp->RXBD0 = nblocks | usb_pm_alloc(usbp, epcp->out_maxsize);
+    /* Reserve all bytes the hardware can write, including block rounding.*/
+    dp->RXBD0 = nblocks |
+                usb_pm_alloc(usbp, usb_pm_rx_size(epcp->out_maxsize));
 
 #if STM32_USB_USE_ISOCHRONOUS
     if (chepr == USB_EP_ISOCHRONOUS) {
@@ -829,15 +843,23 @@ usbepstatus_t usb_lld_get_status_in(USBDriver *usbp, usbep_t ep) {
  * @notapi
  */
 void usb_lld_read_setup(USBDriver *usbp, usbep_t ep, uint8_t *buf) {
-  uint32_t *pmap;
+  volatile uint32_t *pmap;
   stm32_usb_pmabufdesc_t *udp;
+  uint32_t w;
+  unsigned i;
 
   (void)usbp;
 
   udp = USB_GET_DESCRIPTOR(ep);
   pmap = USB_GET_RX_BUFFER(udp);
-  *(uint32_t *)(void *)(buf + 0) = *pmap++;
-  *(uint32_t *)(void *)(buf + 4) = *pmap++;
+  /* SETUP buffers are byte buffers and need not be word-aligned.*/
+  for (i = 0U; i < 8U; i += 4U) {
+    w = *pmap++;
+    buf[i + 0U] = (uint8_t)w;
+    buf[i + 1U] = (uint8_t)(w >> 8);
+    buf[i + 2U] = (uint8_t)(w >> 16);
+    buf[i + 3U] = (uint8_t)(w >> 24);
+  }
 }
 
 /**
@@ -969,6 +991,8 @@ void usb_lld_serve_interrupt(USBDriver *usbp) {
   /* USB bus reset condition handling.*/
   if (istr & USB_ISTR_RESET) {
     _usb_reset(usbp);
+    /* Reset invalidated endpoints and events in the saved snapshot.*/
+    return;
   }
 
   /* USB bus SUSPEND condition handling.*/
@@ -981,6 +1005,7 @@ void usb_lld_serve_interrupt(USBDriver *usbp) {
   if ((istr & USB_ISTR_WKUP) != 0U) {
     uint32_t fnr = usbp->usb->FNR;
     if ((fnr & USB_FNR_RXDP) == 0U) {
+      usbp->usb->CNTR &= ~USB_CNTR_SUSPEN;
       _usb_wakeup(usbp);
     }
   }

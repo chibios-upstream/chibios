@@ -390,6 +390,7 @@
 
 #if STM32_CFG_CLOCK_DYNAMIC == TRUE
 #define HAL_LLD_USE_CLOCK_MANAGEMENT
+#define HAL_LLD_USE_CLOCK_RESUME
 #endif
 
 /*===========================================================================*/
@@ -580,6 +581,9 @@ extern "C" {
 #if defined(HAL_LLD_USE_CLOCK_MANAGEMENT) || defined(__DOXYGEN__)
   bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp);
   halfreq_t hal_lld_get_clock_point(halclkpt_t clkpt);
+#endif
+#if defined(HAL_LLD_USE_CLOCK_RESUME) || defined(__DOXYGEN__)
+  bool hal_lld_clock_resume(void);
 #endif
 #ifdef __cplusplus
 }

@@ -161,6 +161,17 @@ static THD_FUNCTION(Ep0Thread, arg) {
     /* Blocks until a new SETUP packet arrives or the bus is reset. */
     msg = usbEp0WaitSetup(&PORTAB_USB1);
     if (msg != MSG_OK) {
+      driver_state_t state = drvGetStateX(&PORTAB_USB1);
+
+      if ((msg == MSG_RESET) && ((state == HAL_DRV_STATE_STOP) ||
+                                (state == HAL_DRV_STATE_STOPPING))) {
+        chThdExit(MSG_RESET);
+      }
+      if (msg == HAL_RET_HW_FAILURE) {
+        /* The fault is latched. Yield while the application handles it
+           and stops the driver; the next wait then lets this worker exit.*/
+        chThdSleepMilliseconds(100);
+      }
       continue;
     }
 
@@ -204,10 +215,10 @@ int main(void) {
                                        sduGetServiceX(&PORTAB_SDU1)) ==
               HAL_RET_SUCCESS);
 
-  usbDisconnectBus(&PORTAB_USB1);
-  chThdSleepMilliseconds(USB_RECONNECT_DELAY_MS);
   test_assert(drvStart(&PORTAB_USB1, NULL) == HAL_RET_SUCCESS);
+  usbDisconnectBus(&PORTAB_USB1);
   test_assert(usbBind(&PORTAB_USB1, &usbcdc_binder) == HAL_RET_SUCCESS);
+  chThdSleepMilliseconds(USB_RECONNECT_DELAY_MS);
   usbConnectBus(&PORTAB_USB1);
 
   chThdCreateStatic(waBlinkerThread, sizeof(waBlinkerThread),

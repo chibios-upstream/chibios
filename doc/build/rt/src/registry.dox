@@ -1,0 +1,312 @@
+/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    This file is part of ChibiOS.
+
+    ChibiOS is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation version 3 of the License.
+
+    ChibiOS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/**
+ * @page registry_debug_abi RT8 registry debugger interface
+ *
+ * `ch_debug` describes the memory layout of the compiled kernel. It is a binary
+ * interface for any debugger, including scripted debuggers. Consumers need only
+ * symbol lookup, target memory/register access and this specification. They do
+ * not import ChibiOS C headers, interpret DWARF types, or scan RAM for objects.
+ * Resolve the symbols `ch_debug` and `ch_system` in the matching firmware ELF.
+ *
+ * The record exists when `CH_CFG_USE_REGISTRY == TRUE`. It is constant ROM data
+ * and adds no thread RAM or context-switch work. With GCC section garbage
+ * collection or LTO, retain it using `-Wl,--undefined=ch_debug` at link time
+ * (`USE_LDOPT=--undefined=ch_debug` in ChibiOS makefiles). Other linkers need their
+ * keep-symbol equivalent. Retain the ELF symbols for debugger lookup.
+ *
+ * ## Discovery and encoding
+ *
+ * Only the discovery header through the RT version retains the legacy layout:
+ *
+ * | Offset | Type | Field | Meaning |
+ * | --- | --- | --- | --- |
+ * | 0 | 4 bytes | identifier | ASCII `main` |
+ * | 4 | u8 | zero | Zero terminator |
+ * | 5 | u8 | size | Total descriptor size, including port data |
+ * | 6 | u16 | version | `(major << 11) + (minor << 6) + patch` |
+ *
+ * Read these eight bytes first. Validate the signature and select the descriptor
+ * format using the RT version. This document specifies RT8; bytes after the
+ * version have no RT7 compatibility. There is no independent ABI version.
+ * The published RT8 descriptor format is fixed; configuration and kernel object
+ * layout changes are represented by its values. An incompatible descriptor
+ * format change requires a new RT version with a defined decoding contract.
+ *
+ * All multi-byte integers use target byte order, as known by the debugger's
+ * memory interface. All record fields are unsigned. Offsets and sizes count
+ * bytes. Scalar widths are two-bit codes: `0=1`, `1=2`, `2=4`, `3=8` bytes.
+ * The byte size is `1 << code`. Bit positions within a byte are independent of
+ * endianness. C bit-field allocation and implicit padding are never part of
+ * the interface; compile-time assertions verify the record layout.
+ *
+ * Every absent offset, including `port_offset`, is `0xffff`. Zero is a valid
+ * member offset. Sizes and counts are zero when there is no corresponding data;
+ * they do not use the absent-offset sentinel. Mode and identifier fields use
+ * their explicitly defined values.
+ * Structure sizes and member offsets are 16 bits; whole objects must fit in
+ * 65535 bytes, ensuring no present member occupies the absent offset. The
+ * unchanged discovery header limits the descriptor itself to 255 bytes.
+ * Unsupported scalar widths and oversized layouts are rejected at compile time.
+ * Checks use `__CH_STATIC_ASSERT` from `chearly.h`: `_Static_assert` in C11 and
+ * later, with negative-array-size typedef checks retained for older C versions.
+ *
+ * The common record is 74 bytes. The implemented Cortex-M payload is 52 bytes,
+ * for a total of 126 bytes. Before reading a field, check that it is present
+ * and that its width fits within its containing object. Check the port payload
+ * against the total record length before decoding it.
+ *
+ * ## General information, bytes 0..17
+ *
+ * | Offset | Type | Field | Meaning |
+ * | --- | --- | --- | --- |
+ * | 8 | u8 | flags | Bit 0: shared SMP registry; bits 1..7 reserved, zero |
+ * | 9 | 3 bytes | type_sizes | Packed scalar widths, described below |
+ * | 12 | u8 | port_arch | Architecture identifier; 0 unknown |
+ * | 13 | u8 | port_id | Port identifier within that architecture; 0 unknown |
+ * | 14 | u16 | port_offset | Port payload offset from `ch_debug`; `0xffff` absent |
+ * | 16 | u16 | port_size | Port payload byte count; 0 when there is no payload |
+ *
+ * Two-bit width codes, from least significant to most significant in each byte:
+ *
+ * | Byte offset | Bits 1:0 | Bits 3:2 | Bits 5:4 | Bits 7:6 |
+ * | --- | --- | --- | --- | --- |
+ * | 9 | Data pointer | System time | Time interval | Thread priority |
+ * | 10 | Thread state | Thread flags | Reference count | Time-slice counter |
+ * | 11 | Core ID | System state | Reserved, zero | Reserved, zero |
+ *
+ * These are the widths of `void *`, `systime_t`, `sysinterval_t`, `tprio_t`,
+ * `tstate_t`, `tmode_t`, `trefs_t`, `tslices_t`, `core_id_t`, and `system_state_t`.
+ * The types' names are explanatory; readers consume their encoded widths.
+ * System state is included because compiler enum-width options can change it.
+ * Width codes are supplied even when the corresponding optional field is absent.
+ *
+ * Architecture identifiers are 0 unknown, 1 simulator, 2 ARM, 3 RISC-V,
+ * 4 PowerPC and 5 AVR. Port IDs are independent within each architecture:
+ *
+ * | Architecture | Port ID | Port | Context payload |
+ * | --- | --- | --- | --- |
+ * | Simulator (1) | 1 | SIMIA32 | None |
+ * | Simulator (1) | 2 | SIMX86_64 | None |
+ * | ARM (2) | 1 | ARMv6-M | Cortex-M |
+ * | ARM (2) | 2 | ARMv6-M-ALT | Cortex-M |
+ * | ARM (2) | 3 | ARMv7-M | Cortex-M |
+ * | ARM (2) | 4 | ARMv7-M-ALT | Cortex-M |
+ * | ARM (2) | 5 | ARMv8-M-ML | Cortex-M |
+ * | ARM (2) | 6 | ARMv8-M-ML-ALT | Cortex-M |
+ * | ARM (2) | 7 | ARMv8-M-ML-TZ | None |
+ * | ARM (2) | 8 | ARMvx-M-SB | None |
+ * | ARM (2) | 9 | ARMv7-R | None |
+ * | ARM (2) | 10 | ARM | None |
+ * | RISC-V (3) | 1 | RISCV-HAZARD3 | None |
+ * | PowerPC (4) | 1 | e200 | None |
+ * | AVR (5) | 1 | AVR | None |
+ *
+ * Never reuse assigned identifiers. A known identity does not imply a payload
+ * is implemented. Unknown/external ports can supply the common record alone.
+ * A debugger can enumerate threads without supporting that port's saved context.
+ *
+ * ## System information, bytes 18..29
+ *
+ * Member offsets in this section are relative to `ch_system`.
+ *
+ * | Offset | Type | Field | Meaning |
+ * | --- | --- | --- | --- |
+ * | 18 | u16 | sys_size | System object size |
+ * | 20 | u16 | sys_instances_num | Capacity of the instance pointer array |
+ * | 22 | u16 | sys_state | System state field |
+ * | 24 | u16 | sys_instances | First element of the instance pointer array |
+ * | 26 | u16 | sys_reg_node | Shared registry sentinel node |
+ * | 28 | u16 | sys_rfcu | Shared runtime faults collection object |
+ *
+ * The registry fields are absent outside SMP mode. RFCU is additionally
+ * conditional on its configuration option. The instance array contains data
+ * pointers, not inline instances; skip NULL entries. System-state values are
+ * fixed by RT8: 0 uninitialized, 1 initializing, 2 running, 3 halted.
+ *
+ * ## Instance information, bytes 30..43
+ *
+ * Member offsets in this section are relative to an instance object.
+ *
+ * | Offset | Type | Field | Meaning |
+ * | --- | --- | --- | --- |
+ * | 30 | u16 | inst_size | Instance object size |
+ * | 32 | u16 | inst_core_id | Core ID field |
+ * | 34 | u16 | inst_current | Pointer to the instance's current thread |
+ * | 36 | u16 | inst_rlist | Ready-list object |
+ * | 38 | u16 | inst_vtlist | Virtual-timer-list object |
+ * | 40 | u16 | inst_reg_node | Per-instance registry sentinel node |
+ * | 42 | u16 | inst_rfcu | Per-instance runtime faults collection object |
+ *
+ * Per-instance registry fields are absent in SMP mode. RFCU is additionally
+ * conditional on its configuration option. Ready-list, timer-list and RFCU
+ * offsets locate those objects; this descriptor does not describe all of their
+ * internal members. Thread enumeration only needs the registry and current-thread
+ * fields, whose layouts are fully described here.
+ *
+ * ## Thread information, bytes 44..73
+ *
+ * Member offsets in this section are relative to a thread object.
+ *
+ * | Offset | Type | Field | Meaning |
+ * | --- | --- | --- | --- |
+ * | 44 | u16 | thread_size | Thread object size |
+ * | 46 | u16 | thread_ctx_size | Port context embedded in the thread |
+ * | 48 | u16 | thread_intctx_size | Inner saved context size |
+ * | 50 | u16 | thread_reg_node | Registry node embedded in the thread |
+ * | 52 | u16 | thread_owner | Pointer to owning instance |
+ * | 54 | u16 | thread_name | Pointer to NUL-terminated name, or NULL |
+ * | 56 | u16 | thread_prio | Priority field |
+ * | 58 | u16 | thread_state | State field |
+ * | 60 | u16 | thread_flags | Flags field |
+ * | 62 | u16 | thread_refs | Reference count |
+ * | 64 | u16 | thread_ticks | Remaining quantum; absent when disabled |
+ * | 66 | u16 | thread_time | Accumulated system-time ticks; absent without profiling |
+ * | 68 | u16 | thread_wabase | Stack lower-bound pointer |
+ * | 70 | u16 | thread_waend | Stack upper-bound pointer |
+ * | 72 | u16 | thread_ctx | Embedded port context |
+ *
+ * Thread-state names are reconstructed by the debugger for RT8; they are not
+ * stored in the descriptor. Codes 0..15 are READY, CURRENT, WTSTART, SUSPENDED,
+ * QUEUED, WTSEM, WTMTX, WTCOND, SLEEPING, WTEXIT, WTOREVT, WTANDEVT, SNDMSGQ,
+ * SNDMSG (reserved legacy state), WTMSG and FINAL. Flag bit 7 requests thread
+ * termination; bits 0..6 are user flags. Priorities increase with urgency:
+ * 0 is the queue-header sentinel, 1 idle, 2 lowest, 128 normal, 255 highest.
+ * These values are part of the RT-version contract, not configuration metadata.
+ *
+ * ### Enumerating threads
+ *
+ * The centralized RT8 queue layout is part of the versioned contract: a node
+ * contains two data pointers, next at offset zero and previous at one pointer
+ * width. Compile-time checks guard this layout. Only the node offsets within
+ * system, instance and thread objects depend on the compiled configuration.
+ *
+ * Use the system registry when the general SMP flag is set. Otherwise use the
+ * registry in each initialized instance. Given the selected containing object
+ * address `base`, compute `head = base + reg_node`, using `sys_reg_node` or
+ * `inst_reg_node`. Read the first node pointer at `head`.
+ *
+ * For each node address different from `head`, compute
+ * `thread = node - thread_reg_node`. Read the next pointer at `node`, and the
+ * previous pointer at `node + pointer_width`. Check backlinks, address arithmetic
+ * and an iteration bound before following untrusted pointers. An empty registry
+ * has both pointers equal to `head`.
+ *
+ * Compare each thread address against every initialized instance's current
+ * thread pointer. A current thread's registers come from that core. The owner
+ * pointer associates a thread with an instance but does not prove it is running.
+ * Saved contexts describe suspended threads. Halt participating cores before
+ * reading a shared snapshot; a stop inside a context switch may require special
+ * handling. Each record describes one firmware image; separate images need
+ * separate symbol resolution even when they run on the same device.
+ *
+ * ## ARM Cortex-M context information
+ *
+ * The port payload finishes the thread section. For ARM IDs 1..6 its offset is
+ * currently 74 and its size is 52; readers use `port_offset` and `port_size` and
+ * validate the identity and payload bounds first. All entries are u16.
+ *
+ * | Payload offset | Field | Meaning |
+ * | --- | --- | --- |
+ * | 0 | flags | Bit 0 FPU context enabled; bit 1 MPU context enabled |
+ * | 2 | ctx_sp | Saved SP offset within the embedded port context |
+ * | 4 | ctx_regs | Inner context offset within port context, or absent |
+ * | 6 | int_r4 | R4..R7 group in inner context |
+ * | 8 | int_r8 | R8..R11 group in inner context |
+ * | 10 | int_lr | Software resume address in inner context |
+ * | 12 | int_exc_return | EXC_RETURN in inner context |
+ * | 14 | int_control | CONTROL in inner context |
+ * | 16 | int_basepri | BASEPRI in inner context |
+ * | 18 | int_psplim | PSPLIM in inner context |
+ * | 20 | int_s16 | S16..S31 group in inner context |
+ * | 22 | int_fpscr | Software-saved FPSCR in inner context |
+ * | 24 | extctxsize | Maximum exception-frame size, excluding alignment pad |
+ * | 26 | ext_r0 | R0..R3 group in exception frame |
+ * | 28 | ext_r12 | R12 in exception frame |
+ * | 30 | ext_lr | Thread LR in exception frame |
+ * | 32 | ext_pc | Thread PC in exception frame |
+ * | 34 | ext_xpsr | Thread xPSR in exception frame |
+ * | 36 | ext_s0 | S0..S15 group in extended exception frame |
+ * | 38 | ext_fpscr | Hardware-saved FPSCR in extended exception frame |
+ * | 40 | fpumode | Inner FPU save policy: 0 disabled, 1 always, 2 conditional |
+ * | 42 | ctx_regions | MPU table pointer offset within port context, or absent |
+ * | 44 | regionsnum | Number of switched MPU table entries; 0 when none are switched |
+ * | 46 | regionsize | MPU table entry size; 0 when no regions are switched |
+ * | 48 | region_rbar | RBAR offset within an MPU table entry, or absent |
+ * | 50 | region_attr | RASR (ARMv7) or RLAR (ARMv8) offset within an entry, or absent |
+ *
+ * Flags describe this firmware build's context handling. MPU context means
+ * switching per-thread MPU region tables; static MPU initialization and guard-only
+ * MPU use do not set that flag. Bits 2..15 are reserved and zero. Placement of
+ * FPU context is determined by the port identifier and exported offsets; there
+ * is no FPU-placement flag. Register groups contain consecutive 32-bit words.
+ *
+ * For ARM IDs 1, 2, 3 and 5, `ctx_regs` is absent. The saved SP points to the
+ * inner context on the stack. The resumed SP follows that context, and `int_lr`
+ * supplies the resume PC. A hardware exception frame, when present, is separate;
+ * do not interpret the saved SP as pointing to it.
+ *
+ * For ARM IDs 4 and 6, `ctx_regs` locates the inner context inside the thread,
+ * while the saved SP points to the hardware exception frame. Its actual size
+ * is 32 bytes for a basic frame, or `extctxsize` when EXC_RETURN bit 4 is clear.
+ * Add four bytes when stacked xPSR bit 9 indicates alignment padding. Validate
+ * EXC_RETURN according to the architecture/security configuration: for example,
+ * a non-TrustZone H503 saves `0xffffffbc`, not the ARMv7-M value `0xfffffffd`.
+ *
+ * With FPU enabled, the alternate ports keep S16..S31 in the inner context and
+ * the hardware FP registers on the stack. `fpumode == 2` means S16..S31 are
+ * saved only when EXC_RETURN bit 4 is clear; mode 1 saves them unconditionally.
+ * This policy is separate from the context placement selected by the port ID.
+ * Hardware FPU fields are meaningful only in an extended, materialized frame;
+ * account for lazy stacking before exposing them. Never-run threads can have
+ * uninitialized saved registers even when their locations are advertised.
+ *
+ * ## Firmware extension interface
+ *
+ * A port defines `PORT_REGISTRY_ARCH` and `PORT_REGISTRY_ID` in `chcore.h`.
+ * For an optional context payload it also defines `PORT_REGISTRY_HEADER` as
+ * member declarations expanded directly at the end of `chdebug_t`, following
+ * the existing extra-fields hook convention. The macro declares the `port`
+ * member, using an inline structure for Cortex-M. `PORT_REGISTRY_INITIALIZER`
+ * supplies its constant initializer. Both macros live in `chcore.h`; RT does
+ * not include another port header or require a separate payload typedef.
+ * These macros are firmware implementation details; debugger authors use the
+ * binary specification above.
+ *
+ * Payload types must have at most two-byte alignment and documented, fixed
+ * byte layouts. Generate offsets and sizes using `offsetof`/`sizeof`, reject
+ * overflow, and export all build-dependent information needed to interpret the
+ * context. Payloads contain no pointers or compiler-sized enum fields. The
+ * common descriptor defaults missing architecture/port IDs to zero. Absence of
+ * a payload is represented by `port_offset == 0xffff` and `port_size == 0`.
+ *
+ * ## Validation
+ *
+ * Run `python3 test/rt-ports/testbuild/check_registry.py`. It compiles actual
+ * kernel objects and decodes their bytes using this wire format, independently
+ * of C headers or debug information. It requires ARM GNU tools in PATH (or
+ * `CROSS_COMPILE`) and a native x86-64 compiler/objcopy (or `CC`/`OBJCOPY`).
+ *
+ * Coverage includes all six Cortex-M ports, FPU save policies, syscalls, MPU
+ * tables, stack checking, registry disabled, RP2040/RP2350 SMP, missing port
+ * metadata, big-endian ARM, enum widths, 16/32/64-bit time widths, optional
+ * fields, kernel objects over 255 bytes, C99 fallback checks, C11/C17/C23 static
+ * assertions, rejection of oversized objects, and a native 64-bit simulator.
+ * Temporary build products are removed automatically.
+ */

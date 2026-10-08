@@ -36,9 +36,12 @@ The initial key bindings are:
 - Ctrl-G to cancel a prompt;
 - Ctrl-Q to quit.
 
-The POSIX build configures its controlling terminal for raw input. The sandbox
-build assumes that its standard input and output are already connected to a
-byte-oriented ANSI terminal.
+Both builds require an ANSI-compatible terminal and configure it for raw
+input, with `VMIN=0`, `VTIME=1` (100 ms reads) to recognize standalone Escape.
+The editor restores the original terminal settings on normal and error exit,
+without flushing queued input. Output processing is disabled while editing
+because the screen renderer emits explicit CRLF sequences. Native window-size
+discovery remains optional; sandbox builds use the defaults or environment.
 
 This initial port deliberately does not require `time()` or `ftruncate()`.
 Status messages remain visible until replaced, and saving opens the destination

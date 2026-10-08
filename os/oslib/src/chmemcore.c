@@ -109,7 +109,7 @@ void __core_init(void) {
  * @iclass
  */
 void *chCoreAllocFromBaseI(size_t size, unsigned align, size_t offset) {
-  uintptr_t base, top, p, next;
+  uintptr_t base, top, p;
 
   chDbgCheckClassI();
   chDbgCheck(MEM_IS_VALID_ALIGNMENT(align));
@@ -127,16 +127,16 @@ void *chCoreAllocFromBaseI(size_t size, unsigned align, size_t offset) {
 
   /* All remaining arithmetic stays in integer space; no pointer is formed
      until the bounds are verified.*/
-  p    = MEM_ALIGN_NEXT(base + offset, align);
-  next = p + size;
+  base += offset;
+  p = MEM_ALIGN_NEXT(base, align);
 
-  /* Considering also the case where there is numeric overflow.*/
-  if ((next > top) || (next < base)) {
+  /* Checking alignment rounding and available space before adding size.*/
+  if ((p < base) || (p > top) || (size > (top - p))) {
     return NULL;
   }
 
   /*lint -save -e9033 [10.8] Required cast operations.*/
-  ch_memcore.basemem = (uint8_t *)next;
+  ch_memcore.basemem = (uint8_t *)(p + size);
   /*lint -restore*/
 
   return (void *)p;
@@ -157,7 +157,7 @@ void *chCoreAllocFromBaseI(size_t size, unsigned align, size_t offset) {
  * @iclass
  */
 void *chCoreAllocFromTopI(size_t size, unsigned align, size_t offset) {
-  uintptr_t base, top, p, prev;
+  uintptr_t base, top, p;
 
   chDbgCheckClassI();
   chDbgCheck(MEM_IS_VALID_ALIGNMENT(align));
@@ -175,16 +175,16 @@ void *chCoreAllocFromTopI(size_t size, unsigned align, size_t offset) {
 
   /* All remaining arithmetic stays in integer space; no pointer is formed
      until the bounds are verified.*/
-  p    = MEM_ALIGN_PREV(top - size, align);
-  prev = p - offset;
+  p = MEM_ALIGN_PREV(top - size, align);
 
-  /* Considering also the case where there is numeric overflow.*/
-  if ((prev < base) || (prev > top)) {
+  /* Checking alignment rounding and available space before subtracting
+     offset.*/
+  if ((p < base) || (offset > (p - base))) {
     return NULL;
   }
 
   /*lint -save -e9033 [10.8] Required cast operations.*/
-  ch_memcore.topmem = (uint8_t *)prev;
+  ch_memcore.topmem = (uint8_t *)(p - offset);
   /*lint -restore*/
 
   return (void *)p;

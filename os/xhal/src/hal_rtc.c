@@ -404,6 +404,65 @@ const struct hal_rtc_driver_vmt __hal_rtc_driver_vmt = {
  * @{
  */
 /**
+ * @brief       Programs or disables the periodic-wakeup timer.
+ * @details     Notifications use @p RTC_FLAGS_WAKEUP and the driver callback,
+ *              in ISR context outside system locks. This operation discards
+ *              pending hardware wakeup notifications, but leaves previously
+ *              cached events available to the application.
+ * @note        This API programs the RTC only; entering low-power modes and
+ *              configuring system wakeup routing are application tasks.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_rtc_driver_c instance.
+ * @param[in]     wakeupspec    LLD-specific configuration, or @p NULL to
+ *                              disable wakeups.
+ * @return                      The operation status.
+ * @retval HAL_RET_CONFIG_ERROR Unsupported operation or invalid wakeup
+ *                              configuration.
+ *
+ * @api
+ */
+msg_t rtcSetPeriodicWakeup(void *ip, const rtc_wakeup_t *wakeupspec) {
+  hal_rtc_driver_c *self = (hal_rtc_driver_c *)ip;
+  chDbgCheck(self != NULL);
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+
+#if RTC_SUPPORTS_PERIODIC_WAKEUP
+  return rtc_lld_set_periodic_wakeup(self, wakeupspec);
+#else
+  (void)self;
+  (void)wakeupspec;
+  return HAL_RET_CONFIG_ERROR;
+#endif
+}
+
+/**
+ * @brief       Reads the periodic-wakeup timer configuration.
+ * @note        The configuration is readable even when the timer is disabled.
+ *              Reading it does not report whether it is enabled.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_rtc_driver_c instance.
+ * @param[out]    wakeupspec    Current LLD-specific configuration.
+ * @return                      The operation status.
+ * @retval HAL_RET_CONFIG_ERROR Periodic wakeup is not supported by the low
+ *                              level driver.
+ *
+ * @api
+ */
+msg_t rtcGetPeriodicWakeup(void *ip, rtc_wakeup_t *wakeupspec) {
+  hal_rtc_driver_c *self = (hal_rtc_driver_c *)ip;
+  chDbgCheck((self != NULL) && (wakeupspec != NULL));
+  chDbgAssert(self->state == HAL_DRV_STATE_READY, "not ready");
+
+#if RTC_SUPPORTS_PERIODIC_WAKEUP
+  return rtc_lld_get_periodic_wakeup(self, wakeupspec);
+#else
+  (void)self;
+  (void)wakeupspec;
+  return HAL_RET_CONFIG_ERROR;
+#endif
+}
+
+/**
  * @brief       Sets the RTC broken-down date/time.
  *
  * @param[in,out] ip            Pointer to a @p hal_rtc_driver_c instance.

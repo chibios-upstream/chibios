@@ -248,8 +248,12 @@ static void adc_lld_stop_adc(hal_adc_driver_c *adcp) {
     adcp->adcm->CR |= ADC_CR_ADSTP;
     while (adcp->adcm->CR & ADC_CR_ADSTP)
       ;
-    adcp->adcm->IER = 0;
   }
+  /* ADSTART may already be clear after a linear conversion.*/
+  adcp->adcm->IER = 0U;
+#if STM32_ADC_DUAL_MODE
+  adcp->adcs->IER = 0U;
+#endif
 }
 
 /**
@@ -261,25 +265,26 @@ static void adc_lld_stop_adc(hal_adc_driver_c *adcp) {
 static void adc_lld_serve_dma_interrupt(void *p, uint32_t csr) {
   hal_adc_driver_c *adcp = (hal_adc_driver_c *)p;
 
+  /* An ADC error or a callback may already have stopped the conversion.*/
+  if ((adcp->grpp == NULL) ||
+      ((adcp->state != ADC_ACTIVE_LINEAR) &&
+       (adcp->state != ADC_ACTIVE_CIRCULAR))) {
+    return;
+  }
+
   /* DMA errors handling.*/
   if ((csr & STM32_DMA3_CSR_ERRORS) != 0U) {
     /* DMA, this could help only if the DMA tries to access an unmapped
        address space or violates alignment rules.*/
     _adc_isr_error_code(adcp, ADC_ERR_DMAFAILURE);
   }
-  else {
-    /* It is possible that the conversion group has already be reset by the
-       ADC error handler, in this case this interrupt is spurious.*/
-    if (adcp->grpp != NULL) {
-      if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
-        /* Transfer complete processing.*/
-        _adc_isr_full_code(adcp);
-      }
-      else if ((csr & STM32_DMA3_CSR_HTF) != 0U) {
-        /* Half transfer processing.*/
-        _adc_isr_half_code(adcp);
-      }
-    }
+  else if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
+    /* Transfer complete takes priority over a pending half transfer.*/
+    _adc_isr_full_code(adcp);
+  }
+  else if ((csr & STM32_DMA3_CSR_HTF) != 0U) {
+    /* Half transfer processing.*/
+    _adc_isr_half_code(adcp);
   }
 }
 
@@ -289,41 +294,41 @@ static void adc_lld_serve_dma_interrupt(void *p, uint32_t csr) {
  * @param[in] adcp      pointer to the @p hal_adc_driver_c object
  */
 void adc_lld_serve_interrupt(hal_adc_driver_c *adcp) {
-  uint32_t isr;
+  uint32_t isr, flags;
 
   isr = adcp->adcm->ISR;
+  flags = isr & adcp->adcm->IER;
   adcp->adcm->ISR = isr;
 #if STM32_ADC_DUAL_MODE
   if (adcp->adcs != NULL) {
     uint32_t sisr;
 
     sisr = adcp->adcs->ISR;
+    flags |= sisr & adcp->adcs->IER;
     adcp->adcs->ISR = sisr;
-    isr |= sisr;
   }
 #endif
 
-  /* It could be a spurious interrupt caused by overflows after DMA disabling,
-     just ignore it in this case.*/
-  if (adcp->grpp != NULL) {
+  /* Ignore errors occurring after the conversion has ended.*/
+  if ((adcp->grpp != NULL) &&
+      ((adcp->state == ADC_ACTIVE_LINEAR) ||
+       (adcp->state == ADC_ACTIVE_CIRCULAR))) {
     adcerror_t emask = 0U;
 
-    /* Note, an overflow may occur after the conversion ended before the driver
-       is able to stop the ADC, this is why the state is checked too.*/
-    if ((isr & ADC_ISR_OVR) && (adcp->state == HAL_DRV_STATE_ACTIVE)) {
+    if (flags & ADC_ISR_OVR) {
       /* ADC overflow condition, this could happen only if the DMA is unable
          to read data fast enough.*/
       emask |= ADC_ERR_OVERFLOW;
     }
-    if (isr & ADC_ISR_AWD1) {
+    if (flags & ADC_ISR_AWD1) {
       /* Analog watchdog 1 error.*/
       emask |= ADC_ERR_AWD1;
     }
-    if (isr & ADC_ISR_AWD2) {
+    if (flags & ADC_ISR_AWD2) {
       /* Analog watchdog 2 error.*/
       emask |= ADC_ERR_AWD2;
     }
-    if (isr & ADC_ISR_AWD3) {
+    if (flags & ADC_ISR_AWD3) {
       /* Analog watchdog 3 error.*/
       emask |= ADC_ERR_AWD3;
     }
@@ -399,14 +404,14 @@ void adc_lld_init(void) {
   /* ADC units pre-initializations.*/
 #if defined(STM32H5XX)
 #if STM32_ADC_USE_ADC1 || STM32_ADC_USE_ADC2
-  rccResetADC12();
   rccEnableADC12(true);
+  rccResetADC12();
   ADC12_COMMON->CCR = STM32_ADC_ADC12_PRESC | STM32_ADC_ADC12_CLOCK_MODE | ADC_CCR_MDMA_MODE;
   rccDisableADC12();
 #endif
 #if STM32_ADC_USE_ADC3 || STM32_ADC_USE_ADC4
-  rccResetADC34();
   rccEnableADC34(true);
+  rccResetADC34();
   ADC34_COMMON->CCR = STM32_ADC_ADC34_PRESC | STM32_ADC_ADC34_CLOCK_MODE | ADC_CCR_MDMA_MODE;
   rccDisableADC34();
 #endif
@@ -440,7 +445,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmachp = dma3ChannelAlloc(STM32_ADC_ADC1_DMA3_CHANNEL,
-                                       STM32_ADCV6_ADC1_IRQ_PRIORITY,
+                                       STM32_IRQ_ADC1_PRIORITY,
                                        adc_lld_serve_dma_interrupt,
                                        (void *)adcp);
       chDbgAssert(adcp->dmachp != NULL, "unable to allocate stream");
@@ -459,7 +464,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmachp = dma3ChannelAlloc(STM32_ADC_ADC2_DMA3_CHANNEL,
-                                       STM32_ADCV6_ADC2_IRQ_PRIORITY,
+                                       STM32_IRQ_ADC2_PRIORITY,
                                        adc_lld_serve_dma_interrupt,
                                        (void *)adcp);
       chDbgAssert(adcp->dmachp != NULL, "unable to allocate stream");
@@ -478,7 +483,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmachp = dma3ChannelAlloc(STM32_ADC_ADC3_DMA3_CHANNEL,
-                                       STM32_ADCV6_ADC3_IRQ_PRIORITY,
+                                       STM32_IRQ_ADC3_PRIORITY,
                                        adc_lld_serve_dma_interrupt,
                                        (void *)adcp);
       chDbgAssert(adcp->dmachp != NULL, "unable to allocate stream");
@@ -497,7 +502,7 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                     "invalid clock frequency");
 
       adcp->dmachp = dma3ChannelAlloc(STM32_ADC_ADC4_DMA3_CHANNEL,
-                                       STM32_ADCV6_ADC4_IRQ_PRIORITY,
+                                       STM32_IRQ_ADC4_PRIORITY,
                                        adc_lld_serve_dma_interrupt,
                                        (void *)adcp);
       chDbgAssert(adcp->dmachp != NULL, "unable to allocate stream");
@@ -654,14 +659,15 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
   }
 
   grpp = &cfg->grps->grps[grpnum];
+  if (STM32_ADC_DUAL_MODE && ((grpp->num_channels & 1U) != 0U)) {
+    return HAL_RET_CONFIG_ERROR;
+  }
+
   adcp->grpp = grpp;
   circular = (adcp->state == ADC_ACTIVE_CIRCULAR);
 #if STM32_ADC_DUAL_MODE
   ccr = grpp->ccr & ~(ADC_CCR_CKMODE_MASK | ADC_CCR_MDMA_MASK);
 #endif
-
-  chDbgAssert(!STM32_ADC_DUAL_MODE || ((grpp->num_channels & 1) == 0),
-                "odd number of channels in dual mode");
 
   /* Calculating control registers values.*/
   dmaccr = STM32_DMA3_CCR_PRIO((uint32_t)adcp->dprio)   |
@@ -727,6 +733,10 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
   adcp->adcm->AWD3CR = grpp->awd3cr;
 
 #if STM32_ADC_DUAL_MODE
+  /* Either ADC can overrun and block dual-mode DMA requests. The group
+     exposes watchdog settings only for the master ADC.*/
+  adcp->adcs->ISR = adcp->adcs->ISR;
+  adcp->adcs->IER = ADC_IER_OVRIE;
 
   /* Configuring the CCR register with the user-specified settings
      in the conversion group configuration structure, static settings are

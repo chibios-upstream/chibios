@@ -128,6 +128,7 @@ jobs:
           set -euo pipefail
           sh test/rt/testbuild/check_vt_config.sh
           sh test/rt/testbuild/check_vt_tickless.sh
+          sh test/nil/testbuild/check_timeouts.sh
           # Compile only: no execution of produced binaries.
           make -C test/rt/testbuild -f Makefile_x86 all
           make -C test/rt/testbuild -f Makefile_x86 clean

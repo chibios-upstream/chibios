@@ -145,6 +145,8 @@
  * @note    The value zero means disabled, when disabled calling USB
  *          functions is only safe from thread level or from USB
  *          callbacks.
+ * @note    A stronger pre-existing BASEPRI mask is preserved. The original
+ *          mask is restored after each packet copy.
  */
 #if !defined(STM32_USB_OTGFIFO_FILL_BASEPRI) || defined(__DOXYGEN__)
 #define STM32_USB_OTGFIFO_FILL_BASEPRI      0
@@ -586,6 +588,22 @@ struct USBDriver {
    * @brief   Pointer to the next address in the packet memory.
    */
   uint32_t                      pmnext;
+  /**
+   * @brief   EP0 configuration for this driver instance.
+   */
+  USBEndpointConfig             ep0config;
+  /**
+   * @brief   EP0 transfer state for this driver instance.
+   * @note    IN and OUT transfers on EP0 do not run at the same time.
+   */
+  union {
+    USBInEndpointState          in;
+    USBOutEndpointState         out;
+  } ep0_state;
+  /**
+   * @brief   Buffer for incoming EP0 setup packets.
+   */
+  uint8_t                       ep0setup_buffer[8];
 };
 
 /*===========================================================================*/

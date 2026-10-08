@@ -187,6 +187,10 @@
 
 /**
  * @brief       Common ISR code, error event.
+ * @note        Called from unlocked ISR context. Conversion cleanup is locked,
+ *              but the user callback is invoked after unlocking.
+ * @note        The existing waiter is notified before the callback. A
+ *              conversion restarted by the callback retains its group.
  *
  * @param[in,out] dacp          Pointer to the DAC driver instance.
  * @param[in]     err           Platform dependent error code.
@@ -195,13 +199,17 @@
  */
 #define _dac_isr_error_code(dacp, err)                                      \
   do {                                                                      \
+    chSysLockFromISR();                                                     \
     dac_lld_stop_conversion(dacp);                                          \
+    chSysUnlockFromISR();                                                   \
     (dacp)->errors |= (err);                                                \
+    _dac_error_wakeup_isr(dacp);                                            \
     __cbdrv_invoke_cb_with_transition(dacp,                                 \
                                       HAL_DRV_STATE_ERROR,                  \
                                       HAL_DRV_STATE_READY);                 \
-    (dacp)->grpp = NULL;                                                    \
-    _dac_error_wakeup_isr(dacp);                                            \
+    if ((dacp)->state == HAL_DRV_STATE_READY) {                             \
+      (dacp)->grpp = NULL;                                                  \
+    }                                                                       \
   } while (false)
 /** @} */
 

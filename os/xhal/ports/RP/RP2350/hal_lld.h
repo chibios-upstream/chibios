@@ -83,6 +83,10 @@
  *          API (@p halClockSwitchMode()) and clock point queries become
  *          dynamic. When @p FALSE (default) the clock tree is fixed at
  *          initialization time and this feature costs nothing.
+ * @note    Supported on the Arm Cortex-M33 cores only, the switch
+ *          sequence masks interrupts through the Cortex-M PRIMASK
+ *          register. RISC-V (Hazard3) builds reject @p TRUE at
+ *          compile time.
  */
 #if !defined(RP_CLOCK_DYNAMIC) || defined(__DOXYGEN__)
 #define RP_CLOCK_DYNAMIC                    FALSE
@@ -246,6 +250,14 @@
 #error "RP2350-E12: clk_sys must be at least 1.1 * clk_usb for reliable USB operation"
 #endif
 
+/*
+ * The runtime clock switch masks interrupts through the Cortex-M
+ * PRIMASK register, there is no Hazard3 implementation.
+ */
+#if (RP_CLOCK_DYNAMIC == TRUE) && defined(__riscv)
+#error "RP_CLOCK_DYNAMIC is not supported on the RISC-V (Hazard3) cores"
+#endif
+
 #if (RP_CLOCK_DYNAMIC == TRUE) && defined(CH_CFG_ST_TIMEDELTA) &&           \
     (CH_CFG_ST_TIMEDELTA == 0)
 #error "RP_CLOCK_DYNAMIC requires tick-less mode, in periodic mode SysTick counts clk_sys and the kernel tick would scale with every switch"
@@ -335,6 +347,11 @@ typedef struct {
    *          lowered after a downward one. Values above 1300 mV are
    *          not supported (they require the POWMAN voltage-limit
    *          unlock, deliberately out of scope).
+   * @note    Lowering the voltage after a downward switch is best
+   *          effort: the frequency has already changed, so a regulator
+   *          update timeout there is not reported. A timeout while
+   *          raising the voltage fails the switch with the clocks
+   *          untouched.
    */
   uint32_t          vreg_mv;
 } halclkcfg_t;

@@ -135,6 +135,10 @@
 /*
  * IRQ system settings.
  */
+#define STM32_IRQ_ADC1_PRIORITY             5
+
+#define STM32_IRQ_CAN1_PRIORITY             11
+
 #define STM32_IRQ_EXTI0_PRIORITY            6
 #define STM32_IRQ_EXTI1_PRIORITY            6
 #define STM32_IRQ_EXTI2_PRIORITY            6
@@ -143,9 +147,6 @@
 #define STM32_IRQ_EXTI5_9_PRIORITY          6
 #define STM32_IRQ_EXTI10_15_PRIORITY        6
 #define STM32_IRQ_EXTI1635_38_PRIORITY      6
-#define STM32_IRQ_EXTI18_PRIORITY           6
-#define STM32_IRQ_EXTI19_PRIORITY           6
-#define STM32_IRQ_EXTI20_PRIORITY           6
 #define STM32_IRQ_EXTI21_22_PRIORITY        6
 
 #define STM32_IRQ_I2C1_PRIORITY             5
@@ -156,7 +157,18 @@
 #define STM32_IRQ_OCTOSPI1_PRIORITY         10
 #define STM32_IRQ_OCTOSPI2_PRIORITY         10
 
+#define STM32_IRQ_OTG1_PRIORITY             14
+
+#define STM32_IRQ_RTC_TAMP_STAMP_PRIORITY   6
+#define STM32_IRQ_RTC_WKUP_PRIORITY         6
+#define STM32_IRQ_RTC_ALARM_PRIORITY        6
+
 #define STM32_IRQ_SDMMC1_PRIORITY           9
+#define STM32_IRQ_SDMMC2_PRIORITY           9
+
+#define STM32_IRQ_SPI1_PRIORITY             10
+#define STM32_IRQ_SPI2_PRIORITY             10
+#define STM32_IRQ_SPI3_PRIORITY             10
 
 #define STM32_IRQ_TIM1_BRK_TIM15_PRIORITY   7
 #define STM32_IRQ_TIM1_UP_TIM16_PRIORITY    7
@@ -166,7 +178,7 @@
 #define STM32_IRQ_TIM3_PRIORITY             7
 #define STM32_IRQ_TIM4_PRIORITY             7
 #define STM32_IRQ_TIM5_PRIORITY             7
-#define STM32_IRQ_TIM6_PRIORITY             7
+#define STM32_IRQ_TIM6_DAC_PRIORITY         7
 #define STM32_IRQ_TIM7_PRIORITY             7
 #define STM32_IRQ_TIM8_UP_PRIORITY          7
 #define STM32_IRQ_TIM8_CC_PRIORITY          7
@@ -185,8 +197,6 @@
 #define STM32_ADC_USE_ADC1                  FALSE
 #define STM32_ADC_ADC1_DMA_STREAM           STM32_DMA_STREAM_ID_ANY
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
-#define STM32_ADC_ADC12_IRQ_PRIORITY        5
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     5
 #define STM32_ADC_ADC123_CLOCK_MODE         ADC_CCR_CKMODE_AHB_DIV2
 #define STM32_ADC_ADC123_PRESC              ADC_CCR_PRESC_DIV2
 
@@ -194,7 +204,7 @@
  * CAN driver system settings.
  */
 #define STM32_CAN_USE_CAN1                  FALSE
-#define STM32_CAN_CAN1_IRQ_PRIORITY         11
+#define STM32_CAN_REPORT_ALL_ERRORS         FALSE
 
 /*
  * DAC driver system settings.
@@ -202,8 +212,6 @@
 #define STM32_DAC_DUAL_MODE                 FALSE
 #define STM32_DAC_USE_DAC1_CH1              FALSE
 #define STM32_DAC_USE_DAC1_CH2              FALSE
-#define STM32_DAC_DAC1_CH1_IRQ_PRIORITY     10
-#define STM32_DAC_DAC1_CH2_IRQ_PRIORITY     10
 #define STM32_DAC_DAC1_CH1_DMA_PRIORITY     2
 #define STM32_DAC_DAC1_CH2_DMA_PRIORITY     2
 #define STM32_DAC_DAC1_CH1_DMA_STREAM       STM32_DMA_STREAM_ID_ANY
@@ -275,17 +283,21 @@
 #define STM32_RTC_PRESS_VALUE               1024
 #define STM32_RTC_CR_INIT                   0
 #define STM32_RTC_TAMPCR_INIT               0
+#define STM32_TAMP_CR1_INIT                 0
+#define STM32_TAMP_CR2_INIT                 0
+#define STM32_TAMP_FLTCR_INIT               0
+#define STM32_TAMP_IER_INIT                 0
 
 /*
  * SDC driver system settings.
  */
 #define STM32_SDC_USE_SDMMC1                FALSE
+#define STM32_SDC_USE_SDMMC2                FALSE
 #define STM32_SDC_SDMMC_UNALIGNED_SUPPORT   TRUE
 #define STM32_SDC_SDMMC_WRITE_TIMEOUT       10000
 #define STM32_SDC_SDMMC_READ_TIMEOUT        10000
 #define STM32_SDC_SDMMC_CLOCK_DELAY         10
 #define STM32_SDC_SDMMC_PWRSAV              TRUE
-#define STM32_SDC_SDMMC1_IRQ_PRIORITY       9
 
 /*
  * SERIAL driver system settings.
@@ -322,9 +334,6 @@
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
 #define STM32_SPI_SPI3_DMA_PRIORITY         1
-#define STM32_SPI_SPI1_IRQ_PRIORITY         10
-#define STM32_SPI_SPI2_IRQ_PRIORITY         10
-#define STM32_SPI_SPI3_IRQ_PRIORITY         10
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*
@@ -368,8 +377,10 @@
  * USB driver system settings.
  */
 #define STM32_USB_USE_OTG1                  FALSE
-#define STM32_USB_OTG1_IRQ_PRIORITY         14
 #define STM32_USB_OTG1_RX_FIFO_SIZE         512
+#define STM32_USB_OTGFIFO_FILL_BASEPRI      0
+#define STM32_USB_48MHZ_DELTA               120000
+#define STM32_USB_HOST_WAKEUP_DURATION      2
 
 /*
  * WDG driver system settings.
@@ -391,8 +402,6 @@
 #define STM32_WSPI_OCTOSPI2_DMA_STREAM      STM32_DMA_STREAM_ID_ANY
 #define STM32_WSPI_OCTOSPI1_DMA_PRIORITY    1
 #define STM32_WSPI_OCTOSPI2_DMA_PRIORITY    1
-#define STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY 10
-#define STM32_WSPI_OCTOSPI2_DMA_IRQ_PRIORITY 10
 #define STM32_WSPI_DMA_ERROR_HOOK(wspip)    chSysHalt("DMA failure")
 
 #endif /* XMCUCONF_H */

@@ -65,13 +65,17 @@ typedef struct {
   size_t                object_size;    /**< @brief Memory pool objects
                                                     size.                   */
   unsigned              align;          /**< @brief Required alignment.     */
-  memgetfunc_t          provider;       /**< @brief Memory blocks provider
-                                                    for this pool.          */
+  /**
+   * @brief   Memory blocks provider for this pool.
+   * @note    The callback contract is defined by @p chPoolObjectInitAligned().
+   */
+  memgetfunc_t           provider;
 } memory_pool_t;
 
 #if (CH_CFG_USE_SEMAPHORES == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Guarded memory pool descriptor.
+ * @note    The number of free objects must not exceed @p SEMAPHORE_MAX_COUNT.
  */
 typedef struct {
   semaphore_t           sem;            /**< @brief Counter semaphore guarding
@@ -88,6 +92,8 @@ typedef struct {
  * @brief   Data part of a static memory pool initializer.
  * @details This macro should be used when statically initializing a
  *          memory pool that is part of a bigger structure.
+ * @note    The provider must follow the callback contract described by
+ *          @p chPoolObjectInitAligned().
  *
  * @param[in] name      the name of the memory pool variable
  * @param[in] size      size of the memory pool contained objects
@@ -100,7 +106,9 @@ typedef struct {
 /**
  * @brief   Static memory pool initializer.
  * @details Statically initialized memory pools require no explicit
- *          initialization using @p chPoolInit().
+ *          initialization using @p chPoolObjectInitAligned().
+ * @note    The provider must follow the callback contract described by
+ *          @p chPoolObjectInitAligned().
  *
  * @param[in] name      the name of the memory pool variable
  * @param[in] size      size of the memory pool contained objects
@@ -176,6 +184,8 @@ extern "C" {
 
 /**
  * @brief   Initializes an empty memory pool.
+ * @note    The provider must follow the callback contract described by
+ *          @p chPoolObjectInitAligned().
  *
  * @param[out] mp       pointer to a @p memory_pool_t object
  * @param[in] size      the size of the objects contained in this memory pool,
@@ -319,6 +329,8 @@ static inline void chGuardedPoolFreeI(guarded_memory_pool_t *gmp, void *objp) {
  * @sclass
  */
 static inline void chGuardedPoolFreeS(guarded_memory_pool_t *gmp, void *objp) {
+
+  chDbgCheckClassS();
 
   chGuardedPoolFreeI(gmp, objp);
   chSchRescheduleS();

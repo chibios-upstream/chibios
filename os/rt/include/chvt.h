@@ -251,27 +251,28 @@ static inline bool chVTIsSystemTimeWithin(systime_t start, systime_t end) {
  */
 static inline bool chVTGetTimersStateI(sysinterval_t *timep) {
   virtual_timers_list_t *vtlp = &currcore->vtlist;
-  ch_delta_list_t *dlp = &vtlp->dlist;
+  ch_delta_list_t *dlp;
 
   chDbgCheckClassI();
 
-  if (dlp == dlp->next) {
+  dlp = ch_dlist_next(&vtlp->dlist);
+  if (dlp == &vtlp->dlist) {
     return false;
   }
 
   if (timep != NULL) {
 #if CH_CFG_ST_TIMEDELTA == 0
-    *timep = dlp->next->delta;
+    *timep = dlp->delta;
 #else
     sysinterval_t delta;
     sysinterval_t nowdelta;
 
     /* Tolerated deadline with saturation at the maximum interval.*/
-    if (dlp->next->delta > TIME_INFINITE - vtlp->lastdelta) {
+    if (dlp->delta > TIME_INFINITE - vtlp->lastdelta) {
       delta = TIME_INFINITE;
     }
     else {
-      delta = dlp->next->delta + vtlp->lastdelta;
+      delta = dlp->delta + vtlp->lastdelta;
     }
 
     /* Remaining interval with saturation at zero.*/

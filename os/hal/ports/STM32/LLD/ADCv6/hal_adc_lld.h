@@ -637,7 +637,7 @@ typedef struct adc_dmabuf {
   uint32_t                          ssmpr[2];                               \
   /* Slave ADC SQRx register initialization data.                           \
      NOTE: This field is only present in dual mode.*/                       \
-  uint32_t                          ssqr[4]
+  uint32_t                          ssqr[4];
 #else /* STM32_ADC_DUAL_MODE == FALSE */
 #define adc_lld_configuration_group_fields                                  \
   uint32_t                          cfgr;                                   \
