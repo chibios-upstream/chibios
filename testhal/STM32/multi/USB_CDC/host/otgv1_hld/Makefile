@@ -16,7 +16,7 @@ U5_HS := u595 u599 u5a5 u5a9 u5f7 u5f9 u5g7 u5g9
 PHY_BINARIES := $(addprefix $(BUILDDIR)/phy_,$(U5_HS))
 U5 := $(CHIBIOS)/os/hal/ports/STM32/STM32U5xx
 
-.PHONY: all clean negative
+.PHONY: all clean negative registry
 all: $(BINARIES) $(PHY_BINARIES)
 	@for test in $(BINARIES) $(PHY_BINARIES); do echo "== $$test"; $$test || exit $$?; done
 
@@ -55,6 +55,10 @@ $(PHY_BINARIES): $(BUILDDIR)/phy_%: phy/u5_phy.c phy/hal.h $(BUILDDIR)/phy_code.
 	  -I$(CHIBIOS)/os/common/ext/ST/STM32U5xx \
 	  -I$(CHIBIOS)/os/common/ext/ARM/CMSIS/Core/Include \
 	  -DTEST_DEVICE_HEADER='"stm32$*xx.h"' $(CFLAGS) $< -o $@
+
+# The real registries: OTG capacities, endpoint counts, missing capacity.
+registry:
+	CHIBIOS="$(abspath $(CHIBIOS))" python3 registry_checks.py
 
 # Reverts each driver fix in a temporary copy, the regression must fail.
 negative:

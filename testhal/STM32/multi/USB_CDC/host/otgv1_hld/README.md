@@ -107,6 +107,15 @@ sensing (steppings 1 and 2), ULPI at full and high speed, FIFO fill
 BASEPRI with the sequence workaround; U5 PHY on eight HS parts.
 AddressSanitizer and UndefinedBehaviorSanitizer are enabled.
 
+## Registry checks
+
+`make registry` compiles the real classic registries for 78 device
+selections (F1 connectivity line, F2, F4, F7, H7, L4, L4+, U5) and checks
+the OTG instances present, their endpoint counts and FIFO capacities:
+1.25 Kbytes for the OTG_FS cores, 4 Kbytes for the OTG_HS cores, both
+STM32H7 instances being OTG_HS cores. A registry without a capacity is
+rejected.
+
 ## Negative controls
 
 `negative_controls.py` copies the HAL sources, reverts one fix at a time and
