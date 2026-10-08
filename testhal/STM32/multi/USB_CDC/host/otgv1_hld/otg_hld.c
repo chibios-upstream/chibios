@@ -112,7 +112,8 @@ static void test_rcc_reset(unsigned i) {
   test_resets[i]++;
   memset(otgp, 0, sizeof *otgp);
   otgp->GRSTCTL = test_hw.ahb_busy[i] ? 0U : GRSTCTL_AHBIDL;
-  otgp->DCTL = DCTL_SDIS;
+  /* Stepping 1 resets DCTL to zero, SDIS clear (RM0090).*/
+  otgp->DCTL = STM32_OTG_STEPPING == 1 ? 0U : DCTL_SDIS;
   for (unsigned ep = 0U; ep < 16U; ep++) {
     otgp->ie[ep].DTXFSTS = 0x400U;
   }
@@ -625,13 +626,19 @@ static bool is_hs(USBDriver *usbp) {
 #endif
 }
 
+/* The pull-up needs SDIS clear. The stepping 1 embedded PHY also needs the
+   B-session, sensed or forced by NOVBUSSENS; VBUS is present.*/
 static bool is_connected(USBDriver *usbp) {
 
+  if ((usbp->otg->DCTL & DCTL_SDIS) != 0U) {
+    return false;
+  }
 #if STM32_OTG_STEPPING == 1
-  return (usbp->otg->GCCFG & GCCFG_VBUSBSEN) != 0U;
-#else
-  return (usbp->otg->DCTL & DCTL_SDIS) == 0U;
+  if (!is_ulpi(usbp)) {
+    return (usbp->otg->GCCFG & (GCCFG_VBUSBSEN | GCCFG_NOVBUSSENS)) != 0U;
+  }
 #endif
+  return true;
 }
 
 static void check_vbus(USBDriver *usbp) {
@@ -903,8 +910,8 @@ static void check_lifecycle(USBDriver *usbp) {
   assert(otgp->GAHBCFG == GAHBCFG_GINTMSK && otgp->GINTMSK == TEST_START_GINTMSK);
   assert(otgp->DAINTMSK == 0U && otgp->DIEPMSK == 0U && otgp->DOEPMSK == 0U);
   assert(otgp->PCGCCTL == 0U);
-  /* The pull-up is left to usbConnectBus().*/
-  assert((otgp->DCTL & DCTL_SDIS) != 0U);
+  /* The pull-up is left to usbConnectBus(), stepping 1 connects at start.*/
+  assert(!is_connected(usbp) || (STM32_OTG_STEPPING == 1));
   check_vbus(usbp);
   assert(!usbp->faulted && !usbp->fault_reported);
 
@@ -1932,6 +1939,112 @@ static void check_clear_halt(USBDriver *usbp) {
   printf("PASS: OTG%u ENDPOINT_HALT set/clear through the core\n", i + 1U);
 }
 
+/* The IN disable barrier of usb_lld_disable_endpoints(), port of the XHAL
+   test: every old IN endpoint stops before any TX FIFO is flushed or
+   reassigned, under one deadline, from a locked thread or ISR. A disable
+   or a flush that never ends is a fault, EP0 is never touched.*/
+static USBDriver *in_poll_driver;
+static unsigned in_poll_index, in_poll_mode, in_poll_calls, in_poll_flushes;
+static uint32_t in_poll_fifo1, in_poll_fifo2;
+
+static rtcnt_t in_poll_counter(void) {
+  stm32_otg_t *otgp = in_poll_driver->otg;
+
+  in_poll_calls++;
+  if (in_poll_calls <= 3U) {
+    assert(otgp->DIEPTXF[0] == in_poll_fifo1);
+    assert(otgp->DIEPTXF[1] == in_poll_fifo2);
+    assert(test_hw.tx_flushes[in_poll_index] == in_poll_flushes);
+  }
+  if (in_poll_calls == 2U) {
+    otgp->ie[1].DIEPCTL &= ~(DIEPCTL_EPENA | DIEPCTL_EPDIS);
+  }
+  if ((in_poll_calls == 3U) && (in_poll_mode != 1U)) {
+    otgp->ie[2].DIEPCTL &= ~(DIEPCTL_EPENA | DIEPCTL_EPDIS);
+  }
+  hw_step();
+  /* Shared deadline, counter wrap and completion while preempted.*/
+  return UINT32_MAX - 100U + OSAL_US2RTC(SystemCoreClock,
+    in_poll_calls == 1U ? 0U : 900U + 200U * (in_poll_calls - 2U));
+}
+
+static void check_in_barrier(USBDriver *usbp) {
+  unsigned i = drv_index(usbp);
+  stm32_otg_t *otgp = usbp->otg;
+
+  for (unsigned context = 0U; context < 2U; context++) {
+    for (unsigned mode = 0U; mode < 3U; mode++) {
+      uint32_t ep0fifo, ep0ctl, ep0size;
+      unsigned halts = test_halts;
+
+      fresh_device(usbp);
+      enumerate(usbp, &cfg);
+      test_hw.stuck_in[i] = (1U << 1) | (1U << 2);
+      start_in(usbp, 1U, cfg_desc, sizeof cfg_desc);
+      start_in(usbp, 2U, cfg_desc, 16U);
+      assert((otgp->ie[1].DIEPCTL & DIEPCTL_EPENA) != 0U);
+      assert((otgp->ie[2].DIEPCTL & DIEPCTL_EPENA) != 0U);
+      ep0fifo = otgp->DIEPTXF0;
+      ep0ctl = otgp->ie[0].DIEPCTL;
+      ep0size = otgp->ie[0].DIEPTSIZ;
+      in_poll_driver = usbp;
+      in_poll_index = i;
+      in_poll_mode = mode;
+      in_poll_calls = 0U;
+      in_poll_fifo1 = otgp->DIEPTXF[0];
+      in_poll_fifo2 = otgp->DIEPTXF[1];
+      in_poll_flushes = test_hw.tx_flushes[i];
+      if (mode == 2U) {
+        test_hw.stuck_grstctl[i] = GRSTCTL_TXFFLSH;
+      }
+      test_halt_allowed = mode != 0U;
+      test_counter_hook = in_poll_counter;
+      if (context == 0U) {
+        osalSysLock();
+      }
+      else {
+        test_isr = true;
+        osalSysLockFromISR();
+      }
+      usbDisableEndpointsI(usbp);
+      if (context == 0U) {
+        osalSysUnlock();
+      }
+      else {
+        osalSysUnlockFromISR();
+        test_isr = false;
+      }
+      test_counter_hook = NULL;
+      test_halt_allowed = false;
+      if (mode == 0U) {
+        /* The old endpoints are stopped and flushed, the new layout starts
+           after EP0.*/
+        assert(!usbp->faulted && usbp->in_flush == 0U);
+        assert(test_hw.tx_flushes[i] == in_poll_flushes + 3U);
+        assert((otgp->ie[1].DIEPCTL & DIEPCTL_EPENA) == 0U);
+        assert((otgp->ie[2].DIEPCTL & DIEPCTL_EPENA) == 0U);
+        assert(usbp->pmnext == usbp->otgparams->rx_fifo_size + 16U);
+      }
+      else {
+        assert(usbp->faulted && test_halts == halts + 1U);
+        if (mode == 1U) {
+          assert(in_poll_calls == 3U);
+        }
+        assert(otgp->DIEPTXF[0] == in_poll_fifo1);
+        assert(otgp->DIEPTXF[1] == in_poll_fifo2);
+      }
+      assert(otgp->DIEPTXF0 == ep0fifo && otgp->ie[0].DIEPCTL == ep0ctl);
+      assert(otgp->ie[0].DIEPTSIZ == ep0size);
+      test_hw.stuck_in[i] = 0U;
+      test_hw.stuck_grstctl[i] = 0U;
+      otgp->GRSTCTL = GRSTCTL_AHBIDL;
+      usbStop(usbp);
+    }
+  }
+  printf("PASS: OTG%u IN disable barrier before FIFO reuse, bounded\n",
+         i + 1U);
+}
+
 static void check_iso(USBDriver *usbp) {
   unsigned i = drv_index(usbp);
   stm32_otg_t *otgp = usbp->otg;
@@ -2242,6 +2355,7 @@ int main(void) {
     check_bounds(usbp);
     check_ep_requests(usbp);
     check_clear_halt(usbp);
+    check_in_barrier(usbp);
     check_iso(usbp);
     check_iso_out(usbp);
 #if USB_USE_WAIT

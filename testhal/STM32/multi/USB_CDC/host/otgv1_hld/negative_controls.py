@@ -16,7 +16,7 @@ U5LLD = 'os/hal/ports/STM32/STM32U5xx/hal_lld.c'
 SAFETY = 'os/hal/src/hal_safety.c'
 CORE = 'os/hal/src/hal_usb.c'
 VARIANTS = ['dual', 'wait', 'ep0_thread', 'ep0_thread_late', 'stepping1',
-            'phy_u5a5']
+            'stepping1_novbus', 'stepping1_ulpi', 'phy_u5a5']
 COPIED = ['os/hal/include', 'os/hal/src', 'os/hal/ports/STM32/LLD/OTGv1',
           'os/hal/ports/STM32/STM32U5xx']
 
@@ -43,8 +43,8 @@ MUTATIONS = {
   'no-status-before-setup': (LLD, '        otg_epin_handler(usbp, 0U);\n', ''),
   'no-ep0-abort-recheck': (LLD, '        break;\n      }\n      otg_fault(usbp);\n      return true;',
                            '      }\n      otg_fault(usbp);\n      return true;'),
-  'connect-when-faulted': (LLD, '  if (!usbp->faulted) {\n#if STM32_OTG_STEPPING == 1\n    usbp->otg->GCCFG |= GCCFG_VBUSBSEN;',
-                           '  if (true) {\n#if STM32_OTG_STEPPING == 1\n    usbp->otg->GCCFG |= GCCFG_VBUSBSEN;'),
+  'connect-when-faulted': (LLD, '  if (!usbp->faulted) {\n    if (otg_pullup_by_sensing(usbp)) {',
+                           '  if (true) {\n    if (otg_pullup_by_sensing(usbp)) {'),
   'no-wakeup-sof-ack': (LLD, '  otgp->GINTSTS = GINTSTS_SOF;\n', ''),
   'hs-microframes': (LLD, '    frame >>= 3U;\n', ''),
   'restart-resets-core': (LLD, '  if (usbp->state != USB_STOP) {\n    /* Already active, nothing to do.*/\n    return HAL_RET_SUCCESS;\n  }\n', ''),
@@ -82,6 +82,14 @@ MUTATIONS = {
                              '    osalSysUnlock();\n    msg = usbEp0Acknowledge(usbp);\n    if (msg == MSG_OK) {\n      set_address(usbp);\n    }\n'),
   'core-setup-keeps-endcb': (CORE, '  usbp->ep0reset = 0U;\n  usbp->ep0endcb = NULL;\n  usbp->ep0seq++;',
                              '  usbp->ep0reset = 0U;\n  usbp->ep0seq++;'),
+  'in-barrier-no-wait': (LLD, '    while ((otgp->ie[ep].DIEPCTL & DIEPCTL_EPENA) != 0U) {\n      if ((halcnt_t)(HAL_LLD_GET_CNT_VALUE() - start) >= timeout) {\n        /* A preemption',
+                         '    while (false) {\n      if ((halcnt_t)(HAL_LLD_GET_CNT_VALUE() - start) >= timeout) {\n        /* A preemption'),
+  'in-barrier-no-recheck': (LLD, '        /* A preemption can cross the deadline after hardware completes.*/\n        if ((otgp->ie[ep].DIEPCTL & DIEPCTL_EPENA) == 0U) {\n          break;\n        }\n', ''),
+  'in-barrier-no-flush': (LLD, '    if (((flush & (1U << ep)) != 0U) && otg_txfifo_flush(usbp, ep)) {',
+                          '    if (false) {'),
+  'stepping1-sensing-only': (LLD, '#if (STM32_OTG_STEPPING == 1) && !defined(BOARD_OTG_NOVBUSSENS)\n#if STM32_USB_USE_OTG2 &&',
+                             '#if (STM32_OTG_STEPPING == 1)\n#if STM32_USB_USE_OTG2 &&'),
+  'stepping1-ulpi-sensing': (LLD, '  return &USBD2 != usbp;\n', '  (void)usbp;\n  return true;\n'),
   'u5-phy-no-rollback': (U5LLD, '    PWR->VOSR = (PWR->VOSR & ~mask) | saved;\n', '    (void)saved;\n'),
   'u5-phy-unbounded-ok': (U5LLD, '    return true;\n  }\n\n  /* Integrated high-speed PHY clocks.*/',
                           '  }\n\n  /* Integrated high-speed PHY clocks.*/'),

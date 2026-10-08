@@ -10,7 +10,8 @@ CFLAGS := -std=c11 -O1 -g -Wall -Wextra -Werror \
           -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast \
           -fsanitize=address,undefined -fno-sanitize-recover=undefined
 TESTS := dual otg1 otg2 wait ep0_thread stepping1 stepping3 novbus
-TESTS += stepping1_novbus ulpi_fs ulpi_hs basepri late ep0_thread_late
+TESTS += stepping1_novbus stepping1_ulpi ulpi_fs ulpi_hs basepri late
+TESTS += ep0_thread_late
 BINARIES := $(addprefix $(BUILDDIR)/,$(TESTS))
 U5_HS := u595 u599 u5a5 u5a9 u5f7 u5f9 u5g7 u5g9
 PHY_BINARIES := $(addprefix $(BUILDDIR)/phy_,$(U5_HS))
@@ -35,6 +36,8 @@ $(BUILDDIR)/stepping3: CPPFLAGS += -DSTM32_OTG_STEPPING=3
 $(BUILDDIR)/novbus $(BUILDDIR)/stepping1_novbus: CPPFLAGS += -DBOARD_OTG_NOVBUSSENS
 $(BUILDDIR)/ulpi_fs: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=0
 $(BUILDDIR)/ulpi_hs: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=1 -DUSB_USE_WAIT=1
+$(BUILDDIR)/stepping1_ulpi: CPPFLAGS += -DSTM32_OTG_STEPPING=1 -DSTM32_USB_OTG2_PHY=2 \
+                                        -DSTM32_USE_USB_OTG2_HS=1
 $(BUILDDIR)/basepri: CPPFLAGS += -DSTM32_USB_OTGFIFO_FILL_BASEPRI=6 -DSTM32_OTG_SEQUENCE_WORKAROUND
 
 $(BINARIES): otg_hld.c hal.h $(LLD)/hal_usb_lld.c $(LLD)/hal_usb_lld.h \

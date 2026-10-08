@@ -85,6 +85,10 @@ On every enabled controller, through the real core:
 - EP0 worker SET_ADDRESS: a SETUP arriving before the commit, between the
   commit and the status stage, or after the status stage but before the
   worker resumes, neither applies a stale address nor loses the new one.
+- IN disable barrier on reconfiguration (as XHAL): every old IN endpoint
+  stops before any TX FIFO is flushed or reassigned, under one deadline,
+  from a locked thread or ISR, including a completion seen just past the
+  deadline; a disable or flush that never ends is a fault; EP0 untouched.
 - Isochronous IN missed-frame recovery retired only by EPDISD, cancelled by
   suspend, flush timeout as a fault.
 - Incomplete isochronous OUT (RM0468): only transfers due in the frame that
@@ -96,14 +100,17 @@ On every enabled controller, through the real core:
   the EP0 abort does the same for both of its conditions. Frame number at
   full and high speed. Connect/disconnect from any context. EP0 storage is
   per controller and SETUP, transfers and resets of one controller leave
-  the other's EP0 untouched.
+  the other's EP0 untouched. On stepping 1 the pull-up follows B-session
+  sensing on the embedded PHY, the soft disconnect without VBUS sensing or
+  with an external ULPI PHY (DCTL resets to zero on stepping 1).
 - U5 HS PHY: booster ready, delayed or ready while preempted, timeout with
   rollback of the startup-owned fields, clocks, retry, counter wrap.
 
 Variants: both controllers, OTG1 or OTG2 only, `USB_USE_WAIT`, EP0 worker
 (`USB_USE_EP0_THREAD`), the core's late SET_ADDRESS path (USBv1, USBv2)
 with the default handler and the EP0 worker, steppings 1 and 3, no VBUS
-sensing (steppings 1 and 2), ULPI at full and high speed, FIFO fill
+sensing (steppings 1 and 2), ULPI at full and high speed (also on
+stepping 1), FIFO fill
 BASEPRI with the sequence workaround; U5 PHY on eight HS parts.
 AddressSanitizer and UndefinedBehaviorSanitizer are enabled.
 
@@ -119,24 +126,22 @@ rejected.
 ## Negative controls
 
 `negative_controls.py` copies the HAL sources, reverts one fix at a time and
-runs six variants; every mutation must fail the regression (a build failure
-does not count). Covered: safety recheck, fault reporting and idempotence,
-lazy IN flush, EP0 SETUP gating, status before SETUP, EP0 abort recheck,
-endpoint bound, CLEAR_HALT toggle, stepping-1 GOTGCTL, teardown drain, SOF
-masking, connect while faulted, wakeup SOF acknowledge, HS frame number,
-restart from READY, vector release on stop, receive start while faulted,
-command replay on disable, early ISO retirement, fault state cleared on
-start, ISO OUT parity check, global OUT NAK, late completion and teardown
-takeover, U5 PHY rollback and bounded wait; in the core, the endpoint
-request check (whole, reserved bits, direction) and the EP0 worker
-SET_ADDRESS commit (sequence check, completion from the status stage,
-commit dropped by a new SETUP).
+runs eight variants; every mutation must fail the regression (a build
+failure does not count). Covered: safety recheck, fault reporting and
+idempotence, lazy IN flush, EP0 SETUP gating, status before SETUP, EP0 abort
+recheck, endpoint bound, CLEAR_HALT toggle, stepping-1 GOTGCTL, teardown
+drain, SOF masking, connect while faulted, wakeup SOF acknowledge, HS frame
+number, restart from READY, vector release on stop, receive start while
+faulted, command replay on disable, early ISO retirement, fault state
+cleared on start, ISO OUT parity check, global OUT NAK, late completion and
+teardown takeover, U5 PHY rollback and bounded wait, IN disable barrier
+(wait, deadline recheck, flush), stepping 1 pull-up control without sensing
+or with ULPI; in the core, the endpoint request check (whole, reserved bits,
+direction) and the EP0 worker SET_ADDRESS commit (sequence check, completion
+from the status stage, commit dropped by a new SETUP).
 
 ## Limits
 
 This is not hardware validation and does not model USB timing, bus
 traffic, real concurrency or interrupt preemption other than at the hook
 points. The EP0 worker runs one iteration at a time on the test's stack.
-Known limitation, by design: the IN disable requested by SET_CONFIGURATION
-is not awaited before the FIFO re-layout (documented on
-`usb_lld_disable_endpoints()`).
