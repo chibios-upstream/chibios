@@ -73,6 +73,17 @@ static void hw_step(void) {
       otgp->DCTL &= ~(DCTL_CGONAK | DCTL_GONSTS);
     }
     for (unsigned ep = 0U; ep < 16U; ep++) {
+      /* An isochronous OUT endpoint is armed for the frame parity set by
+         the write-only even/odd commands, readable as EONUM.*/
+      if ((otgp->oe[ep].DOEPCTL & DOEPCTL_EPTYP_MASK) == DOEPCTL_EPTYP_ISO) {
+        if ((otgp->oe[ep].DOEPCTL & DOEPCTL_SEVNFRM) != 0U) {
+          otgp->oe[ep].DOEPCTL &= ~(DOEPCTL_SEVNFRM | DOEPCTL_EONUM);
+        }
+        if ((otgp->oe[ep].DOEPCTL & DOEPCTL_SODDFRM) != 0U) {
+          otgp->oe[ep].DOEPCTL = (otgp->oe[ep].DOEPCTL & ~DOEPCTL_SODDFRM) |
+                                 DOEPCTL_EONUM;
+        }
+      }
       if (((otgp->ie[ep].DIEPCTL & DIEPCTL_EPDIS) != 0U) &&
           ((test_hw.stuck_in[i] & (1U << ep)) == 0U)) {
         otgp->ie[ep].DIEPCTL &= ~(DIEPCTL_EPENA | DIEPCTL_EPDIS);
@@ -1837,11 +1848,9 @@ static void check_iso(USBDriver *usbp) {
   serve_epdisd(usbp);
   assert(devs[i].in_cbs[3] == 1U);
 
-  /* Incomplete ISO OUT notifies an enabled receiver, not during teardown.*/
+  /* Incomplete ISO OUT recovery is covered by check_iso_out().*/
   out_teardown_to_release(usbp);
   assert(serve(usbp, GINTSTS_SOF) && usbp->out_disable_phase == OTG_OUT_IDLE);
-  start_out(usbp, 3U, devs[i].rx, 64U);
-  assert(serve(usbp, GINTSTS_IISOOXFR) && devs[i].out_cbs[3] == 1U);
 
   /* A flush timeout during recovery is a fault.*/
   start_in(usbp, 3U, tx, sizeof tx);
@@ -1857,6 +1866,123 @@ static void check_iso(USBDriver *usbp) {
   assert(usbp->state == USB_SUSPENDED && devs[i].in_cbs[3] == 1U);
   usbStop(usbp);
   printf("PASS: OTG%u isochronous IN recovery and incomplete OUT\n", i + 1U);
+}
+
+static void set_frame(USBDriver *usbp, uint32_t frame) {
+
+  usbp->otg->DSTS = (usbp->otg->DSTS & ~DSTS_FNSOF_MASK) | DSTS_FNSOF(frame);
+}
+
+/* RM0468 incomplete isochronous OUT: with the RX FIFO drained, endpoints
+   still enabled for the frame that has ended are disabled under the global
+   OUT NAK and reported once, with no data, after EPDISD.*/
+static void check_iso_out(USBDriver *usbp) {
+  unsigned i = drv_index(usbp);
+  stm32_otg_t *otgp = usbp->otg;
+  unsigned cbs, halts;
+
+  fresh_device(usbp);
+  enumerate(usbp, &cfg);
+  cbs = devs[i].out_cbs[3];
+
+  /* Armed in an even frame for the next, odd, one.*/
+  set_frame(usbp, 4U);
+  start_out(usbp, 3U, devs[i].rx, 64U);
+  hw_step();
+  assert((otgp->oe[3].DOEPCTL & (DOEPCTL_EPENA | DOEPCTL_EONUM)) ==
+         (DOEPCTL_EPENA | DOEPCTL_EONUM));
+
+  /* The even frame ends, the transfer is not due yet.*/
+  assert(serve(usbp, GINTSTS_IISOOXFR));
+  assert(usbp->isoc_out_pending == 0U && !usbp->isoc_out_nak);
+  assert((otgp->DCTL & DCTL_SGONAK) == 0U && devs[i].out_cbs[3] == cbs);
+
+  /* The odd frame ends without data: the global OUT NAK is requested, no
+     callback while the endpoint is still enabled.*/
+  set_frame(usbp, 5U);
+  assert(serve(usbp, GINTSTS_IISOOXFR));
+  assert(usbp->isoc_out_pending == (1U << 3) && usbp->isoc_out_nak);
+  assert((otgp->DCTL & DCTL_SGONAK) != 0U);
+  assert((otgp->GINTMSK & GINTMSK_GONAKEFFM) != 0U);
+  assert((otgp->oe[3].DOEPCTL & DOEPCTL_EPDIS) == 0U);
+  assert(devs[i].out_cbs[3] == cbs && usbGetReceiveStatusI(usbp, 3U));
+
+  /* NAK effective: only the incomplete endpoint is disabled.*/
+  hw_step();
+  assert(serve(usbp, 0U));
+  assert(!usbp->isoc_out_nak && (otgp->GINTMSK & GINTMSK_GONAKEFFM) == 0U);
+  assert((otgp->oe[3].DOEPCTL & DOEPCTL_EPDIS) != 0U);
+  assert((otgp->oe[1].DOEPCTL & DOEPCTL_EPDIS) == 0U);
+  assert((otgp->DOEPMSK & DOEPMSK_EPDM) != 0U && devs[i].out_cbs[3] == cbs);
+
+  /* Disabled: reported once with no data, the NAK is released.*/
+  hw_step();
+  serve_epdisd(usbp);
+  assert(devs[i].out_cbs[3] == cbs + 1U);
+  assert(usbGetReceiveTransactionSizeX(usbp, 3U) == 0U);
+  assert(!usbGetReceiveStatusI(usbp, 3U) && usbp->isoc_out_pending == 0U);
+  assert((otgp->DOEPMSK & DOEPMSK_EPDM) == 0U);
+  assert((otgp->DCTL & DCTL_CGONAK) != 0U);
+  hw_step();
+  assert((otgp->DCTL & DCTL_GONSTS) == 0U);
+
+  /* Not rearmed: no further reports.*/
+  set_frame(usbp, 7U);
+  (void)serve(usbp, GINTSTS_IISOOXFR);
+  set_frame(usbp, 8U);
+  (void)serve(usbp, GINTSTS_IISOOXFR);
+  assert(devs[i].out_cbs[3] == cbs + 1U && usbp->isoc_out_pending == 0U);
+
+  /* A transfer completing before the disable takes effect is delivered
+     normally and cancels the recovery.*/
+  set_frame(usbp, 10U);
+  start_out(usbp, 3U, devs[i].rx, 64U);
+  hw_step();
+  set_frame(usbp, 11U);
+  assert(serve(usbp, GINTSTS_IISOOXFR) && usbp->isoc_out_pending == (1U << 3));
+  out_data(usbp, 3U, 64U);
+  out_xfrc(usbp, 3U);
+  assert(devs[i].out_cbs[3] == cbs + 2U);
+  assert(usbGetReceiveTransactionSizeX(usbp, 3U) == 64U);
+  assert(usbp->isoc_out_pending == 0U && !usbp->isoc_out_nak);
+  assert((otgp->DCTL & DCTL_CGONAK) != 0U);
+  assert((otgp->GINTMSK & GINTMSK_GONAKEFFM) == 0U);
+  hw_step();
+
+  /* An OUT teardown takes over a pending recovery, no report.*/
+  set_frame(usbp, 12U);
+  start_out(usbp, 3U, devs[i].rx, 64U);
+  hw_step();
+  set_frame(usbp, 13U);
+  assert(serve(usbp, GINTSTS_IISOOXFR) && usbp->isoc_out_pending != 0U);
+  assert(serve(usbp, GINTSTS_USBSUSP));
+  assert(usbp->isoc_out_pending == 0U && !usbp->isoc_out_nak);
+  assert(usbp->out_disable_phase == OTG_OUT_NAK);
+  out_teardown_to_release(usbp);
+  assert(devs[i].out_cbs[3] == cbs + 2U);
+  assert(serve(usbp, GINTSTS_WKUPINT) &&
+         usbp->out_disable_phase == OTG_OUT_IDLE);
+
+  /* A recovery that does not complete is a fault.*/
+  set_frame(usbp, 14U);
+  start_out(usbp, 3U, devs[i].rx, 64U);
+  hw_step();
+  set_frame(usbp, 15U);
+  assert(serve(usbp, GINTSTS_IISOOXFR) && usbp->isoc_out_pending != 0U);
+  test_stuck_out[i] = 1U << 3;
+  hw_step();
+  assert(serve(usbp, 0U) && (otgp->oe[3].DOEPCTL & DOEPCTL_EPDIS) != 0U);
+  test_systime += OTG_OUT_DISABLE_TIMEOUT;
+  halts = test_halts;
+  test_halt_allowed = true;
+  assert(serve(usbp, GINTSTS_SOF));
+  test_halt_allowed = false;
+  test_stuck_out[i] = 0U;
+  assert(test_halts == halts + 1U && usbp->faulted);
+  assert(usbp->state == USB_SUSPENDED && devs[i].out_cbs[3] == cbs + 2U);
+  usbStop(usbp);
+  printf("PASS: OTG%u incomplete ISO OUT recovery under the global OUT NAK\n",
+         i + 1U);
 }
 
 #if USB_USE_WAIT
@@ -1981,6 +2107,7 @@ int main(void) {
     check_bounds(usbp);
     check_clear_halt(usbp);
     check_iso(usbp);
+    check_iso_out(usbp);
 #if USB_USE_WAIT
     check_fault_waiters(usbp);
 #endif

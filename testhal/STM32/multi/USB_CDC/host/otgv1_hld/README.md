@@ -23,7 +23,8 @@ Only the platform is modeled in `hal.h`:
 - NVIC enable/disable/pend (both clear a pending request, as on ARMv7-M),
   RCC enable/disable/reset counters; an RCC reset clears the registers.
 - Registers: two `stm32_otg_t` blocks. Self-clearing commands (core reset,
-  FIFO flushes, global OUT NAK set/clear, IN/OUT endpoint disable) complete
+  FIFO flushes, global OUT NAK set/clear, IN/OUT endpoint disable, the
+  isochronous OUT even/odd frame commands) complete
   only when the driver reads the timeout counter or performs a polled
   delay, or when a test lets time pass; each counter read is 10 us.
   Stuck commands, a busy AHB and endpoint disables that never end are
@@ -78,7 +79,12 @@ On every enabled controller, through the real core:
   set/clear (DATA0 for bulk/interrupt, none for isochronous), no command
   bits replayed by stall, clear or disable, EP0 registers kept by disable.
 - Isochronous IN missed-frame recovery retired only by EPDISD, cancelled by
-  suspend, flush timeout as a fault; incomplete ISO OUT notification.
+  suspend, flush timeout as a fault.
+- Incomplete isochronous OUT (RM0468): only transfers due in the frame that
+  ended are recovered, the endpoint is disabled under the global OUT NAK and
+  the missed frame reported once, with no data, after EPDISD; no further
+  reports for an endpoint not rearmed; a completion racing the disable is
+  delivered normally; a teardown takes over; a stuck disable is a fault.
 - The 15 safety waits recheck the register after a preempted deadline;
   the EP0 abort does the same for both of its conditions. Frame number at
   full and high speed. Connect/disconnect from any context. EP0 storage is
@@ -103,7 +109,8 @@ endpoint bound, CLEAR_HALT toggle, stepping-1 GOTGCTL, teardown drain, SOF
 masking, connect while faulted, wakeup SOF acknowledge, HS frame number,
 restart from READY, vector release on stop, receive start while faulted,
 command replay on disable, early ISO retirement, fault state cleared on
-start, U5 PHY rollback and bounded wait.
+start, ISO OUT parity check, global OUT NAK, late completion and teardown
+takeover, U5 PHY rollback and bounded wait.
 
 ## Limits
 
