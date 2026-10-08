@@ -15,6 +15,12 @@
 */
 
 #include "hal.h"
+
+/* The core's late SET_ADDRESS path (USBv1, USBv2) over the OTGv1 model.*/
+#if defined(TEST_LATE_SET_ADDRESS)
+#undef USB_SET_ADDRESS_MODE
+#define USB_SET_ADDRESS_MODE USB_LATE_SET_ADDRESS
+#endif
 #include <stdio.h>
 
 #include "hal_safety.c"
@@ -1242,6 +1248,82 @@ static void check_ep0_thread(USBDriver *usbp) {
   usbStop(usbp);
   printf("PASS: OTG%u EP0 worker aborts on SETUP and reset\n", i + 1U);
 }
+
+/* A new SETUP preempts the worker at its next lock.*/
+static void ep0_setup_at_lock_hook(void) {
+
+  host_setup(test_hook_driver, 0x80, USB_REQ_GET_DESCRIPTOR, 0x0303U, 0U,
+             255U);
+}
+
+/* Lets one lock through, the SETUP preempts the following one.*/
+static void ep0_setup_at_second_lock_hook(void) {
+
+  test_lock_hook = ep0_setup_at_lock_hook;
+}
+
+/* The status stage ends, then a SETUP arrives before the worker resumes.*/
+static void ep0_status_then_setup_hook(void) {
+
+  ep0_host_step(test_hook_driver);
+  host_setup(test_hook_driver, 0x80, USB_REQ_GET_STATUS, 0U, 0U, 2U);
+}
+
+/* SET_ADDRESS is committed under lock and completed by the status stage,
+   a SETUP replacing the request at any point is handled.*/
+static void check_ep0_thread_address(USBDriver *usbp) {
+  unsigned i = drv_index(usbp);
+  stm32_otg_t *otgp = usbp->otg;
+  bool handled;
+
+  fresh_device(usbp);
+  assert(usbStart(usbp, &cfg) == HAL_RET_SUCCESS);
+  usbConnectBus(usbp);
+  bus_reset(usbp);
+  test_hook_driver = usbp;
+  test_suspend_hook = ep0_hook;
+
+  /* A SETUP before the commit cancels the request, the new request's
+     fields are not taken as an address.*/
+  host_setup(usbp, 0x00, USB_REQ_SET_ADDRESS, 5U, 0U, 0U);
+  assert(usbEp0WaitSetup(usbp) == MSG_OK);
+  test_lock_hook = ep0_setup_at_lock_hook;
+  assert(usbEp0HandleStandardRequest(usbp, &handled) == MSG_RESET);
+  assert(handled && test_lock_hook == NULL);
+  assert(worker_once(usbp) == MSG_OK);
+  assert(usbp->address == 0U && (otgp->DCFG & DCFG_DAD_MASK) == 0U);
+  assert(usbp->state == USB_READY && devs[i].events[USB_EVENT_ADDRESS] == 0U);
+
+  /* A SETUP after the commit, before the status stage, drops the commit,
+     the next request's status stage does not complete it.*/
+  host_setup(usbp, 0x00, USB_REQ_SET_ADDRESS, 5U, 0U, 0U);
+  assert(usbEp0WaitSetup(usbp) == MSG_OK);
+  test_lock_hook = ep0_setup_at_second_lock_hook;
+  assert(usbEp0HandleStandardRequest(usbp, &handled) == MSG_RESET);
+  assert(handled && test_lock_hook == NULL);
+  assert(worker_once(usbp) == MSG_OK);
+  assert(usbp->state == USB_READY && devs[i].events[USB_EVENT_ADDRESS] == 0U);
+#if USB_SET_ADDRESS_MODE == USB_LATE_SET_ADDRESS
+  assert(usbp->address == 0U && (otgp->DCFG & DCFG_DAD_MASK) == 0U);
+#endif
+
+  /* A SETUP after the status stage, before the worker resumes, does not
+     lose the address.*/
+  host_setup(usbp, 0x00, USB_REQ_SET_ADDRESS, 5U, 0U, 0U);
+  test_suspend_hook = ep0_status_then_setup_hook;
+  assert(worker_once(usbp) == MSG_RESET);
+  assert(usbp->address == 5U &&
+         (otgp->DCFG & DCFG_DAD_MASK) == DCFG_DAD(5U));
+  assert(usbp->state == USB_SELECTED &&
+         devs[i].events[USB_EVENT_ADDRESS] == 1U);
+  test_suspend_hook = ep0_hook;
+  test_ep0_bytes = 0U;
+  assert(worker_once(usbp) == MSG_OK && test_ep0_bytes == 2U);
+  assert(devs[i].events[USB_EVENT_ADDRESS] == 1U);
+  test_suspend_hook = NULL;
+  usbStop(usbp);
+  printf("PASS: OTG%u EP0 worker SET_ADDRESS against new SETUPs\n", i + 1U);
+}
 #endif
 
 static void check_bulk(USBDriver *usbp) {
@@ -1694,19 +1776,25 @@ static void check_bounds(USBDriver *usbp) {
   memcpy(in, (void *)&otgp->ie[last + 1U], size);
   memcpy(out, (void *)&otgp->oe[last + 1U], size);
 
-  /* The classic core does not validate host endpoint numbers.*/
+  /* Every request is stalled, the core rejects them before the LLD.*/
   for (unsigned ep = last + 1U; ep < 16U; ep++) {
     stalls = devs[i].events[USB_EVENT_STALLED];
     (void)control(usbp, 0x82, USB_REQ_GET_STATUS, 0U, 0x80U | ep, 2U);
     (void)control(usbp, 0x82, USB_REQ_GET_STATUS, 0U, ep, 2U);
-    assert(devs[i].events[USB_EVENT_STALLED] == stalls + 2U);
     for (unsigned dir = 0U; dir < 2U; dir++) {
       (void)control(usbp, 0x02, USB_REQ_SET_FEATURE, USB_FEATURE_ENDPOINT_HALT,
                     (dir << 7) | ep, 0U);
       (void)control(usbp, 0x02, USB_REQ_CLEAR_FEATURE,
                     USB_FEATURE_ENDPOINT_HALT, (dir << 7) | ep, 0U);
     }
+    assert(devs[i].events[USB_EVENT_STALLED] == stalls + 6U);
     out_data(usbp, (usbep_t)ep, 8U);
+
+    /* The application API is not checked, the LLD bound applies.*/
+    osalSysLock();
+    assert(!usbStallTransmitI(usbp, (usbep_t)ep));
+    assert(!usbStallReceiveI(usbp, (usbep_t)ep));
+    osalSysUnlock();
   }
   assert(memcmp(in, (void *)&otgp->ie[last + 1U], size) == 0);
   assert(memcmp(out, (void *)&otgp->oe[last + 1U], size) == 0);
@@ -1715,6 +1803,52 @@ static void check_bounds(USBDriver *usbp) {
   usbStop(usbp);
   printf("PASS: OTG%u endpoints %u..15 from the host never reach registers\n",
          i + 1U, last + 1U);
+}
+
+/* Endpoint requests on unconfigured endpoints or directions, or with
+   reserved address bits, are stalled without reaching the LLD.*/
+static void check_ep_requests(USBDriver *usbp) {
+  unsigned i = drv_index(usbp);
+  stm32_otg_t *otgp = usbp->otg;
+  uint32_t diepctl1, diepctl4, doepctl2;
+  unsigned stalls;
+
+  fresh_device(usbp);
+  enumerate(usbp, &cfg);
+  diepctl1 = otgp->ie[1].DIEPCTL;
+  diepctl4 = otgp->ie[4].DIEPCTL;
+  doepctl2 = otgp->oe[2].DOEPCTL;
+  stalls = devs[i].events[USB_EVENT_STALLED];
+
+  /* EP4 is not configured, EP2 has no OUT direction.*/
+  (void)control(usbp, 0x02, USB_REQ_SET_FEATURE, USB_FEATURE_ENDPOINT_HALT,
+                0x84U, 0U);
+  (void)control(usbp, 0x02, USB_REQ_CLEAR_FEATURE, USB_FEATURE_ENDPOINT_HALT,
+                0x84U, 0U);
+  (void)control(usbp, 0x02, USB_REQ_SET_FEATURE, USB_FEATURE_ENDPOINT_HALT,
+                0x02U, 0U);
+  (void)control(usbp, 0x02, USB_REQ_CLEAR_FEATURE, USB_FEATURE_ENDPOINT_HALT,
+                0x02U, 0U);
+  (void)control(usbp, 0x82, USB_REQ_SYNCH_FRAME, 0U, 0x84U, 2U);
+
+  /* Reserved bits in the endpoint address and in the index high byte.*/
+  (void)control(usbp, 0x82, USB_REQ_GET_STATUS, 0U, 0x91U, 2U);
+  (void)control(usbp, 0x82, USB_REQ_GET_STATUS, 0U, 0x0181U, 2U);
+  (void)control(usbp, 0x02, USB_REQ_SET_FEATURE, USB_FEATURE_ENDPOINT_HALT,
+                0x0181U, 0U);
+  assert(devs[i].events[USB_EVENT_STALLED] == stalls + 8U);
+  assert(otgp->ie[1].DIEPCTL == diepctl1);
+  assert(otgp->ie[4].DIEPCTL == diepctl4);
+  assert(otgp->oe[2].DOEPCTL == doepctl2);
+
+  /* Configured directions are served.*/
+  assert(control(usbp, 0x82, USB_REQ_GET_STATUS, 0U, 0x82U, 2U) == 2U);
+  assert(control(usbp, 0x82, USB_REQ_GET_STATUS, 0U, 0x01U, 2U) == 2U);
+  assert(control(usbp, 0x82, USB_REQ_SYNCH_FRAME, 0U, 0x83U, 2U) == 2U);
+  assert(devs[i].events[USB_EVENT_STALLED] == stalls + 8U);
+  usbStop(usbp);
+  printf("PASS: OTG%u endpoint requests check the configured endpoints\n",
+         i + 1U);
 }
 
 static void check_clear_halt(USBDriver *usbp) {
@@ -2097,6 +2231,7 @@ int main(void) {
     check_setup_order(usbp);
 #else
     check_ep0_thread(usbp);
+    check_ep0_thread_address(usbp);
 #endif
     check_bulk(usbp);
     check_out_teardown(usbp);
@@ -2105,6 +2240,7 @@ int main(void) {
     check_wakeup_host(usbp);
     check_connect(usbp);
     check_bounds(usbp);
+    check_ep_requests(usbp);
     check_clear_halt(usbp);
     check_iso(usbp);
     check_iso_out(usbp);

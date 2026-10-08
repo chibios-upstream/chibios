@@ -95,6 +95,7 @@ static unsigned test_halts;
 static bool test_halt_allowed;
 static systime_t test_systime;
 static void (*test_suspend_hook)(void);
+static void (*test_lock_hook)(void);
 static unsigned test_reschedules, test_sleeps;
 static uint32_t test_sleep_dctl;
 static volatile uint32_t *test_sleep_reg;
@@ -116,10 +117,18 @@ static inline void osal_test_assert(bool c) {
 #define osalDbgCheckClassI() assert(test_locked)
 #define osalSysHalt(reason) ((void)(reason), abort())
 
-/* Locks, checking the context of every call.*/
+/* Locks, checking the context of every call. A one-shot hook runs before
+   a thread lock, an interrupt preempting the thread there.*/
 static inline void osalSysLock(void) {
 
   assert(!test_isr && !test_locked);
+  if (test_lock_hook != NULL) {
+    void (*hook)(void) = test_lock_hook;
+
+    test_lock_hook = NULL;
+    hook();
+    assert(!test_isr && !test_locked);
+  }
   test_locked = true;
 }
 static inline void osalSysUnlock(void) {

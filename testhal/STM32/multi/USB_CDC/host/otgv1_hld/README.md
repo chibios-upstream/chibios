@@ -18,8 +18,9 @@ Only the platform is modeled in `hal.h`:
 
 - OSAL: lock state checked on every call (thread, ISR, X-class), a single
   thread whose `osalThreadSuspendS()` runs a test hook that plays the host
-  until another context resumes it, debug halts recorded only where a
-  fault is expected.
+  until another context resumes it, a one-shot hook before a thread lock
+  (an interrupt preempting the thread there), debug halts recorded only
+  where a fault is expected.
 - NVIC enable/disable/pend (both clear a pending request, as on ARMv7-M),
   RCC enable/disable/reset counters; an RCC reset clears the registers.
 - Registers: two `stm32_otg_t` blocks. Self-clearing commands (core reset,
@@ -75,9 +76,15 @@ On every enabled controller, through the real core:
   a second detection is a no-op; `usbStop()` clears the pended vector. A
   fault while the bus is already suspended adds no event, the driver stays
   suspended and a parked EP0 worker is released by `usbStop()`.
-- Host endpoint numbers beyond the controller never reach registers, ENDPOINT_HALT
-  set/clear (DATA0 for bulk/interrupt, none for isochronous), no command
-  bits replayed by stall, clear or disable, EP0 registers kept by disable.
+- Endpoint numbers beyond the controller never reach registers, from the
+  host (stalled by the core) or from the stall API (LLD bound); endpoint
+  requests on unconfigured endpoints or directions, or with reserved
+  address bits, are stalled by the core. ENDPOINT_HALT set/clear
+  (DATA0 for bulk/interrupt, none for isochronous), no command bits
+  replayed by stall, clear or disable, EP0 registers kept by disable.
+- EP0 worker SET_ADDRESS: a SETUP arriving before the commit, between the
+  commit and the status stage, or after the status stage but before the
+  worker resumes, neither applies a stale address nor loses the new one.
 - Isochronous IN missed-frame recovery retired only by EPDISD, cancelled by
   suspend, flush timeout as a fault.
 - Incomplete isochronous OUT (RM0468): only transfers due in the frame that
@@ -94,15 +101,16 @@ On every enabled controller, through the real core:
   rollback of the startup-owned fields, clocks, retry, counter wrap.
 
 Variants: both controllers, OTG1 or OTG2 only, `USB_USE_WAIT`, EP0 worker
-(`USB_USE_EP0_THREAD`), steppings 1 and 3, no VBUS sensing (steppings 1
-and 2), ULPI at full and high speed, FIFO fill BASEPRI with the sequence
-workaround; U5 PHY on eight HS parts. AddressSanitizer and
-UndefinedBehaviorSanitizer are enabled.
+(`USB_USE_EP0_THREAD`), the core's late SET_ADDRESS path (USBv1, USBv2)
+with the default handler and the EP0 worker, steppings 1 and 3, no VBUS
+sensing (steppings 1 and 2), ULPI at full and high speed, FIFO fill
+BASEPRI with the sequence workaround; U5 PHY on eight HS parts.
+AddressSanitizer and UndefinedBehaviorSanitizer are enabled.
 
 ## Negative controls
 
 `negative_controls.py` copies the HAL sources, reverts one fix at a time and
-runs five variants; every mutation must fail the regression (a build failure
+runs six variants; every mutation must fail the regression (a build failure
 does not count). Covered: safety recheck, fault reporting and idempotence,
 lazy IN flush, EP0 SETUP gating, status before SETUP, EP0 abort recheck,
 endpoint bound, CLEAR_HALT toggle, stepping-1 GOTGCTL, teardown drain, SOF
@@ -110,12 +118,16 @@ masking, connect while faulted, wakeup SOF acknowledge, HS frame number,
 restart from READY, vector release on stop, receive start while faulted,
 command replay on disable, early ISO retirement, fault state cleared on
 start, ISO OUT parity check, global OUT NAK, late completion and teardown
-takeover, U5 PHY rollback and bounded wait.
+takeover, U5 PHY rollback and bounded wait; in the core, the endpoint
+request check (whole, reserved bits, direction) and the EP0 worker
+SET_ADDRESS commit (sequence check, completion from the status stage,
+commit dropped by a new SETUP).
 
 ## Limits
 
 This is not hardware validation and does not model USB timing, bus
-traffic, real concurrency or interrupt preemption. The EP0 worker runs one
-iteration at a time on the test's stack. Known limitation, by design: the
-IN disable requested by SET_CONFIGURATION is not awaited before the FIFO
-re-layout (documented on `usb_lld_disable_endpoints()`).
+traffic, real concurrency or interrupt preemption other than at the hook
+points. The EP0 worker runs one iteration at a time on the test's stack.
+Known limitation, by design: the IN disable requested by SET_CONFIGURATION
+is not awaited before the FIFO re-layout (documented on
+`usb_lld_disable_endpoints()`).

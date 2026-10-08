@@ -14,7 +14,9 @@ H = os.path.dirname(os.path.abspath(__file__))
 LLD = 'os/hal/ports/STM32/LLD/OTGv1/hal_usb_lld.c'
 U5LLD = 'os/hal/ports/STM32/STM32U5xx/hal_lld.c'
 SAFETY = 'os/hal/src/hal_safety.c'
-VARIANTS = ['dual', 'wait', 'ep0_thread', 'stepping1', 'phy_u5a5']
+CORE = 'os/hal/src/hal_usb.c'
+VARIANTS = ['dual', 'wait', 'ep0_thread', 'ep0_thread_late', 'stepping1',
+            'phy_u5a5']
 COPIED = ['os/hal/include', 'os/hal/src', 'os/hal/ports/STM32/LLD/OTGv1',
           'os/hal/ports/STM32/STM32U5xx']
 
@@ -67,6 +69,19 @@ MUTATIONS = {
                          '    if (false) {\n      /* Completed before'),
   'iso-out-no-takeover': (LLD, '     being recovered; their transfers are cancelled, not reported.*/\n  usbp->isoc_out_pending = 0U;\n',
                           '     being recovered; their transfers are cancelled, not reported.*/\n'),
+  'core-no-ep-check': (CORE, ['    if (!valid) {\n      return false;\n    }\n',
+                               '    if (!valid) {\n      usbEp0Stall(usbp);\n      return MSG_OK;\n    }\n'],
+                       ['    (void)valid;\n', '    (void)valid;\n']),
+  'core-ep-reserved-bits': (CORE, '  if (((usbp->setup[4] & 0x70U) != 0U) || (usbp->setup[5] != 0U) ||\n      (ep > (usbep_t)USB_MAX_ENDPOINTS)) {',
+                            '  if (ep > (usbep_t)USB_MAX_ENDPOINTS) {'),
+  'core-ep-direction': (CORE, '  return in ? (epcp->in_state != NULL) : (epcp->out_state != NULL);',
+                        '  (void)in;\n  return true;'),
+  'core-address-no-seq-check': (CORE, '    osalSysLock();\n    if ((usbGetDriverStateI(usbp) == USB_STOP) ||\n        (usbp->ep0rseq != usbp->ep0seq)) {\n      osalSysUnlock();\n      return MSG_RESET;\n    }\n#if USB_SET_ADDRESS_MODE',
+                                '    osalSysLock();\n#if USB_SET_ADDRESS_MODE'),
+  'core-address-after-ack': (CORE, '    usbp->ep0endcb = set_address;\n    osalSysUnlock();\n    msg = usbEp0Acknowledge(usbp);\n',
+                             '    osalSysUnlock();\n    msg = usbEp0Acknowledge(usbp);\n    if (msg == MSG_OK) {\n      set_address(usbp);\n    }\n'),
+  'core-setup-keeps-endcb': (CORE, '  usbp->ep0reset = 0U;\n  usbp->ep0endcb = NULL;\n  usbp->ep0seq++;',
+                             '  usbp->ep0reset = 0U;\n  usbp->ep0seq++;'),
   'u5-phy-no-rollback': (U5LLD, '    PWR->VOSR = (PWR->VOSR & ~mask) | saved;\n', '    (void)saved;\n'),
   'u5-phy-unbounded-ok': (U5LLD, '    return true;\n  }\n\n  /* Integrated high-speed PHY clocks.*/',
                           '  }\n\n  /* Integrated high-speed PHY clocks.*/'),
