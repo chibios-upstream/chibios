@@ -143,6 +143,75 @@ static void check_driver(USBDriver *usbp) {
   assert((void *)epcp->in_state == (void *)epcp->out_state);
 }
 
+static void check_clear_halt(USBDriver *usbp) {
+  static const uint32_t in_types[] = {
+    DIEPCTL_EPTYP_CTRL, DIEPCTL_EPTYP_ISO,
+    DIEPCTL_EPTYP_BULK, DIEPCTL_EPTYP_INTR
+  };
+  static const uint32_t out_types[] = {
+    DOEPCTL_EPTYP_CTRL, DOEPCTL_EPTYP_ISO,
+    DOEPCTL_EPTYP_BULK, DOEPCTL_EPTYP_INTR
+  };
+  stm32_otg_t *otgp = usbp->otg;
+  usbep_t ep;
+  unsigned type, variant;
+
+  for (ep = 0U; ep <= usbp->otgparams->num_endpoints; ep++) {
+    uint32_t saved_in = otgp->ie[ep].DIEPCTL;
+    uint32_t saved_out = otgp->oe[ep].DOEPCTL;
+
+    for (type = 0U; type < 4U; type++) {
+      if ((ep == 0U) && (type != 0U)) {
+        continue;
+      }
+      for (variant = 0U; variant < 8U; variant++) {
+        uint32_t in = DIEPCTL_USBAEP | DIEPCTL_NAKSTS | in_types[type];
+        uint32_t out = DOEPCTL_USBAEP | DOEPCTL_NAKSTS | out_types[type];
+        uint32_t expected_in, expected_out;
+
+        if (ep != 0U) {
+          in |= DIEPCTL_TXFNUM(ep) | DIEPCTL_MPSIZ(64) | DIEPCTL_DPID;
+          out |= DOEPCTL_MPSIZ(64) | DOEPCTL_DPID;
+          if ((variant & 2U) != 0U) {
+            in |= DIEPCTL_SD1PID;
+            out |= DOEPCTL_SD1PID;
+          }
+          if ((variant & 4U) != 0U) {
+            in |= DIEPCTL_SD0PID;
+            out |= DOEPCTL_SD0PID;
+          }
+        }
+        if ((variant & 1U) != 0U) {
+          in |= DIEPCTL_STALL;
+          out |= DOEPCTL_STALL;
+        }
+        expected_in = in & ~DIEPCTL_STALL;
+        expected_out = out & ~DOEPCTL_STALL;
+        if (type >= 2U) {
+          expected_in = (expected_in & ~DIEPCTL_SD1PID) | DIEPCTL_SD0PID;
+          expected_out = (expected_out & ~DOEPCTL_SD1PID) | DOEPCTL_SD0PID;
+        }
+        otgp->ie[ep].DIEPCTL = in;
+        otgp->oe[ep].DOEPCTL = out;
+
+        /* Also reset the toggle on an endpoint which was not halted. */
+        usb_lld_clear_in(usbp, ep);
+        assert(otgp->ie[ep].DIEPCTL == expected_in);
+        assert(otgp->oe[ep].DOEPCTL == out);
+        usb_lld_clear_out(usbp, ep);
+        assert(otgp->oe[ep].DOEPCTL == expected_out);
+        assert(otgp->ie[ep].DIEPCTL == expected_in);
+        usb_lld_clear_in(usbp, ep);
+        usb_lld_clear_out(usbp, ep);
+        assert(otgp->ie[ep].DIEPCTL == expected_in);
+        assert(otgp->oe[ep].DOEPCTL == expected_out);
+      }
+    }
+    otgp->ie[ep].DIEPCTL = saved_in;
+    otgp->oe[ep].DOEPCTL = saved_out;
+  }
+}
+
 static void check_fifo_reconfiguration(USBDriver *usbp) {
   stm32_otg_t *otgp = usbp->otg;
   USBInEndpointState in = {0};
@@ -313,6 +382,13 @@ int main(void) {
   assert(test_hw != MAP_FAILED);
   test_hw->regs[0].GRSTCTL = GRSTCTL_AHBIDL;
   test_hw->regs[1].GRSTCTL = GRSTCTL_AHBIDL;
+  usb_lld_init();
+#if STM32_USB_USE_OTG1
+  check_clear_halt(&USBD1);
+#endif
+#if STM32_USB_USE_OTG2
+  check_clear_halt(&USBD2);
+#endif
   alarm(20);
   helper = fork();
   assert(helper >= 0);
@@ -337,7 +413,6 @@ int main(void) {
     _exit(0);
   }
 
-  usb_lld_init();
 #if STM32_USB_USE_OTG1
   check_phy_delays(&USBD1, 0U);
   usb_lld_reset(&USBD1);
@@ -364,6 +439,6 @@ int main(void) {
   assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
   assert(munmap(test_hw, sizeof(*test_hw)) == 0);
   alarm(0);
-  puts("HAL OTGv1 PHY delays, EP0 ownership and FIFO preservation: PASS");
+  puts("HAL OTGv1 PHY delays, EP0 ownership, FIFO and CLEAR_HALT: PASS");
   return 0;
 }

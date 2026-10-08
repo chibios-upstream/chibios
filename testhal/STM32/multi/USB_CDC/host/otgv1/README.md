@@ -1,6 +1,10 @@
-# HAL OTGv1 PHY timing, EP0 ownership and FIFO preservation regressions
+# HAL OTGv1 PHY timing, EP0, FIFO and CLEAR_HALT regressions
 
 Run `make` in this directory, then `make clean`.
+
+To test the pending CLEAR_HALT backport in the sibling HAL worktree, use
+`make CHIBIOS=../../../../../../../chibios-hal-backports` and the same
+override for `make clean`, until the source change is imported here.
 
 The test compiles the actual HAL USB headers and OTGv1 LLD. It checks that
 EP0 configuration, transfer state, and incoming SETUP storage belong to each
@@ -31,6 +35,23 @@ process model only self-clearing core reset and FIFO flush commands. This is
 not USB protocol, interrupt-timing, or hardware validation. Endpoint-disable
 handshakes are not modeled; interrupt registers record W1C writes without
 emulating their effects.
+
+## CLEAR_HALT regression
+
+Both IN and OUT endpoints are checked on every enabled controller, from EP0
+through the last endpoint. Bulk and interrupt endpoints must request DATA0
+and clear any DATA1 command when clearing halt, even if STALL was not set.
+Control endpoints retain their prior non-STALL bits, and isochronous endpoints
+retain the shared even/odd-frame command bits. Repeated clears and preservation
+of unrelated control fields and the opposite direction are checked as well.
+
+The test observes register command writes; it does not model the hardware
+data-toggle state or claim on-bus CLEAR_FEATURE validation. All five sanitizer
+variants pass against the backport; the unchanged driver fails the new DATA0
+assertion.
+
+The H723, F407 and L4R5 USB CDC targets also build with `USE_COPT=-Werror`.
+This backport has not been flashed or checked on hardware.
 
 ## Validation
 
