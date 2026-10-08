@@ -4,10 +4,8 @@ Run `make` in this directory, `make negative` for the negative controls,
 then `make clean`. Use `make CHIBIOS=<tree>` to test another worktree; set
 `ASAN_OPTIONS=detect_leaks=0` if the host's LeakSanitizer is noisy.
 
-The test targets the classic OTGv1 port of the XHAL fixes (branch
-`fix/hal-otgv1-port`). Until it is merged, run it with `CHIBIOS` set to a
-worktree of that branch. It supersedes the retired stub-based test whose
-notes remain in `../otgv1`.
+The test targets the classic OTGv1 port of the XHAL fixes, merged in #408.
+It supersedes the retired stub-based test whose notes remain in `../otgv1`.
 
 ## What is real
 
