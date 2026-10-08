@@ -678,7 +678,7 @@ typedef struct {
  * @name DSTS register bit definitions
  * @{
  */
-#define DSTS_FNSOF_MASK         (0x3FFU << 8)   /**< Frame number of the
+#define DSTS_FNSOF_MASK         (0x3FFFU << 8)  /**< Frame number of the
                                                      received SOF mask.     */
 #define DSTS_FNSOF(n)           ((n) << 8)      /**< Frame number of the
                                                      received SOF value.    */
