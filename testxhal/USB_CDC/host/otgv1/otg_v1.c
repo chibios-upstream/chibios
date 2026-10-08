@@ -1128,7 +1128,35 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   assert(usbp->isoc_in_pending == (1U << 1U));
   iso_disabled(usbp, 1U, 0U);
   assert(test_in == count + 1U);
+  /* Missed ISO OUT frame (RM0468): the transfer is armed for the even
+     frame, the odd one ending does not concern it.*/
   count = test_out;
+  serve(usbp, GINTSTS_IISOOXFR);
+  assert(test_out == count && usbp->isoc_out_pending == 0U);
+  /* The even frame ends without data: global OUT NAK first, no callback
+     while the endpoint is enabled.*/
+  otgp->DSTS = 0U;
+  serve(usbp, GINTSTS_IISOOXFR);
+  assert(test_out == count && usbp->isoc_out_pending == (1U << 1U));
+  assert(usbp->isoc_out_nak && (otgp->DCTL & DCTL_SGONAK) != 0U);
+  assert((otgp->oe[1].DOEPCTL & DOEPCTL_EPDIS) == 0U);
+  /* NAK effective: the endpoint is disabled.*/
+  otgp->DCTL = (otgp->DCTL & ~DCTL_SGONAK) | DCTL_GONSTS;
+  serve(usbp, GINTSTS_GONAKEFF);
+  assert(!usbp->isoc_out_nak && (otgp->oe[1].DOEPCTL & DOEPCTL_EPDIS) != 0U);
+  assert((otgp->DOEPMSK & DOEPMSK_EPDM) != 0U && test_out == count);
+  /* Disabled: one report with no data, the NAK is released.*/
+  otgp->oe[1].DOEPCTL &= ~(DOEPCTL_EPENA | DOEPCTL_EPDIS);
+  otgp->oe[1].DOEPINT = DOEPINT_EPDISD;
+  otgp->DAINT = DAINTMSK_OEPM(1);
+  serve(usbp, GINTSTS_OEPINT);
+  assert(test_out == count + 1U && usbp->isoc_out_pending == 0U);
+  assert(usbp->epc[1]->out_state->rxcnt == 0U);
+  assert((otgp->DCTL & DCTL_CGONAK) != 0U);
+  assert((otgp->DOEPMSK & DOEPMSK_EPDM) == 0U);
+  otgp->DCTL &= ~(DCTL_CGONAK | DCTL_GONSTS);
+  otgp->oe[1].DOEPINT = 0U;
+  otgp->DAINT = 0U;
   serve(usbp, GINTSTS_IISOOXFR);
   assert(test_out == count + 1U);
   check_iso_retirement(usbp, index);
