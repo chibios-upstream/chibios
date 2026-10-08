@@ -853,6 +853,33 @@
   /* Idle loop code here.*/                                                 \
 } while (false)
 
+#if defined(STM32_DEMO_ALIGNED_WFI)
+/* The ordinary port wait runs before this RT hook. Disable it in both ports.*/
+#if defined(CORTEX_ENABLE_WFI_IDLE) && CORTEX_ENABLE_WFI_IDLE
+#error "aligned idle example requires CORTEX_ENABLE_WFI_IDLE=FALSE"
+#endif
+#if defined(PORT_ENABLE_WFI_IDLE) && PORT_ENABLE_WFI_IDLE
+#error "aligned idle example requires PORT_ENABLE_WFI_IDLE=FALSE"
+#endif
+#ifndef CORTEX_ENABLE_WFI_IDLE
+#define CORTEX_ENABLE_WFI_IDLE FALSE
+#endif
+#ifndef PORT_ENABLE_WFI_IDLE
+#define PORT_ENABLE_WFI_IDLE FALSE
+#endif
+#if !defined(_FROM_ASM_)
+#ifdef __cplusplus
+extern "C" {
+#endif
+void portab_idle(void);
+#ifdef __cplusplus
+}
+#endif
+#endif
+#undef CH_CFG_IDLE_LOOP_HOOK
+#define CH_CFG_IDLE_LOOP_HOOK() portab_idle()
+#endif
+
 /**
  * @brief   System tick event hook.
  * @details This hook is invoked in the system tick handler immediately
