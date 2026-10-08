@@ -1,10 +1,12 @@
-# HAL OTGv1 PHY timing, EP0, FIFO and CLEAR_HALT regressions
+# HAL OTGv1 PHY timing, EP0, FIFO and CLEAR_HALT regressions (retired)
 
-Run `make` in this directory, then `make clean`.
-
-To test the pending CLEAR_HALT backport in the sibling HAL worktree, use
-`make CHIBIOS=../../../../../../../chibios-hal-backports` and the same
-override for `make clean`, until the source change is imported here.
+This stub-based test was retired in favor of `../otgv1_hld`, which covers
+the same checks through the actual USB core. Its sources remain in history
+at commit 8fd52794f1 (`ep0.c`, `hal.h` and `Makefile` in this directory);
+restore them from there to rerun it, for example against the standalone
+CLEAR_HALT fix in `chibios-hal-backports` with
+`make CHIBIOS=../../../../../../../chibios-hal-backports`. The notes below
+are kept for their hardware results.
 
 The test compiles the actual HAL USB headers and OTGv1 LLD. It checks that
 EP0 configuration, transfer state, and incoming SETUP storage belong to each

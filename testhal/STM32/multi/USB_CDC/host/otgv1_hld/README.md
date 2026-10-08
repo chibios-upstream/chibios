@@ -6,7 +6,8 @@ then `make clean`. Use `make CHIBIOS=<tree>` to test another worktree; set
 
 The test targets the classic OTGv1 port of the XHAL fixes (branch
 `fix/hal-otgv1-port`). Until it is merged, run it with `CHIBIOS` set to a
-worktree of that branch. It supersedes the stub-based `../otgv1` test.
+worktree of that branch. It supersedes the retired stub-based test whose
+notes remain in `../otgv1`.
 
 ## What is real
 
