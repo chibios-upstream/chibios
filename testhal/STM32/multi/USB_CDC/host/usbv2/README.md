@@ -48,6 +48,8 @@ execution outside a ptrace sandbox may be necessary for LeakSanitizer.
   has already been cleared.
 - Reset with stale suspend/SOF and endpoint-completion snapshots. The real
   HAL reset invalidates endpoint pointers; the LLD must not use them afterward.
+  The reset leaves the ERR interrupt masked, on a floating bus it fires
+  continuously.
 
 The allocation follows the block-size encoding documented by ST in
 [RM0487, USB receive buffer descriptors](https://www.st.com/resource/en/reference_manual/rm0487-stm32u3-series-armbased-32bit-mcus-stmicroelectronics.pdf).
@@ -74,8 +76,8 @@ the patched LLD, as does the complete seven-variant suite.
 
 `negative_controls.py` copies the HAL sources, reverts one fix at a time and
 runs four variants; every mutation must fail the regression (a build failure
-does not count). Covered: receive buffer rounding, reset snapshot, SUSPEN on
-wakeup, OUT truncation, stale IN and OUT events, and the isochronous fixes
+does not count). Covered: ERR interrupt mask, receive buffer rounding, reset
+snapshot, SUSPEN on wakeup, OUT truncation, stale IN and OUT events, and the isochronous fixes
 (IN idle completion, repeated packets, single counter, stale event; OUT idle
 copy, counter selection).
 

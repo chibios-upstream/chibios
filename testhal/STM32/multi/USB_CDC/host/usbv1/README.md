@@ -49,14 +49,15 @@ diagnostics and `-Wall -Wextra -Werror`.
 - Suspend/wakeup through the low priority handler, including the line-state
   rejection of spurious wakeups; FSUSP is cleared before the wakeup event.
 - Reset with stale suspend/SOF and endpoint-completion snapshots: the
-  handler stops after the reset, the old snapshot is not served.
+  handler stops after the reset, the old snapshot is not served. The reset
+  leaves the ERR interrupt masked, on a floating bus it fires continuously.
 
 ## Negative controls
 
 `negative_controls.py` copies the HAL sources, reverts one fix at a time and
 runs six variants; every mutation must fail the regression (a build
-failure does not count). Covered: receive buffer rounding, byte-wise SETUP
-copy, reset snapshot, OUT truncation, stale IN and OUT events, and the
+failure does not count). Covered: ERR interrupt mask, receive buffer
+rounding, byte-wise SETUP copy, reset snapshot, OUT truncation, stale IN and OUT events, and the
 isochronous fixes (IN idle completion, repeated packets, single counter,
 stale event; OUT idle copy, counter selection).
 

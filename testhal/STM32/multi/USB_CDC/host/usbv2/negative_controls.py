@@ -16,6 +16,7 @@ VARIANTS = ['normal', 'iso', 'fast_iso', 'ep0_thread']
 COPIED = ['os/hal/include', 'os/hal/src', 'os/hal/ports/STM32/LLD/USBv2']
 
 MUTATIONS = {
+  'err-irq-enabled': (LLD, '/* USB_CNTR_ERRM | USB_CNTR_PMAOVRM |*/', 'USB_CNTR_ERRM | /* USB_CNTR_PMAOVRM |*/'),
   'pma-rx-unrounded': (LLD, '    return (size + 31U) & ~(size_t)31U;', '    return size;'),
   'reset-keeps-snapshot': (LLD, '    /* Reset invalidated endpoints and events in the saved snapshot.*/\n    return;\n', ''),
   'wakeup-keeps-suspen': (LLD, '      usbp->usb->CNTR &= ~USB_CNTR_SUSPEN;\n', ''),

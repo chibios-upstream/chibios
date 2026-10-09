@@ -16,6 +16,7 @@ VARIANTS = ['normal', 'iso', 'fast_iso', 'ep0_thread', 'sparse', 'sparse_iso']
 COPIED = ['os/hal/include', 'os/hal/src', 'os/hal/ports/STM32/LLD/USBv1']
 
 MUTATIONS = {
+  'err-irq-enabled': (LLD, '/* CNTR_ERRM | CNTR_PMAOVRM |*/', 'CNTR_ERRM | /* CNTR_PMAOVRM |*/'),
   'pma-rx-unrounded': (LLD, '    return (size + 31U) & ~(size_t)31U;', '    return size;'),
   'setup-halfword-store': (LLD, '    *buf++ = (uint8_t)w;\n    *buf++ = (uint8_t)(w >> 8);\n  }\n}',
                            '    *(uint16_t *)(void *)buf = (uint16_t)w;\n    buf += 2;\n  }\n}'),

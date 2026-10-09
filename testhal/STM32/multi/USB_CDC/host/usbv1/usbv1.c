@@ -121,6 +121,8 @@ static void fresh_start(void) {
   assert(usbStart(&USBD1, &config) == HAL_RET_SUCCESS);
   assert(USBD1.state == USB_READY && USBD1.pmnext == 192U);
   assert((test_usb.CNTR & CNTR_SOFM) != 0U);
+  /* ERR is not served, on a floating bus it would fire continuously.*/
+  assert((test_usb.CNTR & CNTR_ERRM) == 0U);
   /* Model a completed SET_CONFIGURATION from the host.*/
   USBD1.state = USB_ACTIVE;
 }
