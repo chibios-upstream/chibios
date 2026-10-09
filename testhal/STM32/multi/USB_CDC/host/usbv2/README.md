@@ -33,14 +33,16 @@ execution outside a ptrace sandbox may be necessary for LeakSanitizer.
   0 through 128, fast-copy tails, and buffer sentinels.
 - Multi-packet bulk IN/OUT completion through the real HAL frontend and
   callbacks; endpoint events already served (VTTX/VTRX clear, a stale ISTR)
-  are ignored.
+  are ignored; an OUT packet larger than the room left in the transfer is
+  truncated to it (AddressSanitizer guards the buffer end).
 - Isochronous counters: an OUT packet is counted in the buffer DTOG_RX does
   not select (RM0481, Table 610); an IN packet sets both counters, the
   endpoint being always valid, and discards the event of a token already
   answered.
 - Isochronous endpoints with no transfer active: an IN token completes
   nothing and leaves no packet, a sent packet is followed by zero-length
-  packets, an OUT packet is not copied to the last transfer's buffer.
+  packets, an OUT packet is neither copied to the last transfer's buffer
+  nor counted in it.
 - Suspend/wakeup state transitions, including the existing line-state
   rejection of spurious wakeups. The wakeup callback checks that SUSPEN
   has already been cleared.
@@ -71,10 +73,10 @@ the patched LLD, as does the complete seven-variant suite.
 ## Negative controls
 
 `negative_controls.py` copies the HAL sources, reverts one fix at a time and
-runs four variants; every mutation must fail the regression (a build
-failure does not count). Covered: receive buffer rounding, reset snapshot,
-SUSPEN on wakeup, stale IN and OUT events, and the isochronous fixes (IN
-idle completion, repeated packets, single counter, stale event; OUT idle
+runs four variants; every mutation must fail the regression (a build failure
+does not count). Covered: receive buffer rounding, reset snapshot, SUSPEN on
+wakeup, OUT truncation, stale IN and OUT events, and the isochronous fixes
+(IN idle completion, repeated packets, single counter, stale event; OUT idle
 copy, counter selection).
 
 ## Firmware builds
@@ -104,4 +106,4 @@ frontend integration, not real blocking-thread behavior.
 
 The driver fixes this harness was written for are in master; the
 isochronous checks follow the fixes verified with the USB_AUDIO speaker on
-H563. USBv1 has no host harness.
+H563. The USBv1 harness is in `../usbv1`.

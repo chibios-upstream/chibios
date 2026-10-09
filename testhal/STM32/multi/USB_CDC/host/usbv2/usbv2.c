@@ -15,6 +15,7 @@
 */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "hal.h"
 #include "hal_usb.c"
 #include "hal_usb_lld.c"
@@ -191,7 +192,7 @@ static void check_copy(void) {
       assert(((uint8_t *)test_pma)[512U + ((n + 3U) & ~3U)] == 0xA5);
       memcpy((uint8_t *)test_pma + 1024U, (uint8_t *)test_pma + 512U,
              (n + 3U) & ~3U);
-      assert(usb_packet_read_to_buffer(&USBD1, 1U, target + offset) == n);
+      assert(usb_packet_read_to_buffer(&USBD1, 1U, target + offset, n) == n);
       assert(memcmp(source + offset, target + offset, n) == 0);
       assert(target[n + offset] == 0xA5);
       if (offset > 0U) {
@@ -242,6 +243,54 @@ static void check_transactions(void) {
   assert(ep_out.rxcnt == 70U && out_packets == before + 1U);
   assert(memcmp(source, target, sizeof source) == 0);
   test_isr = false;
+}
+
+static void out_packet(const uint8_t *data, size_t n) {
+  stm32_usb_pmabufdesc_t *dp = USB_GET_DESCRIPTOR(1U);
+
+  memcpy((uint8_t *)test_pma + (dp->RXBD0 & 0xFFFFU), data, n);
+  USB_SET_RX_COUNT0(dp, n);
+  test_usb.CHEPR[1] = USB_EP_BULK | USB_EP_VTRX;
+  test_isr = true;
+  usb_serve_endpoints(&USBD1, USB_ISTR_DIR | 1U);
+  test_isr = false;
+}
+
+/* The host can send a full packet when less room is left in the transfer,
+   the excess is not written past the buffer.*/
+static void check_out_overflow(void) {
+  uint8_t source[128];
+  uint8_t *target;
+  unsigned i, before;
+
+  for (i = 0U; i < sizeof source; i++) {
+    source[i] = (uint8_t)(i * 7U + 1U);
+  }
+  fresh_start();
+  init_endpoint(1U, &endpoint);
+  target = malloc(70U);
+  assert(target != NULL);
+  osalSysLock();
+  usbStartReceiveI(&USBD1, 1U, target, 70U);
+  osalSysUnlock();
+  before = out_packets;
+  out_packet(source, 64U);
+  out_packet(source + 64U, 64U);
+  assert(out_packets == before + 1U && ep_out.rxcnt == 70U);
+  assert(memcmp(target, source, 70U) == 0);
+  free(target);
+
+  /* A transfer shorter than one packet.*/
+  target = malloc(8U);
+  assert(target != NULL);
+  osalSysLock();
+  usbStartReceiveI(&USBD1, 1U, target, 8U);
+  osalSysUnlock();
+  out_packet(source, 64U);
+  assert(out_packets == before + 2U && ep_out.rxcnt == 8U);
+  assert(memcmp(target, source, 8U) == 0);
+  free(target);
+  usbStop(&USBD1);
 }
 
 /* Events already served or discarded are ignored, ISTR can be stale.*/
@@ -337,6 +386,8 @@ static void check_iso_idle(void) {
   usb_serve_endpoints(&USBD1, USB_ISTR_DIR | 1U);
   test_isr = false;
   assert(out_packets == before + 1U && target[0] == 0xA5 && target[63] == 0xA5);
+  /* The completed transfer is not touched.*/
+  assert(ep_out.rxcnt == 64U && ep_out.rxpkts == 0U);
   usbStop(&USBD1);
 }
 #endif
@@ -388,7 +439,7 @@ static void check_iso_counters(void) {
     test_usb.CHEPR[1] = USB_EP_ISOCHRONOUS |
                        (toggle ? USB_EP_DTOG_RX : 0U);
     memset(target, 0xA5, sizeof target);
-    assert(usb_packet_read_to_buffer(&USBD1, 1U, target + 1U) == 65U);
+    assert(usb_packet_read_to_buffer(&USBD1, 1U, target + 1U, 65U) == 65U);
     assert(memcmp(source, target + 1U, 65U) == 0);
     assert(target[0] == 0xA5 && target[66] == 0xA5);
   }
@@ -457,6 +508,9 @@ int main(int argc, char **argv) {
     else if (strcmp(argv[1], "reset") == 0) {
       check_reset();
     }
+    else if (strcmp(argv[1], "overflow") == 0) {
+      check_out_overflow();
+    }
     else {
       assert(strcmp(argv[1], "wakeup") == 0);
       check_wakeup();
@@ -467,6 +521,7 @@ int main(int argc, char **argv) {
     check_setup();
     check_copy();
     check_transactions();
+    check_out_overflow();
     check_stale_events();
 #if STM32_USB_USE_ISOCHRONOUS
     check_iso_counters();

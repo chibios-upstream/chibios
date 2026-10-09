@@ -19,6 +19,8 @@ MUTATIONS = {
   'pma-rx-unrounded': (LLD, '    return (size + 31U) & ~(size_t)31U;', '    return size;'),
   'reset-keeps-snapshot': (LLD, '    /* Reset invalidated endpoints and events in the saved snapshot.*/\n    return;\n', ''),
   'wakeup-keeps-suspen': (LLD, '      usbp->usb->CNTR &= ~USB_CNTR_SUSPEN;\n', ''),
+  'out-overflow': (LLD, '      m = n < osp->rxsize ? n : osp->rxsize;', '      m = n;'),
+  'out-overflow-copy': (LLD, '  i = (int)(n < max ? n : max);', '  i = (int)n;\n  (void)max;'),
   'stale-in-event': (LLD, '    if ((chepr & USB_EP_VTTX) == 0U) {\n      return;\n    }\n', ''),
   'stale-out-event': (LLD, '    if ((chepr & USB_EP_VTRX) == 0U) {\n      return;\n    }\n', ''),
   'iso-in-idle-completes': (LLD, '      if ((usbp->transmitting & (uint16_t)(1U << ep)) == 0U) {\n        return;\n      }\n', ''),
