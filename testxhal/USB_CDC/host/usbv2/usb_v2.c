@@ -122,7 +122,7 @@ static void test_pma_and_packets(void) {
     assert(USB_GET_TX_COUNT0(dp) == n);
     memcpy((uint8_t *)test_pma + 1024U,
            (uint8_t *)test_pma + 512U, (n + 3U) & ~3U);
-    assert(usb_packet_read_to_buffer(&USBD1, 1U, target + 1) == n);
+    assert(usb_packet_read_to_buffer(&USBD1, 1U, target + 1, n) == n);
     assert(memcmp(source + 1, target + 1, n) == 0);
     assert(target[0] == 0xA5 && target[n + 1U] == 0xA5);
   }
@@ -169,14 +169,14 @@ static void test_transactions(void) {
   assert(ep1out.rxpkts == 2U);
   memcpy((uint8_t *)test_pma + (dp->RXBD0 & 0xFFFFU), source, 64U);
   USB_SET_RX_COUNT0(dp, 64U);
-  test_usb.CHEPR[1] = USB_EP_BULK;
+  test_usb.CHEPR[1] = USB_EP_BULK | USB_EP_VTRX;
   before = test_out;
   test_isr = true;
   usb_serve_endpoints(&USBD1, USB_ISTR_DIR | 1U);
   assert(ep1out.rxcnt == 64U && test_out == before);
   memcpy((uint8_t *)test_pma + (dp->RXBD0 & 0xFFFFU), source + 64, 6U);
   USB_SET_RX_COUNT0(dp, 6U);
-  test_usb.CHEPR[1] = USB_EP_BULK;
+  test_usb.CHEPR[1] = USB_EP_BULK | USB_EP_VTRX;
   usb_serve_endpoints(&USBD1, USB_ISTR_DIR | 1U);
   assert(ep1out.rxcnt == 70U && test_out == before + 1U);
   assert(memcmp(source, target, sizeof(source)) == 0);
@@ -192,7 +192,7 @@ static void test_transactions(void) {
   usb_lld_start_in(&USBD1, 1U);
   assert(ep1in.txlast == 0U && USB_GET_TX_COUNT0(dp) == 0U);
 
-  test_usb.CHEPR[0] = USB_EP_SETUP;
+  test_usb.CHEPR[0] = USB_EP_SETUP | USB_EP_VTRX;
   test_isr = true;
   usb_serve_endpoints(&USBD1, USB_ISTR_DIR);
   test_isr = false;
@@ -243,9 +243,19 @@ static void test_isochronous(void) {
   dp = USB_GET_DESCRIPTOR(1U);
   assert((dp->RXBD0 & 0xFFFFU) == (dp->RXBD1 & 0xFFFFU));
   memcpy((uint8_t *)test_pma + (dp->RXBD0 & 0xFFFFU), data, sizeof(data));
+  /* DTOG_RX clear: the peripheral fills buffer 0, the last packet is in
+     buffer 1.*/
+  USB_SET_RX_COUNT0(dp, 0U);
   USB_SET_RX_COUNT1(dp, sizeof(data));
+  test_usb.CHEPR[1] = USB_EP_ISOCHRONOUS;
+  assert(usb_packet_read_to_buffer(&USBD1, 1U, result, sizeof(result)) == sizeof(data));
+  assert(memcmp(result, data, sizeof(data)) == 0);
+  /* DTOG_RX set: the last packet is in buffer 0.*/
+  memset(result, 0, sizeof(result));
+  USB_SET_RX_COUNT0(dp, sizeof(data));
+  USB_SET_RX_COUNT1(dp, 0U);
   test_usb.CHEPR[1] = USB_EP_ISOCHRONOUS | USB_EP_DTOG_RX;
-  assert(usb_packet_read_to_buffer(&USBD1, 1U, result) == sizeof(data));
+  assert(usb_packet_read_to_buffer(&USBD1, 1U, result, sizeof(result)) == sizeof(data));
   assert(memcmp(result, data, sizeof(data)) == 0);
 
   /* A 65-byte ISO packet reserves three 32-byte PMA blocks, not 68 bytes.*/
