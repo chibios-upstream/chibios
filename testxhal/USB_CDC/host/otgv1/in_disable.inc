@@ -83,7 +83,7 @@ static void check_in_teardown(hal_usb_driver_c *usbp, unsigned index) {
     assert(waiter.resumes == 1U && waiter.msg == MSG_RESET);
 #endif
     old1.txbuf = (const uint8_t *)(uintptr_t)1U;
-    usbp->ep0in.txbuf = (const uint8_t *)(uintptr_t)1U;
+    usbp->ep0_state.in.txbuf = (const uint8_t *)(uintptr_t)1U;
     /* No read, split restart or callback before or after wakeup. */
     for (unsigned resumed = 0U; resumed < 2U; resumed++) {
       if (resumed != 0U) {

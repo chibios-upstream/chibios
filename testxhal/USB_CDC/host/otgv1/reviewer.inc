@@ -54,7 +54,7 @@ static void check_ep0_gating(hal_usb_driver_c *usbp) {
   assert(drvStart(usbp, &config) == HAL_RET_SUCCESS);
   serve(usbp, GINTSTS_USBRST);
   usbp->ep0setup_pending = true;
-  usbp->ep0out.rxsize = 8U;
+  usbp->ep0_state.out.rxsize = 8U;
   otgp->oe[0].DOEPCTL = DOEPCTL_USBAEP;
   otgp->oe[0].DOEPTSIZ = 0x1357U;
   otgp->ie[0].DIEPCTL = DIEPCTL_USBAEP;

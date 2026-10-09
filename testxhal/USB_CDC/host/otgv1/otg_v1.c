@@ -437,9 +437,9 @@ static void check_ep0_abort(hal_usb_driver_c *usbp, unsigned index) {
     usbp->ep0state = kind == 3 ? USB_EP0_IN_SENDING_STS : 1;
     otgp->ie[0].DIEPCTL = DIEPCTL_USBAEP;
     start_in(usbp, 0, data, kind == 3 ? 0 : sizeof(data));
-    usbp->ep0in.txcnt = kind == 0 ? 0 : (kind == 3 ? 0 : 64);
+    usbp->ep0_state.in.txcnt = kind == 0 ? 0 : (kind == 3 ? 0 : 64);
     if (kind == 2) {
-      usbp->ep0in.txsize = 64;
+      usbp->ep0_state.in.txsize = 64;
     }
     if (kind == 3) {
       otgp->ie[0].DIEPCTL &= ~DIEPCTL_EPENA;
@@ -464,7 +464,7 @@ static void check_ep0_abort(hal_usb_driver_c *usbp, unsigned index) {
     otgp->ie[0].DIEPINT = 0U; /* Emulate W1C. */
     assert(test_in == ins + (kind == 3));
     assert(otgp->ie[0].DIEPTSIZ == size);
-    assert(usbp->ep0in.txcnt == (kind == 0 || kind == 3 ? 0 : 64));
+    assert(usbp->ep0_state.in.txcnt == (kind == 0 || kind == 3 ? 0 : 64));
     otgp->oe[0].DOEPINT = DOEPINT_STUP;
     otgp->GRXSTSP = GRXSTSP_SETUP_COMP;
     otg_rxfifo_handler(usbp);
@@ -576,9 +576,9 @@ static void check_setup_status_order(hal_usb_driver_c *usbp) {
     usbp->ep0state = kind == 0U ? USB_EP0_IN_SENDING_STS :
                      kind == 1U ? USB_EP0_OUT_WAITING_STS :
                      kind == 2U ? 1U : USB_EP0_OUT_RX;
-    usbp->ep0in.txsize = usbp->ep0in.txcnt = 0U;
-    usbp->ep0out.rxsize = usbp->ep0out.rxcnt = 0U;
-    usbp->ep0out.rxpkts = 0U;
+    usbp->ep0_state.in.txsize = usbp->ep0_state.in.txcnt = 0U;
+    usbp->ep0_state.out.rxsize = usbp->ep0_state.out.rxcnt = 0U;
+    usbp->ep0_state.out.rxpkts = 0U;
     usbp->otg->ie[0].DIEPINT = DIEPINT_XFRC;
     usbp->otg->oe[0].DOEPINT = DOEPINT_XFRC;
     setup_data(usbp, (uint8_t)(0xC0U + kind));
@@ -1008,7 +1008,7 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
     assert(otg_txfifo_handler(usbp, 0U));
     complete_in(usbp, 0U);
   }
-  assert(usbp->ep0in.txcnt == 150U && test_in == count + 1U);
+  assert(usbp->ep0_state.in.txcnt == 150U && test_in == count + 1U);
   count = test_out;
   start_out(usbp, 0U, buffer + 1U, 150U);
   receive(usbp, 0U, 64U);
@@ -1017,14 +1017,14 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   complete_out(usbp, 0U);
   receive(usbp, 0U, 22U);
   complete_out(usbp, 0U);
-  assert(usbp->ep0out.rxcnt == 150U && test_out == count + 1U);
+  assert(usbp->ep0_state.out.rxcnt == 150U && test_out == count + 1U);
   assert(buffer[0] == 0xA5 && buffer[151] == 0xA5);
   start_out(usbp, 0U, buffer, 150U);
   receive(usbp, 0U, 64U);
   complete_out(usbp, 0U);
   receive(usbp, 0U, 0U);
   complete_out(usbp, 0U);
-  assert(usbp->ep0out.rxcnt == 64U && test_out == count + 2U);
+  assert(usbp->ep0_state.out.rxcnt == 64U && test_out == count + 2U);
   start_out(usbp, 0U, NULL, 0U);
   assert((otgp->oe[0].DOEPTSIZ & DOEPTSIZ_PKTCNT_MASK) == DOEPTSIZ_PKTCNT(1));
   receive(usbp, 0U, 0U);
