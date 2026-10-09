@@ -278,6 +278,17 @@ static void in_xfrc(USBDriver *usbp, usbep_t ep) {
   (void)serve(usbp, GINTSTS_IEPINT);
 }
 
+/* As in_xfrc(), the hardware also reports its TX FIFO empty.*/
+static void in_xfrc_empty(USBDriver *usbp, usbep_t ep) {
+  stm32_otg_t *otgp = usbp->otg;
+
+  assert((otgp->ie[ep].DIEPCTL & DIEPCTL_EPENA) != 0U);
+  otgp->ie[ep].DIEPCTL &= ~DIEPCTL_EPENA;
+  otgp->ie[ep].DIEPINT = DIEPINT_XFRC | DIEPINT_TXFE;
+  otgp->DAINT = DAINTMSK_IEPM(ep);
+  (void)serve(usbp, GINTSTS_IEPINT);
+}
+
 static size_t test_ep0_bytes;
 static unsigned test_ep0_chunks;
 
@@ -434,6 +445,10 @@ typedef struct {
   unsigned in_cbs[16], out_cbs[16];
   unsigned sofs, endcbs;
   bool arm_rx;
+  const uint8_t *restart_buf;
+  size_t restart_n;
+  bool disable_in_cb;
+  bool disable_out_cb;
   USBInEndpointState in1, in2, in3;
   USBOutEndpointState out1, out3;
   USBEndpointConfig ep1, ep2, ep3;
@@ -442,13 +457,36 @@ typedef struct {
 static test_device_t devs[2];
 
 static void in_cb(USBDriver *usbp, usbep_t ep) {
+  test_device_t *dp = &devs[drv_index(usbp)];
 
-  devs[drv_index(usbp)].in_cbs[ep]++;
+  dp->in_cbs[ep]++;
+  /* Restarts from the callback, as the serial driver does.*/
+  if (dp->restart_n != 0U) {
+    size_t n = dp->restart_n;
+
+    dp->restart_n = 0U;
+    osalSysLockFromISR();
+    usbStartTransmitI(usbp, ep, dp->restart_buf, n);
+    osalSysUnlockFromISR();
+  }
+  if (dp->disable_in_cb) {
+    dp->disable_in_cb = false;
+    osalSysLockFromISR();
+    usbDisableEndpointsI(usbp);
+    osalSysUnlockFromISR();
+  }
 }
 
 static void out_cb(USBDriver *usbp, usbep_t ep) {
+  test_device_t *dp = &devs[drv_index(usbp)];
 
-  devs[drv_index(usbp)].out_cbs[ep]++;
+  dp->out_cbs[ep]++;
+  if (dp->disable_out_cb) {
+    dp->disable_out_cb = false;
+    osalSysLockFromISR();
+    usbDisableEndpointsI(usbp);
+    osalSysUnlockFromISR();
+  }
 }
 
 static void sof_cb(USBDriver *usbp) {
@@ -1438,6 +1476,93 @@ static void check_bulk(USBDriver *usbp) {
   printf("PASS: OTG%u bulk chunking, ZLP, short packets and overflow\n", i + 1U);
 }
 
+/* A transfer restarted by the IN callback is filled in the completion
+   interrupt, the host would otherwise be NAKed until the next TXFE one.*/
+static void check_in_restart(USBDriver *usbp) {
+  unsigned i = drv_index(usbp);
+  stm32_otg_t *otgp = usbp->otg;
+  static uint8_t tx[128];
+
+  fresh_device(usbp);
+  enumerate(usbp, &cfg);
+  for (size_t n = 0U; n < sizeof tx; n++) {
+    tx[n] = (uint8_t)(n + 1U);
+  }
+  otgp->ie[1].DTXFSTS = 0x400U;
+  start_in(usbp, 1U, tx, 64U);
+  assert(in_fill(usbp, 1U) == 64U);
+  devs[i].restart_buf = tx + 64U;
+  devs[i].restart_n = 64U;
+  in_xfrc_empty(usbp, 1U);
+  assert(devs[i].in_cbs[1] == 1U && usbGetTransmitStatusI(usbp, 1U));
+  assert(devs[i].in1.txcnt == 64U && devs[i].in1.txbuf == tx + 128U);
+  assert(otgp->FIFO[1][0] == (uint32_t)(tx[124] | (tx[125] << 8) |
+                                        (tx[126] << 16) |
+                                        ((uint32_t)tx[127] << 24)));
+  assert((otgp->DIEPEMPMSK & DIEPEMPMSK_INEPTXFEM(1)) == 0U);
+  in_xfrc(usbp, 1U);
+  assert(devs[i].in_cbs[1] == 2U && !usbGetTransmitStatusI(usbp, 1U));
+
+  /* A callback that does not restart leaves nothing to fill.*/
+  start_in(usbp, 1U, tx, 64U);
+  assert(in_fill(usbp, 1U) == 64U);
+  otgp->FIFO[1][0] = 0U;
+  in_xfrc_empty(usbp, 1U);
+  assert(devs[i].in_cbs[1] == 3U && otgp->FIFO[1][0] == 0U);
+  assert((otgp->DIEPEMPMSK & DIEPEMPMSK_INEPTXFEM(1)) == 0U);
+
+  /* Nor does one that disables the endpoints.*/
+  start_in(usbp, 1U, tx, 64U);
+  assert(in_fill(usbp, 1U) == 64U);
+  otgp->FIFO[1][0] = 0U;
+  devs[i].disable_in_cb = true;
+  in_xfrc_empty(usbp, 1U);
+  assert(devs[i].in_cbs[1] == 4U && usbp->epc[1] == NULL);
+  assert(otgp->FIFO[1][0] == 0U && (otgp->DIEPEMPMSK & ~1U) == 0U);
+  assert(!usbp->faulted);
+  usbStop(usbp);
+  printf("PASS: OTG%u IN restart filled in the completion interrupt\n",
+         i + 1U);
+}
+
+#if USB_USE_WAIT == TRUE
+/* A callback that disables the endpoints removes their configuration
+   before the frontend resumes the waiter: the waiter is resumed once, with
+   MSG_RESET by the disable, and nothing reads the configuration again.*/
+static void check_cb_waiters(USBDriver *usbp) {
+  unsigned i = drv_index(usbp);
+  stm32_otg_t *otgp = usbp->otg;
+  static uint8_t tx[64];
+  test_waiter_t w;
+
+  fresh_device(usbp);
+  enumerate(usbp, &cfg);
+  otgp->ie[1].DTXFSTS = 0x400U;
+  start_in(usbp, 1U, tx, 64U);
+  assert(in_fill(usbp, 1U) == 64U);
+  w = (test_waiter_t){0U, MSG_RESET};
+  devs[i].in1.thread = &w;
+  devs[i].disable_in_cb = true;
+  in_xfrc_empty(usbp, 1U);
+  assert(usbp->epc[1] == NULL && w.resumes == 1U && w.msg == MSG_RESET);
+  usbStop(usbp);
+
+  fresh_device(usbp);
+  enumerate(usbp, &cfg);
+  start_out(usbp, 1U, devs[i].rx, 64U);
+  out_data(usbp, 1U, 40U);
+  w = (test_waiter_t){0U, MSG_RESET};
+  devs[i].out1.thread = &w;
+  devs[i].disable_out_cb = true;
+  out_xfrc(usbp, 1U);
+  assert(usbp->epc[1] == NULL && w.resumes == 1U && w.msg == MSG_RESET);
+  assert(!usbp->faulted);
+  usbStop(usbp);
+  printf("PASS: OTG%u waiters resumed when callbacks disable the endpoints\n",
+         i + 1U);
+}
+#endif
+
 /* Runs before the SET_CONFIGURATION status stage, from the EP0 handler's
    ISR or while the EP0 worker waits for the status.*/
 static void check_staged(USBDriver *usbp) {
@@ -2347,6 +2472,10 @@ int main(void) {
     check_ep0_thread_address(usbp);
 #endif
     check_bulk(usbp);
+    check_in_restart(usbp);
+#if USB_USE_WAIT == TRUE
+    check_cb_waiters(usbp);
+#endif
     check_out_teardown(usbp);
     check_suspend(usbp);
     check_fault_suspended(usbp);

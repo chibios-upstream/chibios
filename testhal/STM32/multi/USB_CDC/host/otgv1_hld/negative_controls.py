@@ -15,6 +15,7 @@ LLD = 'os/hal/ports/STM32/LLD/OTGv1/hal_usb_lld.c'
 U5LLD = 'os/hal/ports/STM32/STM32U5xx/hal_lld.c'
 SAFETY = 'os/hal/src/hal_safety.c'
 CORE = 'os/hal/src/hal_usb.c'
+HDR = 'os/hal/include/hal_usb.h'
 VARIANTS = ['dual', 'wait', 'ep0_thread', 'ep0_thread_late', 'stepping1',
             'stepping1_novbus', 'stepping1_ulpi', 'phy_u5a5']
 COPIED = ['os/hal/include', 'os/hal/src', 'os/hal/ports/STM32/LLD/OTGv1',
@@ -82,6 +83,14 @@ MUTATIONS = {
                              '    osalSysUnlock();\n    msg = usbEp0Acknowledge(usbp);\n    if (msg == MSG_OK) {\n      set_address(usbp);\n    }\n'),
   'core-setup-keeps-endcb': (CORE, '  usbp->ep0reset = 0U;\n  usbp->ep0endcb = NULL;\n  usbp->ep0seq++;',
                              '  usbp->ep0reset = 0U;\n  usbp->ep0seq++;'),
+  'cb-in-epc-after': (HDR, 'osalThreadResumeI(&cb_isp->thread, MSG_OK);',
+                      'osalThreadResumeI(&(usbp)->epc[ep]->in_state->thread, MSG_OK); (void)cb_isp;'),
+  'cb-out-epc-after': (HDR, 'osalThreadResumeI(&cb_osp->thread, (msg_t)cb_n);',
+                       'osalThreadResumeI(&(usbp)->epc[ep]->out_state->thread, (msg_t)cb_n); (void)cb_osp;'),
+  'cb-out-size-after': (HDR, 'osalThreadResumeI(&cb_osp->thread, (msg_t)cb_n);',
+                        'osalThreadResumeI(&cb_osp->thread, (msg_t)usbGetReceiveTransactionSizeX(usbp, ep)); (void)cb_n;'),
+  'in-refill-deferred': (LLD, '    if (!otg_epin_refill_allowed(usbp, ep)) {\n      return;\n    }\n    epint = otgp->ie[ep].DIEPINT;\n',
+                         '    (void)otg_epin_refill_allowed;\n    return;\n'),
   'in-barrier-no-wait': (LLD, '    while ((otgp->ie[ep].DIEPCTL & DIEPCTL_EPENA) != 0U) {\n      if ((halcnt_t)(HAL_LLD_GET_CNT_VALUE() - start) >= timeout) {\n        /* A preemption',
                          '    while (false) {\n      if ((halcnt_t)(HAL_LLD_GET_CNT_VALUE() - start) >= timeout) {\n        /* A preemption'),
   'in-barrier-no-recheck': (LLD, '        /* A preemption can cross the deadline after hardware completes.*/\n        if ((otgp->ie[ep].DIEPCTL & DIEPCTL_EPENA) == 0U) {\n          break;\n        }\n', ''),

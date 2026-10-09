@@ -61,6 +61,14 @@ On every enabled controller, through the real core:
 - Bulk: TX FIFO space gating, hardware-sized chunks with one callback
   (IN and OUT, above the packet count limit), ZLP, short packets, excess
   data drained (AddressSanitizer guards the buffer end).
+- IN restart: a transfer started by the IN callback is filled in the
+  completion interrupt (XFRC with the TX FIFO empty), as the old driver did;
+  a callback that does not restart, or that disables the endpoints, leaves
+  nothing to fill.
+- Waiters (USB_USE_WAIT): an IN or OUT callback that disables the endpoints
+  removes their configuration before the frontend resumes the waiter; the
+  waiter is resumed once, with MSG_RESET by the disable, and the frontend
+  does not read the configuration again.
 - OUT teardown on reconfiguration: staged configuration and receive restart,
   old packets drained, global OUT NAK, EPDIS/EPDISD, release, SOF masked
   again, halt set/clear on the staged configuration, timeout reported as a
@@ -135,8 +143,11 @@ number, restart from READY, vector release on stop, receive start while
 faulted, command replay on disable, early ISO retirement, fault state
 cleared on start, ISO OUT parity check, global OUT NAK, late completion and
 teardown takeover, U5 PHY rollback and bounded wait, IN disable barrier
-(wait, deadline recheck, flush), stepping 1 pull-up control without sensing
-or with ULPI; in the core, the endpoint request check (whole, reserved bits,
+(wait, deadline recheck, flush), IN restart refill in the completion
+interrupt, stepping 1 pull-up control without sensing
+or with ULPI; in the core, the IN and OUT callback macros reading the
+endpoint configuration after the callback (thread and received size), the
+endpoint request check (whole, reserved bits,
 direction) and the EP0 worker SET_ADDRESS commit (sequence check, completion
 from the status stage, commit dropped by a new SETUP).
 
