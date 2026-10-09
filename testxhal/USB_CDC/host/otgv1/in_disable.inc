@@ -45,7 +45,8 @@ static void check_in_teardown(hal_usb_driver_c *usbp, unsigned index) {
 
   /* Suspend does not poll or flush even with EP0/EP1 stuck. Pending ISO
      recovery is cancelled without notifying the old buffer owner. */
-  for (unsigned mode = 0U; mode < 3U; mode++) {
+  for (unsigned mode = 0U;
+       mode < (STM32_USB_USE_ISOCHRONOUS == TRUE ? 3U : 1U); mode++) {
     test_waiter_t waiter = {0}, ep0waiter = {0};
 
     ep1.ep_mode = mode == 0U ? USB_EP_MODE_TYPE_BULK : USB_EP_MODE_TYPE_ISOC;
@@ -63,17 +64,19 @@ static void check_in_teardown(hal_usb_driver_c *usbp, unsigned index) {
     old1.thread = &waiter;
     usbp->ep0thread = &ep0waiter;
     usbp->ep0state = USB_EP0_IN_TX;
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
     if (mode == 2U) {
       usbp->isoc_in_pending = 2U;
       otgp->ie[1].DIEPCTL &= ~DIEPCTL_EPENA;
     }
+#endif
     callbacks = test_in;
     flushes = test_hw->tx_flushes[index];
     polls = test_counter_calls;
     delays = test_polled_calls;
     serve(usbp, GINTSTS_USBSUSP);
     assert(usbp->state == USB_SUSPENDED && usbp->transmitting == 0U);
-    assert(usbp->in_flush == 3U && usbp->isoc_in_pending == 0U);
+    assert(usbp->in_flush == 3U && otg_isoc_in_pending(usbp) == 0U);
     assert(otgp->DIEPEMPMSK == 0U);
     assert((otgp->oe[0].DOEPCTL & DOEPCTL_EPDIS) == 0U);
     assert(test_hw->tx_flushes[index] == flushes);
@@ -97,7 +100,7 @@ static void check_in_teardown(hal_usb_driver_c *usbp, unsigned index) {
       otgp->DAINT = DAINTMSK_IEPM(0) | DAINTMSK_IEPM(1);
       serve(usbp, GINTSTS_IEPINT | GINTSTS_IISOIXFR);
       assert(old1.txcnt == 16U && test_in == callbacks);
-      assert(usbp->in_flush == 3U && usbp->isoc_in_pending == 0U);
+      assert(usbp->in_flush == 3U && otg_isoc_in_pending(usbp) == 0U);
       assert(test_hw->tx_flushes[index] == flushes);
     }
     otgp->ie[1].DIEPCTL &= ~(DIEPCTL_EPENA | DIEPCTL_EPDIS);

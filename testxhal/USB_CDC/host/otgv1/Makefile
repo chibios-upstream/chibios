@@ -15,7 +15,7 @@ TESTS += stepping1 stepping1_novbus stepping1_ulpi_hs
 U5_FS := u575 u585
 U5_HS := u595 u599 u5a5 u5a9 u5f7 u5f9 u5g7 u5g9
 TESTS += $(U5_FS) $(U5_HS) u5a5_fs
-TESTS += no_sync
+TESTS += no_sync no_iso
 TESTS += novbus ulpi_fs_novbus ulpi_hs_novbus stepping1_ulpi_novbus
 TESTS += u575_novbus u5a5_novbus u5a5_fs_novbus
 BINARIES := $(addprefix $(BUILDDIR)/,$(TESTS))
@@ -34,6 +34,9 @@ $(BUILDDIR)/ulpi_fs $(BUILDDIR)/ulpi_fs_novbus: CPPFLAGS += -DSTM32_USB_OTG2_PHY
 $(BUILDDIR)/ulpi_hs $(BUILDDIR)/ulpi_hs_novbus: CPPFLAGS += -DSTM32_USB_OTG2_PHY=2 -DSTM32_USE_USB_OTG2_HS=1
 $(BUILDDIR)/configurations: CPPFLAGS += -DUSB_USE_CONFIGURATIONS=1
 $(BUILDDIR)/no_sync: CPPFLAGS += -DUSB_USE_SYNCHRONIZATION=0
+# Isochronous support, enabled except in no_iso.
+ISO := 1
+$(BUILDDIR)/no_iso: ISO := 0
 $(BUILDDIR)/basepri: CPPFLAGS += -DSTM32_USB_OTGFIFO_FILL_BASEPRI=6 -DSTM32_OTG_SEQUENCE_WORKAROUND
 $(BUILDDIR)/stepping1 $(BUILDDIR)/stepping1_novbus $(BUILDDIR)/stepping1_ulpi_hs $(BUILDDIR)/stepping1_ulpi_novbus: CPPFLAGS += -DSTM32_OTG_STEPPING=1
 $(BUILDDIR)/novbus $(filter %_novbus,$(BINARIES)): CPPFLAGS += -DBOARD_OTG_NOVBUSSENS
@@ -63,7 +66,7 @@ $(BUILDDIR)/usb_constants.inc: $(CHIBIOS)/os/xhal/include/hal_usb.h | $(BUILDDIR
 	awk '/^#define USB_(RTYPE|REQ_|FEATURE_|LATE_SET_ADDRESS|FLAGS_)/ {print "#ifndef " $$2; print; print "#endif"}' $< > $@
 
 $(BINARIES): otg_v1.c hal.h in_disable.inc out_disable.inc reviewer.inc $(LLD)/hal_usb_lld.c $(LLD)/hal_usb_lld.h $(LLD)/stm32_otg.h $(BUILDDIR)/usb_constants.inc $(BUILDDIR)/hld_fault.inc | $(BUILDDIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@
+	$(CC) $(CPPFLAGS) -DSTM32_USB_USE_ISOCHRONOUS=$(ISO) $(CFLAGS) $< -o $@
 
 $(BINARIES): $(CHIBIOS)/os/xhal/ports/STM32/STM32H7xx/stm32_registry.h \
              $(CHIBIOS)/os/xhal/src/hal_safety.c

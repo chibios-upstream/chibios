@@ -609,8 +609,13 @@ static void fresh_device(USBDriver *usbp) {
     USB_EP_MODE_TYPE_INTR, NULL, in_cb, NULL, 16U, 0U,
     &dp->in2, NULL, 1U, NULL
   };
+  /* Without isochronous support the third endpoint is a bulk one.*/
   dp->ep3 = (USBEndpointConfig) {
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
     USB_EP_MODE_TYPE_ISOC, NULL, in_cb, out_cb, 64U, 64U,
+#else
+    USB_EP_MODE_TYPE_BULK, NULL, in_cb, out_cb, 64U, 64U,
+#endif
     &dp->in3, &dp->out3, 1U, NULL
   };
 }
@@ -639,10 +644,14 @@ static void fresh_device(USBDriver *usbp) {
 #endif
 #endif
 
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
+#define TEST_ISOC_GINTMSK  (GINTMSK_IISOIXFRM | GINTMSK_IISOOXFRM)
+#else
+#define TEST_ISOC_GINTMSK  0U
+#endif
 #define TEST_START_GINTMSK (GINTMSK_ENUMDNEM | GINTMSK_USBRSTM |            \
                             GINTMSK_USBSUSPM | GINTMSK_ESUSPM |             \
-                            GINTMSK_SRQM | GINTMSK_WKUM |                   \
-                            GINTMSK_IISOIXFRM | GINTMSK_IISOOXFRM)
+                            GINTMSK_SRQM | GINTMSK_WKUM | TEST_ISOC_GINTMSK)
 
 static bool is_ulpi(USBDriver *usbp) {
 
@@ -2025,10 +2034,12 @@ static void check_clear_halt(USBDriver *usbp) {
   (void)control(usbp, 0x02, USB_REQ_CLEAR_FEATURE, USB_FEATURE_ENDPOINT_HALT,
                 0x82U, 0U);
   assert((otgp->ie[2].DIEPCTL & DIEPCTL_SD0PID) != 0U);
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
   (void)control(usbp, 0x02, USB_REQ_CLEAR_FEATURE, USB_FEATURE_ENDPOINT_HALT,
                 0x83U, 0U);
   assert((otgp->ie[3].DIEPCTL & (DIEPCTL_SD0PID | DIEPCTL_SD1PID)) == 0U);
   assert((otgp->ie[3].DIEPCTL & DIEPCTL_EPTYP_MASK) == DIEPCTL_EPTYP_ISO);
+#endif
 
   /* Disabling an active endpoint does not leave sampled commands in the
      final control word; EP0's registers, FIFO and interrupts are kept.*/
@@ -2170,6 +2181,7 @@ static void check_in_barrier(USBDriver *usbp) {
          i + 1U);
 }
 
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
 static void check_iso(USBDriver *usbp) {
   unsigned i = drv_index(usbp);
   stm32_otg_t *otgp = usbp->otg;
@@ -2356,6 +2368,43 @@ static void check_iso_out(USBDriver *usbp) {
   printf("PASS: OTG%u incomplete ISO OUT recovery under the global OUT NAK\n",
          i + 1U);
 }
+#else
+/* Without isochronous support an isochronous endpoint is rejected by a
+   debug assertion and left inactive, the incomplete transfer interrupts
+   stay masked.*/
+static void check_no_iso(USBDriver *usbp) {
+  unsigned i = drv_index(usbp);
+  stm32_otg_t *otgp = usbp->otg;
+  uint32_t inctl, outctl, staged;
+  unsigned halts;
+
+  fresh_device(usbp);
+  enumerate(usbp, &cfg);
+  assert((otgp->GINTMSK & (GINTMSK_IISOIXFRM | GINTMSK_IISOOXFRM)) == 0U);
+
+  /* A reconfiguration with an isochronous endpoint 3: the rejected
+     initialization changes neither its registers nor its staged state.*/
+  osalSysLock();
+  usbDisableEndpointsI(usbp);
+  osalSysUnlock();
+  inctl = otgp->ie[3].DIEPCTL;
+  outctl = otgp->oe[3].DOEPCTL;
+  staged = usbp->out_ctl[2];
+  devs[i].ep3.ep_mode = USB_EP_MODE_TYPE_ISOC;
+  halts = test_halts;
+  test_halt_allowed = true;
+  osalSysLock();
+  usbInitEndpointI(usbp, 3U, &devs[i].ep3);
+  osalSysUnlock();
+  test_halt_allowed = false;
+  assert(test_halts == halts + 1U && !usbp->faulted);
+  assert(otgp->ie[3].DIEPCTL == inctl && otgp->oe[3].DOEPCTL == outctl &&
+         usbp->out_ctl[2] == staged);
+  usbStop(usbp);
+  printf("PASS: OTG%u isochronous endpoints rejected without support\n",
+         i + 1U);
+}
+#endif
 
 #if USB_USE_WAIT
 static USBDriver *test_fault_driver;
@@ -2485,8 +2534,12 @@ int main(void) {
     check_ep_requests(usbp);
     check_clear_halt(usbp);
     check_in_barrier(usbp);
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
     check_iso(usbp);
     check_iso_out(usbp);
+#else
+    check_no_iso(usbp);
+#endif
 #if USB_USE_WAIT
     check_fault_waiters(usbp);
 #endif

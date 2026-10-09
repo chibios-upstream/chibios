@@ -230,7 +230,10 @@ static void check_reset_timeouts(hal_usb_driver_c *usbp, unsigned index) {
       assert((otgp->DCTL & DCTL_SDIS) != 0U);
       assert(otgp->GINTMSK == 0U && otgp->GAHBCFG == 0U);
       assert(otgp->DIEPEMPMSK == 0U && otgp->DAINTMSK == 0U);
-      assert(otgp->GCCFG == 0U && usbp->isoc_in_pending == 0U);
+      assert(otgp->GCCFG == 0U);
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
+      assert(usbp->isoc_in_pending == 0U);
+#endif
       assert(test_in + test_out + test_setup + test_sofs == callbacks);
       test_reset_fault = 0U;
       otgp->GRSTCTL = GRSTCTL_AHBIDL;
@@ -344,6 +347,7 @@ static void complete_in(hal_usb_driver_c *usbp, usbep_t ep) {
   otg_epin_handler(usbp, ep);
   test_isr = false;
 }
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
 static void iso_disabled(hal_usb_driver_c *usbp, usbep_t ep, uint32_t flags) {
 
   /* Register model has no W1C/IRQ propagation: explicitly supply the
@@ -353,6 +357,7 @@ static void iso_disabled(hal_usb_driver_c *usbp, usbep_t ep, uint32_t flags) {
   usbp->otg->DAINT = DAINTMSK_IEPM(ep);
   serve(usbp, GINTSTS_IEPINT);
 }
+#endif
 static void complete_out(hal_usb_driver_c *usbp, usbep_t ep) {
 
   usbp->otg->oe[ep].DOEPINT = DOEPINT_XFRC;
@@ -594,6 +599,7 @@ static void check_setup_status_order(hal_usb_driver_c *usbp) {
   puts("PASS: completed IN/OUT status precedes SETUP; aborted data does not");
 }
 
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
 static void check_iso_retirement(hal_usb_driver_c *usbp, unsigned index) {
   stm32_otg_t *otgp = usbp->otg;
   const USBEndpointConfig *saved = usbp->epc[1];
@@ -768,6 +774,7 @@ static void check_iso_recovery(hal_usb_driver_c *usbp, unsigned index) {
   test_hw->stuck_in[index] = 0U;
   puts("PASS: asynchronous ISO disable, delayed/stuck completion, callback rearm, cancellation");
 }
+#endif
 
 static stm32_otg_t *test_disconnect_regs;
 static uint32_t test_disconnect_dctl, test_disconnect_gccfg;
@@ -1108,6 +1115,7 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   usb_lld_init_endpoint(usbp, 1U);
   assert((otgp->DIEPTXF[0] >> 16U) == 16U);
 
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
   /* Isochronous frames, multipliers and missed-frame callbacks.*/
   disable_endpoints(usbp);
   ep.ep_mode = USB_EP_MODE_TYPE_ISOC;
@@ -1161,6 +1169,20 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   assert(test_out == count + 1U);
   check_iso_retirement(usbp, index);
   check_iso_recovery(usbp, index);
+#else
+  /* Without isochronous support an isochronous endpoint is rejected by a
+     debug assertion and left inactive.*/
+  disable_endpoints(usbp);
+  ep.ep_mode = USB_EP_MODE_TYPE_ISOC;
+  usbp->epc[1] = &ep;
+  ctl = otgp->ie[1].DIEPCTL;
+  test_expected_asserts = 1U;
+  usb_lld_init_endpoint(usbp, 1U);
+  assert(test_expected_asserts == 0U);
+  assert(otgp->ie[1].DIEPCTL == ctl);
+  assert((otgp->GINTMSK & (GINTMSK_IISOIXFRM | GINTMSK_IISOOXFRM)) == 0U);
+  ep.ep_mode = USB_EP_MODE_TYPE_BULK;
+#endif
 
   /* Remote wakeup clears only SOF (W1C), without clearing other events.*/
   otgp->GINTSTS = GINTSTS_USBRST;
@@ -1168,9 +1190,13 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   assert(otgp->GINTSTS == GINTSTS_SOF);
   assert((otgp->DCTL & DCTL_RWUSIG) == 0U);
 
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
   usbp->isoc_in_pending = 1U << 1U;
+#endif
   usb_lld_stop(usbp);
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
   assert(usbp->isoc_in_pending == 0U);
+#endif
   assert((otgp->DCTL & DCTL_SDIS) != 0U && otgp->GINTMSK == 0U);
   assert(otgp->GAHBCFG == 0U && test_disables[index] != 0U);
   assert(usb_lld_start(usbp) == HAL_RET_SUCCESS);
@@ -1288,7 +1314,11 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
   USBInEndpointState in2 = {0};
   USBOutEndpointState out2 = {0};
   USBEndpointConfig ep = {
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
     USB_EP_MODE_TYPE_ISOC, NULL, _usb_ep0in, _usb_ep0out,
+#else
+    USB_EP_MODE_TYPE_BULK, NULL, _usb_ep0in, _usb_ep0out,
+#endif
     64U, 64U, &in, &out, 1U, NULL
   };
   USBEndpointConfig ep2 = ep;
@@ -1296,6 +1326,12 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
   unsigned fault;
 
   for (fault = 1U; fault <= 9U; fault++) {
+#if STM32_USB_USE_ISOCHRONOUS == FALSE
+    /* Fault 8 is in an isochronous retirement.*/
+    if (fault == 8U) {
+      continue;
+    }
+#endif
     test_waiter_t txwait = {0}, rxwait = {0}, ep0wait = {0};
     unsigned callbacks, resets, enables, disables, calls;
     uint32_t saved_in, saved_out;
@@ -1366,6 +1402,7 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
       otg_epout_handler(usbp, 0U, true);
       test_isr = false;
     }
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
     else if (fault == 8U) {
       usbp->isoc_in_pending = 1U << 1U;
       otgp->ie[1].DIEPCTL &= ~DIEPCTL_EPENA;
@@ -1374,6 +1411,7 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
       otgp->DAINT = DAINTMSK_IEPM(1) | DAINTMSK_OEPM(1);
       serve(usbp, GINTSTS_IEPINT | GINTSTS_OEPINT);
     }
+#endif
     else {
       bool handled = false;
 
@@ -1391,7 +1429,7 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
     assert(usbp->state == USB_ERROR);
     assert(usbp->events == USB_FLAGS_HW_FAILURE);
     assert(usbp->transmitting == 0U && usbp->receiving == 0U);
-    assert(usbp->isoc_in_pending == 0U && !usbp->ep0setup_pending);
+    assert(otg_isoc_in_pending(usbp) == 0U && !usbp->ep0setup_pending);
     assert(ep0wait.resumes == 1U && ep0wait.msg == HAL_RET_HW_FAILURE);
 #if USB_USE_SYNCHRONIZATION
     /* A bus reset aborts transfers before its hardware reset attempt.
@@ -1570,8 +1608,11 @@ static void check_endpoint_masks(void) {
   const stm32_otg_params_t params = {0};
   hal_usb_driver_c usb = {0};
 
-  _Static_assert(sizeof usb.isoc_in_pending == sizeof(uint16_t) &&
-                 sizeof usb.in_flush == sizeof(uint16_t),
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
+  _Static_assert(sizeof usb.isoc_in_pending == sizeof(uint16_t),
+                 "IN endpoint masks must remain 16-bit");
+#endif
+  _Static_assert(sizeof usb.in_flush == sizeof(uint16_t),
                  "IN endpoint masks must remain 16-bit");
 
   /* Exercise the full mask width without accessing a nonexistent endpoint.

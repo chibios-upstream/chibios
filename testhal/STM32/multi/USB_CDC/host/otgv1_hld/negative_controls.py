@@ -17,7 +17,7 @@ SAFETY = 'os/hal/src/hal_safety.c'
 CORE = 'os/hal/src/hal_usb.c'
 HDR = 'os/hal/include/hal_usb.h'
 VARIANTS = ['dual', 'wait', 'ep0_thread', 'ep0_thread_late', 'stepping1',
-            'stepping1_novbus', 'stepping1_ulpi', 'phy_u5a5']
+            'stepping1_novbus', 'stepping1_ulpi', 'phy_u5a5', 'no_iso']
 COPIED = ['os/hal/include', 'os/hal/src', 'os/hal/ports/STM32/LLD/OTGv1',
           'os/hal/ports/STM32/STM32U5xx']
 
@@ -50,7 +50,7 @@ MUTATIONS = {
   'hs-microframes': (LLD, '    frame >>= 3U;\n', ''),
   'restart-resets-core': (LLD, '  if (usbp->state != USB_STOP) {\n    /* Already active, nothing to do.*/\n    return HAL_RET_SUCCESS;\n  }\n', ''),
   'stop-keeps-vector': (LLD, '    nvicDisableVector(STM32_OTG1_NUMBER);\n    rccDisableOTG_FS();', '    rccDisableOTG_FS();'),
-  'sof-stays-unmasked': (LLD, '    if ((usbp->config->sof_cb == NULL) &&\n        (usbp->out_disable_phase == OTG_OUT_IDLE) &&\n        (usbp->isoc_out_pending == 0U)) {',
+  'sof-stays-unmasked': (LLD, '    if ((usbp->config->sof_cb == NULL) &&\n        (usbp->out_disable_phase == OTG_OUT_IDLE) &&\n        (otg_isoc_out_pending(usbp) == 0U)) {',
                          '    if (false) {'),
   'faulted-start-out': (LLD, '  osp->rxpkts = 0U;\n  if (usbp->faulted) {\n    return;\n  }',
                         '  osp->rxpkts = 0U;'),
@@ -68,8 +68,8 @@ MUTATIONS = {
                        '    usbp->isoc_out_nak = false;\n    usbp->isoc_out_start'),
   'iso-out-drops-xfrc': (LLD, '    if ((epint & DOEPINT_XFRC) != 0U) {\n      /* Completed before',
                          '    if (false) {\n      /* Completed before'),
-  'iso-out-no-takeover': (LLD, '     being recovered; their transfers are cancelled, not reported.*/\n  usbp->isoc_out_pending = 0U;\n',
-                          '     being recovered; their transfers are cancelled, not reported.*/\n'),
+  'iso-out-no-takeover': (LLD, '     being recovered; their transfers are cancelled, not reported.*/\n#if STM32_USB_USE_ISOCHRONOUS == TRUE\n  usbp->isoc_out_pending = 0U;\n',
+                          '     being recovered; their transfers are cancelled, not reported.*/\n#if STM32_USB_USE_ISOCHRONOUS == TRUE\n'),
   'core-no-ep-check': (CORE, ['    if (!valid) {\n      return false;\n    }\n',
                                '    if (!valid) {\n      usbEp0Stall(usbp);\n      return MSG_OK;\n    }\n'],
                        ['    (void)valid;\n', '    (void)valid;\n']),
@@ -89,6 +89,10 @@ MUTATIONS = {
                        'osalThreadResumeI(&(usbp)->epc[ep]->out_state->thread, (msg_t)cb_n); (void)cb_osp;'),
   'cb-out-size-after': (HDR, 'osalThreadResumeI(&cb_osp->thread, (msg_t)cb_n);',
                         'osalThreadResumeI(&cb_osp->thread, (msg_t)usbGetReceiveTransactionSizeX(usbp, ep)); (void)cb_n;'),
+  'iso-off-accepted': (LLD, '#else\n    osalDbgAssert(false, "isochronous support disabled");\n    return;\n#endif',
+                       '#else\n    ctl = DIEPCTL_SD0PID | DIEPCTL_USBAEP | DIEPCTL_EPTYP_ISO;\n    break;\n#endif'),
+  'iso-off-irq-unmasked': (LLD, '#define OTG_GINTMSK_ISOC        0U',
+                           '#define OTG_GINTMSK_ISOC        (GINTMSK_IISOIXFRM | GINTMSK_IISOOXFRM)'),
   'in-refill-deferred': (LLD, '    if (!otg_epin_refill_allowed(usbp, ep)) {\n      return;\n    }\n    epint = otgp->ie[ep].DIEPINT;\n',
                          '    (void)otg_epin_refill_allowed;\n    return;\n'),
   'in-barrier-no-wait': (LLD, '    while ((otgp->ie[ep].DIEPCTL & DIEPCTL_EPENA) != 0U) {\n      if ((halcnt_t)(HAL_LLD_GET_CNT_VALUE() - start) >= timeout) {\n        /* A preemption',

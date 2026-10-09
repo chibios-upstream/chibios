@@ -15,9 +15,13 @@ POSIX process/shared-memory APIs, make, awk and Python 3. LeakSanitizer cannot
 run under a ptrace-based sandbox; run the sanitizer tests outside that sandbox.
 Clean before changing CHIBIOS because generated HLD extracts are cached.
 
-The 29 OTG variants cover both controllers, FS/HS/ULPI settings, stepping 1,
-configuration tables, BASEPRI, synchronization disabled and eleven real U5
-registry/CMSIS selections. Sensing-enabled and no-sensing configurations cover
+The 30 OTG variants cover both controllers, FS/HS/ULPI settings, stepping 1,
+configuration tables, BASEPRI, synchronization disabled, isochronous support
+disabled and eleven real U5 registry/CMSIS selections. All variants but
+`no_iso` enable `STM32_USB_USE_ISOCHRONOUS`; in `no_iso` the isochronous tests
+are compiled out, the remaining endpoints are bulk ones, and an isochronous
+endpoint is rejected by a debug assertion (counted, not fatal) without
+touching its registers. Sensing-enabled and no-sensing configurations cover
 all three steppings, including ULPI and integrated HS PHYs at FS and HS.
 The registry checks cover 35 device selections and
 reject missing FIFO capacities and missing safety counter hooks.
@@ -192,7 +196,7 @@ the still-deferred active-endpoint stall/ISO OUT recovery sequences.
 The selected policy polls hardware failure with a 100 ms sleep and exits with
 MSG_RESET on STOP/STOPPING. Both actual demo workers pass scripted checks for
 fault polling followed by application stop, immediate exit on stop, and normal
-bus-reset retries. All 29 LLD variants, eight PHY variants and 35 registry
+bus-reset retries. All 30 LLD variants, eight PHY variants and 35 registry
 selections pass. Target builds pass with `-Werror`: all 13 CDC targets, H723
 audio with/without LTO and smart build, and H723 CDC without synchronization.
 XML validates, and a second regeneration is unchanged.

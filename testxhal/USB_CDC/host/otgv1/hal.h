@@ -234,7 +234,12 @@ static rtcnt_t test_realtime_counter(void);
 #undef OTG_HS
 #define OTG_FS (&test_hw->regs[0])
 #define OTG_HS (&test_hw->regs[1])
-#define chDbgAssert(condition, message) assert(condition)
+/* Debug assertions are fatal, except the expected ones counted down here.*/
+static unsigned test_expected_asserts;
+#define chDbgAssert(condition, message)                                       \
+  ((condition) ? (void)0 :                                                    \
+   test_expected_asserts > 0U ? (void)test_expected_asserts-- :              \
+   assert(condition))
 #define chSysPolledDelayX(n) test_polled_delay(n)
 #define chThdSleepMilliseconds(n) ((void)(n))
 #define chSysLockFromISR() (assert(test_isr && !test_locked), test_locked = true)

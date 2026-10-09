@@ -111,7 +111,11 @@ static void check_out_teardown(hal_usb_driver_c *usbp, unsigned index) {
      SOF; teardown temporarily subscribes and relinquishes it afterward.*/
   assert(drvStart(usbp, &config) == HAL_RET_SUCCESS);
   usbp->binder = NULL;
+#if STM32_USB_USE_ISOCHRONOUS == TRUE
   next.ep_mode = USB_EP_MODE_TYPE_ISOC;
+#else
+  next.ep_mode = USB_EP_MODE_TYPE_BULK;
+#endif
   serve(usbp, GINTSTS_USBRST);
   usbp->state = USB_ACTIVE;
   chSysLock();

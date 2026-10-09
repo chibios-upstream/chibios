@@ -119,7 +119,11 @@ Variants: both controllers, OTG1 or OTG2 only, `USB_USE_WAIT`, EP0 worker
 with the default handler and the EP0 worker, steppings 1 and 3, no VBUS
 sensing (steppings 1 and 2), ULPI at full and high speed (also on
 stepping 1), FIFO fill
-BASEPRI with the sequence workaround; U5 PHY on eight HS parts.
+BASEPRI with the sequence workaround; U5 PHY on eight HS parts. All of them
+enable `STM32_USB_USE_ISOCHRONOUS`; `no_iso` disables it: the third endpoint
+is a bulk one, the isochronous tests are compiled out, an isochronous
+endpoint is rejected by a debug assertion without touching its registers or
+staged state, and the incomplete transfer interrupts stay masked.
 AddressSanitizer and UndefinedBehaviorSanitizer are enabled.
 
 ## Registry checks
@@ -134,8 +138,9 @@ rejected.
 ## Negative controls
 
 `negative_controls.py` copies the HAL sources, reverts one fix at a time and
-runs eight variants; every mutation must fail the regression (a build
-failure does not count). Covered: safety recheck, fault reporting and
+runs nine variants, including `no_iso`; every mutation must fail the
+regression (a build failure does not count). Covered: isochronous endpoint
+rejected and interrupts masked without isochronous support, safety recheck, fault reporting and
 idempotence, lazy IN flush, EP0 SETUP gating, status before SETUP, EP0 abort
 recheck, endpoint bound, CLEAR_HALT toggle, stepping-1 GOTGCTL, teardown
 drain, SOF masking, connect while faulted, wakeup SOF acknowledge, HS frame
