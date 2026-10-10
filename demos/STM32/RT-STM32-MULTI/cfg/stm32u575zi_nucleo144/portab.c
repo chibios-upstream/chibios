@@ -25,6 +25,11 @@
 #include "../stm32u575zi_nucleo144/portab.h"
 //#include "hal.h"
 
+#if defined(STM32_DEMO_ALIGNED_WFI)
+#include "hal.h"
+#include "stm32_lpw.h"
+#endif
+
 /*===========================================================================*/
 /* Module local definitions.                                                 */
 /*===========================================================================*/
@@ -52,5 +57,27 @@
 void portab_setup(void) {
 
 }
+
+#if defined(STM32_DEMO_ALIGNED_WFI)
+/**
+ * @brief   RT idle-loop example using the STM32 aligned wait helper.
+ * @details Build with USE_STM32_ALIGNED_WFI=yes. The demo leaves SLEEPDEEP
+ *          clear and uses ordinary interrupts to wake from shallow sleep.
+ *          It does not demonstrate a complete Stop-mode entry sequence.
+ * @note    Before adapting this to Stop, Standby or Shutdown, enforce all
+ *          ES0499 2.2.26 conditions in the platform entry path: exclude flash
+ *          access by GPDMA, DMA2D and SDMMC and select the appropriate flash
+ *          prefetch/latency workaround. Configure wake sources, power mode
+ *          and clock restoration there too. Do not simply set SLEEPDEEP.
+ * @note    chconf.h disables the earlier built-in port wait. This hook runs
+ *          in the RT idle thread, not in CH_CFG_IDLE_ENTER_HOOK().
+ */
+void portab_idle(void) {
+
+  __DSB();
+  stm32WfiAligned();
+  __ISB();
+}
+#endif
 
 /** @} */

@@ -159,6 +159,15 @@ UDEFS = -D__TEST_RT -D__TEST_OSLIB -DSTM32U575xx
 # Define ASM defines here
 UADEFS = -DSTM32U575xx
 
+# Optional RT idle-hook integration example for ES0499 2.2.26.
+# This demonstrates aligned shallow WFI, not a complete Stop-mode policy.
+# See portab.c and stm32_lpw.h for platform entry requirements.
+ifeq ($(USE_STM32_ALIGNED_WFI),yes)
+ASMXSRC += $(CHIBIOS)/os/hal/ports/STM32/STM32U5xx/stm32_lpw.S
+UDEFS   += -DSTM32_DEMO_ALIGNED_WFI=1
+UADEFS  += -DSTM32_DEMO_ALIGNED_WFI=1
+endif
+
 # List all user directories here
 UINCDIR =
 
