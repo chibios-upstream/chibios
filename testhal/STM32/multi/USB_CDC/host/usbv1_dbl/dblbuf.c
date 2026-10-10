@@ -83,6 +83,25 @@ static void test_usb_lp_handler(void) {
 #else
 #define HP_SEPARATE FALSE
 #endif
+
+#if defined(TEST_XHAL)
+/* The XHAL handlers are outside the LLD, as in stm32_usb1_lp_hp.inc.*/
+#if HP_SEPARATE
+static void test_usb_hp_handler(void) {
+
+  OSAL_IRQ_PROLOGUE();
+  usb_lld_serve_endpoints_interrupt(&USBD1);
+  OSAL_IRQ_EPILOGUE();
+}
+#endif
+
+static void test_usb_lp_handler(void) {
+
+  OSAL_IRQ_PROLOGUE();
+  usb_lld_serve_interrupt(&USBD1);
+  OSAL_IRQ_EPILOGUE();
+}
+#endif
 #endif
 
 #define EP_IN           1U
@@ -927,7 +946,7 @@ static void run_scenario(uint64_t seed, int kind, bool verbose) {
               "stalls %d/%d, out pkt %d len %zu, hp pending %d\n",
               mep[EP_IN].blk_tx, mep[EP_OUT].blk_rx, mep[EP_IN].first,
               mep[EP_OUT].first, USBD1.transmitting, USBD1.receiving,
-              ep_out_state.rxsize, ep_out_state.rxpkts, app_in_stalled,
+              ep_out_state.rxsize, (unsigned)ep_out_state.rxpkts, app_in_stalled,
               app_out_stalled, in_stalled, out_stalled, out_has_pkt,
               out_pkt_len, test_hp_pending);
 #if STM32_USB_USE_DOUBLE_BUFFERING

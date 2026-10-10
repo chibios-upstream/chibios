@@ -34,6 +34,7 @@
 #define STM32_USB_USE_USB1 TRUE
 #define STM32_HAS_USB1 TRUE
 #define STM32_USB_PMA_SIZE 2048U
+#define STM32_USB1_NUMBER 74
 #define HAL_LLD_USE_CLOCK_MANAGEMENT TRUE
 #define STM32_USBCLK test_clock
 #define STM32_HCLK 64000000U
@@ -156,5 +157,22 @@ static void _usb_reset(hal_usb_driver_c *usbp) {
 #define _usb_isr_invoke_setup_cb(usbp, ep) ((usbp)->epc[ep]->setup_cb(usbp, ep))
 #define _usb_isr_invoke_in_cb(usbp, ep) ((usbp)->epc[ep]->in_cb(usbp, ep))
 #define _usb_isr_invoke_out_cb(usbp, ep) ((usbp)->epc[ep]->out_cb(usbp, ep))
+
+/* Double buffering: the endpoints are single-buffered, the double-buffered
+   paths are never taken.*/
+typedef bool syssts_t;
+#define nvicSetPending(n) ((void)(n), assert(false))
+
+static inline syssts_t chSysGetStatusAndLockX(void) {
+
+  assert(false);
+  return false;
+}
+
+static inline void chSysRestoreStatusX(syssts_t sts) {
+
+  (void)sts;
+  assert(false);
+}
 
 #endif /* TEST_USB_V2_HAL_H */
