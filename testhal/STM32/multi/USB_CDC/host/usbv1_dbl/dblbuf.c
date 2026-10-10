@@ -14,7 +14,8 @@
     limitations under the License.
 */
 
-/* USBv1 bulk endpoints against a peripheral model, double-buffered or not.
+/* USBv1 and USBv2 bulk endpoints against a peripheral model,
+   double-buffered or not.
 
    The model follows the behavior measured on STM32G474:
    - a double-buffered endpoint is blocked when DTOG equals SW_BUF, the
@@ -28,20 +29,60 @@
      blocked in the single-buffered mode, also after disabling it;
    - with DBL_BUF clear, a SW_BUF write leaving SW_BUF different from DTOG
      clears the blocking condition, no write sets it;
-   - a single-buffered endpoint goes in NAK state after each transaction.*/
+   - a single-buffered endpoint goes in NAK state after each transaction.
+   USBv2, measured on STM32H563, differs in two points: the STAT field
+   reads as stored, also while blocked, and disabling the endpoint clears
+   the blocking condition.*/
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "hal.h"
+#include <hal.h>
 #include "hal_usb.c"
 #include "hal_usb_lld.c"
 
+#if defined(TEST_USBV2)
+/* USBv2 names of the endpoint register and ISTR fields.*/
+#define EPR_CTR_RX          USB_EP_VTRX
+#define EPR_DTOG_RX         USB_EP_DTOG_RX
+#define EPR_STAT_RX_MASK    USB_CHEP_RX_STRX_Msk
+#define EPR_STAT_RX_DIS     USB_EP_RX_DIS
+#define EPR_STAT_RX_STALL   USB_EP_RX_STALL
+#define EPR_STAT_RX_NAK     USB_EP_RX_NAK
+#define EPR_STAT_RX_VALID   USB_EP_RX_VALID
+#define EPR_SETUP           USB_EP_SETUP
+#define EPR_EP_TYPE_MASK    USB_CHEP_UTYPE_Msk
+#define EPR_EP_TYPE_BULK    USB_EP_BULK
+#define EPR_EP_TYPE_ISO     USB_EP_ISOCHRONOUS
+#define EPR_EP_KIND         USB_EP_KIND
+#define EPR_CTR_TX          USB_EP_VTTX
+#define EPR_DTOG_TX         USB_EP_DTOG_TX
+#define EPR_STAT_TX_MASK    USB_CHEP_TX_STTX_Msk
+#define EPR_STAT_TX_DIS     USB_EP_TX_DIS
+#define EPR_STAT_TX_STALL   USB_EP_TX_STALL
+#define EPR_STAT_TX_NAK     USB_EP_TX_NAK
+#define EPR_STAT_TX_VALID   USB_EP_TX_VALID
+#define EPR_EA_MASK         0x0000000FU
+#define EPR_CTR_MASK        (USB_EP_VTTX | USB_EP_VTRX)
+#define ISTR_CTR            USB_ISTR_CTR
+#define ISTR_DIR            USB_ISTR_DIR
+
+/* A single interrupt handler.*/
+#define HP_SEPARATE FALSE
+
+static void test_usb_lp_handler(void) {
+
+  OSAL_IRQ_PROLOGUE();
+  usb_lld_serve_interrupt(&USBD1);
+  OSAL_IRQ_EPILOGUE();
+}
+#else
 /* Separate high priority handler.*/
 #if (STM32_USB1_HP_NUMBER != STM32_USB1_LP_NUMBER) &&                       \
     (STM32_USB_USE_ISOCHRONOUS || STM32_USB_USE_DOUBLE_BUFFERING)
 #define HP_SEPARATE TRUE
 #else
 #define HP_SEPARATE FALSE
+#endif
 #endif
 
 #define EP_IN           1U
@@ -134,12 +175,14 @@ static uint32_t epr_rd(uint32_t ep) {
   inject();
   m = &mep[ep];
   v = m->v;
+#if !defined(TEST_USBV2)
   if (((v & EPR_STAT_TX_MASK) == EPR_STAT_TX_VALID) && m->blk_tx) {
     v = (v & ~EPR_STAT_TX_MASK) | EPR_STAT_TX_NAK;
   }
   if (((v & EPR_STAT_RX_MASK) == EPR_STAT_RX_VALID) && m->blk_rx) {
     v = (v & ~EPR_STAT_RX_MASK) | EPR_STAT_RX_NAK;
   }
+#endif
   return v;
 }
 
@@ -176,6 +219,15 @@ static void epr_wr(uint32_t ep, uint32_t w) {
 
     m->blk_rx = model_dbl(v) ? eq : (m->blk_rx && eq);
   }
+#if defined(TEST_USBV2)
+  /* Disabling the endpoint clears the blocking condition.*/
+  if ((v & EPR_STAT_TX_MASK) == EPR_STAT_TX_DIS) {
+    m->blk_tx = false;
+  }
+  if ((v & EPR_STAT_RX_MASK) == EPR_STAT_RX_DIS) {
+    m->blk_rx = false;
+  }
+#endif
   if (ep == EP_OUT) {
     TRACE("  wr %04X -> %04X blk_rx %d first %d isr %u\n", old, v, m->blk_rx,
           m->first, test_isr);
@@ -226,6 +278,50 @@ static void model_end(model_ep_t *m, uint32_t dtog, uint32_t sw,
   m->v = v;
 }
 
+#if defined(TEST_USBV2)
+/* PMA content, bytes of 32-bit words.*/
+static uint8_t pma_get(uint32_t addr) {
+
+  return test_pma[addr];
+}
+
+static void pma_set(uint32_t addr, uint8_t b) {
+
+  test_pma[addr] = b;
+}
+
+/* Packet buffer b of an endpoint: buffer 0 in the TX descriptor, buffer 1
+   in the RX descriptor.*/
+static volatile uint32_t *buf_desc(uint32_t ep, uint32_t b) {
+  stm32_usb_pmabufdesc_t *udp = USB_GET_DESCRIPTOR(ep);
+
+  return b == 0U ? &udp->TXBD0 : &udp->RXBD0;
+}
+
+static uint32_t buf_addr(uint32_t ep, uint32_t b) {
+
+  return *buf_desc(ep, b) & 0xFFFFU;
+}
+
+static uint32_t buf_count(uint32_t ep, uint32_t b) {
+
+  return (*buf_desc(ep, b) >> 16) & 0x3FFU;
+}
+
+static void buf_set_count(uint32_t ep, uint32_t b, uint32_t n) {
+  volatile uint32_t *d = buf_desc(ep, b);
+
+  *d = (*d & ~0x03FF0000U) | (n << 16);
+}
+
+/* Receive capacity encoded in the BLSIZE and NUM_BLOCK fields.*/
+static unsigned buf_capacity(uint32_t ep, uint32_t b) {
+  uint32_t d = *buf_desc(ep, b);
+  unsigned blocks = (d >> 26) & 31U;
+
+  return (d & 0x80000000U) != 0U ? (blocks + 1U) * 32U : blocks * 2U;
+}
+#else
 /* PMA content through the 16-bit words of either access scheme.*/
 static uint8_t pma_get(uint32_t addr) {
   uint32_t w = (uint32_t)*USB_ADDR2PTR(addr & ~1U);
@@ -246,12 +342,39 @@ static void pma_set(uint32_t addr, uint8_t b) {
   *p = (stm32_usb_pma_t)w;
 }
 
+/* Packet buffer b of an endpoint: buffer 0 in the TX fields, buffer 1 in
+   the RX fields.*/
+static uint32_t buf_addr(uint32_t ep, uint32_t b) {
+  stm32_usb_descriptor_t *udp = USB_GET_DESCRIPTOR(ep);
+
+  return b == 0U ? udp->TXADDR0 : udp->RXADDR0;
+}
+
+static volatile stm32_usb_pma_t *buf_count_field(uint32_t ep, uint32_t b) {
+  stm32_usb_descriptor_t *udp = USB_GET_DESCRIPTOR(ep);
+
+  return b == 0U ? &udp->TXCOUNT0 : &udp->RXCOUNT0;
+}
+
+static uint32_t buf_count(uint32_t ep, uint32_t b) {
+
+  return (uint32_t)*buf_count_field(ep, b) & 0x3FFU;
+}
+
+static void buf_set_count(uint32_t ep, uint32_t b, uint32_t n) {
+  volatile stm32_usb_pma_t *c = buf_count_field(ep, b);
+
+  *c = (stm32_usb_pma_t)(((uint32_t)*c & ~0x3FFU) | n);
+}
+
 /* Receive capacity encoded in a COUNT_RX field.*/
-static unsigned rx_capacity(uint32_t count) {
+static unsigned buf_capacity(uint32_t ep, uint32_t b) {
+  uint32_t count = *buf_count_field(ep, b);
   unsigned blocks = (count >> 10U) & 31U;
 
   return (count & 0x8000U) != 0U ? (blocks + 1U) * 32U : blocks * 2U;
 }
+#endif
 
 /*===========================================================================*/
 /* Host model and data streams.                                              */
@@ -319,8 +442,7 @@ static void host_out_acked(void) {
 /* IN transaction, the host polls continuously.*/
 static void hw_in(void) {
   model_ep_t *m = &mep[EP_IN];
-  stm32_usb_descriptor_t *udp = USB_GET_DESCRIPTOR(EP_IN);
-  uint32_t v = m->v, stat = v & EPR_STAT_TX_MASK, pid, addr, n, i;
+  uint32_t v = m->v, stat = v & EPR_STAT_TX_MASK, pid, b, addr, n, i;
   uint8_t pkt[MPS];
 
   assert(stat != EPR_STAT_TX_DIS);
@@ -332,14 +454,9 @@ static void hw_in(void) {
     return;
   }
   pid = (v & EPR_DTOG_TX) != 0U ? 1U : 0U;
-  if (model_dbl(v) && (pid != 0U)) {
-    addr = udp->RXADDR0;
-    n = (uint32_t)udp->RXCOUNT0 & 0x3FFU;
-  }
-  else {
-    addr = udp->TXADDR0;
-    n = (uint32_t)udp->TXCOUNT0 & 0x3FFU;
-  }
+  b = model_dbl(v) ? pid : 0U;
+  addr = buf_addr(EP_IN, b);
+  n = buf_count(EP_IN, b);
   assert(n <= MPS);
   for (i = 0U; i < n; i++) {
     pkt[i] = pma_get(addr + i);
@@ -370,9 +487,7 @@ static void hw_in(void) {
 /* OUT transaction, the host sends its next packet.*/
 static void hw_out(void) {
   model_ep_t *m = &mep[EP_OUT];
-  stm32_usb_descriptor_t *udp = USB_GET_DESCRIPTOR(EP_OUT);
-  uint32_t v = m->v, stat = v & EPR_STAT_RX_MASK, pid, addr, i;
-  volatile stm32_usb_pma_t *count;
+  uint32_t v = m->v, stat = v & EPR_STAT_RX_MASK, pid, b, addr, i;
 
   if (!out_has_pkt) {
     return;
@@ -392,19 +507,13 @@ static void hw_out(void) {
             out_packets, pid, out_toggle);
     assert(false);
   }
-  if (model_dbl(v) && (pid == 0U)) {
-    addr = udp->TXADDR0;
-    count = &udp->TXCOUNT0;
-  }
-  else {
-    addr = udp->RXADDR0;
-    count = &udp->RXCOUNT0;
-  }
-  assert(out_pkt_len <= rx_capacity(*count));
+  b = model_dbl(v) ? pid : 1U;
+  addr = buf_addr(EP_OUT, b);
+  assert(out_pkt_len <= buf_capacity(EP_OUT, b));
   for (i = 0U; i < out_pkt_len; i++) {
     pma_set(addr + i, out_src[out_pos + i]);
   }
-  *count = (stm32_usb_pma_t)(((uint32_t)*count & ~0x3FFU) | out_pkt_len);
+  buf_set_count(EP_OUT, b, (uint32_t)out_pkt_len);
   out_toggle ^= 1U;
   TRACE("hw OUT %zu bytes pid %u buf %s\n", out_pkt_len, pid,
         model_dbl(v) && (pid == 0U) ? "TX" : "RX");

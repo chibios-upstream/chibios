@@ -31,6 +31,7 @@
 #define STM32_USB_USE_USB1 TRUE
 #define STM32_HAS_USB1 TRUE
 #define STM32_USB_PMA_SIZE 2048U
+#define STM32_USB1_NUMBER 74
 #define STM32_USBCLK 48000000U
 #define STM32_HCLK 64000000U
 #define MSG_OK 0
@@ -82,6 +83,24 @@ static inline msg_t osalThreadSuspendS(thread_reference_t *refp) {
   assert(test_locked && !test_isr);
   (void)refp;
   return MSG_RESET;
+}
+
+/* Double buffering: the endpoints are single-buffered, a held packet is
+   never served.*/
+typedef bool syssts_t;
+#define nvicSetPending(n) ((void)(n), assert(false))
+
+static inline syssts_t osalSysGetStatusAndLockX(void) {
+  syssts_t sts = test_locked;
+
+  test_locked = true;
+  return sts;
+}
+
+static inline void osalSysRestoreStatusX(syssts_t sts) {
+
+  assert(test_locked);
+  test_locked = sts;
 }
 
 #endif /* TEST_USBV2_HAL_H */

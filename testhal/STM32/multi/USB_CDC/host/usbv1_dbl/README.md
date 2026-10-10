@@ -6,7 +6,8 @@ compiling, `epr_access.py` rewrites every `EPR` and `ISTR` access of
 The model implements the toggle and write-zero-to-clear bits, the
 interrupt status derived from the endpoints, and the flow control of the
 endpoints. A host model and an application drive two unidirectional bulk
-endpoints with randomized traffic. No firmware is flashed.
+endpoints with randomized traffic. No firmware is flashed. `../usbv2_dbl`
+compiles the same regression against the USBv2 LLD.
 
 Run from this directory, `CHIBIOS=` selects another tree:
 

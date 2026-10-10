@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Rewrites the EPR and ISTR accesses of the USBv1 sources into calls to
-the peripheral model: STM32_USB->EPR[n] = v becomes epr_wr(n, v), other
-uses of STM32_USB->EPR[n] become epr_rd(n), the same for ISTR.
+"""Rewrites the endpoint register and ISTR accesses of the USBv1 and USBv2
+sources into calls to the peripheral model: STM32_USB->EPR[n] = v and
+usbp->usb->CHEPR[n] = v become epr_wr(n, v), other uses of the endpoint
+registers become epr_rd(n), the same for ISTR.
 
 Usage: epr_access.py SOURCE DESTINATION
 """
 import re
 import sys
 
-PAT = re.compile(r'STM32_USB->(EPR\[|ISTR\b)')
+PAT = re.compile(r'(?:STM32_USB->|(?:\(usbp\)|usbp)->usb->)(C?H?EPR\[|ISTR\b)')
 
 
 def in_macro(src, pos):
@@ -30,7 +31,10 @@ def transform(src):
       return ''.join(out)
     out.append(src[i:m.start()])
     k = m.end()
-    if m.group(1) == 'EPR[':
+    reg = 'istr' if m.group(1) == 'ISTR' else 'epr'
+    # The USBv2 driver reaches the registers through usbp, it stays used.
+    pre = '(void)(usbp), ' if 'usbp' in m.group(0) else ''
+    if reg == 'epr':
       depth = 1
       while depth:
         if src[k] == '[':
@@ -41,7 +45,8 @@ def transform(src):
       index = transform(src[m.end():k - 1])
     a = re.match(r'\s*=(?!=)', src[k:])
     if a is None:
-      out.append('epr_rd(%s)' % index if m.group(1) == 'EPR[' else 'istr_rd()')
+      call = 'epr_rd(%s)' % index if reg == 'epr' else 'istr_rd()'
+      out.append('(%s%s)' % (pre, call) if pre else call)
       i = k
       continue
     # Assignment, the value ends on a semicolon or at the end of a macro.
@@ -62,15 +67,17 @@ def transform(src):
         break
       q += 1
     value = transform(src[p:q])
-    if m.group(1) == 'EPR[':
-      out.append('epr_wr(%s, %s)' % (index, value))
+    if reg == 'epr':
+      call = 'epr_wr(%s, %s)' % (index, value)
     else:
-      out.append('istr_wr(%s)' % value)
+      call = 'istr_wr(%s)' % value
+    out.append('(%s%s)' % (pre, call) if pre else call)
     i = q
 
 
 if __name__ == '__main__':
   src = open(sys.argv[1]).read()
-  if re.search(r'STM32_USB->(EPR\[[^\]]*\]|ISTR)\s*[-+*/%&|^]=', src):
+  if re.search(r'(?:STM32_USB->|(?:\(usbp\)|usbp)->usb->)(C?H?EPR\[[^\]]*\]|ISTR)'
+               r'\s*[-+*/%&|^]=', src):
     sys.exit('%s: compound assignment to EPR or ISTR' % sys.argv[1])
   open(sys.argv[2], 'w').write(transform(src))

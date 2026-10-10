@@ -118,4 +118,22 @@ static inline msg_t osalThreadSuspendS(thread_reference_t *refp) {
   return MSG_RESET;
 }
 
+/* Double buffering: the endpoints are single-buffered, a held packet is
+   never served.*/
+typedef bool syssts_t;
+#define nvicSetPending(n) ((void)(n), assert(false))
+
+static inline syssts_t osalSysGetStatusAndLockX(void) {
+  syssts_t sts = test_locked;
+
+  test_locked = true;
+  return sts;
+}
+
+static inline void osalSysRestoreStatusX(syssts_t sts) {
+
+  assert(test_locked);
+  test_locked = sts;
+}
+
 #endif /* TEST_USBV1_HAL_H */
