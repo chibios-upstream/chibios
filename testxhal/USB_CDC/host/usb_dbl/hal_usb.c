@@ -16,8 +16,8 @@
 
 /* The XHAL frontend subset used by the regression, under the HAL names it
    calls. The endpoint functions and the callback invocations follow
-   os/xhal/src/hal_usb.c and os/xhal/include/hal_usb.h without
-   synchronization.*/
+   os/xhal/src/hal_usb.c and os/xhal/include/hal_usb.h, the busy bits are
+   cleared under lock as in the frontend.*/
 
 typedef hal_usb_driver_c USBDriver;
 typedef hal_usb_config_t USBConfig;
@@ -31,7 +31,9 @@ typedef hal_usb_config_t USBConfig;
 
 #define _usb_isr_invoke_in_cb(usbp, ep)                                     \
   do {                                                                      \
+    chSysLockFromISR();                                                     \
     (usbp)->transmitting &= ~(uint16_t)((unsigned)1U << (unsigned)(ep));    \
+    chSysUnlockFromISR();                                                   \
     if ((usbp)->epc[ep]->in_cb != NULL) {                                   \
       (usbp)->epc[ep]->in_cb(usbp, ep);                                     \
     }                                                                       \
@@ -39,17 +41,35 @@ typedef hal_usb_config_t USBConfig;
 
 #define _usb_isr_invoke_out_cb(usbp, ep)                                    \
   do {                                                                      \
+    chSysLockFromISR();                                                     \
     (usbp)->receiving &= ~(uint16_t)((unsigned)1U << (unsigned)(ep));       \
+    chSysUnlockFromISR();                                                   \
     if ((usbp)->epc[ep]->out_cb != NULL) {                                  \
       (usbp)->epc[ep]->out_cb(usbp, ep);                                    \
     }                                                                       \
   } while (false)
 
-/* Bus events and EP0 do not occur in the regression.*/
+/* Bus resets and EP0 do not occur in the regression.*/
 #define _usb_isr_invoke_sof_cb(usbp) ((void)(usbp))
 #define _usb_reset(usbp) ((void)(usbp), assert(false))
-#define _usb_suspend(usbp) ((void)(usbp), assert(false))
-#define _usb_wakeup(usbp) ((void)(usbp), assert(false))
+
+/* Suspend aborts the transfers, wakeup restores the state.*/
+static void _usb_suspend(hal_usb_driver_c *usbp) {
+
+  if ((usbp->state != USB_SUSPENDED) && (usbp->state != USB_ERROR)) {
+    usbp->saved_state = usbp->state;
+    usbp->state = USB_SUSPENDED;
+    usbp->transmitting = 0U;
+    usbp->receiving = 0U;
+  }
+}
+
+static void _usb_wakeup(hal_usb_driver_c *usbp) {
+
+  if (usbp->state == USB_SUSPENDED) {
+    usbp->state = usbp->saved_state;
+  }
+}
 
 static void _usb_ep0setup(hal_usb_driver_c *usbp, usbep_t ep) {
 

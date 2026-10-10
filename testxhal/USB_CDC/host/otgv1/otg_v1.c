@@ -1576,12 +1576,19 @@ static void check_event_posting(void) {
   assert(!test_locked && !test_isr);
   assert((usb.events & USB_FLAGS_STALLED) != 0U);
 
-  /* ISR-side callers acquire and release their own short critical section.*/
+  /* The EP0 error helper is I-class, it runs in the critical section of its
+     ISR-side caller.*/
   usb.events = USB_FLAGS_RESET;
   test_isr = true;
-  setup_error(&usb);
-  assert(!test_locked && test_isr);
+  chSysLockFromISR();
+  setup_error_i(&usb);
+  assert(test_locked && test_isr);
+  chSysUnlockFromISR();
   assert(usb.events == (USB_FLAGS_RESET | USB_FLAGS_STALLED));
+  assert(usb.ep0state == USB_EP0_ERROR);
+
+  /* The address helper acquires and releases its own short critical
+     section.*/
   usb.setup[2] = 42U;
   set_address(&usb);
   assert(!test_locked && test_isr);

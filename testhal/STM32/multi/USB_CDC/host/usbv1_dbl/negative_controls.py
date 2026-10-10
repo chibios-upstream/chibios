@@ -73,8 +73,10 @@ MUTATIONS = {
     '    EPR_SET_STAT_TX(ep, EPR_STAT_TX_STALL);\n'),
   # Leaving without writing SW_BUF, the endpoint stays blocked.
   'exit-stays-blocked': (
-    '  if ((STM32_USB->EPR[ep] & sw) != 0U) {\n    EPR_TOGGLE(ep, sw);\n  }\n'
-    '  EPR_TOGGLE(ep, sw);\n', '  (void)sw;\n'),
+    '  epr = STM32_USB->EPR[ep];\n'
+    '  if (((epr & sw) != 0U) != ((epr & dtog) != 0U)) {\n'
+    '    EPR_TOGGLE(ep, sw);\n  }\n  EPR_TOGGLE(ep, sw);\n',
+    '  epr = 0U;\n  (void)epr;\n  (void)sw;\n'),
   # Initialization without clearing the blocking condition of a previous
   # double-buffered use.
   'init-stays-blocked': (
@@ -86,8 +88,27 @@ MUTATIONS = {
     '  EPR_TOGGLE(ep, stored ^ stat ^ stall);', '  (void)stored;'),
   # Leaving keeps the data toggle.
   'leave-keeps-dtog': (
-    '  if ((STM32_USB->EPR[ep] & dtog) != 0U) {\n    EPR_TOGGLE(ep, dtog);\n  }\n',
-    '  (void)dtog;\n'),
+    '  if (reset && ((STM32_USB->EPR[ep] & dtog) != 0U)) {\n'
+    '    EPR_TOGGLE(ep, dtog);\n  }\n', '  (void)reset;\n'),
+  # Suspend leaves the double-buffered endpoints as they are, the packets of
+  # the aborted transfers are sent or delivered after the resume.
+  'suspend-not-aborted': (
+    '    if (((usbp->dblcap & (1U << ep)) == 0U) ||\n'
+    '        ((epr & EPR_EP_DBL_BUF) == 0U)) {\n      continue;',
+    '    if (true) {\n      continue;'),
+  # Suspend resets the data toggles, the host does not.
+  'suspend-resets-dtog': (
+    ['EPR_STAT_TX_STALL ^ EPR_STAT_TX_NAK : 0U, false);',
+     'EPR_STAT_RX_STALL ^ EPR_STAT_RX_NAK : 0U, false);'],
+    ['EPR_STAT_TX_STALL ^ EPR_STAT_TX_NAK : 0U, true);',
+     'EPR_STAT_RX_STALL ^ EPR_STAT_RX_NAK : 0U, true);']),
+  # Suspend drops the halt of a double-buffered endpoint.
+  'suspend-drops-halt': (
+    ['(epr & EPR_STAT_TX_MASK) == EPR_STAT_TX_STALL ?\n'
+     '                   EPR_STAT_TX_STALL ^ EPR_STAT_TX_NAK : 0U, false);',
+     '(epr & EPR_STAT_RX_MASK) == EPR_STAT_RX_STALL ?\n'
+     '                   EPR_STAT_RX_STALL ^ EPR_STAT_RX_NAK : 0U, false);'],
+    ['0U, false);', '0U, false);']),
   # The single-buffered code finds the buffer pointer after the packets.
   'clear-in-not-rewound': (
     '    isp->txbuf -= isp->txlast + isp->txnext;\n', ''),

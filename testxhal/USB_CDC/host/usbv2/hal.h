@@ -162,6 +162,8 @@ static void _usb_reset(hal_usb_driver_c *usbp) {
    paths are never taken.*/
 typedef bool syssts_t;
 #define nvicSetPending(n) ((void)(n), assert(false))
+#define chSysLockFromISR() assert(test_isr)
+#define chSysUnlockFromISR() assert(test_isr)
 
 static inline syssts_t chSysGetStatusAndLockX(void) {
 

@@ -65,6 +65,8 @@
 #define EPR_CTR_MASK        (USB_EP_VTTX | USB_EP_VTRX)
 #define ISTR_CTR            USB_ISTR_CTR
 #define ISTR_DIR            USB_ISTR_DIR
+#define ISTR_SUSP           USB_ISTR_SUSP
+#define ISTR_WKUP           USB_ISTR_WKUP
 
 /* A single interrupt handler.*/
 #define HP_SEPARATE FALSE
@@ -115,11 +117,12 @@ enum {
   KIND_CLEAR,
   KIND_STALL,
   KIND_RECONFIG,
+  KIND_SUSPEND,
   KIND_NUM
 };
 
 static const char *kind_names[KIND_NUM] = {"stream", "clear", "stall",
-                                           "reconfig"};
+                                           "reconfig", "suspend"};
 
 /*===========================================================================*/
 /* Random numbers.                                                           */
@@ -560,11 +563,14 @@ static void held_discarded(void) {
 }
 
 /* A host transaction completes, the peripheral works in parallel with the
-   software.*/
-static bool in_paused, out_paused;
+   software. No transaction while the bus is suspended.*/
+static bool in_paused, out_paused, bus_suspended;
 
 static void hw_step(void) {
 
+  if (bus_suspended) {
+    return;
+  }
   if (chance(50)) {
     if (!in_paused) {
       hw_in();
@@ -739,7 +745,8 @@ static void out_cb(USBDriver *usbp, usbep_t ep) {
 static void app_step(int kind) {
 
   osalSysLock();
-  if ((kind == KIND_STALL) && chance(p_app_stall)) {
+  if (((kind == KIND_STALL) || (kind == KIND_SUSPEND)) &&
+      chance(p_app_stall)) {
     if (!app_in_stalled && !usbGetTransmitStatusI(&USBD1, EP_IN)) {
       assert(!usbStallTransmitI(&USBD1, EP_IN));
       app_in_stalled = true;
@@ -794,6 +801,8 @@ static void host_clear(usbep_t ep) {
 }
 
 static void host_reconfig(void);
+static bool suspend_allowed(void);
+static void host_suspend(void);
 
 static void host_control_step(int kind) {
 
@@ -818,6 +827,9 @@ static void host_control_step(int kind) {
            !usbGetTransmitStatusI(&USBD1, EP_IN) &&
            !usbGetReceiveStatusI(&USBD1, EP_OUT)) {
     host_reconfig();
+  }
+  else if ((kind == KIND_SUSPEND) && chance(5) && suspend_allowed()) {
+    host_suspend();
   }
 }
 
@@ -874,6 +886,42 @@ static void host_reconfig(void) {
   clears++;
 }
 
+/* The bus is suspended when idle, with no event pending. An endpoint with
+   a transfer in progress must be double-buffered: a single-buffered one
+   keeps its packets after the frontend aborted the transfer, a known
+   frontend issue outside the double buffering.*/
+static bool suspend_allowed(void) {
+
+  return !test_hp_pending && !hp_events() && !lp_events() &&
+         (!usbGetTransmitStatusI(&USBD1, EP_IN) || model_dbl(mep[EP_IN].v)) &&
+         (!usbGetReceiveStatusI(&USBD1, EP_OUT) || model_dbl(mep[EP_OUT].v));
+}
+
+/* Suspend and resume, served by the low priority handler. The frontend
+   aborts the transfers: the host receives no more packet of an aborted IN
+   transfer, the application restarts its stream from the received data,
+   and the OUT packets acknowledged and not delivered are lost. The data
+   toggles are not reset. The application can start transfers while the
+   bus is suspended.*/
+static void host_suspend(void) {
+
+  bus_suspended = true;
+  istr_flags |= ISTR_SUSP;
+  run_lp();
+  TRACE("suspend, OUT %zu bytes lost\n", out_exp_len - out_rcv_len);
+  in_pktq_tail = in_pktq_head;
+  in_sent = in_rcv_len;
+  assert(out_exp_len >= out_rcv_len);
+  out_exp_len = out_rcv_len;
+  if (chance(50)) {
+    app_step(KIND_SUSPEND);
+  }
+  istr_flags |= ISTR_WKUP;
+  run_lp();
+  bus_suspended = false;
+  clears++;
+}
+
 static bool scenario_done(void) {
 
   return (in_rcv_len == in_total) && (in_pktq_head == in_pktq_tail) &&
@@ -927,6 +975,7 @@ static void run_scenario(uint64_t seed, int kind, bool verbose) {
   out_zlp = out_has_pkt = false;
   out_toggle = 0U;
   in_stalled = out_stalled = in_paused = out_paused = false;
+  bus_suspended = false;
   app_in_stalled = app_out_stalled = false;
   in_packets = out_packets = in_xfers = out_xfers = 0U;
   clears = stalls = held_lost = entries = 0U;

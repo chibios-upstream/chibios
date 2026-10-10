@@ -70,16 +70,36 @@ MUTATIONS = {
     '               ((chepr & USB_EP_DTOG_RX) != 0U)) {'),
   # Leaving without writing SW_BUF, the endpoint stays blocked.
   'exit-stays-blocked': (
-    '  if ((usbp->usb->CHEPR[ep] & sw) != 0U) {\n'
+    '  chepr = usbp->usb->CHEPR[ep];\n'
+    '  if (((chepr & sw) != 0U) != ((chepr & dtog) != 0U)) {\n'
     '    CHEPR_TOGGLE(usbp, ep, sw);\n  }\n  CHEPR_TOGGLE(usbp, ep, sw);\n',
-    '  (void)sw;\n'),
+    '  chepr = 0U;\n  (void)chepr;\n  (void)sw;\n'),
   # Leaving keeps the stored status, an idle endpoint stays valid.
   'leave-keeps-status': (
     '  CHEPR_TOGGLE(usbp, ep, stored ^ stat ^ stall);', '  (void)stored;'),
   # Leaving keeps the data toggle.
   'leave-keeps-dtog': (
-    '  if ((usbp->usb->CHEPR[ep] & dtog) != 0U) {\n'
-    '    CHEPR_TOGGLE(usbp, ep, dtog);\n  }\n', '  (void)dtog;\n'),
+    '  if (reset && ((usbp->usb->CHEPR[ep] & dtog) != 0U)) {\n'
+    '    CHEPR_TOGGLE(usbp, ep, dtog);\n  }\n', '  (void)reset;\n'),
+  # Suspend leaves the double-buffered endpoints as they are, the packets of
+  # the aborted transfers are sent or delivered after the resume.
+  'suspend-not-aborted': (
+    '    if (((usbp->dblcap & (1U << ep)) == 0U) ||\n'
+    '        ((chepr & USB_EP_KIND) == 0U)) {\n      continue;',
+    '    if (true) {\n      continue;'),
+  # Suspend resets the data toggles, the host does not.
+  'suspend-resets-dtog': (
+    ['USB_EP_TX_STALL ^ USB_EP_TX_NAK : 0U, false);',
+     'USB_EP_RX_STALL ^ USB_EP_RX_NAK : 0U, false);'],
+    ['USB_EP_TX_STALL ^ USB_EP_TX_NAK : 0U, true);',
+     'USB_EP_RX_STALL ^ USB_EP_RX_NAK : 0U, true);']),
+  # Suspend drops the halt of a double-buffered endpoint.
+  'suspend-drops-halt': (
+    ['(chepr & USB_CHEP_TX_STTX_Msk) == USB_EP_TX_STALL ?\n'
+     '                   USB_EP_TX_STALL ^ USB_EP_TX_NAK : 0U, false);',
+     '(chepr & USB_CHEP_RX_STRX_Msk) == USB_EP_RX_STALL ?\n'
+     '                   USB_EP_RX_STALL ^ USB_EP_RX_NAK : 0U, false);'],
+    ['0U, false);', '0U, false);']),
   # The single-buffered code finds the buffer pointer after the packets.
   'clear-in-not-rewound': (
     '    isp->txbuf -= isp->txlast + isp->txnext;\n', ''),

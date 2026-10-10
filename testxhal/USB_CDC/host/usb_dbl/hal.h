@@ -44,6 +44,7 @@
 #define HAL_DRV_STATE_READY 4U
 #define HAL_DRV_STATE_ACTIVE 5U
 #define USB_ACTIVE (HAL_DRV_STATE_ACTIVE + 2U)
+#define USB_SUSPENDED (HAL_DRV_STATE_ACTIVE + 3U)
 #define USB_ERROR (HAL_DRV_STATE_ACTIVE + 4U)
 #define USB_EP0_STATUS_STAGE_SW 0
 #define USB_LATE_SET_ADDRESS 1
@@ -159,6 +160,7 @@ struct hal_usb_config {
 
 struct hal_usb_driver {
   unsigned state;
+  unsigned saved_state;
   const hal_usb_config_t *config;
   void *binder;
   const USBEndpointConfig *epc[USB_MAX_ENDPOINTS + 1U];

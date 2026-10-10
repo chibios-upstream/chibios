@@ -42,7 +42,7 @@ each transaction:
 
 ## Scenarios
 
-Each seed runs three scenarios, with a random regime: the weights of the
+Each seed runs five scenarios, with a random regime: the weights of the
 host transactions, of the interrupts and of the application, the
 probability of a transaction completing at each register access of the
 driver, and the probability of the high priority handler preempting the
@@ -59,6 +59,13 @@ low priority one.
 - `reconfig`: the host selects the configuration again while the
   endpoints are idle, they are disabled and initialized again without a
   bus reset. The summary counts these in the clears.
+- `suspend`: the host suspends and resumes the bus while it is idle, with
+  transfers in progress on double-buffered endpoints, and the application
+  also stalls idle endpoints. The frontend aborts the transfers: the host
+  receives no more packet of an aborted IN transfer and the application
+  restarts its stream from the received data, the OUT packets acknowledged
+  and not delivered are lost. The data toggles go on. The summary counts
+  the suspends in the clears.
 
 Checks:
 
@@ -103,11 +110,17 @@ of the sources and checks that the regression fails:
   double-buffered mode;
 - the IN buffer pointer not rewound, the packet not moved, or the first
   entry packet not accounted when the halt is cleared;
-- a transfer in progress stopped by clearing the halt.
+- a transfer in progress stopped by clearing the halt;
+- a suspend leaving the double-buffered endpoints as they are, resetting
+  their data toggles or dropping their halts.
 
 ## Limits
 
-The model does not cover enumeration, EP0, bus reset or suspend, or the
-actual bus timing. Transactions on the cleared endpoint do not complete
-while the halt is being cleared. The driver handles one event not yet
-served at that point, a case the harness does not reach.
+The model does not cover enumeration, EP0, bus reset, or the actual bus
+timing. The bus is suspended only when idle with no event pending, and
+only when a single-buffered endpoint has no transfer in progress: the
+frontend aborts the transfers on suspend while the peripheral keeps a
+single-buffered endpoint armed, a known frontend issue. Transactions on
+the cleared endpoint do not complete while the halt is being cleared.
+The driver handles one event not yet served at that point, a case the
+harness does not reach.
