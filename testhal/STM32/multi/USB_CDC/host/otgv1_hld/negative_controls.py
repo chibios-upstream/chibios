@@ -23,9 +23,9 @@ COPIED = ['os/hal/include', 'os/hal/src', 'os/hal/ports/STM32/LLD/OTGv1',
 
 MUTATIONS = {
   'safety-no-recheck': (SAFETY, ['    if (expired) {\n      return true;\n    }\n'
-                                 '    expired = !is_counter_within(start, end);\n',
+                                 '    expired = !halSftIsCounterWithinX(start, end);\n',
                                  '  bool expired = false;\n'],
-                        ['    if (!is_counter_within(start, end)) {\n'
+                        ['    if (!halSftIsCounterWithinX(start, end)) {\n'
                          '      return true;\n    }\n', '']),
   'fault-not-reported': (LLD, '      usbp->fault_reported = true;\n      _usb_suspend(usbp);\n',
                          '      usbp->fault_reported = true;\n'),

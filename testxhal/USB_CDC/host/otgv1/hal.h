@@ -224,6 +224,9 @@ static void test_polled_delay(uint32_t cycles);
 static rtcnt_t test_realtime_counter(void);
 
 #define chSysGetRealtimeCounterX() test_realtime_counter()
+
+/* Timeout counter functions of the safety module.*/
+#include "hal_safety.h"
 #define chSysIsCounterWithinX(cnt, start, end) \
   ((rtcnt_t)((cnt) - (start)) < (rtcnt_t)((end) - (start)))
 

@@ -155,6 +155,19 @@ typedef struct {
 static model_ep_t mep[8];
 static uint32_t istr_flags;
 
+#if defined(TEST_USBV2)
+/* Packet memory update of the OUT buffers not completed yet.*/
+typedef struct {
+  bool          pending;    /* Last word and count not written yet.*/
+  bool          stamped;    /* Completed before the last counter sample.*/
+  uint32_t      addr;       /* Address of the last word.*/
+  size_t        n, tlen;    /* Packet size, bytes in the last word.*/
+  uint8_t       tail[4];    /* Content of the last word.*/
+} rx_late_t;
+
+static rx_late_t rx_late[2];
+#endif
+
 /* Trace of the OUT endpoint, TRACE=1 in the environment.*/
 static bool trace;
 static unsigned long long cur_seed;
@@ -173,6 +186,9 @@ static void test_model_reset(void) {
   memset(mep, 0, sizeof mep);
   istr_flags = 0U;
   test_hp_pending = false;
+#if defined(TEST_USBV2)
+  memset(rx_late, 0, sizeof rx_late);
+#endif
 }
 
 static bool model_dbl(uint32_t v) {
@@ -342,6 +358,86 @@ static unsigned buf_capacity(uint32_t ep, uint32_t b) {
   unsigned blocks = (d >> 26) & 31U;
 
   return (d & 0x80000000U) != 0U ? (blocks + 1U) * 32U : blocks * 2U;
+}
+
+/* The packet memory update of an OUT transaction completes a little after
+   its event (errata ES0565 2.20.1, ES0602 2.12.4). The last data word and
+   the count are written late, until then the word is garbage and the count
+   is wrong. A driver wait on the timeout counter completes the packets
+   received before the counter sample it starts from, time passing at
+   host level completes all of them.*/
+static void rx_late_complete(uint32_t b) {
+  rx_late_t *l = &rx_late[b];
+  size_t i;
+
+  for (i = 0U; i < l->tlen; i++) {
+    pma_set(l->addr + (uint32_t)i, l->tail[i]);
+  }
+  buf_set_count(EP_OUT, b, (uint32_t)l->n);
+  l->pending = false;
+  l->stamped = false;
+}
+
+static void rx_late_store(uint32_t b, uint32_t addr, const uint8_t *src,
+                          size_t n) {
+  rx_late_t *l = &rx_late[b];
+  size_t i, last = n == 0U ? 0U : (n - 1U) & ~(size_t)3U;
+
+  if (l->pending) {
+    rx_late_complete(b);
+  }
+  for (i = 0U; i < n; i++) {
+    if (i < last) {
+      pma_set(addr + (uint32_t)i, src[i]);
+    }
+    else {
+      l->tail[i - last] = src[i];
+      pma_set(addr + (uint32_t)i, 0xEEU);
+    }
+  }
+  l->pending = true;
+  l->stamped = false;
+  l->addr = addr + (uint32_t)last;
+  l->n = n;
+  l->tlen = n - last;
+  buf_set_count(EP_OUT, b, (uint32_t)(n ^ 1U));
+}
+
+static void rx_late_flush(void) {
+  uint32_t b;
+
+  for (b = 0U; b < 2U; b++) {
+    if (rx_late[b].pending) {
+      rx_late_complete(b);
+    }
+  }
+}
+
+/* Timeout counter sample of the driver, the packets received so far are
+   complete when a wait starting from it ends. Unused, as the window check,
+   with a driver that does not wait.*/
+__attribute__((unused)) static halcnt_t test_cnt_sample(void) {
+  uint32_t b;
+
+  for (b = 0U; b < 2U; b++) {
+    rx_late[b].stamped = rx_late[b].pending;
+  }
+  return (halcnt_t)0;
+}
+
+/* Timeout counter window check, the deadline has passed.*/
+__attribute__((unused)) static bool test_cnt_within(halcnt_t start,
+                                                    halcnt_t end) {
+  uint32_t b;
+
+  (void)start;
+  (void)end;
+  for (b = 0U; b < 2U; b++) {
+    if (rx_late[b].stamped) {
+      rx_late_complete(b);
+    }
+  }
+  return false;
 }
 #else
 /* PMA content through the 16-bit words of either access scheme.*/
@@ -532,10 +628,15 @@ static void hw_out(void) {
   b = model_dbl(v) ? pid : 1U;
   addr = buf_addr(EP_OUT, b);
   assert(out_pkt_len <= buf_capacity(EP_OUT, b));
+#if defined(TEST_USBV2)
+  (void)i;
+  rx_late_store(b, addr, &out_src[out_pos], out_pkt_len);
+#else
   for (i = 0U; i < out_pkt_len; i++) {
     pma_set(addr + i, out_src[out_pos + i]);
   }
   buf_set_count(EP_OUT, b, (uint32_t)out_pkt_len);
+#endif
   out_toggle ^= 1U;
   TRACE("hw OUT %zu bytes pid %u buf %s\n", out_pkt_len, pid,
         model_dbl(v) && (pid == 0U) ? "TX" : "RX");
@@ -773,6 +874,9 @@ static void app_step(int kind) {
    meanwhile.*/
 static void host_clear(usbep_t ep) {
 
+#if defined(TEST_USBV2)
+  rx_late_flush();
+#endif
   in_lp = true;
   test_isr++;
   if (ep == EP_IN) {
@@ -859,6 +963,9 @@ static const USBEndpointConfig ep_out_cfg = {
    discarded.*/
 static void host_reconfig(void) {
 
+#if defined(TEST_USBV2)
+  rx_late_flush();
+#endif
   in_lp = true;
   test_isr++;
   in_paused = true;
@@ -905,6 +1012,9 @@ static bool suspend_allowed(void) {
    bus is suspended.*/
 static void host_suspend(void) {
 
+#if defined(TEST_USBV2)
+  rx_late_flush();
+#endif
   bus_suspended = true;
   istr_flags |= ISTR_SUSP;
   run_lp();

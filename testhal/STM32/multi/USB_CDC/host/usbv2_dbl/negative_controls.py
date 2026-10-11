@@ -113,6 +113,22 @@ MUTATIONS = {
   # A transfer in progress is stopped by clearing the halt.
   'clear-stops-transfer': (
     '      valid = USB_EP_RX_VALID ^ USB_EP_RX_NAK;', '      valid = 0U;'),
+  # Packet memory read before its update completes, no wait after the
+  # transfer event.
+  'no-rx-update-wait': (
+    ['      halSftDelayFromX(rxstart, USB_RX_UPDATE_TICKS());\n'
+     '      _usb_isr_invoke_setup_cb(usbp, ep);\n',
+     '#endif\n\n      halSftDelayFromX(rxstart, USB_RX_UPDATE_TICKS());\n'],
+    ['      (void)rxstart;\n      _usb_isr_invoke_setup_cb(usbp, ep);\n',
+     '#endif\n\n      (void)rxstart;\n']),
+  # Counter sampled before clearing the event: a packet completed in
+  # between is reported by the cleared event and read too early.
+  'rx-sample-before-clear': (
+    '    CHEPR_CLEAR_VTRX(usbp, ep);\n\n'
+    '    /* The packets reported by the cleared event completed before this\n'
+    '       sample, a packet completed later raises a new event.*/\n'
+    '    rxstart = halSftGetCounterX();\n',
+    '    rxstart = halSftGetCounterX();\n    CHEPR_CLEAR_VTRX(usbp, ep);\n'),
 }
 
 def run(chibios, only):

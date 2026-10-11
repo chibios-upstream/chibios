@@ -6,7 +6,8 @@ CPPFLAGS := -D_DEFAULT_SOURCE -I. -I$(BUILDDIR) -I$(LLD) \
             -I$(CHIBIOS)/os/xhal/src \
             -I$(CHIBIOS)/os/xhal/ports/STM32 \
             -I$(CHIBIOS)/os/common/ext/ST/STM32H7xx \
-            -I$(CHIBIOS)/os/common/ext/ARM/CMSIS/Core/Include
+            -I$(CHIBIOS)/os/common/ext/ARM/CMSIS/Core/Include \
+            -idirafter $(CHIBIOS)/os/xhal/include
 CFLAGS := -std=c11 -O1 -g -Wall -Wextra -Werror \
           -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast \
           -fsanitize=address,undefined -fno-sanitize-recover=undefined

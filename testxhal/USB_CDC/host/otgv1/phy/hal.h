@@ -11,6 +11,7 @@
 #include "phy_constants.inc"
 
 typedef uint32_t halcnt_t;
+typedef uint32_t rtcnt_t;
 static PWR_TypeDef test_pwr;
 static SYSCFG_TypeDef test_syscfg;
 #undef PWR
@@ -33,4 +34,7 @@ static void test_delay(uint32_t cycles);
 #define rccEnableSYSCFG(lp) test_clock_enable(0U, lp)
 #define rccEnableUSBPHYC(lp) test_clock_enable(1U, lp)
 #define rccDisableUSBPHYC() test_clock_disable()
+
+/* Timeout counter functions of the safety module.*/
+#include "hal_safety.h"
 #endif

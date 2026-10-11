@@ -34,6 +34,22 @@
 #define STM32_USB1_NUMBER 74
 #define STM32_USBCLK 48000000U
 #define STM32_HCLK 64000000U
+
+/* Timeout counter of the safety module, the deadlines have passed and the
+   waits return at once.*/
+typedef uint32_t halcnt_t;
+#define HAL_LLD_GET_CNT_VALUE() ((halcnt_t)0)
+#define HAL_LLD_GET_CNT_FREQUENCY() STM32_HCLK
+#define HAL_SFT_NS2CNT(freq, nsec)                                          \
+  (halcnt_t)(((((uint32_t)(freq) + 999999U) / 1000000U) *                   \
+              (uint32_t)(nsec) + 999U) / 1000U)
+#define halSftGetCounterX() HAL_LLD_GET_CNT_VALUE()
+#define halSftGetCounterFrequencyX() HAL_LLD_GET_CNT_FREQUENCY()
+#define halSftIsCounterWithinX(start, end) ((void)(start), (void)(end), false)
+#define HAL_SFT_US2CNT(freq, usec)                                          \
+  (halcnt_t)((((uint32_t)(freq) + 999999U) / 1000000U) * (uint32_t)(usec))
+#define halSftDelayFromX(start, ticks) ((void)(start), (void)(ticks))
+#define halSftDelayX(ticks) ((void)(ticks))
 #define MSG_OK 0
 #define MSG_RESET -1
 #define HAL_RET_SUCCESS MSG_OK

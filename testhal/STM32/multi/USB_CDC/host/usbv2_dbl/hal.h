@@ -64,6 +64,23 @@ static void epr_wr(uint32_t ep, uint32_t v);
 static uint32_t istr_rd(void);
 static void istr_wr(uint32_t v);
 static void test_model_reset(void);
+/* Timeout counter of the safety module, the packet memory update model
+   follows the driver samples and waits, the other waits return at once.*/
+typedef uint32_t halcnt_t;
+static halcnt_t test_cnt_sample(void);
+static bool test_cnt_within(halcnt_t start, halcnt_t end);
+#define HAL_LLD_GET_CNT_VALUE() test_cnt_sample()
+#define HAL_LLD_GET_CNT_FREQUENCY() STM32_HCLK
+#define HAL_SFT_US2CNT(freq, usec)                                          \
+  (halcnt_t)((((uint32_t)(freq) + 999999U) / 1000000U) * (uint32_t)(usec))
+#define HAL_SFT_NS2CNT(freq, nsec)                                          \
+  (halcnt_t)(((((uint32_t)(freq) + 999999U) / 1000000U) *                   \
+              (uint32_t)(nsec) + 999U) / 1000U)
+#define halSftGetCounterX() test_cnt_sample()
+#define halSftGetCounterFrequencyX() HAL_LLD_GET_CNT_FREQUENCY()
+#define halSftDelayFromX(start, ticks)                                      \
+  ((void)test_cnt_within(start, (halcnt_t)((start) + (ticks))))
+#define halSftDelayX(ticks) ((void)(ticks))
 
 #define OSAL_IRQ_IS_VALID_PRIORITY(n) (((n) >= 0) && ((n) < 16))
 #define OSAL_IRQ_HANDLER(id) void id(void)

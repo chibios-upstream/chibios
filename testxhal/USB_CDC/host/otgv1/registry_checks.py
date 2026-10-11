@@ -33,7 +33,7 @@ for family, devices, first, second in groups:
 print(f"PASS: {count} registry selections, FIFO capacities in 32-bit words")
 
 includes = [HERE, HERE / "build", PORT, PORT / "LLD/OTGv1", ROOT / "os/common/ext/ST/STM32H7xx",
-            ROOT / "os/common/ext/ARM/CMSIS/Core/Include"]
+            ROOT / "os/common/ext/ARM/CMSIS/Core/Include", ROOT / "os/xhal/include"]
 for unit in (1, 2):
     result = subprocess.run(
         ["cc", "-E", "-x", "c", f"-DTEST_MISSING_OTG{unit}_SIZE"] +
