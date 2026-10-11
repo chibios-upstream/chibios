@@ -258,6 +258,8 @@ static unsigned test_ulpi_enables, test_ulpi_disables, test_fs_ulpi_disables;
 } while (false)
 
 #include "hal_safety.h"
+/* The driver delays are recorded as the polled delays were.*/
+#define halSftDelayX(ticks) test_polled_delay(ticks)
 #include "hal_usb.h"
 
 /* Register model, stepped whenever the driver reads the timeout counter or

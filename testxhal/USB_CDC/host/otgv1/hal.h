@@ -227,6 +227,8 @@ static rtcnt_t test_realtime_counter(void);
 
 /* Timeout counter functions of the safety module.*/
 #include "hal_safety.h"
+/* The driver delays are recorded as the polled delays were.*/
+#define halSftDelayX(ticks) test_polled_delay(ticks)
 #define chSysIsCounterWithinX(cnt, start, end) \
   ((rtcnt_t)((cnt) - (start)) < (rtcnt_t)((end) - (start)))
 
