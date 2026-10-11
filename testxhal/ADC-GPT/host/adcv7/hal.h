@@ -78,6 +78,14 @@ static void test_delay(uint32_t cycles);
 static void test_reset(void);
 #define US2RTC(freq, us) ((uint32_t)(((uint64_t)(freq) * (us) + 999999U) / 1000000U))
 #define chSysPolledDelayX(n) test_delay(n)
+/* Timeout counter of the safety module, the delays are recorded.*/
+typedef uint32_t halcnt_t;
+#define HAL_LLD_GET_CNT_VALUE() ((halcnt_t)0)
+#define HAL_LLD_GET_CNT_FREQUENCY() STM32_HCLK
+#define HAL_SFT_US2CNT(freq, usec)                                          \
+  (halcnt_t)((((uint32_t)(freq) + 999999U) / 1000000U) * (uint32_t)(usec))
+#define halSftGetCounterFrequencyX() HAL_LLD_GET_CNT_FREQUENCY()
+#define halSftDelayX(ticks) test_delay(ticks)
 #define chDbgAssert(c, msg) assert(c)
 #define chDbgCheck(c) assert(c)
 #define chDbgCheckClassI() assert(test_locked)
