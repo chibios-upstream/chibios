@@ -52,4 +52,6 @@ static void test_delay(uint32_t cycles);
 #define rccEnableUSBPHYC(lp) test_clock_enable(1U, lp)
 #define rccDisableUSBPHYC() test_clock_disable()
 #include "hal_safety.h"
+/* The driver delays are recorded as the polled delays were.*/
+#define halSftDelayX(ticks) test_delay(ticks)
 #endif

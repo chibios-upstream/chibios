@@ -39,7 +39,7 @@ static void test_clock_disable(void) {
 
 static void test_delay(uint32_t cycles) {
 
-  assert(cycles == OSAL_MS2RTC(STM32_HCLK, 2U));
+  assert(cycles == HAL_SFT_US2CNT(HAL_LLD_GET_CNT_FREQUENCY(), 2000U));
   assert(enables[0] == 1U && enables[1] == 1U);
   assert((SYSCFG->OTGHSPHYCR & SYSCFG_OTGHSPHYCR_EN) != 0U);
   assert(((SYSCFG->OTGHSPHYCR & SYSCFG_OTGHSPHYCR_PDCTRL) != 0U) ==

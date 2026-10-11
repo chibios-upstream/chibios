@@ -37,4 +37,6 @@ static void test_delay(uint32_t cycles);
 
 /* Timeout counter functions of the safety module.*/
 #include "hal_safety.h"
+/* The driver delays are recorded as the polled delays were.*/
+#define halSftDelayX(ticks) test_delay(ticks)
 #endif
