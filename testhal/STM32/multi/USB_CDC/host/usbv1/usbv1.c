@@ -374,11 +374,13 @@ static void check_iso_counters(void) {
   init_endpoint(1U, &cfg);
   dp = USB_GET_DESCRIPTOR(1U);
   pma_put((uint32_t)dp->RXADDR0, source, 65U);
-  /* DTOG_RX selects the buffer the peripheral fills next, the last packet
-     is counted in the other one (RM0440, double-buffered endpoints).*/
+  /* The peripheral fills the buffer in the TX fields (the RXCOUNT1 alias)
+     while DTOG_RX is zero and toggles DTOG_RX after the reception, so the
+     last packet is counted in the TX fields when DTOG_RX is one (RM0440,
+     isochronous memory buffers usage, measured on G474).*/
   for (toggle = 0U; toggle < 2U; toggle++) {
-    set_rx_count(&dp->RXCOUNT0, toggle ? 65U : 3U);
-    set_rx_count(&dp->RXCOUNT1, toggle ? 3U : 65U);
+    set_rx_count(&dp->RXCOUNT0, toggle ? 3U : 65U);
+    set_rx_count(&dp->RXCOUNT1, toggle ? 65U : 3U);
     test_usb.EPR[1] = EPR_EP_TYPE_ISO | (toggle ? EPR_DTOG_RX : 0U) | 1U;
     memset(target, 0xA5, sizeof target);
     assert(usb_packet_read_to_buffer(1U, target + 1U, 65U) == 65U);
@@ -466,7 +468,8 @@ static void check_iso_idle(void) {
   usbStartReceiveI(&USBD1, 1U, target, sizeof target);
   osalSysUnlock();
   pma_put((uint32_t)dp->RXADDR0, source, 64U);
-  set_rx_count(&dp->RXCOUNT1, 64U);
+  /* DTOG_RX clear, the packet is counted in the RX fields.*/
+  set_rx_count(&dp->RXCOUNT0, 64U);
   test_usb.EPR[1] = EPR_EP_TYPE_ISO | EPR_CTR_RX | 1U;
   test_isr = true;
   usb_serve_endpoints(&USBD1, ISTR_DIR | 1U);

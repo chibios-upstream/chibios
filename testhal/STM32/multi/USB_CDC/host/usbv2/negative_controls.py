@@ -30,7 +30,7 @@ MUTATIONS = {
   'iso-in-one-counter': (LLD, '    CHEPR_CLEAR_VTTX(usbp, ep);\n    USB_SET_TX_COUNT1(udp, n);\n', '    CHEPR_CLEAR_VTTX(usbp, ep);\n'),
   'iso-in-stale-vttx': (LLD, '    CHEPR_CLEAR_VTTX(usbp, ep);\n    USB_SET_TX_COUNT1(udp, n);\n', '    USB_SET_TX_COUNT1(udp, n);\n'),
   'iso-out-idle-copies': (LLD, '      if (((chepr & USB_CHEP_UTYPE_Msk) == USB_EP_ISOCHRONOUS) &&\n          ((usbp->receiving & (uint16_t)(1U << ep)) == 0U)) {\n        return;\n      }\n', ''),
-  'iso-out-own-counter': (LLD, '((chepr & USB_EP_DTOG_RX) == 0U)) {', '((chepr & USB_EP_DTOG_RX) != 0U)) {'),
+  'iso-out-own-counter': (LLD, '((chepr & USB_EP_DTOG_RX) != 0U)) {\n    n = USB_GET_TX_COUNT0(udp);', '((chepr & USB_EP_DTOG_RX) == 0U)) {\n    n = USB_GET_TX_COUNT0(udp);'),
 }
 
 

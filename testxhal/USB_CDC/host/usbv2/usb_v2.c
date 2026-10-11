@@ -243,17 +243,18 @@ static void test_isochronous(void) {
   dp = USB_GET_DESCRIPTOR(1U);
   assert((dp->RXBD0 & 0xFFFFU) == (dp->RXBD1 & 0xFFFFU));
   memcpy((uint8_t *)test_pma + (dp->RXBD0 & 0xFFFFU), data, sizeof(data));
-  /* DTOG_RX clear: the peripheral fills buffer 0, the last packet is in
-     buffer 1.*/
-  USB_SET_RX_COUNT0(dp, 0U);
-  USB_SET_RX_COUNT1(dp, sizeof(data));
+  /* DTOG_RX clear: the peripheral fills the buffer in the TX fields (RX
+     counter 1 here), the last packet is counted in the RX fields. Measured
+     on H563, RM0481 Table 610 states the opposite.*/
+  USB_SET_RX_COUNT0(dp, sizeof(data));
+  USB_SET_RX_COUNT1(dp, 0U);
   test_usb.CHEPR[1] = USB_EP_ISOCHRONOUS;
   assert(usb_packet_read_to_buffer(&USBD1, 1U, result, sizeof(result)) == sizeof(data));
   assert(memcmp(result, data, sizeof(data)) == 0);
-  /* DTOG_RX set: the last packet is in buffer 0.*/
+  /* DTOG_RX set: the last packet is counted in the TX fields.*/
   memset(result, 0, sizeof(result));
-  USB_SET_RX_COUNT0(dp, sizeof(data));
-  USB_SET_RX_COUNT1(dp, 0U);
+  USB_SET_RX_COUNT0(dp, 0U);
+  USB_SET_RX_COUNT1(dp, sizeof(data));
   test_usb.CHEPR[1] = USB_EP_ISOCHRONOUS | USB_EP_DTOG_RX;
   assert(usb_packet_read_to_buffer(&USBD1, 1U, result, sizeof(result)) == sizeof(data));
   assert(memcmp(result, data, sizeof(data)) == 0);

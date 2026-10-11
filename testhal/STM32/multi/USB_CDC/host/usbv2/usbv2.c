@@ -375,7 +375,8 @@ static void check_iso_idle(void) {
   usbStartReceiveI(&USBD1, 1U, target, sizeof target);
   osalSysUnlock();
   memcpy((uint8_t *)test_pma + (dp->RXBD0 & 0xFFFFU), source, 64U);
-  USB_SET_RX_COUNT1(dp, 64U);
+  /* DTOG_RX clear, the packet is counted in the RX fields.*/
+  USB_SET_RX_COUNT0(dp, 64U);
   test_usb.CHEPR[1] = USB_EP_ISOCHRONOUS | USB_EP_VTRX;
   test_isr = true;
   usb_serve_endpoints(&USBD1, USB_ISTR_DIR | 1U);
@@ -433,11 +434,13 @@ static void check_iso_counters(void) {
   init_endpoint(1U, &cfg);
   dp = USB_GET_DESCRIPTOR(1U);
   memcpy((uint8_t *)test_pma + (dp->RXBD0 & 0xFFFFU), source, 65U);
-  /* DTOG_RX selects the buffer the peripheral fills next, the last packet
-     is counted in the other one (RM0481, Table 610).*/
+  /* The peripheral fills the buffer in the TX fields (RX counter 1 here)
+     while DTOG_RX is zero and toggles DTOG_RX after the reception, so the
+     last packet is counted in the TX fields when DTOG_RX is one. Measured
+     on H563, RM0481 Table 610 states the opposite.*/
   for (toggle = 0U; toggle < 2U; toggle++) {
-    USB_SET_RX_COUNT0(dp, toggle ? 65U : 3U);
-    USB_SET_RX_COUNT1(dp, toggle ? 3U : 65U);
+    USB_SET_RX_COUNT0(dp, toggle ? 3U : 65U);
+    USB_SET_RX_COUNT1(dp, toggle ? 65U : 3U);
     test_usb.CHEPR[1] = USB_EP_ISOCHRONOUS |
                        (toggle ? USB_EP_DTOG_RX : 0U);
     memset(target, 0xA5, sizeof target);

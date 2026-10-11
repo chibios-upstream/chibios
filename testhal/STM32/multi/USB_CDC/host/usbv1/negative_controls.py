@@ -30,7 +30,7 @@ MUTATIONS = {
   'iso-in-one-counter': (LLD, '    EPR_CLEAR_CTR_TX(ep);\n    udp->TXCOUNT1 = (stm32_usb_pma_t)n;\n', '    EPR_CLEAR_CTR_TX(ep);\n'),
   'iso-in-stale-ctr': (LLD, '    EPR_CLEAR_CTR_TX(ep);\n    udp->TXCOUNT1 = (stm32_usb_pma_t)n;\n', '    udp->TXCOUNT1 = (stm32_usb_pma_t)n;\n'),
   'iso-out-idle-copies': (LLD, '      if (EPR_EP_TYPE_IS_ISO(epr) &&\n          ((usbp->receiving & (uint16_t)(1U << ep)) == 0U)) {\n        return;\n      }\n', ''),
-  'iso-out-own-counter': (LLD, '  if (EPR_EP_TYPE_IS_ISO(epr) && ((epr & EPR_DTOG_RX) == 0U))', '  if (EPR_EP_TYPE_IS_ISO(epr) && ((epr & EPR_DTOG_RX) != 0U))'),
+  'iso-out-own-counter': (LLD, '  if (EPR_EP_TYPE_IS_ISO(epr) && ((epr & EPR_DTOG_RX) != 0U))', '  if (EPR_EP_TYPE_IS_ISO(epr) && ((epr & EPR_DTOG_RX) == 0U))'),
 }
 
 def run(chibios, only):
