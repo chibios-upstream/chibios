@@ -42,7 +42,7 @@ each transaction:
 
 ## Scenarios
 
-Each seed runs five scenarios, with a random regime: the weights of the
+Each seed runs six scenarios, with a random regime: the weights of the
 host transactions, of the interrupts and of the application, the
 probability of a transaction completing at each register access of the
 driver, and the probability of the high priority handler preempting the
@@ -66,6 +66,11 @@ low priority one.
   restarts its stream from the received data, the OUT packets acknowledged
   and not delivered are lost. The data toggles go on. The summary counts
   the suspends in the clears.
+- `halt`: the host halts either endpoint at random times, also with a
+  transfer in progress, then clears it. The transfer goes on after the
+  clearing. An endpoint is halted again only after a packet since its
+  previous halt, so that a transfer left stuck is not resumed by the
+  next clearing.
 
 Checks:
 
@@ -111,6 +116,9 @@ of the sources and checks that the regression fails:
 - the IN buffer pointer not rewound, the packet not moved, or the first
   entry packet not accounted when the halt is cleared;
 - a transfer in progress stopped by clearing the halt;
+- a transfer halted by the host left in NAK state by the clearing, in
+  both modes, or resumed in the single-buffered mode with an event not
+  served yet;
 - a suspend leaving the double-buffered endpoints as they are, resetting
   their data toggles or dropping their halts.
 
@@ -123,4 +131,4 @@ frontend aborts the transfers on suspend while the peripheral keeps a
 single-buffered endpoint armed, a known frontend issue. Transactions on
 the cleared endpoint do not complete while the halt is being cleared.
 The driver handles one event not yet served at that point, a case the
-harness does not reach.
+harness does not reach, also when the host halted the endpoint.

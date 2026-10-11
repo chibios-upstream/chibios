@@ -22,12 +22,12 @@ SEEDS = ['1', '2000']
 COPIED = ['os/xhal/ports/STM32/LLD/USBv1', 'os/xhal/ports/STM32/LLD/USBv2']
 
 
-def hal_mutations(d):
+def hal_mutations(d, name='MUTATIONS'):
   spec = importlib.util.spec_from_file_location(
       d, os.path.join(HAL, d, 'negative_controls.py'))
   m = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(m)
-  return m.MUTATIONS
+  return getattr(m, name)
 
 
 def adapt(s):
@@ -44,6 +44,10 @@ GROUPS = [
    hal_mutations('usbv1_dbl')),
   ('os/xhal/ports/STM32/LLD/USBv2/hal_usb_lld.c', ['v2_dbl'],
    hal_mutations('usbv2_dbl')),
+  ('os/xhal/ports/STM32/LLD/USBv1/hal_usb_lld.c', ['v1_single'],
+   hal_mutations('usbv1_dbl', 'SINGLE_MUTATIONS')),
+  ('os/xhal/ports/STM32/LLD/USBv2/hal_usb_lld.c', ['v2_single'],
+   hal_mutations('usbv2_dbl', 'SINGLE_MUTATIONS')),
 ]
 
 

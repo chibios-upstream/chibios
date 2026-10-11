@@ -129,53 +129,93 @@ MUTATIONS = {
     '       sample, a packet completed later raises a new event.*/\n'
     '    rxstart = halSftGetCounterX();\n',
     '    rxstart = halSftGetCounterX();\n    CHEPR_CLEAR_VTRX(usbp, ep);\n'),
+  # Host halt of a busy double-buffered endpoint, the transfer is not
+  # resumed after the clearing.
+  'halt-out-not-resumed': (
+    '    if (((chepr & USB_EP_VTRX) == 0U) &&\n'
+    '        ((usbp->receiving & (1U << ep)) != 0U)) {',
+    '    if (((chepr & (USB_EP_VTRX | USB_CHEP_RX_STRX_Msk)) == USB_EP_RX_VALID) &&\n'
+    '        ((usbp->receiving & (1U << ep)) != 0U)) {'),
+  'halt-in-not-resumed': (
+    '    if (((chepr & USB_EP_VTTX) == 0U) &&\n'
+    '        ((usbp->transmitting & (1U << ep)) != 0U)) {',
+    '    if (((chepr & (USB_EP_VTTX | USB_CHEP_TX_STTX_Msk)) == USB_EP_TX_VALID) &&\n'
+    '        ((usbp->transmitting & (1U << ep)) != 0U)) {'),
+  # The pending event check of the halt clearing is not covered: the
+  # model serves the events of the double-buffered endpoints before the
+  # host requests.
 }
+
+# Single-buffered endpoints, run on the single variant.
+SINGLE_MUTATIONS = {
+  # Host halt of a busy endpoint, the clearing leaves it in NAK state.
+  'single-halt-out-nak': (
+    '        ((usbp->receiving & (1U << ep)) != 0U)) {\n'
+    '      CHEPR_SET_STATRX(usbp, ep, USB_EP_RX_VALID);\n',
+    '        ((usbp->receiving & (1U << ep)) != 0U)) {\n'
+    '      CHEPR_SET_STATRX(usbp, ep, USB_EP_RX_NAK);\n'),
+  'single-halt-in-nak': (
+    '        ((usbp->transmitting & (1U << ep)) != 0U)) {\n'
+    '      CHEPR_SET_STATTX(usbp, ep, USB_EP_TX_VALID);\n',
+    '        ((usbp->transmitting & (1U << ep)) != 0U)) {\n'
+    '      CHEPR_SET_STATTX(usbp, ep, USB_EP_TX_NAK);\n'),
+  # Resumed also with a packet or event not served yet.
+  'single-halt-out-ctr-unchecked': (
+    '    if (((chepr & (USB_EP_VTRX | USB_CHEP_RX_STRX_Msk)) == USB_EP_RX_STALL) &&',
+    '    if (((chepr & USB_CHEP_RX_STRX_Msk) == USB_EP_RX_STALL) &&'),
+  'single-halt-in-ctr-unchecked': (
+    '    if (((chepr & (USB_EP_VTTX | USB_CHEP_TX_STTX_Msk)) == USB_EP_TX_STALL) &&',
+    '    if (((chepr & USB_CHEP_TX_STTX_Msk) == USB_EP_TX_STALL) &&'),
+}
+
 
 def run(chibios, only):
   missed = []
-  for name, (old, new) in MUTATIONS.items():
-    if only and name not in only:
-      continue
-    with tempfile.TemporaryDirectory() as tmp:
-      root = os.path.join(tmp, 'chibios')
-      for sub in COPIED:
-        shutil.copytree(os.path.join(chibios, sub), os.path.join(root, sub))
-      os.symlink(os.path.join(chibios, 'os/common'),
-                 os.path.join(root, 'os/common'))
-      f = os.path.join(root, LLD)
-      src = open(f).read()
-      if isinstance(old, list):
-        for o, n in zip(old, new):
-          if src.count(o) < 1:
-            sys.exit('%s: pattern not found' % name)
-          src = src.replace(o, n, 1)
+  groups = [(VARIANTS, MUTATIONS), (['single'], SINGLE_MUTATIONS)]
+  for variants, mutations in groups:
+    for name, (old, new) in mutations.items():
+      if only and name not in only:
+        continue
+      with tempfile.TemporaryDirectory() as tmp:
+        root = os.path.join(tmp, 'chibios')
+        for sub in COPIED:
+          shutil.copytree(os.path.join(chibios, sub), os.path.join(root, sub))
+        os.symlink(os.path.join(chibios, 'os/common'),
+                   os.path.join(root, 'os/common'))
+        f = os.path.join(root, LLD)
+        src = open(f).read()
+        if isinstance(old, list):
+          for o, n in zip(old, new):
+            if src.count(o) < 1:
+              sys.exit('%s: pattern not found' % name)
+            src = src.replace(o, n, 1)
+        else:
+          if src.count(old) != 1:
+            sys.exit('%s: pattern found %d times' % (name, src.count(old)))
+          src = src.replace(old, new)
+        open(f, 'w').write(src)
+        build = os.path.join(tmp, 'build')
+        failed = []
+        for v in variants:
+          r = subprocess.run(['make', '-s', '-C', H, 'CHIBIOS=' + root,
+                              'BUILDDIR=' + build, os.path.join(build, v)],
+                             capture_output=True, text=True)
+          if r.returncode != 0:
+            sys.exit('%s: %s does not build:\n%s' % (name, v, r.stderr[-2000:]))
+          try:
+            r = subprocess.run([os.path.join(build, v)] + SEEDS,
+                               capture_output=True, text=True, timeout=300)
+            rc, err = r.returncode, r.stderr
+          except subprocess.TimeoutExpired:
+            rc, err = -1, 'timeout'
+          if rc != 0:
+            lines = [l for l in err.splitlines() if l.strip()]
+            failed.append('%s: %s' % (v, ' / '.join(lines[:2])[-150:]))
+      print('%-28s %s' % (name, 'CAUGHT' if failed else 'MISSED'))
+      if failed:
+        print('    ' + failed[0])
       else:
-        if src.count(old) != 1:
-          sys.exit('%s: pattern found %d times' % (name, src.count(old)))
-        src = src.replace(old, new)
-      open(f, 'w').write(src)
-      build = os.path.join(tmp, 'build')
-      failed = []
-      for v in VARIANTS:
-        r = subprocess.run(['make', '-s', '-C', H, 'CHIBIOS=' + root,
-                            'BUILDDIR=' + build, os.path.join(build, v)],
-                           capture_output=True, text=True)
-        if r.returncode != 0:
-          sys.exit('%s: %s does not build:\n%s' % (name, v, r.stderr[-2000:]))
-        try:
-          r = subprocess.run([os.path.join(build, v)] + SEEDS,
-                             capture_output=True, text=True, timeout=300)
-          rc, err = r.returncode, r.stderr
-        except subprocess.TimeoutExpired:
-          rc, err = -1, 'timeout'
-        if rc != 0:
-          lines = [l for l in err.splitlines() if l.strip()]
-          failed.append('%s: %s' % (v, ' / '.join(lines[:2])[-150:]))
-    print('%-28s %s' % (name, 'CAUGHT' if failed else 'MISSED'))
-    if failed:
-      print('    ' + failed[0])
-    else:
-      missed.append(name)
+        missed.append(name)
   return missed
 
 

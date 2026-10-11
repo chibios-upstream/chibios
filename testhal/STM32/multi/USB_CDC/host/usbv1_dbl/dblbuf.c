@@ -118,11 +118,12 @@ enum {
   KIND_STALL,
   KIND_RECONFIG,
   KIND_SUSPEND,
+  KIND_HALT,
   KIND_NUM
 };
 
 static const char *kind_names[KIND_NUM] = {"stream", "clear", "stall",
-                                           "reconfig", "suspend"};
+                                           "reconfig", "suspend", "halt"};
 
 /*===========================================================================*/
 /* Random numbers.                                                           */
@@ -511,7 +512,7 @@ static bool out_zlp, out_has_pkt, out_stalled;
 static unsigned out_toggle;
 
 static unsigned in_packets, out_packets, in_xfers, out_xfers, clears;
-static unsigned stalls, held_lost, entries;
+static unsigned stalls, held_lost, entries, halts;
 
 /* Next packet of the host OUT stream, transfers of random length. The
    last transfer ends with a short packet.*/
@@ -904,6 +905,41 @@ static void host_clear(usbep_t ep) {
   clears++;
 }
 
+/* Packet counters at the last halt of each endpoint.*/
+static unsigned in_halt_mark, out_halt_mark;
+
+/* SET_FEATURE(ENDPOINT_HALT) from the host, also on an endpoint with a
+   transfer in progress, served by the low priority handler. The host does
+   not use the endpoint until it clears the halt, the transfer goes on
+   after the clearing.*/
+static void host_halt(usbep_t ep) {
+
+#if defined(TEST_USBV2)
+  rx_late_flush();
+#endif
+  in_lp = true;
+  test_isr++;
+  if (ep == EP_IN) {
+    in_paused = true;
+    usb_lld_stall_in(&USBD1, EP_IN);
+    in_paused = false;
+    in_stalled = true;
+    in_halt_mark = in_packets;
+  }
+  else {
+    TRACE("halt OUT\n");
+    out_paused = true;
+    usb_lld_stall_out(&USBD1, EP_OUT);
+    out_paused = false;
+    out_stalled = true;
+    out_halt_mark = out_packets;
+  }
+  assert(!test_locked);
+  test_isr--;
+  in_lp = false;
+  halts++;
+}
+
 static void host_reconfig(void);
 static bool suspend_allowed(void);
 static void host_suspend(void);
@@ -934,6 +970,18 @@ static void host_control_step(int kind) {
   }
   else if ((kind == KIND_SUSPEND) && chance(5) && suspend_allowed()) {
     host_suspend();
+  }
+  else if ((kind == KIND_HALT) && chance(5)) {
+    /* A new halt only after a packet since the previous one, a transfer
+       left stuck by a clearing is not resumed by the next halt.*/
+    if (chance(50)) {
+      if (in_packets != in_halt_mark) {
+        host_halt(EP_IN);
+      }
+    }
+    else if (out_packets != out_halt_mark) {
+      host_halt(EP_OUT);
+    }
   }
 }
 
@@ -1088,7 +1136,8 @@ static void run_scenario(uint64_t seed, int kind, bool verbose) {
   bus_suspended = false;
   app_in_stalled = app_out_stalled = false;
   in_packets = out_packets = in_xfers = out_xfers = 0U;
-  clears = stalls = held_lost = entries = 0U;
+  clears = stalls = held_lost = entries = halts = 0U;
+  in_halt_mark = out_halt_mark = ~0U;
   host_out_next();
 
   sim_active = true;
@@ -1151,9 +1200,9 @@ static void run_scenario(uint64_t seed, int kind, bool verbose) {
   if (verbose) {
     printf("seed %llu %s: IN %zu bytes %u transfers %u packets, OUT %zu "
            "bytes %u transfers %u packets, %u entries, %u stalls, "
-           "%u clears, %u held lost\n", (unsigned long long)seed,
+           "%u halts, %u clears, %u held lost\n", (unsigned long long)seed,
            kind_names[kind], in_total, in_xfers, in_packets, out_total,
-           out_xfers, out_packets, entries, stalls, clears, held_lost);
+           out_xfers, out_packets, entries, stalls, halts, clears, held_lost);
   }
 }
 
