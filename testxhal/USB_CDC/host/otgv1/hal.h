@@ -109,6 +109,7 @@
 #endif
 #define USB_EP0_STP_WAITING 0U
 #define USB_EP0_IN_TX 1U
+#define USB_EP0_IN_WAITING_TX0 2U
 #define USB_EP0_ERROR 6U
 #include "usb_constants.inc"
 #define USB_EP0_IN_SENDING_STS 3U
@@ -282,11 +283,15 @@ static void chThdResumeI(thread_reference_t *trp, msg_t msg) {
     *trp = NULL;
   }
 }
+/* Only the empty reply check suspends, through its hook. Every other
+   operation is faulted and must not suspend.*/
+static void (*test_suspend_hook)(void);
 static msg_t chThdSuspendTimeoutS(thread_reference_t *trp, int timeout) {
   (void)trp;
   (void)timeout;
-  assert(!"faulted operation must not suspend");
-  return MSG_RESET;
+  assert(test_suspend_hook != NULL);
+  test_suspend_hook();
+  return MSG_OK;
 }
 static void usbBinderResetI(void *binder) {
   assert(test_locked && binder != NULL);

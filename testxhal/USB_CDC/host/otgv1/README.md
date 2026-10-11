@@ -46,6 +46,8 @@ Regressions include:
   catch use of the normal shutdown path before the core is clocked.
 - EP0 status/SETUP ordering, queued SETUP packets, aborted IN data and pending
   SETUP gating of starts/stalls.
+- Empty EP0 reply through the generated `usbEp0Reply()`: a zero size data
+  packet when wLength is not zero, the IN status stage when it is zero.
 - OUT global-NAK/disable/release ordering, deferred configuration and receive
   starts, stale packets/events, independently completing endpoints, temporary
   SOF subscription, cancellation and stuck-handshake timeouts.

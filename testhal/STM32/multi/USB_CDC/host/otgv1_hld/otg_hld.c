@@ -559,7 +559,8 @@ static void vendor_end(USBDriver *usbp) {
   devs[drv_index(usbp)].endcbs++;
 }
 
-/* Vendor requests: 1 has no data stage, 2 has an 8-byte data stage.*/
+/* Vendor requests: 1 has no data stage, 2 has an 8-byte data stage, 3 is
+   device-to-host with an empty reply.*/
 static bool requests_hook(USBDriver *usbp) {
 
   if ((usbp->setup[0] & USB_RTYPE_TYPE_MASK) != USB_RTYPE_TYPE_VENDOR) {
@@ -571,6 +572,9 @@ static bool requests_hook(USBDriver *usbp) {
     return true;
   case 2:
     usbSetupTransfer(usbp, vendor_buf, sizeof vendor_buf, vendor_end);
+    return true;
+  case 3:
+    usbSetupTransfer(usbp, NULL, 0U, vendor_end);
     return true;
   default:
     return false;
@@ -1379,6 +1383,68 @@ static void check_ep0_thread_address(USBDriver *usbp) {
   printf("PASS: OTG%u EP0 worker SET_ADDRESS against new SETUPs\n", i + 1U);
 }
 #endif
+
+#if USB_USE_EP0_THREAD
+static usbep0state_t empty_reply_first;
+static bool empty_reply_seen;
+
+/* Records the stage armed by the reply, then the host completes it.*/
+static void empty_reply_hook(void) {
+
+  if (!empty_reply_seen) {
+    empty_reply_first = test_hook_driver->ep0state;
+    empty_reply_seen = true;
+  }
+  ep0_host_step(test_hook_driver);
+}
+#endif
+
+/* An empty reply is a zero size data packet when the request has a data
+   stage, the host then sends the OUT status. Without a data stage the
+   status stage is an IN transaction.*/
+static void check_empty_reply(USBDriver *usbp) {
+  static const uint16_t lengths[2] = {8U, 0U};
+  unsigned i = drv_index(usbp);
+
+  fresh_device(usbp);
+  enumerate(usbp, &cfg);
+  for (unsigned k = 0U; k < 2U; k++) {
+    usbep0state_t first;
+#if !USB_USE_EP0_THREAD
+    unsigned endcbs = devs[i].endcbs;
+#endif
+
+    test_ep0_bytes = 0U;
+    test_ep0_chunks = 0U;
+    host_setup(usbp, 0xC0, 3U, 0U, 0U, lengths[k]);
+#if USB_USE_EP0_THREAD
+    assert(usbEp0WaitSetup(usbp) == MSG_OK);
+    test_hook_driver = usbp;
+    empty_reply_seen = false;
+    test_suspend_hook = empty_reply_hook;
+    assert(usbEp0Reply(usbp, NULL, 0U) == MSG_OK);
+    test_suspend_hook = NULL;
+    assert(empty_reply_seen);
+    first = empty_reply_first;
+#else
+    first = usbp->ep0state;
+    finish_ep0(usbp);
+    assert(devs[i].endcbs == endcbs + 1U);
+#endif
+    if (lengths[k] != 0U) {
+      assert(first == USB_EP0_IN_WAITING_TX0);
+      assert(test_ep0_chunks == 1U && test_ep0_bytes == 0U);
+    }
+    else {
+      assert(first == USB_EP0_IN_SENDING_STS);
+      assert(test_ep0_chunks == 0U);
+    }
+    assert(usbp->ep0state == USB_EP0_STP_WAITING);
+  }
+  usbStop(usbp);
+  printf("PASS: OTG%u empty EP0 reply, zero size data packet or IN status\n",
+         i + 1U);
+}
 
 static void check_bulk(USBDriver *usbp) {
   unsigned i = drv_index(usbp);
@@ -2520,6 +2586,7 @@ int main(void) {
     check_ep0_thread(usbp);
     check_ep0_thread_address(usbp);
 #endif
+    check_empty_reply(usbp);
     check_bulk(usbp);
     check_in_restart(usbp);
 #if USB_USE_WAIT == TRUE

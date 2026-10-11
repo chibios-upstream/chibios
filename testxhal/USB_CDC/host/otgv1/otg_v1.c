@@ -569,6 +569,54 @@ static void check_setup_bursts(hal_usb_driver_c *usbp) {
   puts("PASS: completion markers pair with A/B; delayed STUP never redispatches");
 }
 
+static hal_usb_driver_c *test_reply_driver;
+static unsigned test_reply_state, test_reply_busy;
+
+static void reply_suspend_hook(void) {
+
+  test_reply_state = test_reply_driver->ep0state;
+  test_reply_busy = (test_reply_driver->transmitting & 1U) |
+                    ((test_reply_driver->receiving & 1U) << 1);
+}
+
+/* An empty endpoint-zero reply, generated HLD: a zero size data packet when
+   the request has a data stage, the IN status stage otherwise.*/
+static void check_empty_reply(hal_usb_driver_c *usbp) {
+  static const uint16_t lengths[2] = {8U, 0U};
+  stm32_otg_t *otgp = usbp->otg;
+  stm32_otg_in_ep_t in0 = otgp->ie[0];
+  stm32_otg_out_ep_t out0 = otgp->oe[0];
+  uint32_t empmsk = otgp->DIEPEMPMSK;
+  unsigned k;
+
+  for (k = 0U; k < 2U; k++) {
+    usbp->ep0state = USB_EP0_STP_WAITING;
+    usbp->transmitting &= ~1U;
+    usbp->receiving &= ~1U;
+    usbp->ep0rseq = usbp->ep0seq;
+    memset(usbp->setup, 0, sizeof(usbp->setup));
+    usbp->setup[0] = 0xC0U;
+    usbp->setup[6] = (uint8_t)lengths[k];
+    usbp->setup[7] = (uint8_t)(lengths[k] >> 8);
+    test_reply_driver = usbp;
+    test_reply_state = USB_EP0_ERROR;
+    test_suspend_hook = reply_suspend_hook;
+    assert(usbEp0Reply(usbp, NULL, 0U) == MSG_OK);
+    test_suspend_hook = NULL;
+    /* EP0 IN armed, no OUT status wait.*/
+    assert(test_reply_busy == 1U);
+    assert(test_reply_state == (lengths[k] != 0U ? USB_EP0_IN_WAITING_TX0 :
+                                                   USB_EP0_IN_SENDING_STS));
+    assert(usbp->ep0_state.in.txsize == 0U);
+    usbp->transmitting &= ~1U;
+    otgp->ie[0] = in0;
+    otgp->oe[0] = out0;
+    otgp->DIEPEMPMSK = empmsk;
+  }
+  usbp->ep0state = USB_EP0_STP_WAITING;
+  puts("PASS: empty EP0 reply, zero size data packet or IN status");
+}
+
 static void check_setup_status_order(hal_usb_driver_c *usbp) {
   unsigned kind, setups, ins, outs;
 
@@ -1083,6 +1131,7 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   assert(test_out == count);
   check_setup_bursts(usbp);
   check_setup_status_order(usbp);
+  check_empty_reply(usbp);
   memset(usbp->ep0setup_buffer, 0x73, 8U);
   usb_lld_read_setup(usbp, 0U, buffer + 1U);
   assert(buffer[1] == 0x73 && buffer[8] == 0x73);

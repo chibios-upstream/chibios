@@ -58,6 +58,9 @@ On every enabled controller, through the real core:
   new request; a status IN or OUT completed before the SETUP is delivered
   first (the end callback runs once); an aborted OUT data stage never
   reaches the old request.
+- Empty EP0 reply to a device-to-host request, legacy handler and EP0
+  worker: a zero size data packet when wLength is not zero, then the OUT
+  status; the IN status stage when wLength is zero.
 - Bulk: TX FIFO space gating, hardware-sized chunks with one callback
   (IN and OUT, above the packet count limit), ZLP, short packets, excess
   data drained (AddressSanitizer guards the buffer end).
@@ -153,8 +156,9 @@ interrupt, stepping 1 pull-up control without sensing
 or with ULPI; in the core, the IN and OUT callback macros reading the
 endpoint configuration after the callback (thread and received size), the
 endpoint request check (whole, reserved bits,
-direction) and the EP0 worker SET_ADDRESS commit (sequence check, completion
-from the status stage, commit dropped by a new SETUP).
+direction), the EP0 worker SET_ADDRESS commit (sequence check, completion
+from the status stage, commit dropped by a new SETUP) and the empty EP0
+reply waiting for the OUT status (EP0 worker and legacy handler).
 
 ## Limits
 
