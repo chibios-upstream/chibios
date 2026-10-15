@@ -35,7 +35,12 @@ also owns LPTIM3 CCR2 in this application hook. A CCR2-only timestamp-
 maintenance interrupt remains on the lightweight STOP wake clock; simultaneous
 enabled CCR1 and CCR2 flags restore the RUN clocks normally.
 
-The clock-restore hook masks all maskable interrupts with PRIMASK. A ChibiOS
+The clock-restore hook uses the public `halClockResume()` API to restore the
+saved RUN configuration without rewriting retained peripheral selectors. It
+masks all maskable interrupts with PRIMASK. On resume failure, it records the
+failure and attempts a full `halClockSwitchMode()` to the default configuration.
+If that also fails, it halts with interrupts still masked; the demo does not
+continue on a partially restored clock tree. A ChibiOS
 kernel lock uses BASEPRI and does not mask priority-zero autonomous interrupts;
 allowing one of those handlers to run during RCC and Flash reconfiguration
 would expose a partially restored clock tree. Fast priority-zero handlers do

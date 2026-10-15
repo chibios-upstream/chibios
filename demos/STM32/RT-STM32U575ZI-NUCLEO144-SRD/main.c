@@ -116,8 +116,14 @@ static uint32_t restoreRunClocksAtomic(void) {
     SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
     PWR->CR1 &= ~PWR_CR1_LPMS_Msk;
 
-    if (hal_lld_clock_switch_mode(&hal_clkcfg_default)) {
+    if (halClockResume()) {
       result |= DEMO_RESTORE_FAILED;
+      /* A failed resume can leave partially restored clocks. Recover before
+         unmasking IRQs; halt with PRIMASK held if the full switch also fails. */
+      if (halClockSwitchMode(&hal_clkcfg_default)) {
+        restore_failures++;
+        chSysHalt("STOP2 clock recovery");
+      }
     }
   }
 
