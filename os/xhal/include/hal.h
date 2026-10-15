@@ -90,41 +90,49 @@
 
 /**
  * @name    Return codes for HAL functions
+ * @note    Keep these values aligned in HAL and XHAL. New errors must be
+ *          appended without renumbering existing values because these codes
+ *          are also transferred across sandbox VIO interfaces.
  * @{
  */
 #define HAL_RET_SUCCESS         MSG_OK
 /**
- * @brief   Operation requested during invalid driver state.
- * @details This error is returned if the driver cannot accept the request
- *          because its internal state.
- */
-#define HAL_RET_INV_STATE       (msg_t)-16
-/**
  * @brief   Configuration error.
- * @details An error has been detected in the driver configuration structure.
+ * @details An error has been detected in a driver configuration structure
+ *          or conversion group. Operation preconditions such as transfer
+ *          sizes and buffer alignment are checked using debug assertions.
  */
-#define HAL_RET_CONFIG_ERROR    (msg_t)-17
+#define HAL_RET_CONFIG_ERROR    (msg_t)-16
 /**
  * @brief   A required resource is not available.
  * @details One of the resources required for driver operations is not
  *          available.
  */
-#define HAL_RET_NO_RESOURCE     (msg_t)-18
+#define HAL_RET_NO_RESOURCE     (msg_t)-17
 /**
  * @brief   The peripheral is busy.
  * @details The peripheral is not available or taken by some other system
  *          actor.
  */
-#define HAL_RET_HW_BUSY         (msg_t)-19
+#define HAL_RET_HW_BUSY         (msg_t)-18
 /**
  * @brief   Peripheral failure.
  * @details Peripheral failed, for example HW timeouts.
  */
-#define HAL_RET_HW_FAILURE      (msg_t)-20
+#define HAL_RET_HW_FAILURE      (msg_t)-19
 /**
  * @brief   Unknown control code.
  */
-#define HAL_RET_UNKNOWN_CTL     (msg_t)-21
+#define HAL_RET_UNKNOWN_CTL     (msg_t)-20
+/**
+ * @brief   Invalid instance pointer.
+ */
+#define HAL_RET_IS_INVALID      (msg_t)-21
+/**
+ * @brief   Operation requested during invalid driver state.
+ * @details The driver cannot accept the request in its current state.
+ */
+#define HAL_RET_INV_STATE       (msg_t)-22
 /** @} */
 
 /*===========================================================================*/
@@ -303,6 +311,29 @@ static inline bool halClockSwitchMode(const halclkcfg_t *ccp) {
 }
 #endif /* defined(HAL_LLD_USE_CLOCK_MANAGEMENT) */
 
+#if defined(HAL_LLD_USE_CLOCK_RESUME) || defined(__DOXYGEN__)
+/**
+ * @brief   Resumes the current clock configuration after a low power mode.
+ * @details Restores the default configuration after initialization, or the
+ *          last configuration successfully installed by
+ *          @p halClockSwitchMode().
+ * @note    This operation is only available on supporting platforms.
+ * @note    Interrupts must remain masked throughout this operation.
+ * @note    A failure may leave the clock state partially restored. The caller
+ *          must recover the clock state before interrupts are unmasked.
+ *
+ * @return              The clock resume result.
+ * @retval false        if the clock resume succeeded
+ * @retval true         if the clock resume failed
+ *
+ * @special
+ */
+static inline bool halClockResume(void) {
+
+  return hal_lld_clock_resume();
+}
+#endif /* defined(HAL_LLD_USE_CLOCK_RESUME) */
+
 /*===========================================================================*/
 /* Driver late inclusions.                                                   */
 /*===========================================================================*/
@@ -314,6 +345,7 @@ static inline bool halClockSwitchMode(const halclkcfg_t *ccp) {
 #include "hal_base_driver.h"
 #include "hal_cb_driver.h"
 #include "hal_channels.h"
+#include "hal_tty.h"
 #include "hal_block_io.h"
 #include "hal_flash.h"
 //#include "hal_mmcsd.h"
@@ -328,7 +360,7 @@ static inline bool halClockSwitchMode(const halclkcfg_t *ccp) {
 #include "hal_pal.h"
 #include "hal_adc.h"
 #include "hal_can.h"
-//#include "hal_crypto.h"
+#include "hal_crypto.h"
 #include "hal_dac.h"
 #include "hal_efl.h"
 #include "hal_eth.h"

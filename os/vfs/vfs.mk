@@ -23,6 +23,7 @@ VFSSRC := $(CHIBIOS)/os/vfs/src/vfspaths.c \
 # Required include directories
 VFSINC := $(CHIBIOS)/os/common/include \
           $(CHIBIOS)/os/common/utils/include \
+          $(CHIBIOS)/os/xhal/include \
           $(CHIBIOS)/os/vfs/include \
           $(CHIBIOS)/os/vfs/drivers/tmplfs \
           $(CHIBIOS)/os/vfs/drivers/chfs \

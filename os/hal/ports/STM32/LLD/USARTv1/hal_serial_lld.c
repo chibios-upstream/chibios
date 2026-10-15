@@ -23,6 +23,7 @@
  */
 
 #include "hal.h"
+#include "stm32_usart_common.h"
 
 #if HAL_USE_SERIAL || defined(__DOXYGEN__)
 
@@ -112,19 +113,11 @@ static void usart_init(SerialDriver *sdp, const SerialConfig *config) {
   uint32_t brr;
   USART_TypeDef *u = sdp->usart;
 
-  brr = (uint32_t)((sdp->clock + config->speed/2) / config->speed);
+  brr = stm32_usart_get_brr(u, config->speed, 0U, config->cr1);
 
-#if defined(USART_CR1_OVER8)
-  /* Correcting BRR value when oversampling by 8 instead of 16.
-     Fraction is still 4 bits wide, but only lower 3 bits used.
-     Mantissa is doubled, but Fraction is left the same.*/
-  if (config->cr1 & USART_CR1_OVER8)
-    brr = ((brr & ~7) * 2) | (brr & 7);
-#endif
-
-  osalDbgAssert(brr < 0x10000, "invalid BRR value");
-
-  u->BRR = brr;
+  /* Baud rate registers are configured with the peripheral disabled.*/
+  u->CR1 = 0U;
+  stm32_usart_set_brr(u, brr, 0U);
 
   /* Note that some bits are enforced.*/
   u->CR2 = config->cr2 | USART_CR2_LBDIE;
@@ -487,7 +480,6 @@ void sd_lld_init(void) {
 #if STM32_SERIAL_USE_USART1
   sdObjectInit(&SD1, NULL, notify1);
   SD1.usart = USART1;
-  SD1.clock = STM32_PCLK2;
 #if !defined(STM32_USART1_SUPPRESS_ISR) && defined(STM32_USART1_NUMBER)
   nvicEnableVector(STM32_USART1_NUMBER, STM32_SERIAL_USART1_PRIORITY);
 #endif
@@ -496,7 +488,6 @@ void sd_lld_init(void) {
 #if STM32_SERIAL_USE_USART2
   sdObjectInit(&SD2, NULL, notify2);
   SD2.usart = USART2;
-  SD2.clock = STM32_PCLK1;
 #if !defined(STM32_USART2_SUPPRESS_ISR) && defined(STM32_USART2_NUMBER)
   nvicEnableVector(STM32_USART2_NUMBER, STM32_SERIAL_USART2_PRIORITY);
 #endif
@@ -505,7 +496,6 @@ void sd_lld_init(void) {
 #if STM32_SERIAL_USE_USART3
   sdObjectInit(&SD3, NULL, notify3);
   SD3.usart = USART3;
-  SD3.clock = STM32_PCLK1;
 #if !defined(STM32_USART3_SUPPRESS_ISR) && defined(STM32_USART3_NUMBER)
   nvicEnableVector(STM32_USART3_NUMBER, STM32_SERIAL_USART3_PRIORITY);
 #endif
@@ -514,7 +504,6 @@ void sd_lld_init(void) {
 #if STM32_SERIAL_USE_UART4
   sdObjectInit(&SD4, NULL, notify4);
   SD4.usart = UART4;
-  SD4.clock = STM32_PCLK1;
 #if !defined(STM32_UART4_SUPPRESS_ISR) && defined(STM32_UART4_NUMBER)
   nvicEnableVector(STM32_UART4_NUMBER, STM32_SERIAL_UART4_PRIORITY);
 #endif
@@ -523,7 +512,6 @@ void sd_lld_init(void) {
 #if STM32_SERIAL_USE_UART5
   sdObjectInit(&SD5, NULL, notify5);
   SD5.usart = UART5;
-  SD5.clock = STM32_PCLK1;
 #if !defined(STM32_UART5_SUPPRESS_ISR) && defined(STM32_UART5_NUMBER)
   nvicEnableVector(STM32_UART5_NUMBER, STM32_SERIAL_UART5_PRIORITY);
 #endif
@@ -532,7 +520,6 @@ void sd_lld_init(void) {
 #if STM32_SERIAL_USE_USART6
   sdObjectInit(&SD6, NULL, notify6);
   SD6.usart = USART6;
-  SD6.clock = STM32_PCLK2;
 #if !defined(STM32_USART6_SUPPRESS_ISR) && defined(STM32_USART6_NUMBER)
   nvicEnableVector(STM32_USART6_NUMBER, STM32_SERIAL_USART6_PRIORITY);
 #endif
@@ -541,7 +528,6 @@ void sd_lld_init(void) {
 #if STM32_SERIAL_USE_UART7
   sdObjectInit(&SD7, NULL, notify7);
   SD7.usart = UART7;
-  SD7.clock = STM32_PCLK1;
 #if !defined(STM32_UART7_SUPPRESS_ISR) && defined(STM32_UART7_NUMBER)
   nvicEnableVector(STM32_UART7_NUMBER, STM32_SERIAL_UART7_PRIORITY);
 #endif
@@ -550,7 +536,6 @@ void sd_lld_init(void) {
 #if STM32_SERIAL_USE_UART8
   sdObjectInit(&SD8, NULL, notify8);
   SD8.usart = UART8;
-  SD8.clock = STM32_PCLK1;
 #if !defined(STM32_UART8_SUPPRESS_ISR) && defined(STM32_UART8_NUMBER)
   nvicEnableVector(STM32_UART8_NUMBER, STM32_SERIAL_UART8_PRIORITY);
 #endif
@@ -559,7 +544,6 @@ void sd_lld_init(void) {
 #if STM32_SERIAL_USE_UART9
   sdObjectInit(&SD9, NULL, notify9);
   SD9.usart = UART9;
-  SD9.clock = STM32_PCLK2;
 #if !defined(STM32_UART9_SUPPRESS_ISR) && defined(STM32_UART9_NUMBER)
   nvicEnableVector(STM32_UART9_NUMBER, STM32_SERIAL_UART9_PRIORITY);
 #endif
@@ -568,7 +552,6 @@ void sd_lld_init(void) {
 #if STM32_SERIAL_USE_UART10
   sdObjectInit(&SD10, NULL, notify10);
   SD10.usart = UART10;
-  SD10.clock = STM32_PCLK2;
 #if !defined(STM32_UART10_SUPPRESS_ISR) && defined(STM32_UART10_NUMBER)
   nvicEnableVector(STM32_UART10_NUMBER, STM32_SERIAL_UART10_PRIORITY);
 #endif

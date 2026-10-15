@@ -393,15 +393,11 @@
   /* Pointer to the USARTx registers block.*/                               \
   USART_TypeDef             *usart;                                         \
   /* Flag indicating FIFO capability.*/                                     \
-  bool                      has_fifo;                                       \
-  /* Clock frequency for the associated USART/UART.*/                       \
-  uint32_t                  clock
+  bool                      has_fifo
 #else
 #define sio_lld_driver_fields                                               \
   /* Pointer to the USARTx registers block.*/                               \
-  USART_TypeDef             *usart;                                         \
-  /* Clock frequency for the associated USART/UART.*/                       \
-  uint32_t                  clock
+  USART_TypeDef             *usart
 #endif
 
 /**

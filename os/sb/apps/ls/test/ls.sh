@@ -28,6 +28,7 @@ touch "$case_dir/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 mkdir "$case_dir/subdir"
 
 output=$("$ls_exe" "$case_dir")
+sbtest_not_contains "$output" "$(printf '\r')" "listing contains CR"
 sbtest_contains "$output" "normal" "default listing omitted a regular file"
 sbtest_contains "$output" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
   "default listing omitted a long file name"
@@ -40,10 +41,11 @@ output=$("$ls_exe" -l "$case_dir/normal")
 sbtest_contains "$output" "$case_dir/normal" "-l listing omitted its operand"
 
 output=$(cd "$case_dir" && "$ls_exe" -- -dash)
-sbtest_contains "$output" "-dash" "-- did not terminate option parsing"
+sbtest_equals "$output" "-dash" "-- did not terminate option parsing"
 
-if "$ls_exe" "$case_dir/missing" >/dev/null 2>&1; then
+if output=$("$ls_exe" "$case_dir/missing" 2>&1); then
   sbtest_fail "missing operand returned success"
 fi
+sbtest_not_contains "$output" "$(printf '\r')" "diagnostic contains CR"
 
 echo "ls behavioral checks passed"

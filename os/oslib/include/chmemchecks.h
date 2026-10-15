@@ -77,7 +77,6 @@ extern const memory_area_t __ch_mem_executable_areas[];
 #ifdef __cplusplus
 extern "C" {
 #endif
-#if CH_CFG_USE_MEMCHECKS == TRUE
   size_t chMemIsStringWithinX(const memory_area_t *map,
                               const char *s,
                               size_t max);
@@ -87,6 +86,7 @@ extern "C" {
   bool chMemIsSpaceContainedX(const memory_area_t areas[],
                               const void *p,
                               size_t size);
+#if CH_CFG_USE_MEMCHECKS == TRUE
   bool chMemIsSpaceWritableX(void *p,
                              size_t size,
                              unsigned align);
@@ -182,8 +182,7 @@ static inline bool chMemIsSpaceIntersectingX(const memory_area_t *map,
 
   chDbgAssert((mem_base <= mem_end) && (base <= end), "invalid memory area");
 
-  return (bool)(((base >= mem_base) && (base <= mem_end)) ||
-                ((end  >= mem_base) && (end  <= mem_end)));
+  return (bool)((base <= mem_end) && (mem_base <= end));
 }
 
 /**
@@ -208,16 +207,15 @@ static inline bool chMemIsAreaIntersectingX(const memory_area_t *map1,
 
   chDbgAssert((mem_base <= mem_end) && (base <= end), "invalid memory area");
 
-  return (bool)(((base >= mem_base) && (base <= mem_end)) ||
-                ((end  >= mem_base) && (end  <= mem_end)));
+  return (bool)((base <= mem_end) && (mem_base <= end));
 }
 
 #if CH_CFG_USE_MEMCHECKS == FALSE
 /* Stub implementations for when the functionality is disabled, areas are
    always reported as valid.*/
-static inline bool chMemIsAreaWritableX(const void *p,
-                                        size_t size,
-                                        unsigned align) {
+static inline bool chMemIsSpaceWritableX(void *p,
+                                         size_t size,
+                                         unsigned align) {
 
   (void)p;
   (void)size;
@@ -226,9 +224,9 @@ static inline bool chMemIsAreaWritableX(const void *p,
   return true;
 }
 
-static inline bool chMemIsAreaReadableX(const void *p,
-                                        size_t size,
-                                        unsigned align) {
+static inline bool chMemIsSpaceReadableX(const void *p,
+                                         size_t size,
+                                         unsigned align) {
 
   (void)p;
   (void)size;

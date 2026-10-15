@@ -283,6 +283,34 @@
   } while (false)
 #endif /* CAN_USE_SYNCHRONIZATION == TRUE */
 
+#if (CAN_USE_SYNCHRONIZATION == TRUE) || defined (__DOXYGEN__)
+/**
+ * @brief       Releases threads waiting while the controller was asleep.
+ *
+ * @param[in,out] canp          Pointer to the CAN driver instance.
+ *
+ * @notapi
+ */
+#define _can_wakeup_waiters_isr(canp)                                       \
+  do {                                                                      \
+    chSysLockFromISR();                                                     \
+    chThdDequeueAllI(&(canp)->txqueue, MSG_OK);                             \
+    chThdDequeueAllI(&(canp)->rxqueue, MSG_OK);                             \
+    chSysUnlockFromISR();                                                   \
+  } while (false)
+
+#else
+
+/**
+ * @brief       No synchronization queues to release.
+ *
+ * @param[in,out] canp          Pointer to the CAN driver instance.
+ *
+ * @notapi
+ */
+#define _can_wakeup_waiters_isr(canp)
+#endif /* CAN_USE_SYNCHRONIZATION == TRUE */
+
 /**
  * @brief       Common ISR code, CAN wakeup event.
  *
@@ -294,6 +322,7 @@
   do {                                                                      \
     (canp)->state  = HAL_DRV_STATE_READY;                                   \
     (canp)->events |= CAN_EVENT_WAKEUP;                                     \
+    _can_wakeup_waiters_isr(canp);                                          \
     __cbdrv_invoke_cb(canp);                                                \
   } while (false)
 
@@ -420,7 +449,7 @@ struct hal_can_driver_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From hal_cb_driver_c.*/
@@ -522,7 +551,7 @@ extern "C" {
   void *__can_objinit_impl(void *ip, const void *vmt);
   void __can_dispose_impl(void *ip);
   msg_t __can_start_impl(void *ip, const void *config);
-  void __can_stop_impl(void *ip);
+  void __can_stop_impl(void *ip, driver_state_t prevstate);
   const void *__can_setcfg_impl(void *ip, const void *config);
   const void *__can_selcfg_impl(void *ip, unsigned cfgnum);
   void __can_oncbset_impl(void *ip, drv_cb_t cb);

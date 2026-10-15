@@ -29,6 +29,19 @@
 
 #define RTC_ALARMS                          STM32_RTC_NUM_ALARMS
 
+/**
+ * @name    STM32 periodic-wakeup encoding
+ * @details rtc_wakeup_t.wutr contains the 16-bit reload value in bits 15:0
+ *          and CR.WUCKSEL in bits 18:16. Selectors 0..3 use RTCCLK divided by
+ *          16, 8, 4, 2; 4..5 use ck_spre; 6..7 use ck_spre with 65536 added
+ *          to the reload value. The period is (reload + 1) selected ticks.
+ *          Selector 3 with reload zero is forbidden.
+ * @{
+ */
+#define RTC_SUPPORTS_PERIODIC_WAKEUP        STM32_RTC_HAS_PERIODIC_WAKEUPS
+#define RTC_WAKEUP(sel, reload)             (((sel) << 16) | (reload))
+/** @} */
+
 #define RTC_PRER(a, s)                      ((((a) - 1U) << 16) | ((s) - 1U))
 
 #define RTC_ALRM_MSK4                       (1U << 31)
@@ -141,6 +154,12 @@
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+#if RTC_SUPPORTS_PERIODIC_WAKEUP
+  msg_t rtc_lld_set_periodic_wakeup(hal_rtc_driver_c *rtcp,
+                                   const rtc_wakeup_t *wakeupspec);
+  msg_t rtc_lld_get_periodic_wakeup(hal_rtc_driver_c *rtcp,
+                                   rtc_wakeup_t *wakeupspec);
 #endif
   void rtc_lld_init(void);
   msg_t rtc_lld_start(hal_rtc_driver_c *rtcp);

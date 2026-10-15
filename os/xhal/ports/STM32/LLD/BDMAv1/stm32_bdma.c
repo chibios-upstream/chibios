@@ -105,6 +105,21 @@ static struct {
 /* Driver local functions.                                                   */
 /*===========================================================================*/
 
+/**
+ * @brief   Clears captured flags and dispatches enabled interrupt sources.
+ */
+static void bdma_serve_interrupt(const stm32_bdma_stream_t *dmastp,
+                                 uint32_t flags) {
+  uint32_t pending;
+  uint32_t selfindex = (uint32_t)dmastp->selfindex;
+
+  pending = flags & dmastp->channel->CCR;
+  dmastp->bdma->IFCR = flags << dmastp->shift;
+  if ((pending != 0U) && (bdma.streams[selfindex].func != NULL)) {
+    bdma.streams[selfindex].func(bdma.streams[selfindex].param, pending);
+  }
+}
+
 /*===========================================================================*/
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
@@ -120,9 +135,7 @@ CH_IRQ_HANDLER(STM32_BDMA1_CH0_HANDLER) {
   CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 0U) & STM32_BDMA_ISR_MASK;
-  BDMA->IFCR = flags << 0U;
-  if (bdma.streams[0].func)
-    bdma.streams[0].func(bdma.streams[0].param, flags);
+  bdma_serve_interrupt(STM32_BDMA_STREAM(0), flags);
 
   CH_IRQ_EPILOGUE();
 }
@@ -138,9 +151,7 @@ CH_IRQ_HANDLER(STM32_BDMA1_CH1_HANDLER) {
   CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 4U) & STM32_BDMA_ISR_MASK;
-  BDMA->IFCR = flags << 4U;
-  if (bdma.streams[1].func)
-    bdma.streams[1].func(bdma.streams[1].param, flags);
+  bdma_serve_interrupt(STM32_BDMA_STREAM(1), flags);
 
   CH_IRQ_EPILOGUE();
 }
@@ -156,9 +167,7 @@ CH_IRQ_HANDLER(STM32_BDMA1_CH2_HANDLER) {
   CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 8U) & STM32_BDMA_ISR_MASK;
-  BDMA->IFCR = flags << 8U;
-  if (bdma.streams[2].func)
-    bdma.streams[2].func(bdma.streams[2].param, flags);
+  bdma_serve_interrupt(STM32_BDMA_STREAM(2), flags);
 
   CH_IRQ_EPILOGUE();
 }
@@ -174,9 +183,7 @@ CH_IRQ_HANDLER(STM32_BDMA1_CH3_HANDLER) {
   CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 12U) & STM32_BDMA_ISR_MASK;
-  BDMA->IFCR = flags << 12U;
-  if (bdma.streams[3].func)
-    bdma.streams[3].func(bdma.streams[3].param, flags);
+  bdma_serve_interrupt(STM32_BDMA_STREAM(3), flags);
 
   CH_IRQ_EPILOGUE();
 }
@@ -192,9 +199,7 @@ CH_IRQ_HANDLER(STM32_BDMA1_CH4_HANDLER) {
   CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 16U) & STM32_BDMA_ISR_MASK;
-  BDMA->IFCR = flags << 16U;
-  if (bdma.streams[4].func)
-    bdma.streams[4].func(bdma.streams[4].param, flags);
+  bdma_serve_interrupt(STM32_BDMA_STREAM(4), flags);
 
   CH_IRQ_EPILOGUE();
 }
@@ -210,9 +215,7 @@ CH_IRQ_HANDLER(STM32_BDMA1_CH5_HANDLER) {
   CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 20U) & STM32_BDMA_ISR_MASK;
-  BDMA->IFCR = flags << 20U;
-  if (bdma.streams[5].func)
-    bdma.streams[5].func(bdma.streams[5].param, flags);
+  bdma_serve_interrupt(STM32_BDMA_STREAM(5), flags);
 
   CH_IRQ_EPILOGUE();
 }
@@ -228,9 +231,7 @@ CH_IRQ_HANDLER(STM32_BDMA1_CH6_HANDLER) {
   CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 24U) & STM32_BDMA_ISR_MASK;
-  BDMA->IFCR = flags << 24U;
-  if (bdma.streams[6].func)
-    bdma.streams[6].func(bdma.streams[6].param, flags);
+  bdma_serve_interrupt(STM32_BDMA_STREAM(6), flags);
 
   CH_IRQ_EPILOGUE();
 }
@@ -246,9 +247,7 @@ CH_IRQ_HANDLER(STM32_BDMA1_CH7_HANDLER) {
   CH_IRQ_PROLOGUE();
 
   flags = (BDMA->ISR >> 28U) & STM32_BDMA_ISR_MASK;
-  BDMA->IFCR = flags << 28U;
-  if (bdma.streams[7].func)
-    bdma.streams[7].func(bdma.streams[7].param, flags);
+  bdma_serve_interrupt(STM32_BDMA_STREAM(7), flags);
 
   CH_IRQ_EPILOGUE();
 }

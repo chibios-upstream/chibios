@@ -80,6 +80,9 @@ static inline void init_bkp_domain(void) {
 #endif
 
 #if HAL_USE_RTC
+  /* Calendar and tamper register accesses require the APB interface clock.*/
+  rccEnableAPB4(RCC_APB4ENR_RTCAPBEN, true);
+
   /* If the backup domain hasn't been initialized yet then proceed with
      initialization.*/
   if ((RCC->BDCR & RCC_BDCR_RTCEN) == 0) {
@@ -233,7 +236,16 @@ void stm32_clock_init(void) {
   RCC_TypeDef *rcc = RCC; /* For inspection.*/
   (void)rcc;
 #endif
+#endif /* STM32_NO_INIT == FALSE */
 
+  /* DWT cycles counter enabled, used for timeouts.*/
+  halRegSet32X(&CoreDebug->DEMCR, CoreDebug_DEMCR_TRCENA_Msk, true);
+#if CORTEX_MODEL == 7
+  DWT->LAR = 0xC5ACCE55U;
+#endif
+  halRegSet32X(&DWT->CTRL, DWT_CTRL_CYCCNTENA_Msk, true);
+
+#if STM32_NO_INIT == FALSE
   /* SYSCFG clock enabled here because it is a multi-functional unit shared
      among multiple drivers.*/
   rccEnableAPB4(RCC_APB4ENR_SYSCFGEN, true);

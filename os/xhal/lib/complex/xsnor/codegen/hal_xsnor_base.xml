@@ -775,6 +775,8 @@ return HAL_RET_SUCCESS;]]></implementation>
               <implementation><![CDATA[
 const xsnor_config_t *config = self->config;
 
+(void)prevstate;
+
 if (config == NULL) {
   return;
 }

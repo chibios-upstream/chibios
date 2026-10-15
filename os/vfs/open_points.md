@@ -47,14 +47,6 @@ remaining technical points across the VFS subsystems.
   format; reporting the backing block-device geometry alone would not describe
   per-node allocation.
 
-## Streams Driver
-
-- Registering a random stream requires setting both `.stm` and `.rstm`
-  in `drv_streams_element_t`, pointing to the same object (with a cast for
-  `.stm`). This is slightly redundant — the sequential interface could be
-  derived from the random stream since `random_stream_i` extends
-  `sequential_stream_i`. Simplifying would change the registration API.
-
 ## Simulator Target
 
 - The POSIX simulator serial driver has limited throughput for interactive

@@ -169,9 +169,15 @@ msg_t __wspi_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p hal_wspi_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __wspi_stop_impl(void *ip) {
+void __wspi_stop_impl(void *ip, driver_state_t prevstate) {
   hal_wspi_driver_c *self = (hal_wspi_driver_c *)ip;
+
+  (void)prevstate;
+
   wspi_lld_stop(self);
 #if WSPI_USE_SYNCHRONIZATION == TRUE
   chSysLock();

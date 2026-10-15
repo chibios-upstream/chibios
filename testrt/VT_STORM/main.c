@@ -36,8 +36,16 @@ int main(void) {
   halInit();
   chSysInit();
 
+  /* Board-dependent setup.*/
+  portab_setup();
+
+#if defined(PORTAB_SIO1)
+  /* Serial I/O Driver for output.*/
+  sioStart(&PORTAB_SIO1, NULL);
+#else
   /* Serial Driver for output.*/
   sdStart(&PORTAB_SD1, NULL);
+#endif
 
   /* Running the test.*/
   vt_storm_execute(&portab_vt_storm_config);

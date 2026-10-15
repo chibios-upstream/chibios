@@ -302,16 +302,20 @@ static void adc_lld_set_internal_channels(ADCDriver *adcp,
 static void adc_lld_serve_dma_interrupt(void *p, uint32_t csr) {
   ADCDriver *adcp = (ADCDriver *)p;
 
+  /* An ADC error or a callback may already have stopped the conversion.*/
+  if ((adcp->grpp == NULL) || (adcp->state != ADC_ACTIVE)) {
+    return;
+  }
+
   if ((csr & STM32_DMA3_CSR_ERRORS) != 0U) {
     _adc_isr_error_code(adcp, ADC_ERR_DMAFAILURE);
   }
-  else if (adcp->grpp != NULL) {
-    if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
-      _adc_isr_full_code(adcp);
-    }
-    else if ((csr & STM32_DMA3_CSR_HTF) != 0U) {
-      _adc_isr_half_code(adcp);
-    }
+  else if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
+    /* Transfer complete takes priority over a pending half transfer.*/
+    _adc_isr_full_code(adcp);
+  }
+  else if ((csr & STM32_DMA3_CSR_HTF) != 0U) {
+    _adc_isr_half_code(adcp);
   }
 }
 
@@ -319,18 +323,19 @@ static void adc_lld_serve_dma_interrupt(void *p, uint32_t csr) {
  * @brief   ADC ISR common service routine.
  *
  * @param[in] adcp      pointer to the @p ADCDriver object
- * @param[in] isr       content of the ISR register
+ * @param[in] isr       enabled error flags from the ADC ISR registers
  */
 static void adc_lld_serve_interrupt(ADCDriver *adcp, uint32_t isr) {
   adcerror_t emask;
 
-  if (adcp->grpp == NULL) {
+  /* Ignore errors occurring after the conversion has ended.*/
+  if ((adcp->grpp == NULL) || (adcp->state != ADC_ACTIVE)) {
     return;
   }
 
   emask = 0U;
 
-  if ((isr & ADC_ISR_OVR) != 0U && adcp->state == ADC_ACTIVE) {
+  if ((isr & ADC_ISR_OVR) != 0U) {
     emask |= ADC_ERR_OVERFLOW;
   }
   if ((isr & ADC_ISR_AWD1) != 0U) {
@@ -357,35 +362,41 @@ static void adc_lld_serve_interrupt(ADCDriver *adcp, uint32_t isr) {
  * @isr
  */
 OSAL_IRQ_HANDLER(STM32_ADC12_HANDLER) {
-  uint32_t isr;
+  uint32_t isr, flags;
+#if STM32_ADC_DUAL_MODE
+  uint32_t sisr;
+#endif
 
   OSAL_IRQ_PROLOGUE();
 
 #if STM32_ADC_USE_ADC1
+  /* Acknowledge both ADCs before a callback can restart the conversion.*/
   isr  = ADC1->ISR;
+  flags = isr & ADC1->IER;
   ADC1->ISR = isr;
+#if STM32_ADC_DUAL_MODE
+  sisr = ADC2->ISR;
+  flags |= sisr & ADC2->IER;
+  ADC2->ISR = sisr;
+#endif
 #if defined(STM32_ADC_ADC1_IRQ_HOOK)
   STM32_ADC_ADC1_IRQ_HOOK
 #endif
-  adc_lld_serve_interrupt(&ADCD1, isr);
-#endif
-
-#if STM32_ADC_DUAL_MODE
-  isr  = ADC2->ISR;
-  ADC2->ISR = isr;
-#if defined(STM32_ADC_ADC2_IRQ_HOOK)
+#if STM32_ADC_DUAL_MODE && defined(STM32_ADC_ADC2_IRQ_HOOK)
+  isr = sisr;
   STM32_ADC_ADC2_IRQ_HOOK
 #endif
-  adc_lld_serve_interrupt(&ADCD1, isr);
-#endif /* STM32_ADC_DUAL_MODE */
+  adc_lld_serve_interrupt(&ADCD1, flags);
+#endif /* STM32_ADC_USE_ADC1 */
 
 #if STM32_ADC_USE_ADC2 && !STM32_ADC_DUAL_MODE
   isr  = ADC2->ISR;
+  flags = isr & ADC2->IER;
   ADC2->ISR = isr;
 #if defined(STM32_ADC_ADC2_IRQ_HOOK)
   STM32_ADC_ADC2_IRQ_HOOK
 #endif
-  adc_lld_serve_interrupt(&ADCD2, isr);
+  adc_lld_serve_interrupt(&ADCD2, flags);
 #endif /* STM32_ADC_USE_ADC2 && !STM32_ADC_DUAL_MODE */
 
   OSAL_IRQ_EPILOGUE();
@@ -632,13 +643,9 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
   adcp->adcm->AWD2CR  = grpp->awd2cr;
   adcp->adcm->AWD3CR  = grpp->awd3cr;
 
-  if (grpp->error_cb != NULL) {
-    adcp->adcm->IER = ADC_IER_OVRIE | ADC_IER_AWD1IE |
-                      ADC_IER_AWD2IE | ADC_IER_AWD3IE;
-  }
-  else {
-    adcp->adcm->IER = 0U;
-  }
+  /* Errors also terminate conversions without an application callback.*/
+  adcp->adcm->IER = ADC_IER_OVRIE | ADC_IER_AWD1IE |
+                    ADC_IER_AWD2IE | ADC_IER_AWD3IE;
 
 #if STM32_ADC_DUAL_MODE
   adcp->adcs->ISR     = adcp->adcs->ISR;
@@ -650,13 +657,8 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
   adcp->adcs->HTR3    = grpp->shtr3;
   adcp->adcs->AWD2CR  = grpp->sawd2cr;
   adcp->adcs->AWD3CR  = grpp->sawd3cr;
-  if (grpp->error_cb != NULL) {
-    adcp->adcs->IER = ADC_IER_OVRIE | ADC_IER_AWD1IE |
-                      ADC_IER_AWD2IE | ADC_IER_AWD3IE;
-  }
-  else {
-    adcp->adcs->IER = 0U;
-  }
+  adcp->adcs->IER = ADC_IER_OVRIE | ADC_IER_AWD1IE |
+                    ADC_IER_AWD2IE | ADC_IER_AWD3IE;
 #endif
 
 #if STM32_ADC_DUAL_MODE

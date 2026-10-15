@@ -105,17 +105,22 @@ OSAL_IRQ_HANDLER(RP_TIMER0_IRQ0_HANDLER) {
 
   OSAL_IRQ_PROLOGUE();
 
-  osalDbgAssert((TIMER0->INTS & TIMER_INTS_ALARM0) != 0U, "not pending");
-
-  TIMER0->INTR = TIMER_INTR_ALARM0;
+  /* Dismissing spurious wakeups, the alarm can be stopped or re-armed
+     from within a critical section while its interrupt is already
+     latched and pended in the NVIC, in that case the callback must not
+     be invoked. The status is cleared only when the alarm is pending,
+     so a re-armed alarm firing during the check is not lost.*/
+  if ((TIMER0->INTS & TIMER_INTS_ALARM0) != 0U) {
+    TIMER0->INTR = TIMER_INTR_ALARM0;
 
 #if defined(ST_LLD_ALARM0_STATIC_CB)
-  ST_LLD_ALARM0_STATIC_CB();
+    ST_LLD_ALARM0_STATIC_CB();
 #else
-  if (st_callbacks[0] != NULL) {
-    st_callbacks[0](0U);
-  }
+    if (st_callbacks[0] != NULL) {
+      st_callbacks[0](0U);
+    }
 #endif
+  }
 
   OSAL_IRQ_EPILOGUE();
 }
@@ -131,17 +136,22 @@ OSAL_IRQ_HANDLER(RP_TIMER0_IRQ1_HANDLER) {
 
   OSAL_IRQ_PROLOGUE();
 
-  osalDbgAssert((TIMER0->INTS & TIMER_INTS_ALARM1) != 0U, "not pending");
-
-  TIMER0->INTR = TIMER_INTR_ALARM1;
+  /* Dismissing spurious wakeups, the alarm can be stopped or re-armed
+     from within a critical section while its interrupt is already
+     latched and pended in the NVIC, in that case the callback must not
+     be invoked. The status is cleared only when the alarm is pending,
+     so a re-armed alarm firing during the check is not lost.*/
+  if ((TIMER0->INTS & TIMER_INTS_ALARM1) != 0U) {
+    TIMER0->INTR = TIMER_INTR_ALARM1;
 
 #if defined(ST_LLD_ALARM1_STATIC_CB)
-  ST_LLD_ALARM1_STATIC_CB();
+    ST_LLD_ALARM1_STATIC_CB();
 #else
-  if (st_callbacks[1] != NULL) {
-    st_callbacks[1](1U);
-  }
+    if (st_callbacks[1] != NULL) {
+      st_callbacks[1](1U);
+    }
 #endif
+  }
 
   OSAL_IRQ_EPILOGUE();
 }
@@ -157,17 +167,22 @@ OSAL_IRQ_HANDLER(RP_TIMER0_IRQ2_HANDLER) {
 
   OSAL_IRQ_PROLOGUE();
 
-  osalDbgAssert((TIMER0->INTS & TIMER_INTS_ALARM2) != 0U, "not pending");
-
-  TIMER0->INTR = TIMER_INTR_ALARM2;
+  /* Dismissing spurious wakeups, the alarm can be stopped or re-armed
+     from within a critical section while its interrupt is already
+     latched and pended in the NVIC, in that case the callback must not
+     be invoked. The status is cleared only when the alarm is pending,
+     so a re-armed alarm firing during the check is not lost.*/
+  if ((TIMER0->INTS & TIMER_INTS_ALARM2) != 0U) {
+    TIMER0->INTR = TIMER_INTR_ALARM2;
 
 #if defined(ST_LLD_ALARM2_STATIC_CB)
-  ST_LLD_ALARM2_STATIC_CB();
+    ST_LLD_ALARM2_STATIC_CB();
 #else
-  if (st_callbacks[2] != NULL) {
-    st_callbacks[2](2U);
-  }
+    if (st_callbacks[2] != NULL) {
+      st_callbacks[2](2U);
+    }
 #endif
+  }
 
   OSAL_IRQ_EPILOGUE();
 }
@@ -183,17 +198,22 @@ OSAL_IRQ_HANDLER(RP_TIMER0_IRQ3_HANDLER) {
 
   OSAL_IRQ_PROLOGUE();
 
-  osalDbgAssert((TIMER0->INTS & TIMER_INTS_ALARM3) != 0U, "not pending");
-
-  TIMER0->INTR = TIMER_INTR_ALARM3;
+  /* Dismissing spurious wakeups, the alarm can be stopped or re-armed
+     from within a critical section while its interrupt is already
+     latched and pended in the NVIC, in that case the callback must not
+     be invoked. The status is cleared only when the alarm is pending,
+     so a re-armed alarm firing during the check is not lost.*/
+  if ((TIMER0->INTS & TIMER_INTS_ALARM3) != 0U) {
+    TIMER0->INTR = TIMER_INTR_ALARM3;
 
 #if defined(ST_LLD_ALARM3_STATIC_CB)
-  ST_LLD_ALARM3_STATIC_CB();
+    ST_LLD_ALARM3_STATIC_CB();
 #else
-  if (st_callbacks[3] != NULL) {
-    st_callbacks[3](3U);
-  }
+    if (st_callbacks[3] != NULL) {
+      st_callbacks[3](3U);
+    }
 #endif
+  }
 
   OSAL_IRQ_EPILOGUE();
 }

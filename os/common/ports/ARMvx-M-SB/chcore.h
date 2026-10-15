@@ -27,6 +27,10 @@
 #ifndef CHCORE_H
 #define CHCORE_H
 
+/* Registry debugger identity, see the RT8 debugger interface.*/
+#define PORT_REGISTRY_ARCH              2U
+#define PORT_REGISTRY_ID                8U
+
 /* The following code is not processed when the file is included from an
    asm module because those intrinsic macros are not necessarily defined
    by the assembler too.*/

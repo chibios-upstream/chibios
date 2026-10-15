@@ -748,7 +748,7 @@ static const struct vfs_fatfs_file_node_vmt __vfs_fatfs_file_node_vmt = {
   .write                    = __fffile_write_impl,
   .setpos                   = __fffile_setpos_impl,
   .getpos                   = __fffile_getpos_impl,
-  .getstream                = __vfsfile_getstream_impl
+  .control                  = __vfsfile_control_impl
 };
 
 /**

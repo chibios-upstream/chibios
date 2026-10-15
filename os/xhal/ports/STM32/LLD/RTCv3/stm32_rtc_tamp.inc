@@ -1,0 +1,79 @@
+/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/
+
+/**
+ * @file    RTCv3/stm32_rtc_tamp.inc
+ * @brief   Shared RTC/TAMP interrupt handler.
+ *
+ * @addtogroup STM32_RTC_HANDLER
+ * @{
+ */
+
+/* Registry checks for robustness.*/
+#if !defined(STM32_HAS_RTC)
+#error "STM32_HAS_RTC not defined in registry"
+#endif
+
+#if STM32_HAS_RTC
+
+/* Checks on vector names and numbers definitions.*/
+#if !defined(STM32_RTC_COMMON_NUMBER)
+#error "STM32_RTC_COMMON_NUMBER not defined in stm32_isr.h"
+#endif
+#if !defined(STM32_RTC_COMMON_HANDLER)
+#error "STM32_RTC_COMMON_HANDLER not defined in stm32_isr.h"
+#endif
+
+/* Checks for xmcuconf.h correctness.*/
+#if !defined(STM32_IRQ_RTC_TAMP_PRIORITY)
+#error "STM32_IRQ_RTC_TAMP_PRIORITY not defined in xmcuconf.h"
+#endif
+
+/* Priority settings checks.*/
+#if !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_RTC_TAMP_PRIORITY)
+#error "Invalid IRQ priority assigned to STM32_IRQ_RTC_TAMP_PRIORITY"
+#endif
+
+#endif /* STM32_HAS_RTC */
+
+static inline void rtc_irq_init(void) {
+#if HAL_USE_RTC
+  nvicEnableVector(STM32_RTC_COMMON_NUMBER,
+                   STM32_IRQ_RTC_TAMP_PRIORITY);
+#endif
+}
+
+static inline void rtc_irq_deinit(void) {
+#if HAL_USE_RTC
+  nvicDisableVector(STM32_RTC_COMMON_NUMBER);
+#endif
+}
+
+#if HAL_USE_RTC || defined(__DOXYGEN__)
+/**
+ * @brief   RTC/TAMP interrupt handler.
+ *
+ * @isr
+ */
+CH_IRQ_HANDLER(STM32_RTC_COMMON_HANDLER) {
+
+  CH_IRQ_PROLOGUE();
+  rtc_lld_serve_interrupt();
+  CH_IRQ_EPILOGUE();
+}
+#endif
+
+/** @} */

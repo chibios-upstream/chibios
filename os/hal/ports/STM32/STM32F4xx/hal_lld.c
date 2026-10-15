@@ -113,6 +113,11 @@ static void hal_lld_backup_domain_init(void) {
  */
 void hal_lld_init(void) {
 
+  /* DWT cycles counter enabled, used for timeouts and delays during the
+     drivers initialization.*/
+  halRegSet32X(&CoreDebug->DEMCR, CoreDebug_DEMCR_TRCENA_Msk, true);
+  halRegSet32X(&DWT->CTRL, DWT_CTRL_CYCCNTENA_Msk, true);
+
   /* Reset of all peripherals. AHB3 is not reseted because it could have
      been initialized in the board initialization file (board.c).
      Note, GPIOs are not reset because initialized before this point in

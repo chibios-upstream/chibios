@@ -94,7 +94,7 @@ struct hal_flash_base_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From hal_flash_base_c.*/

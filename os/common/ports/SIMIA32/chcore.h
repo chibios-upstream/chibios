@@ -27,6 +27,10 @@
 #ifndef CHCORE_H
 #define CHCORE_H
 
+/* Registry debugger identity, see the RT8 debugger interface.*/
+#define PORT_REGISTRY_ARCH              1U
+#define PORT_REGISTRY_ID                1U
+
 /*===========================================================================*/
 /* Module constants.                                                         */
 /*===========================================================================*/

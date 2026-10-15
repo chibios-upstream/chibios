@@ -100,17 +100,17 @@ CH_IRQ_HANDLER(SysTick_Handler) {
  * @isr
  */
 CH_IRQ_HANDLER(RP_TIMER0_IRQ0_HANDLER) {
-  uint32_t ints;
 
   CH_IRQ_PROLOGUE();
 
-  ints = TIMER0->INTS;
-  TIMER0->INTR = TIMER_INTR_ALARM0;
+  /* Dismissing spurious wakeups, the alarm can be stopped or re-armed
+     from within a critical section while its interrupt is already
+     latched and pended in the NVIC, in that case the callback must not
+     be invoked. The status is cleared only when the alarm is pending,
+     so a re-armed alarm firing during the check is not lost.*/
+  if ((TIMER0->INTS & TIMER_INTS_ALARM0) != 0U) {
+    TIMER0->INTR = TIMER_INTR_ALARM0;
 
-  /* Dismissing spurious wakeups, the alarm can be stopped from within a
-     critical section while its interrupt is already latched and pended
-     in the NVIC, in that case the callback must not be invoked.*/
-  if ((ints & TIMER_INTS_ALARM0) != 0U) {
 #if defined(ST_LLD_ALARM0_STATIC_CB)
     ST_LLD_ALARM0_STATIC_CB();
 #else
@@ -131,17 +131,17 @@ CH_IRQ_HANDLER(RP_TIMER0_IRQ0_HANDLER) {
  * @isr
  */
 CH_IRQ_HANDLER(RP_TIMER0_IRQ1_HANDLER) {
-  uint32_t ints;
 
   CH_IRQ_PROLOGUE();
 
-  ints = TIMER0->INTS;
-  TIMER0->INTR = TIMER_INTR_ALARM1;
+  /* Dismissing spurious wakeups, the alarm can be stopped or re-armed
+     from within a critical section while its interrupt is already
+     latched and pended in the NVIC, in that case the callback must not
+     be invoked. The status is cleared only when the alarm is pending,
+     so a re-armed alarm firing during the check is not lost.*/
+  if ((TIMER0->INTS & TIMER_INTS_ALARM1) != 0U) {
+    TIMER0->INTR = TIMER_INTR_ALARM1;
 
-  /* Dismissing spurious wakeups, the alarm can be stopped from within a
-     critical section while its interrupt is already latched and pended
-     in the NVIC, in that case the callback must not be invoked.*/
-  if ((ints & TIMER_INTS_ALARM1) != 0U) {
 #if defined(ST_LLD_ALARM1_STATIC_CB)
     ST_LLD_ALARM1_STATIC_CB();
 #else
@@ -162,17 +162,17 @@ CH_IRQ_HANDLER(RP_TIMER0_IRQ1_HANDLER) {
  * @isr
  */
 CH_IRQ_HANDLER(RP_TIMER0_IRQ2_HANDLER) {
-  uint32_t ints;
 
   CH_IRQ_PROLOGUE();
 
-  ints = TIMER0->INTS;
-  TIMER0->INTR = TIMER_INTR_ALARM2;
+  /* Dismissing spurious wakeups, the alarm can be stopped or re-armed
+     from within a critical section while its interrupt is already
+     latched and pended in the NVIC, in that case the callback must not
+     be invoked. The status is cleared only when the alarm is pending,
+     so a re-armed alarm firing during the check is not lost.*/
+  if ((TIMER0->INTS & TIMER_INTS_ALARM2) != 0U) {
+    TIMER0->INTR = TIMER_INTR_ALARM2;
 
-  /* Dismissing spurious wakeups, the alarm can be stopped from within a
-     critical section while its interrupt is already latched and pended
-     in the NVIC, in that case the callback must not be invoked.*/
-  if ((ints & TIMER_INTS_ALARM2) != 0U) {
 #if defined(ST_LLD_ALARM2_STATIC_CB)
     ST_LLD_ALARM2_STATIC_CB();
 #else
@@ -193,17 +193,17 @@ CH_IRQ_HANDLER(RP_TIMER0_IRQ2_HANDLER) {
  * @isr
  */
 CH_IRQ_HANDLER(RP_TIMER0_IRQ3_HANDLER) {
-  uint32_t ints;
 
   CH_IRQ_PROLOGUE();
 
-  ints = TIMER0->INTS;
-  TIMER0->INTR = TIMER_INTR_ALARM3;
+  /* Dismissing spurious wakeups, the alarm can be stopped or re-armed
+     from within a critical section while its interrupt is already
+     latched and pended in the NVIC, in that case the callback must not
+     be invoked. The status is cleared only when the alarm is pending,
+     so a re-armed alarm firing during the check is not lost.*/
+  if ((TIMER0->INTS & TIMER_INTS_ALARM3) != 0U) {
+    TIMER0->INTR = TIMER_INTR_ALARM3;
 
-  /* Dismissing spurious wakeups, the alarm can be stopped from within a
-     critical section while its interrupt is already latched and pended
-     in the NVIC, in that case the callback must not be invoked.*/
-  if ((ints & TIMER_INTS_ALARM3) != 0U) {
 #if defined(ST_LLD_ALARM3_STATIC_CB)
     ST_LLD_ALARM3_STATIC_CB();
 #else

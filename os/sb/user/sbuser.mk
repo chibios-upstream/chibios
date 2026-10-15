@@ -5,7 +5,8 @@ SBUSERSRC = $(CHIBIOS)/os/sb/user/sbuser.c \
           
 SBUSERASM =
 
-SBUSERINC = $(CHIBIOS)/os/sb/common \
+SBUSERINC = $(CHIBIOS)/os/common/posix/include \
+            $(CHIBIOS)/os/sb/common \
             $(CHIBIOS)/os/sb/user \
             $(CHIBIOS)/os/sb/user/lib
 

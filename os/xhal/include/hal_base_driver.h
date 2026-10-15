@@ -158,7 +158,7 @@ struct hal_base_driver_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
 };
@@ -263,14 +263,17 @@ static inline msg_t __drv_start(void *ip, const void *config) {
  * @brief       Low level driver stop.
  *
  * @param[in,out] ip            Pointer to a @p hal_base_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  *
  * @notapi
  */
 CC_FORCE_INLINE
-static inline void __drv_stop(void *ip) {
+static inline void __drv_stop(void *ip, driver_state_t prevstate) {
   hal_base_driver_c *self = (hal_base_driver_c *)ip;
 
-  self->vmt->stop(ip);
+  self->vmt->stop(ip, prevstate);
 }
 
 /**

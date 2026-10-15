@@ -235,6 +235,14 @@ typedef struct {
                         ~(EPR_TOGGLE_MASK & ~EPR_STAT_TX_MASK)) ^           \
                        (epr)) | EPR_CTR_MASK
 
+#define EPR_CLEAR_DTOG_RX(ep)                                               \
+  STM32_USB->EPR[ep] = (STM32_USB->EPR[ep] &                                \
+                        ~(EPR_TOGGLE_MASK & ~EPR_DTOG_RX)) | EPR_CTR_MASK
+
+#define EPR_CLEAR_DTOG_TX(ep)                                               \
+  STM32_USB->EPR[ep] = (STM32_USB->EPR[ep] &                                \
+                        ~(EPR_TOGGLE_MASK & ~EPR_DTOG_TX)) | EPR_CTR_MASK
+
 #define EPR_CLEAR_CTR_RX(ep)                                                \
   STM32_USB->EPR[ep] = (STM32_USB->EPR[ep] & ~EPR_CTR_RX & ~EPR_TOGGLE_MASK)\
                        | EPR_CTR_TX
@@ -242,6 +250,10 @@ typedef struct {
 #define EPR_CLEAR_CTR_TX(ep)                                                \
   STM32_USB->EPR[ep] = (STM32_USB->EPR[ep] & ~EPR_CTR_TX & ~EPR_TOGGLE_MASK)\
                        | EPR_CTR_RX
+
+#define EPR_TOGGLE(ep, epr)                                                 \
+  STM32_USB->EPR[ep] = (STM32_USB->EPR[ep] & ~EPR_TOGGLE_MASK) |            \
+                       EPR_CTR_MASK | (epr)
 
 /**
  * @brief   Returns an endpoint descriptor pointer.

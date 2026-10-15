@@ -43,17 +43,8 @@
 #define STM32_RTC_HAS_PERIODIC_WAKEUPS      TRUE
 #define STM32_RTC_NUM_ALARMS                2
 #define STM32_RTC_STORAGE_SIZE              20
-#define STM32_RTC_COMMON_HANDLER            Vector48
-#define STM32_RTC_COMMON_NUMBER             2
 #define STM32_RTC_EVENT_RTC_EXTI            20
 #define STM32_RTC_EVENT_TAMP_EXTI           21
-#if !defined(STM32_RTC_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_RTC_IRQ_PRIORITY              STM32_IRQ_EXTI4_15_PRIORITY
-#endif
-#define STM32_RTC_IRQ_ENABLE() do {                                         \
-  nvicEnableVector(STM32_RTC_COMMON_NUMBER,                                 \
-                   STM32_RTC_IRQ_PRIORITY);                                 \
-} while (false)
 
  /* Enabling RTC-related EXTI lines.*/
 #define STM32_RTC_ENABLE_ALL_EXTI() do {                                    \

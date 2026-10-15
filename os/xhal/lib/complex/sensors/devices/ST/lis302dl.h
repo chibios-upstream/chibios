@@ -370,7 +370,7 @@ struct lis302dl_driver_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From lis302dl_driver_c.*/
@@ -460,7 +460,7 @@ extern "C" {
   void *__lis302dl_objinit_impl(void *ip, const void *vmt);
   void __lis302dl_dispose_impl(void *ip);
   msg_t __lis302dl_start_impl(void *ip, const void *config);
-  void __lis302dl_stop_impl(void *ip);
+  void __lis302dl_stop_impl(void *ip, driver_state_t prevstate);
   const void *__lis302dl_setcfg_impl(void *ip, const void *config);
   const void *__lis302dl_selcfg_impl(void *ip, unsigned cfgnum);
   msg_t lis302dlSetFullScale(void *ip, lis302dl_acc_fs_t fs);

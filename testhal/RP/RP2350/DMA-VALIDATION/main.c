@@ -24,6 +24,9 @@
  *   core 1, then core 0 must be able to allocate all the channels again.
  *   Without the recorded-owner fix the freed channel remains marked as
  *   allocated by core 0 forever and the full re-allocation caps at 15.
+ * - A channel stopped and restarted from another channel's callback while
+ *   its completion event is pending in the same dispatch: that event
+ *   belongs to the stopped transfer and must not be served.
  *
  * Report is emitted on UART0 (GPIO0/GPIO1) at the SIO default bitrate.
  */
@@ -218,6 +221,142 @@ static void test_cross_core_free(void) {
 /*
  * Application entry point, core 0.
  */
+/*===========================================================================*/
+/* Channel restarted from another channel's callback.                       */
+/*===========================================================================*/
+
+/*
+ * Two channels complete short copies with interrupts masked, so both
+ * events are pending in the same dispatch.  The callback of the first
+ * channel, served first, stops the second channel and restarts it on a
+ * long copy, as a driver restarting its other channel from a callback
+ * does.  The pending event of the second channel belongs to the stopped
+ * copy and must not be served: its callback must run once, after the long
+ * copy completed.
+ */
+
+#define RST_SHORT_WORDS      4U
+#define RST_LONG_WORDS       2048U
+#define RST_MODE             (DMA_CTRL_TRIG_DATA_SIZE_WORD |                \
+                              DMA_CTRL_TRIG_INCR_READ      |                \
+                              DMA_CTRL_TRIG_INCR_WRITE     |                \
+                              DMA_CTRL_TRIG_TREQ_PERMANENT)
+
+static uint32_t rst_src[RST_LONG_WORDS];
+static uint32_t rst_dst1[RST_SHORT_WORDS];
+static uint32_t rst_dst2[RST_LONG_WORDS];
+static const rp_dma_channel_t *rst_ch1, *rst_ch2;
+static volatile uint32_t rst_ch2_callbacks;
+static volatile bool rst_ch2_complete;
+
+static void rst_program(const rp_dma_channel_t *chp, uint32_t *dst,
+                        uint32_t n) {
+
+  dmaChannelSetSourceX(chp, (uint32_t)rst_src);
+  dmaChannelSetDestinationX(chp, (uint32_t)dst);
+  dmaChannelSetCounterX(chp, n);
+  dmaChannelSetModeX(chp, RST_MODE);
+}
+
+static bool rst_copied(void) {
+  uint32_t i;
+
+  for (i = 0U; i < RST_LONG_WORDS; i++) {
+    if (rst_dst2[i] != rst_src[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static void rst_ch1_cb(void *p, uint32_t ct) {
+
+  (void)p;
+  (void)ct;
+
+  /* Stopping the second channel and restarting it on the long copy.*/
+  dmaChannelDisableX(rst_ch2);
+  rst_program(rst_ch2, rst_dst2, RST_LONG_WORDS);
+  dmaChannelEnableX(rst_ch2);
+}
+
+static void rst_ch2_cb(void *p, uint32_t ct) {
+
+  (void)p;
+  (void)ct;
+
+  rst_ch2_callbacks++;
+  rst_ch2_complete = !dmaChannelIsBusyX(rst_ch2) &&
+                     (rst_dst2[RST_LONG_WORDS - 1U] ==
+                      rst_src[RST_LONG_WORDS - 1U]);
+}
+
+static void test_restart_from_callback(void) {
+  uint32_t i, both;
+  bool pending;
+
+  for (i = 0U; i < RST_LONG_WORDS; i++) {
+    rst_src[i]  = ((i + 1U) * 2654435761U) | 1U;
+    rst_dst2[i] = 0U;
+  }
+
+  chSysLock();
+  rst_ch1 = dmaChannelAllocI(RP_DMA_CHANNEL_ID_ANY, 2U, rst_ch1_cb, NULL);
+  rst_ch2 = dmaChannelAllocI(RP_DMA_CHANNEL_ID_ANY, 2U, rst_ch2_cb, NULL);
+  chSysUnlock();
+  if ((rst_ch1 == NULL) || (rst_ch2 == NULL)) {
+    chSysLock();
+    if (rst_ch1 != NULL) {
+      dmaChannelFreeI(rst_ch1);
+    }
+    if (rst_ch2 != NULL) {
+      dmaChannelFreeI(rst_ch2);
+    }
+    chSysUnlock();
+    report("restart test channels allocated", false);
+    return;
+  }
+
+  rst_program(rst_ch1, rst_dst1, RST_SHORT_WORDS);
+  rst_program(rst_ch2, rst_dst2, RST_SHORT_WORDS);
+  dmaChannelEnableInterruptX(rst_ch1);
+  dmaChannelEnableInterruptX(rst_ch2);
+  rst_ch2_callbacks = 0U;
+  rst_ch2_complete  = false;
+
+  /* Both short copies complete with interrupts masked, the dispatch on
+     unlock finds both events pending.*/
+  both = rst_ch1->chnmask | rst_ch2->chnmask;
+  chSysLock();
+  dmaChannelEnableX(rst_ch1);
+  dmaChannelEnableX(rst_ch2);
+  for (i = 0U; (i < 100000U) && (dmaChannelIsBusyX(rst_ch1) ||
+                                 dmaChannelIsBusyX(rst_ch2)); i++) {
+  }
+  pending = (DMA->INTS0 & both) == both;
+  chSysUnlock();
+
+  /* The long copy takes some tens of microseconds.*/
+  chThdSleepMilliseconds(10);
+
+  report("both events pending in one dispatch, in channel order",
+         pending && (rst_ch1->chnidx < rst_ch2->chnidx));
+  report("restarted copy completed", rst_copied());
+  report("one callback, after the restarted copy completed",
+         (rst_ch2_callbacks == 1U) && rst_ch2_complete);
+
+  /* Stopping any copy still running after a failure before freeing.*/
+  chSysLock();
+  dmaChannelDisableX(rst_ch1);
+  dmaChannelDisableX(rst_ch2);
+  dmaChannelDisableInterruptX(rst_ch1);
+  dmaChannelDisableInterruptX(rst_ch2);
+  dmaChannelFreeI(rst_ch1);
+  dmaChannelFreeI(rst_ch2);
+  chSysUnlock();
+}
+
 int main(void) {
   unsigned i;
 
@@ -241,6 +380,9 @@ int main(void) {
 
   test_mem_to_mem();
   test_cross_core_free();
+
+  chprintf(chp, "--- Test 3: channel restarted from a callback\r\n");
+  test_restart_from_callback();
 
   chprintf(chp, "\r\nResults: %u pass, %u fail\r\n", pass_count, fail_count);
   if (fail_count == 0U) {

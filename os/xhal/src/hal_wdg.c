@@ -136,9 +136,15 @@ msg_t __wdg_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p hal_wdg_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __wdg_stop_impl(void *ip) {
+void __wdg_stop_impl(void *ip, driver_state_t prevstate) {
   hal_wdg_driver_c *self = (hal_wdg_driver_c *)ip;
+
+  (void)prevstate;
+
   wdg_lld_stop(self);
 }
 

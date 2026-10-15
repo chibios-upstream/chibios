@@ -9,6 +9,7 @@ not separate backlogs:
 - [Async VFS](note_sb_async_vfs.md)
 - [Lifecycle and restart protocol](note_sb_lifecycle.md)
 - [SVC and MPU optimizations](note_svc_mpu_optimizations.md)
+- [TTY integration and signal delivery](note_sb_tty.md)
 
 ## Completed baseline
 
@@ -28,6 +29,30 @@ The following work is complete and must not be reintroduced as an open item:
 - The explicit `UNINIT`/`STOPPED`/`STARTING`/`RUNNING`/`STOPPING` lifecycle,
   `sbSync()`, producer quiescence, and `sbFinalize()` protocol is implemented
   (PR #144). VRQs are accepted only in `RUNNING`.
+- Invalid guest ranges detected by host services return `CH_RET_EFAULT`;
+  actual processor protection faults terminate the sandbox.
+- The null stream uses the VFS FIFO stream mapping (`S_IFIFO`), not the TTY
+  interface. `/dev/null` therefore reports false from `isatty()` and rejects
+  terminal controls. This classification is intentional, not pending work.
+  Reads return zero bytes, `stmGet()` returns `STM_RESET`, and writes succeed
+  while discarding data.
+- HAL and XHAL define identical operation status values in their respective
+  `hal.h` files, preserving the legacy HAL values and adding invalid driver
+  state at -22. The VFS TTY adapter maps configuration errors to `EINVAL`
+  and retains `EIO` for other failures. XHAL hosts and VIO guests must be
+  rebuilt together after this status-ABI alignment; see
+  [note_sb_tty.md](note_sb_tty.md).
+- The SIO-backed TTY supports all four noncanonical `VMIN`/`VTIME` read
+  modes. `chedit` configures and restores terminal attributes in both native
+  and sandbox builds. Deterministic input tests cover timing, partial reads,
+  resets and canonical EOF; native PTY tests cover editing and normal/error
+  restoration. Nucleo testing confirmed interactive editing, fragmented
+  escape sequences, standalone Escape, read-only save errors, canonical
+  input after editor exit, and multi-byte/inter-byte timing.
+- Shared terminal headers live under `os/common/posix/include` with an
+  Apache-2.0 license, retaining the existing host/guest ABI. The XHAL TTY
+  no longer depends on the sandbox header directory. Concurrent drains use
+  a thread queue, including reset/stop wakeups and delayed-caller handling.
 
 ## Priority 1: security and isolation
 
@@ -38,10 +63,6 @@ This is the highest-priority live security surface.
 - Make native-handle validation ownership-aware, especially for VETH.
   Structural validation alone cannot reject a forged handle that names a
   valid object owned by another sandbox or a previous execution.
-- Decide the common policy for invalid guest ranges in host services:
-  return `CH_RET_EFAULT` or terminate/fault the sandbox.
-- Apply that policy to every `TODO enforce fault instead.` path in
-  `vio/sbvio_spi.c` and `vio/sbvio_uart.c`.
 - Add malformed-request tests covering invalid ranges, stop-result buffers,
   callback behavior, and completion VRQs.
 - Exercise stale VETH handles across sandbox finalization and restart.
@@ -65,6 +86,35 @@ This is the highest-priority live security surface.
   `PORT_USE_FPU_FAST_SWITCHING >= 2` case.
 
 ## Priority 2: functional features
+
+### Sandbox TTY integration
+
+Review recorded 2026-09-12 for the SIO-backed TTY and
+`RT-SB-DYNAMIC-RAMBOX-MULTI` demo. Design context and the proposed signal
+transport are in [note_sb_tty.md](note_sb_tty.md).
+
+#### 3. TTY signals through a VRQ
+
+- Reserve one signal-delivery VRQ and define its sandbox-visible pending
+  signal bits. The proposed transport reuses `sbVRQSetFlagsI()`,
+  `sbVRQTriggerI()` and `__sb_vrq_gcsts()`; no additional event queue is
+  required. A name such as `SB_VRQ_SIGNALS` is provisional.
+- Connect the TTY callback to this transport, mapping `INTR`, `QUIT` and
+  `SUSP` into the common signal ABI. Preserve callback context, VRQ masking
+  and lifecycle rules described in the design note.
+- Define interruptible syscall behavior. A VRQ alone does not release an
+  arbitrary host-side wait. A signal that interrupts a read before any
+  bytes are transferred must have a distinct outcome mapped to `EINTR`,
+  not the current queue-reset result that appears as EOF. Define partial
+  transfer, ignored/blocked signal, restart and `NOFLSH` behavior too.
+- Include software-flow-control restart in the signal policy. Currently a
+  signal character clears `output_stopped` only when `NOFLSH` is clear;
+  resuming output independently of flushing must be an explicit decision.
+- Provide a guest dispatcher and active-application handling across nested
+  `sbRunElf()` calls. Define default actions and shell prompt behavior;
+  suspend/resume and full job control are not implied by the transport.
+- Test signals during input waits and application execution, repeated and
+  combined bits, masked delivery, nested commands, and sandbox restart.
 
 ### Async VFS
 

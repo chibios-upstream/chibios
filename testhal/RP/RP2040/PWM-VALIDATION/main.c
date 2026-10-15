@@ -33,6 +33,21 @@
  *      dereferenced the NULLed config in the shared ISR). A second
  *      slice runs across the whole test to verify that stopping one
  *      slice does not break the shared vector for the others.
+ *   5. Fractional divider rounding: a 7MHz counter clock needs a
+ *      125MHz / 7MHz = 17.86 divider, the nearest 8.4 value is 17.875
+ *      (0x11E) while truncation gives 17.8125 (0x11D), +0.25% too fast.
+ *      The DIV register must hold the rounded value and 1000 wraps of
+ *      period 700 must match it within 0.05%.
+ *   6. Maximum divider: a sys / 256 counter clock needs the 256.0
+ *      divider, encoded as DIV_INT = 0. The DIV register must read zero
+ *      and 1000 wraps of period 488 must match a division by 256 within
+ *      0.01%; the 255+15/16 clamp would run 0.024% fast.
+ *
+ * Tests 5 and 6 also drive GPIO2 at 50% duty so an external logic
+ * analyzer can measure the same rates: 9990.01Hz and 1000.58Hz at 125MHz,
+ * against 10025.06Hz and 1000.82Hz with the old 0x11D and 0xFFF dividers.
+ * The 1kHz output of test 2 uses an exact divider and calibrates the
+ * analyzer timebase against the board crystal.
  *
  * Pin mapping (RP2040A, slice = (gpio >> 1) & 7, channel = gpio & 1):
  *   GPIO2 = PWM slice 1 channel A -> PWMD1 channel 0 (routed).
@@ -52,6 +67,9 @@
 
 #define PWM_FREQ             1000000U   /* 1MHz counter clock.          */
 #define PWM_PERIOD           1000U      /* 1kHz wrap rate.              */
+#define PWM_FRAC_FREQ        7000000U   /* Needs a fractional divider.  */
+#define PWM_FRAC_PERIOD      700U       /* ~10kHz wrap rate.            */
+#define PWM_MAX_PERIOD       488U       /* ~1kHz wrap rate at 125MHz.   */
 
 static BaseSequentialStream *chp;
 static unsigned pass_count;
@@ -143,6 +161,27 @@ static uint32_t measure_wraps(PWMDriver *pwmp, uint32_t skip, uint32_t wraps,
 static PWMConfig pwmcfg_meas = {
   .frequency = PWM_FREQ,
   .period    = PWM_PERIOD,
+  .callback  = meas_cb,
+  .channels  = {
+    {.mode = PWM_OUTPUT_ACTIVE_HIGH, .callback = NULL},
+    {.mode = PWM_OUTPUT_DISABLED,    .callback = NULL}
+  }
+};
+
+static PWMConfig pwmcfg_frac = {
+  .frequency = PWM_FRAC_FREQ,
+  .period    = PWM_FRAC_PERIOD,
+  .callback  = meas_cb,
+  .channels  = {
+    {.mode = PWM_OUTPUT_ACTIVE_HIGH, .callback = NULL},
+    {.mode = PWM_OUTPUT_DISABLED,    .callback = NULL}
+  }
+};
+
+/* The frequency is set at runtime to the system clock divided by 256. */
+static PWMConfig pwmcfg_max = {
+  .frequency = 0U,
+  .period    = PWM_MAX_PERIOD,
   .callback  = meas_cb,
   .channels  = {
     {.mode = PWM_OUTPUT_ACTIVE_HIGH, .callback = NULL},
@@ -254,6 +293,60 @@ static bool test_change_period(void) {
            elapsed);
 
   return (elapsed >= 499500U) && (elapsed <= 500500U);
+}
+
+/*
+ * Test: the 8.4 counter divider is rounded to the nearest 1/16 and the
+ * wrap rate follows it.
+ */
+static bool test_divider_rounding(void) {
+  uint32_t sys = (uint32_t)halClockGetPointX(RP_CLK_SYS);
+  uint32_t want, div, elapsed, expected;
+
+  /* 50% on GPIO2 for an external logic analyzer.*/
+  pwmEnableChannel(&PWMD1, 0U, PWM_FRAC_PERIOD / 2U);
+
+  want = (uint32_t)((((uint64_t)sys << 4) + (PWM_FRAC_FREQ / 2U)) /
+                    PWM_FRAC_FREQ);
+  div = PWM->CH[PWMD1.timer_id].DIV;
+
+  /* 1000 wraps of PWM_FRAC_PERIOD counts at sys * 16 / div Hz.*/
+  expected = (uint32_t)(((uint64_t)1000U * PWM_FRAC_PERIOD * div *
+                         1000000U) / ((uint64_t)sys << 4));
+  elapsed = measure_wraps(&PWMD1, 2U, 1000U, 3000000U);
+
+  chprintf(chp, "    DIV 0x%03x (expected 0x%03x), 1000 wraps: %u us "
+                "(expected %u)\r\n", div, want, elapsed, expected);
+
+  return (div == want) &&
+         (elapsed >= expected - (expected / 2000U)) &&
+         (elapsed <= expected + (expected / 2000U));
+}
+
+/*
+ * Test: the 256.0 maximum divider is programmed as DIV_INT = 0 and the
+ * counter advances once every 256 system clocks.
+ */
+static bool test_divider_max(void) {
+  uint32_t sys = (uint32_t)halClockGetPointX(RP_CLK_SYS);
+  uint32_t div, elapsed, expected;
+
+  /* 50% on GPIO2 for an external logic analyzer.*/
+  pwmEnableChannel(&PWMD1, 0U, PWM_MAX_PERIOD / 2U);
+
+  div = PWM->CH[PWMD1.timer_id].DIV;
+
+  /* 1000 wraps of PWM_MAX_PERIOD counts at sys / 256 Hz.*/
+  expected = (uint32_t)(((uint64_t)1000U * PWM_MAX_PERIOD * 256U *
+                         1000000U) / sys);
+  elapsed = measure_wraps(&PWMD1, 2U, 1000U, 3000000U);
+
+  chprintf(chp, "    DIV 0x%03x (expected 0x000), 1000 wraps: %u us "
+                "(expected %u)\r\n", div, elapsed, expected);
+
+  return (div == 0U) &&
+         (elapsed >= expected - (expected / 10000U)) &&
+         (elapsed <= expected + (expected / 10000U));
 }
 
 /*
@@ -416,6 +509,20 @@ int main(void) {
   report("Other slice callbacks survive pwmStop", ok);
 
   pwmStop(&PWMD2);
+
+  /* Test 6: fractional divider rounding. */
+  pwmStart(&PWMD1, &pwmcfg_frac);
+  ok = test_divider_rounding();
+  report("Divider rounded to nearest 1/16 (7MHz counter)", ok);
+  pwmStop(&PWMD1);
+
+  /* Test 7: 256.0 maximum divider. */
+  pwmcfg_max.frequency = ((uint32_t)halClockGetPointX(RP_CLK_SYS) + 128U) /
+                         256U;
+  pwmStart(&PWMD1, &pwmcfg_max);
+  ok = test_divider_max();
+  report("Divider 256.0 encoded as DIV_INT = 0", ok);
+  pwmStop(&PWMD1);
 
   chprintf(chp, "\r\n========================================\r\n");
   chprintf(chp, "  Results: %u pass, %u fail\r\n", pass_count, fail_count);

@@ -94,10 +94,11 @@
 /*
  * Shared IRQ settings.
  */
+#define STM32_IRQ_ADC1_COMP_PRIORITY        2
+
 #define STM32_IRQ_EXTI0_1_PRIORITY          3
 #define STM32_IRQ_EXTI2_3_PRIORITY          3
 #define STM32_IRQ_EXTI4_15_PRIORITY         3
-#define STM32_IRQ_EXTI1921_PRIORITY         3
 
 #define STM32_IRQ_I2C1_PRIORITY             3
 #define STM32_IRQ_I2C2_PRIORITY             3
@@ -106,11 +107,16 @@
 #define STM32_IRQ_USART2_PRIORITY           2
 #define STM32_IRQ_USART3_4_LP1_PRIORITY     2
 
+#define STM32_IRQ_SPI1_PRIORITY             2
+#define STM32_IRQ_SPI2_PRIORITY             2
+
+#define STM32_IRQ_RTC_TAMP_PRIORITY         3
+
 #define STM32_IRQ_TIM1_UP_PRIORITY          1
 #define STM32_IRQ_TIM1_CC_PRIORITY          1
 #define STM32_IRQ_TIM2_PRIORITY             1
 #define STM32_IRQ_TIM3_PRIORITY             1
-#define STM32_IRQ_TIM6_PRIORITY             1
+#define STM32_IRQ_TIM6_DAC_LPTIM1_PRIORITY  1
 #define STM32_IRQ_TIM7_PRIORITY             1
 #define STM32_IRQ_TIM14_PRIORITY            1
 #define STM32_IRQ_TIM15_PRIORITY            1
@@ -123,7 +129,6 @@
 #define STM32_ADC_USE_ADC1                  FALSE
 #define STM32_ADC_ADC1_CFGR2                ADC_CFGR2_CKMODE_ADCCLK
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     2
 #define STM32_ADC_ADC1_DMA_STREAM           STM32_DMA_STREAM_ID_ANY
 #define STM32_ADC_PRESCALER_VALUE           2
 
@@ -133,8 +138,6 @@
 #define STM32_DAC_DUAL_MODE                 FALSE
 #define STM32_DAC_USE_DAC1_CH1              FALSE
 #define STM32_DAC_USE_DAC1_CH2              FALSE
-#define STM32_DAC_DAC1_CH1_IRQ_PRIORITY     3
-#define STM32_DAC_DAC1_CH2_IRQ_PRIORITY     3
 #define STM32_DAC_DAC1_CH1_DMA_PRIORITY     2
 #define STM32_DAC_DAC1_CH2_DMA_PRIORITY     2
 #define STM32_DAC_DAC1_CH1_DMA_STREAM       STM32_DMA_STREAM_ID_ANY
@@ -190,7 +193,10 @@
 #define STM32_RTC_PRESA_VALUE               32
 #define STM32_RTC_PRESS_VALUE               1024
 #define STM32_RTC_CR_INIT                   0
-#define STM32_RTC_TAMPCR_INIT               0
+#define STM32_TAMP_CR1_INIT                 0
+#define STM32_TAMP_CR2_INIT                 0
+#define STM32_TAMP_FLTCR_INIT               0
+#define STM32_TAMP_IER_INIT                 0
 
 /*
  * SIO driver system settings.
@@ -212,8 +218,6 @@
 #define STM32_SPI_SPI2_TX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
-#define STM32_SPI_SPI1_IRQ_PRIORITY         2
-#define STM32_SPI_SPI2_IRQ_PRIORITY         2
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*

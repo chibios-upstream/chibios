@@ -530,6 +530,9 @@ return msg;]]></implementation>
             </method>
             <method shortname="stop">
               <implementation><![CDATA[
+
+(void)prevstate;
+
 pwm_lld_stop(self);
 self->period = 0U;
 self->enabled = 0U;

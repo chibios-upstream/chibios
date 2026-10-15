@@ -51,7 +51,8 @@
 #endif
 
 #if !defined(SPI_SPID6_MEMORY)
-#define SPI_SPID6_MEMORY
+/* The embedded DMA sink/source must be reachable by BDMA.*/
+#define SPI_SPID6_MEMORY CC_SECTION(".ram4_clear")
 #endif
 
 /*===========================================================================*/
@@ -116,6 +117,9 @@ static void spi_lld_configure(SPIDriver *spip) {
 }
 
 static void spi_lld_resume(SPIDriver *spip) {
+
+  /* Identifies the transaction even if a callback stops and restarts it.*/
+  spip->sequence++;
 
   if (!spip->config->slave) {
     spip->spi->CR1 |= SPI_CR1_CSTART;
@@ -267,6 +271,12 @@ static msg_t spi_lld_stop_nicely(SPIDriver *spip) {
  * @param[in] flags     pre-shifted content of the ISR register
  */
 static void spi_lld_serve_bdma_rx_interrupt(SPIDriver *spip, uint32_t flags) {
+  uint32_t sequence = spip->sequence;
+
+  /* Ignoring interrupts not belonging to an active transfer.*/
+  if (spip->state != SPI_ACTIVE) {
+    return;
+  }
 
   /* DMA errors handling.*/
   if ((flags & STM32_BDMA_ISR_TEIF) != 0U) {
@@ -279,6 +289,7 @@ static void spi_lld_serve_bdma_rx_interrupt(SPIDriver *spip, uint32_t flags) {
 
     /* Reporting the failure.*/
     __spi_isr_error_code(spip, HAL_RET_HW_FAILURE);
+    return;
   }
 
   if (spip->config->circular) {
@@ -286,12 +297,13 @@ static void spi_lld_serve_bdma_rx_interrupt(SPIDriver *spip, uint32_t flags) {
       /* Half buffer interrupt.*/
       __spi_isr_half_code(spip);
     }
-    if ((flags & STM32_BDMA_ISR_TCIF) != 0U) {
-      /* End buffer interrupt.*/
+    if (((flags & STM32_BDMA_ISR_TCIF) != 0U) &&
+        (spip->state == SPI_ACTIVE) && (spip->sequence == sequence)) {
+      /* End buffer interrupt, unless the half callback stopped or restarted.*/
       __spi_isr_full_code(spip);
     }
   }
-  else {
+  else if ((flags & STM32_BDMA_ISR_TCIF) != 0U) {
     /* Stopping the transfer.*/
     (void) spi_lld_stop_nicely(spip);
 
@@ -307,6 +319,11 @@ static void spi_lld_serve_bdma_rx_interrupt(SPIDriver *spip, uint32_t flags) {
  * @param[in] flags     pre-shifted content of the ISR register
  */
 static void spi_lld_serve_bdma_tx_interrupt(SPIDriver *spip, uint32_t flags) {
+
+  /* Ignoring interrupts not belonging to an active transfer.*/
+  if (spip->state != SPI_ACTIVE) {
+    return;
+  }
 
   /* DMA errors handling.*/
   if ((flags & STM32_BDMA_ISR_TEIF) != 0) {
@@ -331,6 +348,12 @@ static void spi_lld_serve_bdma_tx_interrupt(SPIDriver *spip, uint32_t flags) {
  * @param[in] flags     pre-shifted content of the ISR register
  */
 static void spi_lld_serve_dma_rx_interrupt(SPIDriver *spip, uint32_t flags) {
+  uint32_t sequence = spip->sequence;
+
+  /* Ignoring interrupts not belonging to an active transfer.*/
+  if (spip->state != SPI_ACTIVE) {
+    return;
+  }
 
   /* DMA errors handling.*/
   if ((flags & (STM32_DMA_ISR_TEIF | STM32_DMA_ISR_DMEIF)) != 0U) {
@@ -343,6 +366,7 @@ static void spi_lld_serve_dma_rx_interrupt(SPIDriver *spip, uint32_t flags) {
 
     /* Reporting the failure.*/
     __spi_isr_error_code(spip, HAL_RET_HW_FAILURE);
+    return;
   }
 
   if (spip->config->circular) {
@@ -350,12 +374,13 @@ static void spi_lld_serve_dma_rx_interrupt(SPIDriver *spip, uint32_t flags) {
       /* Half buffer interrupt.*/
       __spi_isr_half_code(spip);
     }
-    if ((flags & STM32_DMA_ISR_TCIF) != 0U) {
-      /* End buffer interrupt.*/
+    if (((flags & STM32_DMA_ISR_TCIF) != 0U) &&
+        (spip->state == SPI_ACTIVE) && (spip->sequence == sequence)) {
+      /* End buffer interrupt, unless the half callback stopped or restarted.*/
       __spi_isr_full_code(spip);
     }
   }
-  else {
+  else if ((flags & STM32_DMA_ISR_TCIF) != 0U) {
     /* Stopping the transfer.*/
     (void) spi_lld_stop_nicely(spip);
 
@@ -371,6 +396,11 @@ static void spi_lld_serve_dma_rx_interrupt(SPIDriver *spip, uint32_t flags) {
  * @param[in] flags     pre-shifted content of the ISR register
  */
 static void spi_lld_serve_dma_tx_interrupt(SPIDriver *spip, uint32_t flags) {
+
+  /* Ignoring interrupts not belonging to an active transfer.*/
+  if (spip->state != SPI_ACTIVE) {
+    return;
+  }
 
   /* DMA errors handling.*/
   if ((flags & (STM32_DMA_ISR_TEIF | STM32_DMA_ISR_DMEIF)) != 0) {
@@ -398,7 +428,7 @@ static void spi_lld_serve_interrupt(SPIDriver *spip) {
   sr = spip->spi->SR & spip->spi->IER;
   spip->spi->IFCR = sr;
 
-  if ((sr & SPI_SR_OVR) != 0U) {
+  if (((sr & SPI_SR_OVR) != 0U) && (spip->state == SPI_ACTIVE)) {
 
     /* Aborting the transfer.*/
     spi_lld_stop_abort(spip);
@@ -616,6 +646,7 @@ void spi_lld_init(void) {
 #if STM32_SPI_USE_SPI1
   spiObjectInit(&SPID1);
   SPID1.spi       = SPI1;
+  SPID1.sequence  = 0U;
 #if defined(STM32_SPI_DMA_REQUIRED) && defined(STM32_SPI_BDMA_REQUIRED)
   SPID1.is_bdma   = false;
 #endif
@@ -638,6 +669,7 @@ void spi_lld_init(void) {
 #if STM32_SPI_USE_SPI2
   spiObjectInit(&SPID2);
   SPID2.spi       = SPI2;
+  SPID2.sequence  = 0U;
 #if defined(STM32_SPI_DMA_REQUIRED) && defined(STM32_SPI_BDMA_REQUIRED)
   SPID2.is_bdma   = false;
 #endif
@@ -660,6 +692,7 @@ void spi_lld_init(void) {
 #if STM32_SPI_USE_SPI3
   spiObjectInit(&SPID3);
   SPID3.spi       = SPI3;
+  SPID3.sequence  = 0U;
 #if defined(STM32_SPI_DMA_REQUIRED) && defined(STM32_SPI_BDMA_REQUIRED)
   SPID3.is_bdma   = false;
 #endif
@@ -682,6 +715,7 @@ void spi_lld_init(void) {
 #if STM32_SPI_USE_SPI4
   spiObjectInit(&SPID4);
   SPID4.spi       = SPI4;
+  SPID4.sequence  = 0U;
 #if defined(STM32_SPI_DMA_REQUIRED) && defined(STM32_SPI_BDMA_REQUIRED)
   SPID4.is_bdma   = false;
 #endif
@@ -704,6 +738,7 @@ void spi_lld_init(void) {
 #if STM32_SPI_USE_SPI5
   spiObjectInit(&SPID5);
   SPID5.spi       = SPI5;
+  SPID5.sequence  = 0U;
 #if defined(STM32_SPI_DMA_REQUIRED) && defined(STM32_SPI_BDMA_REQUIRED)
   SPID5.is_bdma   = false;
 #endif
@@ -726,6 +761,7 @@ void spi_lld_init(void) {
 #if STM32_SPI_USE_SPI6
   spiObjectInit(&SPID6);
   SPID6.spi       = SPI6;
+  SPID6.sequence  = 0U;
 #if defined(STM32_SPI_DMA_REQUIRED) && defined(STM32_SPI_BDMA_REQUIRED)
   SPID6.is_bdma   = true;
 #endif
@@ -756,8 +792,9 @@ msg_t spi_lld_start(SPIDriver *spip) {
   uint32_t dsize;
   msg_t msg;
 
-  /* Resetting TX pattern source.*/
+  /* Resetting TX pattern source and making it visible to DMA.*/
   spip->txsource = (uint32_t)STM32_SPI_FILLER_PATTERN;
+  cacheBufferFlush(&spip->txsource, sizeof spip->txsource);
 
   /* If in stopped state then enables the SPI and DMA clocks.*/
   if (spip->state == SPI_STOP) {

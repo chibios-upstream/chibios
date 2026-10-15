@@ -924,6 +924,9 @@ return msg;]]></implementation>
             </method>
             <method shortname="stop">
               <implementation><![CDATA[
+
+(void)prevstate;
+
 sdc_lld_stop(self);
 self->errors = SDC_NO_ERROR;
 self->cardmode = 0U;

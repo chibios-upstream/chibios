@@ -648,8 +648,10 @@ msg_t __mmcspi_start_impl(void *ip, const void *config) {
   return HAL_RET_SUCCESS;
 }
 
-void __mmcspi_stop_impl(void *ip) {
+void __mmcspi_stop_impl(void *ip, driver_state_t prevstate) {
   MMCSPIDriver *self = (MMCSPIDriver *)ip;
+
+  (void)prevstate;
 
   self->media_state = MMC_SPI_MEDIA_STOP;
   self->block_addresses = false;

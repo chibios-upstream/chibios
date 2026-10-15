@@ -323,6 +323,11 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
+/* The startup and calibration delays use the timeout counter.*/
+#if !defined(HAL_LLD_GET_CNT_VALUE) || !defined(HAL_LLD_GET_CNT_FREQUENCY)
+#error "ADCv6 requires HAL timeout counter hooks"
+#endif
+
 /* Supported devices checks.*/
 #if !defined(STM32H5XX)
 #error "ADCv6 only supports H5 STM32 devices"
@@ -637,7 +642,7 @@ typedef struct adc_dmabuf {
   uint32_t                          ssmpr[2];                               \
   /* Slave ADC SQRx register initialization data.                           \
      NOTE: This field is only present in dual mode.*/                       \
-  uint32_t                          ssqr[4]
+  uint32_t                          ssqr[4];
 #else /* STM32_ADC_DUAL_MODE == FALSE */
 #define adc_lld_configuration_group_fields                                  \
   uint32_t                          cfgr;                                   \

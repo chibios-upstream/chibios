@@ -378,6 +378,7 @@
  * USB driver system settings.
  */
 #define STM32_USB_USE_OTG1                  ${doc.STM32_USB_USE_OTG1!"FALSE"}
+#define STM32_USB_USE_ISOCHRONOUS           ${doc.STM32_USB_USE_ISOCHRONOUS!"FALSE"}
 #define STM32_USB_OTG1_IRQ_PRIORITY         ${doc.STM32_USB_OTG1_IRQ_PRIORITY!"14"}
 #define STM32_USB_OTG1_RX_FIFO_SIZE         ${doc.STM32_USB_OTG1_RX_FIFO_SIZE!"512"}
 

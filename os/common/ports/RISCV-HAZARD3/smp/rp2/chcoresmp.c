@@ -27,6 +27,8 @@
 #include "ch.h"
 #include "hazard3_irq.h"
 
+#if (CH_CFG_SMP_MODE == TRUE) || defined(__DOXYGEN__)
+
 /*===========================================================================*/
 /* Module local definitions.                                                 */
 /*===========================================================================*/
@@ -202,14 +204,12 @@ void __port_smp_init(os_instance_t *oip) {
   port_timer_enable(oip);
 #endif
 
-#if CH_CFG_SMP_MODE == TRUE
   SIO->FIFO_ST = SIO_FIFO_ST_ROE | SIO_FIFO_ST_WOF;
   hazard3_irq_set_priority(SIO_IRQ_FIFOn, PORT_FIFO_IRQ_PRIORITY);
   hazard3_irq_enable(SIO_IRQ_FIFOn);
   if (port_is_panic_pending()) {
     hazard3_irq_force(SIO_IRQ_FIFOn);
   }
-#endif
 
   (void)oip;
 }
@@ -229,5 +229,7 @@ void __port_spinlock_release(void) {
 
   port_spinlock_release();
 }
+
+#endif /* CH_CFG_SMP_MODE == TRUE */
 
 /** @} */

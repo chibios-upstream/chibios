@@ -1,6 +1,8 @@
 
 <instance locked="false"
-  id="org.chibios.spc5.components.portable.chibios_unitary_tests_engine">
+  id="org.chibios.spc5.components.portable.chibios_unitary_tests_engine"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/unittest.xsd">
   <description>
     <brief>
       <value>ChibiOS OS Library Test Suite.</value>
@@ -1009,7 +1011,46 @@ test_assert(received == &fifo1, "output changed on finite timeout");]]></value>
 static uint8_t buffer[PIPE_SIZE];
 static PIPE_DECL(pipe1, buffer, PIPE_SIZE);
 
-static const uint8_t pipe_pattern[] = "0123456789ABCDEF";]]></value>
+static const uint8_t pipe_pattern[] = "0123456789ABCDEF";
+
+#if defined(__CHIBIOS_RT__) && (CH_CFG_USE_WAITEXIT == TRUE)
+typedef struct {
+  bool writer;
+  size_t size;
+  size_t done;
+  uint8_t data[PIPE_SIZE];
+} pipe_test_context_t;
+
+static THD_WORKING_AREA(waPipe1, 256);
+static THD_WORKING_AREA(waPipe2, 256);
+
+static THD_FUNCTION(pipe_thread, arg) {
+  pipe_test_context_t *ctx = arg;
+
+  if (ctx->writer) {
+    ctx->done = chPipeWriteTimeout(&pipe1, ctx->data, ctx->size,
+                                   TIME_MS2I(100));
+  }
+  else {
+    ctx->done = chPipeReadTimeout(&pipe1, ctx->data, ctx->size,
+                                  TIME_MS2I(100));
+  }
+}
+
+static thread_t *pipe_start(stkline_t *wbase, stkline_t *wend,
+                            tprio_t prio, pipe_test_context_t *ctx) {
+  thread_descriptor_t td = {
+    .name  = "pipe",
+    .wbase = wbase,
+    .wend  = wend,
+    .prio  = prio,
+    .funcp = pipe_thread,
+    .arg   = ctx
+  };
+
+  return chThdCreate(&td);
+}
+#endif]]></value>
       </shared_code>
       <cases>
         <case>
@@ -1358,6 +1399,227 @@ test_assert((pipe1.rdptr == pipe1.wrptr) &&
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Concurrent pipe transfers.</value>
+          </brief>
+          <description>
+            <value>Readers and writers exchange data through a pipe smaller
+              than the request. All waits are bounded.</value>
+          </description>
+          <condition>
+            <value><![CDATA[defined(__CHIBIOS_RT__) && (CH_CFG_USE_WAITEXIT == TRUE)]]></value>
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A waiting reader receives a multi-chunk write.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx = {false, PIPE_SIZE, 0, {0}};
+thread_t *tp;
+size_t n;
+
+chPipeObjectInit(&pipe1, buffer, 3);
+tp = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                chThdGetPriorityX() + 1, &ctx);
+n = chPipeWriteTimeout(&pipe1, pipe_pattern, PIPE_SIZE, TIME_MS2I(100));
+(void)chThdWait(tp);
+test_assert(n == PIPE_SIZE, "incomplete write");
+test_assert(ctx.done == PIPE_SIZE, "incomplete read");
+test_assert(memcmp(ctx.data, pipe_pattern, PIPE_SIZE) == 0,
+            "content mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A waiting writer completes a multi-chunk read.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx = {true, PIPE_SIZE, 0, {0}};
+thread_t *tp;
+size_t n;
+uint8_t data[PIPE_SIZE];
+
+chPipeObjectInit(&pipe1, buffer, 3);
+memcpy(ctx.data, pipe_pattern, PIPE_SIZE);
+tp = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                chThdGetPriorityX() + 1, &ctx);
+n = chPipeReadTimeout(&pipe1, data, PIPE_SIZE, TIME_MS2I(100));
+(void)chThdWait(tp);
+test_assert(n == PIPE_SIZE, "incomplete read");
+test_assert(ctx.done == PIPE_SIZE, "incomplete write");
+test_assert(memcmp(data, pipe_pattern, PIPE_SIZE) == 0,
+            "content mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Reset with queued pipe callers.</value>
+          </brief>
+          <description>
+            <value>Reset aborts the current waiter and prevents a caller
+              queued on the direction lock from transferring or waiting again.
+              Cleanup precedes assertions, and worker waits are bounded.</value>
+          </description>
+          <condition>
+            <value><![CDATA[defined(__CHIBIOS_RT__) && (CH_CFG_USE_WAITEXIT == TRUE)]]></value>
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Both a suspended reader and a queued reader stop
+                  after one reset.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx1 = {false, 1, 0, {0}};
+pipe_test_context_t ctx2 = {false, 1, 0, {0}};
+thread_t *tp1, *tp2;
+bool registered, stopped;
+
+chPipeObjectInit(&pipe1, buffer, 1);
+tp1 = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                 chThdGetPriorityX() + 1, &ctx1);
+tp2 = pipe_start(waPipe2, THD_WORKING_AREA_END(waPipe2),
+                 chThdGetPriorityX() + 1, &ctx2);
+chSysLock();
+registered = pipe1.rtr == tp1;
+chSysUnlock();
+chPipeReset(&pipe1);
+stopped = chThdTerminatedX(tp1) && chThdTerminatedX(tp2);
+chPipeReset(&pipe1);
+(void)chThdWait(tp1);
+(void)chThdWait(tp2);
+test_assert(registered, "reader was not suspended");
+test_assert(stopped, "queued reader waited after reset");
+test_assert((ctx1.done == 0) && (ctx2.done == 0),
+            "unexpected transfer after reset");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A queued writer cannot repopulate a reset pipe.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx1 = {true, 1, 0, {1}};
+pipe_test_context_t ctx2 = {true, 1, 0, {2}};
+thread_t *tp1, *tp2;
+size_t n, used;
+bool registered, stopped;
+
+chPipeObjectInit(&pipe1, buffer, 1);
+n = chPipeWriteTimeout(&pipe1, pipe_pattern, 1, TIME_IMMEDIATE);
+tp1 = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                 chThdGetPriorityX() + 1, &ctx1);
+tp2 = pipe_start(waPipe2, THD_WORKING_AREA_END(waPipe2),
+                 chThdGetPriorityX() + 1, &ctx2);
+chSysLock();
+registered = pipe1.wtr == tp1;
+chSysUnlock();
+chPipeReset(&pipe1);
+stopped = chThdTerminatedX(tp1) && chThdTerminatedX(tp2);
+used = chPipeGetUsedCount(&pipe1);
+chPipeReset(&pipe1);
+(void)chThdWait(tp1);
+(void)chThdWait(tp2);
+test_assert(n == 1, "pipe was not filled");
+test_assert(registered, "writer was not suspended");
+test_assert(stopped, "queued writer waited after reset");
+test_assert((ctx1.done == 0) && (ctx2.done == 0) && (used == 0),
+            "queued writer transferred after reset");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Partial pipe transfers interrupted by reset.</value>
+          </brief>
+          <description>
+            <value>An already-suspended caller returns its partial count,
+              even when the pipe is resumed before the caller runs.</value>
+          </description>
+          <condition>
+            <value><![CDATA[defined(__CHIBIOS_RT__) && (CH_CFG_USE_WAITEXIT == TRUE)]]></value>
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Reset preserves the partial read count.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx = {false, 2, 0, {0}};
+thread_t *tp;
+size_t n;
+bool registered;
+
+chPipeObjectInit(&pipe1, buffer, 1);
+n = chPipeWriteTimeout(&pipe1, pipe_pattern, 1, TIME_IMMEDIATE);
+tp = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                chThdGetPriorityX() - 1, &ctx);
+chThdSleepMilliseconds(10);
+chSysLock();
+registered = pipe1.rtr == tp;
+chSysUnlock();
+chPipeReset(&pipe1);
+chPipeResume(&pipe1);
+(void)chThdWait(tp);
+test_assert(n == 1, "pipe was not filled");
+test_assert(registered, "reader was not suspended");
+test_assert(ctx.done == 1, "partial count lost");
+test_assert(ctx.data[0] == pipe_pattern[0], "content mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Reset preserves the partial write count.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pipe_test_context_t ctx = {true, 2, 0, {1, 2}};
+thread_t *tp;
+bool registered;
+
+chPipeObjectInit(&pipe1, buffer, 1);
+tp = pipe_start(waPipe1, THD_WORKING_AREA_END(waPipe1),
+                chThdGetPriorityX() - 1, &ctx);
+chThdSleepMilliseconds(10);
+chSysLock();
+registered = pipe1.wtr == tp;
+chSysUnlock();
+chPipeReset(&pipe1);
+chPipeResume(&pipe1);
+(void)chThdWait(tp);
+test_assert(registered, "writer was not suspended");
+test_assert(ctx.done == 1, "partial count lost");
+test_assert(chPipeGetUsedCount(&pipe1) == 0,
+            "data written after reset");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
     <sequence>
@@ -1624,6 +1886,22 @@ static THD_FUNCTION(Thread1, arg) {
 
   chThdExit(0x0FA5);
 }
+
+#if CH_CFG_USE_WAITEXIT == TRUE
+typedef struct {
+  thread_t      *receiver;
+  sysinterval_t delay;
+} delegate_test_context_t;
+
+static THD_FUNCTION(delegate_caller, arg) {
+  delegate_test_context_t *ctx = (delegate_test_context_t *)arg;
+
+  if (ctx->delay > 0U) {
+    chThdSleep(ctx->delay);
+  }
+  chThdExit(chDelegateCallDirect1(ctx->receiver, dis_func1, 'P'));
+}
+#endif
 ]]></value>
       </shared_code>
       <cases>
@@ -1721,6 +1999,112 @@ test_assert_sequence("0ABCDEFGHIJZ", "unexpected tokens");
 msg_t msg = chThdWait(tp);
 test_assert(msg == 0x0FA5, "invalid exit code");
 ]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Dispatcher timeouts.</value>
+          </brief>
+          <description>
+            <value>Empty immediate and finite delegate waits return timeout.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Polling with no pending call returns immediately.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[msg_t msg = chDelegateDispatchTimeout(TIME_IMMEDIATE);
+
+test_assert(msg == MSG_TIMEOUT, "unexpected poll result");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A finite wait with no caller expires.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[systime_t start = chVTGetSystemTimeX();
+msg_t msg = chDelegateDispatchTimeout(TIME_MS2I(20));
+sysinterval_t elapsed = chTimeDiffX(start, chVTGetSystemTimeX());
+
+test_assert(msg == MSG_TIMEOUT, "unexpected timeout result");
+test_assert(elapsed >= TIME_MS2I(20), "early timeout");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Pending and delayed delegate calls.</value>
+          </brief>
+          <description>
+            <value>Immediate dispatch processes a queued call, and finite and
+              infinite waits process calls arriving later. Each caller receives
+              the callback result.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_WAITEXIT == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Dispatching calls with immediate, finite and infinite
+                  waits, then joining the callers before checking results.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[const sysinterval_t timeouts[] = {
+  TIME_IMMEDIATE, TIME_MS2I(100), TIME_INFINITE
+};
+unsigned i;
+
+for (i = 0; i < 3U; i++) {
+  delegate_test_context_t ctx = {
+    chThdGetSelfX(), i == 0U ? 0U : TIME_MS2I(10)
+  };
+  thread_descriptor_t td = {
+    .name  = "delegate caller",
+    .wbase = waThread1,
+    .wend  = THD_WORKING_AREA_END(waThread1),
+#if defined(__CHIBIOS_RT__)
+    .prio  = chThdGetPriorityX() + 1,
+#else
+    .prio  = chThdGetPriorityX() - 1,
+#endif
+    .funcp = delegate_caller,
+    .arg   = &ctx
+  };
+  thread_t *tp = chThdCreate(&td);
+  msg_t msg = chDelegateDispatchTimeout(timeouts[i]);
+  msg_t reply;
+
+  /* Release the caller even if dispatch unexpectedly timed out.*/
+  if (msg == MSG_TIMEOUT) {
+    chDelegateDispatch();
+  }
+  reply = chThdWait(tp);
+  test_assert(msg == MSG_OK, "call not dispatched");
+  test_assert(reply == (msg_t)'P', "invalid callback result");
+  msg = chDelegateDispatchTimeout(TIME_IMMEDIATE);
+  test_assert(msg == MSG_TIMEOUT, "call still pending");
+}
+test_assert_sequence("PPP", "unexpected callbacks");]]></value>
               </code>
             </step>
           </steps>
@@ -2947,8 +3331,7 @@ test_assert(!chHeapIntegrityCheck(&test_heap), "restored heap rejected");]]></va
 
 rop = chFactoryFindObject("myobj");
 if (rop != NULL) {
-  while (rop->element.refs > 0U) {
-    chFactoryReleaseObject(rop);
+  while (chFactoryReleaseObject(rop) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3078,8 +3461,7 @@ test_assert(rop == NULL, "found");]]></value>
 
 dbp = chFactoryFindBuffer("mybuf");
 if (dbp != NULL) {
-  while (dbp->element.refs > 0U) {
-    chFactoryReleaseBuffer(dbp);
+  while (chFactoryReleaseBuffer(dbp) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3204,8 +3586,7 @@ test_assert(dbp == NULL, "found");]]></value>
 
 dsp = chFactoryFindSemaphore("mysem");
 if (dsp != NULL) {
-  while (dsp->element.refs > 0U) {
-    chFactoryReleaseSemaphore(dsp);
+  while (chFactoryReleaseSemaphore(dsp) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3330,8 +3711,7 @@ test_assert(dsp == NULL, "found");]]></value>
 
 dmp = chFactoryFindMailbox("mymbx");
 if (dmp != NULL) {
-  while (dmp->element.refs > 0U) {
-    chFactoryReleaseMailbox(dmp);
+  while (chFactoryReleaseMailbox(dmp) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3456,8 +3836,7 @@ test_assert(dmp == NULL, "found");]]></value>
 
 dofp = chFactoryFindObjectsFIFO("myfifo");
 if (dofp != NULL) {
-  while (dofp->element.refs > 0U) {
-    chFactoryReleaseObjectsFIFO(dofp);
+  while (chFactoryReleaseObjectsFIFO(dofp) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3582,8 +3961,7 @@ test_assert(dofp == NULL, "found");]]></value>
 
 dpp = chFactoryFindPipe("mypipe");
 if (dpp != NULL) {
-  while (dpp->element.refs > 0U) {
-    chFactoryReleasePipe(dpp);
+  while (chFactoryReleasePipe(dpp) > 0U) {
   }
 }]]></value>
             </teardown_code>
@@ -3969,6 +4347,752 @@ p = core_alloc(chCoreAllocFromTopI, 16U, 16U, 1U,
 test_assert(p == NULL, "empty arena allocation accepted");
 test_assert(result.basemem == &core_buffer[16], "base changed");
 test_assert(result.topmem == &core_buffer[16], "top changed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>Memory areas</value>
+      </brief>
+      <description>
+        <value>Memory area intersections, bounded scans and API availability
+          are tested independently of the optional system memory checks.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[static uint8_t area_buffer[64];
+
+static bool intersection_matches(const memory_area_t *map1,
+                                 const memory_area_t *map2,
+                                 bool expected) {
+
+  return (chMemIsAreaIntersectingX(map1, map2) == expected) &&
+         (chMemIsAreaIntersectingX(map2, map1) == expected) &&
+         (chMemIsSpaceIntersectingX(map1, map2->base,
+                                   map2->size) == expected) &&
+         (chMemIsSpaceIntersectingX(map2, map1->base,
+                                   map1->size) == expected);
+}]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Symmetric intersections</value>
+          </brief>
+          <description>
+            <value>Both intersection APIs are checked in both argument
+              orders for nested, overlapping, equal and disjoint areas.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[memory_area_t map1, map2;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Strict enclosure intersects in both directions.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map1.base = &area_buffer[16];
+map1.size = 16U;
+map2.base = &area_buffer[8];
+map2.size = 32U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "enclosure not symmetric");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Partial overlap intersects in both directions.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.size = 16U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "partial overlap missed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Equal areas intersect.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2 = map1;
+test_assert(intersection_matches(&map1, &map2, true),
+            "equal areas missed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Separated and adjacent areas do not intersect.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.base = &area_buffer[0];
+map2.size = 8U;
+test_assert(intersection_matches(&map1, &map2, false),
+            "separated areas intersect");
+map2.size = 16U;
+test_assert(intersection_matches(&map1, &map2, false),
+            "adjacent areas intersect");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The last byte is included but the following byte
+                  is not.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.base = &area_buffer[31];
+map2.size = 1U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "last byte excluded");
+map2.base = &area_buffer[32];
+test_assert(intersection_matches(&map1, &map2, false),
+            "following byte included");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Address space boundaries</value>
+          </brief>
+          <description>
+            <value>Whole-address-space and boundary ranges preserve
+              symmetric intersection semantics without accessing memory.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[memory_area_t map1, map2;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>The whole address space intersects an ordinary
+                  area and itself.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map1.base = NULL;
+map1.size = 0U;
+map2.base = &area_buffer[16];
+map2.size = 16U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "whole space missed");
+map2 = map1;
+test_assert(intersection_matches(&map1, &map2, true),
+            "whole spaces missed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The byte at address zero is part of the whole
+                  address space.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.size = 1U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "address zero missed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Nested areas ending at the highest address
+                  intersect.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map1.base = (uint8_t *)(UINTPTR_MAX - 15U);
+map1.size = 16U;
+map2.base = (uint8_t *)(UINTPTR_MAX - 7U);
+map2.size = 8U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "upper boundary overlap missed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Adjacent areas near the highest address do not
+                  intersect.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.base = (uint8_t *)(UINTPTR_MAX - 31U);
+map2.size = 16U;
+test_assert(intersection_matches(&map1, &map2, false),
+            "upper adjacent areas intersect");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An area ending at the highest address intersects
+                  the whole address space.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map2.base = NULL;
+map2.size = 0U;
+test_assert(intersection_matches(&map1, &map2, true),
+            "upper area missed by whole space");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Pointer-array byte limits</value>
+          </brief>
+          <description>
+            <value>A pointer-array scan must fit complete pointer slots
+              inside both the byte budget and the containing area.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[const void *pointers[3];
+memory_area_t map;
+size_t max;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Even an empty array needs a complete NULL pointer
+                  within the byte budget.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers[0] = NULL;
+pointers[1] = &area_buffer[1];
+pointers[2] = NULL;
+map.base = (uint8_t *)pointers;
+map.size = sizeof pointers;
+for (max = 0U; max < sizeof (void *); max++) {
+  test_assert(chMemIsPointersArrayWithinX(&map, pointers, max) == 0U,
+              "partial NULL pointer accepted");
+}
+test_assert(chMemIsPointersArrayWithinX(&map, pointers,
+                                       sizeof (void *)) == sizeof (void *),
+            "complete NULL pointer rejected");
+test_assert(chMemIsPointersArrayWithinX(&map, pointers,
+                                       SIZE_MAX) == sizeof (void *),
+            "maximum budget rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Every budget ending before the complete terminator
+                  is rejected, including non-multiples of pointer size.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers[0] = &area_buffer[0];
+for (max = 0U; max < sizeof pointers; max++) {
+  test_assert(chMemIsPointersArrayWithinX(&map, pointers, max) == 0U,
+              "pointer-array byte limit exceeded");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An exact or larger budget returns the complete
+                  array size, including its terminator.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsPointersArrayWithinX(&map, pointers,
+                                       sizeof pointers) == sizeof pointers,
+            "exact budget rejected");
+test_assert(chMemIsPointersArrayWithinX(&map, pointers,
+                                       sizeof pointers + 1U) == sizeof pointers,
+            "larger budget rejected");
+test_assert(chMemIsPointersArrayWithinX(&map, pointers,
+                                       SIZE_MAX) == sizeof pointers,
+            "maximum budget rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The byte budget is relative to the candidate
+                  array, not the containing area's base.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1],
+                                       2U * sizeof (void *) - 1U) == 0U,
+            "partial suffix terminator accepted");
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1],
+                                       2U * sizeof (void *)) ==
+            2U * sizeof (void *), "complete suffix rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A large budget cannot admit a partial terminator
+                  or an unterminated array at the area boundary.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map.size = sizeof pointers - 1U;
+test_assert(chMemIsPointersArrayWithinX(&map, pointers, SIZE_MAX) == 0U,
+            "partial pointer outside area accepted");
+map.size = sizeof pointers;
+pointers[2] = &area_buffer[2];
+test_assert(chMemIsPointersArrayWithinX(&map, pointers, SIZE_MAX) == 0U,
+            "unterminated array accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Generic memory-check APIs</value>
+          </brief>
+          <description>
+            <value>String and area-table checks remain available when
+              system memory checks are disabled.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[char text[] = "abc";
+memory_area_t areas[2];]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A string check includes the terminator and rejects
+                  a byte budget that is too short.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[areas[0].base = (uint8_t *)text;
+areas[0].size = sizeof text;
+areas[1].base = (uint8_t *)-1;
+areas[1].size = 0U;
+test_assert(chMemIsStringWithinX(&areas[0], text, sizeof text) ==
+            sizeof text, "string check unavailable or incorrect");
+test_assert(chMemIsStringWithinX(&areas[0], text, sizeof text - 1U) == 0U,
+            "short string budget accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The terminated area table accepts a contained
+                  range and rejects a larger one.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsSpaceContainedX(areas, text, sizeof text),
+            "area-table check unavailable or incorrect");
+test_assert(!chMemIsSpaceContainedX(areas, text, sizeof text + 1U),
+            "oversized area accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Disabled memory-check fallbacks</value>
+          </brief>
+          <description>
+            <value>The public permission-check APIs remain callable and
+              return true when system memory checks are disabled.</value>
+          </description>
+          <condition>
+            <value>CH_CFG_USE_MEMCHECKS == FALSE</value>
+          </condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Read, write and executable-address fallbacks use
+                  the same public names as the enabled APIs.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsSpaceReadableX(area_buffer, sizeof area_buffer, 1U),
+            "readable fallback failed");
+test_assert(chMemIsSpaceWritableX(area_buffer, sizeof area_buffer, 1U),
+            "writable fallback failed");
+test_assert(chMemIsAddressExecutableX(area_buffer),
+            "executable fallback failed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Scans of separate objects</value>
+          </brief>
+          <description>
+            <value>Strings and pointer arrays in separate objects are
+              rejected in both address orders without ordering pointers.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[char text1[] = "abc";
+char text2[] = "def";
+const void *pointers1[2];
+const void *pointers2[2];
+memory_area_t map;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A string in another object is outside the area,
+                  in either argument order.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map.base = (uint8_t *)text1;
+map.size = sizeof text1;
+test_assert(chMemIsStringWithinX(&map, text2, SIZE_MAX) == 0U,
+            "separate string accepted");
+map.base = (uint8_t *)text2;
+map.size = sizeof text2;
+test_assert(chMemIsStringWithinX(&map, text1, SIZE_MAX) == 0U,
+            "reverse separate string accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A pointer array in another object is outside the
+                  area, in either argument order.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers1[0] = text1;
+pointers1[1] = NULL;
+pointers2[0] = text2;
+pointers2[1] = NULL;
+map.base = (uint8_t *)pointers1;
+map.size = sizeof pointers1;
+test_assert(chMemIsPointersArrayWithinX(&map, pointers2, SIZE_MAX) == 0U,
+            "separate pointer array accepted");
+map.base = (uint8_t *)pointers2;
+map.size = sizeof pointers2;
+test_assert(chMemIsPointersArrayWithinX(&map, pointers1, SIZE_MAX) == 0U,
+            "reverse separate pointer array accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Scan byte boundaries</value>
+          </brief>
+          <description>
+            <value>Scans obey finite byte-area boundaries without forming
+              typed pointers from those boundaries.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[char text[] = "abc";
+const void *pointers[4];
+memory_area_t map;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A string suffix must fit the area and budget,
+                  including the terminating byte.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[map.base = (uint8_t *)&text[1];
+map.size = sizeof text - 1U;
+test_assert(chMemIsStringWithinX(&map, text, SIZE_MAX) == 0U,
+            "string before area accepted");
+test_assert(chMemIsStringWithinX(&map, &text[1], SIZE_MAX) == 3U,
+            "contained suffix rejected");
+test_assert(chMemIsStringWithinX(&map, &text[1], 0U) == 0U,
+            "zero string budget accepted");
+test_assert(chMemIsStringWithinX(&map, &text[1], 2U) == 0U,
+            "short suffix budget accepted");
+test_assert(chMemIsStringWithinX(&map, &text[3], 1U) == 1U,
+            "final byte rejected");
+test_assert(chMemIsStringWithinX(&map, &text[sizeof text], SIZE_MAX) == 0U,
+            "string past area accepted");
+map.size--;
+test_assert(chMemIsStringWithinX(&map, &text[1], SIZE_MAX) == 0U,
+            "string terminator outside area accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Byte-area boundaries need not have pointer
+                  alignment, but each scanned pointer must fit completely.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers[0] = text;
+pointers[1] = NULL;
+pointers[2] = text;
+pointers[3] = NULL;
+map.base = (uint8_t *)pointers + 1U;
+map.size = 3U * sizeof (void *) - 2U;
+test_assert(chMemIsPointersArrayWithinX(&map, pointers, SIZE_MAX) == 0U,
+            "pointer array before area accepted");
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1], SIZE_MAX) ==
+            sizeof (void *), "contained pointer rejected");
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[2], SIZE_MAX) == 0U,
+            "incomplete final pointer accepted");
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[3], SIZE_MAX) == 0U,
+            "pointer array past area accepted");
+map.size = 2U * sizeof (void *) - 1U;
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1], SIZE_MAX) ==
+            sizeof (void *), "pointer at exact boundary rejected");
+map.size--;
+test_assert(chMemIsPointersArrayWithinX(&map, &pointers[1], SIZE_MAX) == 0U,
+            "partial terminator accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Whole-address-space scans</value>
+          </brief>
+          <description>
+            <value>A whole-address-space map accepts valid strings and
+              pointer arrays while preserving their byte budgets.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[char text[] = "abc";
+const void *pointers[2];
+memory_area_t whole = {NULL, 0U};
+size_t max;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Strings still require a budget large enough for
+                  the terminator, including with a whole-space map.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[for (max = 0U; max < sizeof text; max++) {
+  test_assert(chMemIsStringWithinX(&whole, text, max) == 0U,
+              "short whole-space string budget accepted");
+}
+test_assert(chMemIsStringWithinX(&whole, text, sizeof text) == sizeof text,
+            "whole-space string rejected");
+test_assert(chMemIsStringWithinX(&whole, text, SIZE_MAX) == sizeof text,
+            "maximum string budget rejected");
+test_assert(chMemIsStringWithinX(&whole, &text[3], 1U) == 1U,
+            "empty whole-space string rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A missing string terminator is rejected at the
+                  byte budget without reading beyond the backing array.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[text[3] = 'x';
+test_assert(chMemIsStringWithinX(&whole, text, sizeof text) == 0U,
+            "unterminated whole-space string accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Pointer arrays require complete slots within the
+                  budget, including the NULL terminator.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers[0] = text;
+pointers[1] = NULL;
+for (max = 0U; max < sizeof pointers; max++) {
+  test_assert(chMemIsPointersArrayWithinX(&whole, pointers, max) == 0U,
+              "short whole-space pointer budget accepted");
+}
+test_assert(chMemIsPointersArrayWithinX(&whole, pointers,
+                                       sizeof pointers) == sizeof pointers,
+            "whole-space pointer array rejected");
+test_assert(chMemIsPointersArrayWithinX(&whole, pointers,
+                                       SIZE_MAX) == sizeof pointers,
+            "maximum pointer budget rejected");
+test_assert(chMemIsPointersArrayWithinX(&whole, &pointers[1],
+                                       sizeof (void *)) == sizeof (void *),
+            "empty whole-space pointer array rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A missing NULL pointer is rejected at the byte
+                  budget without reading beyond the backing array.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[pointers[1] = text;
+test_assert(chMemIsPointersArrayWithinX(&whole, pointers,
+                                       sizeof pointers) == 0U,
+            "unterminated whole-space pointer array accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Whole-space and address-zero queries</value>
+          </brief>
+          <description>
+            <value>Address zero is a valid range-query value, while zero
+              size denotes the whole space only when the address is zero.</value>
+          </description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables>
+              <value><![CDATA[memory_area_t areas[2] = {
+  {NULL, 0U},
+  {(uint8_t *)-1, 0U}
+};]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A whole-space table entry contains the whole
+                  space and the first and last addressable bytes.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsSpaceContainedX(areas, NULL, 0U),
+            "whole-space query rejected");
+test_assert(chMemIsSpaceContainedX(areas, NULL, 1U),
+            "address-zero query rejected");
+test_assert(chMemIsSpaceContainedX(areas, (void *)UINTPTR_MAX, 1U),
+            "last-address query rejected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Zero size with a nonzero base is not a whole-space
+                  query, and a range crossing the address limit is rejected.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(!chMemIsSpaceContainedX(areas, &area_buffer[0], 0U),
+            "nonzero base with zero size accepted");
+test_assert(!chMemIsSpaceContainedX(areas, (void *)UINTPTR_MAX, 2U),
+            "wrapped query accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>A finite area at address zero contains that byte
+                  but cannot contain the whole address space.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[areas[0].size = 1U;
+test_assert(chMemIsSpaceContainedX(areas, NULL, 1U),
+            "finite address-zero query rejected");
+test_assert(!chMemIsSpaceContainedX(areas, NULL, 0U),
+            "whole-space query accepted by finite area");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>System address-zero queries</value>
+          </brief>
+          <description>
+            <value>Enabled read/write wrappers accept address-zero queries
+              and use the configured permission tables.</value>
+          </description>
+          <condition><value>CH_CFG_USE_MEMCHECKS == TRUE</value></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Whole-space queries agree with the configured
+                  readable and writable area tables.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsSpaceReadableX(NULL, 0U, 1U) ==
+            chMemIsSpaceContainedX(__ch_mem_readable_areas, NULL, 0U),
+            "whole-space readable query mismatch");
+test_assert(chMemIsSpaceWritableX(NULL, 0U, 1U) ==
+            chMemIsSpaceContainedX(__ch_mem_writable_areas, NULL, 0U),
+            "whole-space writable query mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Single-byte address-zero queries agree with the
+                  configured readable and writable area tables.</value>
+              </description>
+              <tags><value /></tags>
+              <code>
+                <value><![CDATA[test_assert(chMemIsSpaceReadableX(NULL, 1U, 1U) ==
+            chMemIsSpaceContainedX(__ch_mem_readable_areas, NULL, 1U),
+            "address-zero readable query mismatch");
+test_assert(chMemIsSpaceWritableX(NULL, 1U, 1U) ==
+            chMemIsSpaceContainedX(__ch_mem_writable_areas, NULL, 1U),
+            "address-zero writable query mismatch");]]></value>
               </code>
             </step>
           </steps>

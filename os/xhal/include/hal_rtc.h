@@ -193,8 +193,24 @@ typedef struct {
   uint32_t                  alrmr;
 } rtc_alarm_t;
 
+/**
+ * @brief       Periodic-wakeup configuration.
+ * @details     The encoding of @p wutr is defined by the low level driver.
+ */
+typedef struct {
+  uint32_t                  wutr;
+} rtc_wakeup_t;
+
 /* Inclusion of LLD header.*/
 #include "hal_rtc_lld.h"
+
+/**
+ * @brief       Whether the LLD supports periodic-wakeup programming.
+ * @note        Defaults to false for LLDs without the optional interface.
+ */
+#if !defined(RTC_SUPPORTS_PERIODIC_WAKEUP)
+#define RTC_SUPPORTS_PERIODIC_WAKEUP         FALSE
+#endif
 
 /**
  * @brief       Driver configuration structure.
@@ -240,7 +256,7 @@ struct hal_rtc_driver_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From hal_cb_driver_c.*/
@@ -320,10 +336,12 @@ extern "C" {
   void *__rtc_objinit_impl(void *ip, const void *vmt);
   void __rtc_dispose_impl(void *ip);
   msg_t __rtc_start_impl(void *ip, const void *config);
-  void __rtc_stop_impl(void *ip);
+  void __rtc_stop_impl(void *ip, driver_state_t prevstate);
   const void *__rtc_setcfg_impl(void *ip, const void *config);
   const void *__rtc_selcfg_impl(void *ip, unsigned cfgnum);
   void __rtc_oncbset_impl(void *ip, drv_cb_t cb);
+  msg_t rtcSetPeriodicWakeup(void *ip, const rtc_wakeup_t *wakeupspec);
+  msg_t rtcGetPeriodicWakeup(void *ip, rtc_wakeup_t *wakeupspec);
   msg_t rtcSetDateTime(void *ip, const rtc_datetime_t *timespec);
   msg_t rtcGetDateTimeX(void *ip, rtc_datetime_t *timespec);
   msg_t rtcGetDateTime(void *ip, rtc_datetime_t *timespec);

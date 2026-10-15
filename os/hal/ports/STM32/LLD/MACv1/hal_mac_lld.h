@@ -190,6 +190,17 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
+/* The PHY reset delay is now specified in microseconds.*/
+#if defined(BOARD_PHY_RESET_DELAY)
+#error "BOARD_PHY_RESET_DELAY is obsolete, use BOARD_PHY_RESET_DELAY_US"
+#endif
+
+/* The PHY reset delay uses the timeout counter.*/
+#if defined(BOARD_PHY_RESET_DELAY_US) &&                                    \
+    (!defined(HAL_LLD_GET_CNT_VALUE) || !defined(HAL_LLD_GET_CNT_FREQUENCY))
+#error "BOARD_PHY_RESET_DELAY_US requires HAL timeout counter hooks"
+#endif
+
 /*===========================================================================*/
 /* Driver data structures and types.                                         */
 /*===========================================================================*/

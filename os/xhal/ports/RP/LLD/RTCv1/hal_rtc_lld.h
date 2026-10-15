@@ -41,6 +41,9 @@
  *          Alarm times before 1980-01-01 (the floor of the shared
  *          date/time representation) are also rejected with
  *          @p HAL_RET_CONFIG_ERROR.
+ * @note    The RTC only runs once a date/time has been set. While it is
+ *          stopped, for example after a reset, reading the date/time
+ *          fails with @p HAL_RET_CONFIG_ERROR.
  * @note    Repeating and field-masked alarms are not available through
  *          the portable API even though the RP2040 RTC block supports
  *          per-field match enables; see the classic driver in

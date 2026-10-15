@@ -505,10 +505,15 @@ msg_t __lis302dl_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p lis302dl_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __lis302dl_stop_impl(void *ip) {
+void __lis302dl_stop_impl(void *ip, driver_state_t prevstate) {
   lis302dl_driver_c *self = (lis302dl_driver_c *)ip;
   const lis302dl_config_t *config = lis302dlGetConfig(self);
+
+  (void)prevstate;
 
   if (config != NULL) {
     uint8_t cr1 = 0U;

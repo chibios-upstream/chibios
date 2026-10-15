@@ -52,7 +52,11 @@ SPIDriver SPID1;
 /* Driver local variables and types.                                         */
 /*===========================================================================*/
 
-static const uint16_t dummytx = 0xFFFFU;
+/* Deliberately not const: the TX DMA reads this word once per frame during
+   ignore and receive operations, keeping it in RAM avoids DMA fetches
+   through XIP, which is unavailable while the flash is erased or
+   programmed.*/
+static uint16_t dummytx = 0xFFFFU;
 static uint16_t dummyrx;
 
 /*===========================================================================*/
@@ -165,16 +169,16 @@ void spi_lld_start(SPIDriver *spip) {
     else if (&SPID0 == spip) {
       spip->dmarx = dmaChannelAllocI(RP_SPI_SPI0_RX_DMA_CHANNEL,
                                      RP_IRQ_SPI0_PRIORITY,
-                                    (rp_dmaisr_t)spi_lld_serve_rx_interrupt,
-                                    (void *)spip);
+                                     (rp_dmaisr_t)spi_lld_serve_rx_interrupt,
+                                     (void *)spip);
       if (spip->dmarx == NULL) {
         /* A fixed-channel allocation failure is a static configuration
            conflict, continuing would dereference NULL later.*/
         osalDbgAssert(false, "no RX DMA channel");
         /* Formally an API-class function, every in-tree OSAL implements it
-       as an any-state halt (RT/NIL delegate to chSysHalt), which is what
-       this deterministic configuration failure requires.*/
-    osalSysHalt("SPI DMA alloc");
+           as an any-state halt (RT/NIL delegate to chSysHalt), which is
+           what this deterministic configuration failure requires.*/
+        osalSysHalt("SPI DMA alloc");
       }
       spip->dmatx = dmaChannelAllocI(RP_SPI_SPI0_TX_DMA_CHANNEL,
                                      RP_IRQ_SPI0_PRIORITY,
@@ -185,9 +189,9 @@ void spi_lld_start(SPIDriver *spip) {
         spip->dmarx = NULL;
         osalDbgAssert(false, "no TX DMA channel");
         /* Formally an API-class function, every in-tree OSAL implements it
-       as an any-state halt (RT/NIL delegate to chSysHalt), which is what
-       this deterministic configuration failure requires.*/
-    osalSysHalt("SPI DMA alloc");
+           as an any-state halt (RT/NIL delegate to chSysHalt), which is
+           what this deterministic configuration failure requires.*/
+        osalSysHalt("SPI DMA alloc");
       }
       dmaChannelEnableInterruptX(spip->dmarx);
       dmaChannelEnableInterruptX(spip->dmatx);
@@ -198,16 +202,16 @@ void spi_lld_start(SPIDriver *spip) {
     else if (&SPID1 == spip) {
       spip->dmarx = dmaChannelAllocI(RP_SPI_SPI1_RX_DMA_CHANNEL,
                                      RP_IRQ_SPI1_PRIORITY,
-                                    (rp_dmaisr_t)spi_lld_serve_rx_interrupt,
-                                    (void *)spip);
+                                     (rp_dmaisr_t)spi_lld_serve_rx_interrupt,
+                                     (void *)spip);
       if (spip->dmarx == NULL) {
         /* A fixed-channel allocation failure is a static configuration
            conflict, continuing would dereference NULL later.*/
         osalDbgAssert(false, "no RX DMA channel");
         /* Formally an API-class function, every in-tree OSAL implements it
-       as an any-state halt (RT/NIL delegate to chSysHalt), which is what
-       this deterministic configuration failure requires.*/
-    osalSysHalt("SPI DMA alloc");
+           as an any-state halt (RT/NIL delegate to chSysHalt), which is
+           what this deterministic configuration failure requires.*/
+        osalSysHalt("SPI DMA alloc");
       }
       spip->dmatx = dmaChannelAllocI(RP_SPI_SPI1_TX_DMA_CHANNEL,
                                      RP_IRQ_SPI1_PRIORITY,
@@ -218,9 +222,9 @@ void spi_lld_start(SPIDriver *spip) {
         spip->dmarx = NULL;
         osalDbgAssert(false, "no TX DMA channel");
         /* Formally an API-class function, every in-tree OSAL implements it
-       as an any-state halt (RT/NIL delegate to chSysHalt), which is what
-       this deterministic configuration failure requires.*/
-    osalSysHalt("SPI DMA alloc");
+           as an any-state halt (RT/NIL delegate to chSysHalt), which is
+           what this deterministic configuration failure requires.*/
+        osalSysHalt("SPI DMA alloc");
       }
       dmaChannelEnableInterruptX(spip->dmarx);
       dmaChannelEnableInterruptX(spip->dmatx);
@@ -271,6 +275,12 @@ void spi_lld_start(SPIDriver *spip) {
 void spi_lld_stop(SPIDriver *spip) {
 
   if (spip->state == SPI_READY) {
+
+    /* DMA interrupts disabled on both cores first, the stop can be
+       performed by the core that did not start the driver and a
+       cross-core channel free requires the enables to be clear.*/
+    dmaChannelDisableInterruptX(spip->dmarx);
+    dmaChannelDisableInterruptX(spip->dmatx);
 
     /* SPI disables.*/
     spip->spi->SSPCR1  = 0U;

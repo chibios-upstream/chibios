@@ -1106,21 +1106,34 @@ __STATIC_INLINE void rccResetAHB4(uint32_t mask) {
  *
  * @api
  */
+#if defined(RCC_AHB4ENR_BDMA2EN)
+/* H7A3/H7B3 name the DMAMUX2-connected engine BDMA2.*/
+#define rccEnableBDMA1(lp) rccEnableAHB4(RCC_AHB4ENR_BDMA2EN, lp)
+#else
 #define rccEnableBDMA1(lp) rccEnableAHB4(RCC_AHB4ENR_BDMAEN, lp)
+#endif
 
 /**
  * @brief   Disables the BDMA1 peripheral clock.
  *
  * @api
  */
+#if defined(RCC_AHB4ENR_BDMA2EN)
+#define rccDisableBDMA1() rccDisableAHB4(RCC_AHB4ENR_BDMA2EN)
+#else
 #define rccDisableBDMA1() rccDisableAHB4(RCC_AHB4ENR_BDMAEN)
+#endif
 
 /**
  * @brief   Resets the BDMA1 peripheral.
  *
  * @api
  */
+#if defined(RCC_AHB4RSTR_BDMA2RST)
+#define rccResetBDMA1() rccResetAHB4(RCC_AHB4RSTR_BDMA2RST)
+#else
 #define rccResetBDMA1() rccResetAHB4(RCC_AHB4RSTR_BDMARST)
+#endif
 
 /**
  * @brief   Enables the DMA1 peripheral clock.

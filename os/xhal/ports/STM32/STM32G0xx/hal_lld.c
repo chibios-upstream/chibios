@@ -52,6 +52,18 @@
                                          PWR_CR1_FPD_STOP  |                \
                                          PWR_CR1_LPMS_Msk)
 
+/**
+ * @brief   TIM17 clock in the default clock configuration.
+ * @note    It is a static value, @p stm32_clock_init() runs before the
+ *          initialization of the data segment and cannot read the clock
+ *          points.
+ */
+#if STM32_HAS_TIM1617_ERRATA
+#define STM32_TIM17CLK_DEFAULT          STM32_SYSCLK
+#else
+#define STM32_TIM17CLK_DEFAULT          STM32_TIMPCLK
+#endif
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -314,6 +326,35 @@ __STATIC_INLINE void hal_lld_set_static_clocks(void) {
 }
 
 /**
+ * @brief   Sets the timeout counter prescaler.
+ * @note    The counter is clocked at 1MHz, or at the input clock if
+ *          it is lower than 1MHz.
+ * @note    The new prescaler is loaded immediately, the counter value
+ *          is restored after the load so that the time windows already
+ *          open keep their reference.
+ *
+ * @param[in] clk       frequency of the counter input clock
+ *
+ * @notapi
+ */
+static void hal_lld_set_counter_clock(halfreq_t clk) {
+  int32_t div;
+  uint32_t cnt;
+
+  /* Clamp divider to avoid underflow on clocks lower than 1MHz.*/
+  div = ((int32_t)clk / 1000000) - 1;
+  if (div < 0) {
+    div = 0;
+  }
+
+  /* The update event loads the prescaler and also clears the counter.*/
+  cnt = TIM17->CNT;
+  halRegWrite32X(&TIM17->PSC, (uint32_t)div, true);
+  halRegWrite32X(&TIM17->EGR, TIM_EGR_UG, false);
+  halRegWrite32X(&TIM17->CNT, cnt, false);
+}
+
+/**
  * @brief   Switches to a different clock configuration.
  *
  * @param[in] ccp       pointer to clock a @p halclkcfg_t structure
@@ -364,6 +405,9 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
     return true;
   }
 
+  /* Running from HSI16, the timeout counter clock follows.*/
+  hal_lld_set_counter_clock(STM32_HSI16CLK);
+
   /* Resetting clocks-related settings.*/
   halRegWrite32X(&RCC->CR, STM32_RCC_CR_RESET, true);
   halRegWrite32X(&RCC->PLLCFGR, 0U, true);
@@ -386,6 +430,11 @@ static bool hal_lld_clock_configure(const halclkcfg_t *ccp) {
 
   /* Enabling all required oscillators except PLL.*/
   halRegWrite32X(&RCC->CR, cr & ~RCC_CR_PLLON, true);
+
+  /* The HSISYS divider of the target configuration is in effect.*/
+  hal_lld_set_counter_clock(STM32_HSI16CLK /
+                            (1U << ((cr & RCC_CR_HSIDIV_Msk) >>
+                                    RCC_CR_HSIDIV_Pos)));
 
   /* Adding to the "wait mask" the status bits of enabled oscillators.*/
   wtmask = RCC_CR_HSIRDY;
@@ -824,29 +873,19 @@ void hal_lld_init(void) {
  * @special
  */
 void stm32_clock_init(void) {
-  int32_t div;
 
   /* Enabling TIM17 for timeout handling.*/
-  rccResetTIM17();
   rccEnableTIM17(false);
-  /* Clamp divider to avoid underflow on low TIM17CLK values. */
-#if defined(STM32_TIM17CLK)
-  div = ((int32_t)STM32_TIM17CLK / 1000000) - 1;
-#else
-  div = ((int32_t)STM32_TIMCLK2 / 1000000) - 1;
-#endif
-  if (div < 0) {
-    div = 0;
-  }
-  halRegWrite32X(&TIM17->PSC, (uint32_t)div, true);
-  halRegWrite32X(&TIM17->EGR, TIM_EGR_UG, false);
+  rccResetTIM17();
+  hal_lld_set_counter_clock(STM32_TIM17CLK_DEFAULT);
   halRegWrite32X(&TIM17->CR1, TIM_CR1_CEN, true);
 
 #if !STM32_NO_INIT
-  /* Reset of all peripherals.*/
+  /* Reset of all peripherals except TIM17, it is the timeout counter and
+     it is already running.*/
   rccResetAHB(~0);
   rccResetAPBR1(~0);
-  rccResetAPBR2(~0);
+  rccResetAPBR2(~RCC_APBRSTR2_TIM17RST);
 
   /* SYSCFG clock enabled here because it is a multi-functional unit shared
      among multiple drivers.*/
@@ -880,6 +919,9 @@ void stm32_clock_init(void) {
   /* Selecting the default clock/power/flash configuration.*/
   halSftFailOnError(hal_lld_clock_configure(&hal_clkcfg_default), "clkinit");
 
+  /* Timeout counter clock of the default configuration.*/
+  hal_lld_set_counter_clock(STM32_TIM17CLK_DEFAULT);
+
   /* Backup domain initializations.*/
   bd_init();
 #endif /* STM32_NO_INIT */
@@ -897,7 +939,6 @@ void stm32_clock_init(void) {
  * @notapi
  */
 bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
-  int32_t div;
 
   if (hal_lld_clock_check_tree(ccp)) {
     return true;
@@ -907,18 +948,12 @@ bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
     return true;
   }
 
-  /* Updating timeout counter clock, contemplating the case where the clock
-     source frequency becomes lower than 1MHz.*/
+  /* Timeout counter clock of the new configuration.*/
 #if defined(STM32_TIM17CLK)
-  div = ((int32_t)STM32_TIM17CLK / 1000000) - 1;
+  hal_lld_set_counter_clock(STM32_TIM17CLK);
 #else
-  div = ((int32_t)hal_lld_get_clock_point(CLK_PCLKTIM) / 1000000) - 1;
+  hal_lld_set_counter_clock(hal_lld_get_clock_point(CLK_PCLKTIM));
 #endif
-  if (div < 0) {
-    div = 0;
-  }
-  halRegWrite32X(&TIM17->PSC, (uint32_t)div, true);
-  halRegWrite32X(&TIM17->EGR, TIM_EGR_UG, false);
 
   /* Updating the CMSIS variable.*/
   SystemCoreClock = hal_lld_get_clock_point(CLK_HCLK);

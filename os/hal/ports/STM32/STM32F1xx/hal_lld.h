@@ -200,9 +200,28 @@
 /* Driver data structures and types.                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   Type of a timeout counter.
+ */
+typedef uint32_t halcnt_t;
+
 /*===========================================================================*/
 /* Driver macros.                                                            */
 /*===========================================================================*/
+
+/**
+ * @brief   Real time counter frequency exported to the safety module.
+ * @note    The counter is the internal DWT cycles counter so it runs at the
+ *          same frequency as the CPU. It is enabled by the ARMv7-M port
+ *          during system initialization; until then safety waits are
+ *          not bounded.
+ */
+#define HAL_LLD_GET_CNT_FREQUENCY()         SystemCoreClock
+
+/**
+ * @brief   Real time counter value exported to the safety module.
+ */
+#define HAL_LLD_GET_CNT_VALUE()             (DWT->CYCCNT)
 
 /**
  * @brief   Returns the frequency of a clock point in Hz.

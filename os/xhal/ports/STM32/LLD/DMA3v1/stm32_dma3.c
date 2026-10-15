@@ -621,25 +621,24 @@ void dma3ChannelFreeI(const stm32_dma3_channel_t *dmachp) {
   dma3.channels[selfindex].param = NULL;
 
   /* Shutting down clocks that are no more required, if any.*/
-  if ((dma3.allocated_mask & STM32_DMA31_MASK_ANY) == 0U) {
 #if defined(STM32_DMA3_SHARED_GPDMA1)
-    if ((dma3.allocated_mask & STM32_DMA32_MASK_ANY) == 0U) {
-      rccDisableDMA31();
-    }
-#else
+  /* Both channel groups are clocked by GPDMA1.*/
+  if (dma3.allocated_mask == 0U) {
     rccDisableDMA31();
-#endif
+  }
+#else
+  /* Only the controller of the freed channel, the other controller could
+     have never been enabled.*/
+  if (((STM32_DMA31_MASK_ANY & (1U << selfindex)) != 0U) &&
+      ((dma3.allocated_mask & STM32_DMA31_MASK_ANY) == 0U)) {
+    rccDisableDMA31();
   }
 #if STM32_DMA32_NUM_CHANNELS > 0
-  if ((dma3.allocated_mask & STM32_DMA32_MASK_ANY) == 0U) {
-#if defined(STM32_DMA3_SHARED_GPDMA1)
-    if ((dma3.allocated_mask & STM32_DMA31_MASK_ANY) == 0U) {
-      rccDisableDMA32();
-    }
-#else
+  if (((STM32_DMA32_MASK_ANY & (1U << selfindex)) != 0U) &&
+      ((dma3.allocated_mask & STM32_DMA32_MASK_ANY) == 0U)) {
     rccDisableDMA32();
-#endif
   }
+#endif
 #endif
 }
 
@@ -699,12 +698,15 @@ size_t dma3ChannelDisable(const stm32_dma3_channel_t *dmachp) {
  * @special
  */
 void dma3ServeInterrupt(const stm32_dma3_channel_t *dmachp) {
-  uint32_t csr;
+  uint32_t csr, pending;
   uint32_t selfindex = (uint32_t)(dmachp - __stm32_dma3_channels);
 
   csr = dmachp->channel->CSR;
+  pending = csr & dmachp->channel->CCR & STM32_DMA3_CSR_ALL_FLAGS;
   dmachp->channel->CFCR = csr;
-  if ((csr & dmachp->channel->CCR & STM32_DMA3_CSR_ALL_FLAGS) != 0U) {
+  if (pending != 0U) {
+    /* Status without an interrupt enable (IDLEF and FIFOL) is preserved.*/
+    csr = pending | (csr & ~STM32_DMA3_CSR_ALL_FLAGS);
     if (dma3.channels[selfindex].func) {
       dma3.channels[selfindex].func(dma3.channels[selfindex].param, csr);
     }

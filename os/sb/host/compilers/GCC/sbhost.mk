@@ -9,7 +9,8 @@ SBHOSTSRC = $(CHIBIOS)/os/sb/host/sbhost.c \
           
 SBHOSTASM = $(CHIBIOS)/os/sb/host/compilers/GCC/sbexc.S
 
-SBHOSTINC = $(CHIBIOS)/os/sb/common \
+SBHOSTINC = $(CHIBIOS)/os/common/posix/include \
+            $(CHIBIOS)/os/sb/common \
             $(CHIBIOS)/os/sb/host
 
 # Shared variables

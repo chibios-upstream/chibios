@@ -27,9 +27,30 @@
  *          - Retrieve existing objects by name.
  *          - Free objects by reference.
  *          .
- *          Allocated OS objects are handled using a reference counter, only
- *          when all references have been released then the object memory is
- *          freed in a pool.<br>
+ *          Objects are managed using reference counts. Creation and each
+ *          successful lookup acquire one reference; duplication acquires
+ *          another. Each acquired reference must be released exactly once.
+ *          Final release returns the object to its pool or heap.
+ * @note    Duplicating or accessing an object requires an owned, live
+ *          reference. Lookup is the way to acquire a reference without
+ *          already owning one; a stale pointer must not be duplicated.
+ * @note    Inner-object getters return borrowed pointers without acquiring
+ *          references. Keep a factory reference throughout use, including
+ *          blocking calls and outstanding FIFO object loans. Transfer an
+ *          owned reference, or duplicate one before handing the object to
+ *          another thread or asynchronous consumer.
+ * @note    Final release requires all users and operations to be finished.
+ *          It does not reset the inner object, cancel operations or wake
+ *          waiters. Pointers into the released object must no longer be used.
+ * @note    For registered generic objects, the factory manages only the
+ *          registration wrapper. The caller retains responsibility for the
+ *          pointed-to object's lifetime; registration does not transfer
+ *          ownership of it.
+ * @note    Name matching follows @p CH_CFG_FACTORY_MAX_NAMES_LENGTH.
+ *          Each factory category has a separate name space.
+ * @note    An object can have at most @p FACTORY_MAX_REFERENCES references.
+ *          Acquiring a reference when this limit is reached is a programming
+ *          error, diagnosed when @p CH_DBG_ENABLE_ASSERTS is enabled.
  * @pre     This subsystem requires the @p CH_CFG_USE_MEMCORE and
  *          @p CH_CFG_USE_MEMPOOLS options to be set to @p TRUE. The
  *          option @p CH_CFG_USE_HEAP is also required if the support
@@ -317,6 +338,9 @@ static dyn_element_t *dyn_find_object(const char *name, dyn_list_t *dlp) {
   /* Checking if an object with this name has already been created.*/
   dep = dyn_list_find(name, dlp);
   if (dep != NULL) {
+    chDbgAssert(dep->refs > (ucnt_t)0, "invalid references number");
+    chDbgAssert(dep->refs < FACTORY_MAX_REFERENCES, "too many references");
+
     /* Increasing references counter.*/
     dep->refs++;
   }
@@ -370,6 +394,9 @@ void __factory_init(void) {
 /**
  * @brief   Duplicates an object reference.
  * @note    This function can be used on any kind of dynamic object.
+ * @pre     The caller must own a valid reference to the object.
+ * @pre     The object must have fewer than @p FACTORY_MAX_REFERENCES
+ *          references.
  *
  * @param[in] dep       pointer to the element field of the object
  * @return              The duplicated object reference.
@@ -383,6 +410,7 @@ dyn_element_t *chFactoryDuplicateReference(dyn_element_t *dep) {
   FACTORY_LOCK();
 
   chDbgAssert(dep->refs > (ucnt_t)0, "invalid references number");
+  chDbgAssert(dep->refs < FACTORY_MAX_REFERENCES, "too many references");
   dep->refs++;
 
   FACTORY_UNLOCK();
@@ -393,6 +421,9 @@ dyn_element_t *chFactoryDuplicateReference(dyn_element_t *dep) {
 #if (CH_CFG_FACTORY_OBJECTS_REGISTRY == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Registers a generic object.
+ * @note    Only the registration wrapper is managed by the factory. The
+ *          caller must keep the pointed-to object valid while it can be used
+ *          through the registration; it is not freed by final release.
  * @post    A reference to the registered object is returned and the
  *          reference counter is initialized to one.
  *
@@ -426,6 +457,8 @@ registered_object_t *chFactoryRegisterObject(const char *name,
 
 /**
  * @brief   Retrieves a registered object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the registered object is returned with the
  *          reference counter increased by one.
  *
@@ -451,6 +484,8 @@ registered_object_t *chFactoryFindObject(const char *name) {
 
 /**
  * @brief   Retrieves a registered object by pointer.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the registered object is returned with the
  *          reference counter increased by one.
  *
@@ -471,6 +506,10 @@ registered_object_t *chFactoryFindObjectByPointer(void *objp) {
 
   while ((void *)rop != (void *)&ch_factory.obj_list) {
     if (rop->objp == objp) {
+      chDbgAssert(rop->element.refs > (ucnt_t)0, "invalid references number");
+      chDbgAssert(rop->element.refs < FACTORY_MAX_REFERENCES,
+                  "too many references");
+
       rop->element.refs++;
 
       FACTORY_UNLOCK();
@@ -487,6 +526,7 @@ registered_object_t *chFactoryFindObjectByPointer(void *objp) {
 
 /**
  * @brief   Releases a registered object and report subsequent reference count.
+ * @pre     The caller must own the reference being released.
  * @details The reference counter of the registered object is decreased
  *          by one. If the count reaches zero then the containing list element
  *          is returned to the free pool. The reference count is returned so
@@ -503,6 +543,8 @@ registered_object_t *chFactoryFindObjectByPointer(void *objp) {
  */
 ucnt_t chFactoryReleaseObject(registered_object_t *rop) {
   ucnt_t refs;
+
+  chDbgCheck(rop != NULL);
 
   FACTORY_LOCK();
 
@@ -558,6 +600,8 @@ dyn_buffer_t *chFactoryCreateBuffer(const char *name, size_t size) {
 
 /**
  * @brief   Retrieves a dynamic buffer object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the dynamic buffer object is returned with the
  *          reference counter increased by one.
  *
@@ -583,6 +627,9 @@ dyn_buffer_t *chFactoryFindBuffer(const char *name) {
 
 /**
  * @brief   Releases a dynamic buffer object.
+ * @pre     The caller must own the reference being released.
+ * @note    Final release invalidates the object and all pointers to its
+ *          buffer; all uses of the buffer must have finished.
  * @details The reference counter of the dynamic buffer object is decreased
  *          by one, if reaches zero then the dynamic buffer object memory
  *          is freed.
@@ -596,6 +643,8 @@ dyn_buffer_t *chFactoryFindBuffer(const char *name) {
  */
 ucnt_t chFactoryReleaseBuffer(dyn_buffer_t *dbp) {
   ucnt_t refs;
+
+  chDbgCheck(dbp != NULL);
 
   FACTORY_LOCK();
 
@@ -643,6 +692,8 @@ dyn_semaphore_t *chFactoryCreateSemaphore(const char *name, cnt_t n) {
 
 /**
  * @brief   Retrieves a dynamic semaphore object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the dynamic semaphore object is returned with the
  *          reference counter increased by one.
  *
@@ -668,6 +719,9 @@ dyn_semaphore_t *chFactoryFindSemaphore(const char *name) {
 
 /**
  * @brief   Releases a dynamic semaphore object.
+ * @pre     The caller must own the reference being released.
+ * @note    Final release requires all users to have finished. It does not
+ *          reset the semaphore or wake waiters.
  * @details The reference counter of the dynamic semaphore object is decreased
  *          by one, if reaches zero then the dynamic semaphore object memory
  *          is freed.
@@ -681,6 +735,8 @@ dyn_semaphore_t *chFactoryFindSemaphore(const char *name) {
  */
 ucnt_t chFactoryReleaseSemaphore(dyn_semaphore_t *dsp) {
   ucnt_t refs;
+
+  chDbgCheck(dsp != NULL);
 
   FACTORY_LOCK();
 
@@ -737,6 +793,8 @@ dyn_mailbox_t *chFactoryCreateMailbox(const char *name, size_t n) {
 
 /**
  * @brief   Retrieves a dynamic mailbox object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the dynamic mailbox object is returned with the
  *          reference counter increased by one.
  *
@@ -762,6 +820,9 @@ dyn_mailbox_t *chFactoryFindMailbox(const char *name) {
 
 /**
  * @brief   Releases a dynamic mailbox object.
+ * @pre     The caller must own the reference being released.
+ * @note    Final release requires all users to have finished. It does not
+ *          reset the mailbox or wake waiters.
  * @details The reference counter of the dynamic mailbox object is decreased
  *          by one, if reaches zero then the dynamic mailbox object memory
  *          is freed.
@@ -775,6 +836,8 @@ dyn_mailbox_t *chFactoryFindMailbox(const char *name) {
  */
 ucnt_t chFactoryReleaseMailbox(dyn_mailbox_t *dmp) {
   ucnt_t refs;
+
+  chDbgCheck(dmp != NULL);
 
   FACTORY_LOCK();
 
@@ -848,6 +911,8 @@ dyn_objects_fifo_t *chFactoryCreateObjectsFIFO(const char *name,
 
 /**
  * @brief   Retrieves a dynamic "objects FIFO" object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the dynamic "objects FIFO" object is returned with
  *          the reference counter increased by one.
  *
@@ -874,6 +939,9 @@ dyn_objects_fifo_t *chFactoryFindObjectsFIFO(const char *name) {
 
 /**
  * @brief   Releases a dynamic "objects FIFO" object.
+ * @pre     The caller must own the reference being released.
+ * @note    Final release requires all users and outstanding object loans
+ *          to have finished. It does not reset the FIFO or wake waiters.
  * @details The reference counter of the dynamic "objects FIFO" object is
  *          decreased by one, if reaches zero then the dynamic "objects FIFO"
  *          object memory is freed.
@@ -887,6 +955,8 @@ dyn_objects_fifo_t *chFactoryFindObjectsFIFO(const char *name) {
  */
 ucnt_t chFactoryReleaseObjectsFIFO(dyn_objects_fifo_t *dofp) {
   ucnt_t refs;
+
+  chDbgCheck(dofp != NULL);
 
   FACTORY_LOCK();
 
@@ -942,6 +1012,8 @@ dyn_pipe_t *chFactoryCreatePipe(const char *name, size_t size) {
 
 /**
  * @brief   Retrieves a dynamic pipe object.
+ * @pre     If found, the object must have fewer than
+ *          @p FACTORY_MAX_REFERENCES references before acquisition.
  * @post    A reference to the dynamic pipe object is returned with
  *          the reference counter increased by one.
  *
@@ -968,6 +1040,9 @@ dyn_pipe_t *chFactoryFindPipe(const char *name) {
 
 /**
  * @brief   Releases a dynamic pipe object.
+ * @pre     The caller must own the reference being released.
+ * @note    Final release requires all users to have finished. It does not
+ *          reset the pipe or wake waiters.
  * @details The reference counter of the dynamic pipe object is
  *          decreased by one, if reaches zero then the dynamic pipe
  *          object memory is freed.
@@ -981,6 +1056,8 @@ dyn_pipe_t *chFactoryFindPipe(const char *name) {
  */
 ucnt_t chFactoryReleasePipe(dyn_pipe_t *dpp) {
   ucnt_t refs;
+
+  chDbgCheck(dpp != NULL);
 
   FACTORY_LOCK();
 

@@ -959,6 +959,8 @@ return msg;]]></implementation>
             <method shortname="stop">
               <implementation><![CDATA[
 
+(void)prevstate;
+
 sio_lld_stop(self);
 self->cb      = NULL;
 self->enabled = (sioevents_t)0;
@@ -1195,6 +1197,8 @@ return msg;]]></implementation>
             </method>
             <method shortname="stop">
               <implementation><![CDATA[
+
+(void)prevstate;
 
 drvStop(self->siop);]]></implementation>
             </method>

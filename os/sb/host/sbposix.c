@@ -29,6 +29,7 @@
 #if (SB_CFG_ENABLE_VFS == TRUE) || defined(__DOXYGEN__)
 
 #include <dirent.h>
+#include <termios.h>
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
@@ -203,6 +204,57 @@ static uint32_t sb_io_fstat(sb_class_t *sbp, int fd, struct stat *statbuf) {
   }
 
   return (uint32_t)ret;
+}
+
+static uint32_t sb_io_tcgetattr(sb_class_t *sbp, int fd,
+                                struct termios *attrp) {
+  struct termios attr;
+  msg_t ret;
+
+  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
+    return (uint32_t)CH_RET_EBADF;
+  }
+  if (!VFS_MODE_S_ISCHR(sbp->io.vfs_nodes[fd]->mode)) {
+    return (uint32_t)CH_RET_ENOTTY;
+  }
+  if (!sb_is_valid_write_range(sbp, attrp, sizeof attr)) {
+    return (uint32_t)CH_RET_EFAULT;
+  }
+
+  /* Keep driver arguments aligned and do not expose host stack padding.*/
+  memset(&attr, 0, sizeof attr);
+  ret = vfsFileControl((vfs_file_node_c *)sbp->io.vfs_nodes[fd],
+                        VFS_CTL_TTY_GETATTR, &attr);
+  if (!CH_RET_IS_ERROR(ret)) {
+    memcpy(attrp, &attr, sizeof attr);
+  }
+  return (uint32_t)ret;
+}
+
+static uint32_t sb_io_tcsetattr(sb_class_t *sbp, int fd, int action,
+                                const struct termios *attrp) {
+  struct termios attr;
+  vfs_tty_setattr_args_t args;
+
+  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
+    return (uint32_t)CH_RET_EBADF;
+  }
+  if (!VFS_MODE_S_ISCHR(sbp->io.vfs_nodes[fd]->mode)) {
+    return (uint32_t)CH_RET_ENOTTY;
+  }
+  if ((action != TCSANOW) && (action != TCSADRAIN) && (action != TCSAFLUSH)) {
+    return (uint32_t)CH_RET_EINVAL;
+  }
+  if (!sb_is_valid_read_range(sbp, attrp, sizeof attr)) {
+    return (uint32_t)CH_RET_EFAULT;
+  }
+
+  /* Snapshot sandbox memory before a potentially blocking driver operation.*/
+  memcpy(&attr, attrp, sizeof attr);
+  args.action = action;
+  args.attrp = &attr;
+  return (uint32_t)vfsFileControl((vfs_file_node_c *)sbp->io.vfs_nodes[fd],
+                                   VFS_CTL_TTY_SETATTR, &args);
 }
 
 static uint32_t sb_io_read(sb_class_t *sbp, int fd, void *buf, size_t count) {
@@ -487,6 +539,14 @@ void sb_sysc_stdio(sb_class_t *sbp, struct port_extctx *ectxp) {
     break;
   case SB_POSIX_FSTAT:
     ectxp->r0 = sb_io_fstat(sbp, (int)ectxp->r1, (struct stat *)ectxp->r2);
+    break;
+  case SB_POSIX_TCGETATTR:
+    ectxp->r0 = sb_io_tcgetattr(sbp, (int)ectxp->r1,
+                                (struct termios *)ectxp->r2);
+    break;
+  case SB_POSIX_TCSETATTR:
+    ectxp->r0 = sb_io_tcsetattr(sbp, (int)ectxp->r1, (int)ectxp->r2,
+                                (const struct termios *)ectxp->r3);
     break;
   case SB_POSIX_READ:
     ectxp->r0 = sb_io_read(sbp,

@@ -156,9 +156,14 @@ msg_t __eth_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p hal_eth_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __eth_stop_impl(void *ip) {
+void __eth_stop_impl(void *ip, driver_state_t prevstate) {
   hal_eth_driver_c *self = (hal_eth_driver_c *)ip;
+
+  (void)prevstate;
 
   eth_lld_stop(self);
 }

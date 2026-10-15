@@ -96,6 +96,36 @@ static void rtc_disable_alarm(hal_rtc_driver_c *rtcp) {
   }
 }
 
+/**
+ * @brief   Waits for the counters to show a loaded date/time.
+ * @details The counters are updated from the RTC clock domain, they show
+ *          the values loaded by a set about one clk_rtc cycle after the
+ *          RTC is active again. The wait is bounded to four clk_rtc
+ *          cycles, a seconds increment in the meantime would not match.
+ *
+ * @param[in] rtcp      pointer to the @p hal_rtc_driver_c object
+ * @param[in] setup0    loaded @p SETUP0 value, same layout as @p RTC1
+ * @param[in] setup1    loaded @p SETUP1 value, same layout as @p RTC0
+ *
+ * @notapi
+ */
+static void rtc_wait_loaded(hal_rtc_driver_c *rtcp,
+                            uint32_t setup0, uint32_t setup1) {
+  halcnt_t start, ticks;
+  uint32_t rtc_0, rtc_1;
+
+  /* The divider is the clk_rtc frequency minus one.*/
+  ticks = HAL_SFT_US2CNT(halSftGetCounterFrequencyX(),
+                         ((4U * 1000000U) / (rtcp->rtc->CLKDIVM1 + 1U)) + 1U);
+  start = halSftGetCounterX();
+  do {
+    /* Read RTC0 first then RTC1.*/
+    rtc_0 = rtcp->rtc->RTC0;
+    rtc_1 = rtcp->rtc->RTC1;
+  } while (((rtc_0 != setup1) || (rtc_1 != setup0)) &&
+           halSftIsCounterWithinX(start, start + ticks));
+}
+
 /*===========================================================================*/
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
@@ -319,6 +349,8 @@ void rtc_lld_set_callback(hal_rtc_driver_c *rtcp, drv_cb_t cb) {
  *          leap year, therefore date/times at or after 2100-03-01 are
  *          rejected with @p HAL_RET_CONFIG_ERROR, see the driver
  *          header notes.
+ * @note    The function returns once the RTC counters show the new
+ *          date/time, a few clk_rtc cycles after it has been loaded.
  * @note    The function can be called from any context.
  *
  * @param[in] rtcp      pointer to the @p hal_rtc_driver_c object
@@ -389,12 +421,19 @@ msg_t rtc_lld_set_datetime(hal_rtc_driver_c *rtcp,
   while ((rtcp->rtc->CTRL & RTC_CTRL_RTC_ACTIVE) == 0U) {
   }
 
+  /* A read right after the set must return the new date/time.*/
+  rtc_wait_loaded(rtcp, setup0, setup1);
+
   return HAL_RET_SUCCESS;
 }
 
 /**
  * @brief   Gets the current date/time.
  * @note    The function can be called from any context.
+ * @note    The operation fails with @p HAL_RET_CONFIG_ERROR while the RTC
+ *          is not running, which means the time has not been set since
+ *          the last reset, and while the RTC holds a date before
+ *          1980-01-01, the floor of the shared representation.
  *
  * @param[in]  rtcp      pointer to the @p hal_rtc_driver_c object
  * @param[out] timespec  pointer to a @p rtc_datetime_t structure
@@ -404,11 +443,13 @@ msg_t rtc_lld_set_datetime(hal_rtc_driver_c *rtcp,
  */
 msg_t rtc_lld_get_datetime(hal_rtc_driver_c *rtcp,
                            rtc_datetime_t *timespec) {
-  uint32_t rtc_0, rtc_1;
+  uint32_t ctrl, rtc_0, rtc_1;
   syssts_t sts;
 
   /* Entering a reentrant critical zone.*/
   sts = chSysGetStatusAndLockX();
+
+  ctrl  = rtcp->rtc->CTRL;
 
   /* Read RTC0 first then RTC1.*/
   rtc_0 = rtcp->rtc->RTC0;
@@ -416,6 +457,14 @@ msg_t rtc_lld_get_datetime(hal_rtc_driver_c *rtcp,
 
   /* Leaving a reentrant critical zone.*/
   chSysRestoreStatusX(sts);
+
+  /* The RTC only runs once a date/time has been set, the counters of a
+     stopped RTC are not a time. Years before the base year cannot be
+     represented.*/
+  if (((ctrl & RTC_CTRL_RTC_ACTIVE) == 0U) ||
+      (RTC_RTC_1_YEAR(rtc_1) < RTC_BASE_YEAR)) {
+    return HAL_RET_CONFIG_ERROR;
+  }
 
   /* Calculate and set milliseconds since midnight field.*/
   timespec->millisecond = ((RTC_RTC_0_HOUR(rtc_0) * 3600U) +

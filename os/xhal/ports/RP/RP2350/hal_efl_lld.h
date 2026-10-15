@@ -103,6 +103,8 @@
  * @details The port parks the other core in RAM with interrupts masked
  *          for the duration of each flash operation. DMA reading from the
  *          XIP window remains an application responsibility.
+ * @note    ARM cores only, the Hazard3 RISC-V port does not provide the
+ *          SMP lockout services.
  */
 #define RP_EFL_XIP_SAFETY_LOCKOUT           1
 /** @} */
@@ -149,6 +151,13 @@
 #if (RP_EFL_XIP_SAFETY != RP_EFL_XIP_SAFETY_NONE) &&                        \
     (RP_EFL_XIP_SAFETY != RP_EFL_XIP_SAFETY_LOCKOUT)
 #error "invalid RP_EFL_XIP_SAFETY value"
+#endif
+
+/* The built-in lockout hooks need the SMP port lockout services, which
+   the Hazard3 port does not provide; a RISC-V build would silently link
+   the weak no-op hooks instead and park nothing. */
+#if defined(__riscv) && (RP_EFL_XIP_SAFETY == RP_EFL_XIP_SAFETY_LOCKOUT)
+#error "RP_EFL_XIP_SAFETY_LOCKOUT is ARM-only, use NONE with application hooks"
 #endif
 
 /**

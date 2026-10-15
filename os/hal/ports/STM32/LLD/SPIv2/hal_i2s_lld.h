@@ -32,6 +32,11 @@
 /*===========================================================================*/
 
 /**
+ * @brief   This LLD supports returning status from @p i2s_lld_start().
+ */
+#define I2S_LLD_ENHANCED_API
+
+/**
  * @name    Static I2S modes
  * @{
  */
@@ -290,32 +295,32 @@
 
 /* Check on the validity of the assigned DMA channels.*/
 #if STM32_I2S_USE_SPI1 &&                                                   \
-    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI1_RX_DMA_STREAM, STM32_I2S1_RX_DMA_MSK)
+    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI1_RX_DMA_STREAM, STM32_SPI1_RX_DMA_MSK)
 #error "invalid DMA stream associated to SPI1 RX"
 #endif
 
 #if STM32_I2S_USE_SPI1 &&                                                   \
-    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI1_TX_DMA_STREAM, STM32_I2S1_TX_DMA_MSK)
+    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI1_TX_DMA_STREAM, STM32_SPI1_TX_DMA_MSK)
 #error "invalid DMA stream associated to SPI1 TX"
 #endif
 
 #if STM32_I2S_USE_SPI2 &&                                                   \
-    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI2_RX_DMA_STREAM, STM32_I2S2_RX_DMA_MSK)
+    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI2_RX_DMA_STREAM, STM32_SPI2_RX_DMA_MSK)
 #error "invalid DMA stream associated to SPI2 RX"
 #endif
 
 #if STM32_I2S_USE_SPI2 &&                                                   \
-    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI2_TX_DMA_STREAM, STM32_I2S2_TX_DMA_MSK)
+    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI2_TX_DMA_STREAM, STM32_SPI2_TX_DMA_MSK)
 #error "invalid DMA stream associated to SPI2 TX"
 #endif
 
 #if STM32_I2S_USE_SPI3 &&                                                   \
-    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI3_RX_DMA_STREAM, STM32_I2S3_RX_DMA_MSK)
+    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI3_RX_DMA_STREAM, STM32_SPI3_RX_DMA_MSK)
 #error "invalid DMA stream associated to SPI3 RX"
 #endif
 
 #if STM32_I2S_USE_SPI3 &&                                                   \
-    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI3_TX_DMA_STREAM, STM32_I2S3_TX_DMA_MSK)
+    !STM32_DMA_IS_VALID_ID(STM32_I2S_SPI3_TX_DMA_STREAM, STM32_SPI3_TX_DMA_MSK)
 #error "invalid DMA stream associated to SPI3 TX"
 #endif
 
@@ -388,7 +393,7 @@ extern I2SDriver I2SD3;
 extern "C" {
 #endif
   void i2s_lld_init(void);
-  void i2s_lld_start(I2SDriver *i2sp);
+  msg_t i2s_lld_start(I2SDriver *i2sp);
   void i2s_lld_stop(I2SDriver *i2sp);
   void i2s_lld_start_exchange(I2SDriver *i2sp);
   void i2s_lld_stop_exchange(I2SDriver *i2sp);

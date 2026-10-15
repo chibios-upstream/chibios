@@ -94,6 +94,13 @@
 /*
  * IRQ system settings.
  */
+#if STM32_TARGET_CORE == 1
+#define STM32_IRQ_ADC1_PRIORITY             5
+#define STM32_IRQ_DAC1_PRIORITY             10
+#else
+#define STM32_IRQ_ADC1_COMP_DAC1_PRIORITY    5
+#endif
+
 #define STM32_IRQ_EXTI0_PRIORITY            6
 #define STM32_IRQ_EXTI1_PRIORITY            6
 #define STM32_IRQ_EXTI2_PRIORITY            6
@@ -110,6 +117,10 @@
 
 #define STM32_IRQ_I2C1_PRIORITY             5
 #define STM32_IRQ_I2C3_PRIORITY             5
+
+#define STM32_IRQ_SPI1_PRIORITY             10
+#define STM32_IRQ_SPI2_PRIORITY             10
+#define STM32_IRQ_SPI3_PRIORITY             10
 
 #define STM32_IRQ_TIM1_BRK_PRIORITY         7
 #define STM32_IRQ_TIM1_UP_PRIORITY          7
@@ -131,9 +142,7 @@
  */
 #define STM32_ADC_USE_ADC1                  TRUE
 #define STM32_ADC_ADC1_CFGR2                ADC_CFGR2_CKMODE_ADCCLK
-#define STM32_ADC_ADC1_IRQ_PRIORITY         5
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     5
 #define STM32_ADC_ADC1_DMA_STREAM           STM32_DMA_STREAM_ID_ANY
 #define STM32_ADC_PRESCALER_VALUE           2
 
@@ -143,8 +152,6 @@
 #define STM32_DAC_DUAL_MODE                 FALSE
 #define STM32_DAC_USE_DAC1_CH1              FALSE
 #define STM32_DAC_USE_DAC1_CH2              FALSE
-#define STM32_DAC_DAC1_CH1_IRQ_PRIORITY     10
-#define STM32_DAC_DAC1_CH2_IRQ_PRIORITY     10
 #define STM32_DAC_DAC1_CH1_DMA_PRIORITY     2
 #define STM32_DAC_DAC1_CH2_DMA_PRIORITY     2
 #define STM32_DAC_DAC1_CH1_DMA_STREAM       STM32_DMA_STREAM_ID_ANY
@@ -216,16 +223,12 @@
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
 #define STM32_SPI_SPI3_DMA_PRIORITY         1
-#define STM32_SPI_SPI1_IRQ_PRIORITY         10
-#define STM32_SPI_SPI2_IRQ_PRIORITY         10
-#define STM32_SPI_SPI3_IRQ_PRIORITY         10
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*
  * I2S driver system settings.
  */
 #define STM32_I2S_USE_SPI2                  FALSE
-#define STM32_I2S_SPI2_IRQ_PRIORITY         10
 #define STM32_I2S_SPI2_DMA_PRIORITY         1
 #define STM32_I2S_SPI2_RX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_I2S_SPI2_TX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY

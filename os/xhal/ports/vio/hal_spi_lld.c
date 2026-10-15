@@ -98,15 +98,9 @@ static void spi_lld_serve_interrupt(hal_spi_driver_c *spip, uint32_t nvrq) {
     return;
   }
 
-  /* Half buffer interrupt.*/
-  if ((sts & (1U << HAL_DRV_STATE_HALF)) != 0U) {
-    __cbdrv_invoke_half_cb(spip);
-  }
-
-  /* Full buffer interrupt.*/
-  if ((sts & (1U << HAL_DRV_STATE_FULL)) != 0U) {
-    __cbdrv_invoke_full_cb(spip);
-  }
+  /* Circular buffer events from the same status snapshot.*/
+  _spi_isr_circular_code(spip, (sts & (1U << HAL_DRV_STATE_HALF)) != 0U,
+                         (sts & (1U << HAL_DRV_STATE_FULL)) != 0U);
 }
 
 /*===========================================================================*/

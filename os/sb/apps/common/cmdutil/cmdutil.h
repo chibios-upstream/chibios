@@ -19,7 +19,7 @@
 
 #include <stddef.h>
 
-#define CMD_NEWLINE_STR     "\r\n"
+#define CMD_NEWLINE_STR     "\n"
 
 #ifdef __cplusplus
 extern "C" {

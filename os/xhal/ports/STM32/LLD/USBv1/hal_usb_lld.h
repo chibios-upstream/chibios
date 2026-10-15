@@ -58,13 +58,13 @@
 #define STM32_USB_LOW_POWER_ON_SUSPEND      FALSE
 #endif
 
-#if (!defined(STM32_USB_USB1_HP_IRQ_PRIORITY) &&                           \
+#if (!defined(STM32_IRQ_USB1_HP_PRIORITY) &&                               \
      (STM32_USB1_HP_NUMBER != STM32_USB1_LP_NUMBER)) || defined(__DOXYGEN__)
-#define STM32_USB_USB1_HP_IRQ_PRIORITY      13
+#define STM32_IRQ_USB1_HP_PRIORITY         13
 #endif
 
-#if !defined(STM32_USB_USB1_LP_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_USB_USB1_LP_IRQ_PRIORITY      14
+#if !defined(STM32_IRQ_USB1_LP_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_IRQ_USB1_LP_PRIORITY         14
 #endif
 
 #if !defined(STM32_USB_USE_ISOCHRONOUS) || defined(__DOXYGEN__)
@@ -73,6 +73,21 @@
 
 #if !defined(STM32_USB_USE_FAST_COPY) || defined(__DOXYGEN__)
 #define STM32_USB_USE_FAST_COPY             FALSE
+#endif
+
+/**
+ * @brief   Enables double buffering on bulk endpoints.
+ * @details Unidirectional bulk endpoints with @p ep_buffers set to 2 use
+ *          the double-buffered mode of the peripheral: a packet is copied
+ *          while the peripheral transfers the other buffer, reducing the
+ *          number of transactions answered with NAK. An endpoint enters
+ *          the double-buffered mode on its first transfer of two or more
+ *          packets, it goes back to the single-buffered mode when its halt
+ *          condition is cleared.
+ * @note    Double buffering makes the code size increase.
+ */
+#if !defined(STM32_USB_USE_DOUBLE_BUFFERING) || defined(__DOXYGEN__)
+#define STM32_USB_USE_DOUBLE_BUFFERING      FALSE
 #endif
 
 #if !defined(STM32_USB_HOST_WAKEUP_DURATION) || defined(__DOXYGEN__)
@@ -95,19 +110,33 @@
 #error "USB driver activated but no USB peripheral assigned"
 #endif
 
+/* The transceiver startup time is awaited on the timeout counter.*/
+#if !defined(HAL_LLD_GET_CNT_VALUE) || !defined(HAL_LLD_GET_CNT_FREQUENCY)
+#error "USBv1 requires HAL timeout counter hooks"
+#endif
+
 #if !defined(STM32_USBCLK)
 #error "STM32_USBCLK not defined"
 #endif
 
 #if STM32_USB_USE_USB1 &&                                                   \
     (STM32_USB1_HP_NUMBER != STM32_USB1_LP_NUMBER) &&                       \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_USB_USB1_HP_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_USB1_HP_PRIORITY)
 #error "Invalid IRQ priority assigned to USB HP"
 #endif
 
 #if STM32_USB_USE_USB1 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_USB_USB1_LP_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_USB1_LP_PRIORITY)
 #error "Invalid IRQ priority assigned to USB LP"
+#endif
+
+/* The low priority handler leaves the isochronous and double-buffered
+   endpoints to the high priority handler, the latter must not be preempted
+   by the former.*/
+#if (STM32_USB_USE_ISOCHRONOUS || STM32_USB_USE_DOUBLE_BUFFERING) &&        \
+    (STM32_USB1_HP_NUMBER != STM32_USB1_LP_NUMBER) &&                       \
+    (STM32_IRQ_USB1_HP_PRIORITY > STM32_IRQ_USB1_LP_PRIORITY)
+#error "STM32_IRQ_USB1_HP_PRIORITY lower than STM32_IRQ_USB1_LP_PRIORITY"
 #endif
 
 #if !defined(STM32_USB1_HP_HANDLER)
@@ -154,8 +183,38 @@
 /* Driver data structures and types.                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   No USB-specific hardware configuration fields.
+ */
 #define usb_lld_config_fields
-#define usb_lld_driver_fields              uint32_t pmnext
+
+#if (STM32_USB_USE_DOUBLE_BUFFERING == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Double buffering fields.
+ */
+#define usb_lld_dbl_fields                                                \
+  /* Endpoints that can be double-buffered.*/                             \
+  uint16_t                     dblcap;                                    \
+  /* Double-buffered endpoints whose both buffers are owned by the        \
+     peripheral.*/                                                        \
+  uint16_t                     dblboth;                                   \
+  /* Double-buffered OUT endpoints holding a packet received while no     \
+     transfer is active.*/                                                \
+  uint16_t                     dblheld;                                   \
+  /* Size of the packet written after the last one, per IN endpoint,      \
+     zero if none.*/                                                      \
+  size_t                       txnext[USB_MAX_ENDPOINTS + 1];
+#else
+#define usb_lld_dbl_fields
+#endif
+
+/**
+ * @brief   USB low level driver fields.
+ */
+#define usb_lld_driver_fields                                             \
+  usb_lld_dbl_fields                                                      \
+  /* Next free address in the packet memory.*/                            \
+  uint32_t                     pmnext
 
 /*===========================================================================*/
 /* Driver macros.                                                            */

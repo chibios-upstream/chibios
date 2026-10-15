@@ -60,8 +60,7 @@
 #define MPU_RLAR        0xE000EDA0
 
 /* Size of the integer context portion (sp, basepri, r4-r11, lr_exc),
-   used to recover the context base address after the integer context
-   store.*/
+   used to address the MPU regions pointer after the integer context store.*/
 #define CONTEXT_INTEGER_SIZE    44
 
 /* Offset of the MPU regions table pointer within the port_context
@@ -97,13 +96,15 @@
 
                 /* Store integer context through R1.
                    On entry R2=PSP, R3=BASEPRI.
-                   On exit R5=context base address, it is meant to survive
-                   until PORT_LOAD_MPU_CONTEXT, the registers R4-R11 are
-                   free after this point.*/
+                   On exit R5=old MPU regions table pointer, it is meant to
+                   survive until PORT_LOAD_MPU_CONTEXT, the registers R4-R11
+                   are free after this point.*/
                 .macro  PORT_STORE_INTEGER_CONTEXT
                 stmia   r1!, {r2-r11,lr}
 #if PORT_SWITCHED_REGIONS_NUMBER > 0
-                sub     r5, r1, #CONTEXT_INTEGER_SIZE
+                /* Snapshot while locked, the outgoing thread can be
+                   disposed by another core after the spinlock release.*/
+                ldr     r5, [r1, #(MPU_OFFSET - CONTEXT_INTEGER_SIZE)]
 #endif
                 .endm
 
@@ -164,17 +165,16 @@
                 .endm
 
                 /* Compare and load MPU context.
-                   On entry R0=new context base, R5=old context base. The
-                   MPU is reprogrammed only when the two contexts point at
-                   different regions tables; the tables are never written
-                   back. Each load burst writes RNR followed by up to four
-                   RBAR/RLAR pairs through the alias registers. Clobbers
-                   R2-R12.*/
+                   On entry R0=new context base, R5=old MPU regions table
+                   pointer captured before releasing the spinlock. The MPU
+                   is reprogrammed only when the two regions table pointers
+                   differ; the tables are never written back. Each load burst
+                   writes RNR followed by up to four RBAR/RLAR pairs through
+                   the alias registers. Clobbers R2-R12.*/
                 .macro  PORT_LOAD_MPU_CONTEXT
 #if PORT_SWITCHED_REGIONS_NUMBER > 0
                 ldr     r2, [r0, #MPU_OFFSET]
-                ldr     r3, [r5, #MPU_OFFSET]
-                cmp     r2, r3
+                cmp     r2, r5
                 beq     1f
                 ldr     r12, =MPU_RNR
                 mov     r3, #0

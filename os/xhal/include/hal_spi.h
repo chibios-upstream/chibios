@@ -158,29 +158,27 @@
 
 /**
  * @brief       Common ISR code, half buffer event.
+ * @note        For half and full events from the same interrupt snapshot, use
+ *              @p _spi_isr_circular_code() instead.
  *
  * @param[in,out] spip          Pointer to the SPI driver instance.
  *
  * @notapi
  */
 #define _spi_isr_half_code(spip)                                            \
-  do {                                                                      \
-    __cbdrv_invoke_half_cb(spip);                                           \
-    __spi_wakeup_state_isr(spip, HAL_DRV_STATE_HALF);                       \
-  } while (false)
+  __spi_isr_buffer_code(spip, HAL_DRV_STATE_HALF)
 
 /**
  * @brief       Common ISR code, full buffer event.
+ * @note        For half and full events from the same interrupt snapshot, use
+ *              @p _spi_isr_circular_code() instead.
  *
  * @param[in,out] spip          Pointer to the SPI driver instance.
  *
  * @notapi
  */
 #define _spi_isr_full_code(spip)                                            \
-  do {                                                                      \
-    __cbdrv_invoke_full_cb(spip);                                           \
-    __spi_wakeup_state_isr(spip, HAL_DRV_STATE_FULL);                       \
-  } while (false)
+  __spi_isr_buffer_code(spip, HAL_DRV_STATE_FULL)
 
 /**
  * @brief       Common ISR code, transfer complete event.
@@ -307,7 +305,7 @@ struct hal_spi_driver_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From hal_cb_driver_c.*/
@@ -360,6 +358,15 @@ struct hal_spi_driver {
    * @note        Can be @p NULL.
    */
   drv_cb_t                  cb;
+#if (SPI_SUPPORTS_CIRCULAR == TRUE) || defined (__DOXYGEN__)
+  /**
+   * @brief       Transfer generation counter, managed by the HLD.
+   * @details     Incremented before every transfer start, including linear
+   *              transfers. Initialized only at object construction, not when
+   *              stopping or restarting the driver.
+   */
+  uint32_t                  sequence;
+#endif /* SPI_SUPPORTS_CIRCULAR == TRUE */
 #if (SPI_USE_SYNCHRONIZATION == TRUE) || defined (__DOXYGEN__)
   /**
    * @brief       Synchronization point for transfer.
@@ -389,7 +396,7 @@ extern "C" {
   void *__spi_objinit_impl(void *ip, const void *vmt);
   void __spi_dispose_impl(void *ip);
   msg_t __spi_start_impl(void *ip, const void *config);
-  void __spi_stop_impl(void *ip);
+  void __spi_stop_impl(void *ip, driver_state_t prevstate);
   const void *__spi_setcfg_impl(void *ip, const void *config);
   const void *__spi_selcfg_impl(void *ip, unsigned cfgnum);
   msg_t spiStartIgnoreI(void *ip, size_t n);
@@ -546,6 +553,78 @@ static inline void __spi_wakeup_state_isr(void *ip, driver_state_t state) {
   (void)state;
 }
 #endif /* SPI_USE_SYNCHRONIZATION == TRUE */
+
+/**
+ * @brief       Invokes a circular buffer callback and wakes its waiter.
+ * @note        The callback executes outside the system lock. If it stops or
+ *              replaces the transfer, the old event must not wake a waiter
+ *              belonging to the new transfer.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_spi_driver_c instance.
+ * @param[in]     state         Buffer event state, @p HAL_DRV_STATE_HALF or @p
+ *                              HAL_DRV_STATE_FULL.
+ *
+ * @notapi
+ */
+CC_FORCE_INLINE
+static inline void __spi_isr_buffer_code(void *ip, driver_state_t state) {
+  hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
+#if (SPI_SUPPORTS_CIRCULAR == TRUE) && (SPI_USE_SYNCHRONIZATION == TRUE)
+  uint32_t sequence = self->sequence;
+#endif
+
+  __cbdrv_invoke_cb_with_transition(self, state, HAL_DRV_STATE_ACTIVE);
+
+#if SPI_USE_SYNCHRONIZATION == TRUE
+  chSysLockFromISR();
+#if SPI_SUPPORTS_CIRCULAR == TRUE
+  if ((self->state == HAL_DRV_STATE_ACTIVE) && (self->sequence == sequence) &&
+      (self->sync_state == state)) {
+#else
+  if (self->sync_state == state) {
+#endif
+    chThdResumeI(&self->sync_transfer, MSG_OK);
+  }
+  chSysUnlockFromISR();
+#endif
+}
+
+#if (SPI_SUPPORTS_CIRCULAR == TRUE) || defined (__DOXYGEN__)
+/**
+ * @brief       Handles circular buffer events from one interrupt snapshot.
+ * @details     The LLD decodes its interrupt flags into half and full events
+ *              and passes both in one call. A full event captured before a
+ *              half callback stops or replaces the transfer is discarded.
+ *              Counter initialization and updates are entirely HLD-owned.
+ * @note        This helper and the generation counter are only present when @p
+ *              SPI_SUPPORTS_CIRCULAR is enabled. Existing single-event helpers
+ *              remain available, but separate half/full calls cannot detect a
+ *              transfer replacement between those calls.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_spi_driver_c instance.
+ * @param[in]     half          Half buffer event pending.
+ * @param[in]     full          Full buffer event pending.
+ *
+ * @notapi
+ */
+CC_FORCE_INLINE
+static inline void _spi_isr_circular_code(void *ip, bool half, bool full) {
+  hal_spi_driver_c *self = (hal_spi_driver_c *)ip;
+  uint32_t sequence = self->sequence;
+
+  if (self->state != HAL_DRV_STATE_ACTIVE) {
+    return;
+  }
+
+  if (half) {
+    _spi_isr_half_code(self);
+  }
+  if (full && (self->state == HAL_DRV_STATE_ACTIVE) &&
+      (self->sequence == sequence)) {
+    _spi_isr_full_code(self);
+  }
+}
+#endif /* SPI_SUPPORTS_CIRCULAR == TRUE */
 /** @} */
 
 #endif /* HAL_USE_SPI == TRUE */

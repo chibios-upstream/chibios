@@ -515,7 +515,7 @@
 
 #if STM32_GPT_USE_TIM15
 #if defined(STM32_TIM15_IS_USED)
-#error "GPTD14 requires TIM15 but the timer is already used"
+#error "GPTD15 requires TIM15 but the timer is already used"
 #else
 #define STM32_TIM15_IS_USED
 #endif
@@ -523,7 +523,7 @@
 
 #if STM32_GPT_USE_TIM16
 #if defined(STM32_TIM16_IS_USED)
-#error "GPTD14 requires TIM16 but the timer is already used"
+#error "GPTD16 requires TIM16 but the timer is already used"
 #else
 #define STM32_TIM16_IS_USED
 #endif
@@ -531,7 +531,7 @@
 
 #if STM32_GPT_USE_TIM17
 #if defined(STM32_TIM17_IS_USED)
-#error "GPTD14 requires TIM17 but the timer is already used"
+#error "GPTD17 requires TIM17 but the timer is already used"
 #else
 #define STM32_TIM17_IS_USED
 #endif

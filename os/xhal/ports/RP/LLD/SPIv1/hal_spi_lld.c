@@ -57,7 +57,11 @@ SPIDriver SPID1;
  */
 static const hal_spi_config_t spi_default_config = SPI_DEFAULT_CONFIGURATION;
 
-static const uint16_t dummytx = 0xFFFFU;
+/* Deliberately not const: the TX DMA reads this word once per frame during
+   ignore and receive operations, keeping it in RAM avoids DMA fetches
+   through XIP, which is unavailable while the flash is erased or
+   programmed.*/
+static uint16_t dummytx = 0xFFFFU;
 static uint16_t dummyrx;
 
 /*===========================================================================*/
@@ -171,9 +175,8 @@ static void spi_lld_serve_rx_interrupt(SPIDriver *spip, uint32_t ct) {
        the end of the whole transfer, the DMA service has already
        cleared this channel control register. The additional checks on
        the channel enable bit and on the residual counter reject a stale
-       completion dispatched from an old interrupts snapshot after the
-       channel has been re-armed by a new transfer carrying a matching
-       generation.*/
+       completion served after the channel has been re-armed by a new
+       transfer carrying a matching generation.*/
     chSysLockFromISR();
     claimed = ((gen & 1U) != 0U) && (gen == spip->tgen) &&
               ((spip->dmarx->channel->CTRL_TRIG & DMA_CTRL_TRIG_EN) == 0U) &&
@@ -229,9 +232,10 @@ static void spi_lld_serve_tx_interrupt(SPIDriver *spip, uint32_t ct) {
       RP_SPI_DMA_ERROR_HOOK(spip);
 #endif
       /* A TX failure makes the RX completion impossible, reporting the
-         failure here also terminates the transfer. The RX completion
-         bit possibly pending in the same interrupts snapshot is served
-         after this routine, it loses the claim and is discarded.*/
+         failure here also terminates the transfer. An RX completion
+         pending at this point is cleared by the channel disable above
+         and not served, a later RX event loses the claim and is
+         discarded.*/
       _spi_isr_error_code(spip);
     }
   }
@@ -256,8 +260,8 @@ static void spi_lld_tgen_open(SPIDriver *spip) {
 /**
  * @brief   DMA channels allocation.
  * @note    TX is allocated first: the shared DMA handler scans channels
- *          in ascending index order within a single interrupts snapshot,
- *          so with @p RP_DMA_CHANNEL_ID_ANY the TX channel gets the
+ *          in ascending index order within a single pass, so with
+ *          @p RP_DMA_CHANNEL_ID_ANY the TX channel gets the
  *          lower index and its end-of-sequence service is consumed
  *          before the RX completion wakes up a thread which, on the
  *          other core, could immediately reprogram the channels.
@@ -309,15 +313,24 @@ static msg_t spi_lld_get_dma(SPIDriver *spip, uint32_t rxchn,
 
 /**
  * @brief   SPI deactivation.
- * @details Stops any DMA activity, disables the SSP, releases the DMA
- *          channels and finally puts the peripheral back in reset.
+ * @details Masks the DMA interrupts, stops any DMA activity, disables the
+ *          SSP, releases the DMA channels and finally puts the peripheral
+ *          back in reset.
  *          Shared by the stop path and by the start failure rollback.
  *
  * @param[in] spip      pointer to the @p SPIDriver object
  */
 static void spi_lld_deactivate(SPIDriver *spip) {
 
-  /* Stopping any ongoing DMA activity first, the channels must be idle
+  /* DMA interrupts disabled on both cores first, the stop can be
+     performed by the core that did not start the driver and a
+     cross-core channel release requires the enables to be clear.
+     Masking before the aborts below also keeps a completion raised
+     during the teardown from being served on either core.*/
+  dmaChannelDisableInterruptX(spip->dmatx);
+  dmaChannelDisableInterruptX(spip->dmarx);
+
+  /* Stopping any ongoing DMA activity, the channels must be idle
      before being released.*/
   dmaChannelDisableX(spip->dmatx);
   dmaChannelDisableX(spip->dmarx);

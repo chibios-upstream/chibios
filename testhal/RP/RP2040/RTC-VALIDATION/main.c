@@ -17,7 +17,9 @@
 /*
  * RP2040 RTC validation test.
  *
- * Exercises the RTC alarm contract:
+ * Exercises the date/time read-back and the RTC alarm contract:
+ *  - a read right after a set returns the new date/time, on the first
+ *    set and when re-setting a running RTC;
  *  - a programmed alarm fires and invokes the callback;
  *  - rtcGetAlarm() reflects the armed alarm;
  *  - rtcSetAlarm(..., NULL) disables the alarm instead of faulting;
@@ -112,11 +114,7 @@ int main(void) {
   make_datetime(&dt, 0U);
   rtcSetTime(&RTCD1, &dt);
 
-  /* The loaded values become visible after two to three clk_rtc cycles
-     (about 60 us at 46875 Hz); allow for that before reading back.*/
-  chThdSleepMilliseconds(2);
-
-  /* Time read-back plausibility.*/
+  /* Time read-back plausibility, right after the set.*/
   rtcGetTime(&RTCD1, &dt);
   n = (size_t)chsnprintf(buf, sizeof(buf),
                          "  read-back: ms=%u day=%u month=%u year=%u dow=%u\r\n",
@@ -190,6 +188,27 @@ int main(void) {
   alarm_events = 0U;
   chThdSleepMilliseconds(4000);
   report("mask-zero-disabled alarm does not fire", alarm_events == 0U);
+
+  /* Re-setting the running RTC to a date/time differing in every field,
+     a read right after the set must not return the previous one.*/
+  dt.year        = 2031U - 1980U;
+  dt.month       = 1U;
+  dt.dstflag     = 0U;
+  dt.dayofweek   = 4U;
+  dt.day         = 2U;
+  dt.millisecond = ((3U * 3600U) + (4U * 60U) + 5U) * 1000U;
+  rtcSetTime(&RTCD1, &dt);
+  rtcGetTime(&RTCD1, &dt);
+  n = (size_t)chsnprintf(buf, sizeof(buf),
+                         "  re-set: ms=%u day=%u month=%u year=%u dow=%u\r\n",
+                         (unsigned)dt.millisecond, dt.day, dt.month,
+                         dt.year, dt.dayofweek);
+  (void)uartSendTimeout(&UARTD0, &n, buf, TIME_MS2I(200));
+  report("read right after a re-set",
+         (dt.millisecond >= ((3U * 3600U) + (4U * 60U) + 5U) * 1000U) &&
+         (dt.millisecond <  ((3U * 3600U) + (4U * 60U) + 7U) * 1000U) &&
+         (dt.day == 2U) && (dt.month == 1U) &&
+         (dt.year == 2031U - 1980U) && (dt.dayofweek == 4U));
 
   n = (size_t)chsnprintf(buf, sizeof(buf),
                          "RTC-VALIDATION complete: %u passed, %u failed\r\n",

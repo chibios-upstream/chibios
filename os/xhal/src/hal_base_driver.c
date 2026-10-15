@@ -360,6 +360,7 @@ msg_t drvStart(void *ip, const void *config) {
  */
 void drvStop(void *ip) {
   hal_base_driver_c *self = (hal_base_driver_c *)ip;
+  driver_state_t prevstate;
   bool stop = false;
 
   chDbgCheck(self != NULL);
@@ -367,7 +368,8 @@ void drvStop(void *ip) {
   chSysLock();
   chDbgAssert(self->state != HAL_DRV_STATE_UNINIT, "invalid state");
 
-  switch (self->state) {
+  prevstate = self->state;
+  switch (prevstate) {
   case HAL_DRV_STATE_STOP:
     /* Falls through.*/
   case HAL_DRV_STATE_STARTING:
@@ -383,7 +385,7 @@ void drvStop(void *ip) {
   chSysUnlock();
 
   if (stop) {
-    __drv_stop(self);
+    __drv_stop(self, prevstate);
 
     chSysLock();
     self->state  = HAL_DRV_STATE_STOP;

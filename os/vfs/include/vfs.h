@@ -160,7 +160,9 @@ extern "C" {
                            vfs_offset_t offset,
                            vfs_seekmode_t whence);
   vfs_offset_t vfsGetFilePosition(vfs_file_node_c *vfnp);
-  random_stream_i *vfsGetFileStream(vfs_file_node_c *vfnp);
+  msg_t vfsControlFile(vfs_file_node_c *vfnp,
+                       vfs_control_op_t operation,
+                       void *arg);
 #ifdef __cplusplus
 }
 #endif

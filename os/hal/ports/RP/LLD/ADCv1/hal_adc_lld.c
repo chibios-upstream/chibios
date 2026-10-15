@@ -38,6 +38,9 @@
 #define PADS_GPIO_OD                        (1U << 7)
 #define PADS_GPIO_PUE                       (1U << 3)
 #define PADS_GPIO_PDE                       (1U << 2)
+/* RP2350 pad isolation latch, set out of reset. Reserved and reading
+   as zero on RP2040.*/
+#define PADS_GPIO_ISO                       (1U << 8)
 /** @} */
 
 /*===========================================================================*/
@@ -76,7 +79,12 @@ static void adc_lld_drain_fifo(ADC_TypeDef *adc) {
 }
 
 /**
- * @brief   ADC DMA service routine.
+ * @brief   ADC data DMA channel service routine.
+ * @details In circular mode the completion of the data channel re-arms it
+ *          and reports the completed half or the full buffer. In linear
+ *          mode only the errors of the data transfer are served here, the
+ *          conversion is completed by the stop channel, see
+ *          @p adc_lld_serve_stop_interrupt().
  *
  * @param[in] p         parameter for the registered function
  * @param[in] ct        content of the CTRL_TRIG register
@@ -89,8 +97,9 @@ static void adc_lld_serve_dma_interrupt(void *p, uint32_t ct) {
     _adc_isr_error_code(adcp, ADC_ERR_DMAFAILURE);
   }
   else {
-    /* Conversion group may have been reset by error handler.*/
-    if (adcp->grpp != NULL) {
+    /* Conversion group may have been reset by error handler, linear
+       conversions are completed by the stop channel.*/
+    if ((adcp->grpp != NULL) && adcp->grpp->circular) {
       /* Checking for DMA transfer complete.*/
       if ((ct & DMA_CTRL_TRIG_BUSY) == 0U) {
         /* Check for ADC-level errors during transfer.*/
@@ -104,7 +113,7 @@ static void adc_lld_serve_dma_interrupt(void *p, uint32_t ct) {
         if (emask != 0U) {
           _adc_isr_error_code(adcp, emask);
         }
-        else if (adcp->grpp->circular) {
+        else {
           /* Circular mode: re-arm DMA before callback.*/
           const ADCConversionGroup *grpp = adcp->grpp;
           size_t total = (size_t)grpp->num_channels * adcp->depth;
@@ -147,11 +156,55 @@ static void adc_lld_serve_dma_interrupt(void *p, uint32_t ct) {
             _adc_isr_full_code(adcp);
           }
         }
-        else {
-          /* Linear mode: transfer complete.*/
-          _adc_isr_full_code(adcp);
-        }
       }
+    }
+  }
+}
+
+/**
+ * @brief   ADC stop DMA channel service routine.
+ * @details Completes linear conversions. The stop channel is chained to
+ *          the data channel and clears START_MANY with a single transfer
+ *          after the end of the data transfer, its completion therefore
+ *          follows the completion of the data transfer. The ADC is
+ *          stopped when this routine runs, the FIFO status checked here
+ *          covers the transfer and the conversions up to the stop
+ *          transfer, not the conversions which would otherwise continue
+ *          until the completion is served, whatever its latency.
+ * @note    The conversion already in progress when the stop channel clears
+ *          START_MANY still completes, an error in that conversion is
+ *          reported as @p ADC_ERR_CONVERSION although it is not part of
+ *          the transfer.
+ * @note    The conversions continue until the stop transfer, if that
+ *          transfer is delayed until they fill the FIFO an overflow is
+ *          reported.
+ *
+ * @param[in] p         parameter for the registered function
+ * @param[in] ct        content of the CTRL_TRIG register
+ */
+static void adc_lld_serve_stop_interrupt(void *p, uint32_t ct) {
+  ADCDriver *adcp = (ADCDriver *)p;
+
+  /* Conversion group may have been reset by error handler.*/
+  if ((adcp->grpp != NULL) && !adcp->grpp->circular) {
+    adcerror_t emask = 0U;
+
+    if ((ct & (DMA_CTRL_TRIG_READ_ERROR | DMA_CTRL_TRIG_WRITE_ERROR)) != 0U) {
+      /* The stop transfer failed, the ADC is only stopped by the error
+         handling below.*/
+      emask |= ADC_ERR_DMAFAILURE;
+    }
+    if ((adcp->adc->FCS & ADC_FCS_OVER) != 0U) {
+      emask |= ADC_ERR_OVERFLOW;
+    }
+    if ((adcp->adc->CS & ADC_CS_ERR_STICKY) != 0U) {
+      emask |= ADC_ERR_CONVERSION;
+    }
+    if (emask != 0U) {
+      _adc_isr_error_code(adcp, emask);
+    }
+    else {
+      _adc_isr_full_code(adcp);
     }
   }
 }
@@ -176,6 +229,7 @@ void adc_lld_init(void) {
   adcObjectInit(&ADCD1);
   ADCD1.adc     = ADC;
   ADCD1.dma     = NULL;
+  ADCD1.dmastop = NULL;
   ADCD1.dmamode = DMA_CTRL_TRIG_DATA_SIZE_HWORD |
                   DMA_CTRL_TRIG_INCR_WRITE      |
                   DMA_CTRL_TRIG_TREQ_ADC        |
@@ -183,12 +237,16 @@ void adc_lld_init(void) {
                   DMA_CTRL_TRIG_HIGH_PRIORITY   |
 #endif
                   0U;
+  ADCD1.csstop  = 0U;
   ADCD1.half    = false;
 #endif
 }
 
 /**
  * @brief   Configures and activates the ADC peripheral.
+ * @details Two DMA channels are claimed: the data channel draining the
+ *          ADC FIFO and the stop channel which linear conversions chain
+ *          to the data channel.
  *
  * @param[in] adcp      pointer to the @p ADCDriver object
  * @return              The operation status.
@@ -201,12 +259,21 @@ msg_t adc_lld_start(ADCDriver *adcp) {
   if (adcp->state == ADC_STOP) {
 #if RP_ADC_USE_ADC1
     if (&ADCD1 == adcp) {
-      /* Allocate DMA channel.*/
+      /* Allocate DMA channels.*/
       adcp->dma = dmaChannelAllocI(RP_DMA_CHANNEL_ID_ANY,
                                   RP_ADC_ADC1_DMA_IRQ_PRIORITY,
                                   adc_lld_serve_dma_interrupt,
                                   (void *)adcp);
       if (adcp->dma == NULL) {
+        return HAL_RET_NO_RESOURCE;
+      }
+      adcp->dmastop = dmaChannelAllocI(RP_DMA_CHANNEL_ID_ANY,
+                                       RP_ADC_ADC1_DMA_IRQ_PRIORITY,
+                                       adc_lld_serve_stop_interrupt,
+                                       (void *)adcp);
+      if (adcp->dmastop == NULL) {
+        dmaChannelFreeI(adcp->dma);
+        adcp->dma = NULL;
         return HAL_RET_NO_RESOURCE;
       }
 
@@ -229,6 +296,12 @@ msg_t adc_lld_start(ADCDriver *adcp) {
 
       /* Set DMA source to ADC FIFO (constant across conversions).*/
       dmaChannelSetSourceX(adcp->dma, (uint32_t)&adcp->adc->FIFO);
+
+      /* The stop channel transfers a single word from csstop to CS
+         (constant across conversions).*/
+      dmaChannelSetSourceX(adcp->dmastop, (uint32_t)&adcp->csstop);
+      dmaChannelSetDestinationX(adcp->dmastop, (uint32_t)&adcp->adc->CS);
+      dmaChannelSetCounterX(adcp->dmastop, 1U);
     }
 #endif /* RP_ADC_USE_ADC1 */
   }
@@ -262,7 +335,9 @@ void adc_lld_stop(ADCDriver *adcp) {
       /* Disable ADC.*/
       adcp->adc->CS = 0U;
 
-      /* Release DMA channel.*/
+      /* Release DMA channels.*/
+      dmaChannelFreeI(adcp->dmastop);
+      adcp->dmastop = NULL;
       dmaChannelFreeI(adcp->dma);
       adcp->dma = NULL;
 
@@ -312,6 +387,12 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
      START_MANY transitions 0->1 to set the round-robin starting channel.*/
   adcp->adc->CS = cs_val;
 
+  /* Same value written by the stop channel, it is only read by the DMA
+     after the end of a linear transfer. It is written to the CS register
+     and not to its CLR alias because an atomic alias write would also
+     clear ERR_STICKY, which is checked on transfer completion.*/
+  adcp->csstop = cs_val;
+
   /* Configure clock divisor.*/
   adcp->adc->DIV = grpp->div;
 
@@ -335,7 +416,34 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
   /* Configure DMA transfer (source address set once in adc_lld_start).*/
   dmaChannelSetDestinationX(adcp->dma, (uint32_t)adcp->samples);
   dmaChannelSetCounterX(adcp->dma, dma_count);
-  dmaChannelSetModeX(adcp->dma, mode);
+  if (grpp->circular) {
+    dmaChannelSetModeX(adcp->dma, mode);
+  }
+  else {
+    /* Linear conversion, the ADC is free-running and would keep filling
+       the FIFO after the last transfer until the completion interrupt
+       is served, overflowing it if the interrupt is served late. The
+       data channel chains into the stop channel which clears START_MANY
+       right after the end of the transfer.
+       NOTE: rp_dma.h offers no helper accepting a chain target,
+       dmaChannelSetModeX() enforces self-chaining, the control registers
+       are therefore programmed directly through the channel pointers.
+       The AL1_CTRL alias is not a trigger register so the stop channel
+       can be armed enabled without being started, only the chain event
+       raised by the data channel completion starts it.*/
+    adcp->dmastop->channel->AL1_CTRL =
+      DMA_CTRL_TRIG_DATA_SIZE_WORD                        |
+      DMA_CTRL_TRIG_TREQ_PERMANENT                        |
+      (mode & DMA_CTRL_TRIG_HIGH_PRIORITY)                |
+      DMA_CTRL_TRIG_CHAIN_TO(adcp->dmastop->chnidx)       |
+      DMA_CTRL_TRIG_EN;
+    adcp->dma->channel->AL1_CTRL =
+      (mode & ~DMA_CTRL_TRIG_CHAIN_TO_Msk) |
+      DMA_CTRL_TRIG_CHAIN_TO(adcp->dmastop->chnidx);
+
+    /* The stop channel completion terminates the conversion.*/
+    dmaChannelEnableInterruptX(adcp->dmastop);
+  }
 
   /* Enable DMA channel interrupt.*/
   dmaChannelEnableInterruptX(adcp->dma);
@@ -362,6 +470,11 @@ void adc_lld_stop_conversion(ADCDriver *adcp) {
 
   /* Stop conversions. Using CLR alias for atomic bit clear.*/
   adcp->adc->CLR.CS = ADC_CS_START_MANY;
+
+  /* The stop channel is disabled first so that a completion of the data
+     channel cannot chain into it during the teardown.*/
+  dmaChannelDisableX(adcp->dmastop);
+  dmaChannelDisableInterruptX(adcp->dmastop);
 
   /* Disable DMA channel.*/
   dmaChannelDisableX(adcp->dma);
@@ -419,9 +532,11 @@ void adcRPGpioInit(uint32_t gpio) {
   /* FUNCSEL = NULL (31): disconnect digital output driver.*/
   IO_BANK0->GPIO[gpio].CTRL = 31U;
 
-  /* Disable pulls and digital input, enable output disable.*/
+  /* Disable pulls and digital input, enable output disable. The same
+     write also releases the RP2350 pad isolation latch, which would
+     otherwise keep the reset-state pull-down on the analog input.*/
   padbits = PADS_BANK0->GPIO[gpio];
-  padbits &= ~(PADS_GPIO_PUE | PADS_GPIO_PDE | PADS_GPIO_IE);
+  padbits &= ~(PADS_GPIO_PUE | PADS_GPIO_PDE | PADS_GPIO_IE | PADS_GPIO_ISO);
   padbits |= PADS_GPIO_OD;
   PADS_BANK0->GPIO[gpio] = padbits;
 }

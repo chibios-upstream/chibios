@@ -279,6 +279,9 @@ return msg;]]></implementation>
             </method>
             <method shortname="stop">
               <implementation><![CDATA[
+
+(void)prevstate;
+
 gpt_lld_stop(self);]]></implementation>
             </method>
             <method shortname="setcfg">

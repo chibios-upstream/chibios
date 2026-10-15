@@ -100,6 +100,8 @@
 /*
  * Shared IRQ settings.
  */
+#define STM32_IRQ_ADC1_PRIORITY             2
+
 #define STM32_IRQ_EXTI0_1_PRIORITY          3
 #define STM32_IRQ_EXTI2_3_PRIORITY          3
 #define STM32_IRQ_EXTI4_15_PRIORITY         3
@@ -108,6 +110,8 @@
 
 #define STM32_IRQ_USART1_PRIORITY           2
 #define STM32_IRQ_USART2_PRIORITY           2
+
+#define STM32_IRQ_SPI1_PRIORITY             2
 
 #define STM32_IRQ_TIM1_UP_PRIORITY          1
 #define STM32_IRQ_TIM1_CC_PRIORITY          1
@@ -122,7 +126,6 @@
 #define STM32_ADC_USE_ADC1                  FALSE
 #define STM32_ADC_ADC1_CFGR2                ADC_CFGR2_CKMODE_ADCCLK
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     2
 #define STM32_ADC_ADC1_DMA_STREAM           STM32_DMA_STREAM_ID_ANY
 #define STM32_ADC_PRESCALER_VALUE           2
 
@@ -179,7 +182,6 @@
 #define STM32_SPI_SPI1_RX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_SPI_SPI1_TX_DMA_STREAM        STM32_DMA_STREAM_ID_ANY
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
-#define STM32_SPI_SPI1_IRQ_PRIORITY         2
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      chSysHalt("DMA failure")
 
 /*

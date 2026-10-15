@@ -20,8 +20,3 @@
 
 void portab_setup(void) {
 }
-
-void portab_sio_update_clock(void) {
-
-  PORTAB_SIO1.clock = STM32_USART3CLK;
-}

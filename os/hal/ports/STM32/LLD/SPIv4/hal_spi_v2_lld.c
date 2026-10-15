@@ -150,6 +150,8 @@ static void spi_lld_configure(SPIDriver *spip) {
 
 static void spi_lld_resume(SPIDriver *spip) {
 
+  /* All asynchronous transfers pass here, including callback restarts.*/
+  spip->sequence++;
   if (!spip->config->slave) {
     spip->spi->CR1 |= SPI_CR1_CSTART;
   }
@@ -224,7 +226,8 @@ static size_t spi_lld_stop_abort(SPIDriver *spip) {
   /* Reconfiguring SPI.*/
   spi_lld_configure(spip);
 
-  return n;
+  /* GPDMA counts bytes, the SPI API counts frames.*/
+  return n >> spip->dnshift;
 }
 
 /**
@@ -251,7 +254,8 @@ static size_t spi_lld_stop_nicely(SPIDriver *spip) {
   /* Stopping SPI.*/
   spi_lld_suspend(spip);
 
-  return n;
+  /* GPDMA counts bytes, the SPI API counts frames.*/
+  return n >> spip->dnshift;
 }
 
 /**
@@ -261,6 +265,11 @@ static size_t spi_lld_stop_nicely(SPIDriver *spip) {
  * @param[in] csr       content of the CSR register
  */
 static void spi_lld_serve_dma_rx_interrupt(SPIDriver *spip, uint32_t csr) {
+  uint32_t sequence = spip->sequence;
+
+  if (spip->state != SPI_ACTIVE) {
+    return;
+  }
 
   /* GPDMA errors handling.*/
   if ((csr & STM32_DMA3_CSR_ERRORS) != 0U) {
@@ -273,6 +282,7 @@ static void spi_lld_serve_dma_rx_interrupt(SPIDriver *spip, uint32_t csr) {
 
     /* Reporting the failure.*/
     __spi_isr_error_code(spip, HAL_RET_HW_FAILURE);
+    return;
   }
 
   if (spip->config->circular) {
@@ -280,12 +290,13 @@ static void spi_lld_serve_dma_rx_interrupt(SPIDriver *spip, uint32_t csr) {
       /* Half buffer interrupt.*/
       __spi_isr_half_code(spip);
     }
-    if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
-      /* End buffer interrupt.*/
+    if (((csr & STM32_DMA3_CSR_TCF) != 0U) &&
+        (spip->state == SPI_ACTIVE) && (spip->sequence == sequence)) {
+      /* End buffer interrupt, unless the half callback stopped/restarted.*/
       __spi_isr_full_code(spip);
     }
   }
-  else {
+  else if ((csr & STM32_DMA3_CSR_TCF) != 0U) {
     /* Stopping the transfer.*/
     (void) spi_lld_stop_nicely(spip);
 
@@ -301,6 +312,10 @@ static void spi_lld_serve_dma_rx_interrupt(SPIDriver *spip, uint32_t csr) {
  * @param[in] csr       content of the CSR register
  */
 static void spi_lld_serve_dma_tx_interrupt(SPIDriver *spip, uint32_t csr) {
+
+  if (spip->state != SPI_ACTIVE) {
+    return;
+  }
 
   /* GPDMA errors handling.*/
   if ((csr & STM32_DMA3_CSR_ERRORS) != 0U) {
@@ -363,6 +378,7 @@ void spi_lld_init(void) {
 
 #if STM32_SPI_USE_SPI1
   spiObjectInit(&SPID1);
+  SPID1.sequence = 0U;
   SPID1.spi    = SPI1;
   SPID1.dmarx  = NULL;
   SPID1.dmatx  = NULL;
@@ -377,6 +393,7 @@ void spi_lld_init(void) {
 
 #if STM32_SPI_USE_SPI2
   spiObjectInit(&SPID2);
+  SPID2.sequence = 0U;
   SPID2.spi    = SPI2;
   SPID2.dmarx  = NULL;
   SPID2.dmatx  = NULL;
@@ -391,6 +408,7 @@ void spi_lld_init(void) {
 
 #if STM32_SPI_USE_SPI3
   spiObjectInit(&SPID3);
+  SPID3.sequence = 0U;
   SPID3.spi    = SPI3;
   SPID3.dmarx  = NULL;
   SPID3.dmatx  = NULL;
@@ -405,6 +423,7 @@ void spi_lld_init(void) {
 
 #if STM32_SPI_USE_SPI4
   spiObjectInit(&SPID4);
+  SPID4.sequence = 0U;
   SPID4.spi    = SPI4;
   SPID4.dmarx  = NULL;
   SPID4.dmatx  = NULL;
@@ -419,6 +438,7 @@ void spi_lld_init(void) {
 
 #if STM32_SPI_USE_SPI5
   spiObjectInit(&SPID5);
+  SPID5.sequence = 0U;
   SPID5.spi    = SPI5;
   SPID5.dmarx  = NULL;
   SPID5.dmatx  = NULL;
@@ -433,6 +453,7 @@ void spi_lld_init(void) {
 
 #if STM32_SPI_USE_SPI6
   spiObjectInit(&SPID6);
+  SPID6.sequence = 0U;
   SPID6.spi    = SPI6;
   SPID6.dmarx  = NULL;
   SPID6.dmatx  = NULL;
@@ -1148,7 +1169,7 @@ void spi_lld_serve_interrupt(SPIDriver *spip) {
   sr = spip->spi->SR & spip->spi->IER;
   spip->spi->IFCR = sr;
 
-  if ((sr & SPI_SR_OVR) != 0U) {
+  if (((sr & SPI_SR_OVR) != 0U) && (spip->state == SPI_ACTIVE)) {
 
     /* Aborting the transfer.*/
     spi_lld_stop_abort(spip);

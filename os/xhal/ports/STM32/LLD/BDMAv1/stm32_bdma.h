@@ -216,10 +216,11 @@
 
 /**
  * @brief   STM32 BDMA ISR function type.
+ * @details Only pending flags whose interrupt sources are enabled are passed.
+ *          The callback is not invoked if no enabled source is pending.
  *
  * @param[in] p         parameter for the registered function
- * @param[in] flags     pre-shifted content of the ISR register, the bits
- *                      are aligned to bit zero
+ * @param[in] flags     enabled pending ISR flags, aligned to bit zero
  */
 typedef void (*stm32_bdmaisr_t)(void *p, uint32_t flags);
 

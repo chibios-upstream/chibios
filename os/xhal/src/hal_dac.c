@@ -154,9 +154,15 @@ msg_t __dac_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p hal_dac_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __dac_stop_impl(void *ip) {
+void __dac_stop_impl(void *ip, driver_state_t prevstate) {
   hal_dac_driver_c *self = (hal_dac_driver_c *)ip;
+
+  (void)prevstate;
+
   dac_lld_stop(self);
   self->samples = NULL;
   self->depth   = 0U;

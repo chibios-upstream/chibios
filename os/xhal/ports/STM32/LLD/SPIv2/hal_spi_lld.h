@@ -135,43 +135,43 @@
 /**
  * @brief   SPI1 interrupt priority level setting.
  */
-#if !defined(STM32_SPI_SPI1_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_SPI_SPI1_IRQ_PRIORITY         10
+#if !defined(STM32_IRQ_SPI1_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_IRQ_SPI1_PRIORITY             10
 #endif
 
 /**
  * @brief   SPI2 interrupt priority level setting.
  */
-#if !defined(STM32_SPI_SPI2_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_SPI_SPI2_IRQ_PRIORITY         10
+#if !defined(STM32_IRQ_SPI2_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_IRQ_SPI2_PRIORITY             10
 #endif
 
 /**
  * @brief   SPI3 interrupt priority level setting.
  */
-#if !defined(STM32_SPI_SPI3_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_SPI_SPI3_IRQ_PRIORITY         10
+#if !defined(STM32_IRQ_SPI3_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_IRQ_SPI3_PRIORITY             10
 #endif
 
 /**
  * @brief   SPI4 interrupt priority level setting.
  */
-#if !defined(STM32_SPI_SPI4_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_SPI_SPI4_IRQ_PRIORITY         10
+#if !defined(STM32_IRQ_SPI4_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_IRQ_SPI4_PRIORITY             10
 #endif
 
 /**
  * @brief   SPI5 interrupt priority level setting.
  */
-#if !defined(STM32_SPI_SPI5_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_SPI_SPI5_IRQ_PRIORITY         10
+#if !defined(STM32_IRQ_SPI5_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_IRQ_SPI5_PRIORITY             10
 #endif
 
 /**
  * @brief   SPI6 interrupt priority level setting.
  */
-#if !defined(STM32_SPI_SPI6_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_SPI_SPI6_IRQ_PRIORITY         10
+#if !defined(STM32_IRQ_SPI6_PRIORITY) || defined(__DOXYGEN__)
+#define STM32_IRQ_SPI6_PRIORITY             10
 #endif
 
 /**
@@ -331,32 +331,32 @@
 #endif
 
 #if STM32_SPI_USE_SPI1 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI1_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_SPI1_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI1"
 #endif
 
 #if STM32_SPI_USE_SPI2 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI2_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_SPI2_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI2"
 #endif
 
 #if STM32_SPI_USE_SPI3 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI3_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_SPI3_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI3"
 #endif
 
 #if STM32_SPI_USE_SPI4 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI4_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_SPI4_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI4"
 #endif
 
 #if STM32_SPI_USE_SPI5 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI5_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_SPI5_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI5"
 #endif
 
 #if STM32_SPI_USE_SPI6 &&                                                   \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_SPI_SPI6_IRQ_PRIORITY)
+    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_SPI6_PRIORITY)
 #error "Invalid IRQ priority assigned to SPI6"
 #endif
 

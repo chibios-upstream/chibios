@@ -194,7 +194,6 @@ void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
         /* Check on configuration buffer area.*/
         if ((n > 0U) && !sb_is_valid_write_range(sbp, p, n)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          /* TODO enforce fault instead.*/
           break;
         }
 
@@ -281,7 +280,6 @@ void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
 
         if (!sb_is_valid_write_range(sbp, rxbuf, bufsize)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          /* TODO enforce fault instead.*/
           break;
         }
 
@@ -315,7 +313,6 @@ void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
 
         if (!sb_is_valid_read_range(sbp, txbuf, bufsize)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          /* TODO enforce fault instead.*/
           break;
         }
 
@@ -350,13 +347,11 @@ void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
 
         if (!sb_is_valid_write_range(sbp, rxbuf, bufsize)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          /* TODO enforce fault instead.*/
           break;
         }
 
         if (!sb_is_valid_read_range(sbp, txbuf, bufsize)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          /* TODO enforce fault instead.*/
           break;
         }
 
@@ -381,7 +376,6 @@ void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
 
         if (!sb_is_valid_write_range(sbp, np, sizeof (size_t))) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
-          /* TODO enforce fault instead.*/
           break;
         }
 

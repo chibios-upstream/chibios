@@ -17,6 +17,14 @@
 /**
  * @file    OCTOSPIv2/hal_wspi_lld.h
  * @brief   STM32 WSPI subsystem low level driver header.
+ * @details Both OCTOSPI instances use the shared MDMA interrupt configured
+ *          by @p STM32_IRQ_MDMA_PRIORITY. To rely on non-preemption between
+ *          OCTOSPI and MDMA handlers, each enabled instance must use that
+ *          same priority in @p STM32_IRQ_OCTOSPI1_PRIORITY or
+ *          @p STM32_IRQ_OCTOSPI2_PRIORITY, respectively. Per-instance MDMA
+ *          interrupt priorities cannot be selected.
+ * @note    The H7 xmcuconf.h templates define both OCTOSPI IRQ priorities
+ *          as aliases of @p STM32_IRQ_MDMA_PRIORITY.
  *
  * @addtogroup WSPI
  * @{
@@ -244,20 +252,6 @@
 #endif
 
 /**
- * @brief   OCTOSPI1 MDMA interrupt priority level setting.
- */
-#if !defined(STM32_WSPI_OCTOSPI1_MDMA_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_WSPI_OCTOSPI1_MDMA_IRQ_PRIORITY 10
-#endif
-
-/**
- * @brief   OCTOSPI2 MDMA interrupt priority level setting.
- */
-#if !defined(STM32_WSPI_OCTOSPI2_MDMA_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_WSPI_OCTOSPI2_MDMA_IRQ_PRIORITY 10
-#endif
-
-/**
  * @brief   Default DCR1 value for the WSPI default configuration.
  */
 #if !defined(STM32_WSPI_DEFAULT_DCR1) || defined(__DOXYGEN__)
@@ -334,16 +328,6 @@
 #if (STM32_WSPI_OCTOSPI2_PRESCALER_VALUE < 1) ||                            \
     (STM32_WSPI_OCTOSPI2_PRESCALER_VALUE > 256)
 #error "STM32_WSPI_OCTOSPI2_PRESCALER_VALUE not within 1..256"
-#endif
-
-#if STM32_WSPI_USE_OCTOSPI1 &&                                              \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI1_MDMA_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to OCTOSPI1 MDMA"
-#endif
-
-#if STM32_WSPI_USE_OCTOSPI2 &&                                              \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI2_MDMA_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to OCTOSPI2 MDMA"
 #endif
 
 #if STM32_WSPI_USE_OCTOSPI1 &&                                              \

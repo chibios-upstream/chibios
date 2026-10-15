@@ -83,6 +83,20 @@
         <define name="USB_EP_MODE_TYPE_BULK" value="0x0002U" />
         <define name="USB_EP_MODE_TYPE_INTR" value="0x0003U" />
       </group>
+      <group description="USB driver states">
+        <define name="USB_SELECTED" value="(HAL_DRV_STATE_ACTIVE + 1U)">
+          <brief>Address assigned, not configured.</brief>
+        </define>
+        <define name="USB_ACTIVE" value="(HAL_DRV_STATE_ACTIVE + 2U)">
+          <brief>Configuration selected, endpoints active.</brief>
+        </define>
+        <define name="USB_SUSPENDED" value="(HAL_DRV_STATE_ACTIVE + 3U)">
+          <brief>Bus suspended.</brief>
+        </define>
+        <define name="USB_ERROR" value="(HAL_DRV_STATE_ACTIVE + 4U)">
+          <brief>Hardware failure latched, the driver must be restarted.</brief>
+        </define>
+      </group>
       <group description="USB event flags">
         <define name="USB_FLAGS_RESET" value="(1U &lt;&lt; 0)">
           <brief>Bus reset event flag.</brief>
@@ -104,6 +118,9 @@
         </define>
         <define name="USB_FLAGS_STALLED" value="(1U &lt;&lt; 6)">
           <brief>Endpoint-zero stall event flag.</brief>
+        </define>
+        <define name="USB_FLAGS_HW_FAILURE" value="(1U &lt;&lt; 7)">
+          <brief>Hardware failure, the driver requires an application restart.</brief>
         </define>
       </group>
     </definitions_early>
@@ -164,12 +181,19 @@ do {
             <notapi />
             <implementation><![CDATA[
 do {
+  /* The callback can disable the endpoint, the state is taken before.*/
+  USBInEndpointState *cb_isp = (usbp)->epc[ep]->in_state;
+
+  /* Cleared under lock, a higher priority USB handler can preempt
+     this one and update the other bits.*/
+  chSysLockFromISR();
   (usbp)->transmitting &= ~(uint16_t)((unsigned)1U << (unsigned)(ep));
+  chSysUnlockFromISR();
   if ((usbp)->epc[ep]->in_cb != NULL) {
     (usbp)->epc[ep]->in_cb(usbp, ep);
   }
   chSysLockFromISR();
-  chThdResumeI(&(usbp)->epc[ep]->in_state->thread, MSG_OK);
+  chThdResumeI(&cb_isp->thread, MSG_OK);
   chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
@@ -180,13 +204,21 @@ do {
             <notapi />
             <implementation><![CDATA[
 do {
+  /* The callback can disable the endpoint, the state and the received
+     size are taken before.*/
+  USBOutEndpointState *cb_osp = (usbp)->epc[ep]->out_state;
+  size_t cb_n = usbGetReceiveTransactionSizeX(usbp, ep);
+
+  /* Cleared under lock, a higher priority USB handler can preempt
+     this one and update the other bits.*/
+  chSysLockFromISR();
   (usbp)->receiving &= ~(uint16_t)((unsigned)1U << (unsigned)(ep));
+  chSysUnlockFromISR();
   if ((usbp)->epc[ep]->out_cb != NULL) {
     (usbp)->epc[ep]->out_cb(usbp, ep);
   }
   chSysLockFromISR();
-  chThdResumeI(&(usbp)->epc[ep]->out_state->thread,
-                    usbGetReceiveTransactionSizeX(usbp, ep));
+  chThdResumeI(&cb_osp->thread, (msg_t)cb_n);
   chSysUnlockFromISR();
 } while (false)]]></implementation>
           </macro>
@@ -196,7 +228,11 @@ do {
             <param name="ep" dir="in" />
             <implementation><![CDATA[
 do {
+  /* Cleared under lock, a higher priority USB handler can preempt
+     this one and update the other bits.*/
+  chSysLockFromISR();
   (usbp)->transmitting &= ~(uint16_t)((unsigned)1U << (unsigned)(ep));
+  chSysUnlockFromISR();
   if ((usbp)->epc[ep]->in_cb != NULL) {
     (usbp)->epc[ep]->in_cb(usbp, ep);
   }
@@ -207,7 +243,11 @@ do {
             <param name="ep" dir="in" />
             <implementation><![CDATA[
 do {
+  /* Cleared under lock, a higher priority USB handler can preempt
+     this one and update the other bits.*/
+  chSysLockFromISR();
   (usbp)->receiving &= ~(uint16_t)((unsigned)1U << (unsigned)(ep));
+  chSysUnlockFromISR();
   if ((usbp)->epc[ep]->out_cb != NULL) {
     (usbp)->epc[ep]->out_cb(usbp, ep);
   }
@@ -229,73 +269,176 @@ do {
         <brief>Type of structure representing a USB hardware configuration.</brief>
         <basetype ctype="struct hal_usb_config" />
       </typedef>
+      <typedef name="usbep_t">
+        <brief>Type of an endpoint identifier.</brief>
+        <basetype ctype="uint8_t" />
+      </typedef>
+      <typedef name="usbstate_t">
+        <brief>Type of a USB driver state.</brief>
+        <basetype ctype="driver_state_t" />
+      </typedef>
       <verbatim><![CDATA[
-typedef uint8_t usbep_t;
-typedef driver_state_t usbstate_t;
 struct hal_usb_service;
-struct hal_usb_binder;
-
-#define USB_SELECTED                       (HAL_DRV_STATE_ACTIVE + 1U)
-#define USB_ACTIVE                         (HAL_DRV_STATE_ACTIVE + 2U)
-#define USB_SUSPENDED                      (HAL_DRV_STATE_ACTIVE + 3U)
-
-typedef enum {
-  EP_STATUS_DISABLED = 0,
-  EP_STATUS_STALLED  = 1,
-  EP_STATUS_ACTIVE   = 2
-} usbepstatus_t;
-
-typedef enum {
-  USB_EP0_STP_WAITING      = 0U,
-  USB_EP0_IN_TX            = 1U,
-  USB_EP0_IN_WAITING_TX0   = 2U,
-  USB_EP0_IN_SENDING_STS   = 3U,
-  USB_EP0_OUT_WAITING_STS  = 4U,
-  USB_EP0_OUT_RX           = 5U,
-  USB_EP0_ERROR            = 6U
-} usbep0state_t;
-
-typedef struct {
-  size_t                    ud_size;
-  const uint8_t            *ud_string;
-} usb_descriptor_t;
-
-typedef void (*usbcallback_t)(hal_usb_driver_c *usbp);
-typedef void (*usbepcallback_t)(hal_usb_driver_c *usbp, usbep_t ep);
-
-typedef struct {
-  size_t                    txsize;
-  size_t                    txcnt;
-  size_t                    txlast;
-  const uint8_t            *txbuf;
-#if (USB_USE_SYNCHRONIZATION == TRUE) || defined(__DOXYGEN__)
-  thread_reference_t        thread;
-#endif
-} USBInEndpointState;
-
-typedef struct {
-  size_t                    rxsize;
-  size_t                    rxcnt;
-  size_t                    rxpkts;
-  uint8_t                  *rxbuf;
-#if (USB_USE_SYNCHRONIZATION == TRUE) || defined(__DOXYGEN__)
-  thread_reference_t        thread;
-#endif
-} USBOutEndpointState;
-
-typedef struct {
-  uint32_t                  ep_mode;
-  usbepcallback_t           setup_cb;
-  usbepcallback_t           in_cb;
-  usbepcallback_t           out_cb;
-  uint16_t                  in_maxsize;
-  uint16_t                  out_maxsize;
-  USBInEndpointState       *in_state;
-  USBOutEndpointState      *out_state;
-  unsigned                  ep_buffers;
-  uint8_t                  *setup_buf;
-} USBEndpointConfig;
-
+struct hal_usb_binder;]]></verbatim>
+      <typedef name="usbepstatus_t">
+        <brief>Type of an endpoint status.</brief>
+        <enumtype>
+          <enumerator name="EP_STATUS_DISABLED" value="0">
+            <brief>Endpoint not active.</brief>
+          </enumerator>
+          <enumerator name="EP_STATUS_STALLED" value="1">
+            <brief>Endpoint opened but stalled.</brief>
+          </enumerator>
+          <enumerator name="EP_STATUS_ACTIVE" value="2">
+            <brief>Active endpoint.</brief>
+          </enumerator>
+        </enumtype>
+      </typedef>
+      <typedef name="usbep0state_t">
+        <brief>Type of the endpoint zero state machine states.</brief>
+        <enumtype>
+          <enumerator name="USB_EP0_STP_WAITING" value="0U">
+            <brief>Waiting for SETUP data.</brief>
+          </enumerator>
+          <enumerator name="USB_EP0_IN_TX" value="1U">
+            <brief>Transmitting.</brief>
+          </enumerator>
+          <enumerator name="USB_EP0_IN_WAITING_TX0" value="2U">
+            <brief>Waiting transmit 0.</brief>
+          </enumerator>
+          <enumerator name="USB_EP0_IN_SENDING_STS" value="3U">
+            <brief>Sending status.</brief>
+          </enumerator>
+          <enumerator name="USB_EP0_OUT_WAITING_STS" value="4U">
+            <brief>Waiting status.</brief>
+          </enumerator>
+          <enumerator name="USB_EP0_OUT_RX" value="5U">
+            <brief>Receiving.</brief>
+          </enumerator>
+          <enumerator name="USB_EP0_ERROR" value="6U">
+            <brief>Error, EP0 stalled.</brief>
+          </enumerator>
+        </enumtype>
+      </typedef>
+      <typedef name="usb_descriptor_t">
+        <brief>Type of a USB descriptor.</brief>
+        <basetype ctype="struct usb_descriptor" />
+      </typedef>
+      <struct name="usb_descriptor">
+        <brief>Structure representing a USB descriptor.</brief>
+        <fields>
+          <field name="ud_size" ctype="size_t">
+            <brief>Descriptor size in bytes.</brief>
+          </field>
+          <field name="ud_string" ctype="const uint8_t$I*">
+            <brief>Pointer to the descriptor.</brief>
+          </field>
+        </fields>
+      </struct>
+      <typedef name="usbcallback_t">
+        <brief>Type of a USB generic notification callback.</brief>
+        <basetype ctype="void (*$N)(hal_usb_driver_c *usbp)" />
+      </typedef>
+      <typedef name="usbepcallback_t">
+        <brief>Type of a USB endpoint callback.</brief>
+        <basetype ctype="void (*$N)(hal_usb_driver_c *usbp, usbep_t ep)" />
+      </typedef>
+      <typedef name="USBInEndpointState">
+        <brief>Type of an IN endpoint state structure.</brief>
+        <basetype ctype="struct usb_in_endpoint_state" />
+      </typedef>
+      <struct name="usb_in_endpoint_state">
+        <brief>Structure representing an IN endpoint state.</brief>
+        <fields>
+          <field name="txsize" ctype="size_t">
+            <brief>Requested transmit transfer size.</brief>
+          </field>
+          <field name="txcnt" ctype="size_t">
+            <brief>Transmitted bytes so far.</brief>
+          </field>
+          <field name="txlast" ctype="size_t">
+            <brief>End offset of the current hardware transfer chunk.</brief>
+            <note>Used by drivers that split transfers in hardware chunks.</note>
+          </field>
+          <field name="txbuf" ctype="const uint8_t$I*">
+            <brief>Pointer to the transmission linear buffer.</brief>
+          </field>
+          <condition check="USB_USE_SYNCHRONIZATION == TRUE">
+            <field name="thread" ctype="thread_reference_t">
+              <brief>Waiting thread.</brief>
+            </field>
+          </condition>
+        </fields>
+      </struct>
+      <typedef name="USBOutEndpointState">
+        <brief>Type of an OUT endpoint state structure.</brief>
+        <basetype ctype="struct usb_out_endpoint_state" />
+      </typedef>
+      <struct name="usb_out_endpoint_state">
+        <brief>Structure representing an OUT endpoint state.</brief>
+        <fields>
+          <field name="rxsize" ctype="size_t">
+            <brief>Requested receive transfer size.</brief>
+          </field>
+          <field name="rxcnt" ctype="size_t">
+            <brief>Received bytes so far.</brief>
+          </field>
+          <field name="rxpkts" ctype="size_t">
+            <brief>Full-size packets still expected by the current transfer.</brief>
+            <note>Used by drivers that split transfers in hardware chunks.</note>
+          </field>
+          <field name="rxbuf" ctype="uint8_t$I*">
+            <brief>Pointer to the receive linear buffer.</brief>
+          </field>
+          <condition check="USB_USE_SYNCHRONIZATION == TRUE">
+            <field name="thread" ctype="thread_reference_t">
+              <brief>Waiting thread.</brief>
+            </field>
+          </condition>
+        </fields>
+      </struct>
+      <typedef name="USBEndpointConfig">
+        <brief>Type of a USB endpoint configuration structure.</brief>
+        <basetype ctype="struct usb_endpoint_config" />
+      </typedef>
+      <struct name="usb_endpoint_config">
+        <brief>Structure representing a USB endpoint configuration.</brief>
+        <fields>
+          <field name="ep_mode" ctype="uint32_t">
+            <brief>Type and mode of the endpoint.</brief>
+          </field>
+          <field name="setup_cb" ctype="usbepcallback_t">
+            <brief>Setup packet notification callback.</brief>
+            <note>This field is only valid for @p USB_EP_MODE_TYPE_CTRL endpoints.</note>
+          </field>
+          <field name="in_cb" ctype="usbepcallback_t">
+            <brief>IN endpoint notification callback.</brief>
+          </field>
+          <field name="out_cb" ctype="usbepcallback_t">
+            <brief>OUT endpoint notification callback.</brief>
+          </field>
+          <field name="in_maxsize" ctype="uint16_t">
+            <brief>IN endpoint maximum packet size.</brief>
+          </field>
+          <field name="out_maxsize" ctype="uint16_t">
+            <brief>OUT endpoint maximum packet size.</brief>
+          </field>
+          <field name="in_state" ctype="USBInEndpointState$I*">
+            <brief>State associated to the IN endpoint.</brief>
+          </field>
+          <field name="out_state" ctype="USBOutEndpointState$I*">
+            <brief>State associated to the OUT endpoint.</brief>
+          </field>
+          <field name="ep_buffers" ctype="unsigned">
+            <brief>Reserved field, not currently used.</brief>
+            <note>Initialize this field to 1 in order to be forward compatible.</note>
+          </field>
+          <field name="setup_buf" ctype="uint8_t$I*">
+            <brief>Pointer to a buffer for setup packets.</brief>
+          </field>
+        </fields>
+      </struct>
+      <verbatim><![CDATA[
 /* Inclusion of LLD header.*/
 #include "hal_usb_lld.h"]]></verbatim>
       <struct name="hal_usb_config">
@@ -312,12 +455,21 @@ USB_CONFIG_EXT_FIELDS]]></verbatim>
           </condition>
         </fields>
       </struct>
-      <verbatim><![CDATA[
-typedef struct usb_configurations usb_configurations_t;
-struct usb_configurations {
-  unsigned                  cfgsnum;
-  hal_usb_config_t          cfgs[];
-};]]></verbatim>
+      <typedef name="usb_configurations_t">
+        <brief>Type of user-provided USB configurations.</brief>
+        <basetype ctype="struct usb_configurations" />
+      </typedef>
+      <struct name="usb_configurations">
+        <brief>Structure representing user-provided USB configurations.</brief>
+        <fields>
+          <field name="cfgsnum" ctype="unsigned">
+            <brief>Number of configurations in the open array.</brief>
+          </field>
+          <field name="cfgs" ctype="hal_usb_config_t$I$N[]">
+            <brief>User USB configurations.</brief>
+          </field>
+        </fields>
+      </struct>
       <typedef name="hal_usb_service_info_t">
         <brief>Type of structure representing USB service ownership metadata.</brief>
         <basetype ctype="struct hal_usb_service_info" />
@@ -819,34 +971,87 @@ return self->arg;]]></implementation>
       <class type="regular" name="hal_usb_driver" namespace="usb"
         ancestorname="hal_base_driver" descr="USB driver">
         <brief>Class of a USB driver.</brief>
+        <details>A runtime hardware failure disconnects the device and latches
+          @p USB_ERROR, posting @p USB_FLAGS_HW_FAILURE in the cached events.
+          Pending and subsequent blocking operations return
+          @p HAL_RET_HW_FAILURE. Endpoint initialization, transfer starts and
+          bus connection are ignored while faulted. Clearing the event does
+          not clear the fault. The application must serialize recovery with
+          its USB workers, call @p drvStop(), then @p drvStart(), rebind its
+          binder and reconnect after the required disconnect interval.
+          Services remain bound until stop; no successful transfer or bus-reset
+          callback is synthesized for a hardware failure.</details>
         <fields>
           <field name="events" ctype="volatile usbeventflags_t">
             <brief>Cached USB event flags.</brief>
           </field>
+          <field name="binder" ctype="hal_usb_binder_c$I*">
+            <brief>Bound USB binder, @p NULL if none.</brief>
+          </field>
+          <field name="transmitting" ctype="uint16_t">
+            <brief>Bit map of the transmitting IN endpoints.</brief>
+          </field>
+          <field name="receiving" ctype="uint16_t">
+            <brief>Bit map of the receiving OUT endpoints.</brief>
+          </field>
+          <field name="epc" ctype="const USBEndpointConfig$I*$N[USB_MAX_ENDPOINTS + 1U]">
+            <brief>Active endpoints configurations.</brief>
+          </field>
+          <field name="in_params" ctype="void$I*$N[USB_MAX_ENDPOINTS]">
+            <brief>Fields available to the user, an application-defined handler can be associated to an IN endpoint.</brief>
+            <note>The base index is one, endpoint zero has no element in this array.</note>
+          </field>
+          <field name="out_params" ctype="void$I*$N[USB_MAX_ENDPOINTS]">
+            <brief>Fields available to the user, an application-defined handler can be associated to an OUT endpoint.</brief>
+            <note>The base index is one, endpoint zero has no element in this array.</note>
+          </field>
+          <field name="ep0state" ctype="usbep0state_t">
+            <brief>Endpoint 0 state.</brief>
+          </field>
+          <field name="ep0next" ctype="uint8_t$I*">
+            <brief>Next position in the buffer to be transferred through endpoint 0.</brief>
+          </field>
+          <field name="ep0n" ctype="size_t">
+            <brief>Number of bytes yet to be transferred through endpoint 0.</brief>
+          </field>
+          <field name="ep0endcb" ctype="usbcallback_t">
+            <brief>Endpoint 0 end transaction callback.</brief>
+          </field>
+          <field name="ep0thread" ctype="thread_reference_t">
+            <brief>Waiting thread for EP0 operations.</brief>
+          </field>
+          <field name="ep0seq" ctype="uint8_t">
+            <brief>Current EP0 sequence number.</brief>
+          </field>
+          <field name="ep0rseq" ctype="uint8_t">
+            <brief>EP0 sequence number owned by the worker thread.</brief>
+          </field>
+          <field name="ep0setup" ctype="uint8_t">
+            <brief>Pending setup notification for the worker thread.</brief>
+          </field>
+          <field name="ep0reset" ctype="uint8_t">
+            <brief>Pending reset notification for the worker thread.</brief>
+          </field>
+          <field name="setup" ctype="uint8_t$I$N[8]">
+            <brief>Setup packet buffer.</brief>
+          </field>
+          <field name="status" ctype="uint16_t">
+            <brief>Current USB device status.</brief>
+          </field>
+          <field name="address" ctype="uint8_t">
+            <brief>Assigned USB address.</brief>
+          </field>
+          <field name="configuration" ctype="uint8_t">
+            <brief>Current USB device configuration.</brief>
+          </field>
+          <field name="saved_state" ctype="usbstate_t">
+            <brief>State of the driver when a suspend happened.</brief>
+          </field>
+          <condition check="defined(USB_DRIVER_EXT_FIELDS)">
+            <verbatim><![CDATA[
+USB_DRIVER_EXT_FIELDS]]></verbatim>
+          </condition>
           <verbatim><![CDATA[
-hal_usb_binder_c          *binder;
-uint16_t                    transmitting;
-uint16_t                    receiving;
-const USBEndpointConfig    *epc[USB_MAX_ENDPOINTS + 1U];
-void                       *in_params[USB_MAX_ENDPOINTS];
-void                       *out_params[USB_MAX_ENDPOINTS];
-usbep0state_t               ep0state;
-uint8_t                    *ep0next;
-size_t                      ep0n;
-usbcallback_t               ep0endcb;
-thread_reference_t          ep0thread;
-uint8_t                     ep0seq;
-uint8_t                     ep0rseq;
-uint8_t                     ep0setup;
-uint8_t                     ep0reset;
-uint8_t                     setup[8];
-uint16_t                    status;
-uint8_t                     address;
-uint8_t                     configuration;
-usbstate_t                  saved_state;
-#if defined(USB_DRIVER_EXT_FIELDS)
-USB_DRIVER_EXT_FIELDS
-#endif
 /* End of the mandatory fields.*/
 usb_lld_driver_fields;]]></verbatim>
         </fields>
@@ -919,6 +1124,8 @@ return msg;]]></implementation>
               <return>The operation status.</return>
               <api />
               <implementation><![CDATA[
+hal_usb_binder_c *binderp;
+
 chDbgCheck(self != NULL);
 
 chSysLock();
@@ -928,11 +1135,15 @@ if ((self->state == USB_SELECTED) ||
   chSysUnlock();
   return HAL_RET_INV_STATE;
 }
-if (self->binder != NULL) {
-  usbBinderUnbind(self->binder);
-  self->binder = NULL;
-}
+binderp = self->binder;
+self->binder = NULL;
 chSysUnlock();
+
+/* The driver no longer refers to the binder, the unbind hooks are API
+   functions and run outside the lock.*/
+if (binderp != NULL) {
+  usbBinderUnbind(binderp);
+}
 
 return HAL_RET_SUCCESS;]]></implementation>
             </method>
@@ -943,7 +1154,9 @@ return HAL_RET_SUCCESS;]]></implementation>
 chDbgCheck(self != NULL);
 chDbgAssert(self->binder != NULL, "no binder");
 
-usb_lld_connect_bus(self);]]></implementation>
+if (self->state != USB_ERROR) {
+  usb_lld_connect_bus(self);
+}]]></implementation>
             </method>
             <method name="usbDisconnectBus" ctype="void">
               <brief>Disconnects the USB device from the bus.</brief>
@@ -964,6 +1177,9 @@ usb_lld_disconnect_bus(self);]]></implementation>
 chDbgCheckClassI();
 chDbgCheck((self != NULL) && (epcp != NULL) &&
              (ep <= (usbep_t)USB_MAX_ENDPOINTS));
+if (self->state == USB_ERROR) {
+  return;
+}
 chDbgAssert(self->state == USB_ACTIVE, "invalid state");
 chDbgAssert(self->epc[ep] == NULL, "already initialized");
 
@@ -985,6 +1201,9 @@ unsigned i;
 
 chDbgCheckClassI();
 chDbgCheck(self != NULL);
+if (self->state == USB_ERROR) {
+  return;
+}
 chDbgAssert(self->state == USB_ACTIVE, "invalid state");
 
 self->transmitting &= 1U;
@@ -1030,6 +1249,9 @@ USBOutEndpointState *osp;
 
 chDbgCheckClassI();
 chDbgCheck((self != NULL) && (ep <= (usbep_t)USB_MAX_ENDPOINTS));
+if (self->state == USB_ERROR) {
+  return;
+}
 chDbgAssert((self->epc[ep] != NULL) && (self->epc[ep]->out_state != NULL),
               "endpoint not configured");
 chDbgAssert((self->receiving &
@@ -1061,6 +1283,9 @@ USBInEndpointState *isp;
 
 chDbgCheckClassI();
 chDbgCheck((self != NULL) && (ep <= (usbep_t)USB_MAX_ENDPOINTS));
+if (self->state == USB_ERROR) {
+  return;
+}
 chDbgAssert((self->epc[ep] != NULL) && (self->epc[ep]->in_state != NULL),
               "endpoint not configured");
 chDbgAssert((self->transmitting &
@@ -1085,12 +1310,17 @@ usb_lld_start_in(self, ep);]]></implementation>
                 <param name="ep" ctype="usbep_t" dir="in">Endpoint number.</param>
                 <param name="buf" ctype="uint8_t *" dir="out">Receive buffer.</param>
                 <param name="n" ctype="size_t" dir="in">Transaction size.</param>
-                <return>The received size or @p MSG_RESET.</return>
+                <return>The received size, @p MSG_RESET on cancellation, or
+                  @p HAL_RET_HW_FAILURE if the controller has failed.</return>
                 <api />
                 <implementation><![CDATA[
 msg_t msg;
 
 chSysLock();
+if (self->state == USB_ERROR) {
+  chSysUnlock();
+  return HAL_RET_HW_FAILURE;
+}
 if (self->state != USB_ACTIVE) {
   chSysUnlock();
   return MSG_RESET;
@@ -1115,6 +1345,10 @@ return msg;]]></implementation>
 msg_t msg;
 
 chSysLock();
+if (self->state == USB_ERROR) {
+  chSysUnlock();
+  return HAL_RET_HW_FAILURE;
+}
 if (self->state != USB_ACTIVE) {
   chSysUnlock();
   return MSG_RESET;
@@ -1129,7 +1363,24 @@ return msg;]]></implementation>
             </condition>
             <method name="usbEp0WaitSetup" ctype="msg_t">
               <brief>Waits for a new endpoint-zero setup packet.</brief>
-              <return>@p MSG_OK if a setup packet is available.</return>
+              <note>After @p MSG_RESET, if @p drvGetStateX() reports
+                @p HAL_DRV_STATE_STOP or @p HAL_DRV_STATE_STOPPING, the driver
+                is stopped or stopping. The worker must wait for an application
+                restart or exit, not retry in a tight loop: this function
+                returns immediately in those states. If the worker exits,
+                the application must join it after @p drvStop() and before
+                restarting the driver or reusing the worker's storage, then
+                create a new worker before connecting the bus.
+                For a bus-reset cancellation while the driver is running,
+                the worker can retry immediately.</note>
+              <note>@p HAL_RET_HW_FAILURE is latched until the application
+                stops the driver. Retrying does not recover the controller;
+                a worker polling for stop must sleep between retries to let
+                the application handle @p USB_FLAGS_HW_FAILURE and call
+                @p drvStop().</note>
+              <return>@p MSG_OK if a setup packet is available, @p MSG_RESET
+                on cancellation, or @p HAL_RET_HW_FAILURE if the controller
+                has failed.</return>
               <api />
               <implementation><![CDATA[
 msg_t msg;
@@ -1137,7 +1388,12 @@ msg_t msg;
 chDbgCheck(self != NULL);
 
 chSysLock();
+if (self->state == USB_ERROR) {
+  chSysUnlock();
+  return HAL_RET_HW_FAILURE;
+}
 if ((self->state == HAL_DRV_STATE_STOP) ||
+    (self->state == HAL_DRV_STATE_STOPPING) ||
     (self->state == HAL_DRV_STATE_UNINIT)) {
   chSysUnlock();
   return MSG_RESET;
@@ -1206,15 +1462,19 @@ return ep0_receive_or_status(self, NULL, 0U);]]></implementation>
 chDbgCheck(self != NULL);
 
 chSysLock();
+if (self->state == USB_ERROR) {
+  chSysUnlock();
+  return;
+}
 usb_lld_stall_in(self, 0);
 usb_lld_stall_out(self, 0);
 self->receiving &= ~1U;
 self->transmitting &= ~1U;
 self->ep0n = 0U;
+self->ep0endcb = NULL;
 self->ep0state = USB_EP0_ERROR;
-chSysUnlock();
-
-usb_invoke_event_cb(self, USB_FLAGS_STALLED);]]></implementation>
+usb_post_events_i(self, USB_FLAGS_STALLED);
+chSysUnlock();]]></implementation>
             </method>
             <method name="usbEp0HandleStandardRequest" ctype="msg_t">
               <brief>Handles the current standard endpoint-zero request.</brief>
@@ -1229,11 +1489,16 @@ uint16_t type;
 uint16_t recipient;
 uint16_t request;
 const usb_descriptor_t *dp;
+usbep_t ep;
+bool in;
 
 chDbgCheck((self != NULL) && (handledp != NULL));
 
 *handledp = false;
 
+if (self->state == USB_ERROR) {
+  return HAL_RET_HW_FAILURE;
+}
 if ((self->setup[0] & USB_RTYPE_TYPE_MASK) != USB_RTYPE_TYPE_STD) {
   return MSG_OK;
 }
@@ -1242,6 +1507,24 @@ if ((self->setup[0] & USB_RTYPE_TYPE_MASK) != USB_RTYPE_TYPE_STD) {
 recipient = self->setup[0] & USB_RTYPE_RECIPIENT_MASK;
 request = self->setup[1];
 type = recipient | (uint16_t)(request << 8U);
+ep = self->setup[4] & 0x0FU;
+in = (self->setup[4] & 0x80U) != 0U;
+
+/* Endpoint addresses come from the host, not from a checked driver API.
+   Reject nonexistent endpoints and directions before any LLD access.*/
+if (recipient == USB_RTYPE_RECIPIENT_ENDPOINT) {
+  chSysLock();
+  if (((self->setup[4] & 0x70U) != 0U) || (self->setup[5] != 0U) ||
+      (ep > USB_MAX_ENDPOINTS) || (self->epc[ep] == NULL) ||
+      (in ?
+       (self->epc[ep]->in_state == NULL) :
+       (self->epc[ep]->out_state == NULL))) {
+    chSysUnlock();
+    usbEp0Stall(self);
+    return MSG_OK;
+  }
+  chSysUnlock();
+}
 
 switch (type) {
 case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
@@ -1270,19 +1553,20 @@ case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
   break;
 case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
      ((uint32_t)USB_REQ_SET_ADDRESS << 8):
+  chSysLock();
+  if ((self->state == HAL_DRV_STATE_STOP) ||
+      (self->ep0rseq != self->ep0seq)) {
+    chSysUnlock();
+    return MSG_RESET;
+  }
 #if USB_SET_ADDRESS_MODE == USB_EARLY_SET_ADDRESS
   self->address = self->setup[2];
   usb_lld_set_address(self);
 #endif
+  /* Commit before another SETUP or reset can replace the request state.*/
+  self->ep0endcb = set_address;
+  chSysUnlock();
   msg = usbEp0Acknowledge(self);
-  if (msg == MSG_OK) {
-#if USB_SET_ADDRESS_MODE == USB_LATE_SET_ADDRESS
-    set_address_thread(self);
-#else
-    usb_invoke_event_cb(self, USB_FLAGS_ADDRESS);
-    self->state = USB_SELECTED;
-#endif
-  }
   break;
 case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
      ((uint32_t)USB_REQ_GET_DESCRIPTOR << 8):
@@ -1308,27 +1592,37 @@ case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
   break;
 case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
      ((uint32_t)USB_REQ_SET_CONFIGURATION << 8):
+  chSysLock();
+  if (self->state == USB_ERROR) {
+    chSysUnlock();
+    return HAL_RET_HW_FAILURE;
+  }
   if (self->state == USB_ACTIVE) {
-    chSysLock();
     usbDisableEndpointsI(self);
     if (self->binder != NULL) {
       usbBinderUnconfigureI(self->binder);
     }
-    chSysUnlock();
+    if (self->state == USB_ERROR) {
+      chSysUnlock();
+      return HAL_RET_HW_FAILURE;
+    }
     self->configuration = 0U;
     self->state = USB_SELECTED;
-    usb_invoke_event_cb(self, USB_FLAGS_UNCONFIGURED);
+    usb_post_events_i(self, USB_FLAGS_UNCONFIGURED);
   }
   if (self->setup[2] != 0U) {
     self->configuration = self->setup[2];
     self->state = USB_ACTIVE;
-    chSysLock();
     if (self->binder != NULL) {
       usbBinderConfigureI(self->binder);
     }
-    chSysUnlock();
-    usb_invoke_event_cb(self, USB_FLAGS_CONFIGURED);
+    if (self->state == USB_ERROR) {
+      chSysUnlock();
+      return HAL_RET_HW_FAILURE;
+    }
+    usb_post_events_i(self, USB_FLAGS_CONFIGURED);
   }
+  chSysUnlock();
   msg = usbEp0Acknowledge(self);
   break;
 case (uint32_t)USB_RTYPE_RECIPIENT_INTERFACE |
@@ -1339,8 +1633,8 @@ case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
   break;
 case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
      ((uint32_t)USB_REQ_GET_STATUS << 8):
-  if ((self->setup[4] & 0x80U) != 0U) {
-    switch (usb_lld_get_status_in(self, self->setup[4] & 0x0FU)) {
+  if (in) {
+    switch (usb_lld_get_status_in(self, ep)) {
     case EP_STATUS_STALLED:
       msg = usbEp0Reply(self, halted_status, 2U);
       break;
@@ -1354,7 +1648,7 @@ case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
     }
   }
   else {
-    switch (usb_lld_get_status_out(self, self->setup[4] & 0x0FU)) {
+    switch (usb_lld_get_status_out(self, ep)) {
     case EP_STATUS_STALLED:
       msg = usbEp0Reply(self, halted_status, 2U);
       break;
@@ -1372,12 +1666,12 @@ case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
      ((uint32_t)USB_REQ_CLEAR_FEATURE << 8):
   if (self->setup[2] == USB_FEATURE_ENDPOINT_HALT) {
     chSysLock();
-    if ((self->setup[4] & 0x0FU) != 0U) {
-      if ((self->setup[4] & 0x80U) != 0U) {
-        usb_lld_clear_in(self, self->setup[4] & 0x0FU);
+    if (ep != 0U) {
+      if (in) {
+        usb_lld_clear_in(self, ep);
       }
       else {
-        usb_lld_clear_out(self, self->setup[4] & 0x0FU);
+        usb_lld_clear_out(self, ep);
       }
     }
     chSysUnlock();
@@ -1391,12 +1685,12 @@ case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
      ((uint32_t)USB_REQ_SET_FEATURE << 8):
   if (self->setup[2] == USB_FEATURE_ENDPOINT_HALT) {
     chSysLock();
-    if ((self->setup[4] & 0x0FU) != 0U) {
-      if ((self->setup[4] & 0x80U) != 0U) {
-        usb_lld_stall_in(self, self->setup[4] & 0x0FU);
+    if (ep != 0U) {
+      if (in) {
+        usb_lld_stall_in(self, ep);
       }
       else {
-        usb_lld_stall_out(self, self->setup[4] & 0x0FU);
+        usb_lld_stall_out(self, ep);
       }
     }
     chSysUnlock();
@@ -1500,7 +1794,11 @@ return flags;]]></implementation>
             </method>
             <method name="usbGetFrameNumberX" ctype="uint16_t">
               <brief>Returns the current USB frame number.</brief>
-              <return>The current USB frame number.</return>
+              <details>
+                The 11-bit frame number advances every millisecond and wraps
+                after 2047. At high speed, microframe bits are not included.
+              </details>
+              <return>The current USB frame number, in the range 0 to 2047.</return>
               <xclass />
               <implementation><![CDATA[
 (void)self;
@@ -1521,6 +1819,8 @@ return usb_lld_get_transaction_size(self, ep);]]></implementation>
 msg_t msg;
 unsigned i;
 
+chDbgAssert(self->ep0thread == NULL, "EP0 waiter still pending");
+
 if (config != NULL) {
   self->config = __usb_setcfg_impl(self, config);
   if (self->config == NULL) {
@@ -1535,7 +1835,6 @@ self->ep0state      = USB_EP0_STP_WAITING;
 self->ep0next       = NULL;
 self->ep0n          = 0U;
 self->ep0endcb      = NULL;
-self->ep0thread     = NULL;
 self->ep0seq        = 0U;
 self->ep0rseq       = 0U;
 self->ep0setup      = 0U;
@@ -1559,11 +1858,15 @@ return msg;]]></implementation>
               <implementation><![CDATA[
 unsigned i;
 
+(void)prevstate;
+
 usb_lld_stop(self);
 if (self->binder != NULL) {
   usbBinderUnbind(self->binder);
   self->binder = NULL;
 }
+/* EP0 has a waiter even when USB_USE_SYNCHRONIZATION is disabled.*/
+chSysLock();
 self->events        = (usbeventflags_t)0U;
 self->transmitting  = 0U;
 self->receiving     = 0U;
@@ -1571,7 +1874,6 @@ self->ep0state      = USB_EP0_STP_WAITING;
 self->ep0next       = NULL;
 self->ep0n          = 0U;
 self->ep0endcb      = NULL;
-self->ep0thread     = NULL;
 self->ep0seq        = 0U;
 self->ep0rseq       = 0U;
 self->ep0setup      = 0U;
@@ -1580,9 +1882,7 @@ self->status        = 0U;
 self->address       = 0U;
 self->configuration = 0U;
 self->saved_state   = HAL_DRV_STATE_STOP;
-#if USB_USE_SYNCHRONIZATION == TRUE
-chSysLock();
-#endif
+chThdResumeI(&self->ep0thread, MSG_RESET);
 for (i = 0U; i <= (unsigned)USB_MAX_ENDPOINTS; i++) {
 #if USB_USE_SYNCHRONIZATION == TRUE
   if (self->epc[i] != NULL) {
@@ -1596,10 +1896,8 @@ for (i = 0U; i <= (unsigned)USB_MAX_ENDPOINTS; i++) {
 #endif
   self->epc[i] = NULL;
 }
-#if USB_USE_SYNCHRONIZATION == TRUE
 chSchRescheduleS();
-chSysUnlock();
-#endif]]></implementation>
+chSysUnlock();]]></implementation>
             </method>
             <method shortname="setcfg">
               <implementation><![CDATA[
@@ -2113,6 +2411,50 @@ return usbBinderOnSetup(self, handledp);]]></implementation>
         <implementation><![CDATA[
 usb_lld_init();]]></implementation>
       </function>
+      <function name="_usb_error_i" ctype="void">
+        <brief>Latches a runtime USB hardware failure.</brief>
+        <details>The LLD must first disconnect the device and mask hardware
+          interrupts. This helper releases waiters and posts the error event;
+          it does not call service or endpoint callbacks.</details>
+        <param name="usbp" ctype="hal_usb_driver_c *" dir="both">
+          USB driver instance.
+        </param>
+        <iclass />
+        <implementation><![CDATA[
+#if USB_USE_SYNCHRONIZATION == TRUE
+unsigned i;
+#endif
+
+chDbgCheckClassI();
+if (usbp->state == USB_ERROR) {
+  return;
+}
+usbp->state = USB_ERROR;
+usbp->transmitting = 0U;
+usbp->receiving = 0U;
+usbp->configuration = 0U;
+usbp->ep0n = 0U;
+usbp->ep0next = NULL;
+usbp->ep0endcb = NULL;
+usbp->ep0state = USB_EP0_ERROR;
+usbp->ep0setup = 0U;
+usbp->ep0reset = 0U;
+usbp->ep0seq++;
+chThdResumeI(&usbp->ep0thread, HAL_RET_HW_FAILURE);
+#if USB_USE_SYNCHRONIZATION == TRUE
+for (i = 0U; i <= (unsigned)USB_MAX_ENDPOINTS; i++) {
+  if (usbp->epc[i] != NULL) {
+    if (usbp->epc[i]->in_state != NULL) {
+      chThdResumeI(&usbp->epc[i]->in_state->thread, HAL_RET_HW_FAILURE);
+    }
+    if (usbp->epc[i]->out_state != NULL) {
+      chThdResumeI(&usbp->epc[i]->out_state->thread, HAL_RET_HW_FAILURE);
+    }
+  }
+}
+#endif
+usbp->events |= USB_FLAGS_HW_FAILURE;]]></implementation>
+      </function>
       <function name="_usb_reset" ctype="void">
         <brief>Common USB reset handler invoked by the LLD.</brief>
         <param name="usbp" ctype="hal_usb_driver_c *" dir="both">
@@ -2122,6 +2464,10 @@ usb_lld_init();]]></implementation>
         <implementation><![CDATA[
 unsigned i;
 
+/* Bus events must not undo the lifecycle transition made by drvStop().*/
+if ((usbp->state == HAL_DRV_STATE_STOPPING) || (usbp->state == USB_ERROR)) {
+  return;
+}
 usbp->state         = HAL_DRV_STATE_READY;
 usbp->status        = 0U;
 usbp->address       = 0U;
@@ -2149,11 +2495,14 @@ for (i = 0U; i <= (unsigned)USB_MAX_ENDPOINTS; i++) {
   usbp->ep0setup = 0U;
   usbp->ep0reset = 0U;
   usb_lld_reset(usbp);
+  if (usbp->state == USB_ERROR) {
+    return;
+  }
   chSysLockFromISR();
   if (usbp->binder != NULL) {
     usbBinderResetI(usbp->binder);
   }
-  ep0_signal_resetI(usbp);
+  ep0_signal_reset_i(usbp);
   chSysUnlockFromISR();
   _usb_isr_invoke_event_cb(usbp, USB_FLAGS_RESET);]]></implementation>
       </function>
@@ -2164,8 +2513,11 @@ for (i = 0U; i <= (unsigned)USB_MAX_ENDPOINTS; i++) {
         </param>
         <notapi />
         <implementation><![CDATA[
-if (usbp->state != USB_SUSPENDED) {
+if ((usbp->state != HAL_DRV_STATE_STOPPING) &&
+    (usbp->state != USB_SUSPENDED) && (usbp->state != USB_ERROR)) {
+#if USB_USE_SYNCHRONIZATION == TRUE
   unsigned i;
+#endif
 
   usbp->saved_state = usbp->state;
   usbp->state = USB_SUSPENDED;
@@ -2190,7 +2542,7 @@ if (usbp->state != USB_SUSPENDED) {
   if (usbp->binder != NULL) {
     usbBinderSuspendI(usbp->binder);
   }
-  ep0_signal_resetI(usbp);
+  ep0_signal_reset_i(usbp);
   chSysUnlockFromISR();
 }]]></implementation>
       </function>
@@ -2223,14 +2575,13 @@ msg_t msg = MSG_OK;
 
 chDbgAssert(ep == 0U, "EP not zero");
 
+chSysLockFromISR();
 if (usbp->ep0state != USB_EP0_STP_WAITING) {
-  setup_reset(usbp);
+  setup_reset_i(usbp);
   msg = MSG_RESET;
 }
-
-chSysLockFromISR();
 usbReadSetupI(usbp, 0U, usbp->setup);
-ep0_signal_setupI(usbp, msg);
+ep0_signal_setup_i(usbp, msg);
 chSysUnlockFromISR();]]></implementation>
       </function>
       <function name="_usb_ep0in" ctype="void">
@@ -2264,17 +2615,20 @@ case USB_EP0_IN_WAITING_TX0:
   chSysUnlockFromISR();
   return;
 case USB_EP0_IN_SENDING_STS:
-  setup_reset(usbp);
+  if (usbp->ep0endcb != NULL) {
+    usbp->ep0endcb(usbp);
+  }
   chSysLockFromISR();
-  ep0_resume_waiterI(usbp, MSG_OK);
+  setup_reset_i(usbp);
+  ep0_resume_waiter_i(usbp, MSG_OK);
   chSysUnlockFromISR();
   return;
 case USB_EP0_OUT_WAITING_STS:
   return;
 case USB_EP0_ERROR:
-  setup_error(usbp);
   chSysLockFromISR();
-  ep0_signal_resetI(usbp);
+  setup_error_i(usbp);
+  ep0_signal_reset_i(usbp);
   chSysUnlockFromISR();
   return;
 default:
@@ -2302,17 +2656,20 @@ case USB_EP0_OUT_WAITING_STS:
   if (usbGetReceiveTransactionSizeX(usbp, 0U) != 0U) {
     break;
   }
-  setup_reset(usbp);
+  if (usbp->ep0endcb != NULL) {
+    usbp->ep0endcb(usbp);
+  }
   chSysLockFromISR();
-  ep0_resume_waiterI(usbp, MSG_OK);
+  setup_reset_i(usbp);
+  ep0_resume_waiter_i(usbp, MSG_OK);
   chSysUnlockFromISR();
   return;
 case USB_EP0_IN_TX:
   return;
 case USB_EP0_ERROR:
-  setup_error(usbp);
   chSysLockFromISR();
-  ep0_signal_resetI(usbp);
+  setup_error_i(usbp);
+  ep0_signal_reset_i(usbp);
   chSysUnlockFromISR();
   return;
 default:
@@ -2370,61 +2727,94 @@ if ((ap->out_ep_mask & bp->out_ep_mask) != 0U) {
 
 return false;]]></implementation>
       </function>
-      <function name="usb_invoke_event_cb" ctype="void">
-        <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
-        <param name="flags" ctype="usbeventflags_t" dir="in"></param>
+      <function name="usb_post_events_i" ctype="void">
+        <brief>Posts cached USB events unless a hardware failure is latched.</brief>
+        <param name="usbp" ctype="hal_usb_driver_c *" dir="both">
+          USB driver instance.
+        </param>
+        <param name="flags" ctype="usbeventflags_t" dir="in">
+          Event flags to be posted.
+        </param>
+        <iclass />
         <implementation><![CDATA[
-usbp->events |= flags;
-]]></implementation>
+chDbgCheckClassI();
+
+if (usbp->state != USB_ERROR) {
+  usbp->events |= flags;
+}]]></implementation>
       </function>
-      <function name="setup_reset" ctype="void">
-        <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
+      <function name="setup_reset_i" ctype="void">
+        <brief>Resets the setup state machine.</brief>
+        <note>Invoked under lock, a higher priority USB handler can preempt
+        the caller and update the other busy bits.</note>
+        <param name="usbp" ctype="hal_usb_driver_c *" dir="both">
+          USB driver instance.
+        </param>
+        <iclass />
         <implementation><![CDATA[
+chDbgCheckClassI();
+
 usbp->receiving &= ~1U;
 usbp->transmitting &= ~1U;
 usbp->ep0n = 0U;
+usbp->ep0endcb = NULL;
 usbp->ep0state = USB_EP0_STP_WAITING;]]></implementation>
       </function>
-      <function name="setup_error" ctype="void">
-        <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
+      <function name="setup_error_i" ctype="void">
+        <brief>Sets the setup state machine in error state.</brief>
+        <note>Invoked under lock, a higher priority USB handler can preempt
+        the caller and update the other busy bits.</note>
+        <param name="usbp" ctype="hal_usb_driver_c *" dir="both">
+          USB driver instance.
+        </param>
+        <iclass />
         <implementation><![CDATA[
+chDbgCheckClassI();
+
 usb_lld_stall_in(usbp, 0U);
 usb_lld_stall_out(usbp, 0U);
-usb_invoke_event_cb(usbp, USB_FLAGS_STALLED);
+usb_post_events_i(usbp, USB_FLAGS_STALLED);
 usbp->receiving &= ~1U;
 usbp->transmitting &= ~1U;
 usbp->ep0n = 0U;
+usbp->ep0endcb = NULL;
 usbp->ep0state = USB_EP0_ERROR;]]></implementation>
       </function>
-      <function name="ep0_resume_waiterI" ctype="void">
+      <function name="ep0_resume_waiter_i" ctype="void">
         <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
         <param name="msg" ctype="msg_t" dir="in"></param>
         <implementation><![CDATA[
 chThdResumeI(&usbp->ep0thread, msg);]]></implementation>
       </function>
-      <function name="ep0_signal_resetI" ctype="void">
+      <function name="ep0_signal_reset_i" ctype="void">
         <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
         <implementation><![CDATA[
 usbp->ep0setup = 0U;
 usbp->ep0reset = 1U;
+usbp->ep0endcb = NULL;
 usbp->ep0seq++;
-ep0_resume_waiterI(usbp, MSG_RESET);]]></implementation>
+ep0_resume_waiter_i(usbp, MSG_RESET);]]></implementation>
       </function>
-      <function name="ep0_signal_setupI" ctype="void">
+      <function name="ep0_signal_setup_i" ctype="void">
         <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
         <param name="msg" ctype="msg_t" dir="in"></param>
         <implementation><![CDATA[
 usbp->ep0setup = 1U;
 usbp->ep0reset = 0U;
+usbp->ep0endcb = NULL;
 usbp->ep0seq++;
-ep0_resume_waiterI(usbp, msg);]]></implementation>
+ep0_resume_waiter_i(usbp, msg);]]></implementation>
       </function>
-      <function name="set_address_thread" ctype="void">
+      <function name="set_address" ctype="void">
         <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
         <implementation><![CDATA[
+#if USB_SET_ADDRESS_MODE == USB_LATE_SET_ADDRESS
 usbp->address = usbp->setup[2];
 usb_lld_set_address(usbp);
-usb_invoke_event_cb(usbp, USB_FLAGS_ADDRESS);
+#endif
+chSysLockFromISR();
+usb_post_events_i(usbp, USB_FLAGS_ADDRESS);
+chSysUnlockFromISR();
 usbp->state = USB_SELECTED;]]></implementation>
       </function>
       <function name="ep0_reply_or_ack" ctype="msg_t">
@@ -2436,7 +2826,13 @@ msg_t msg;
 size_t max;
 
 chSysLock();
-if ((usbp->state == HAL_DRV_STATE_STOP) || (usbp->ep0rseq != usbp->ep0seq)) {
+if (usbp->state == USB_ERROR) {
+  chSysUnlock();
+  return HAL_RET_HW_FAILURE;
+}
+if ((usbp->state == HAL_DRV_STATE_STOP) ||
+    (usbp->state == HAL_DRV_STATE_STOPPING) ||
+    (usbp->ep0rseq != usbp->ep0seq)) {
   chSysUnlock();
   return MSG_RESET;
 }
@@ -2452,15 +2848,21 @@ if (n != 0U) {
   usbp->ep0state = USB_EP0_IN_TX;
   usbStartTransmitI(usbp, 0U, buf, n);
 }
+else if (max != 0U) {
+  /* Empty reply to a request with a data stage, a zero size packet is
+     the data stage.*/
+  usbp->ep0state = USB_EP0_IN_WAITING_TX0;
+  usbStartTransmitI(usbp, 0U, NULL, 0U);
+}
 else {
-  usbp->ep0state = USB_EP0_OUT_WAITING_STS;
-  usbStartReceiveI(usbp, 0U, NULL, 0U);
+  /* No data stage, the status stage is an IN transaction.*/
+  usbp->ep0state = USB_EP0_IN_SENDING_STS;
+  usbStartTransmitI(usbp, 0U, NULL, 0U);
 }
 
 msg = chThdSuspendTimeoutS(&usbp->ep0thread, TIME_INFINITE);
-if (usbp->ep0rseq != usbp->ep0seq) {
-  msg = MSG_RESET;
-}
+/* The wakeup records completion or abort. A later SETUP cannot undo a
+   completed status stage, even if this thread has not run in between.*/
 chSysUnlock();
 
 return msg;]]></implementation>
@@ -2474,7 +2876,13 @@ msg_t msg;
 size_t max;
 
 chSysLock();
-if ((usbp->state == HAL_DRV_STATE_STOP) || (usbp->ep0rseq != usbp->ep0seq)) {
+if (usbp->state == USB_ERROR) {
+  chSysUnlock();
+  return HAL_RET_HW_FAILURE;
+}
+if ((usbp->state == HAL_DRV_STATE_STOP) ||
+    (usbp->state == HAL_DRV_STATE_STOPPING) ||
+    (usbp->ep0rseq != usbp->ep0seq)) {
   chSysUnlock();
   return MSG_RESET;
 }
@@ -2496,9 +2904,7 @@ else {
 }
 
 msg = chThdSuspendTimeoutS(&usbp->ep0thread, TIME_INFINITE);
-if (usbp->ep0rseq != usbp->ep0seq) {
-  msg = MSG_RESET;
-}
+/* Preserve the result delivered before any subsequent SETUP or reset.*/
 chSysUnlock();
 
 return msg;]]></implementation>

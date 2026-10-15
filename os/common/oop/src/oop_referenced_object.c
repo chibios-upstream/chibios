@@ -122,22 +122,23 @@ void *__ro_addref_impl(void *ip) {
  * @note        This function is meant to be used by derived classes.
  *
  * @param[in,out] ip            Pointer to a @p referenced_object_c instance.
- * @return                      The value of the reference counter.
+ * @return                      The reference count immediately after the
+ *                              decrement.
  */
 object_references_t __ro_release_impl(void *ip) {
   referenced_object_c *self = (referenced_object_c *)ip;
+  object_references_t references;
 
   oopLock();
   oopAssert(self->references > 0U, "zero references");
-  if (--self->references == 0U) {
-    oopUnlock();
+  references = --self->references;
+  oopUnlock();
+
+  if (references == 0U) {
     boDispose(self);
   }
-  else {
-    oopUnlock();
-  }
 
-  return self->references;
+  return references;
 }
 /** @} */
 

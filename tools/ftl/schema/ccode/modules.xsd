@@ -149,6 +149,7 @@
   </xs:complexType>
   <xs:complexType name="typesType">
     <xs:choice maxOccurs="unbounded" minOccurs="0">
+      <xs:element name="includes" type="includesType" />
       <xs:element name="typedef" type="typedefType" maxOccurs="1"
         minOccurs="1">
       </xs:element>
@@ -228,6 +229,9 @@
     <xs:choice maxOccurs="unbounded" minOccurs="0">
       <xs:element name="field" type="fieldType" maxOccurs="1"
         minOccurs="1"></xs:element>
+      <xs:element name="structfield" type="structType" />
+      <xs:element name="unionfield" type="unionType" />
+      <xs:element name="fieldmacro" type="DocumentedItem" />
       <xs:element name="condition" type="conditionalFieldsType"
         maxOccurs="1" minOccurs="1">
       </xs:element>
@@ -496,10 +500,23 @@
       <xs:element name="fields" type="fieldsType" maxOccurs="1"
         minOccurs="1"></xs:element>
     </xs:sequence>
-    <xs:attribute name="name" type="identifierType" use="required">
+    <xs:attribute name="name" type="identifierType" use="optional">
     </xs:attribute>
   </xs:complexType>
-  <xs:complexType name="enumtypeType"></xs:complexType>
+  <xs:complexType name="enumtypeType">
+    <xs:sequence>
+      <xs:element name="enumerator" type="enumeratorType"
+        maxOccurs="unbounded" minOccurs="1" />
+    </xs:sequence>
+    <xs:attribute name="name" type="identifierType" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="enumeratorType">
+    <xs:complexContent>
+      <xs:extension base="DocumentedItem">
+        <xs:attribute name="value" type="xs:string" use="optional" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
   <xs:complexType name="structType">
     <xs:complexContent>
       <xs:extension base="DocumentedItem">
@@ -515,7 +532,7 @@
       <xs:element name="fields" type="fieldsType" maxOccurs="1"
         minOccurs="1"></xs:element>
     </xs:sequence>
-    <xs:attribute name="name" use="required" type="identifierType">
+    <xs:attribute name="name" use="optional" type="identifierType">
     </xs:attribute>
   </xs:complexType>
   <xs:complexType name="unionType">
@@ -549,6 +566,9 @@
     <xs:choice maxOccurs="unbounded" minOccurs="1">
       <xs:element name="field" type="fieldType" maxOccurs="1"
         minOccurs="1"></xs:element>
+      <xs:element name="structfield" type="structType" />
+      <xs:element name="unionfield" type="unionType" />
+      <xs:element name="fieldmacro" type="DocumentedItem" />
       <xs:element name="condition" type="conditionalFieldsType"
         maxOccurs="1" minOccurs="1">
       </xs:element>
@@ -837,6 +857,7 @@
   </xs:complexType>
   <xs:complexType name="conditionalTypesType">
     <xs:choice maxOccurs="unbounded" minOccurs="1">
+      <xs:element name="includes" type="includesType" />
       <xs:element name="typedef" type="typedefType" maxOccurs="1"
         minOccurs="1">
       </xs:element>

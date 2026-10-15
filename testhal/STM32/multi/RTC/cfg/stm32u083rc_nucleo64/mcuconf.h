@@ -153,11 +153,12 @@
  * ADC driver system settings.
  */
 #define STM32_ADC_USE_ADC1                  FALSE
-#define STM32_ADC_COMPACT_SAMPLES           FALSE
-#define STM32_ADC_ADC1_DMA3_CHANNEL         STM32_DMA3_MASK_FIFO2
+#define STM32_ADC_ADC1_CFGR2                ADC_CFGR2_CKMODE_ADCCLK
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
-#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     5
-#define STM32_ADC_ADC1_IRQ_PRIORITY         5
+#define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     2
+#define STM32_ADC_ADC1_IRQ_PRIORITY         2
+#define STM32_ADC_ADC1_DMA_STREAM           STM32_DMA_STREAM_ID_ANY
+#define STM32_ADC_PRESCALER_VALUE           2
 
 /*
  * DAC driver system settings.
@@ -284,6 +285,7 @@
 #define STM32_USB_USE_USB1                  FALSE
 #define STM32_USB_USE_ISOCHRONOUS           FALSE
 #define STM32_USB_USE_FAST_COPY             FALSE
+#define STM32_USB_USE_DOUBLE_BUFFERING      FALSE
 #define STM32_USB_HOST_WAKEUP_DURATION      2
 #define STM32_USB_48MHZ_DELTA               120000
 

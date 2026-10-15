@@ -17,9 +17,9 @@ esac
 output=$("$systime_exe")
 sbtest_contains "$output" "ticks=" "tick count is missing"
 sbtest_contains "$output" " frequency=" "tick frequency is missing"
+sbtest_not_contains "$output" "$(printf '\r')" "text output contains CR"
 
 frequency=${output##*frequency=}
-frequency=$(printf '%s' "$frequency" | tr -d '\r')
 if [ "$frequency" -le 0 ]; then
   sbtest_fail "tick frequency is not positive"
 fi

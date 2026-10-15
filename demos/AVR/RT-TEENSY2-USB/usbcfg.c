@@ -255,10 +255,11 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
 
     /* Enables the endpoints specified into the configuration.
        Note, this callback is invoked from an ISR so I-Class functions
-       Must be used.*/
+       Must be used. The endpoints are enabled in ascending order, the USB
+       controller allocates their memory in that order.*/
     usbInitEndpointI(usbp, USBD_DATA_REQUEST_EP, &ep1config);
-    usbInitEndpointI(usbp, USBD_DATA_AVAILABLE_EP, &ep2config);
     usbInitEndpointI(usbp, USBD_INTERRUPT_REQUEST_EP, &ep3config);
+    usbInitEndpointI(usbp, USBD_DATA_AVAILABLE_EP, &ep2config);
 
     /* Resetting the state of the CDC subsystem.*/
     sduConfigureHookI(&SDU1);

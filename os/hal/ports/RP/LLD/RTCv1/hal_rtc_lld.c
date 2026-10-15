@@ -63,6 +63,36 @@ static void rtc_disable_alarm(RTCDriver *rtcp) {
 }
 #endif
 
+/**
+ * @brief   Waits for the counters to show a loaded date/time.
+ * @details The counters are updated from the RTC clock domain, they show
+ *          the values loaded by a set about one clk_rtc cycle after the
+ *          RTC is active again. The wait is bounded to four clk_rtc
+ *          cycles, a seconds increment in the meantime would not match.
+ *
+ * @param[in] rtcp      pointer to RTC driver structure
+ * @param[in] setup0    loaded @p SETUP0 value, same layout as @p RTC1
+ * @param[in] setup1    loaded @p SETUP1 value, same layout as @p RTC0
+ *
+ * @notapi
+ */
+static void rtc_wait_loaded(RTCDriver *rtcp,
+                            uint32_t setup0, uint32_t setup1) {
+  halcnt_t start, ticks;
+  uint32_t rtc_0, rtc_1;
+
+  /* The divider is the clk_rtc frequency minus one. */
+  ticks = HAL_SFT_US2CNT(halSftGetCounterFrequencyX(),
+                         ((4U * 1000000U) / (rtcp->rtc->CLKDIVM1 + 1U)) + 1U);
+  start = halSftGetCounterX();
+  do {
+    /* Read RTC0 first then RTC1. */
+    rtc_0 = rtcp->rtc->RTC0;
+    rtc_1 = rtcp->rtc->RTC1;
+  } while (((rtc_0 != setup1) || (rtc_1 != setup0)) &&
+           halSftIsCounterWithinX(start, start + ticks));
+}
+
 /*===========================================================================*/
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
@@ -142,6 +172,8 @@ void rtc_lld_init(void) {
  * @note    Fractional seconds part will be silently ignored. There is no
  *          possibility to set it on RP2040 platform.
  * @note    The RP2040 handles leap year for years evenly divisible by 4.
+ * @note    The function returns once the RTC counters show the new
+ *          date/time, a few clk_rtc cycles after it has been loaded.
  * @note    The function can be called from any context.
  *
  * @param[in] rtcp      pointer to RTC driver structure
@@ -150,12 +182,24 @@ void rtc_lld_init(void) {
  * @notapi
  */
 void rtc_lld_set_time(RTCDriver *rtcp, const RTCDateTime *timespec) {
+  uint32_t setup0, setup1;
 
   uint32_t sec = (uint32_t)timespec->millisecond / 1000;
   uint32_t hour = sec / 3600;
   sec %= 3600;
   uint32_t min = sec / 60;
   sec %= 60;
+
+  /* Setup register data. */
+  setup0 = (RTC_SETUP_0_YEAR(timespec->year + RTC_BASE_YEAR))               |
+           (RTC_SETUP_0_MONTH(timespec->month))                             |
+           (RTC_SETUP_0_DAY(timespec->day));
+  setup1 = (RTC_SETUP_1_DOTW(timespec->dayofweek > 0U ?
+               timespec->dayofweek - 1U : 0U)
+               & RTC_SETUP_1_DOTW_Msk)                                      |
+           (RTC_SETUP_1_HOUR(hour) & RTC_SETUP_1_HOUR_Msk)                  |
+           (RTC_SETUP_1_MIN(min) & RTC_SETUP_1_MIN_Msk)                     |
+           (RTC_SETUP_1_SEC(sec) & RTC_SETUP_1_SEC_Msk);
 
   /* Entering a reentrant critical zone.*/
   syssts_t sts = osalSysGetStatusAndLockX();
@@ -168,15 +212,8 @@ void rtc_lld_set_time(RTCDriver *rtcp, const RTCDateTime *timespec) {
     ;
 
   /* Write setup to pre-load registers. */
-  rtcp->rtc->SETUP0 = (RTC_SETUP_0_YEAR(timespec->year + RTC_BASE_YEAR))    |
-                      (RTC_SETUP_0_MONTH(timespec->month))                  |
-                      (RTC_SETUP_0_DAY(timespec->day));
-  rtcp->rtc->SETUP1 = (RTC_SETUP_1_DOTW(timespec->dayofweek > 0U ?
-                          timespec->dayofweek - 1U : 0U)
-                          & RTC_SETUP_1_DOTW_Msk)                          |
-                      (RTC_SETUP_1_HOUR(hour) & RTC_SETUP_1_HOUR_Msk)      |
-                      (RTC_SETUP_1_MIN(min) & RTC_SETUP_1_MIN_Msk)         |
-                      (RTC_SETUP_1_SEC(sec) & RTC_SETUP_1_SEC_Msk);
+  rtcp->rtc->SETUP0 = setup0;
+  rtcp->rtc->SETUP1 = setup1;
 
   /* Move the setup values into the RTC clock domain and re-enable the
      RTC in one write. Writing LOAD and RTC_ENABLE as two separate
@@ -192,6 +229,9 @@ void rtc_lld_set_time(RTCDriver *rtcp, const RTCDateTime *timespec) {
   /* Wait for RTC to go active. */
   while ((rtcp->rtc->CTRL & RTC_CTRL_RTC_ACTIVE) == 0)
     ;
+
+  /* A read right after the set must return the new date/time. */
+  rtc_wait_loaded(rtcp, setup0, setup1);
 }
 
 /**

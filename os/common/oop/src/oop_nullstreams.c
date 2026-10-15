@@ -97,8 +97,9 @@ static size_t __nullstm_stm_read_impl(void *ip, uint8_t *bp, size_t n) {
 
   (void)self;
   (void)bp;
+  (void)n;
 
-  return n;
+  return 0U;
 }
 
 /**
@@ -130,7 +131,7 @@ static int __nullstm_stm_get_impl(void *ip) {
 
   (void)self;
 
-  return 4;
+  return STM_RESET;
 }
 
 /**

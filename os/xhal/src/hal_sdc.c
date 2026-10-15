@@ -892,9 +892,15 @@ msg_t __sdc_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p hal_sdc_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __sdc_stop_impl(void *ip) {
+void __sdc_stop_impl(void *ip, driver_state_t prevstate) {
   hal_sdc_driver_c *self = (hal_sdc_driver_c *)ip;
+
+  (void)prevstate;
+
   sdc_lld_stop(self);
   self->errors = SDC_NO_ERROR;
   self->cardmode = 0U;

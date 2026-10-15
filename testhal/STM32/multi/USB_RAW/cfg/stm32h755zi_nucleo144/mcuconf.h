@@ -480,6 +480,7 @@
  */
 #define STM32_USB_USE_OTG1                  TRUE
 #define STM32_USB_USE_OTG2                  TRUE
+#define STM32_USB_USE_ISOCHRONOUS           FALSE
 #define STM32_USB_OTG1_IRQ_PRIORITY         14
 #define STM32_USB_OTG2_IRQ_PRIORITY         14
 #define STM32_USB_OTG1_RX_FIFO_SIZE         512

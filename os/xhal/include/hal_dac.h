@@ -187,6 +187,10 @@
 
 /**
  * @brief       Common ISR code, error event.
+ * @note        Called from unlocked ISR context. Conversion cleanup is locked,
+ *              but the user callback is invoked after unlocking.
+ * @note        The existing waiter is notified before the callback. A
+ *              conversion restarted by the callback retains its group.
  *
  * @param[in,out] dacp          Pointer to the DAC driver instance.
  * @param[in]     err           Platform dependent error code.
@@ -195,13 +199,17 @@
  */
 #define _dac_isr_error_code(dacp, err)                                      \
   do {                                                                      \
+    chSysLockFromISR();                                                     \
     dac_lld_stop_conversion(dacp);                                          \
+    chSysUnlockFromISR();                                                   \
     (dacp)->errors |= (err);                                                \
+    _dac_error_wakeup_isr(dacp);                                            \
     __cbdrv_invoke_cb_with_transition(dacp,                                 \
                                       HAL_DRV_STATE_ERROR,                  \
                                       HAL_DRV_STATE_READY);                 \
-    (dacp)->grpp = NULL;                                                    \
-    _dac_error_wakeup_isr(dacp);                                            \
+    if ((dacp)->state == HAL_DRV_STATE_READY) {                             \
+      (dacp)->grpp = NULL;                                                  \
+    }                                                                       \
   } while (false)
 /** @} */
 
@@ -285,7 +293,7 @@ struct hal_dac_driver_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From hal_cb_driver_c.*/
@@ -387,7 +395,7 @@ extern "C" {
   void *__dac_objinit_impl(void *ip, const void *vmt);
   void __dac_dispose_impl(void *ip);
   msg_t __dac_start_impl(void *ip, const void *config);
-  void __dac_stop_impl(void *ip);
+  void __dac_stop_impl(void *ip, driver_state_t prevstate);
   const void *__dac_setcfg_impl(void *ip, const void *config);
   const void *__dac_selcfg_impl(void *ip, unsigned cfgnum);
   void __dac_oncbset_impl(void *ip, drv_cb_t cb);

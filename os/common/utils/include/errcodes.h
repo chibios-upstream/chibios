@@ -69,6 +69,7 @@
 #define CH_RET_EOVERFLOW        CH_ENCODE_ERROR(EOVERFLOW)  /* File offset overflow */
 #define CH_RET_ENOEXEC          CH_ENCODE_ERROR(ENOEXEC)    /* Invalid executable */
 #define CH_RET_EXDEV            CH_ENCODE_ERROR(EXDEV)      /* Not same volume */
+#define CH_RET_ENOTTY           CH_ENCODE_ERROR(ENOTTY)     /* Inappropriate control operation */
 /** @} */
 
 /*===========================================================================*/

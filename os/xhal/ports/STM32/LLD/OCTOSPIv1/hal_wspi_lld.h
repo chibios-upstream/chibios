@@ -17,6 +17,12 @@
 /**
  * @file    OCTOSPIv1/hal_wspi_lld.h
  * @brief   STM32 WSPI subsystem low level driver header.
+ * @details The peripheral IRQ priorities from xmcuconf.h, validated by the
+ *          shared OCTOSPI IRQ handlers, are also requested for DMA.
+ * @note    If a DMA vector is shared, the first allocation with a non-NULL
+ *          callback sets its effective priority. All users of that vector
+ *          must request the same priority to rely on non-preemption.
+ * @see     dmaStreamAlloc
  *
  * @addtogroup WSPI
  * @{
@@ -225,20 +231,6 @@
 #endif
 
 /**
- * @brief   OCTOSPI1 interrupt priority level setting.
- */
-#if !defined(STM32_IRQ_OCTOSPI1_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_IRQ_OCTOSPI1_PRIORITY         10
-#endif
-
-/**
- * @brief   OCTOSPI2 interrupt priority level setting.
- */
-#if !defined(STM32_IRQ_OCTOSPI2_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_IRQ_OCTOSPI2_PRIORITY         10
-#endif
-
-/**
  * @brief   OCTOSPI1 DMA priority (0..3|lowest..highest).
  */
 #if !defined(STM32_WSPI_OCTOSPI1_DMA_PRIORITY) || defined(__DOXYGEN__)
@@ -250,20 +242,6 @@
  */
 #if !defined(STM32_WSPI_OCTOSPI2_DMA_PRIORITY) || defined(__DOXYGEN__)
 #define STM32_WSPI_OCTOSPI2_DMA_PRIORITY    1
-#endif
-
-/**
- * @brief   OCTOSPI1 DMA interrupt priority level setting.
- */
-#if !defined(STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY 10
-#endif
-
-/**
- * @brief   OCTOSPI2 DMA interrupt priority level setting.
- */
-#if !defined(STM32_WSPI_OCTOSPI2_DMA_IRQ_PRIORITY) || defined(__DOXYGEN__)
-#define STM32_WSPI_OCTOSPI2_DMA_IRQ_PRIORITY 10
 #endif
 
 /**
@@ -335,27 +313,6 @@
 #if (STM32_WSPI_OCTOSPI2_PRESCALER_VALUE < 1) ||                            \
     (STM32_WSPI_OCTOSPI2_PRESCALER_VALUE > 256)
 #error "STM32_WSPI_OCTOSPI2_PRESCALER_VALUE not within 1..256"
-#endif
-
-/* Check on IRQ priorities.*/
-#if STM32_WSPI_USE_OCTOSPI1 &&                                              \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_OCTOSPI1_PRIORITY)
-#error "Invalid IRQ priority assigned to OCTOSPI1"
-#endif
-
-#if STM32_WSPI_USE_OCTOSPI2 &&                                              \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_IRQ_OCTOSPI2_PRIORITY)
-#error "Invalid IRQ priority assigned to OCTOSPI2"
-#endif
-
-#if STM32_WSPI_USE_OCTOSPI1 &&                                              \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI1_DMA_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to OCTOSPI1 DMA"
-#endif
-
-#if STM32_WSPI_USE_OCTOSPI2 &&                                              \
-    !CH_IRQ_IS_VALID_PRIORITY(STM32_WSPI_OCTOSPI2_DMA_IRQ_PRIORITY)
-#error "Invalid IRQ priority assigned to OCTOSPI2 DMA"
 #endif
 
 /* Check on the presence of the DMA channels settings in mcuconf.h.*/

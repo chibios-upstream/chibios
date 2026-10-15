@@ -88,8 +88,7 @@ static void oslib_test_009_001_teardown(void) {
 
   rop = chFactoryFindObject("myobj");
   if (rop != NULL) {
-    while (rop->element.refs > 0U) {
-      chFactoryReleaseObject(rop);
+    while (chFactoryReleaseObject(rop) > 0U) {
     }
   }
 }
@@ -211,8 +210,7 @@ static void oslib_test_009_002_teardown(void) {
 
   dbp = chFactoryFindBuffer("mybuf");
   if (dbp != NULL) {
-    while (dbp->element.refs > 0U) {
-      chFactoryReleaseBuffer(dbp);
+    while (chFactoryReleaseBuffer(dbp) > 0U) {
     }
   }
 }
@@ -331,8 +329,7 @@ static void oslib_test_009_003_teardown(void) {
 
   dsp = chFactoryFindSemaphore("mysem");
   if (dsp != NULL) {
-    while (dsp->element.refs > 0U) {
-      chFactoryReleaseSemaphore(dsp);
+    while (chFactoryReleaseSemaphore(dsp) > 0U) {
     }
   }
 }
@@ -451,8 +448,7 @@ static void oslib_test_009_004_teardown(void) {
 
   dmp = chFactoryFindMailbox("mymbx");
   if (dmp != NULL) {
-    while (dmp->element.refs > 0U) {
-      chFactoryReleaseMailbox(dmp);
+    while (chFactoryReleaseMailbox(dmp) > 0U) {
     }
   }
 }
@@ -572,8 +568,7 @@ static void oslib_test_009_005_teardown(void) {
 
   dofp = chFactoryFindObjectsFIFO("myfifo");
   if (dofp != NULL) {
-    while (dofp->element.refs > 0U) {
-      chFactoryReleaseObjectsFIFO(dofp);
+    while (chFactoryReleaseObjectsFIFO(dofp) > 0U) {
     }
   }
 }
@@ -691,8 +686,7 @@ static void oslib_test_009_006_teardown(void) {
 
   dpp = chFactoryFindPipe("mypipe");
   if (dpp != NULL) {
-    while (dpp->element.refs > 0U) {
-      chFactoryReleasePipe(dpp);
+    while (chFactoryReleasePipe(dpp) > 0U) {
     }
   }
 }

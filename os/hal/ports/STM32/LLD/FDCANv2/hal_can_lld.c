@@ -38,6 +38,14 @@
 /*===========================================================================*/
 #define STM32_FDCAN_FIFO_WATERMARK          1U
 
+/* Application-controlled CCCR bits. INIT, CCE and clock stop are owned by
+   the driver; FDOE and BRSE are further restricted by op_mode.*/
+#define FDCAN_CCCR_OPTIONS                 (FDCAN_CCCR_ASM | FDCAN_CCCR_MON | \
+                                            FDCAN_CCCR_DAR | FDCAN_CCCR_TEST | \
+                                            FDCAN_CCCR_FDOE | FDCAN_CCCR_BRSE | \
+                                            FDCAN_CCCR_PXHD | FDCAN_CCCR_EFBI | \
+                                            FDCAN_CCCR_TXP | FDCAN_CCCR_NISO)
+
 /*===========================================================================*/
 /* STM32H723xx, STM32H733xx, STM32H725xx, STM32H735xx, STM32H730xx.          */
 /*===========================================================================*/
@@ -279,9 +287,56 @@ CANDriver CAND3;
 /* Driver local variables and types.                                         */
 /*===========================================================================*/
 
+/* Includes controllers in CAN_STARTING. Accessed with the system locked.*/
+static unsigned fdcan_users;
+
 /*===========================================================================*/
 /* Driver local functions.                                                   */
 /*===========================================================================*/
+
+static void fdcan_acquire(void) {
+
+  if (fdcan_users == 0U) {
+    rccEnableFDCAN(true);
+    rccResetFDCAN();
+  }
+  fdcan_users++;
+}
+
+static void fdcan_release(void) {
+
+  osalDbgAssert(fdcan_users > 0U, "unbalanced FDCAN clock");
+  fdcan_users--;
+  if (fdcan_users == 0U) {
+    rccDisableFDCAN();
+  }
+}
+
+static void fdcan_disable_interrupts(CANDriver *canp) {
+
+  canp->fdcan->IE = 0U;
+  canp->fdcan->ILE = 0U;
+  canp->fdcan->TXBTIE = 0U;
+  canp->fdcan->TXBCIE = 0U;
+  canp->fdcan->IR = (uint32_t)-1;
+}
+
+static bool fdcan_clock_start(CANDriver *canp) {
+  systime_t start, end;
+
+  /* Leave clock stop before requesting initialization.*/
+  canp->fdcan->CCCR &= ~FDCAN_CCCR_CSR;
+  start = osalOsGetSystemTimeX();
+  end = osalTimeAddX(start, TIME_MS2I(TIMEOUT_CSA_MS));
+  while ((canp->fdcan->CCCR & FDCAN_CCCR_CSA) != 0U) {
+    if (!osalTimeIsInRangeX(osalOsGetSystemTimeX(), start, end)) {
+      return true;
+    }
+    osalThreadSleepS(1);
+  }
+
+  return false;
+}
 
 static bool fdcan_clock_stop(CANDriver *canp) {
   systime_t start, end;
@@ -289,7 +344,7 @@ static bool fdcan_clock_stop(CANDriver *canp) {
   /* Requesting clock stop then waiting for it to happen.*/
   canp->fdcan->CCCR |= FDCAN_CCCR_CSR;
   start = osalOsGetSystemTimeX();
-  end = osalTimeAddX(start, TIME_MS2I(TIMEOUT_INIT_MS));
+  end = osalTimeAddX(start, TIME_MS2I(TIMEOUT_CSA_MS));
   while ((canp->fdcan->CCCR & FDCAN_CCCR_CSA) == 0U) {
     if (!osalTimeIsInRangeX(osalOsGetSystemTimeX(), start, end)) {
       return true;
@@ -334,6 +389,19 @@ static bool fdcan_active_mode(CANDriver *canp) {
   return false;
 }
 
+/* Classic DLC 9..15 means eight bytes, also on an FD-capable controller.
+   A remote frame has no data field.*/
+static unsigned fdcan_payload_size(uint32_t dlc, bool fd, bool remote) {
+
+  if (remote) {
+    return 0U;
+  }
+  if (!fd && (dlc > 8U)) {
+    return 8U;
+  }
+  return dlc_to_bytes[dlc];
+}
+
 /*===========================================================================*/
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
@@ -349,7 +417,8 @@ static bool fdcan_active_mode(CANDriver *canp) {
  */
 void can_lld_init(void) {
 
-  /* Unit reset.*/
+  /* Shared-clock ownership and unit reset.*/
+  fdcan_users = 0U;
   rccResetFDCAN();
 
 #if STM32_CAN_USE_FDCAN1
@@ -379,56 +448,64 @@ void can_lld_init(void) {
  *
  * @param[in] canp      pointer to the @p CANDriver object
  * @return              The operation result.
- * @retval false        if the operation succeeded.
- * @retval true         if the operation failed.
+ * @retval HAL_RET_SUCCESS       if the operation succeeded.
+ * @retval HAL_RET_CONFIG_ERROR  if the configuration is invalid.
+ * @retval HAL_RET_HW_FAILURE    if a hardware handshake timed out.
  *
  * @notapi
  */
-bool can_lld_start(CANDriver *canp) {
+msg_t can_lld_start(CANDriver *canp) {
+  uint32_t cccr;
+  volatile uint32_t *wp;
 
-  /* Clock activation.*/
-  rccEnableFDCAN(true);
-
-  /* If it is the first activation then performing some extra
-     initializations.*/
-  for (uint32_t *wp = canp->ram_base;
-       wp < canp->ram_base + SRAMCAN_SIZE;
-       wp += 1U) {
-    *wp = (uint32_t)0U;
+  if ((canp->config == NULL) ||
+      ((canp->config->op_mode != OPMODE_CAN) &&
+       (canp->config->op_mode != OPMODE_FDCAN))) {
+    return HAL_RET_CONFIG_ERROR;
   }
 
-  /* Requesting clock stop.*/
-  if (fdcan_clock_stop(canp)) {
-    osalDbgAssert(false, "CAN clock stop failed, check clocks and pin config");
-    return true;
+  /* Reserve the shared clock before any handshakes can release the lock.*/
+  fdcan_acquire();
+  fdcan_disable_interrupts(canp);
+
+  if (fdcan_clock_start(canp)) {
+    goto failed;
   }
 
   /* Going in initialization mode.*/
   if (fdcan_init_mode(canp)) {
-    osalDbgAssert(false, "CAN initialization failed, check clocks and pin config");
-    return true;
+    goto failed;
+  }
+
+  /* CCE resets this controller's FIFO status. Only clear its own RAM slice,
+     after the controller has stopped accessing the old FIFO contents.*/
+  canp->fdcan->CCCR |= FDCAN_CCCR_CCE;
+  for (wp = canp->ram_base; wp < canp->ram_base + SRAMCAN_SIZE; wp++) {
+    *wp = 0U;
   }
 
   /* Configuration of element size (RAM words). */
   if (canp->config->op_mode == OPMODE_FDCAN) {
     canp->word_size = FDCAN_SIZE_RAM_WORDS;
   }
-  else if (canp->config->op_mode == OPMODE_CAN) {
+  else {
     canp->word_size = CAN_SIZE_RAM_WORDS;
   }
-  else {
-    osalDbgAssert(false, "CAN initialization failed, invalid FDCAN operation mode");
+
+  /* Replace the previous options instead of retaining bits across starts.
+     Classic mode must clear FDOE and BRSE even if supplied in CCCR.*/
+  cccr = canp->config->CCCR & FDCAN_CCCR_OPTIONS;
+  if (canp->config->op_mode == OPMODE_FDCAN) {
+    cccr |= FDCAN_CCCR_FDOE;
   }
-
-  /* Configuration can be performed now.*/
-  canp->fdcan->CCCR |= FDCAN_CCCR_CCE;
-
-  /* Setting up operation mode except driver-controlled bits.*/
+  else {
+    cccr &= ~(FDCAN_CCCR_FDOE | FDCAN_CCCR_BRSE);
+  }
+  canp->fdcan->CCCR = FDCAN_CCCR_INIT | FDCAN_CCCR_CCE | cccr;
   canp->fdcan->NBTP = canp->config->NBTP;
   canp->fdcan->DBTP = canp->config->DBTP;
   canp->fdcan->TDCR = canp->config->TDCR;
   canp->fdcan->TSCC = canp->config->TSCC;
-  canp->fdcan->CCCR |= canp->config->CCCR;
 
   /* TEST is only writable when FDCAN_CCCR_TEST is set and FDCAN is still in
    * configuration mode */
@@ -517,14 +594,6 @@ bool can_lld_start(CANDriver *canp) {
                          FDCAN_CONFIG_RXESC_RBDS_8BDF;
   }
 
-  /* Start clock and disable configuration mode.*/
-  canp->fdcan->CCCR &= ~(FDCAN_CCCR_CSR);
-
-  /* Enable FDCAN operation. */
-  if (canp->config->op_mode == OPMODE_FDCAN) {
-    canp->fdcan->CCCR |= FDCAN_CCCR_FDOE;
-  }
-
   /* Enabling interrupts, only using interrupt zero.*/
   canp->fdcan->IR     = (uint32_t)-1;
   canp->fdcan->IE     = FDCAN_IE_RF1WE | FDCAN_IE_RF1LE |
@@ -535,11 +604,16 @@ bool can_lld_start(CANDriver *canp) {
 
   /* Going in active mode.*/
   if (fdcan_active_mode(canp)) {
-    osalDbgAssert(false, "CAN initialization failed, check clocks and pin config");
-    return true;
+    goto failed;
   }
 
-  return false;
+  return HAL_RET_SUCCESS;
+
+failed:
+  fdcan_disable_interrupts(canp);
+  canp->fdcan->CCCR |= FDCAN_CCCR_INIT | FDCAN_CCCR_CSR;
+  fdcan_release();
+  return HAL_RET_HW_FAILURE;
 }
 
 /**
@@ -554,15 +628,12 @@ void can_lld_stop(CANDriver *canp) {
   /* If in ready state then disables the CAN peripheral.*/
   if (canp->state == CAN_READY) {
     /* Disabling and clearing interrupts.*/
-    canp->fdcan->IE  = 0U;
-    canp->fdcan->IR  = (uint32_t)-1;
-    canp->fdcan->ILE = 0U;
-    canp->fdcan->TXBTIE = 0U;
+    fdcan_disable_interrupts(canp);
 
     /* Disables the peripheral.*/
     (void) fdcan_clock_stop(canp);
 
-    rccDisableFDCAN();
+    fdcan_release();
   }
 }
 
@@ -596,12 +667,16 @@ bool can_lld_is_tx_empty(CANDriver *canp, canmbx_t mailbox) {
  * @notapi
  */
 void can_lld_transmit(CANDriver *canp, canmbx_t mailbox, const CANTxFrame *ctfp) {
-  uint32_t put_index = 0;
-  uint32_t *tx_address = 0;
+  uint32_t put_index;
+  volatile uint32_t *tx_address;
+  unsigned bytes, i;
+  bool fd;
 
   (void)mailbox;
 
-  osalDbgCheck(dlc_to_bytes[ctfp->DLC] <= CAN_MAX_DLC_BYTES);
+  fd = (ctfp->FDF != 0U) && (canp->word_size == FDCAN_SIZE_RAM_WORDS);
+  bytes = fdcan_payload_size(ctfp->DLC, fd,
+                             !fd && (ctfp->common.RTR != 0U));
 
   /* Retrieve the TX FIFO put index.*/
   put_index = ((canp->fdcan->TXFQS & FDCAN_TXFQS_TFQPI) >> FDCAN_TXFQS_TFQPI_Pos);
@@ -611,7 +686,7 @@ void can_lld_transmit(CANDriver *canp, canmbx_t mailbox, const CANTxFrame *ctfp)
 
   *tx_address++ = ctfp->header32[0];
   *tx_address++ = ctfp->header32[1];
-  for (unsigned i = 0U; i < dlc_to_bytes[ctfp->DLC]; i += 4U) {
+  for (i = 0U; i < bytes; i += 4U) {
     *tx_address++ = ctfp->data32[i / 4U];
   }
 
@@ -658,7 +733,9 @@ bool can_lld_is_rx_nonempty(CANDriver *canp, canmbx_t mailbox) {
  */
 void can_lld_receive(CANDriver *canp, canmbx_t mailbox, CANRxFrame *crfp) {
   uint32_t get_index;
-  uint32_t *rx_address;
+  volatile const uint32_t *rx_address;
+  unsigned bytes, i;
+  bool fd;
 
   if (mailbox == CAN_ANY_MAILBOX) {
     if (can_lld_is_rx_nonempty(canp, 1U)) {
@@ -684,10 +761,13 @@ void can_lld_receive(CANDriver *canp, canmbx_t mailbox, CANRxFrame *crfp) {
   }
   crfp->header32[0] = *rx_address++;
   crfp->header32[1] = *rx_address++;
+  fd = (crfp->FDF != 0U) && (canp->word_size == FDCAN_SIZE_RAM_WORDS);
+  bytes = fdcan_payload_size(crfp->DLC, fd,
+                             !fd && (crfp->common.RTR != 0U));
 
   /* Copy message from FDCAN peripheral's SRAM to structure. RAM is restricted
      to word aligned accesses, so up to 3 extra bytes may be copied.*/
-  for (unsigned i = 0U; i < dlc_to_bytes[crfp->DLC]; i += 4U) {
+  for (i = 0U; i < bytes; i += 4U) {
     crfp->data32[i / 4U] = *rx_address++;
   }
 
@@ -790,8 +870,9 @@ void can_lld_serve_interrupt(CANDriver *canp) {
 }
 
 /**
- * @brief   Programs the filters.
+ * @brief   Replaces the standard and extended filter tables.
  * @note    This is an STM32-specific API.
+ * @note    Traffic must be quiesced while replacing the filter tables.
  *
  * @param[in] canp      pointer to the @p CANDriver object
  * @param[in] num       number of entries in the filters array
@@ -800,16 +881,26 @@ void can_lld_serve_interrupt(CANDriver *canp) {
  * @notapi
  */
 void can_lld_set_filters(CANDriver *canp, uint8_t num, const CANFilter *cfp) {
+  unsigned i, num_std_filter = 0U, num_ext_filter = 0U;
+  uint32_t maxid;
+  volatile CANRxStandardFilter *filter_std;
+  volatile CANRxExtendedFilter *filter_ext;
+  bool valid;
 
-  uint8_t i;
-  uint8_t num_std_filter = 0;
-  uint8_t num_ext_filter = 0;
+  valid = (num == 0U) || (cfp != NULL);
+  osalDbgCheck(valid);
+  if (!valid) {
+    return;
+  }
 
-  CANRxStandardFilter *filter_std;
-  CANRxExtendedFilter *filter_ext;
-
-  /* Check number of filters. */
-  for (i = 0; i < num; i++) {
+  /* Validate the whole replacement before changing message RAM.*/
+  for (i = 0U; i < num; i++) {
+    maxid = cfp[i].filter_type == CAN_FILTER_TYPE_STD ? 0x7FFU : 0x1FFFFFFFU;
+    valid = valid && ((unsigned)cfp[i].filter_type <= CAN_FILTER_TYPE_EXT) &&
+            ((unsigned)cfp[i].filter_mode <= CAN_FILTER_MODE_CLASSIC) &&
+            ((unsigned)cfp[i].filter_cfg >= CAN_FILTER_CFG_FIFO_0) &&
+            ((unsigned)cfp[i].filter_cfg <= CAN_FILTER_CFG_REJECT) &&
+            (cfp[i].identifier1 <= maxid) && (cfp[i].identifier2 <= maxid);
     if ((cfp[i].filter_type) == CAN_FILTER_TYPE_STD) {
       num_std_filter++;
     }
@@ -818,17 +909,30 @@ void can_lld_set_filters(CANDriver *canp, uint8_t num, const CANFilter *cfp) {
     }
   }
 
-  osalDbgAssert(((num_std_filter <= STM32_FDCAN_FLS_NBR) &&
-                 (num_ext_filter <= STM32_FDCAN_FLE_NBR)),
-                "out of range of filters supported");
+  valid = valid && (num_std_filter <= STM32_FDCAN_FLS_NBR) &&
+          (num_ext_filter <= STM32_FDCAN_FLE_NBR);
+  osalDbgAssert(valid, "invalid filters");
+  if (!valid) {
+    return;
+  }
 
   /* Base address of standard filter. */
   filter_std = (CANRxStandardFilter *)(canp->ram_base + SRAMCAN_FLSSA);
   /* Base address of extended filter. */
   filter_ext = (CANRxExtendedFilter *)(canp->ram_base + SRAMCAN_FLESA);
 
+  /* Unused entries must be disabled, including when num is zero. Otherwise
+     filters left by the previous call remain active.*/
+  for (i = 0U; i < STM32_FDCAN_FLS_NBR; i++) {
+    filter_std[i].data32 = 0U;
+  }
+  for (i = 0U; i < STM32_FDCAN_FLE_NBR; i++) {
+    filter_ext[i].data32[0] = 0U;
+    filter_ext[i].data32[1] = 0U;
+  }
+
   /* Scanning the filters array. */
-  for (i = 0; i < num; i++) {
+  for (i = 0U; i < num; i++) {
     /* Standard filter configuration */
     if ((cfp[i].filter_type) == CAN_FILTER_TYPE_STD) {
       /* Configure */
@@ -851,8 +955,12 @@ void can_lld_set_filters(CANDriver *canp, uint8_t num, const CANFilter *cfp) {
   }
 }
 /**
- * @brief   Programs the filters.
+ * @brief   Replaces the standard and extended filter tables.
  * @note    This is an STM32-specific API.
+ * @note    Serialize with lifecycle operations and quiesce traffic while
+ *          replacing the tables; hardware accesses to filter RAM are not
+ *          made atomic by locking the CPU.
+ * @note    A zero count disables all entries; @p cfp may be @p NULL then.
  *
  * @param[in] canp      pointer to the @p CANDriver object
  * @param[in] num       number of entries in the filters array
@@ -862,6 +970,7 @@ void can_lld_set_filters(CANDriver *canp, uint8_t num, const CANFilter *cfp) {
  */
 void canSTM32SetFilters(CANDriver *canp, uint8_t num, const CANFilter *cfp) {
 
+  osalDbgCheck(canp != NULL);
   osalDbgAssert(canp->state == CAN_READY, "invalid state");
 
   can_lld_set_filters(canp, num, cfp);

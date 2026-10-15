@@ -552,12 +552,15 @@ void gpdmaChannelFreeI(const stm32_gpdma_channel_t *dmachp) {
   gpdma.channels[selfindex].func  = NULL;
   gpdma.channels[selfindex].param = NULL;
 
-  /* Shutting down clocks that are no more required, if any.*/
-  if ((gpdma.allocated_mask & STM32_GPDMA1_MASK_ANY) == 0U) {
+  /* Shutting down the clock of the channel controller if no more required,
+     the other controller could have never been enabled.*/
+  if (((STM32_GPDMA1_MASK_ANY & (1U << selfindex)) != 0U) &&
+      ((gpdma.allocated_mask & STM32_GPDMA1_MASK_ANY) == 0U)) {
     rccDisableGPDMA1();
   }
 #if STM32_GPDMA2_NUM_CHANNELS > 0
-  if ((gpdma.allocated_mask & STM32_GPDMA2_MASK_ANY) == 0U) {
+  if (((STM32_GPDMA2_MASK_ANY & (1U << selfindex)) != 0U) &&
+      ((gpdma.allocated_mask & STM32_GPDMA2_MASK_ANY) == 0U)) {
     rccDisableGPDMA2();
   }
 #endif

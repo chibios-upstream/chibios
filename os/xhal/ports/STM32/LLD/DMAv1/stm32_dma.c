@@ -83,6 +83,11 @@
 
 #elif STM32_DMA_SUPPORTS_DMAMUX == TRUE
 
+/* DMA2 normally follows DMA1 in the DMAMUX register layout.*/
+#if !defined(STM32_DMA2_DMAMUX_OFFSET)
+#define STM32_DMA2_DMAMUX_OFFSET    STM32_DMA1_NUM_CHANNELS
+#endif
+
 #define DMAMUX1_CHANNEL(id)         (DMAMUX1_BASE + ((id) * 4U))
 
 #define DMA1_CH1_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(0))
@@ -93,14 +98,14 @@
 #define DMA1_CH6_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(5))
 #define DMA1_CH7_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(6))
 #define DMA1_CH8_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(7))
-#define DMA2_CH1_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(0 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH2_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(1 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH3_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(2 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH4_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(3 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH5_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(4 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH6_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(5 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH7_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(6 + STM32_DMA1_NUM_CHANNELS))
-#define DMA2_CH8_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(7 + STM32_DMA1_NUM_CHANNELS))
+#define DMA2_CH1_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(0 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH2_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(1 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH3_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(2 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH4_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(3 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH5_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(4 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH6_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(5 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH7_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(6 + STM32_DMA2_DMAMUX_OFFSET))
+#define DMA2_CH8_VARIANT            ((DMAMUX_Channel_TypeDef *)DMAMUX1_CHANNEL(7 + STM32_DMA2_DMAMUX_OFFSET))
 
 #else /* !(STM32_DMA_SUPPORTS_DMAMUX == TRUE) */
 
@@ -572,8 +577,18 @@ void dmaInit(void) {
 /**
  * @brief   Allocates a DMA stream.
  * @details The stream is allocated and, if required, the DMA clock enabled.
- *          The function also enables the IRQ vector associated to the stream
- *          and initializes its priority.
+ *          If a callback is specified and the associated IRQ vector is not
+ *          already in use, the vector is enabled with the requested priority.
+ * @note    On devices where DMA streams share an IRQ vector, the first
+ *          allocation with a non-NULL callback sets the vector priority.
+ *          Later allocations sharing that vector retain the existing
+ *          priority; different requested priorities are not checked.
+ *          The vector is disabled only after its last callback-bearing
+ *          stream is freed. A subsequent allocation can set a new priority.
+ * @note    To rely on non-preemption between DMA and peripheral handlers,
+ *          all drivers sharing the DMA vector must request the same IRQ
+ *          priority and use that priority for their peripheral handlers.
+ *          This does not remove locking requirements for I-class APIs.
  *
  * @param[in] id        numeric identifiers of a specific stream or:
  *                      - @p STM32_DMA_STREAM_ID_ANY for any stream.
@@ -582,7 +597,7 @@ void dmaInit(void) {
  *                      - @p STM32_DMA_STREAM_ID_ANY_DMA2 for any stream
  *                        on DMA2.
  *                      .
- * @param[in] priority  IRQ priority for the DMA stream
+ * @param[in] priority  requested IRQ priority for the DMA stream
  * @param[in] func      handling function pointer, can be @p NULL
  * @param[in] param     a parameter to be passed to the handling function
  * @return              Pointer to the allocated @p stm32_dma_stream_t
@@ -674,8 +689,18 @@ const stm32_dma_stream_t *dmaStreamAllocI(uint32_t id,
 /**
  * @brief   Allocates a DMA stream.
  * @details The stream is allocated and, if required, the DMA clock enabled.
- *          The function also enables the IRQ vector associated to the stream
- *          and initializes its priority.
+ *          If a callback is specified and the associated IRQ vector is not
+ *          already in use, the vector is enabled with the requested priority.
+ * @note    On devices where DMA streams share an IRQ vector, the first
+ *          allocation with a non-NULL callback sets the vector priority.
+ *          Later allocations sharing that vector retain the existing
+ *          priority; different requested priorities are not checked.
+ *          The vector is disabled only after its last callback-bearing
+ *          stream is freed. A subsequent allocation can set a new priority.
+ * @note    To rely on non-preemption between DMA and peripheral handlers,
+ *          all drivers sharing the DMA vector must request the same IRQ
+ *          priority and use that priority for their peripheral handlers.
+ *          This does not remove locking requirements for I-class APIs.
  *
  * @param[in] id        numeric identifiers of a specific stream or:
  *                      - @p STM32_DMA_STREAM_ID_ANY for any stream.
@@ -684,7 +709,7 @@ const stm32_dma_stream_t *dmaStreamAllocI(uint32_t id,
  *                      - @p STM32_DMA_STREAM_ID_ANY_DMA2 for any stream
  *                        on DMA2.
  *                      .
- * @param[in] priority  IRQ priority for the DMA stream
+ * @param[in] priority  requested IRQ priority for the DMA stream
  * @param[in] func      handling function pointer, can be @p NULL
  * @param[in] param     a parameter to be passed to the handling function
  * @return              Pointer to the allocated @p stm32_dma_stream_t
@@ -738,12 +763,15 @@ void dmaStreamFreeI(const stm32_dma_stream_t *dmastp) {
   dma.streams[selfindex].func  = NULL;
   dma.streams[selfindex].param = NULL;
 
-  /* Shutting down clocks that are no more required, if any.*/
-  if ((dma.allocated_mask & STM32_DMA1_STREAMS_MASK) == 0U) {
+  /* Shutting down the clock of the stream controller if no more required,
+     the other controller could have never been enabled.*/
+  if (((STM32_DMA1_STREAMS_MASK & (1U << selfindex)) != 0U) &&
+      ((dma.allocated_mask & STM32_DMA1_STREAMS_MASK) == 0U)) {
     rccDisableDMA1();
   }
 #if STM32_DMA2_NUM_CHANNELS > 0
-  if ((dma.allocated_mask & STM32_DMA2_STREAMS_MASK) == 0U) {
+  if (((STM32_DMA2_STREAMS_MASK & (1U << selfindex)) != 0U) &&
+      ((dma.allocated_mask & STM32_DMA2_STREAMS_MASK) == 0U)) {
     rccDisableDMA2();
   }
 #endif
@@ -781,14 +809,18 @@ void dmaStreamFree(const stm32_dma_stream_t *dmastp) {
  * @special
  */
 void dmaServeInterrupt(const stm32_dma_stream_t *dmastp) {
-  uint32_t flags;
+  uint32_t flags, pending;
   uint32_t selfindex = (uint32_t)dmastp->selfindex;
 
   flags = (dmastp->dma->ISR >> dmastp->shift) & STM32_DMA_ISR_MASK;
-  if (flags & dmastp->channel->CCR) {
+  pending = flags & dmastp->channel->CCR;
+  if (pending != 0U) {
+    /* Clear all captured flags, but report only enabled interrupt sources.
+       Channels without an enabled pending source may be polled, leave their
+       flags untouched when serving a shared vector.*/
     dmastp->dma->IFCR = flags << dmastp->shift;
     if (dma.streams[selfindex].func) {
-      dma.streams[selfindex].func(dma.streams[selfindex].param, flags);
+      dma.streams[selfindex].func(dma.streams[selfindex].param, pending);
     }
   }
 }

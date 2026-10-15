@@ -145,9 +145,15 @@ msg_t __i2s_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p hal_i2s_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __i2s_stop_impl(void *ip) {
+void __i2s_stop_impl(void *ip, driver_state_t prevstate) {
   hal_i2s_driver_c *self = (hal_i2s_driver_c *)ip;
+
+  (void)prevstate;
+
   i2s_lld_stop(self);
   self->events = 0U;
   self->errors = I2S_NO_ERROR;

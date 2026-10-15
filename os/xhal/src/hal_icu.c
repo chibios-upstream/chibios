@@ -151,9 +151,15 @@ msg_t __icu_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p hal_icu_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __icu_stop_impl(void *ip) {
+void __icu_stop_impl(void *ip, driver_state_t prevstate) {
   hal_icu_driver_c *self = (hal_icu_driver_c *)ip;
+
+  (void)prevstate;
+
   icu_lld_stop(self);
   self->width = 0U;
   self->period = 0U;

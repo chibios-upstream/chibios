@@ -157,9 +157,15 @@ msg_t __can_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p hal_can_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __can_stop_impl(void *ip) {
+void __can_stop_impl(void *ip, driver_state_t prevstate) {
   hal_can_driver_c *self = (hal_can_driver_c *)ip;
+
+  (void)prevstate;
+
   can_lld_stop(self);
   can_lld_reset(self);
 #if CAN_USE_SYNCHRONIZATION == TRUE
@@ -420,6 +426,11 @@ void canWakeup(void *ip) {
     can_lld_wakeup(self);
     self->state = HAL_DRV_STATE_READY;
     self->events |= CAN_EVENT_WAKEUP;
+#if CAN_USE_SYNCHRONIZATION == TRUE
+    chThdDequeueAllI(&self->txqueue, MSG_OK);
+    chThdDequeueAllI(&self->rxqueue, MSG_OK);
+    chSchRescheduleS();
+#endif
   }
   chSysUnlock();
 }

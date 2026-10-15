@@ -37,6 +37,17 @@
 #define ST_LLD_NUM_ALARMS                   RP_ST_NUM_ALARMS
 
 /**
+ * @brief   Missed deadline window.
+ * @details The TIMER alarms fire on an exact 32-bit match, a deadline that
+ *          the counter has already passed is only matched after the counter
+ *          wraps. A deadline less than this many ticks behind the counter is
+ *          taken as missed and re-armed, any other deadline is in the future,
+ *          up to 2^32 - @p RP_ST_MISSED_WINDOW ticks ahead. The value is the
+ *          headroom the kernel keeps below @p VT_MAX_DELAY.
+ */
+#define RP_ST_MISSED_WINDOW                 0x10000U
+
+/**
  * @brief   Static callback for alarm 0.
  */
 #define ST_LLD_ALARM0_STATIC_CB()                                           \
@@ -196,6 +207,24 @@ __STATIC_INLINE systime_t st_lld_get_counter(void) {
 }
 
 /**
+ * @brief   Determines if a deadline has been missed.
+ *
+ * @param[in] abstime   the deadline
+ * @param[in] now       the current counter value
+ * @return              The deadline status.
+ * @retval false        if the deadline is in the future.
+ * @retval true         if the deadline is less than @p RP_ST_MISSED_WINDOW
+ *                      ticks behind @p now.
+ *
+ * @notapi
+ */
+__STATIC_INLINE bool st_lld_is_deadline_missed(uint32_t abstime,
+                                               uint32_t now) {
+
+  return (uint32_t)(now - abstime) < RP_ST_MISSED_WINDOW;
+}
+
+/**
  * @brief   Starts the alarm.
  * @note    Makes sure that no spurious alarms are triggered after
  *          this call.
@@ -210,8 +239,9 @@ __STATIC_INLINE void st_lld_start_alarm(systime_t abstime) {
   TIMER0->ALARM[0]       = (uint32_t)abstime;
   TIMER0->INTR           = (1U << 0);
   TIMER0->SET.INTE       = (1U << 0);
-  /* Re-arm if abstime already past to avoid ~71 min wait for counter wrap. */
-  if ((int32_t)(abstime - TIMER0->TIMERAWL) <= 0) {
+  /* Re-arm if abstime has been missed to avoid ~71 min wait for counter
+     wrap, see RP_ST_MISSED_WINDOW. */
+  if (st_lld_is_deadline_missed((uint32_t)abstime, TIMER0->TIMERAWL)) {
     TIMER0->ALARM[0]     = TIMER0->TIMERAWL + 2U;
   }
 }
@@ -241,8 +271,8 @@ __STATIC_INLINE void st_lld_set_alarm(systime_t abstime) {
   /* Verify-and-retry: the counter can pass the programmed value between
      the check and the store (an interrupt or bus stall in the window
      recreates the ~71 min wrap wait), so the deadline is re-armed until
-     either it is provably in the future or the compare has genuinely
-     fired (ARMED bit cleared by hardware). ARMED is sampled immediately
+     either it is outside the missed window (see RP_ST_MISSED_WINDOW) or
+     the compare has genuinely fired (ARMED bit cleared by hardware). ARMED is sampled immediately
      before deciding to re-arm so a firing that lands mid-check is seen
      in the narrowest possible window; the residual race, firing between
      that read and the store, can at worst produce one spurious alarm
@@ -251,7 +281,7 @@ __STATIC_INLINE void st_lld_set_alarm(systime_t abstime) {
   while (true) {
     uint32_t now = TIMER0->TIMERAWL;
 
-    if ((int32_t)(target - now) > 0) {
+    if (!st_lld_is_deadline_missed(target, now)) {
       break;
     }
     if ((TIMER0->ARMED & 1U) == 0U) {
@@ -306,8 +336,9 @@ __STATIC_INLINE void st_lld_start_alarm_n(unsigned alarm, systime_t abstime) {
   TIMER0->ALARM[alarm]   = (uint32_t)abstime;
   TIMER0->INTR           = (1U << alarm);
   TIMER0->SET.INTE       = (1U << alarm);
-  /* Re-arm if abstime already past to avoid ~71 min wait for counter wrap. */
-  if ((int32_t)(abstime - TIMER0->TIMERAWL) <= 0) {
+  /* Re-arm if abstime has been missed to avoid ~71 min wait for counter
+     wrap, see RP_ST_MISSED_WINDOW. */
+  if (st_lld_is_deadline_missed((uint32_t)abstime, TIMER0->TIMERAWL)) {
     TIMER0->ALARM[alarm] = TIMER0->TIMERAWL + 2U;
   }
 }
@@ -344,7 +375,7 @@ __STATIC_INLINE void st_lld_set_alarm_n(unsigned alarm, systime_t abstime) {
   while (true) {
     uint32_t now = TIMER0->TIMERAWL;
 
-    if ((int32_t)(target - now) > 0) {
+    if (!st_lld_is_deadline_missed(target, now)) {
       break;
     }
     if ((TIMER0->ARMED & (1U << alarm)) == 0U) {

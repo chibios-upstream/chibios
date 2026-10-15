@@ -606,6 +606,7 @@ const stm32_dma_stream_t *dmaStreamAlloc(uint32_t id,
  * @iclass
  */
 void dmaStreamFreeI(const stm32_dma_stream_t *dmastp) {
+  uint32_t mask;
 
   osalDbgCheck(dmastp != NULL);
 
@@ -617,13 +618,17 @@ void dmaStreamFreeI(const stm32_dma_stream_t *dmastp) {
   nvicDisableVector(dmastp->vector);
 
   /* Marks the stream as not allocated.*/
-  dma.allocated_mask &= ~(1U << dmastp->selfindex);
+  mask = 1U << dmastp->selfindex;
+  dma.allocated_mask &= ~mask;
 
-  /* Shutting down clocks that are no more required, if any.*/
-  if ((dma.allocated_mask & STM32_DMA1_STREAMS_MASK) == 0U) {
+  /* Shutting down the clock of the stream controller if no more required,
+     the other controller could have never been enabled.*/
+  if (((STM32_DMA1_STREAMS_MASK & mask) != 0U) &&
+      ((dma.allocated_mask & STM32_DMA1_STREAMS_MASK) == 0U)) {
     rccDisableDMA1();
   }
-  if ((dma.allocated_mask & STM32_DMA2_STREAMS_MASK) == 0U) {
+  if (((STM32_DMA2_STREAMS_MASK & mask) != 0U) &&
+      ((dma.allocated_mask & STM32_DMA2_STREAMS_MASK) == 0U)) {
     rccDisableDMA2();
   }
 

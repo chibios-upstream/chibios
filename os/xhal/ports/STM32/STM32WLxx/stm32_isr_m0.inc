@@ -40,6 +40,8 @@
  */
 #define STM32_ADC1_HANDLER                  Vector5C
 #define STM32_ADC1_NUMBER                   7
+#define STM32_ADC1_COMP_DAC1_HANDLER        STM32_ADC1_HANDLER
+#define STM32_ADC1_COMP_DAC1_NUMBER         STM32_ADC1_NUMBER
 
 /*
  * DMA unit.

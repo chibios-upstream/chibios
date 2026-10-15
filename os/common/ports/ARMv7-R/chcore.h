@@ -27,6 +27,10 @@
 #ifndef CHCORE_H
 #define CHCORE_H
 
+/* Registry debugger identity, see the RT8 debugger interface.*/
+#define PORT_REGISTRY_ARCH              2U
+#define PORT_REGISTRY_ID                9U
+
 /* Inclusion of the Cortex-R implementation specific parameters.*/
 #include "crparams.h"
 #include "mpu_v7r.h"

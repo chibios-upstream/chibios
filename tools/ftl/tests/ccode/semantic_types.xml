@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<instance xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="../../schema/ccode/modules.xsd">
+  <modules>
+    <module name="semantic_types" descr="Semantic Type Fixture" editcode="false">
+      <brief>Semantic declarations and documentation regression fixture.</brief>
+      <public>
+        <includes_always>
+          <include style="angular">stdint.h</include>
+        </includes_always>
+        <types>
+          <typedef name="semantic_value_t">
+            <brief>Type required by the ordered backend include.</brief>
+            <basetype ctype="uint32_t" />
+          </typedef>
+          <condition check="SEMANTIC_TYPES_ENABLED">
+            <includes>
+              <include style="regular">semantic_types_lld.h</include>
+            </includes>
+            <typedef name="semantic_kind_t">
+              <brief>Named enumeration with explicit and implicit values.</brief>
+              <enumtype name="semantic_kind">
+                <enumerator name="SEMANTIC_FIRST" value="3">
+                  <brief>First explicitly assigned value.</brief>
+                </enumerator>
+                <enumerator name="SEMANTIC_NEXT">
+                  <brief>Implicit successor value.</brief>
+                </enumerator>
+                <enumerator name="SEMANTIC_LAST" value="SEMANTIC_NEXT + 4">
+                  <brief>Value derived from an earlier enumerator.</brief>
+                </enumerator>
+              </enumtype>
+            </typedef>
+            <typedef name="semantic_flag_t">
+              <brief>Anonymous enumeration.</brief>
+              <enumtype>
+                <enumerator name="SEMANTIC_FLAG" value="-1">
+                  <brief>Signed enumerator value.</brief>
+                </enumerator>
+              </enumtype>
+            </typedef>
+            <typedef name="semantic_record_t">
+              <brief>Named structure typedef.</brief>
+              <structtype name="semantic_record">
+                <fields>
+                  <field name="kind" ctype="semantic_kind_t">
+                    <brief>Record discriminator.</brief>
+                  </field>
+                  <condition check="SEMANTIC_TYPES_ENABLED">
+                    <unionfield name="payload">
+                      <brief>Nested payload union.</brief>
+                      <fields>
+                        <structfield name="pair">
+                          <brief>Nested pair structure.</brief>
+                          <fields>
+                            <field name="first" ctype="semantic_value_t">
+                              <brief>First pair member.</brief>
+                            </field>
+                            <field name="second" ctype="semantic_value_t">
+                              <brief>Second pair member.</brief>
+                            </field>
+                          </fields>
+                        </structfield>
+                        <field name="bytes" ctype="uint8_t$I$N[8]">
+                          <brief>Byte view of the payload.</brief>
+                        </field>
+                      </fields>
+                    </unionfield>
+                    <structfield name="tail">
+                      <brief>Conditional nested structure.</brief>
+                      <fields>
+                        <field name="value" ctype="semantic_value_t">
+                          <brief>Tail value.</brief>
+                        </field>
+                      </fields>
+                    </structfield>
+                    <fieldmacro name="semantic_lld_fields">
+                      <brief>Documented backend extension fields.</brief>
+                    </fieldmacro>
+                  </condition>
+                </fields>
+              </structtype>
+            </typedef>
+            <typedef name="semantic_anonymous_t">
+              <brief>Anonymous structure typedef.</brief>
+              <structtype>
+                <fields>
+                  <field name="record" ctype="semantic_record_t">
+                    <brief>Embedded record.</brief>
+                  </field>
+                </fields>
+              </structtype>
+            </typedef>
+            <typedef name="semantic_union_t">
+              <brief>Named union typedef.</brief>
+              <uniontype name="semantic_union">
+                <fields>
+                  <field name="record" ctype="semantic_record_t">
+                    <brief>Record view of the union.</brief>
+                  </field>
+                  <field name="value" ctype="semantic_value_t">
+                    <brief>Scalar view of the union.</brief>
+                  </field>
+                </fields>
+              </uniontype>
+            </typedef>
+            <typedef name="semantic_anonymous_union_t">
+              <brief>Anonymous union typedef.</brief>
+              <uniontype>
+                <fields>
+                  <field name="record" ctype="semantic_record_t">
+                    <brief>Anonymous union record view.</brief>
+                  </field>
+                </fields>
+              </uniontype>
+            </typedef>
+          </condition>
+        </types>
+      </public>
+      <private />
+    </module>
+  </modules>
+</instance>

@@ -143,7 +143,8 @@ static inline void *roAddRef(void *ip) {
  *              then the object is disposed.
  *
  * @param[in,out] ip            Pointer to a @p referenced_object_c instance.
- * @return                      The value of the reference counter.
+ * @return                      The reference count immediately after the
+ *                              decrement.
  */
 CC_FORCE_INLINE
 static inline object_references_t roRelease(void *ip) {

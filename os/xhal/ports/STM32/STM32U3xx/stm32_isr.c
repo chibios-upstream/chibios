@@ -51,6 +51,9 @@
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
+#include "stm32_adc1.inc"
+#include "stm32_adc2.inc"
+
 #include "stm32_dac1.inc"
 
 #include "stm32_exti0.inc"
@@ -75,6 +78,8 @@
 #include "stm32_i2c1.inc"
 #include "stm32_i2c2.inc"
 #include "stm32_i2c3.inc"
+
+#include "stm32_rtc_h5.inc"
 
 #include "stm32_spi1.inc"
 #include "stm32_spi2.inc"
@@ -113,6 +118,9 @@
  */
 void irqInit(void) {
 
+  adc1_irq_init();
+  adc2_irq_init();
+
   dac1_irq_init();
 
   exti0_irq_init();
@@ -137,6 +145,8 @@ void irqInit(void) {
   i2c1_irq_init();
   i2c2_irq_init();
   i2c3_irq_init();
+
+  rtc_irq_init();
 
   spi1_irq_init();
   spi2_irq_init();
@@ -172,6 +182,9 @@ void irqInit(void) {
  */
 void irqDeinit(void) {
 
+  adc1_irq_deinit();
+  adc2_irq_deinit();
+
   dac1_irq_deinit();
 
   exti0_irq_deinit();
@@ -196,6 +209,8 @@ void irqDeinit(void) {
   i2c1_irq_deinit();
   i2c2_irq_deinit();
   i2c3_irq_deinit();
+
+  rtc_irq_deinit();
 
   spi1_irq_deinit();
   spi2_irq_deinit();

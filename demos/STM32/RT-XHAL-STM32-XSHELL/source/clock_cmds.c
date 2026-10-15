@@ -56,7 +56,6 @@ void cmd_clock(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 
   /* Reconfiguring the SIO because clock frequencies could have changed.*/
   if (!result) {
-    portab_sio_update_clock();
     if (drvSelectCfgX(&PORTAB_SIO1, 0U) == NULL) {
       result = true;
     }

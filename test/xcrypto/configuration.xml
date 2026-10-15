@@ -1,0 +1,3784 @@
+<instance locked="false"
+  id="org.chibios.spc5.components.portable.chibios_unitary_tests_engine"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="http://www.chibios.org/xml/schema/unittest.xsd">
+  <description>
+    <brief>
+      <value>ChibiOS/XHAL Crypto Test Suite.</value>
+    </brief>
+    <copyright>
+      <value><![CDATA[/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/]]></value>
+    </copyright>
+    <introduction>
+      <value>Test suite for the ChibiOS/XHAL Crypto driver. The general
+        sequence checks the driver and API behavior, the other sequences
+        check each algorithm against published test vectors. Algorithms not
+        supported by the driver under test are skipped.</value>
+    </introduction>
+  </description>
+  <global_data_and_code>
+    <code_prefix>
+      <value>xcry_</value>
+    </code_prefix>
+    <global_definitions>
+      <value><![CDATA[#include "hal.h"
+#include "xcry_vectors.h"
+
+#define TEST_SUITE_NAME "ChibiOS/XHAL Crypto Test Suite"
+
+/* Driver under test, the default is the first LLD instance.*/
+#if !defined(XCRY_TEST_DRIVER)
+#define XCRY_TEST_DRIVER                    CRYD1
+#endif
+#define XCRY_DRIVER                         (&XCRY_TEST_DRIVER)
+
+/* Size of each shared buffer, in bytes.*/
+#define XCRY_BUFFER_SIZE                    5120U
+
+/* Buffers accessed by DMA, placed in non-cacheable memory where needed.*/
+extern uint32_t __nocache_xcry_in[XCRY_BUFFER_SIZE / 4U];
+extern uint32_t __nocache_xcry_out[XCRY_BUFFER_SIZE / 4U];
+#define xcry_in                             ((uint8_t *)__nocache_xcry_in)
+#define xcry_out                            ((uint8_t *)__nocache_xcry_out)
+
+bool xcry_unsupported(cry_algorithm_t algorithm);
+bool xcry_key_supported(cry_algorithm_t algorithm, size_t size);
+msg_t xcry_load_key(cry_key_type_t type, size_t size, const uint8_t *key);
+msg_t xcry_cipher(const xcry_cipher_vector_t *v, cry_direction_t direction,
+                  const uint8_t *in, uint8_t *out, size_t frag);
+msg_t xcry_aead(const xcry_aead_vector_t *v, cry_direction_t direction,
+                const uint8_t *in, uint8_t *out, uint8_t *tag,
+                size_t tag_size, size_t frag, bool declare);
+bool xcry_aead_optional(const xcry_aead_vector_t *v, msg_t msg);
+msg_t xcry_mac(const xcry_mac_vector_t *v, bool verify, uint8_t *tag,
+               size_t tag_size, size_t frag);
+msg_t xcry_hash(cry_algorithm_t algorithm, const uint8_t *msg, size_t size,
+                uint8_t *out, size_t frag);
+
+/* Largest digest or tag size, in bytes.*/
+#define XCRY_DIGEST_MAX                     64U]]></value>
+    </global_definitions>
+    <global_code>
+      <value><![CDATA[#include <string.h>
+
+uint32_t __nocache_xcry_in[XCRY_BUFFER_SIZE / 4U];
+uint32_t __nocache_xcry_out[XCRY_BUFFER_SIZE / 4U];
+
+/* Returns true, reporting a skip, if the driver lacks the algorithm.*/
+bool xcry_unsupported(cry_algorithm_t algorithm) {
+  cry_capabilities_t caps;
+
+  if (cryGetCapabilities(XCRY_DRIVER, algorithm, &caps) == HAL_RET_SUCCESS) {
+    return false;
+  }
+  test_println("--- Skipped, algorithm not supported by the driver");
+
+  return true;
+}
+
+/* Returns true if the driver supports a key size, in bytes.*/
+bool xcry_key_supported(cry_algorithm_t algorithm, size_t size) {
+  cry_capabilities_t caps;
+
+  (void) cryGetCapabilities(XCRY_DRIVER, algorithm, &caps);
+
+  return (size * 8U >= caps.min_key_bits) && (size * 8U <= caps.max_key_bits);
+}
+
+/* Loads raw key material into the transient key.*/
+msg_t xcry_load_key(cry_key_type_t type, size_t size, const uint8_t *key) {
+  cry_key_params_t params = {type, size * 8U, CRY_CURVE_NONE};
+
+  return cryKeyLoad(XCRY_DRIVER, CRY_KEY_TRANSIENT, &params,
+                    CRY_KEY_FORMAT_RAW, size, key);
+}
+
+/* Runs a cipher vector in fragments, each followed by an empty update,
+   returns the first failure.*/
+msg_t xcry_cipher(const xcry_cipher_vector_t *v, cry_direction_t direction,
+                  const uint8_t *in, uint8_t *out, size_t frag) {
+  cry_cipher_params_t params = {v->iv, v->iv_size};
+  cry_operation_t op;
+  size_t done, produced, n, len;
+  msg_t msg;
+
+  msg = xcry_load_key(CRY_KEY_AES, v->key_size, v->key);
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+  msg = cryCipherBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, v->algorithm,
+                       direction, &params);
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+  done = 0U;
+  produced = 0U;
+  while (done < v->size) {
+    n = (v->size - done) < frag ? (v->size - done) : frag;
+    msg = cryCipherUpdate(&op, n, &in[done], v->size - produced,
+                          &out[produced], &len);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
+    done += n;
+    produced += len;
+    msg = cryCipherUpdate(&op, 0U, NULL, 0U, NULL, &len);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
+  }
+  msg = cryCipherFinal(&op, v->size - produced, &out[produced], &len);
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+  produced += len;
+
+  return produced == v->size ? HAL_RET_SUCCESS : CRY_ERR_FAILURE;
+}
+
+/* Runs an AEAD vector in fragments, each followed by an empty update, the
+   tag is generated on encryption and verified on decryption.*/
+msg_t xcry_aead(const xcry_aead_vector_t *v, cry_direction_t direction,
+                const uint8_t *in, uint8_t *out, uint8_t *tag,
+                size_t tag_size, size_t frag, bool declare) {
+  cry_aead_params_t params = {v->nonce, v->nonce_size, v->tag_size,
+                              declare ? v->aad_size : CRY_LENGTH_UNKNOWN,
+                              declare ? v->size : CRY_LENGTH_UNKNOWN};
+  cry_operation_t op;
+  size_t done, produced, n, len;
+  msg_t msg;
+
+  msg = xcry_load_key(CRY_KEY_AES, v->key_size, v->key);
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+  msg = cryAeadBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, v->algorithm,
+                     direction, &params);
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+  for (done = 0U; done < v->aad_size; done += n) {
+    n = (v->aad_size - done) < frag ? (v->aad_size - done) : frag;
+    msg = cryAeadUpdateAAD(&op, n, &v->aad[done]);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
+    msg = cryAeadUpdateAAD(&op, 0U, NULL);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
+  }
+  produced = 0U;
+  for (done = 0U; done < v->size; done += n) {
+    n = (v->size - done) < frag ? (v->size - done) : frag;
+    msg = cryAeadUpdate(&op, n, &in[done], v->size - produced,
+                        &out[produced], &len);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
+    produced += len;
+    msg = cryAeadUpdate(&op, 0U, NULL, 0U, NULL, &len);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
+  }
+  if (direction == CRY_ENCRYPT) {
+    msg = cryAeadFinal(&op, v->size - produced, &out[produced], &len,
+                       tag_size, tag);
+  }
+  else {
+    msg = cryAeadVerify(&op, v->size - produced, &out[produced], &len,
+                        tag_size, tag);
+  }
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+  produced += len;
+
+  return produced == v->size ? HAL_RET_SUCCESS : CRY_ERR_FAILURE;
+}
+
+/* Returns true, reporting a skip, if an AEAD vector was rejected only
+   because it uses parameters that are optional for backends: GCM nonces
+   other than 96 bits.*/
+bool xcry_aead_optional(const xcry_aead_vector_t *v, msg_t msg) {
+
+  if ((msg != CRY_ERR_UNSUPPORTED) || (v->algorithm != CRY_ALG_AES_GCM) ||
+      (v->nonce_size == 12U)) {
+    return false;
+  }
+  test_print("--- Skipped, optional parameters: ");
+  test_println(v->name);
+
+  return true;
+}
+
+/* Runs a MAC vector in fragments, each followed by an empty update, the tag
+   is generated or verified.*/
+msg_t xcry_mac(const xcry_mac_vector_t *v, bool verify, uint8_t *tag,
+               size_t tag_size, size_t frag) {
+  cry_key_type_t type;
+  cry_operation_t op;
+  size_t done, n, len;
+  msg_t msg;
+
+  type = v->algorithm == CRY_ALG_AES_CMAC ? CRY_KEY_AES : CRY_KEY_HMAC;
+  msg = xcry_load_key(type, v->key_size, v->key);
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+  msg = cryMacBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, v->algorithm,
+                    verify, v->tag_size);
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+  for (done = 0U; done < v->size; done += n) {
+    n = (v->size - done) < frag ? (v->size - done) : frag;
+    msg = cryMacUpdate(&op, n, &v->msg[done]);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
+    msg = cryMacUpdate(&op, 0U, NULL);
+    if (msg != HAL_RET_SUCCESS) {
+      return msg;
+    }
+  }
+  if (verify) {
+    return cryMacVerify(&op, tag_size, tag);
+  }
+  msg = cryMacFinal(&op, tag_size, tag, &len);
+  if (msg != HAL_RET_SUCCESS) {
+    return msg;
+  }
+
+  return len == v->tag_size ? HAL_RET_SUCCESS : CRY_ERR_FAILURE;
+}
+
+/* Hashes a message in fragments, each followed by an empty update, the
+   output buffer holds XCRY_DIGEST_MAX bytes.*/
+msg_t xcry_hash(cry_algorithm_t algorithm, const uint8_t *msg, size_t size,
+                uint8_t *out, size_t frag) {
+  cry_operation_t op;
+  size_t done, n, len;
+  msg_t ret;
+
+  ret = cryHashBegin(XCRY_DRIVER, &op, algorithm);
+  if (ret != HAL_RET_SUCCESS) {
+    return ret;
+  }
+  for (done = 0U; done < size; done += n) {
+    n = (size - done) < frag ? (size - done) : frag;
+    ret = cryHashUpdate(&op, n, &msg[done]);
+    if (ret != HAL_RET_SUCCESS) {
+      return ret;
+    }
+    ret = cryHashUpdate(&op, 0U, NULL);
+    if (ret != HAL_RET_SUCCESS) {
+      return ret;
+    }
+  }
+
+  return cryHashFinal(&op, XCRY_DIGEST_MAX, out, &len);
+}]]></value>
+    </global_code>
+  </global_data_and_code>
+  <sequences>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>Driver and API</value>
+      </brief>
+      <description>
+        <value>Driver lifecycle, capabilities, transient key handling, stream lifecycle and concurrency, independent of the algorithm.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>Driver lifecycle</value>
+          </brief>
+          <description>
+            <value>The driver is started, stopped and restarted.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Starting the driver, READY state is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = drvStart(XCRY_DRIVER, NULL);
+test_assert(msg == HAL_RET_SUCCESS, "start failed");
+test_assert(drvGetStateX(XCRY_DRIVER) == HAL_DRV_STATE_READY,
+            "not ready");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Stopping the driver, STOP state is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[drvStop(XCRY_DRIVER);
+test_assert(drvGetStateX(XCRY_DRIVER) == HAL_DRV_STATE_STOP,
+            "not stopped");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Restarting the driver, READY state is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = drvStart(XCRY_DRIVER, NULL);
+test_assert(msg == HAL_RET_SUCCESS, "restart failed");
+test_assert(drvGetStateX(XCRY_DRIVER) == HAL_DRV_STATE_READY,
+            "not ready");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Capabilities report</value>
+          </brief>
+          <description>
+            <value>Every algorithm is queried; supported algorithms report capability flags, unsupported ones report CRY_ERR_UNSUPPORTED with cleared capabilities.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[cry_capabilities_t caps;
+cry_algorithm_t alg;
+unsigned n;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Querying all algorithms and printing the supported ones.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[n = 0U;
+for (alg = CRY_ALG_AES_ECB; alg <= CRY_ALG_HKDF_SHA512; alg++) {
+  msg = cryGetCapabilities(XCRY_DRIVER, alg, &caps);
+  if (msg == HAL_RET_SUCCESS) {
+    test_assert(caps.flags != 0U, "no capability flags");
+    test_assert(caps.min_key_bits <= caps.max_key_bits,
+                "invalid key size range");
+    test_printf("--- Algorithm %u supported, flags 0x%x, key bits %u..%u"
+                TEST_CFG_EOL_STRING, (unsigned)alg, (unsigned)caps.flags,
+                (unsigned)caps.min_key_bits, (unsigned)caps.max_key_bits);
+    n++;
+  }
+  else {
+    test_assert(msg == CRY_ERR_UNSUPPORTED, "unexpected error");
+    test_assert((caps.flags == 0U) && (caps.min_key_bits == 0U) &&
+                (caps.max_key_bits == 0U), "capabilities not cleared");
+  }
+}
+test_printf("--- %u algorithms supported" TEST_CFG_EOL_STRING, n);]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Transient key</value>
+          </brief>
+          <description>
+            <value>Loading the transient key, invalid key parameters, a missing key and loading a key held by a stream.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[static const uint8_t key[16] = {0};
+static const uint8_t iv[16] = {0};
+cry_cipher_params_t params;
+cry_operation_t op;
+cry_algorithm_t alg;
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Selecting a supported AES cipher, the test is skipped if there is none.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[alg = CRY_ALG_NONE;
+for (i = 0U; i < 4U; i++) {
+  static const cry_algorithm_t algs[4] = {
+    CRY_ALG_AES_ECB, CRY_ALG_AES_CBC, CRY_ALG_AES_CFB128, CRY_ALG_AES_CTR
+  };
+  cry_capabilities_t caps;
+
+  if (cryGetCapabilities(XCRY_DRIVER, algs[i], &caps) == HAL_RET_SUCCESS) {
+    alg = algs[i];
+    break;
+  }
+}
+if (alg == CRY_ALG_NONE) {
+  test_println("--- Skipped, no AES cipher supported by the driver");
+  return;
+}
+params.iv = alg == CRY_ALG_AES_ECB ? NULL : iv;
+params.iv_size = alg == CRY_ALG_AES_ECB ? 0U : sizeof iv;]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Beginning a stream before any key is loaded, CRY_ERR_KEY is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = cryCipherBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, alg,
+                     CRY_ENCRYPT, &params);
+test_assert(msg == CRY_ERR_KEY, "missing key not detected");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Loading an AES key with an invalid size, CRY_ERR_ARGUMENT is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = xcry_load_key(CRY_KEY_AES, 12U, key);
+test_assert(msg == CRY_ERR_ARGUMENT, "invalid key accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Loading an AES-128 key and beginning a stream, success is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = xcry_load_key(CRY_KEY_AES, sizeof key, key);
+test_assert(msg == HAL_RET_SUCCESS, "key load failed");
+msg = cryCipherBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, alg,
+                     CRY_ENCRYPT, &params);
+test_assert(msg == HAL_RET_SUCCESS, "begin failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Loading the key while the stream holds it, CRY_ERR_BUSY is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = xcry_load_key(CRY_KEY_AES, sizeof key, key);
+test_assert(msg == CRY_ERR_BUSY, "held key replaced");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Aborting the stream then loading the key again, success is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[cryOperationAbort(&op);
+msg = xcry_load_key(CRY_KEY_AES, sizeof key, key);
+test_assert(msg == HAL_RET_SUCCESS, "key still held");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Stop invalidates streams</value>
+          </brief>
+          <description>
+            <value>A stream open across drvStop() is invalidated and the transient key is erased.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[static const uint8_t key[16] = {0};
+static const uint8_t iv[16] = {0};
+cry_cipher_params_t params;
+cry_operation_t op;
+cry_algorithm_t alg;
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Selecting a supported AES cipher, the test is skipped if there is none.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[alg = CRY_ALG_NONE;
+for (i = 0U; i < 4U; i++) {
+  static const cry_algorithm_t algs[4] = {
+    CRY_ALG_AES_ECB, CRY_ALG_AES_CBC, CRY_ALG_AES_CFB128, CRY_ALG_AES_CTR
+  };
+  cry_capabilities_t caps;
+
+  if (cryGetCapabilities(XCRY_DRIVER, algs[i], &caps) == HAL_RET_SUCCESS) {
+    alg = algs[i];
+    break;
+  }
+}
+if (alg == CRY_ALG_NONE) {
+  test_println("--- Skipped, no AES cipher supported by the driver");
+  return;
+}
+params.iv = alg == CRY_ALG_AES_ECB ? NULL : iv;
+params.iv_size = alg == CRY_ALG_AES_ECB ? 0U : sizeof iv;]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Loading a key and beginning a stream, success is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = xcry_load_key(CRY_KEY_AES, sizeof key, key);
+test_assert(msg == HAL_RET_SUCCESS, "key load failed");
+msg = cryCipherBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, alg,
+                     CRY_ENCRYPT, &params);
+test_assert(msg == HAL_RET_SUCCESS, "begin failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Restarting the driver with the stream open, aborting the invalidated stream is expected to be harmless.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[drvStop(XCRY_DRIVER);
+msg = drvStart(XCRY_DRIVER, NULL);
+test_assert(msg == HAL_RET_SUCCESS, "restart failed");
+cryOperationAbort(&op);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Beginning a stream on the erased transient key, CRY_ERR_KEY is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = cryCipherBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, alg,
+                     CRY_ENCRYPT, &params);
+test_assert(msg == CRY_ERR_KEY, "key survived the stop");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Loading the key again, a new stream is expected to begin.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = xcry_load_key(CRY_KEY_AES, sizeof key, key);
+test_assert(msg == HAL_RET_SUCCESS, "key load failed");
+msg = cryCipherBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, alg,
+                     CRY_ENCRYPT, &params);
+test_assert(msg == HAL_RET_SUCCESS, "begin failed");
+cryOperationAbort(&op);]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Concurrent streams</value>
+          </brief>
+          <description>
+            <value>Two hash streams are open at once; the second either begins, and both produce correct digests, or is refused with CRY_ERR_BUSY.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_hash_vector_t *vp;
+cry_operation_t op1, op2;
+cry_algorithm_t alg;
+bool second;
+uint8_t digest1[XCRY_DIGEST_MAX], digest2[XCRY_DIGEST_MAX];
+size_t len;
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Selecting a supported hash, the test is skipped if there is none.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[alg = CRY_ALG_NONE;
+for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  cry_capabilities_t caps;
+
+  if (cryGetCapabilities(XCRY_DRIVER, xcry_sha_vectors[i].algorithm,
+                         &caps) == HAL_RET_SUCCESS) {
+    alg = xcry_sha_vectors[i].algorithm;
+    /* The "abc" example follows the empty message.*/
+    vp = &xcry_sha_vectors[i + 1U];
+    break;
+  }
+}
+if (alg == CRY_ALG_NONE) {
+  test_println("--- Skipped, no hash supported by the driver");
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Beginning two streams, the second is allowed to be busy.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = cryHashBegin(XCRY_DRIVER, &op1, alg);
+test_assert(msg == HAL_RET_SUCCESS, "first begin failed");
+msg = cryHashBegin(XCRY_DRIVER, &op2, alg);
+test_assert((msg == HAL_RET_SUCCESS) || (msg == CRY_ERR_BUSY),
+            "unexpected error");
+second = msg == HAL_RET_SUCCESS;
+if (!second) {
+  test_println("--- Second stream refused, engine busy");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Interleaving updates and finalizing, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < vp->size; i++) {
+  msg = cryHashUpdate(&op1, 1U, &vp->msg[i]);
+  test_assert(msg == HAL_RET_SUCCESS, "first update failed");
+  if (second) {
+    msg = cryHashUpdate(&op2, 1U, &vp->msg[i]);
+    test_assert(msg == HAL_RET_SUCCESS, "second update failed");
+  }
+}
+msg = cryHashFinal(&op1, sizeof digest1, digest1, &len);
+test_assert(msg == HAL_RET_SUCCESS, "first final failed");
+test_assert(memcmp(digest1, vp->digest, vp->digest_size) == 0,
+            "first digest mismatch");
+if (second) {
+  msg = cryHashFinal(&op2, sizeof digest2, digest2, &len);
+  test_assert(msg == HAL_RET_SUCCESS, "second final failed");
+  test_assert(memcmp(digest2, vp->digest, vp->digest_size) == 0,
+              "second digest mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Stream abort</value>
+          </brief>
+          <description>
+            <value>Aborting finalized, idle and active contexts.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_hash_vector_t *vp;
+cry_operation_t op;
+cry_algorithm_t alg;
+uint8_t digest[XCRY_DIGEST_MAX];
+size_t len;
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Selecting a supported hash, the test is skipped if there is none.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[alg = CRY_ALG_NONE;
+for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  cry_capabilities_t caps;
+
+  if (cryGetCapabilities(XCRY_DRIVER, xcry_sha_vectors[i].algorithm,
+                         &caps) == HAL_RET_SUCCESS) {
+    alg = xcry_sha_vectors[i].algorithm;
+    /* The "abc" example follows the empty message.*/
+    vp = &xcry_sha_vectors[i + 1U];
+    break;
+  }
+}
+if (alg == CRY_ALG_NONE) {
+  test_println("--- Skipped, no hash supported by the driver");
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Aborting an active stream then a finalized one, a new stream on the same context is expected to work.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[msg = cryHashBegin(XCRY_DRIVER, &op, alg);
+test_assert(msg == HAL_RET_SUCCESS, "begin failed");
+msg = cryHashUpdate(&op, vp->size, vp->msg);
+test_assert(msg == HAL_RET_SUCCESS, "update failed");
+cryOperationAbort(&op);
+cryOperationAbort(&op);
+msg = cryHashBegin(XCRY_DRIVER, &op, alg);
+test_assert(msg == HAL_RET_SUCCESS, "begin after abort failed");
+msg = cryHashUpdate(&op, vp->size, vp->msg);
+test_assert(msg == HAL_RET_SUCCESS, "update failed");
+msg = cryHashFinal(&op, sizeof digest, digest, &len);
+test_assert(msg == HAL_RET_SUCCESS, "final failed");
+test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+            "digest mismatch");
+cryOperationAbort(&op);]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Unsupported operations</value>
+          </brief>
+          <description>
+            <value>Beginning a stream for an algorithm the driver does not support is expected to return CRY_ERR_UNSUPPORTED.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[static const uint8_t key[16] = {0};
+static const uint8_t iv[16] = {0};
+cry_cipher_params_t cparams = {iv, sizeof iv};
+cry_aead_params_t aparams = {iv, 12U, 16U, 0U, 0U};
+cry_capabilities_t caps;
+cry_operation_t op;
+cry_algorithm_t alg;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Loading an AES key, when possible, so that key errors do not hide unsupported algorithms.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[(void) xcry_load_key(CRY_KEY_AES, sizeof key, key);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Beginning streams for all unsupported stream algorithms.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (alg = CRY_ALG_AES_ECB; alg <= CRY_ALG_SHA512; alg++) {
+  if (cryGetCapabilities(XCRY_DRIVER, alg, &caps) == HAL_RET_SUCCESS) {
+    continue;
+  }
+  switch (alg) {
+  case CRY_ALG_AES_ECB:
+    cparams.iv = NULL;
+    cparams.iv_size = 0U;
+    msg = cryCipherBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, alg,
+                         CRY_ENCRYPT, &cparams);
+    cparams.iv = iv;
+    cparams.iv_size = sizeof iv;
+    break;
+  case CRY_ALG_AES_CBC:
+  case CRY_ALG_AES_CFB128:
+  case CRY_ALG_AES_CTR:
+    msg = cryCipherBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, alg,
+                         CRY_ENCRYPT, &cparams);
+    break;
+  case CRY_ALG_AES_GCM:
+  case CRY_ALG_AES_CCM:
+    msg = cryAeadBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, alg,
+                       CRY_ENCRYPT, &aparams);
+    break;
+  case CRY_ALG_AES_CMAC:
+  case CRY_ALG_HMAC_SHA256:
+  case CRY_ALG_HMAC_SHA384:
+  case CRY_ALG_HMAC_SHA512:
+    msg = cryMacBegin(XCRY_DRIVER, &op, CRY_KEY_TRANSIENT, alg,
+                      false, 16U);
+    break;
+  default:
+    msg = cryHashBegin(XCRY_DRIVER, &op, alg);
+    break;
+  }
+  test_assert(msg == CRY_ERR_UNSUPPORTED, "unsupported algorithm began");
+  cryOperationAbort(&op);
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>AES-ECB</value>
+      </brief>
+      <description>
+        <value>AES-ECB with the NIST SP 800-38A vectors and a long message.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>AES-ECB known answers</value>
+          </brief>
+          <description>
+            <value>Each vector is encrypted and decrypted in a single update.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-ECB support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_ECB)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_ECB_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_ecb_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_ENCRYPT, vp->pt, xcry_out, vp->size);
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+              "ciphertext mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_ECB_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_ecb_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_DECRYPT, vp->ct, xcry_out, vp->size);
+  test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-ECB fragmented</value>
+          </brief>
+          <description>
+            <value>Each vector is processed in fragments not aligned to the block size, and byte by byte.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-ECB support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_ECB)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting in 5 bytes fragments, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_ECB_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_ecb_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_ENCRYPT, vp->pt, xcry_out, 5U);
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+              "ciphertext mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting byte by byte, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_ECB_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_ecb_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_DECRYPT, vp->ct, xcry_out, 1U);
+  test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-ECB long message</value>
+          </brief>
+          <description>
+            <value>A long message in shared buffers is processed in a single update, backends may use DMA, then in fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_cipher_vector_t *vp = &xcry_aes_ecb_long[0];
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-ECB support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_ECB)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting in a single update, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->pt, vp->size);
+msg = xcry_cipher(vp, CRY_ENCRYPT, xcry_in, xcry_out, vp->size);
+test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+            "ciphertext mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting in 1000 bytes fragments, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->ct, vp->size);
+msg = xcry_cipher(vp, CRY_DECRYPT, xcry_in, xcry_out, 1000U);
+test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+            "plaintext mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>AES-CBC</value>
+      </brief>
+      <description>
+        <value>AES-CBC with the NIST SP 800-38A vectors and a long message.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>AES-CBC known answers</value>
+          </brief>
+          <description>
+            <value>Each vector is encrypted and decrypted in a single update.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CBC support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CBC)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CBC_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_cbc_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_ENCRYPT, vp->pt, xcry_out, vp->size);
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+              "ciphertext mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CBC_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_cbc_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_DECRYPT, vp->ct, xcry_out, vp->size);
+  test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-CBC fragmented</value>
+          </brief>
+          <description>
+            <value>Each vector is processed in fragments not aligned to the block size, and byte by byte.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CBC support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CBC)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting in 5 bytes fragments, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CBC_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_cbc_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_ENCRYPT, vp->pt, xcry_out, 5U);
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+              "ciphertext mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting byte by byte, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CBC_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_cbc_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_DECRYPT, vp->ct, xcry_out, 1U);
+  test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-CBC long message</value>
+          </brief>
+          <description>
+            <value>A long message in shared buffers is processed in a single update, backends may use DMA, then in fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_cipher_vector_t *vp = &xcry_aes_cbc_long[0];
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CBC support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CBC)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting in a single update, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->pt, vp->size);
+msg = xcry_cipher(vp, CRY_ENCRYPT, xcry_in, xcry_out, vp->size);
+test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+            "ciphertext mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting in 1000 bytes fragments, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->ct, vp->size);
+msg = xcry_cipher(vp, CRY_DECRYPT, xcry_in, xcry_out, 1000U);
+test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+            "plaintext mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>AES-CFB128</value>
+      </brief>
+      <description>
+        <value>AES-CFB128 with the NIST SP 800-38A vectors and a long message.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>AES-CFB128 known answers</value>
+          </brief>
+          <description>
+            <value>Each vector is encrypted and decrypted in a single update.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CFB128 support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CFB128)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CFB128_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_cfb128_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_ENCRYPT, vp->pt, xcry_out, vp->size);
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+              "ciphertext mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CFB128_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_cfb128_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_DECRYPT, vp->ct, xcry_out, vp->size);
+  test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-CFB128 fragmented</value>
+          </brief>
+          <description>
+            <value>Each vector is processed in fragments not aligned to the block size, and byte by byte.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CFB128 support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CFB128)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting in 5 bytes fragments, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CFB128_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_cfb128_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_ENCRYPT, vp->pt, xcry_out, 5U);
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+              "ciphertext mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting byte by byte, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CFB128_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_cfb128_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_DECRYPT, vp->ct, xcry_out, 1U);
+  test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-CFB128 long message</value>
+          </brief>
+          <description>
+            <value>A long message in shared buffers is processed in a single update, backends may use DMA, then in fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_cipher_vector_t *vp = &xcry_aes_cfb128_long[0];
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CFB128 support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CFB128)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting in a single update, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->pt, vp->size);
+msg = xcry_cipher(vp, CRY_ENCRYPT, xcry_in, xcry_out, vp->size);
+test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+            "ciphertext mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting in 1000 bytes fragments, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->ct, vp->size);
+msg = xcry_cipher(vp, CRY_DECRYPT, xcry_in, xcry_out, 1000U);
+test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+            "plaintext mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>AES-CTR</value>
+      </brief>
+      <description>
+        <value>AES-CTR with the NIST SP 800-38A vectors and a long message.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>AES-CTR known answers</value>
+          </brief>
+          <description>
+            <value>Each vector is encrypted and decrypted in a single update.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CTR support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CTR)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CTR_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_ctr_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_ENCRYPT, vp->pt, xcry_out, vp->size);
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+              "ciphertext mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CTR_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_ctr_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_DECRYPT, vp->ct, xcry_out, vp->size);
+  test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-CTR fragmented</value>
+          </brief>
+          <description>
+            <value>Each vector is processed in fragments not aligned to the block size, and byte by byte.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CTR support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CTR)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting in 5 bytes fragments, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CTR_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_ctr_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_ENCRYPT, vp->pt, xcry_out, 5U);
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+              "ciphertext mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting byte by byte, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CTR_VECTORS_COUNT; i++) {
+  const xcry_cipher_vector_t *vp = &xcry_aes_ctr_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_cipher(vp, CRY_DECRYPT, vp->ct, xcry_out, 1U);
+  test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-CTR long message</value>
+          </brief>
+          <description>
+            <value>A long message in shared buffers is processed in a single update, backends may use DMA, then in fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_cipher_vector_t *vp = &xcry_aes_ctr_long[0];
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CTR support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CTR)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting in a single update, the ciphertext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->pt, vp->size);
+msg = xcry_cipher(vp, CRY_ENCRYPT, xcry_in, xcry_out, vp->size);
+test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+            "ciphertext mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting in 1000 bytes fragments, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->ct, vp->size);
+msg = xcry_cipher(vp, CRY_DECRYPT, xcry_in, xcry_out, 1000U);
+test_assert(msg == HAL_RET_SUCCESS, "decryption failed");
+test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+            "plaintext mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>AES-GCM</value>
+      </brief>
+      <description>
+        <value>AES-GCM with the GCM specification and NIST CAVP vectors.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>AES-GCM known answers</value>
+          </brief>
+          <description>
+            <value>Each vector is encrypted and decrypted with verification in single updates.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t tag[16];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-GCM support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_GCM)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting, the ciphertext and the tag are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_GCM_VECTORS_COUNT; i++) {
+  const xcry_aead_vector_t *vp = &xcry_aes_gcm_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_aead(vp, CRY_ENCRYPT, vp->pt, xcry_out, tag, vp->tag_size,
+                  XCRY_BUFFER_SIZE, true);
+  if (xcry_aead_optional(vp, msg)) {
+    continue;
+  }
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert((vp->size == 0U) ||
+              (memcmp(xcry_out, vp->ct, vp->size) == 0),
+              "ciphertext mismatch");
+  test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting with verification, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_GCM_VECTORS_COUNT; i++) {
+  const xcry_aead_vector_t *vp = &xcry_aes_gcm_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  memcpy(tag, vp->tag, vp->tag_size);
+  msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size,
+                  XCRY_BUFFER_SIZE, true);
+  if (xcry_aead_optional(vp, msg)) {
+    continue;
+  }
+  test_assert(msg == HAL_RET_SUCCESS, "verification failed");
+  test_assert((vp->size == 0U) ||
+              (memcmp(xcry_out, vp->pt, vp->size) == 0),
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-GCM fragmented</value>
+          </brief>
+          <description>
+            <value>Associated data and payload are processed in small fragments, without declared lengths.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t tag[16];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-GCM support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_GCM)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting in 5 bytes fragments, the ciphertext and the tag are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_GCM_VECTORS_COUNT; i++) {
+  const xcry_aead_vector_t *vp = &xcry_aes_gcm_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_aead(vp, CRY_ENCRYPT, vp->pt, xcry_out, tag, vp->tag_size,
+                  5U, false);
+  if (xcry_aead_optional(vp, msg)) {
+    continue;
+  }
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert((vp->size == 0U) ||
+              (memcmp(xcry_out, vp->ct, vp->size) == 0),
+              "ciphertext mismatch");
+  test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting byte by byte with verification, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_GCM_VECTORS_COUNT; i++) {
+  const xcry_aead_vector_t *vp = &xcry_aes_gcm_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  memcpy(tag, vp->tag, vp->tag_size);
+  msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size,
+                  1U, true);
+  if (xcry_aead_optional(vp, msg)) {
+    continue;
+  }
+  test_assert(msg == HAL_RET_SUCCESS, "verification failed");
+  test_assert((vp->size == 0U) ||
+              (memcmp(xcry_out, vp->pt, vp->size) == 0),
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-GCM authentication failure</value>
+          </brief>
+          <description>
+            <value>Altered tags, a tag of the wrong size and altered ciphertext are expected to fail verification.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_aead_vector_t *vp = &xcry_aes_gcm_vectors[0];
+uint8_t tag[16];
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-GCM support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_GCM)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying an altered tag, CRY_ERR_AUTH_FAILED is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(tag, vp->tag, vp->tag_size);
+tag[0] ^= 0x01U;
+msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size,
+                XCRY_BUFFER_SIZE, true);
+test_assert(msg == CRY_ERR_AUTH_FAILED, "altered tag accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying a truncated tag, CRY_ERR_AUTH_FAILED is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(tag, vp->tag, vp->tag_size);
+msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size - 1U,
+                XCRY_BUFFER_SIZE, true);
+test_assert(msg == CRY_ERR_AUTH_FAILED, "truncated tag accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying altered ciphertext, CRY_ERR_AUTH_FAILED is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->ct, vp->size);
+xcry_in[vp->size - 1U] ^= 0x80U;
+memcpy(tag, vp->tag, vp->tag_size);
+msg = xcry_aead(vp, CRY_DECRYPT, xcry_in, xcry_out, tag, vp->tag_size,
+                XCRY_BUFFER_SIZE, true);
+test_assert(msg == CRY_ERR_AUTH_FAILED, "altered ciphertext accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-GCM long message</value>
+          </brief>
+          <description>
+            <value>A long message in shared buffers is processed in a single update, backends may use DMA.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_aead_vector_t *vp = &xcry_aes_gcm_long[0];
+uint8_t tag[16];
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-GCM support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_GCM)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting, the ciphertext and the tag are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->pt, vp->size);
+msg = xcry_aead(vp, CRY_ENCRYPT, xcry_in, xcry_out, tag, vp->tag_size,
+                XCRY_BUFFER_SIZE, true);
+test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+            "ciphertext mismatch");
+test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting with verification, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->ct, vp->size);
+memcpy(tag, vp->tag, vp->tag_size);
+msg = xcry_aead(vp, CRY_DECRYPT, xcry_in, xcry_out, tag, vp->tag_size,
+                XCRY_BUFFER_SIZE, true);
+test_assert(msg == HAL_RET_SUCCESS, "verification failed");
+test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+            "plaintext mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>AES-CCM</value>
+      </brief>
+      <description>
+        <value>AES-CCM with the NIST SP 800-38C vectors.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>AES-CCM known answers</value>
+          </brief>
+          <description>
+            <value>Each vector is encrypted and decrypted with verification in single updates.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t tag[16];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CCM support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CCM)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting, the ciphertext and the tag are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CCM_VECTORS_COUNT; i++) {
+  const xcry_aead_vector_t *vp = &xcry_aes_ccm_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_aead(vp, CRY_ENCRYPT, vp->pt, xcry_out, tag, vp->tag_size,
+                  XCRY_BUFFER_SIZE, true);
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+              "ciphertext mismatch");
+  test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting with verification, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CCM_VECTORS_COUNT; i++) {
+  const xcry_aead_vector_t *vp = &xcry_aes_ccm_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  memcpy(tag, vp->tag, vp->tag_size);
+  msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size,
+                  XCRY_BUFFER_SIZE, true);
+  test_assert(msg == HAL_RET_SUCCESS, "verification failed");
+  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-CCM fragmented</value>
+          </brief>
+          <description>
+            <value>Associated data and payload are processed in small fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t tag[16];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CCM support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CCM)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Encrypting in 5 bytes fragments, the ciphertext and the tag are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CCM_VECTORS_COUNT; i++) {
+  const xcry_aead_vector_t *vp = &xcry_aes_ccm_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  msg = xcry_aead(vp, CRY_ENCRYPT, vp->pt, xcry_out, tag, vp->tag_size,
+                  5U, true);
+  test_assert(msg == HAL_RET_SUCCESS, "encryption failed");
+  test_assert(memcmp(xcry_out, vp->ct, vp->size) == 0,
+              "ciphertext mismatch");
+  test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Decrypting byte by byte with verification, the plaintext is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CCM_VECTORS_COUNT; i++) {
+  const xcry_aead_vector_t *vp = &xcry_aes_ccm_vectors[i];
+
+  if (!xcry_key_supported(vp->algorithm, vp->key_size)) {
+    continue;
+  }
+  memcpy(tag, vp->tag, vp->tag_size);
+  msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size,
+                  1U, true);
+  test_assert(msg == HAL_RET_SUCCESS, "verification failed");
+  test_assert(memcmp(xcry_out, vp->pt, vp->size) == 0,
+              "plaintext mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-CCM authentication failure</value>
+          </brief>
+          <description>
+            <value>Altered tags, a tag of the wrong size and altered ciphertext are expected to fail verification.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_aead_vector_t *vp = &xcry_aes_ccm_vectors[0];
+uint8_t tag[16];
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CCM support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_AES_CCM)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying an altered tag, CRY_ERR_AUTH_FAILED is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(tag, vp->tag, vp->tag_size);
+tag[0] ^= 0x01U;
+msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size,
+                XCRY_BUFFER_SIZE, true);
+test_assert(msg == CRY_ERR_AUTH_FAILED, "altered tag accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying a truncated tag, CRY_ERR_AUTH_FAILED is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(tag, vp->tag, vp->tag_size);
+msg = xcry_aead(vp, CRY_DECRYPT, vp->ct, xcry_out, tag, vp->tag_size - 1U,
+                XCRY_BUFFER_SIZE, true);
+test_assert(msg == CRY_ERR_AUTH_FAILED, "truncated tag accepted");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying altered ciphertext, CRY_ERR_AUTH_FAILED is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[memcpy(xcry_in, vp->ct, vp->size);
+xcry_in[vp->size - 1U] ^= 0x80U;
+memcpy(tag, vp->tag, vp->tag_size);
+msg = xcry_aead(vp, CRY_DECRYPT, xcry_in, xcry_out, tag, vp->tag_size,
+                XCRY_BUFFER_SIZE, true);
+test_assert(msg == CRY_ERR_AUTH_FAILED, "altered ciphertext accepted");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>AES-CMAC</value>
+      </brief>
+      <description>
+        <value>AES-CMAC with the NIST SP 800-38B vectors.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>
+
+/* Returns true if the driver does not support the algorithm.*/
+static bool xcry_mac_unsupported(cry_algorithm_t algorithm) {
+  cry_capabilities_t caps;
+
+  return cryGetCapabilities(XCRY_DRIVER, algorithm, &caps) != HAL_RET_SUCCESS;
+}
+
+/* Returns true if the driver does not support the vector algorithm or,
+   for CMAC, its key size.*/
+static bool xcry_mac_skip(const xcry_mac_vector_t *vp) {
+
+  if (xcry_mac_unsupported(vp->algorithm)) {
+    return true;
+  }
+
+  return (vp->algorithm == CRY_ALG_AES_CMAC) &&
+         !xcry_key_supported(vp->algorithm, vp->key_size);
+}]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>AES-CMAC known answers</value>
+          </brief>
+          <description>
+            <value>Each vector is authenticated and verified in single updates; algorithms not supported by the driver are skipped.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t tag[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CMAC support, the test is skipped if the driver does not support any of the algorithms.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_mac_unsupported(CRY_ALG_AES_CMAC)) {
+  test_println("--- Skipped, algorithm not supported by the driver");
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Generating tags, the tags are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CMAC_VECTORS_COUNT; i++) {
+  const xcry_mac_vector_t *vp = &xcry_aes_cmac_vectors[i];
+
+  if (xcry_mac_skip(vp)) {
+    continue;
+  }
+  msg = xcry_mac(vp, false, tag, vp->tag_size, XCRY_BUFFER_SIZE);
+  test_assert(msg == HAL_RET_SUCCESS, "tag generation failed");
+  test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying tags, success is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CMAC_VECTORS_COUNT; i++) {
+  const xcry_mac_vector_t *vp = &xcry_aes_cmac_vectors[i];
+
+  if (xcry_mac_skip(vp)) {
+    continue;
+  }
+  memcpy(tag, vp->tag, vp->tag_size);
+  msg = xcry_mac(vp, true, tag, vp->tag_size, XCRY_BUFFER_SIZE);
+  test_assert(msg == HAL_RET_SUCCESS, "verification failed");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-CMAC fragmented</value>
+          </brief>
+          <description>
+            <value>Messages are processed in small fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t tag[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CMAC support, the test is skipped if the driver does not support any of the algorithms.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_mac_unsupported(CRY_ALG_AES_CMAC)) {
+  test_println("--- Skipped, algorithm not supported by the driver");
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Generating tags in 7 bytes fragments, the tags are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CMAC_VECTORS_COUNT; i++) {
+  const xcry_mac_vector_t *vp = &xcry_aes_cmac_vectors[i];
+
+  if (xcry_mac_skip(vp)) {
+    continue;
+  }
+  msg = xcry_mac(vp, false, tag, vp->tag_size, 7U);
+  test_assert(msg == HAL_RET_SUCCESS, "tag generation failed");
+  test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>AES-CMAC verification failure</value>
+          </brief>
+          <description>
+            <value>Altered tags and tags of the wrong size are expected to fail verification.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t tag[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking AES-CMAC support, the test is skipped if the driver does not support any of the algorithms.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_mac_unsupported(CRY_ALG_AES_CMAC)) {
+  test_println("--- Skipped, algorithm not supported by the driver");
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying altered tags, CRY_ERR_AUTH_FAILED is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CMAC_VECTORS_COUNT; i++) {
+  const xcry_mac_vector_t *vp = &xcry_aes_cmac_vectors[i];
+
+  if (xcry_mac_skip(vp)) {
+    continue;
+  }
+  memcpy(tag, vp->tag, vp->tag_size);
+  tag[vp->tag_size - 1U] ^= 0x01U;
+  msg = xcry_mac(vp, true, tag, vp->tag_size, XCRY_BUFFER_SIZE);
+  test_assert(msg == CRY_ERR_AUTH_FAILED, "altered tag accepted");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying truncated tags, CRY_ERR_AUTH_FAILED is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_AES_CMAC_VECTORS_COUNT; i++) {
+  const xcry_mac_vector_t *vp = &xcry_aes_cmac_vectors[i];
+
+  if (xcry_mac_skip(vp)) {
+    continue;
+  }
+  memcpy(tag, vp->tag, vp->tag_size);
+  msg = xcry_mac(vp, true, tag, vp->tag_size - 1U, XCRY_BUFFER_SIZE);
+  test_assert(msg == CRY_ERR_AUTH_FAILED, "truncated tag accepted");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>HMAC</value>
+      </brief>
+      <description>
+        <value>HMAC with the RFC 4231 vectors for SHA-256, SHA-384 and SHA-512.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>
+
+/* Returns true if the driver does not support the algorithm.*/
+static bool xcry_mac_unsupported(cry_algorithm_t algorithm) {
+  cry_capabilities_t caps;
+
+  return cryGetCapabilities(XCRY_DRIVER, algorithm, &caps) != HAL_RET_SUCCESS;
+}
+
+/* Returns true if the driver does not support the vector algorithm or,
+   for CMAC, its key size.*/
+static bool xcry_mac_skip(const xcry_mac_vector_t *vp) {
+
+  if (xcry_mac_unsupported(vp->algorithm)) {
+    return true;
+  }
+
+  return (vp->algorithm == CRY_ALG_AES_CMAC) &&
+         !xcry_key_supported(vp->algorithm, vp->key_size);
+}]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>HMAC known answers</value>
+          </brief>
+          <description>
+            <value>Each vector is authenticated and verified in single updates; algorithms not supported by the driver are skipped.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t tag[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking HMAC support, the test is skipped if the driver does not support any of the algorithms.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_mac_unsupported(CRY_ALG_HMAC_SHA256) &&
+    xcry_mac_unsupported(CRY_ALG_HMAC_SHA384) &&
+    xcry_mac_unsupported(CRY_ALG_HMAC_SHA512)) {
+  test_println("--- Skipped, algorithm not supported by the driver");
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Generating tags, the tags are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_HMAC_VECTORS_COUNT; i++) {
+  const xcry_mac_vector_t *vp = &xcry_hmac_vectors[i];
+
+  if (xcry_mac_skip(vp)) {
+    continue;
+  }
+  msg = xcry_mac(vp, false, tag, vp->tag_size, XCRY_BUFFER_SIZE);
+  test_assert(msg == HAL_RET_SUCCESS, "tag generation failed");
+  test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying tags, success is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_HMAC_VECTORS_COUNT; i++) {
+  const xcry_mac_vector_t *vp = &xcry_hmac_vectors[i];
+
+  if (xcry_mac_skip(vp)) {
+    continue;
+  }
+  memcpy(tag, vp->tag, vp->tag_size);
+  msg = xcry_mac(vp, true, tag, vp->tag_size, XCRY_BUFFER_SIZE);
+  test_assert(msg == HAL_RET_SUCCESS, "verification failed");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>HMAC fragmented</value>
+          </brief>
+          <description>
+            <value>Messages are processed in small fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t tag[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking HMAC support, the test is skipped if the driver does not support any of the algorithms.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_mac_unsupported(CRY_ALG_HMAC_SHA256) &&
+    xcry_mac_unsupported(CRY_ALG_HMAC_SHA384) &&
+    xcry_mac_unsupported(CRY_ALG_HMAC_SHA512)) {
+  test_println("--- Skipped, algorithm not supported by the driver");
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Generating tags in 7 bytes fragments, the tags are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_HMAC_VECTORS_COUNT; i++) {
+  const xcry_mac_vector_t *vp = &xcry_hmac_vectors[i];
+
+  if (xcry_mac_skip(vp)) {
+    continue;
+  }
+  msg = xcry_mac(vp, false, tag, vp->tag_size, 7U);
+  test_assert(msg == HAL_RET_SUCCESS, "tag generation failed");
+  test_assert(memcmp(tag, vp->tag, vp->tag_size) == 0, "tag mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>HMAC verification failure</value>
+          </brief>
+          <description>
+            <value>Altered tags and tags of the wrong size are expected to fail verification.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t tag[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking HMAC support, the test is skipped if the driver does not support any of the algorithms.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_mac_unsupported(CRY_ALG_HMAC_SHA256) &&
+    xcry_mac_unsupported(CRY_ALG_HMAC_SHA384) &&
+    xcry_mac_unsupported(CRY_ALG_HMAC_SHA512)) {
+  test_println("--- Skipped, algorithm not supported by the driver");
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying altered tags, CRY_ERR_AUTH_FAILED is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_HMAC_VECTORS_COUNT; i++) {
+  const xcry_mac_vector_t *vp = &xcry_hmac_vectors[i];
+
+  if (xcry_mac_skip(vp)) {
+    continue;
+  }
+  memcpy(tag, vp->tag, vp->tag_size);
+  tag[vp->tag_size - 1U] ^= 0x01U;
+  msg = xcry_mac(vp, true, tag, vp->tag_size, XCRY_BUFFER_SIZE);
+  test_assert(msg == CRY_ERR_AUTH_FAILED, "altered tag accepted");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Verifying truncated tags, CRY_ERR_AUTH_FAILED is expected.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_HMAC_VECTORS_COUNT; i++) {
+  const xcry_mac_vector_t *vp = &xcry_hmac_vectors[i];
+
+  if (xcry_mac_skip(vp)) {
+    continue;
+  }
+  memcpy(tag, vp->tag, vp->tag_size);
+  msg = xcry_mac(vp, true, tag, vp->tag_size - 1U, XCRY_BUFFER_SIZE);
+  test_assert(msg == CRY_ERR_AUTH_FAILED, "truncated tag accepted");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>SHA</value>
+      </brief>
+      <description>
+        <value>SHA-1 and SHA-2 hashes with the FIPS 180-4 examples.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>SHA-1</value>
+          </brief>
+          <description>
+            <value>SHA-1 with the FIPS 180-4 examples, byte by byte and with one million "a" in large fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_hash_vector_t *mp;
+uint8_t digest[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking SHA-1 support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_SHA1)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing the examples in single updates, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  const xcry_hash_vector_t *vp = &xcry_sha_vectors[i];
+
+  if (vp->algorithm != CRY_ALG_SHA1) {
+    continue;
+  }
+  msg = xcry_hash(vp->algorithm, vp->msg, vp->size, digest,
+                  XCRY_BUFFER_SIZE);
+  test_assert(msg == HAL_RET_SUCCESS, "hash failed");
+  test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+              "digest mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing the examples byte by byte, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  const xcry_hash_vector_t *vp = &xcry_sha_vectors[i];
+
+  if (vp->algorithm != CRY_ALG_SHA1) {
+    continue;
+  }
+  msg = xcry_hash(vp->algorithm, vp->msg, vp->size, digest, 1U);
+  test_assert(msg == HAL_RET_SUCCESS, "hash failed");
+  test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+              "digest mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing one million "a" in 5000 bytes fragments from a shared buffer, the digest is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[mp = NULL;
+for (i = 0U; i < XCRY_SHA_MILLION_A_COUNT; i++) {
+  if (xcry_sha_million_a[i].algorithm == CRY_ALG_SHA1) {
+    mp = &xcry_sha_million_a[i];
+  }
+}
+test_assert(mp != NULL, "missing vector");
+memset(xcry_in, 'a', 5000U);
+{
+  cry_operation_t op;
+  size_t len;
+
+  msg = cryHashBegin(XCRY_DRIVER, &op, mp->algorithm);
+  test_assert(msg == HAL_RET_SUCCESS, "begin failed");
+  for (i = 0U; i < mp->size / 5000U; i++) {
+    msg = cryHashUpdate(&op, 5000U, xcry_in);
+    test_assert(msg == HAL_RET_SUCCESS, "update failed");
+  }
+  msg = cryHashFinal(&op, sizeof digest, digest, &len);
+  test_assert(msg == HAL_RET_SUCCESS, "final failed");
+}
+test_assert(memcmp(digest, mp->digest, mp->digest_size) == 0,
+            "digest mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>SHA-224</value>
+          </brief>
+          <description>
+            <value>SHA-224 with the FIPS 180-4 examples, byte by byte and with one million "a" in large fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_hash_vector_t *mp;
+uint8_t digest[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking SHA-224 support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_SHA224)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing the examples in single updates, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  const xcry_hash_vector_t *vp = &xcry_sha_vectors[i];
+
+  if (vp->algorithm != CRY_ALG_SHA224) {
+    continue;
+  }
+  msg = xcry_hash(vp->algorithm, vp->msg, vp->size, digest,
+                  XCRY_BUFFER_SIZE);
+  test_assert(msg == HAL_RET_SUCCESS, "hash failed");
+  test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+              "digest mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing the examples byte by byte, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  const xcry_hash_vector_t *vp = &xcry_sha_vectors[i];
+
+  if (vp->algorithm != CRY_ALG_SHA224) {
+    continue;
+  }
+  msg = xcry_hash(vp->algorithm, vp->msg, vp->size, digest, 1U);
+  test_assert(msg == HAL_RET_SUCCESS, "hash failed");
+  test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+              "digest mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing one million "a" in 5000 bytes fragments from a shared buffer, the digest is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[mp = NULL;
+for (i = 0U; i < XCRY_SHA_MILLION_A_COUNT; i++) {
+  if (xcry_sha_million_a[i].algorithm == CRY_ALG_SHA224) {
+    mp = &xcry_sha_million_a[i];
+  }
+}
+test_assert(mp != NULL, "missing vector");
+memset(xcry_in, 'a', 5000U);
+{
+  cry_operation_t op;
+  size_t len;
+
+  msg = cryHashBegin(XCRY_DRIVER, &op, mp->algorithm);
+  test_assert(msg == HAL_RET_SUCCESS, "begin failed");
+  for (i = 0U; i < mp->size / 5000U; i++) {
+    msg = cryHashUpdate(&op, 5000U, xcry_in);
+    test_assert(msg == HAL_RET_SUCCESS, "update failed");
+  }
+  msg = cryHashFinal(&op, sizeof digest, digest, &len);
+  test_assert(msg == HAL_RET_SUCCESS, "final failed");
+}
+test_assert(memcmp(digest, mp->digest, mp->digest_size) == 0,
+            "digest mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>SHA-256</value>
+          </brief>
+          <description>
+            <value>SHA-256 with the FIPS 180-4 examples, byte by byte and with one million "a" in large fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_hash_vector_t *mp;
+uint8_t digest[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking SHA-256 support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_SHA256)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing the examples in single updates, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  const xcry_hash_vector_t *vp = &xcry_sha_vectors[i];
+
+  if (vp->algorithm != CRY_ALG_SHA256) {
+    continue;
+  }
+  msg = xcry_hash(vp->algorithm, vp->msg, vp->size, digest,
+                  XCRY_BUFFER_SIZE);
+  test_assert(msg == HAL_RET_SUCCESS, "hash failed");
+  test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+              "digest mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing the examples byte by byte, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  const xcry_hash_vector_t *vp = &xcry_sha_vectors[i];
+
+  if (vp->algorithm != CRY_ALG_SHA256) {
+    continue;
+  }
+  msg = xcry_hash(vp->algorithm, vp->msg, vp->size, digest, 1U);
+  test_assert(msg == HAL_RET_SUCCESS, "hash failed");
+  test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+              "digest mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing one million "a" in 5000 bytes fragments from a shared buffer, the digest is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[mp = NULL;
+for (i = 0U; i < XCRY_SHA_MILLION_A_COUNT; i++) {
+  if (xcry_sha_million_a[i].algorithm == CRY_ALG_SHA256) {
+    mp = &xcry_sha_million_a[i];
+  }
+}
+test_assert(mp != NULL, "missing vector");
+memset(xcry_in, 'a', 5000U);
+{
+  cry_operation_t op;
+  size_t len;
+
+  msg = cryHashBegin(XCRY_DRIVER, &op, mp->algorithm);
+  test_assert(msg == HAL_RET_SUCCESS, "begin failed");
+  for (i = 0U; i < mp->size / 5000U; i++) {
+    msg = cryHashUpdate(&op, 5000U, xcry_in);
+    test_assert(msg == HAL_RET_SUCCESS, "update failed");
+  }
+  msg = cryHashFinal(&op, sizeof digest, digest, &len);
+  test_assert(msg == HAL_RET_SUCCESS, "final failed");
+}
+test_assert(memcmp(digest, mp->digest, mp->digest_size) == 0,
+            "digest mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>SHA-384</value>
+          </brief>
+          <description>
+            <value>SHA-384 with the FIPS 180-4 examples, byte by byte and with one million "a" in large fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_hash_vector_t *mp;
+uint8_t digest[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking SHA-384 support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_SHA384)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing the examples in single updates, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  const xcry_hash_vector_t *vp = &xcry_sha_vectors[i];
+
+  if (vp->algorithm != CRY_ALG_SHA384) {
+    continue;
+  }
+  msg = xcry_hash(vp->algorithm, vp->msg, vp->size, digest,
+                  XCRY_BUFFER_SIZE);
+  test_assert(msg == HAL_RET_SUCCESS, "hash failed");
+  test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+              "digest mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing the examples byte by byte, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  const xcry_hash_vector_t *vp = &xcry_sha_vectors[i];
+
+  if (vp->algorithm != CRY_ALG_SHA384) {
+    continue;
+  }
+  msg = xcry_hash(vp->algorithm, vp->msg, vp->size, digest, 1U);
+  test_assert(msg == HAL_RET_SUCCESS, "hash failed");
+  test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+              "digest mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing one million "a" in 5000 bytes fragments from a shared buffer, the digest is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[mp = NULL;
+for (i = 0U; i < XCRY_SHA_MILLION_A_COUNT; i++) {
+  if (xcry_sha_million_a[i].algorithm == CRY_ALG_SHA384) {
+    mp = &xcry_sha_million_a[i];
+  }
+}
+test_assert(mp != NULL, "missing vector");
+memset(xcry_in, 'a', 5000U);
+{
+  cry_operation_t op;
+  size_t len;
+
+  msg = cryHashBegin(XCRY_DRIVER, &op, mp->algorithm);
+  test_assert(msg == HAL_RET_SUCCESS, "begin failed");
+  for (i = 0U; i < mp->size / 5000U; i++) {
+    msg = cryHashUpdate(&op, 5000U, xcry_in);
+    test_assert(msg == HAL_RET_SUCCESS, "update failed");
+  }
+  msg = cryHashFinal(&op, sizeof digest, digest, &len);
+  test_assert(msg == HAL_RET_SUCCESS, "final failed");
+}
+test_assert(memcmp(digest, mp->digest, mp->digest_size) == 0,
+            "digest mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>SHA-512</value>
+          </brief>
+          <description>
+            <value>SHA-512 with the FIPS 180-4 examples, byte by byte and with one million "a" in large fragments.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[const xcry_hash_vector_t *mp;
+uint8_t digest[XCRY_DIGEST_MAX];
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking SHA-512 support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_SHA512)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing the examples in single updates, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  const xcry_hash_vector_t *vp = &xcry_sha_vectors[i];
+
+  if (vp->algorithm != CRY_ALG_SHA512) {
+    continue;
+  }
+  msg = xcry_hash(vp->algorithm, vp->msg, vp->size, digest,
+                  XCRY_BUFFER_SIZE);
+  test_assert(msg == HAL_RET_SUCCESS, "hash failed");
+  test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+              "digest mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing the examples byte by byte, the digests are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_SHA_VECTORS_COUNT; i++) {
+  const xcry_hash_vector_t *vp = &xcry_sha_vectors[i];
+
+  if (vp->algorithm != CRY_ALG_SHA512) {
+    continue;
+  }
+  msg = xcry_hash(vp->algorithm, vp->msg, vp->size, digest, 1U);
+  test_assert(msg == HAL_RET_SUCCESS, "hash failed");
+  test_assert(memcmp(digest, vp->digest, vp->digest_size) == 0,
+              "digest mismatch");
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Hashing one million "a" in 5000 bytes fragments from a shared buffer, the digest is expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[mp = NULL;
+for (i = 0U; i < XCRY_SHA_MILLION_A_COUNT; i++) {
+  if (xcry_sha_million_a[i].algorithm == CRY_ALG_SHA512) {
+    mp = &xcry_sha_million_a[i];
+  }
+}
+test_assert(mp != NULL, "missing vector");
+memset(xcry_in, 'a', 5000U);
+{
+  cry_operation_t op;
+  size_t len;
+
+  msg = cryHashBegin(XCRY_DRIVER, &op, mp->algorithm);
+  test_assert(msg == HAL_RET_SUCCESS, "begin failed");
+  for (i = 0U; i < mp->size / 5000U; i++) {
+    msg = cryHashUpdate(&op, 5000U, xcry_in);
+    test_assert(msg == HAL_RET_SUCCESS, "update failed");
+  }
+  msg = cryHashFinal(&op, sizeof digest, digest, &len);
+  test_assert(msg == HAL_RET_SUCCESS, "final failed");
+}
+test_assert(memcmp(digest, mp->digest, mp->digest_size) == 0,
+            "digest mismatch");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type index="0">
+        <value>Internal Tests</value>
+      </type>
+      <brief>
+        <value>HKDF</value>
+      </brief>
+      <description>
+        <value>HKDF-SHA256 key derivation with the RFC 5869 vectors.</value>
+      </description>
+      <condition>
+        <value />
+      </condition>
+      <shared_code>
+        <value><![CDATA[#include <string.h>]]></value>
+      </shared_code>
+      <cases>
+        <case>
+          <brief>
+            <value>HKDF-SHA256 known answers</value>
+          </brief>
+          <description>
+            <value>The input keying material is loaded as the transient key and output bytes are derived.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[drvStart(XCRY_DRIVER, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[drvStop(XCRY_DRIVER);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[cry_derivation_params_t params;
+unsigned i;
+msg_t msg;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Checking HKDF-SHA256 support, the test is skipped if the driver does not support it.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[if (xcry_unsupported(CRY_ALG_HKDF_SHA256)) {
+  return;
+}]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Deriving, the output bytes are expected to match.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0U; i < XCRY_HKDF_VECTORS_COUNT; i++) {
+  const xcry_kdf_vector_t *vp = &xcry_hkdf_vectors[i];
+
+  msg = xcry_load_key(CRY_KEY_DERIVATION, vp->ikm_size, vp->ikm);
+  test_assert(msg == HAL_RET_SUCCESS, "key load failed");
+  params.salt = vp->salt;
+  params.salt_size = vp->salt_size;
+  params.info = vp->info;
+  params.info_size = vp->info_size;
+  msg = cryDeriveKey(XCRY_DRIVER, CRY_KEY_TRANSIENT, vp->algorithm,
+                     &params, vp->size, xcry_out);
+  test_assert(msg == HAL_RET_SUCCESS, "derivation failed");
+  test_assert(memcmp(xcry_out, vp->okm, vp->size) == 0,
+              "output mismatch");
+}]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+      </cases>
+    </sequence>
+  </sequences>
+</instance>

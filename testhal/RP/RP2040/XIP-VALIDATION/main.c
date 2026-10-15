@@ -456,7 +456,7 @@ static bool test_full_block_write_verify(uint32_t block) {
 /* Blinker thread.                                                           */
 /*===========================================================================*/
 
-static THD_WORKING_AREA(waThread1, 128);
+static THD_WORKING_AREA(waThread1, 256);
 static THD_FUNCTION(Thread1, arg) {
 
   (void)arg;

@@ -101,7 +101,7 @@ struct hal_trng_driver_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From hal_trng_driver_c.*/
@@ -163,7 +163,7 @@ extern "C" {
   void *__trng_objinit_impl(void *ip, const void *vmt);
   void __trng_dispose_impl(void *ip);
   msg_t __trng_start_impl(void *ip, const void *config);
-  void __trng_stop_impl(void *ip);
+  void __trng_stop_impl(void *ip, driver_state_t prevstate);
   const void *__trng_setcfg_impl(void *ip, const void *config);
   const void *__trng_selcfg_impl(void *ip, unsigned cfgnum);
   msg_t trngGenerate(void *ip, size_t size, uint8_t *out);

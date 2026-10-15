@@ -533,9 +533,16 @@
 #endif
 
 /**
- * @brief   Maximum length for object names.
- * @details If the specified length is zero then the name is stored by
- *          pointer but this could have unintended side effects.
+ * @brief   Storage size for object names, including the terminating zero.
+ * @details A positive value N stores and compares at most N-1 characters.
+ *          Longer names with the same first N-1 characters identify the
+ *          same object within a factory category.
+ * @details If zero, the name is stored without copying and compared by
+ *          pointer identity, not string contents. Lookup must use the same
+ *          pointer; equal strings in different arrays are different keys.
+ *          The pointed-to storage must remain valid until final release.
+ *          Do not rely on identical string literals having equal addresses.
+ * @note    Each factory category has a separate name space.
  */
 #if !defined(CH_CFG_FACTORY_MAX_NAMES_LENGTH)
 #define CH_CFG_FACTORY_MAX_NAMES_LENGTH     8

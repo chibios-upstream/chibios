@@ -1034,8 +1034,8 @@ void i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C1
     if (&I2CD1 == i2cp) {
 
-      rccResetI2C1();
       rccEnableI2C1(true);
+      rccResetI2C1();
 #if STM32_I2C_USE_DMA == TRUE
       {
         i2cp->rx.dma = dmaStreamAllocI(STM32_I2C_I2C1_RX_DMA_STREAM,
@@ -1061,8 +1061,8 @@ void i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C2
     if (&I2CD2 == i2cp) {
 
-      rccResetI2C2();
       rccEnableI2C2(true);
+      rccResetI2C2();
 #if STM32_I2C_USE_DMA == TRUE
       {
         i2cp->rx.dma = dmaStreamAllocI(STM32_I2C_I2C2_RX_DMA_STREAM,
@@ -1088,8 +1088,8 @@ void i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C3
     if (&I2CD3 == i2cp) {
 
-      rccResetI2C3();
       rccEnableI2C3(true);
+      rccResetI2C3();
 #if STM32_I2C_USE_DMA == TRUE
       {
         i2cp->rx.dma = dmaStreamAllocI(STM32_I2C_I2C3_RX_DMA_STREAM,
@@ -1115,8 +1115,8 @@ void i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C4
     if (&I2CD4 == i2cp) {
 
-      rccResetI2C4();
       rccEnableI2C4(true);
+      rccResetI2C4();
 #if STM32_I2C_USE_DMA == TRUE
       {
 #if STM32_I2C4_USE_BDMA == TRUE
@@ -1160,8 +1160,8 @@ void i2c_lld_start(I2CDriver *i2cp) {
 #if STM32_I2C_USE_I2C5
     if (&I2CD5 == i2cp) {
 
-      rccResetI2C5();
       rccEnableI2C5(true);
+      rccResetI2C5();
 #if STM32_I2C_USE_DMA == TRUE
       {
         i2cp->rx.dma = dmaStreamAllocI(STM32_I2C_I2C5_RX_DMA_STREAM,

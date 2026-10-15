@@ -1420,6 +1420,7 @@
 #define STM32_OTG_STEPPING                  1
 #define STM32_HAS_OTG1                      TRUE
 #define STM32_OTG1_ENDPOINTS                3
+#define STM32_OTG1_FIFO_MEM_SIZE            320  /* 32-bit words.*/
 
 #define STM32_HAS_OTG2                      FALSE
 #define STM32_HAS_USB                       FALSE

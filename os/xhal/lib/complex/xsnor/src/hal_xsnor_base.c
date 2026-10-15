@@ -223,10 +223,15 @@ msg_t __xsnor_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p hal_xsnor_base_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __xsnor_stop_impl(void *ip) {
+void __xsnor_stop_impl(void *ip, driver_state_t prevstate) {
   hal_xsnor_base_c *self = (hal_xsnor_base_c *)ip;
   const xsnor_config_t *config = self->config;
+
+  (void)prevstate;
 
   if (config == NULL) {
     return;

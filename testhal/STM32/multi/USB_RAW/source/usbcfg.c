@@ -210,6 +210,46 @@ static const USBDescriptor *get_descriptor(USBDriver *usbp,
  */
 static USBInEndpointState ep1instate;
 
+#if defined(USB_RAW_BENCHMARK)
+/**
+ * @brief   OUT EP3 state.
+ */
+static USBOutEndpointState ep3outstate;
+
+/**
+ * @brief   EP1 initialization structure (IN only).
+ * @note    Unidirectional with two buffers, it can be double-buffered.
+ */
+static const USBEndpointConfig ep1config = {
+  USB_EP_MODE_TYPE_BULK,
+  NULL,
+  NULL,
+  NULL,
+  0x0040,
+  0x0000,
+  &ep1instate,
+  NULL,
+  2,
+  NULL
+};
+
+/**
+ * @brief   EP3 initialization structure (OUT only).
+ * @note    Unidirectional with two buffers, it can be double-buffered.
+ */
+static const USBEndpointConfig ep3config = {
+  USB_EP_MODE_TYPE_BULK,
+  NULL,
+  NULL,
+  NULL,
+  0x0000,
+  0x0040,
+  NULL,
+  &ep3outstate,
+  2,
+  NULL
+};
+#else
 /**
  * @brief   OUT EP1 state.
  */
@@ -230,6 +270,7 @@ static const USBEndpointConfig ep1config = {
   4,
   NULL
 };
+#endif
 
 /**
  * @brief   IN EP2 state.
@@ -269,6 +310,9 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
        Note, this callback is invoked from an ISR so I-Class functions
        must be used.*/
     usbInitEndpointI(usbp, USBD2_DATA_REQUEST_EP, &ep1config);
+#if defined(USB_RAW_BENCHMARK)
+    usbInitEndpointI(usbp, USBD2_DATA_AVAILABLE_EP, &ep3config);
+#endif
     usbInitEndpointI(usbp, USBD2_INTERRUPT_REQUEST_EP, &ep2config);
 
     chSysUnlockFromISR();
@@ -284,6 +328,13 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
   }
   return;
 }
+
+#if defined(USB_RAW_BENCHMARK)
+/**
+ * @brief   Control lines state from the host, bit 0 DTR, bit 1 RTS.
+ */
+volatile uint8_t usb_control_lines;
+#endif
 
 static cdc_linecoding_t linecoding = {
   {0x00, 0x96, 0x00, 0x00},             /* 38400.                           */
@@ -301,7 +352,12 @@ bool request_hook(USBDriver *usbp) {
       usbSetupTransfer(usbp, (uint8_t *)&linecoding, sizeof(linecoding), NULL);
       return true;
     case CDC_SET_CONTROL_LINE_STATE:
+#if defined(USB_RAW_BENCHMARK)
+      /* The RTS line enables the writer.*/
+      usb_control_lines = usbp->setup[2];
+#else
       /* Nothing to do, there are no control lines.*/
+#endif
       usbSetupTransfer(usbp, NULL, 0, NULL);
       return true;
     default:

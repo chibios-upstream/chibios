@@ -139,6 +139,9 @@ drv_reg_remove(self);
             </method>
             <method name="__drv_stop" shortname="stop" ctype="void">
               <brief>Low level driver stop.</brief>
+              <param ctype="driver_state_t" name="prevstate" dir="in">Driver
+                state when the stop was requested, it allows the class to
+                abort an operation in progress.</param>
               <notapi />
             </method>
             <method name="__drv_set_cfg" shortname="setcfg"
@@ -268,6 +271,7 @@ return msg;]]></implementation>
               </details>
               <api />
               <implementation><![CDATA[
+driver_state_t prevstate;
 bool stop = false;
 
 chDbgCheck(self != NULL);
@@ -275,7 +279,8 @@ chDbgCheck(self != NULL);
 chSysLock();
 chDbgAssert(self->state != HAL_DRV_STATE_UNINIT, "invalid state");
 
-switch (self->state) {
+prevstate = self->state;
+switch (prevstate) {
 case HAL_DRV_STATE_STOP:
   /* Falls through.*/
 case HAL_DRV_STATE_STARTING:
@@ -291,7 +296,7 @@ default:
 chSysUnlock();
 
 if (stop) {
-  __drv_stop(self);
+  __drv_stop(self, prevstate);
 
   chSysLock();
   self->state  = HAL_DRV_STATE_STOP;

@@ -54,6 +54,9 @@
 /* DAC attributes.*/
 #define STM32_DAC_HAS_MCR                   TRUE
 
+/* DMA attributes. DMA2 starts at slot 8 even on six-channel devices.*/
+#define STM32_DMA2_DMAMUX_OFFSET            8
+
 /* RNG attributes.*/
 #define STM32_HAS_RNG1                      TRUE
 

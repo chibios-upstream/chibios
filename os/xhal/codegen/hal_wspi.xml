@@ -589,6 +589,9 @@ return msg;]]></implementation>
             </method>
             <method shortname="stop">
               <implementation><![CDATA[
+
+(void)prevstate;
+
 wspi_lld_stop(self);
 #if WSPI_USE_SYNCHRONIZATION == TRUE
 chSysLock();

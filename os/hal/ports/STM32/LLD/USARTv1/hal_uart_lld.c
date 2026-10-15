@@ -23,6 +23,7 @@
  */
 
 #include "hal.h"
+#include "stm32_usart_common.h"
 
 #if HAL_USE_UART || defined(__DOXYGEN__)
 
@@ -248,24 +249,16 @@ static void usart_stop(UARTDriver *uartp) {
  * @param[in] uartp     pointer to the @p UARTDriver object
  */
 static void usart_start(UARTDriver *uartp) {
-  uint32_t fck;
+  uint32_t brr;
   uint16_t cr1;
   USART_TypeDef *u = uartp->usart;
 
   /* Defensive programming, starting from a clean state.*/
   usart_stop(uartp);
 
-  /* Baud rate setting.*/
-  fck = (uint32_t)((uartp->clock + uartp->config->speed/2) / uartp->config->speed);
-
-  /* Correcting USARTDIV when oversampling by 8 instead of 16.
-     Fraction is still 4 bits wide, but only lower 3 bits used.
-     Mantissa is doubled, but Fraction is left the same.*/
-#if defined(USART_CR1_OVER8)
-  if (uartp->config->cr1 & USART_CR1_OVER8)
-    fck = ((fck & ~7) * 2) | (fck & 7);
-#endif
-  u->BRR = fck;
+  brr = stm32_usart_get_brr(u, uartp->config->speed, 0U,
+                            uartp->config->cr1);
+  stm32_usart_set_brr(u, brr, 0U);
 
   /* Resetting eventual pending status flags.*/
   (void)u->SR;  /* SR reset step 1.*/
@@ -568,7 +561,6 @@ void uart_lld_init(void) {
 #if STM32_UART_USE_USART1
   uartObjectInit(&UARTD1);
   UARTD1.usart   = USART1;
-  UARTD1.clock   = STM32_PCLK2;
   UARTD1.dmarxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD1.dmatxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD1.dmarx   = NULL;
@@ -578,7 +570,6 @@ void uart_lld_init(void) {
 #if STM32_UART_USE_USART2
   uartObjectInit(&UARTD2);
   UARTD2.usart   = USART2;
-  UARTD2.clock   = STM32_PCLK1;
   UARTD2.dmarxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD2.dmatxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD2.dmarx   = NULL;
@@ -588,7 +579,6 @@ void uart_lld_init(void) {
 #if STM32_UART_USE_USART3
   uartObjectInit(&UARTD3);
   UARTD3.usart   = USART3;
-  UARTD3.clock   = STM32_PCLK1;
   UARTD3.dmarxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD3.dmatxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD3.dmarx   = NULL;
@@ -598,7 +588,6 @@ void uart_lld_init(void) {
 #if STM32_UART_USE_UART4
   uartObjectInit(&UARTD4);
   UARTD4.usart   = UART4;
-  UARTD4.clock   = STM32_PCLK1;
   UARTD4.dmarxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD4.dmatxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD4.dmarx   = NULL;
@@ -608,7 +597,6 @@ void uart_lld_init(void) {
 #if STM32_UART_USE_UART5
   uartObjectInit(&UARTD5);
   UARTD5.usart   = UART5;
-  UARTD5.clock   = STM32_PCLK1;
   UARTD5.dmarxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD5.dmatxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD5.dmarx   = NULL;
@@ -618,7 +606,6 @@ void uart_lld_init(void) {
 #if STM32_UART_USE_USART6
   uartObjectInit(&UARTD6);
   UARTD6.usart   = USART6;
-  UARTD6.clock   = STM32_PCLK2;
   UARTD6.dmarxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD6.dmatxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD6.dmarx   = NULL;
@@ -628,7 +615,6 @@ void uart_lld_init(void) {
 #if STM32_UART_USE_UART7
   uartObjectInit(&UARTD7);
   UARTD7.usart   = UART7;
-  UARTD7.clock   = STM32_PCLK1;
   UARTD7.dmarxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD7.dmatxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD7.dmarx   = NULL;
@@ -638,7 +624,6 @@ void uart_lld_init(void) {
 #if STM32_UART_USE_UART8
   uartObjectInit(&UARTD8);
   UARTD8.usart   = UART8;
-  UARTD8.clock   = STM32_PCLK1;
   UARTD8.dmarxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD8.dmatxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD8.dmarx   = NULL;
@@ -648,7 +633,6 @@ void uart_lld_init(void) {
 #if STM32_UART_USE_UART9
   uartObjectInit(&UARTD9);
   UARTD9.usart   = UART9;
-  UARTD9.clock   = STM32_PCLK2;
   UARTD9.dmarxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD9.dmatxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD9.dmarx   = NULL;
@@ -658,7 +642,6 @@ void uart_lld_init(void) {
 #if STM32_UART_USE_UART10
   uartObjectInit(&UARTD10);
   UARTD10.usart   = UART10;
-  UARTD10.clock   = STM32_PCLK2;
   UARTD10.dmarxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD10.dmatxmode = STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE;
   UARTD10.dmarx   = NULL;

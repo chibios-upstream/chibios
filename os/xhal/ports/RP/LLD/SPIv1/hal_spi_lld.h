@@ -190,7 +190,7 @@
    values are legitimate.
    The TX channel index is also required to be lower than the RX one:
    the shared DMA handler scans channels in ascending index order within
-   a single interrupts snapshot, servicing the TX end-of-sequence before
+   a single pass, servicing the TX end-of-sequence before
    the RX completion keeps a stale TX service from trailing the RX
    completion which releases the waiting thread, a thread which could
    immediately reprogram the channels from the other core. Terminal

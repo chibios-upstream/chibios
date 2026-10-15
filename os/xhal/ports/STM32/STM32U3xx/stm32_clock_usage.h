@@ -109,7 +109,7 @@
 #endif
 
 /* USB clock requirement atoms.*/
-#if defined(HAL_USE_USB) && (HAL_USE_USB == TRUE) &&                        \
+#if STM32_HAS_USB1 && defined(HAL_USE_USB) && (HAL_USE_USB == TRUE) &&      \
     defined(STM32_USB_USE_USB1) && (STM32_USB_USE_USB1 == TRUE)
 #define STM32_USB_CLOCK_REQUIRED
 #endif

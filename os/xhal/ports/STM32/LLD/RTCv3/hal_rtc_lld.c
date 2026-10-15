@@ -87,46 +87,14 @@ static void rtc_disable_interrupt_sources(hal_rtc_driver_c *rtcp) {
 #if defined(RTC_CR_TSIE)
   rtcp->rtc->CR &= ~RTC_CR_TSIE;
 #endif
-#if defined(TAMP_IER_TAMP1IE)
-  rtcp->tamp->IER &= ~TAMP_IER_TAMP1IE;
-#endif
-#if defined(TAMP_IER_TAMP2IE)
-  rtcp->tamp->IER &= ~TAMP_IER_TAMP2IE;
-#endif
-#if defined(TAMP_IER_TAMP3IE)
-  rtcp->tamp->IER &= ~TAMP_IER_TAMP3IE;
-#endif
-#if defined(TAMP_IER_ITAMP3IE)
-  rtcp->tamp->IER &= ~TAMP_IER_ITAMP3IE;
-#endif
-#if defined(TAMP_IER_ITAMP4IE)
-  rtcp->tamp->IER &= ~TAMP_IER_ITAMP4IE;
-#endif
-#if defined(TAMP_IER_ITAMP5IE)
-  rtcp->tamp->IER &= ~TAMP_IER_ITAMP5IE;
-#endif
-#if defined(TAMP_IER_ITAMP6IE)
-  rtcp->tamp->IER &= ~TAMP_IER_ITAMP6IE;
-#endif
+  rtcp->tamp->IER &= ~STM32_TAMP_IER_MASK;
 }
 
-static void rtc_disable_irqs_exti(void) {
+/* NVIC vectors belong to the platform IRQ layer and remain enabled across
+   driver stop/start. Only the peripheral interrupt sources and EXTI masks
+   are disabled here.*/
+static void rtc_disable_exti(void) {
 
-#if defined(STM32_RTC_TAMP_STAMP_NUMBER)
-  nvicDisableVector(STM32_RTC_TAMP_STAMP_NUMBER);
-#endif
-#if defined(STM32_RTC_WKUP_NUMBER)
-  nvicDisableVector(STM32_RTC_WKUP_NUMBER);
-#endif
-#if defined(STM32_RTC_ALARM_NUMBER)
-  nvicDisableVector(STM32_RTC_ALARM_NUMBER);
-#endif
-#if defined(STM32_RTC_GLOBAL_NUMBER)
-  nvicDisableVector(STM32_RTC_GLOBAL_NUMBER);
-#endif
-#if defined(STM32_RTC_TAMP_NUMBER)
-  nvicDisableVector(STM32_RTC_TAMP_NUMBER);
-#endif
 #if defined(STM32_RTC_ALARM_EXTI) && defined(STM32_RTC_TAMP_STAMP_EXTI) && \
     defined(STM32_RTC_WKUP_EXTI)
   extiEnableGroup1(EXTI_MASK1(STM32_RTC_ALARM_EXTI) |
@@ -136,6 +104,10 @@ static void rtc_disable_irqs_exti(void) {
 #elif defined(STM32_RTC_GLOBAL_EXTI) && defined(STM32_RTC_TAMP_EXTI)
   extiEnableGroup1(EXTI_MASK1(STM32_RTC_GLOBAL_EXTI) |
                    EXTI_MASK1(STM32_RTC_TAMP_EXTI),
+                   EXTI_MODE_DISABLED);
+#elif defined(STM32_RTC_EVENT_RTC_EXTI) && defined(STM32_RTC_EVENT_TAMP_EXTI)
+  extiEnableGroup1(EXTI_MASK1(STM32_RTC_EVENT_RTC_EXTI) |
+                   EXTI_MASK1(STM32_RTC_EVENT_TAMP_EXTI),
                    EXTI_MODE_DISABLED);
 #endif
   STM32_RTC_CLEAR_ALL_EXTI();
@@ -360,7 +332,7 @@ void rtc_lld_stop(hal_rtc_driver_c *rtcp) {
   rtc_wpr_unlock(rtcp);
   rtc_disable_interrupt_sources(rtcp);
   rtc_wpr_lock(rtcp);
-  rtc_disable_irqs_exti();
+  rtc_disable_exti();
   rtcp->cb = NULL;
   rtcp->events = 0U;
 }
@@ -514,6 +486,53 @@ msg_t rtc_lld_get_alarm(hal_rtc_driver_c *rtcp,
 
   return HAL_RET_SUCCESS;
 }
+
+#if RTC_SUPPORTS_PERIODIC_WAKEUP
+/**
+ * @brief   Programs the wakeup timer after disabling it and waiting for WUTWF.
+ * @note    Cached events are not discarded by this operation.
+ */
+msg_t rtc_lld_set_periodic_wakeup(hal_rtc_driver_c *rtcp,
+                                 const rtc_wakeup_t *wakeupspec) {
+  syssts_t sts;
+
+  if ((wakeupspec != NULL) &&
+      (((wakeupspec->wutr & ~0x0007FFFFU) != 0U) ||
+       (wakeupspec->wutr == 0x00030000U))) {
+    return HAL_RET_CONFIG_ERROR;
+  }
+
+  sts = chSysGetStatusAndLockX();
+  rtc_wpr_unlock(rtcp);
+  rtcp->rtc->CR &= ~(RTC_CR_WUTE | RTC_CR_WUTIE);
+  while ((rtcp->rtc->ICSR & RTC_ICSR_WUTWF) == 0U) {
+  }
+  rtcp->rtc->SCR = RTC_SCR_CWUTF;
+
+  if (wakeupspec != NULL) {
+    rtcp->rtc->WUTR = wakeupspec->wutr & 0xFFFFU;
+    rtcp->rtc->CR = (rtcp->rtc->CR & ~RTC_CR_WUCKSEL) |
+                    (wakeupspec->wutr >> 16);
+    rtcp->rtc->CR |= RTC_CR_WUTIE | RTC_CR_WUTE;
+  }
+  rtc_wpr_lock(rtcp);
+  chSysRestoreStatusX(sts);
+
+  return HAL_RET_SUCCESS;
+}
+
+msg_t rtc_lld_get_periodic_wakeup(hal_rtc_driver_c *rtcp,
+                                 rtc_wakeup_t *wakeupspec) {
+  syssts_t sts;
+
+  sts = chSysGetStatusAndLockX();
+  wakeupspec->wutr = (rtcp->rtc->WUTR & 0xFFFFU) |
+                     ((rtcp->rtc->CR & RTC_CR_WUCKSEL) << 16);
+  chSysRestoreStatusX(sts);
+
+  return HAL_RET_SUCCESS;
+}
+#endif /* RTC_SUPPORTS_PERIODIC_WAKEUP */
 
 #endif /* HAL_USE_RTC */
 

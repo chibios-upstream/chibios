@@ -255,6 +255,11 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
+/* The startup and calibration delays use the timeout counter.*/
+#if !defined(HAL_LLD_GET_CNT_VALUE) || !defined(HAL_LLD_GET_CNT_FREQUENCY)
+#error "ADCv7 requires HAL timeout counter hooks"
+#endif
+
 /* Supported devices checks.*/
 #if !defined(STM32U3XX)
 #error "ADCv7 only supports STM32U3 devices"

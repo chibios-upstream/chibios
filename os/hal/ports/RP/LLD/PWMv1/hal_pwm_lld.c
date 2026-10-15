@@ -383,8 +383,9 @@ void pwm_lld_start(PWMDriver *pwmp) {
     p->CH[pwmp->timer_id].CC  = 0;
   }
 
-  /* Counter clock divider as an 8.4 fixed point value, computed in 64
-     bits in order not to overflow at high system clocks. */
+  /* Counter clock divider as an 8.4 fixed point value rounded to the
+     nearest 1/16, computed in 64 bits in order not to overflow at high
+     system clocks. */
   halfreq_t sys_clk = halClockGetPointX(RP_CLK_SYS);
   uint32_t div_fp4;
 
@@ -394,10 +395,11 @@ void pwm_lld_start(PWMDriver *pwmp) {
      slowest supported divider is the closest predictable behavior. */
   osalDbgAssert(pwmp->config->frequency > 0U, "invalid PWM frequency");
   if (pwmp->config->frequency == 0U) {
-    div_fp4 = 0xFFFU;
+    div_fp4 = 0x1000U;
   }
   else {
-    div_fp4 = (uint32_t)(((uint64_t)sys_clk << 4) /
+    div_fp4 = (uint32_t)((((uint64_t)sys_clk << 4) +
+                          (pwmp->config->frequency / 2U)) /
                          pwmp->config->frequency);
   }
 
@@ -406,17 +408,19 @@ void pwm_lld_start(PWMDriver *pwmp) {
     div_fp4 = 0x010U;
   }
 
-  /* The 12-bit INT.FRAC divider tops out at 255+15/16; release builds
-     clamp instead of writing a truncated unrelated value. */
-  osalDbgAssert(div_fp4 <= 0xFFFU, "PWM frequency too low");
-  if (div_fp4 > 0xFFFU) {
-    div_fp4 = 0xFFFU;
+  /* The divider tops out at 256.0; release builds clamp instead of
+     writing a truncated unrelated value. */
+  osalDbgAssert(div_fp4 <= 0x1000U, "PWM frequency too low");
+  if (div_fp4 > 0x1000U) {
+    div_fp4 = 0x1000U;
   }
   /* A zero period is a contract violation: debug builds reject it here,
      release builds fall back to the clamp below. */
   osalDbgAssert(pwmp->period >= 1U, "invalid PWM period");
 
-  p->CH[pwmp->timer_id].DIV = div_fp4;
+  /* A 256.0 divider is encoded as INT = 0 with FRAC = 0, which is what
+     the 12-bit register mask makes of 0x1000. */
+  p->CH[pwmp->timer_id].DIV = div_fp4 & 0xFFFU;
 
   /* The counter counts from zero to TOP included so the register must
      be programmed with one count less than the requested period; in
@@ -473,7 +477,7 @@ void pwm_lld_stop(PWMDriver *pwmp) {
     p->CH[pwmp->timer_id].CSR = 0U;
     p->CH[pwmp->timer_id].CTR = 0U;
     p->CH[pwmp->timer_id].CC  = 0U;
-    p->CH[pwmp->timer_id].DIV = 1U;
+    p->CH[pwmp->timer_id].DIV = 0x010U;
     p->CH[pwmp->timer_id].TOP = 0xFFFF;
 
     /* Clearing any interrupt request still latched for this slice. */

@@ -153,6 +153,7 @@ thread_t *chMsgWaitTimeout(sysinterval_t timeout) {
  *
  * @param[in] timeout   the number of ticks before the operation times out,
  *                      the following special values are allowed:
+ *                      - @a TIME_IMMEDIATE immediate timeout.
  *                      - @a TIME_INFINITE no timeout.
  * @return              A pointer to the thread carrying the message.
  * @retval NULL         if a timeout occurred.
@@ -165,7 +166,7 @@ thread_t *chMsgWaitTimeoutS(sysinterval_t timeout) {
   chDbgCheckClassS();
 
   tp = nil_find_thread(NIL_STATE_SNDMSGQ, nil.current);
-  if (tp == NULL) {
+  if ((tp == NULL) && (timeout != TIME_IMMEDIATE)) {
     msg_t msg = chSchGoSleepTimeoutS(NIL_STATE_WTMSG, timeout);
     if (msg != MSG_TIMEOUT) {
       return (thread_t *)msg;
@@ -176,9 +177,58 @@ thread_t *chMsgWaitTimeoutS(sysinterval_t timeout) {
 }
 
 /**
+ * @brief   Poll to check for an incoming message.
+ * @post    If a message is available the function @p chMsgGet() must be
+ *          called in order to retrieve the message and then @p chMsgRelease()
+ *          must be invoked in order to acknowledge the reception and send
+ *          the answer.
+ * @note    The sender remains suspended until @p chMsgRelease() is invoked,
+ *          including while the receiver is processing its message.
+ * @note    The returned pointer is a temporary reference, valid until the
+ *          sender is released.
+ *
+ * @return              A pointer to the thread carrying the message.
+ * @retval NULL         if no incoming message is waiting.
+ *
+ * @api
+ */
+thread_t *chMsgPoll(void) {
+  thread_t *tp;
+
+  chSysLock();
+  tp = chMsgPollS();
+  chSysUnlock();
+
+  return tp;
+}
+
+/**
+ * @brief   Poll to check for an incoming message.
+ * @post    If a message is available the function @p chMsgGet() must be
+ *          called in order to retrieve the message and then @p chMsgRelease()
+ *          must be invoked in order to acknowledge the reception and send
+ *          the answer.
+ * @note    The sender remains suspended until @p chMsgRelease() is invoked,
+ *          including while the receiver is processing its message.
+ * @note    The returned pointer is a temporary reference, valid until the
+ *          sender is released.
+ *
+ * @return              A pointer to the thread carrying the message.
+ * @retval NULL         if no incoming message is waiting.
+ *
+ * @sclass
+ */
+thread_t *chMsgPollS(void) {
+
+  chDbgCheckClassS();
+
+  return nil_find_thread(NIL_STATE_SNDMSGQ, nil.current);
+}
+
+/**
  * @brief   Releases a sender thread specifying a response message.
- * @pre     Invoke this function only after a message has been received
- *          using @p chMsgWait().
+ * @pre     The sender must have been returned by a receive or poll operation
+ *          on the current thread and must not have been released yet.
  *
  * @param[in] tp        pointer to the thread
  * @param[in] msg       message to be returned to the sender

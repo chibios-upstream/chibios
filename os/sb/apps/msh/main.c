@@ -14,10 +14,12 @@
     limitations under the License.
 */
 
+#include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "sbuser.h"
 #include "paths.h"
@@ -25,17 +27,18 @@
 #include "dirent.h"
 #include "sglob.h"
 #include "elfexec.h"
+#include "../common/shelltty.h"
 
 #define SHELL_HISTORY_DEPTH         8
 #define SHELL_MAX_LINE_LENGTH       128
 #define SHELL_MAX_ARGUMENTS         20
 #define SHELL_PROMPT_STR            "> "
-#define SHELL_NEWLINE_STR           "\r\n"
+#define SHELL_NEWLINE_STR           "\n"
 #define SHELL_WELCOME_STR           "ChibiOS/SB Mini Shell"
 #define SHELL_DEFAULT_PATH          "/bin"
 #define SHELL_EXECUTABLE_EXTENSION  ".elf"
 
-#define CTRL(c) (char)((c) - 0x40)
+#define SHELL_CTRL(c) (char)((c) - 0x40)
 
 static struct {
   const char        *prompt;
@@ -56,11 +59,16 @@ static void shell_write(const char *s) {
   (void) write(STDOUT_FILENO, s, n);
 }
 
+static void shell_newline(int fd) {
+
+  (void) write(fd, SHELL_NEWLINE_STR, sizeof(SHELL_NEWLINE_STR) - 1U);
+}
+
 static void shell_writeln(const char *s) {
   size_t n = strlen(s);
 
   (void) write(STDOUT_FILENO, s, n);
-  (void) write(STDOUT_FILENO, SHELL_NEWLINE_STR, 2);
+  shell_newline(STDOUT_FILENO);
 }
 
 static void shell_error(const char *s) {
@@ -73,7 +81,7 @@ static void shell_errorln(const char *s) {
   size_t n = strlen(s);
 
   (void) write(STDERR_FILENO, s, n);
-  (void) write(STDERR_FILENO, SHELL_NEWLINE_STR, 2);
+  shell_newline(STDERR_FILENO);
 }
 
 static void shell_usage(const char *s) {
@@ -130,17 +138,26 @@ static void shell_reset_line(void) {
   shell_write("\033[K");
 }
 
-static bool shell_getline(char *line, size_t size) {
+static bool shell_getline_stream(char *line, size_t size) {
   char *p = line;
   int seq;
 
   state.history_current = state.history_head;
-  seq = 0;;
+  seq = 0;
   while (true) {
     char c;
+    ssize_t n;
 
-    if (read(STDIN_FILENO, &c, 1) == 0)
+    n = read(STDIN_FILENO, &c, 1);
+    if (n < (ssize_t)0) {
+      if (errno == EINTR) {
+        continue;
+      }
       return true;
+    }
+    if (n == (ssize_t)0) {
+      return true;
+    }
 
     /* Escape sequences decoding.*/
     switch (seq) {
@@ -187,19 +204,25 @@ static bool shell_getline(char *line, size_t size) {
       }
     }
 
-    if ((c == CTRL('D')) && (p == line)) {
+    if ((c == SHELL_CTRL('D')) && (p == line)) {
       return true;
     }
 
-    if ((c == CTRL('H')) || (c == 127)) {
+    if (c == SHELL_CTRL('U')) {
+      shell_reset_line();
+      p = line;
+      continue;
+    }
+
+    if ((c == SHELL_CTRL('H')) || (c == 127)) {
       if (p != line) {
         shell_write("\010 \010");
         p--;
       }
       continue;
     }
-    if (c == '\r') {
-      shell_write(SHELL_NEWLINE_STR);
+    if ((c == '\r') || (c == '\n')) {
+      shell_newline(STDOUT_FILENO);
       *p = 0;
       if (strlen(line) != 0) {
         shell_save_history(line);
@@ -215,6 +238,23 @@ static bool shell_getline(char *line, size_t size) {
       *p++ = c;
     }
   }
+}
+
+static bool shell_getline(char *line, size_t size) {
+  shell_tty_t tty;
+  bool eof;
+
+  if (shell_tty_begin(&tty) < 0) {
+    shell_errorln("msh: cannot prepare terminal");
+    return true;
+  }
+  shell_write(state.prompt);
+  eof = shell_getline_stream(line, size);
+  if (shell_tty_end(&tty) < 0) {
+    shell_errorln("msh: cannot restore terminal");
+    return true;
+  }
+  return eof;
 }
 
 static char *fetch_argument(char **pp) {
@@ -290,7 +330,7 @@ static void cmd_echo(int argc, char *argv[]) {
     shell_write(argv[i]);
     shell_write(" ");
   }
-  shell_write(SHELL_NEWLINE_STR);
+  shell_newline(STDOUT_FILENO);
 }
 
 static void cmd_env(int argc, char *argv[]) {
@@ -353,7 +393,7 @@ static void cmd_dir(int argc, char *argv[]) {
     shell_write(dep->d_name);
     shell_write(" ");
   }
-  shell_write(SHELL_NEWLINE_STR);
+  shell_newline(STDOUT_FILENO);
 
   closedir(dirp);
 }
@@ -471,7 +511,7 @@ static void cmd_help(int argc, char *argv[]) {
     shell_write(" ");
     bip++;
   }
-  shell_write(SHELL_NEWLINE_STR);
+  shell_newline(STDOUT_FILENO);
 }
 
 static bool shell_execute(int argc, char *argv[]) {
@@ -583,7 +623,8 @@ int main(int argc, char *argv[], char *envp[]) {
   }
 
   /* Welcome.*/
-  shell_writeln(SHELL_NEWLINE_STR SHELL_WELCOME_STR);
+  shell_newline(STDOUT_FILENO);
+  shell_writeln(SHELL_WELCOME_STR);
 
   state.history_head = state.history_buffer[0];
   while (true) {
@@ -592,9 +633,6 @@ int main(int argc, char *argv[], char *envp[]) {
     char *args[SHELL_MAX_ARGUMENTS + 1];
     char *ap, *tokp;
     sglob_t sglob;
-
-    /* Prompt.*/
-    shell_write(state.prompt);
 
     /* Reading input line.*/
     if (shell_getline(line, SHELL_MAX_LINE_LENGTH)) {
@@ -665,4 +703,6 @@ outofmem:
     shell_errorln("msh: out of memory");
     sglob_free(&sglob);
   }
+
+  return 0;
 }

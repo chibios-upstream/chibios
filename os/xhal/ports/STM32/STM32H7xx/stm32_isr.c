@@ -51,6 +51,13 @@
 /* Driver interrupt handlers.                                                */
 /*===========================================================================*/
 
+#include "stm32_adc12.inc"
+#if STM32_HAS_ADC3
+#include "stm32_adc3.inc"
+#endif
+
+#include "stm32_eth1.inc"
+
 #include "stm32_exti0.inc"
 #include "stm32_exti1.inc"
 #include "stm32_exti2.inc"
@@ -59,16 +66,31 @@
 #include "stm32_exti5_9.inc"
 #include "stm32_exti10_15.inc"
 #include "stm32_exti16.inc"
-#include "stm32_exti17.inc"
-#include "stm32_exti18.inc"
-#include "stm32_exti19.inc"
+#include "stm32_rtc_g4.inc"
 #include "stm32_exti20_21.inc"
+
+#include "stm32_fdcan1.inc"
+#include "stm32_fdcan2.inc"
+#include "stm32_fdcan3.inc"
 
 #include "stm32_i2c1.inc"
 #include "stm32_i2c2.inc"
 #include "stm32_i2c3.inc"
 #include "stm32_i2c4.inc"
 #include "stm32_i2c5.inc"
+
+#include "stm32_sdmmc1.inc"
+#include "stm32_sdmmc2.inc"
+
+#include "stm32_spi1.inc"
+#include "stm32_spi2.inc"
+#include "stm32_spi3.inc"
+#include "stm32_spi4.inc"
+#include "stm32_spi5.inc"
+#include "stm32_spi6.inc"
+
+#include "stm32_otg1.inc"
+#include "stm32_otg2.inc"
 
 #include "stm32_usart1.inc"
 #include "stm32_usart2.inc"
@@ -87,15 +109,22 @@
 #include "stm32_tim3.inc"
 #include "stm32_tim4.inc"
 #include "stm32_tim5.inc"
-#include "stm32_tim6.inc"
+#include "stm32_tim6_dac.inc"
 #include "stm32_tim7.inc"
 #include "stm32_tim8_12_13_14.inc"
 #include "stm32_tim15.inc"
 #include "stm32_tim16.inc"
 #include "stm32_tim17.inc"
 
+#if STM32_HAS_QUADSPI1
+#include "stm32_quadspi1.inc"
+#endif
+#if STM32_HAS_OCTOSPI1
 #include "stm32_octospi1.inc"
+#endif
+#if STM32_HAS_OCTOSPI2
 #include "stm32_octospi2.inc"
+#endif
 
 /*===========================================================================*/
 /* Driver exported functions.                                                */
@@ -112,6 +141,13 @@ void irqInit(void) {
   mdma_irq_init();
 #endif
 
+  adc12_irq_init();
+#if STM32_HAS_ADC3
+  adc3_irq_init();
+#endif
+
+  eth1_irq_init();
+
   exti0_irq_init();
   exti1_irq_init();
   exti2_irq_init();
@@ -120,16 +156,28 @@ void irqInit(void) {
   exti5_9_irq_init();
   exti10_15_irq_init();
   exti16_irq_init();
-  exti17_irq_init();
-  exti18_irq_init();
-  exti19_irq_init();
+  rtc_irq_init();
   exti20_exti21_irq_init();
+
+  fdcan1_irq_init();
+  fdcan2_irq_init();
+  fdcan3_irq_init();
 
   i2c1_irq_init();
   i2c2_irq_init();
   i2c3_irq_init();
   i2c4_irq_init();
   i2c5_irq_init();
+
+  sdmmc1_irq_init();
+  sdmmc2_irq_init();
+
+  spi1_irq_init();
+  spi2_irq_init();
+  spi3_irq_init();
+  spi4_irq_init();
+  spi5_irq_init();
+  spi6_irq_init();
 
   tim1_irq_init();
   tim2_irq_init();
@@ -143,8 +191,18 @@ void irqInit(void) {
   tim16_irq_init();
   tim17_irq_init();
 
+#if STM32_HAS_QUADSPI1
+  quadspi1_irq_init();
+#endif
+#if STM32_HAS_OCTOSPI1
   octospi1_irq_init();
+#endif
+#if STM32_HAS_OCTOSPI2
   octospi2_irq_init();
+#endif
+
+  otg1_irq_init();
+  otg2_irq_init();
 
   usart1_irq_init();
   usart2_irq_init();
@@ -170,6 +228,13 @@ void irqDeinit(void) {
   mdma_irq_deinit();
 #endif
 
+  adc12_irq_deinit();
+#if STM32_HAS_ADC3
+  adc3_irq_deinit();
+#endif
+
+  eth1_irq_deinit();
+
   exti0_irq_deinit();
   exti1_irq_deinit();
   exti2_irq_deinit();
@@ -178,16 +243,28 @@ void irqDeinit(void) {
   exti5_9_irq_deinit();
   exti10_15_irq_deinit();
   exti16_irq_deinit();
-  exti17_irq_deinit();
-  exti18_irq_deinit();
-  exti19_irq_deinit();
+  rtc_irq_deinit();
   exti20_exti21_irq_deinit();
+
+  fdcan1_irq_deinit();
+  fdcan2_irq_deinit();
+  fdcan3_irq_deinit();
 
   i2c1_irq_deinit();
   i2c2_irq_deinit();
   i2c3_irq_deinit();
   i2c4_irq_deinit();
   i2c5_irq_deinit();
+
+  sdmmc1_irq_deinit();
+  sdmmc2_irq_deinit();
+
+  spi1_irq_deinit();
+  spi2_irq_deinit();
+  spi3_irq_deinit();
+  spi4_irq_deinit();
+  spi5_irq_deinit();
+  spi6_irq_deinit();
 
   tim1_irq_deinit();
   tim2_irq_deinit();
@@ -201,8 +278,18 @@ void irqDeinit(void) {
   tim16_irq_deinit();
   tim17_irq_deinit();
 
+#if STM32_HAS_QUADSPI1
+  quadspi1_irq_deinit();
+#endif
+#if STM32_HAS_OCTOSPI1
   octospi1_irq_deinit();
+#endif
+#if STM32_HAS_OCTOSPI2
   octospi2_irq_deinit();
+#endif
+
+  otg1_irq_deinit();
+  otg2_irq_deinit();
 
   usart1_irq_deinit();
   usart2_irq_deinit();

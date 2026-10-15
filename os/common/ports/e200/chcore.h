@@ -27,6 +27,10 @@
 #ifndef CHCORE_H
 #define CHCORE_H
 
+/* Registry debugger identity, see the RT8 debugger interface.*/
+#define PORT_REGISTRY_ARCH              4U
+#define PORT_REGISTRY_ID                1U
+
 #if defined(__ghs__) && !defined(_FROM_ASM_)
 #include <ppc_ghs.h>
 #endif

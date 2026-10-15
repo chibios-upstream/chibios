@@ -93,9 +93,13 @@ static NullStream nullstream;
 
 /* Stream to be exposed under /dev as files.*/
 static const drv_streams_element_t streams[] = {
-  {"VSD1", (sequential_stream_i *)&PORTAB_SD1, NULL, VFS_MODE_S_IFCHR},
-  {"null", (sequential_stream_i *)&nullstream, NULL, VFS_MODE_S_IFCHR},
-  {NULL, NULL, NULL, 0}
+  DRV_STREAMS_ELEMENT_FIFO("VSD1",
+                           VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                           (sequential_stream_i *)&PORTAB_SD1),
+  DRV_STREAMS_ELEMENT_FIFO("null",
+                           VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                           (sequential_stream_i *)&nullstream),
+  DRV_STREAMS_ELEMENT_END()
 };
 
 /*===========================================================================*/
@@ -126,7 +130,6 @@ static const xshell_manager_config_t cfg1 = {
  */
 int main(void) {
   xshell_manager_t sm1;
-  vfs_file_node_c *file1;
   msg_t msg;
 
   /*
@@ -177,18 +180,13 @@ int main(void) {
     chSysHalt("VFS");
   }
 
-  /* Opening a file for shell I/O.*/
-  msg = vfsOpenFile("/dev/VSD1", VO_RDWR, &file1);
-  if (CH_RET_IS_ERROR(msg)) {
-    chSysHalt("VFS");
-  }
-
   /* Shell manager initialization.*/
   xshellObjectInit(&sm1, &cfg1);
 
   /* Normal main() thread activity, spawning shells.*/
   while (true) {
-    xshell_t *xshp = xshellSpawn(&sm1, (BaseSequentialStream *)vfsGetFileStream(file1),
+    xshell_t *xshp = xshellSpawn(&sm1,
+                                 (BaseSequentialStream *)&PORTAB_SD1,
                                  NORMALPRIO + 1, NULL);
     chThdWait(&xshp->thread);
     chThdSleepMilliseconds(500);

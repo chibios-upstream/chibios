@@ -152,15 +152,35 @@ msg_t __adc_start_impl(void *ip, const void *config) {
  * @brief       Override of method @p __drv_stop().
  *
  * @param[in,out] ip            Pointer to a @p hal_adc_driver_c instance.
+ * @param[in]     prevstate     Driver state when the stop was requested, it
+ *                              allows the class to abort an operation in
+ *                              progress.
  */
-void __adc_stop_impl(void *ip) {
+void __adc_stop_impl(void *ip, driver_state_t prevstate) {
   hal_adc_driver_c *self = (hal_adc_driver_c *)ip;
+
+  /* An active conversion is stopped, the STOPPING state discards late
+     events and no callback is invoked.*/
+  if (prevstate != HAL_DRV_STATE_READY) {
+    chSysLock();
+    adc_lld_stop_conversion(self);
+    chSysUnlock();
+  }
+
   adc_lld_stop(self);
   self->samples = NULL;
   self->depth   = 0U;
   self->grpp    = NULL;
   self->events  = 0U;
   self->errors  = 0U;
+
+#if ADC_USE_SYNCHRONIZATION == TRUE
+  /* Informing the waiting thread, if any.*/
+  chSysLock();
+  _adc_reset_i(self);
+  chSchRescheduleS();
+  chSysUnlock();
+#endif
 }
 
 /**

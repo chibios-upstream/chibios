@@ -235,3 +235,32 @@ Dynamic ROMFS entries are intended for synthetic read-only files such as:
 
 They are not intended to carry HTTP transaction state. Request-dependent web
 pages should be handled by the HTTP layer, for example through CGI or SSI.
+
+
+Sandbox Application Makefile Integration
+----------------------------------------
+
+Projects can include $(CHIBIOS)/tools/mk/romfs.mk at the end of their makefile
+to add an explicit "mkfs" target. It builds and stages the current deployable
+applications from os/sb/apps/common/manifest.mk, then generates bin_romfs.c
+and bin_romfs.h in ./source. The resulting image is intended to be mounted
+at /bin.
+
+Include tools/mk/autobuild.mk with the project's source modules to discover
+the generated files automatically. Generate and build in separate invocations:
+
+  make -f make/<target>.make mkfs
+  make -f make/<target>.make
+
+Run mkfs again after changing the applications or manifest. Normal firmware
+builds and clean do not regenerate or remove the image. Unchanged generated
+files retain their timestamps, and fresh staging removes obsolete app entries.
+An app build or generator failure leaves the existing image untouched.
+
+Optional overrides:
+
+  ROMFSDIR  Output directory (default: ./source).
+  SBAPPS    Application tree (default: $(CHIBIOS)/os/sb/apps).
+  MKROMFS   Generator script (default: $(CHIBIOS)/tools/mkromfs/mkromfs.sh).
+
+If ROMFSDIR is outside ./source, arrange source and include paths accordingly.

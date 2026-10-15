@@ -103,6 +103,21 @@
 #endif
 
 /**
+ * @brief   Enables double buffering on bulk endpoints.
+ * @details Unidirectional bulk endpoints with @p ep_buffers set to 2 use
+ *          the double-buffered mode of the peripheral: a packet is copied
+ *          while the peripheral transfers the other buffer, reducing the
+ *          number of transactions answered with NAK. An endpoint enters
+ *          the double-buffered mode on its first transfer of two or more
+ *          packets, it goes back to the single-buffered mode when its halt
+ *          condition is cleared.
+ * @note    Double buffering makes the code size increase.
+ */
+#if !defined(STM32_USB_USE_DOUBLE_BUFFERING) || defined(__DOXYGEN__)
+#define STM32_USB_USE_DOUBLE_BUFFERING      FALSE
+#endif
+
+/**
  * @brief   Host wake-up procedure duration.
  */
 #if !defined(STM32_USB_HOST_WAKEUP_DURATION) || defined(__DOXYGEN__)
@@ -132,6 +147,12 @@
 
 #if !STM32_USB_USE_USB1
 #error "USB driver activated but no USB peripheral assigned"
+#endif
+
+/* The packet memory update of a reception is awaited on the timeout
+   counter.*/
+#if !defined(HAL_LLD_GET_CNT_VALUE) || !defined(HAL_LLD_GET_CNT_FREQUENCY)
+#error "USBv2 requires HAL timeout counter hooks"
 #endif
 
 #if STM32_USB_USE_USB1
@@ -216,6 +237,13 @@ typedef struct {
    * @brief   Size of the last transmitted packet.
    */
   size_t                        txlast;
+#if (STM32_USB_USE_DOUBLE_BUFFERING == TRUE) || defined(__DOXYGEN__)
+  /**
+   * @brief   Size of the packet written after the last one.
+   * @note    Used by double-buffered endpoints only, zero if none.
+   */
+  size_t                        txnext;
+#endif
 } USBInEndpointState;
 
 /**
@@ -301,8 +329,10 @@ typedef struct {
   USBOutEndpointState           *out_state;
   /* End of the mandatory fields.*/
   /**
-   * @brief   Reserved field, not currently used.
-   * @note    Initialize this field to 1 in order to be forward compatible.
+   * @brief   Number of packet buffers, 1 or 2.
+   * @note    With @p STM32_USB_USE_DOUBLE_BUFFERING, unidirectional bulk
+   *          endpoints with 2 buffers are double-buffered, the value is
+   *          ignored otherwise.
    */
   uint16_t                      ep_buffers;
   /**
@@ -450,6 +480,22 @@ struct USBDriver {
    * @brief   Pointer to the next address in the packet memory.
    */
   uint32_t                      pmnext;
+#if (STM32_USB_USE_DOUBLE_BUFFERING == TRUE) || defined(__DOXYGEN__)
+  /**
+   * @brief   Endpoints that can be double-buffered.
+   */
+  uint16_t                      dblcap;
+  /**
+   * @brief   Double-buffered endpoints whose both buffers are owned by the
+   *          peripheral.
+   */
+  uint16_t                      dblboth;
+  /**
+   * @brief   Double-buffered OUT endpoints holding a packet received while
+   *          no transfer was active.
+   */
+  uint16_t                      dblheld;
+#endif
 };
 
 /*===========================================================================*/

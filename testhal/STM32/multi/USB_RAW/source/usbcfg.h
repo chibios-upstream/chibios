@@ -17,11 +17,24 @@
 #ifndef USBCFG_H
 #define USBCFG_H
 
+/*
+ * USB_RAW_BENCHMARK selects the throughput test configuration: the bulk
+ * endpoints are unidirectional, EP1 IN and EP3 OUT, so that they can be
+ * double-buffered, and the host RTS line enables the writer.
+ */
+#if defined(USB_RAW_BENCHMARK)
+#define USBD2_DATA_REQUEST_EP           1
+#define USBD2_DATA_AVAILABLE_EP         3
+#else
 #define USBD2_DATA_REQUEST_EP           1
 #define USBD2_DATA_AVAILABLE_EP         1
+#endif
 #define USBD2_INTERRUPT_REQUEST_EP      2
 
 extern const USBConfig usbcfg;
+#if defined(USB_RAW_BENCHMARK)
+extern volatile uint8_t usb_control_lines;
+#endif
 
 #endif  /* USBCFG_H */
 

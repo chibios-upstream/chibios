@@ -54,6 +54,9 @@
 #define STM32_ADC1_HANDLER                  Vector70
 #define STM32_ADC1_NUMBER                   12
 
+/* Preserve ADCv5's post-service IRQ hook ordering.*/
+#define STM32_ADC1_IRQ_HOOK_AFTER_SERVICE
+
 /*
  * DMA unit.
  */

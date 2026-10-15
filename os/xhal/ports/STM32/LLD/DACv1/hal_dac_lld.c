@@ -30,11 +30,6 @@
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
 
-/* Because ST headers naming inconsistencies.*/
-#if !defined(DAC1)
-#define DAC1 DAC
-#endif
-
 #define DAC1_CH1_DMA_CHANNEL                                                \
   STM32_DMA_GETCHANNEL(STM32_DAC_DAC1_CH1_DMA_STREAM,                       \
                        STM32_DAC1_CH1_DMA_CHN)
@@ -139,7 +134,7 @@ static const dacparams_t dac1_ch1_params = {
                   STM32_DMA_CR_MINC | STM32_DMA_CR_CIRC | STM32_DMA_CR_DIR_M2P |
                   STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE | STM32_DMA_CR_HTIE |
                   STM32_DMA_CR_TCIE,
-  .dmairqprio   = STM32_DACV1_DAC1_IRQ_PRIORITY
+  .dmairqprio   = STM32_IRQ_DAC1_PRIORITY
 };
 #endif
 
@@ -158,7 +153,7 @@ static const dacparams_t dac1_ch2_params = {
                   STM32_DMA_CR_MINC | STM32_DMA_CR_CIRC | STM32_DMA_CR_DIR_M2P |
                   STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE | STM32_DMA_CR_HTIE |
                   STM32_DMA_CR_TCIE,
-  .dmairqprio   = STM32_DACV1_DAC1_IRQ_PRIORITY
+  .dmairqprio   = STM32_IRQ_DAC1_PRIORITY
 };
 #endif
 
@@ -177,7 +172,7 @@ static const dacparams_t dac2_ch1_params = {
                   STM32_DMA_CR_MINC | STM32_DMA_CR_CIRC | STM32_DMA_CR_DIR_M2P |
                   STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE | STM32_DMA_CR_HTIE |
                   STM32_DMA_CR_TCIE,
-  .dmairqprio   = STM32_DACV1_DAC2_IRQ_PRIORITY
+  .dmairqprio   = STM32_IRQ_DAC2_PRIORITY
 };
 #endif
 
@@ -196,7 +191,7 @@ static const dacparams_t dac2_ch2_params = {
                   STM32_DMA_CR_MINC | STM32_DMA_CR_CIRC | STM32_DMA_CR_DIR_M2P |
                   STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE | STM32_DMA_CR_HTIE |
                   STM32_DMA_CR_TCIE,
-  .dmairqprio   = STM32_DACV1_DAC2_IRQ_PRIORITY
+  .dmairqprio   = STM32_IRQ_DAC2_PRIORITY
 };
 #endif
 
@@ -215,7 +210,7 @@ static const dacparams_t dac3_ch1_params = {
                   STM32_DMA_CR_MINC | STM32_DMA_CR_CIRC | STM32_DMA_CR_DIR_M2P |
                   STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE | STM32_DMA_CR_HTIE |
                   STM32_DMA_CR_TCIE,
-  .dmairqprio   = STM32_DACV1_DAC3_IRQ_PRIORITY
+  .dmairqprio   = STM32_IRQ_DAC3_PRIORITY
 };
 #endif
 
@@ -234,7 +229,7 @@ static const dacparams_t dac3_ch2_params = {
                   STM32_DMA_CR_MINC | STM32_DMA_CR_CIRC | STM32_DMA_CR_DIR_M2P |
                   STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE | STM32_DMA_CR_HTIE |
                   STM32_DMA_CR_TCIE,
-  .dmairqprio   = STM32_DACV1_DAC3_IRQ_PRIORITY
+  .dmairqprio   = STM32_IRQ_DAC3_PRIORITY
 };
 #endif
 
@@ -253,7 +248,7 @@ static const dacparams_t dac4_ch1_params = {
                   STM32_DMA_CR_MINC | STM32_DMA_CR_CIRC | STM32_DMA_CR_DIR_M2P |
                   STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE | STM32_DMA_CR_HTIE |
                   STM32_DMA_CR_TCIE,
-  .dmairqprio   = STM32_DACV1_DAC4_IRQ_PRIORITY
+  .dmairqprio   = STM32_IRQ_DAC4_PRIORITY
 };
 #endif
 
@@ -272,7 +267,7 @@ static const dacparams_t dac4_ch2_params = {
                   STM32_DMA_CR_MINC | STM32_DMA_CR_CIRC | STM32_DMA_CR_DIR_M2P |
                   STM32_DMA_CR_DMEIE | STM32_DMA_CR_TEIE | STM32_DMA_CR_HTIE |
                   STM32_DMA_CR_TCIE,
-  .dmairqprio   = STM32_DACV1_DAC4_IRQ_PRIORITY
+  .dmairqprio   = STM32_IRQ_DAC4_PRIORITY
 };
 #endif
 
@@ -296,32 +291,29 @@ static const DACConfig default_config = {
  * @param[in] flags     pre-shifted content of the ISR register
  */
 static void dac_lld_serve_tx_interrupt(DACDriver *dacp, uint32_t flags) {
+  uint32_t sequence;
+
+  /* Ignore events without an active conversion.*/
+  if ((dacp->state != HAL_DRV_STATE_ACTIVE) || (dacp->grpp == NULL)) {
+    return;
+  }
+  sequence = dacp->sequence;
 
   if ((flags & (STM32_DMA_ISR_TEIF | STM32_DMA_ISR_DMEIF)) != 0) {
     /* DMA errors handling.*/
-    if (dacp->grpp != NULL) {
-      _dac_isr_error_code(dacp, DAC_ERR_DMAFAILURE);
-    }
+    _dac_isr_error_code(dacp, DAC_ERR_DMAFAILURE);
   }
-  else if (dacp->grpp != NULL) {
+  else {
     if ((flags & STM32_DMA_ISR_HTIF) != 0) {
       /* Half transfer processing.*/
       _dac_isr_half_code(dacp);
     }
-    if ((flags & STM32_DMA_ISR_TCIF) != 0) {
-      /* Transfer complete processing.*/
+    if (((flags & STM32_DMA_ISR_TCIF) != 0) &&
+        (dacp->state == HAL_DRV_STATE_ACTIVE) &&
+        (dacp->sequence == sequence)) {
+      /* Full buffer event, unless the half callback stopped/restarted.*/
       _dac_isr_full_code(dacp);
     }
-  }
-}
-
-static void serve_dac_interrupt(DACDriver *dacp) {
-
-  /* Check for DMA underrun while a stream is active.*/
-  if (dacp->grpp != NULL) {
-    /* DAC DMA underrun condition. This can happen only if the DMA is
-       unable to read data fast enough.*/
-    _dac_isr_error_code(dacp, DAC_ERR_UNDERFLOW);
   }
 }
 
@@ -344,48 +336,56 @@ void dac_lld_init(void) {
   dacObjectInit(&DACD1);
   DACD1.params  = &dac1_ch1_params;
   DACD1.dma = NULL;
+  DACD1.sequence = 0U;
 #endif
 
 #if STM32_DAC_USE_DAC1_CH2
   dacObjectInit(&DACD2);
   DACD2.params  = &dac1_ch2_params;
   DACD2.dma = NULL;
+  DACD2.sequence = 0U;
 #endif
 
 #if STM32_DAC_USE_DAC2_CH1
   dacObjectInit(&DACD3);
   DACD3.params  = &dac2_ch1_params;
   DACD3.dma = NULL;
+  DACD3.sequence = 0U;
 #endif
 
 #if STM32_DAC_USE_DAC2_CH2
   dacObjectInit(&DACD4);
   DACD4.params  = &dac2_ch2_params;
   DACD4.dma = NULL;
+  DACD4.sequence = 0U;
 #endif
 
 #if STM32_DAC_USE_DAC3_CH1
   dacObjectInit(&DACD5);
   DACD5.params  = &dac3_ch1_params;
   DACD5.dma = NULL;
+  DACD5.sequence = 0U;
 #endif
 
 #if STM32_DAC_USE_DAC3_CH2
   dacObjectInit(&DACD6);
   DACD6.params  = &dac3_ch2_params;
   DACD6.dma = NULL;
+  DACD6.sequence = 0U;
 #endif
 
 #if STM32_DAC_USE_DAC4_CH1
   dacObjectInit(&DACD7);
   DACD7.params  = &dac4_ch1_params;
   DACD7.dma = NULL;
+  DACD7.sequence = 0U;
 #endif
 
 #if STM32_DAC_USE_DAC4_CH2
   dacObjectInit(&DACD8);
   DACD8.params  = &dac4_ch2_params;
   DACD8.dma = NULL;
+  DACD8.sequence = 0U;
 #endif
 }
 
@@ -732,7 +732,6 @@ msg_t dac_lld_put_channel(DACDriver *dacp,
 #endif
     break;
   default:
-    chDbgAssert(false, "unexpected DAC mode");
     return HAL_RET_CONFIG_ERROR;
   }
 
@@ -762,31 +761,19 @@ msg_t dac_lld_put_channel(DACDriver *dacp,
  */
 msg_t dac_lld_start_conversion(DACDriver *dacp) {
   const DACConfig *cfg = (const DACConfig *)dacp->config;
-  uint32_t n, cr, dmamode;
+  uint32_t n, cr, dmamode, nch;
+  volatile void *dacreg;
 
   /* Number of DMA operations per buffer.*/
   n = dacp->depth * dacp->grpp->num_channels;
-
-  /* Allocating the DMA channel.*/
-  dacp->dma = dmaStreamAllocI(dacp->params->dmastream,
-                              dacp->params->dmairqprio,
-                              (stm32_dmaisr_t)dac_lld_serve_tx_interrupt,
-                              (void *)dacp);
-  if (dacp->dma == NULL) {
-    return HAL_RET_NO_RESOURCE;
-  }
-#if STM32_DMA_SUPPORTS_DMAMUX
-  dmaSetRequestSource(dacp->dma, dacp->params->peripheral);
-#endif
 
   /* DMA settings depend on the chosen DAC mode.*/
   switch (cfg->datamode) {
   /* Sets the DAC data register */
   case DAC_DHRM_12BIT_RIGHT:
-    chDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
+    nch = 1U;
 
-    dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR12R1 +
-                                      dacp->params->dataoffset);
+    dacreg = &dacp->params->dac->DHR12R1 + dacp->params->dataoffset;
     dmamode = dacp->params->dmamode |
 #if STM32_DMA_ADVANCED == FALSE
               STM32_DMA_CR_PSIZE_WORD  | STM32_DMA_CR_MSIZE_HWORD;
@@ -795,10 +782,9 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
 #endif
     break;
   case DAC_DHRM_12BIT_LEFT:
-    chDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
+    nch = 1U;
 
-    dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR12L1 +
-                                      dacp->params->dataoffset);
+    dacreg = &dacp->params->dac->DHR12L1 + dacp->params->dataoffset;
     dmamode = dacp->params->dmamode |
 #if STM32_DMA_ADVANCED == FALSE
               STM32_DMA_CR_PSIZE_WORD  | STM32_DMA_CR_MSIZE_HWORD;
@@ -807,10 +793,9 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
 #endif
     break;
   case DAC_DHRM_8BIT_RIGHT:
-    chDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
+    nch = 1U;
 
-    dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR8R1 +
-                                      dacp->params->dataoffset);
+    dacreg = &dacp->params->dac->DHR8R1 + dacp->params->dataoffset;
     dmamode = dacp->params->dmamode |
 #if STM32_DMA_ADVANCED == FALSE
               STM32_DMA_CR_PSIZE_WORD  | STM32_DMA_CR_MSIZE_BYTE;
@@ -824,25 +809,25 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
     break;
 #if STM32_DAC_DUAL_MODE == TRUE
   case DAC_DHRM_12BIT_RIGHT_DUAL:
-    chDbgAssert(dacp->grpp->num_channels == 2, "invalid number of channels");
+    nch = 2U;
 
-    dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR12RD);
+    dacreg = &dacp->params->dac->DHR12RD;
     dmamode = dacp->params->dmamode |
               STM32_DMA_CR_PSIZE_WORD | STM32_DMA_CR_MSIZE_WORD;
     n /= 2;
     break;
   case DAC_DHRM_12BIT_LEFT_DUAL:
-    chDbgAssert(dacp->grpp->num_channels == 2, "invalid number of channels");
+    nch = 2U;
 
-    dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR12LD);
+    dacreg = &dacp->params->dac->DHR12LD;
     dmamode = dacp->params->dmamode |
               STM32_DMA_CR_PSIZE_WORD | STM32_DMA_CR_MSIZE_WORD;
     n /= 2;
     break;
   case DAC_DHRM_8BIT_RIGHT_DUAL:
-    chDbgAssert(dacp->grpp->num_channels == 1, "invalid number of channels");
+    nch = 1U;
 
-    dmaStreamSetPeripheral(dacp->dma, &dacp->params->dac->DHR8RD);
+    dacreg = &dacp->params->dac->DHR8RD;
     dmamode = dacp->params->dmamode |
 #if STM32_DMA_ADVANCED == FALSE
               STM32_DMA_CR_PSIZE_WORD  | STM32_DMA_CR_MSIZE_HWORD;
@@ -853,9 +838,28 @@ msg_t dac_lld_start_conversion(DACDriver *dacp) {
     break;
 #endif
   default:
-    chDbgAssert(false, "unexpected DAC mode");
     return HAL_RET_CONFIG_ERROR;
   }
+
+  if (dacp->grpp->num_channels != nch) {
+    return HAL_RET_CONFIG_ERROR;
+  }
+
+  /* Identifies restarts from callbacks even when group/buffer are reused.*/
+  dacp->sequence++;
+
+  /* Allocating the DMA channel.*/
+  dacp->dma = dmaStreamAllocI(dacp->params->dmastream,
+                              dacp->params->dmairqprio,
+                              (stm32_dmaisr_t)dac_lld_serve_tx_interrupt,
+                              (void *)dacp);
+  if (dacp->dma == NULL) {
+    return HAL_RET_NO_RESOURCE;
+  }
+#if STM32_DMA_SUPPORTS_DMAMUX
+  dmaSetRequestSource(dacp->dma, dacp->params->peripheral);
+#endif
+  dmaStreamSetPeripheral(dacp->dma, dacreg);
 
   dmaStreamSetMemory0(dacp->dma, dacp->samples);
   dmaStreamSetTransactionSize(dacp->dma, n);
@@ -922,8 +926,8 @@ void dac_lld_stop_conversion(DACDriver *dacp) {
 #endif
   cr &= dacp->params->regmask;
   cr |= (DAC_CR_EN1 |
-         ((((const DACConfig *)dacp->config)->cr & CONFIG_SINGLE_MASK) <<
-          dacp->params->regshift));
+         (((const DACConfig *)dacp->config)->cr & CONFIG_SINGLE_MASK)) <<
+        dacp->params->regshift;
 #else
 #if STM32_DAC_HAS_MCR == TRUE
   uint32_t mcr;
@@ -948,38 +952,81 @@ void dac_lld_stop_conversion(DACDriver *dacp) {
 }
 
 /**
+ * @brief   DAC channel IRQ service routine.
+ *
+ * @param[in] dacp      pointer to the @p DACDriver object
+ *
+ * @isr
+ */
+static void dac_lld_serve_interrupt(DACDriver *dacp) {
+
+  /* Check for DMA underrun while a stream is active.*/
+  if (dacp->grpp != NULL) {
+    /* DAC DMA underrun condition. This can happen only if the DMA is
+       unable to read data fast enough.*/
+    _dac_isr_error_code(dacp, DAC_ERR_UNDERFLOW);
+  }
+}
+
+#if STM32_DAC_USE_DAC1_CH1 || STM32_DAC_USE_DAC1_CH2 || defined(__DOXYGEN__)
+/**
  * @brief   DAC1 IRQ service routine.
  *
  * @isr
  */
 void dac_lld_serve_interrupt_dac1(void) {
-#if STM32_DAC_USE_DAC1_CH1 || STM32_DAC_USE_DAC1_CH2
-  uint32_t isr;
-
-  isr = DAC1->SR;
-  DAC1->SR = isr;
-
+  uint32_t isr, flags, pending;
 #if STM32_DAC_USE_DAC1_CH1
-  if ((isr & DAC_SR_DMAUDR1) != 0U) {
-    serve_dac_interrupt(&DACD1);
+  uint32_t sequence1;
+#endif
+#if !STM32_DAC_DUAL_MODE && STM32_DAC_USE_DAC1_CH2
+  uint32_t sequence2;
+#endif
+
+  /* Snapshot enables and conversion identities before any hook/callback.*/
+  isr = DAC1->SR;
+  flags = isr & DAC_SR_DMAUDR1;
+#if STM32_HAS_DAC1_CH2
+  flags |= isr & DAC_SR_DMAUDR2;
+#endif
+  pending = flags & DAC1->CR;
+#if STM32_DAC_USE_DAC1_CH1
+  sequence1 = DACD1.sequence;
+#endif
+#if !STM32_DAC_DUAL_MODE && STM32_DAC_USE_DAC1_CH2
+  sequence2 = DACD2.sequence;
+#endif
+
+  /* Acknowledge only captured W1C flags, including masked underruns as
+     before. Preserve the raw status argument seen by the optional hook.*/
+  DAC1->SR = flags;
+
+#if defined(STM32_DAC_DAC1_IRQ_HOOK)
+  STM32_DAC_DAC1_IRQ_HOOK(isr);
+#endif
+
+  /* The hook or preceding channel callback may have restarted a conversion.*/
+#if STM32_DAC_USE_DAC1_CH1
+  if (((pending & DAC_SR_DMAUDR1) != 0U) && (DACD1.sequence == sequence1)) {
+    dac_lld_serve_interrupt(&DACD1);
   }
 #endif
 
 #if !STM32_DAC_DUAL_MODE && STM32_DAC_USE_DAC1_CH2
-  if ((isr & DAC_SR_DMAUDR2) != 0U) {
-    serve_dac_interrupt(&DACD2);
+  if (((pending & DAC_SR_DMAUDR2) != 0U) && (DACD2.sequence == sequence2)) {
+    dac_lld_serve_interrupt(&DACD2);
   }
 #endif
-#endif
 }
+#endif
 
+#if STM32_DAC_USE_DAC2_CH1 || STM32_DAC_USE_DAC2_CH2 || defined(__DOXYGEN__)
 /**
  * @brief   DAC2 IRQ service routine.
  *
  * @isr
  */
 void dac_lld_serve_interrupt_dac2(void) {
-#if STM32_DAC_USE_DAC2_CH1 || STM32_DAC_USE_DAC2_CH2
   uint32_t isr;
 
   isr = DAC2->SR;
@@ -987,25 +1034,25 @@ void dac_lld_serve_interrupt_dac2(void) {
 
 #if STM32_DAC_USE_DAC2_CH1
   if ((isr & DAC_SR_DMAUDR1) != 0U) {
-    serve_dac_interrupt(&DACD3);
+    dac_lld_serve_interrupt(&DACD3);
   }
 #endif
 
 #if !STM32_DAC_DUAL_MODE && STM32_DAC_USE_DAC2_CH2
   if ((isr & DAC_SR_DMAUDR2) != 0U) {
-    serve_dac_interrupt(&DACD4);
+    dac_lld_serve_interrupt(&DACD4);
   }
 #endif
-#endif
 }
+#endif
 
+#if STM32_DAC_USE_DAC3_CH1 || STM32_DAC_USE_DAC3_CH2 || defined(__DOXYGEN__)
 /**
  * @brief   DAC3 IRQ service routine.
  *
  * @isr
  */
 void dac_lld_serve_interrupt_dac3(void) {
-#if STM32_DAC_USE_DAC3_CH1 || STM32_DAC_USE_DAC3_CH2
   uint32_t isr;
 
   isr = DAC3->SR;
@@ -1013,25 +1060,25 @@ void dac_lld_serve_interrupt_dac3(void) {
 
 #if STM32_DAC_USE_DAC3_CH1
   if ((isr & DAC_SR_DMAUDR1) != 0U) {
-    serve_dac_interrupt(&DACD5);
+    dac_lld_serve_interrupt(&DACD5);
   }
 #endif
 
 #if !STM32_DAC_DUAL_MODE && STM32_DAC_USE_DAC3_CH2
   if ((isr & DAC_SR_DMAUDR2) != 0U) {
-    serve_dac_interrupt(&DACD6);
+    dac_lld_serve_interrupt(&DACD6);
   }
 #endif
-#endif
 }
+#endif
 
+#if STM32_DAC_USE_DAC4_CH1 || STM32_DAC_USE_DAC4_CH2 || defined(__DOXYGEN__)
 /**
  * @brief   DAC4 IRQ service routine.
  *
  * @isr
  */
 void dac_lld_serve_interrupt_dac4(void) {
-#if STM32_DAC_USE_DAC4_CH1 || STM32_DAC_USE_DAC4_CH2
   uint32_t isr;
 
   isr = DAC4->SR;
@@ -1039,17 +1086,17 @@ void dac_lld_serve_interrupt_dac4(void) {
 
 #if STM32_DAC_USE_DAC4_CH1
   if ((isr & DAC_SR_DMAUDR1) != 0U) {
-    serve_dac_interrupt(&DACD7);
+    dac_lld_serve_interrupt(&DACD7);
   }
 #endif
 
 #if !STM32_DAC_DUAL_MODE && STM32_DAC_USE_DAC4_CH2
   if ((isr & DAC_SR_DMAUDR2) != 0U) {
-    serve_dac_interrupt(&DACD8);
+    dac_lld_serve_interrupt(&DACD8);
   }
 #endif
-#endif
 }
+#endif
 
 #endif /* HAL_USE_DAC */
 

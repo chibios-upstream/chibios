@@ -101,7 +101,7 @@ struct hal_efl_driver_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From hal_flash_base_c.*/
@@ -178,7 +178,7 @@ extern "C" {
   void *__efl_objinit_impl(void *ip, const void *vmt);
   void __efl_dispose_impl(void *ip);
   msg_t __efl_start_impl(void *ip, const void *config);
-  void __efl_stop_impl(void *ip);
+  void __efl_stop_impl(void *ip, driver_state_t prevstate);
   const void *__efl_setcfg_impl(void *ip, const void *config);
   const void *__efl_selcfg_impl(void *ip, unsigned cfgnum);
   flash_error_t __efl_read_impl(void *ip, flash_offset_t offset, size_t n,

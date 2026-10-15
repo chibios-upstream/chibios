@@ -221,14 +221,17 @@ __STATIC_INLINE msg_t uart_init(SIODriver *siop) {
     return HAL_RET_CONFIG_ERROR;
   }
 
-  siop->uart->UARTIBRD = idiv;
-  siop->uart->UARTFBRD = fdiv;
-
   cr = siop->config->UARTCR & ~UART_CR_CFG_FORBIDDEN;
 
-  /* Registers settings, the LCR_H write also latches dividers values.*/
-  siop->uart->UARTLCR_H = siop->config->UARTLCR_H & ~UART_LCRH_CFG_FORBIDDEN;
+  /* The PL011 must not have UARTLCR_H, UARTIBRD and UARTFBRD written
+     while it is enabled, this matters when a running driver is
+     reconfigured, so the UART is disabled first.*/
   siop->uart->UARTCR    = cr;
+
+  /* Registers settings, the LCR_H write also latches dividers values.*/
+  siop->uart->UARTIBRD  = idiv;
+  siop->uart->UARTFBRD  = fdiv;
+  siop->uart->UARTLCR_H = siop->config->UARTLCR_H & ~UART_LCRH_CFG_FORBIDDEN;
   siop->uart->UARTIFLS  = siop->config->UARTIFLS;
   siop->uart->UARTDMACR = siop->config->UARTDMACR;
 
@@ -275,6 +278,14 @@ void sio_lld_init(void) {
 
 /**
  * @brief   Configures and activates the SIO peripheral.
+ * @note    Starting a driver already in the @p SIO_READY state
+ *          reconfigures it, the UART is disabled before being
+ *          reprogrammed.  The PL011 must not be reprogrammed while a
+ *          character is being transmitted or received, a character in
+ *          progress can be lost or corrupted.  The line must therefore
+ *          be idle: drain the transmitter with @p sioSynchronizeTXEnd()
+ *          and make sure nothing is being received, or call
+ *          @p sioStop() before @p sioStart() when traffic is possible.
  *
  * @param[in] siop      pointer to the @p SIODriver object
  * @return              The operation status.

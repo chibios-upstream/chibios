@@ -38,6 +38,9 @@
 #define PADS_GPIO_OD                        (1U << 7)
 #define PADS_GPIO_PUE                       (1U << 3)
 #define PADS_GPIO_PDE                       (1U << 2)
+/* RP2350 pad isolation latch, set out of reset. Reserved and reading
+   as zero on RP2040.*/
+#define PADS_GPIO_ISO                       (1U << 8)
 /** @} */
 
 /*===========================================================================*/
@@ -183,9 +186,10 @@ static void adc_lld_drain_fifo(ADC_TypeDef *adc) {
  *          immediately, without any re-arm dependency on this routine,
  *          which only reprograms the just-completed channel for its
  *          next turn and then invokes @p _adc_isr_half_code() or
- *          @p _adc_isr_full_code(). In linear mode the completion of
- *          the single channel invokes @p _adc_isr_full_code() which
- *          terminates the conversion.
+ *          @p _adc_isr_full_code(). In linear mode only the errors of
+ *          the main channel transfer are served here, the conversion is
+ *          completed by the second channel, see
+ *          @p adc_lld_serve_stop_interrupt().
  * @note    The reprogramming of a completed channel must happen before
  *          the partner channel completion chains back into it, that is
  *          within one half-buffer period instead of the FIFO depth
@@ -199,6 +203,11 @@ static void adc_lld_drain_fifo(ADC_TypeDef *adc) {
  *          a chain target, @p dmaChannelSetModeX() enforces
  *          self-chaining, hence the direct register access through the
  *          channel pointer.
+ * @note    Events are only served while a conversion is active. Late
+ *          events are discarded, in particular while the driver is
+ *          stopping: @p adc_lld_stop() owns the teardown and it only
+ *          happens in the @p HAL_DRV_STATE_STOPPING state, which a
+ *          completion served before it must not leave.
  *
  * @param[in] adcp      pointer to the @p hal_adc_driver_c object
  * @param[in] ct        content of the CTRL_TRIG register
@@ -209,13 +218,20 @@ static void adc_lld_serve_channel_interrupt(hal_adc_driver_c *adcp,
                                             uint32_t ct,
                                             bool second) {
 
+  /* Late events are discarded.*/
+  if ((adcp->state != ADC_ACTIVE_LINEAR) &&
+      (adcp->state != ADC_ACTIVE_CIRCULAR)) {
+    return;
+  }
+
   /* DMA errors handling.*/
   if ((ct & (DMA_CTRL_TRIG_READ_ERROR | DMA_CTRL_TRIG_WRITE_ERROR)) != 0U) {
     _adc_isr_error_code(adcp, ADC_ERR_DMAFAILURE);
   }
   else {
-    /* Conversion group may have been reset by error handler.*/
-    if (adcp->grpp != NULL) {
+    /* Conversion group may have been reset by error handler, linear
+       conversions are completed by the second channel.*/
+    if ((adcp->grpp != NULL) && (adcp->state == ADC_ACTIVE_CIRCULAR)) {
       /* Checking for DMA transfer complete.*/
       if ((ct & DMA_CTRL_TRIG_BUSY) == 0U) {
         /* Check for ADC-level errors during transfer.*/
@@ -229,7 +245,7 @@ static void adc_lld_serve_channel_interrupt(hal_adc_driver_c *adcp,
         if (emask != 0U) {
           _adc_isr_error_code(adcp, emask);
         }
-        else if (adcp->state == ADC_ACTIVE_CIRCULAR) {
+        else {
           /* Geometry of the completed channel, with a single row
              buffer both channels cover the whole buffer.*/
           size_t total = (size_t)adcp->grpp->num_channels * adcp->depth;
@@ -258,11 +274,55 @@ static void adc_lld_serve_channel_interrupt(hal_adc_driver_c *adcp,
             _adc_isr_half_code(adcp);
           }
         }
-        else {
-          /* Linear mode: transfer complete.*/
-          _adc_isr_full_code(adcp);
-        }
       }
+    }
+  }
+}
+
+/**
+ * @brief   Linear conversion stop service routine.
+ * @details Completes linear conversions. The second channel is chained to
+ *          the main one and clears START_MANY with a single transfer after
+ *          the end of the main transfer, its completion therefore follows
+ *          the completion of the main transfer. The ADC is stopped when
+ *          this routine runs, the FIFO status checked here covers the
+ *          transfer and the conversions up to the stop transfer, not the
+ *          conversions which would otherwise continue until the completion
+ *          is served, whatever its latency.
+ * @note    The conversion already in progress when the second channel
+ *          clears START_MANY still completes, an error in that conversion
+ *          is reported as @p ADC_ERR_CONVERSION although it is not part of
+ *          the transfer.
+ * @note    The conversions continue until the stop transfer, if that
+ *          transfer is delayed until they fill the FIFO an overflow is
+ *          reported.
+ *
+ * @param[in] adcp      pointer to the @p hal_adc_driver_c object
+ * @param[in] ct        content of the CTRL_TRIG register
+ */
+static void adc_lld_serve_stop_interrupt(hal_adc_driver_c *adcp,
+                                         uint32_t ct) {
+
+  /* Conversion group may have been reset by error handler.*/
+  if ((adcp->grpp != NULL) && (adcp->state == ADC_ACTIVE_LINEAR)) {
+    adcerror_t emask = 0U;
+
+    if ((ct & (DMA_CTRL_TRIG_READ_ERROR | DMA_CTRL_TRIG_WRITE_ERROR)) != 0U) {
+      /* The stop transfer failed, the ADC is only stopped by the error
+         handling below.*/
+      emask |= ADC_ERR_DMAFAILURE;
+    }
+    if ((adcp->adc->FCS & ADC_FCS_OVER) != 0U) {
+      emask |= ADC_ERR_OVERFLOW;
+    }
+    if ((adcp->adc->CS & ADC_CS_ERR_STICKY) != 0U) {
+      emask |= ADC_ERR_CONVERSION;
+    }
+    if (emask != 0U) {
+      _adc_isr_error_code(adcp, emask);
+    }
+    else {
+      _adc_isr_full_code(adcp);
     }
   }
 }
@@ -284,14 +344,21 @@ static void adc_lld_serve_dma_interrupt(void *p, uint32_t ct) {
 /**
  * @brief   Second DMA channel service routine.
  * @details Serves the completions of the channel covering the second
- *          buffer half of circular conversions.
+ *          buffer half of circular conversions and the stop transfer of
+ *          linear conversions.
  *
  * @param[in] p         parameter for the registered function
  * @param[in] ct        content of the CTRL_TRIG register
  */
 static void adc_lld_serve_dma2_interrupt(void *p, uint32_t ct) {
+  hal_adc_driver_c *adcp = (hal_adc_driver_c *)p;
 
-  adc_lld_serve_channel_interrupt((hal_adc_driver_c *)p, ct, true);
+  if (adcp->state == ADC_ACTIVE_LINEAR) {
+    adc_lld_serve_stop_interrupt(adcp, ct);
+  }
+  else {
+    adc_lld_serve_channel_interrupt(adcp, ct, true);
+  }
 }
 
 /*===========================================================================*/
@@ -319,14 +386,17 @@ void adc_lld_init(void) {
                    DMA_CTRL_TRIG_INCR_WRITE      |
                    DMA_CTRL_TRIG_TREQ_ADC        |
                    DMA_CTRL_TRIG_PRIORITY(RP_ADC_ADC1_DMA_PRIORITY);
+  ADCD1.csstop   = 0U;
   ADCD1.ts_owned = false;
 #endif
 }
 
 /**
  * @brief   Configures and activates the ADC peripheral.
- * @details The DMA channel is claimed and the ADC is taken out of reset
- *          and enabled. Conversion parameters are programmed for each
+ * @details The DMA channels are claimed and the ADC is taken out of
+ *          reset and enabled. The second channel is the ping-pong partner
+ *          of circular conversions and the stop channel of linear
+ *          conversions. Conversion parameters are programmed for each
  *          conversion by @p adc_lld_start_conversion(), the associated
  *          configuration only carries the conversion groups table.
  *
@@ -349,6 +419,15 @@ msg_t adc_lld_start(hal_adc_driver_c *adcp) {
                                 adc_lld_serve_dma_interrupt,
                                 (void *)adcp);
     if (adcp->dma == NULL) {
+      return HAL_RET_NO_RESOURCE;
+    }
+    adcp->dma2 = dmaChannelAlloc(RP_DMA_CHANNEL_ID_ANY,
+                                 RP_ADC_ADC1_DMA_IRQ_PRIORITY,
+                                 adc_lld_serve_dma2_interrupt,
+                                 (void *)adcp);
+    if (adcp->dma2 == NULL) {
+      dmaChannelFree(adcp->dma);
+      adcp->dma = NULL;
       return HAL_RET_NO_RESOURCE;
     }
 
@@ -394,19 +473,10 @@ void adc_lld_stop(hal_adc_driver_c *adcp) {
     adcp->ts_owned = false;
 
     /* Quiesce the DMA channels, also in case this has been called
-       uncleanly. The second channel only exists while a circular
-       conversion is active, it is disabled first so that a completion
-       of the main channel cannot chain into it.*/
-    if (adcp->dma2 != NULL) {
-      syssts_t sts;
-
-      dmaChannelDisableX(adcp->dma2);
-      dmaChannelDisableInterruptX(adcp->dma2);
-      sts = chSysGetStatusAndLockX();
-      dmaChannelFreeI(adcp->dma2);
-      chSysRestoreStatusX(sts);
-      adcp->dma2 = NULL;
-    }
+       uncleanly. The second channel is disabled first so that a
+       completion of the main channel cannot chain into it.*/
+    dmaChannelDisableX(adcp->dma2);
+    dmaChannelDisableInterruptX(adcp->dma2);
     dmaChannelDisableX(adcp->dma);
 
     /* Disable FIFO and DMA requests.*/
@@ -418,7 +488,9 @@ void adc_lld_stop(hal_adc_driver_c *adcp) {
     /* Disable ADC.*/
     adcp->adc->CS = 0U;
 
-    /* Release DMA channel.*/
+    /* Release DMA channels.*/
+    dmaChannelFree(adcp->dma2);
+    adcp->dma2 = NULL;
     dmaChannelFree(adcp->dma);
     adcp->dma = NULL;
 
@@ -503,11 +575,12 @@ void adc_lld_set_callback(hal_adc_driver_c *adcp, drv_cb_t cb) {
 
 /**
  * @brief   Starts an ADC conversion.
- * @details Circular conversions claim a second DMA channel and chain
- *          the two channels to each other in a ping-pong over the
- *          buffer halves, see @p adc_lld_serve_channel_interrupt().
- *          Linear conversions use the single allocated channel over
- *          the full buffer.
+ * @details Circular conversions chain the two DMA channels to each
+ *          other in a ping-pong over the buffer halves, see
+ *          @p adc_lld_serve_channel_interrupt(). Linear conversions use
+ *          the main channel over the full buffer and chain it to the
+ *          second channel which stops the ADC at the end of the
+ *          transfer.
  *
  * @param[in] adcp      pointer to the @p hal_adc_driver_c object
  * @param[in] grpnum    conversion group number
@@ -540,22 +613,16 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
   grpp = &config->grps->grps[grpnum];
   adcp->grpp = grpp;
 
-  /* Circular conversions use a second chained DMA channel, claimed
-     for the duration of the conversion only.*/
+  /* Second channel transfer, FIFO samples of the circular ping-pong or
+     single CS write of the linear stop.*/
   if (circular) {
-    syssts_t sts;
-
-    sts = chSysGetStatusAndLockX();
-    adcp->dma2 = dmaChannelAllocI(RP_DMA_CHANNEL_ID_ANY,
-                                  RP_ADC_ADC1_DMA_IRQ_PRIORITY,
-                                  adc_lld_serve_dma2_interrupt,
-                                  (void *)adcp);
-    chSysRestoreStatusX(sts);
-    if (adcp->dma2 == NULL) {
-      adcp->grpp = NULL;
-      return HAL_RET_NO_RESOURCE;
-    }
     dmaChannelSetSourceX(adcp->dma2, (uint32_t)&adcp->adc->FIFO);
+  }
+  else {
+    /* The stop channel transfers a single word from csstop to CS.*/
+    dmaChannelSetSourceX(adcp->dma2, (uint32_t)&adcp->csstop);
+    dmaChannelSetDestinationX(adcp->dma2, (uint32_t)&adcp->adc->CS);
+    dmaChannelSetCounterX(adcp->dma2, 1U);
   }
 
   /* Clear any previous errors (SET alias writes 1 to W1C bits).*/
@@ -585,14 +652,19 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
      START_MANY transitions 0->1 to set the round-robin starting channel.*/
   adcp->adc->CS = cs_val;
 
+  /* Same value written by the stop channel, it is only read by the DMA
+     after the end of a linear transfer. It is written to the CS register
+     and not to its CLR alias because an atomic alias write would also
+     clear ERR_STICKY, which is checked on transfer completion.*/
+  adcp->csstop = cs_val;
+
   /* Configure clock divisor.*/
   adcp->adc->DIV = grpp->div;
 
   /* Configure FIFO: enable, DMA request, threshold = 1.*/
   adcp->adc->FCS = ADC_FCS_EN | ADC_FCS_DREQ_EN | (1U << ADC_FCS_THRESH_POS);
 
-  /* DMA setup, the source addresses have been programmed at channel
-     claim time.*/
+  /* DMA setup, the source addresses have already been programmed.*/
   total = (size_t)grpp->num_channels * depth;
   if (circular) {
     size_t count;
@@ -638,13 +710,30 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
     dmaChannelEnableX(adcp->dma);
   }
   else {
-    /* Linear conversion, single channel over the full buffer.*/
+    /* Linear conversion, main channel over the full buffer. The ADC is
+       free-running and would keep filling the FIFO after the last
+       transfer until the completion interrupt is served, overflowing it
+       if the interrupt is served late. The main channel chains into the
+       stop channel which clears START_MANY right after the end of the
+       transfer, the stop channel is armed through the AL1_CTRL alias as
+       above.*/
     dmaChannelSetDestinationX(adcp->dma, (uint32_t)samples);
     dmaChannelSetCounterX(adcp->dma, (uint32_t)total);
-    dmaChannelSetModeX(adcp->dma, adcp->dmamode);
+    adcp->dma2->channel->AL1_CTRL =
+      DMA_CTRL_TRIG_DATA_SIZE_WORD                                |
+      DMA_CTRL_TRIG_TREQ_PERMANENT                                |
+      DMA_CTRL_TRIG_PRIORITY(RP_ADC_ADC1_DMA_PRIORITY)            |
+      DMA_CTRL_TRIG_CHAIN_TO(adcp->dma2->chnidx)                  |
+      DMA_CTRL_TRIG_EN;
+    adcp->dma->channel->AL1_CTRL =
+      (adcp->dmamode & ~DMA_CTRL_TRIG_CHAIN_TO_Msk) |
+      DMA_CTRL_TRIG_CHAIN_TO(adcp->dma2->chnidx);
 
-    /* Enable DMA channel interrupt.*/
+    /* Enable DMA channel interrupts, the main channel interrupt serves
+       its errors and the second channel completion terminates the
+       conversion.*/
     dmaChannelEnableInterruptX(adcp->dma);
+    dmaChannelEnableInterruptX(adcp->dma2);
 
     /* Enable DMA channel.*/
     dmaChannelEnableX(adcp->dma);
@@ -662,11 +751,10 @@ msg_t adc_lld_start_conversion(hal_adc_driver_c *adcp, unsigned grpnum,
 
 /**
  * @brief   Stops an ongoing conversion.
- * @details The second channel of a circular ping-pong, when present,
- *          is quiesced and released and the temperature sensor bias is
- *          disabled when it had been enabled on behalf of the group,
- *          this also covers the terminal error paths which stop the
- *          conversion from the ISR.
+ * @details Both DMA channels are quiesced and the temperature sensor
+ *          bias is disabled when it had been enabled on behalf of the
+ *          group, this also covers the terminal error paths which stop
+ *          the conversion from the ISR.
  *
  * @param[in] adcp      pointer to the @p hal_adc_driver_c object
  *
@@ -679,24 +767,12 @@ void adc_lld_stop_conversion(hal_adc_driver_c *adcp) {
 
   /* The second channel is disabled first so that a completion of the
      main channel cannot chain into it during the teardown.*/
-  if (adcp->dma2 != NULL) {
-    dmaChannelDisableX(adcp->dma2);
-    dmaChannelDisableInterruptX(adcp->dma2);
-  }
+  dmaChannelDisableX(adcp->dma2);
+  dmaChannelDisableInterruptX(adcp->dma2);
 
   /* Disable DMA channel.*/
   dmaChannelDisableX(adcp->dma);
   dmaChannelDisableInterruptX(adcp->dma);
-
-  /* Release the circular ping-pong channel.*/
-  if (adcp->dma2 != NULL) {
-    syssts_t sts;
-
-    sts = chSysGetStatusAndLockX();
-    dmaChannelFreeI(adcp->dma2);
-    chSysRestoreStatusX(sts);
-    adcp->dma2 = NULL;
-  }
 
   /* The temperature sensor bias is kept enabled only while its group
      is converting.*/
@@ -759,9 +835,11 @@ void adcRPGpioInit(uint32_t gpio) {
   /* FUNCSEL = NULL (31): disconnect digital output driver.*/
   IO_BANK0->GPIO[gpio].CTRL = 31U;
 
-  /* Disable pulls and digital input, enable output disable.*/
+  /* Disable pulls and digital input, enable output disable. The same
+     write also releases the RP2350 pad isolation latch, which would
+     otherwise keep the reset-state pull-down on the analog input.*/
   padbits = PADS_BANK0->GPIO[gpio];
-  padbits &= ~(PADS_GPIO_PUE | PADS_GPIO_PDE | PADS_GPIO_IE);
+  padbits &= ~(PADS_GPIO_PUE | PADS_GPIO_PDE | PADS_GPIO_IE | PADS_GPIO_ISO);
   padbits |= PADS_GPIO_OD;
   PADS_BANK0->GPIO[gpio] = padbits;
 }

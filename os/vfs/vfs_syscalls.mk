@@ -1,8 +1,8 @@
 # List of all the ChibiOS/VFS syscall files.
-VFSSYSSRC := $(CHIBIOS)/os/vfs/various/syscalls.c \
+VFSSYSSRC := $(CHIBIOS)/os/various/newlib_bindings/syscalls.c \
 
 # Required include directories
-VFSSYSINC := $(CHIBIOS)/os/vfs/various
+VFSSYSINC := $(CHIBIOS)/os/various/newlib_bindings
 
 # Shared variables
 ALLCSRC += $(VFSSYSSRC)

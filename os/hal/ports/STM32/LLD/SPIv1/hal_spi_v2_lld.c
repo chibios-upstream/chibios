@@ -255,6 +255,11 @@ static msg_t spi_lld_stop_abort(SPIDriver *spip) {
  */
 static void spi_lld_serve_rx_interrupt(SPIDriver *spip, uint32_t flags) {
 
+  /* Ignoring interrupts not belonging to an active transfer.*/
+  if (spip->state != SPI_ACTIVE) {
+    return;
+  }
+
   /* DMA errors handling.*/
   if ((flags & (STM32_DMA_ISR_TEIF | STM32_DMA_ISR_DMEIF)) != 0) {
 #if defined(STM32_SPI_DMA_ERROR_HOOK)
@@ -294,6 +299,11 @@ static void spi_lld_serve_rx_interrupt(SPIDriver *spip, uint32_t flags) {
  * @param[in] flags     pre-shifted content of the ISR register
  */
 static void spi_lld_serve_tx_interrupt(SPIDriver *spip, uint32_t flags) {
+
+  /* Ignoring interrupts not belonging to an active transfer.*/
+  if (spip->state != SPI_ACTIVE) {
+    return;
+  }
 
   /* DMA errors handling.*/
   if ((flags & (STM32_DMA_ISR_TEIF | STM32_DMA_ISR_DMEIF)) != 0) {

@@ -189,16 +189,17 @@ static struct {
 /*===========================================================================*/
 
 /**
- * @brief   Computes the divider register value for a configuration.
- * @details The counter clock divider is an 8.4 fixed point value,
- *          computed in 64 bits in order not to overflow at high system
- *          clocks.
+ * @brief   Computes the divider for a configuration.
+ * @details The counter clock divider is an 8.4 fixed point value rounded
+ *          to the nearest 1/16, computed in 64 bits in order not to
+ *          overflow at high system clocks.
+ * @note    The 256.0 maximum is returned as 0x1000, the register encodes
+ *          it as zero.
  *
  * @param[in] config    pointer to the @p hal_pwm_config_t structure
- * @return              The divider register value.
+ * @return              The divider as an 8.4 fixed point value.
  * @retval 0            if the frequency is zero or the required divider
- *                      falls outside the 1.0 to 255+15/16 hardware
- *                      range.
+ *                      falls outside the 1.0 to 256.0 hardware range.
  */
 static uint32_t pwm_lld_get_divider(const hal_pwm_config_t *config) {
   halfreq_t sys_clk;
@@ -211,8 +212,9 @@ static uint32_t pwm_lld_get_divider(const hal_pwm_config_t *config) {
   }
 
   sys_clk = halClockGetPointX(RP_CLK_SYS);
-  div_fp4 = (uint32_t)(((uint64_t)sys_clk << 4) / config->frequency);
-  if ((div_fp4 < 0x010U) || (div_fp4 > 0xFFFU)) {
+  div_fp4 = (uint32_t)((((uint64_t)sys_clk << 4) +
+                        (config->frequency / 2U)) / config->frequency);
+  if ((div_fp4 < 0x010U) || (div_fp4 > 0x1000U)) {
     return 0U;
   }
 
@@ -290,7 +292,9 @@ static void pwm_lld_apply_config(hal_pwm_driver_c *pwmp,
   p->CH[pwmp->timer_id].CC  = 0U;
   p->INTR = PWM_INTR_CH(pwmp->timer_id);
 
-  p->CH[pwmp->timer_id].DIV = pwm_lld_get_divider(config);
+  /* A 256.0 divider is encoded as INT = 0 with FRAC = 0, which is what
+     the 12-bit register mask makes of 0x1000.*/
+  p->CH[pwmp->timer_id].DIV = pwm_lld_get_divider(config) & 0xFFFU;
 
   /* The counter counts from zero to TOP included so the register must
      be programmed with one count less than the requested period.*/
@@ -627,7 +631,7 @@ void pwm_lld_stop(hal_pwm_driver_c *pwmp) {
   p->CH[pwmp->timer_id].CSR = 0U;
   p->CH[pwmp->timer_id].CTR = 0U;
   p->CH[pwmp->timer_id].CC  = 0U;
-  p->CH[pwmp->timer_id].DIV = 1U;
+  p->CH[pwmp->timer_id].DIV = 0x010U;
   p->CH[pwmp->timer_id].TOP = 0xFFFF;
 
   /* Clearing any interrupt request still latched for this slice.*/

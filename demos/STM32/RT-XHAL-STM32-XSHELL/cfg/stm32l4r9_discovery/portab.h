@@ -60,7 +60,6 @@
 extern "C" {
 #endif
   void portab_setup(void);
-  void portab_sio_update_clock(void);
 #ifdef __cplusplus
 }
 #endif

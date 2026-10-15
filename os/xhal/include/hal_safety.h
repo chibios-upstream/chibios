@@ -49,9 +49,49 @@
 /* Driver data structures and types.                                         */
 /*===========================================================================*/
 
+#if !defined(HAL_LLD_GET_CNT_VALUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Timeout counter type, a stub if the platform does not implement
+ *          the counter.
+ */
+typedef unsigned halcnt_t;
+#endif
+
 /*===========================================================================*/
 /* Driver macros.                                                            */
 /*===========================================================================*/
+
+/**
+ * @name    Time measurement
+ * @{
+ */
+/**
+ * @brief   Converts from microseconds to timeout counter ticks.
+ * @note    The result is rounded up.
+ * @note    The computation is done in 32 bits, the frequency in MHz times
+ *          the interval must not overflow.
+ *
+ * @param[in] freq      counter frequency in Hz
+ * @param[in] usec      number of microseconds
+ * @return              The number of ticks.
+ */
+#define HAL_SFT_US2CNT(freq, usec)                                          \
+  (halcnt_t)((((uint32_t)(freq) + 999999U) / 1000000U) * (uint32_t)(usec))
+
+/**
+ * @brief   Converts from nanoseconds to timeout counter ticks.
+ * @note    The result is rounded up.
+ * @note    The computation is done in 32 bits, the frequency in MHz times
+ *          the interval must not overflow.
+ *
+ * @param[in] freq      counter frequency in Hz
+ * @param[in] nsec      number of nanoseconds
+ * @return              The number of ticks.
+ */
+#define HAL_SFT_NS2CNT(freq, nsec)                                          \
+  (halcnt_t)(((((uint32_t)(freq) + 999999U) / 1000000U) *                   \
+              (uint32_t)(nsec) + 999U) / 1000U)
+/** @} */
 
 /**
  * @name    Function variants
@@ -217,6 +257,113 @@ static inline void halSftFailOnError(bool result, const char *message) {
     halSftFail(message);
   }
 }
+
+/**
+ * @brief   Returns the timeout counter value.
+ * @note    The counter is implemented by the platform, it is free running
+ *          and wraps around at the size of @p halcnt_t. Without a platform
+ *          counter the value is always zero.
+ *
+ * @return              The counter value.
+ *
+ * @xclass
+ */
+static inline halcnt_t halSftGetCounterX(void) {
+
+#if defined(HAL_LLD_GET_CNT_VALUE) && defined(HAL_LLD_GET_CNT_FREQUENCY)
+  return HAL_LLD_GET_CNT_VALUE();
+#else
+  return (halcnt_t)0;
+#endif
+}
+
+/**
+ * @brief   Returns the timeout counter frequency.
+ * @note    Zero without a platform counter, it can be used to check for
+ *          the feature.
+ *
+ * @return              The counter frequency in Hz.
+ *
+ * @xclass
+ */
+static inline uint32_t halSftGetCounterFrequencyX(void) {
+
+#if defined(HAL_LLD_GET_CNT_VALUE) && defined(HAL_LLD_GET_CNT_FREQUENCY)
+  return HAL_LLD_GET_CNT_FREQUENCY();
+#else
+  return 0U;
+#endif
+}
+
+/**
+ * @brief   Checks if the timeout counter is within a window.
+ * @note    The window can wrap around, its size must be smaller than the
+ *          counter range.
+ * @note    Without a platform counter the time does not advance, the
+ *          counter is always within the window and the timeouts never
+ *          expire.
+ *
+ * @param[in] start     start of the window, included
+ * @param[in] end       end of the window, excluded
+ * @return              The test result.
+ * @retval false        if the counter is outside the window.
+ * @retval true         if the counter is within the window.
+ *
+ * @xclass
+ */
+static inline bool halSftIsCounterWithinX(halcnt_t start, halcnt_t end) {
+#if defined(HAL_LLD_GET_CNT_VALUE) && defined(HAL_LLD_GET_CNT_FREQUENCY)
+  halcnt_t cnt = halSftGetCounterX();
+
+  return (bool)((halcnt_t)(cnt - start) < (halcnt_t)(end - start));
+#else
+
+  (void)start;
+  (void)end;
+
+  return true;
+#endif
+}
+
+#if (defined(HAL_LLD_GET_CNT_VALUE) &&                                     \
+     defined(HAL_LLD_GET_CNT_FREQUENCY)) || defined(__DOXYGEN__)
+/**
+ * @brief   Waits for an interval from a timeout counter sample.
+ * @details Returns after at least @p ticks counter periods since @p start
+ *          was sampled, the phase of the sample within its period is
+ *          accounted.
+ * @note    Only available with a platform counter, see
+ *          @p halSftGetCounterFrequencyX().
+ * @note    The interval must be shorter than the counter range.
+ *
+ * @param[in] start     counter value sampled at the start of the interval
+ * @param[in] ticks     interval in counter ticks
+ *
+ * @xclass
+ */
+static inline void halSftDelayFromX(halcnt_t start, halcnt_t ticks) {
+  halcnt_t end = start + ticks + (halcnt_t)1;
+
+  while (halSftIsCounterWithinX(start, end)) {
+  }
+}
+
+/**
+ * @brief   Waits for an interval.
+ * @details Returns after at least @p ticks counter periods.
+ * @note    Only available with a platform counter, see
+ *          @p halSftGetCounterFrequencyX().
+ * @note    The interval must be shorter than the counter range.
+ *
+ * @param[in] ticks     interval in counter ticks
+ *
+ * @xclass
+ */
+static inline void halSftDelayX(halcnt_t ticks) {
+
+  halSftDelayFromX(halSftGetCounterX(), ticks);
+}
+#endif
 
 /**
  * @brief   Writes an 8 bits register.

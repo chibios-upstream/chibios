@@ -303,6 +303,7 @@
 #define STM32_USB_USE_USB1                  TRUE
 #define STM32_USB_USE_ISOCHRONOUS           FALSE
 #define STM32_USB_USE_FAST_COPY             TRUE
+#define STM32_USB_USE_DOUBLE_BUFFERING      FALSE
 #define STM32_USB_HOST_WAKEUP_DURATION      2
 #define STM32_USB_48MHZ_DELTA               0
 

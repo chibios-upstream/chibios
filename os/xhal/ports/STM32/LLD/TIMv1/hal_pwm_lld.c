@@ -556,6 +556,13 @@ msg_t pwm_lld_start(hal_pwm_driver_c *pwmp) {
   }
 #endif
 
+  psc = (pwmp->clock / cfg->frequency) - 1U;
+  if ((psc > 0xFFFFU) ||
+      (((psc + 1U) * cfg->frequency) != pwmp->clock)) {
+    pwm_lld_stop(pwmp);
+    return HAL_RET_CONFIG_ERROR;
+  }
+
   pwmp->tim->CR1 = 0U;
   pwmp->tim->CCR[0] = 0U;
   pwmp->tim->CCR[1] = 0U;
@@ -578,11 +585,6 @@ msg_t pwm_lld_start(hal_pwm_driver_c *pwmp) {
   pwmp->tim->CCMR3 = STM32_TIM_CCMR3_OC5M(6) | STM32_TIM_CCMR3_OC5PE |
                      STM32_TIM_CCMR3_OC6M(6) | STM32_TIM_CCMR3_OC6PE;
 #endif
-
-  psc = (pwmp->clock / cfg->frequency) - 1U;
-  chDbgAssert((psc <= 0xFFFFU) &&
-                (((psc + 1U) * cfg->frequency) == pwmp->clock),
-                "invalid frequency");
 
   pwmp->tim->PSC = psc;
   pwmp->tim->ARR = cfg->period - 1U;

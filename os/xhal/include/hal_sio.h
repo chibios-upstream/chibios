@@ -574,7 +574,7 @@ struct hal_sio_driver_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From hal_cb_driver_c.*/
@@ -690,7 +690,7 @@ struct hal_buffered_sio_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From hal_buffered_sio_c.*/
@@ -772,7 +772,7 @@ extern "C" {
   void *__sio_objinit_impl(void *ip, const void *vmt);
   void __sio_dispose_impl(void *ip);
   msg_t __sio_start_impl(void *ip, const void *config);
-  void __sio_stop_impl(void *ip);
+  void __sio_stop_impl(void *ip, driver_state_t prevstate);
   const void *__sio_setcfg_impl(void *ip, const void *config);
   const void *__sio_selcfg_impl(void *ip, unsigned cfgnum);
   void sioWriteEnableFlags(void *ip, sioevents_t mask);
@@ -794,7 +794,7 @@ extern "C" {
                             size_t obsize);
   void __bsio_dispose_impl(void *ip);
   msg_t __bsio_start_impl(void *ip, const void *config);
-  void __bsio_stop_impl(void *ip);
+  void __bsio_stop_impl(void *ip, driver_state_t prevstate);
   const void *__bsio_setcfg_impl(void *ip, const void *config);
   void bsIncomingDataI(void *ip, uint8_t b);
   msg_t bsRequestDataI(void *ip);

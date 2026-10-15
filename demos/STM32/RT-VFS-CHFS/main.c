@@ -119,9 +119,13 @@ static NullStream nullstream;
 
 /* Stream to be exposed under /dev as files.*/
 static const drv_streams_element_t streams[] = {
-  {"VSD1", (sequential_stream_i *)&PORTAB_SD1, NULL, VFS_MODE_S_IFCHR},
-  {"null", (sequential_stream_i *)&nullstream, NULL, VFS_MODE_S_IFCHR},
-  {NULL, NULL, NULL, 0}
+  DRV_STREAMS_ELEMENT_FIFO("VSD1",
+                           VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                           (sequential_stream_i *)&PORTAB_SD1),
+  DRV_STREAMS_ELEMENT_FIFO("null",
+                           VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                           (sequential_stream_i *)&nullstream),
+  DRV_STREAMS_ELEMENT_END()
 };
 
 /*===========================================================================*/
@@ -233,7 +237,6 @@ static THD_FUNCTION(thd1_func, arg) {
  * Application entry point.
  */
 int main(void) {
-  vfs_file_node_c *file1;
   msg_t msg;
   event_listener_t el0, el1, el2;
   static const evhandler_t evhndl[] = {
@@ -298,12 +301,6 @@ int main(void) {
     chSysHalt("VFS");
   }
 
-  /* Opening a file for shell I/O.*/
-  msg = vfsOpenFile("/dev/VSD1", VO_RDWR, &file1);
-  if (CH_RET_IS_ERROR(msg)) {
-    chSysHalt("VFS");
-  }
-
   /* Shell manager initialization.*/
   xshellObjectInit(&sm1, &cfg1);
 
@@ -314,7 +311,7 @@ int main(void) {
   while (true) {
     if (xshp == NULL) {
       /* Spawning a shell.*/
-      xshp = xshellSpawn(&sm1, (BaseSequentialStream *)vfsGetFileStream(file1),
+      xshp = xshellSpawn(&sm1, (BaseSequentialStream *)&PORTAB_SD1,
                          NORMALPRIO + 1, NULL);
     }
     chEvtDispatch(evhndl, chEvtWaitOneTimeout(ALL_EVENTS, TIME_MS2I(500)));

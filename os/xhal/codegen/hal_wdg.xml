@@ -96,6 +96,9 @@ return wdg_lld_start(self);]]></implementation>
             </method>
             <method shortname="stop">
               <implementation><![CDATA[
+
+(void)prevstate;
+
 wdg_lld_stop(self);]]></implementation>
             </method>
             <method shortname="setcfg">

@@ -44,6 +44,16 @@ static const uint8_t txbuf[] =
 static uint8_t rxbuf[1024 + 1];
 
 /*
+ * The writer is enabled by the button or, in the throughput test
+ * configuration, by the host RTS line.
+ */
+#if defined(USB_RAW_BENCHMARK)
+#define WRITER_ENABLED()    ((usb_control_lines & 2U) != 0U)
+#else
+#define WRITER_ENABLED()    (palReadLine(PORTAB_LINE_BUTTON) == PORTAB_BUTTON_PRESSED)
+#endif
+
+/*
  * USB writer. This thread writes data to the USB at maximum rate.
  * Can be measured using:
  *   dd if=/dev/xxxx of=/dev/null bs=512 count=10000
@@ -54,7 +64,7 @@ static THD_FUNCTION(Writer, arg) {
   (void)arg;
   chRegSetThreadName("writer");
   while (true) {
-    if (palReadLine(PORTAB_LINE_BUTTON) == PORTAB_BUTTON_PRESSED) {
+    if (WRITER_ENABLED()) {
       msg_t msg = usbTransmit(&PORTAB_USB1, USBD2_DATA_REQUEST_EP,
                               txbuf, sizeof (txbuf));
       if (msg == MSG_RESET)

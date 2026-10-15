@@ -55,6 +55,13 @@
 
 /**
  * @brief   Type of a delegate veneer function.
+ * @details The veneer executes in ordinary, unlocked receiver-thread context
+ *          and must return a @p msg_t result normally. The supplied
+ *          @p va_list and its argument storage are valid only during the call
+ *          and must not be retained. Arguments must be extracted using their
+ *          actual types after the default argument promotions.
+ * @note    The callback and lifetime rules of @p chDelegateCallVeneer()
+ *          apply.
  */
 typedef msg_t (*delegate_veneer_t)(va_list *argsp);
 
@@ -112,78 +119,107 @@ extern "C" {
 
 /**
  * @brief   Direct call to a function with no parameters.
- * @note    The return value is assumed to be not larger than a data
- *          pointer type. If you need a portable function then use
- *          @p chDelegateCallVeneer() instead.
+ * @pre     The function type must be compatible with @p delegate_fn0_t.
+ *          For other signatures, use @p chDelegateCallVeneer().
+ * @note    The synchronous call, callback and lifetime rules of
+ *          @p chDelegateCallVeneer() apply.
  *
  * @param[in] tp        pointer to the delegate thread
  * @param[in] func      pointer to the function to be called
- * @return              The function return value as a @p msg_t.
+ * @return              The function result or the rejection result from
+ *                      @p chMsgSend(), as described by
+ *                      @p chDelegateCallVeneer().
+ *
+ * @api
  */
 static inline msg_t chDelegateCallDirect0(thread_t *tp, delegate_fn0_t func) {
+
+  chDbgCheck(func != NULL);
 
   return chDelegateCallVeneer(tp, __ch_delegate_fn0, func);
 }
 
 /**
  * @brief   Direct call to a function with one parameter.
- * @note    The return value and parameters are assumed to be not larger
- *          than a data pointer type. If you need a portable function then use
- *          @p chDelegateCallVeneer() instead.
+ * @pre     The function type must be compatible with @p delegate_fn1_t.
+ *          For other signatures, use @p chDelegateCallVeneer().
+ * @note    The synchronous call, callback and lifetime rules of
+ *          @p chDelegateCallVeneer() apply.
  *
  * @param[in] tp        pointer to the delegate thread
  * @param[in] func      pointer to the function to be called
  * @param[in] p1        parameter 1 passed as a @p msg_t
- * @return              The function return value as a @p msg_t.
+ * @return              The function result or the rejection result from
+ *                      @p chMsgSend(), as described by
+ *                      @p chDelegateCallVeneer().
+ *
+ * @api
  */
 static inline msg_t chDelegateCallDirect1(thread_t *tp, delegate_fn1_t func,
                                           msg_t p1) {
+
+  chDbgCheck(func != NULL);
 
   return chDelegateCallVeneer(tp, __ch_delegate_fn1, func, p1);
 }
 
 /**
  * @brief   Direct call to a function with two parameters.
- * @note    The return value and parameters are assumed to be not larger
- *          than a data pointer type. If you need a portable function then use
- *          @p chDelegateCallVeneer() instead.
+ * @pre     The function type must be compatible with @p delegate_fn2_t.
+ *          For other signatures, use @p chDelegateCallVeneer().
+ * @note    The synchronous call, callback and lifetime rules of
+ *          @p chDelegateCallVeneer() apply.
  *
  * @param[in] tp        pointer to the delegate thread
  * @param[in] func      pointer to the function to be called
  * @param[in] p1        parameter 1 passed as a @p msg_t
  * @param[in] p2        parameter 2 passed as a @p msg_t
- * @return              The function return value as a @p msg_t.
+ * @return              The function result or the rejection result from
+ *                      @p chMsgSend(), as described by
+ *                      @p chDelegateCallVeneer().
+ *
+ * @api
  */
 static inline msg_t chDelegateCallDirect2(thread_t *tp, delegate_fn2_t func,
                                           msg_t p1, msg_t p2) {
+
+  chDbgCheck(func != NULL);
 
   return chDelegateCallVeneer(tp, __ch_delegate_fn2, func, p1, p2);
 }
 
 /**
  * @brief   Direct call to a function with three parameters.
- * @note    The return value and parameters are assumed to be not larger
- *          than a data pointer type. If you need a portable function then use
- *          @p chDelegateCallVeneer() instead.
+ * @pre     The function type must be compatible with @p delegate_fn3_t.
+ *          For other signatures, use @p chDelegateCallVeneer().
+ * @note    The synchronous call, callback and lifetime rules of
+ *          @p chDelegateCallVeneer() apply.
  *
  * @param[in] tp        pointer to the delegate thread
  * @param[in] func      pointer to the function to be called
  * @param[in] p1        parameter 1 passed as a @p msg_t
  * @param[in] p2        parameter 2 passed as a @p msg_t
  * @param[in] p3        parameter 3 passed as a @p msg_t
- * @return              The function return value as a @p msg_t.
+ * @return              The function result or the rejection result from
+ *                      @p chMsgSend(), as described by
+ *                      @p chDelegateCallVeneer().
+ *
+ * @api
  */
 static inline msg_t chDelegateCallDirect3(thread_t *tp, delegate_fn3_t func,
                                           msg_t p1, msg_t p2, msg_t p3) {
+
+  chDbgCheck(func != NULL);
 
   return chDelegateCallVeneer(tp, __ch_delegate_fn3, func, p1, p2, p3);
 }
 
 /**
  * @brief   Direct call to a function with four parameters.
- * @note    The return value and parameters are assumed to be not larger
- *          than a data pointer type. If you need a portable function then use
- *          @p chDelegateCallVeneer() instead.
+ * @pre     The function type must be compatible with @p delegate_fn4_t.
+ *          For other signatures, use @p chDelegateCallVeneer().
+ * @note    The synchronous call, callback and lifetime rules of
+ *          @p chDelegateCallVeneer() apply.
  *
  * @param[in] tp        pointer to the delegate thread
  * @param[in] func      pointer to the function to be called
@@ -191,11 +227,17 @@ static inline msg_t chDelegateCallDirect3(thread_t *tp, delegate_fn3_t func,
  * @param[in] p2        parameter 2 passed as a @p msg_t
  * @param[in] p3        parameter 3 passed as a @p msg_t
  * @param[in] p4        parameter 4 passed as a @p msg_t
- * @return              The function return value as a @p msg_t.
+ * @return              The function result or the rejection result from
+ *                      @p chMsgSend(), as described by
+ *                      @p chDelegateCallVeneer().
+ *
+ * @api
  */
 static inline msg_t chDelegateCallDirect4(thread_t *tp, delegate_fn4_t func,
                                           msg_t p1, msg_t p2, msg_t p3,
                                           msg_t p4) {
+
+  chDbgCheck(func != NULL);
 
   return chDelegateCallVeneer(tp, __ch_delegate_fn4, func, p1, p2, p3, p4);
 }

@@ -224,7 +224,7 @@ struct hal_eth_driver_vmt {
   void (*dispose)(void *ip);
   /* From hal_base_driver_c.*/
   msg_t (*start)(void *ip, const void *config);
-  void (*stop)(void *ip);
+  void (*stop)(void *ip, driver_state_t prevstate);
   const void * (*setcfg)(void *ip, const void *config);
   const void * (*selcfg)(void *ip, unsigned cfgnum);
   /* From hal_cb_driver_c.*/
@@ -316,7 +316,7 @@ extern "C" {
   void *__eth_objinit_impl(void *ip, const void *vmt);
   void __eth_dispose_impl(void *ip);
   msg_t __eth_start_impl(void *ip, const void *config);
-  void __eth_stop_impl(void *ip);
+  void __eth_stop_impl(void *ip, driver_state_t prevstate);
   const void *__eth_setcfg_impl(void *ip, const void *config);
   const void *__eth_selcfg_impl(void *ip, unsigned cfgnum);
   bool ethPollLinkStatusX(void *ip);

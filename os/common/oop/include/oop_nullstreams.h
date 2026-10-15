@@ -57,7 +57,10 @@
  * @implements  sequential_stream_i
  *
  * @brief       Null streams class.
- * @details     This class implements a null stream.
+ * @details     This class implements a null stream. Writes discard all data
+ *              and succeed. Reads immediately report end-of-file without
+ *              modifying the destination buffer: stmRead() returns zero and
+ *              stmGet() returns STM_RESET.
  *
  * @name        Class @p null_stream_c structures
  * @{
