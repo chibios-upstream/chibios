@@ -147,9 +147,10 @@ static msg_t start(const hal_wspi_config_t *cfg) {
   return msg;
 }
 static void stop(void) {
+  driver_state_t prevstate = WSPID1.state;
 
   WSPID1.state = HAL_DRV_STATE_STOPPING;
-  __wspi_stop_impl(&WSPID1);
+  __wspi_stop_impl(&WSPID1, prevstate);
   WSPID1.state = HAL_DRV_STATE_STOP;
   WSPID1.config = NULL;
 }

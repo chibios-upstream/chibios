@@ -99,6 +99,7 @@
 #define HAL_DRV_STATE_STOPPING 2U
 #define HAL_DRV_STATE_STARTING 3U
 #define HAL_DRV_STATE_READY 4U
+typedef unsigned int driver_state_t;
 #define USB_FLAGS_HW_FAILURE (1U << 7)
 #define USB_FLAGS_RESET 1U
 #define MSG_OK 0

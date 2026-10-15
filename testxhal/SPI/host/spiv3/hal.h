@@ -19,6 +19,7 @@
 #define TEST_SPI_V3_HAL_H
 
 #include <assert.h>
+#include <setjmp.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -171,7 +172,31 @@ static SPI_TypeDef test_spi[2];
 #define SPI1 (&test_spi[0])
 #define SPI6 (&test_spi[1])
 #define PAL_LINE(port, pad) ((ioline_t)(uintptr_t)(port) + (pad))
-#define chDbgAssert(c, msg) assert(c)
+/* Operation preconditions are debug assertions, EXPECT_ASSERT() checks
+   that the operation asserts. The assertion is the first statement of the
+   LLD operations, leaving through it changes nothing.*/
+static jmp_buf test_assert_jmp;
+static bool test_assert_armed;
+#define chDbgAssert(c, msg)                                                 \
+  do {                                                                      \
+    if (test_assert_armed) {                                                \
+      if (!(c)) {                                                           \
+        longjmp(test_assert_jmp, 1);                                        \
+      }                                                                     \
+    }                                                                       \
+    else {                                                                  \
+      assert(c);                                                            \
+    }                                                                       \
+  } while (0)
+#define EXPECT_ASSERT(expr)                                                 \
+  do {                                                                      \
+    test_assert_armed = true;                                               \
+    if (setjmp(test_assert_jmp) == 0) {                                     \
+      (void)(expr);                                                         \
+      assert(!"precondition not asserted");                                 \
+    }                                                                       \
+    test_assert_armed = false;                                              \
+  } while (0)
 #define STM32_SPI_DMA_ERROR_HOOK(spip) ((void)(spip))
 #define __spi_getconf(spip) ((const hal_spi_config_t *)(spip)->config)
 #define __spi_getfield(spip, field) (__spi_getconf(spip)->field)

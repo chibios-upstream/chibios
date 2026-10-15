@@ -21,6 +21,8 @@
 
 #define TRUE                               1
 #define FALSE                              0
+/* Read by the H7 ISR header (QUADSPI1/MDMA priority check).*/
+#define HAL_USE_WSPI                       FALSE
 #define HAL_USE_RTC                         TEST_ENABLED
 
 #define STM32_IRQ_RTC_TAMP_PRIORITY         2

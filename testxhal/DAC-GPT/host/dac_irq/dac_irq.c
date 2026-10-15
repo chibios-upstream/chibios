@@ -49,6 +49,7 @@
 #define HAL_USE_GPT                         TEST_TIM
 #define HAL_USE_ICU                         FALSE
 #define HAL_USE_PWM                         FALSE
+#define HAL_USE_WSPI                        FALSE
 #define STM32_DAC_USE_DAC1_CH1              (TEST_CHANNEL == 1)
 #define STM32_DAC_USE_DAC1_CH2              (TEST_CHANNEL == 2)
 #define STM32_DAC_DUAL_MODE                 FALSE
@@ -97,20 +98,16 @@ static inline void nvicDisableVector(unsigned vector) {
 #define STM32_TARGET_CORE                  1
 #define STM32_IRQ_DAC1_PRIORITY             TEST_PRIORITY
 #include "STM32WLxx/stm32_isr.h"
-#define DAC_SR_DMAUDR1                     (1U << 13)
-#define DAC_SR_DMAUDR2                     (1U << 29)
-static struct {
-  volatile uint32_t SR;
-} dac_regs;
-#define DAC1                               (&dac_regs)
-static int DACD1;
 
-static inline void dac_lld_serve_interrupt(int *dacp) {
+/* The handler only routes, the status, the hook and the channel dispatch
+   are in the LLD.*/
+static inline void dac_lld_serve_interrupt_dac1(void) {
 
-  assert(in_isr && dacp == &DACD1);
+  assert(in_isr);
   ++dac_count;
 }
 
+/* Defined for wl_hook, the routing code must not call it.*/
 #if TEST_HOOK
 #define STM32_DAC_DAC1_IRQ_HOOK(isr) do { assert(in_isr); ++hook_count; } while (0)
 #endif
@@ -194,30 +191,18 @@ int main(void) {
 
   assert(dac_count == 0U && tim_count == 0U && st_count == 0U &&
          hook_count == 0U);
-#if TEST_WL
-  assert(DAC1->SR == 0U);
-#endif
   test_irq_init();
   assert(enable_count == !!TEST_ACTIVE);
 #if TEST_ACTIVE
   assert(enabled_vector == TEST_VECTOR);
   assert(enabled_priority == TEST_PRIORITY);
-#if TEST_WL
-  DAC1->SR = 0U;
-  test_handler();
-  assert(dac_count == 0U);
-  DAC1->SR = DAC_SR_DMAUDR2;
-  test_handler();
-  assert(dac_count == 0U);
-  DAC1->SR = DAC_SR_DMAUDR1;
-  test_handler();
-  assert(dac_count == 1U);
-  assert(hook_count == 3U * TEST_HOOK);
-#else
   test_handler();
   assert(dac_count == !!(TEST_DAC && TEST_CHANNEL));
   assert(tim_count == TEST_TIM);
   assert(st_count == TEST_ST);
+#if TEST_WL
+  assert(hook_count == 0U);
+#else
   assert(hook_count == TEST_HOOK);
 #endif
 #endif

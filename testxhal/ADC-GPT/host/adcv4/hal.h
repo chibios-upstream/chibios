@@ -119,6 +119,7 @@ static inline void chThdResumeI(thread_reference_t *tp, msg_t msg) {
   }
 }
 #define chThdResumeS(tp, msg) chThdResumeI(tp, msg)
+#define chSchRescheduleS() assert(test_locked && !test_isr)
 static inline msg_t chThdSuspendTimeoutS(thread_reference_t *tp,
                                         sysinterval_t timeout) {
   (void)tp;

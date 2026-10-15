@@ -18,7 +18,7 @@
 #include "hal.h"
 
 /* Exercise the actual LLD and its static DMA callback functions. */
-#include "../../../../os/xhal/ports/STM32/LLD/SPIv3/hal_spi_lld.c"
+#include "hal_spi_lld.c"
 
 #if SPI_USE_CONFIGURATIONS == TRUE
 const spi_configurations_t spi_configurations = {
@@ -111,10 +111,10 @@ static void test_driver(hal_spi_driver_c *spip, unsigned engine,
     invalid.mode = SPI_MODE_FSIZE_64;
     before = resets;
     assert(spi_lld_setcfg(spip, &invalid) == NULL && resets == before);
-    assert(spi_lld_ignore(spip, 0U) == HAL_RET_CONFIG_ERROR);
-    assert(spi_lld_send(spip, 65536U, txbuf) == HAL_RET_CONFIG_ERROR);
-    assert(spi_lld_receive(spip, SIZE_MAX, rxbuf) == HAL_RET_CONFIG_ERROR);
-    assert(spi_lld_exchange(spip, SIZE_MAX, txbuf, rxbuf) == HAL_RET_CONFIG_ERROR);
+    EXPECT_ASSERT(spi_lld_ignore(spip, 0U));
+    EXPECT_ASSERT(spi_lld_send(spip, 65536U, txbuf));
+    EXPECT_ASSERT(spi_lld_receive(spip, SIZE_MAX, rxbuf));
+    EXPECT_ASSERT(spi_lld_exchange(spip, SIZE_MAX, txbuf, rxbuf));
     spip->state = HAL_DRV_STATE_ACTIVE;
     assert(spi_lld_exchange(spip, 8U, txbuf, rxbuf) == HAL_RET_SUCCESS);
     assert(rx->remaining == 8U && tx->remaining == 8U);
@@ -147,7 +147,7 @@ static void test_driver(hal_spi_driver_c *spip, unsigned engine,
   cfg = config(8U, SPI_MODE_CIRCULAR);
   assert(spi_lld_setcfg(spip, &cfg) == &cfg);
   spip->config = &cfg;
-  assert(spi_lld_ignore(spip, 3U) == HAL_RET_CONFIG_ERROR);
+  EXPECT_ASSERT(spi_lld_ignore(spip, 3U));
   spip->state = HAL_DRV_STATE_ACTIVE;
   assert(spi_lld_ignore(spip, 8U) == HAL_RET_SUCCESS);
   rxirq(spip, htif);

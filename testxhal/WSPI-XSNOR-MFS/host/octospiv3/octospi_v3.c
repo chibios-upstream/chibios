@@ -85,7 +85,9 @@ static void check_transfer(hal_wspi_driver_c *wspip, void (*irq)(void),
   assert(dma_cr[index] == (STM32_DMA3_CCR_PRIO(wspip->dprio) |
                            DMA_CCR_USEIE | DMA_CCR_ULEIE | DMA_CCR_DTEIE));
   assert(dma_tr1[index] == (DMA_CTR1_DAP | DMA_CTR1_SINC));
-  assert(dma_tr2[index] == STM32_DMA3_CTR2_REQSEL(40U + index));
+  /* Memory to peripheral, the request comes from the destination.*/
+  assert(dma_tr2[index] == (STM32_DMA3_CTR2_REQSEL(40U + index) |
+                            DMA_CTR2_DREQ));
   assert(ospi->DLR == sizeof buffer - 1U);
   assert((ospi->CR & OCTOSPI_CR_FMODE) == 0U);
   remaining[index] = 0U;

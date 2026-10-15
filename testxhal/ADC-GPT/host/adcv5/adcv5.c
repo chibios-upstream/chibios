@@ -150,9 +150,10 @@ static msg_t start(const hal_adc_config_t *cfg) {
 }
 
 static void stop(void) {
+  driver_state_t prevstate = ADCD1.state;
 
   ADCD1.state = HAL_DRV_STATE_STOPPING;
-  __adc_stop_impl(&ADCD1);
+  __adc_stop_impl(&ADCD1, prevstate);
   ADCD1.state = HAL_DRV_STATE_STOP;
   ADCD1.config = NULL;
 }

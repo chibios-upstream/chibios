@@ -90,9 +90,10 @@ static msg_t start(const hal_can_config_t *cfg) {
 }
 
 static void stop(void) {
+  driver_state_t prevstate = CAND1.state;
 
   CAND1.state = HAL_DRV_STATE_STOPPING;
-  __can_stop_impl(&CAND1);
+  __can_stop_impl(&CAND1, prevstate);
   CAND1.state = HAL_DRV_STATE_STOP;
   CAND1.config = NULL;
 }

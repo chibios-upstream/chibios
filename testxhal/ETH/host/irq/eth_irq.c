@@ -20,6 +20,8 @@
 
 #define TRUE                               1
 #define FALSE                              0
+/* Read by the H7 ISR header (QUADSPI1/MDMA priority check).*/
+#define HAL_USE_WSPI                       FALSE
 
 #include "stm32_registry.h"
 #include "stm32_isr.h"

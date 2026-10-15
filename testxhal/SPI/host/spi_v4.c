@@ -18,7 +18,7 @@
 #include "hal.h"
 
 /* Include the implementation to exercise its static DMA callbacks too. */
-#include "../../../os/xhal/ports/STM32/LLD/SPIv4/hal_spi_lld.c"
+#include "hal_spi_lld.c"
 
 #if SPI_USE_CONFIGURATIONS == TRUE
 const spi_configurations_t spi_configurations = {
@@ -104,11 +104,10 @@ int main(void) {
     invalid.mode = SPI_MODE_FSIZE_64;
     before = resets;
     assert(spi_lld_setcfg(&SPID1, &invalid) == NULL && resets == before);
-    assert(spi_lld_ignore(&SPID1, SIZE_MAX) == HAL_RET_CONFIG_ERROR);
-    assert(spi_lld_send(&SPID1, (65535U >> shift) + 1U, tx) ==
-           HAL_RET_CONFIG_ERROR);
-    assert(spi_lld_receive(&SPID1, 0U, rx) == HAL_RET_CONFIG_ERROR);
-    assert(spi_lld_exchange(&SPID1, SIZE_MAX, tx, rx) == HAL_RET_CONFIG_ERROR);
+    EXPECT_ASSERT(spi_lld_ignore(&SPID1, SIZE_MAX));
+    EXPECT_ASSERT(spi_lld_send(&SPID1, (65535U >> shift) + 1U, tx));
+    EXPECT_ASSERT(spi_lld_receive(&SPID1, 0U, rx));
+    EXPECT_ASSERT(spi_lld_exchange(&SPID1, SIZE_MAX, tx, rx));
 
     SPID1.state = HAL_DRV_STATE_ACTIVE;
     assert(spi_lld_exchange(&SPID1, 8U, tx, rx) == HAL_RET_SUCCESS);
@@ -142,7 +141,7 @@ int main(void) {
   cfg = config(8U, true, false);
   assert(spi_lld_setcfg(&SPID1, &cfg) == &cfg);
   SPID1.config = &cfg;
-  assert(spi_lld_ignore(&SPID1, 3U) == HAL_RET_CONFIG_ERROR);
+  EXPECT_ASSERT(spi_lld_ignore(&SPID1, 3U));
   SPID1.state = HAL_DRV_STATE_ACTIVE;
   assert(spi_lld_ignore(&SPID1, 8U) == HAL_RET_SUCCESS);
   assert((dma_cr[0] & DMA_CCR_HTIE) != 0U);

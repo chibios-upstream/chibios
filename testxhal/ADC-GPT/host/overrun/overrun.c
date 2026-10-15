@@ -33,6 +33,11 @@ typedef struct {
 static unsigned reports;
 static adcerror_t errors;
 
+/* The IRQ routine reports only flags of enabled interrupts.*/
+#define TEST_IER_ALL (ADC_IER_OVRIE | ADC_IER_AWD1IE | ADC_IER_AWD2IE | \
+                      ADC_IER_AWD3IE)
+static uint32_t master_ier = TEST_IER_ALL, slave_ier = TEST_IER_ALL;
+
 static void record_error(hal_adc_driver_c *adcp, adcerror_t mask) {
 
   assert(adcp->grpp != NULL);
@@ -47,8 +52,8 @@ static void record_error(hal_adc_driver_c *adcp, adcerror_t mask) {
 static void check_irq(unsigned state, bool group, bool slave,
                       uint32_t master_flags, uint32_t slave_flags,
                       adcerror_t expected) {
-  ADC_TypeDef master_regs = {.ISR = master_flags};
-  ADC_TypeDef slave_regs = {.ISR = slave_flags};
+  ADC_TypeDef master_regs = {.ISR = master_flags, .IER = master_ier};
+  ADC_TypeDef slave_regs = {.ISR = slave_flags, .IER = slave_ier};
   hal_adc_driver_c driver = {
     .adcm = &master_regs,
     .adcs = slave ? &slave_regs : NULL,
@@ -110,6 +115,25 @@ int main(void) {
             ADC_ISR_OVR | ADC_ISR_AWD1, ADC_ISR_OVR | ADC_ISR_AWD2,
             ADC_ERR_OVERFLOW | ADC_ERR_AWD1 | ADC_ERR_AWD2);
 #endif
+
+  /* Flags of disabled interrupts are not reported.*/
+  master_ier = ADC_IER_AWD1IE;
+  check_irq(ADC_ACTIVE_LINEAR, true, false, ADC_ISR_OVR | ADC_ISR_AWD1, 0U,
+            ADC_ERR_AWD1);
+  master_ier = 0U;
+  check_irq(ADC_ACTIVE_CIRCULAR, true, false, ADC_ISR_OVR | ADC_ISR_AWD1, 0U,
+            0U);
+#if STM32_ADC_DUAL_MODE
+  master_ier = TEST_IER_ALL;
+  slave_ier = ADC_IER_OVRIE;
+  check_irq(ADC_ACTIVE_CIRCULAR, true, true,
+            ADC_ISR_AWD1, ADC_ISR_OVR | ADC_ISR_AWD2,
+            ADC_ERR_OVERFLOW | ADC_ERR_AWD1);
+  slave_ier = 0U;
+  check_irq(ADC_ACTIVE_CIRCULAR, true, true, 0U, ADC_ISR_OVR, 0U);
+#endif
+  master_ier = TEST_IER_ALL;
+  slave_ier = TEST_IER_ALL;
   puts(TEST_IRQ ": overrun regression passed");
   return 0;
 }

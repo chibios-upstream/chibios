@@ -194,9 +194,10 @@ static msg_t start(hal_adc_driver_c *adcp, const hal_adc_config_t *cfg) {
   return msg;
 }
 static void stop(hal_adc_driver_c *adcp) {
+  driver_state_t prevstate = adcp->state;
 
   adcp->state = HAL_DRV_STATE_STOPPING;
-  __adc_stop_impl(adcp);
+  __adc_stop_impl(adcp, prevstate);
   adcp->state = HAL_DRV_STATE_STOP;
   adcp->config = NULL;
 }

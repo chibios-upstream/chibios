@@ -113,9 +113,10 @@ static msg_t start(hal_can_driver_c *canp, const hal_can_config_t *cfg) {
   return msg;
 }
 static void stop(hal_can_driver_c *canp) {
+  driver_state_t prevstate = canp->state;
 
   canp->state = HAL_DRV_STATE_STOPPING;
-  __can_stop_impl(canp);
+  __can_stop_impl(canp, prevstate);
   canp->state = HAL_DRV_STATE_STOP;
   canp->config = NULL;
 }
