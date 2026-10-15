@@ -48,6 +48,8 @@ Regressions include:
   SETUP gating of starts/stalls.
 - Empty EP0 reply through the generated `usbEp0Reply()`: a zero size data
   packet when wLength is not zero, the IN status stage when it is zero.
+- `usbUnbind()`: refused while the bus uses the binder, otherwise the driver
+  drops the binder and the unbind hooks run outside the lock.
 - OUT global-NAK/disable/release ordering, deferred configuration and receive
   starts, stale packets/events, independently completing endpoints, temporary
   SOF subscription, cancellation and stuck-handshake timeouts.

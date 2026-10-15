@@ -1599,6 +1599,37 @@ static void peripheral_process(void) {
   _exit(0);
 }
 
+/* Unbinding is refused while the bus uses the binder. Otherwise the driver
+   drops the binder under the lock and the unbind hooks run outside it.*/
+static void check_unbind(void) {
+  static const unsigned busy[3] = {USB_SELECTED, USB_ACTIVE, USB_SUSPENDED};
+  static const unsigned idle[2] = {HAL_DRV_STATE_STOP, HAL_DRV_STATE_READY};
+  hal_usb_driver_c usb = {0};
+  unsigned unbinds = test_unbinds;
+  int binder;
+  unsigned i;
+
+  test_unbind_driver = &usb;
+  for (i = 0U; i < 3U; i++) {
+    usb.state = busy[i];
+    usb.binder = &binder;
+    assert(usbUnbind(&usb) == HAL_RET_INV_STATE);
+    assert(usb.binder == &binder && test_unbinds == unbinds);
+    assert(!test_locked);
+  }
+  for (i = 0U; i < 2U; i++) {
+    usb.state = idle[i];
+    usb.binder = &binder;
+    assert(usbUnbind(&usb) == HAL_RET_SUCCESS);
+    assert(usb.binder == NULL && test_unbinds == unbinds + i + 1U);
+    assert(!test_locked);
+  }
+  assert(usbUnbind(&usb) == HAL_RET_SUCCESS);
+  assert(test_unbinds == unbinds + 2U && !test_locked);
+  test_unbind_driver = NULL;
+  puts("PASS: usbUnbind() refused while bus-active, hooks outside the lock");
+}
+
 static void check_event_posting(void) {
   stm32_otg_t otg = {0};
   const stm32_otg_params_t params = {.num_endpoints = USB_MAX_ENDPOINTS};
@@ -1688,6 +1719,7 @@ int main(void) {
   alarm(20);
   check_endpoint_masks();
   check_event_posting();
+  check_unbind();
   check_frame_number();
   check_safety_recheck();
   test_hw = mmap(NULL, sizeof(*test_hw), PROT_READ | PROT_WRITE,

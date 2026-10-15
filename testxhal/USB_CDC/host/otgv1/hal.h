@@ -144,6 +144,7 @@ typedef enum {
 typedef struct hal_usb_driver hal_usb_driver_c;
 typedef struct hal_usb_driver hal_base_driver_c;
 typedef struct hal_usb_config hal_usb_config_t;
+typedef struct hal_usb_binder hal_usb_binder_c;
 typedef void (*usbepcallback_t)(hal_usb_driver_c *, usbep_t);
 
 typedef struct {
@@ -323,8 +324,14 @@ static void usbBinderConfigureI(void *binder) {
 static void usbBinderUnconfigureI(void *binder) {
   assert(test_locked && binder != NULL);
 }
+/* The unbind hooks are API functions. When set, the driver passed to
+   usbUnbind() must already have dropped the binder.*/
+static hal_usb_driver_c *test_unbind_driver;
+static unsigned test_unbinds;
 static void usbBinderUnbind(void *binder) {
   assert(!test_locked && !test_isr && binder != NULL);
+  assert(test_unbind_driver == NULL || test_unbind_driver->binder == NULL);
+  test_unbinds++;
 }
 static const usb_descriptor_t *usbBinderGetDescriptor(void *b, unsigned a,
                                                       unsigned c, unsigned d) {
