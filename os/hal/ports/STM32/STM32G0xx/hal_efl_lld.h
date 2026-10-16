@@ -90,13 +90,13 @@
                                              / STM32_FLASH_SECTORS_TOTAL_512K)
 
 /*
- * NOTE: the 256K and 512K descriptors assume single-bank operation
- *       (FLASH_OPTR.DUAL_BANK = 0). STM32G0B1/G0C1 (and dual-bank 256K
- *       parts) ship with DUAL_BANK = 1, where the flash is split into two
- *       banks with non-contiguous page numbering (RM0444 Table 11); this
- *       driver does not support that mode. On such devices the option byte
- *       must be set to single-bank before the upper flash can be erased or
- *       programmed through this driver.
+ * NOTE: a single descriptor covers the whole flash. The bank mode is
+ *       detected as in the ST HAL, from the device sales type and, where
+ *       selectable, the DUAL_BANK option bit. In dual bank mode the address
+ *       space is still contiguous and the page numbering restarts in each
+ *       bank: the erase operations select the bank, bank 2 is in the upper
+ *       half of the flash unless the banks are swapped by the nSWAP_BANK
+ *       option bit.
  */
 
 #else
