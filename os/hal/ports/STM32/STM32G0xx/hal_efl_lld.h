@@ -52,7 +52,8 @@
 /*===========================================================================*/
 
 #if defined(STM32G070xx) || defined(STM32G071xx) ||                         \
-    defined(STM32G081xx) || defined(STM32G0B1xx) ||                         \
+    defined(STM32G081xx) || defined(STM32G0B0xx) ||                         \
+    defined(STM32G0B1xx) || defined(STM32G0C1xx) ||                         \
     defined(__DOXYGEN__)
 
 /* Flash size register. */

@@ -352,10 +352,13 @@ flash_error_t efl_lld_read(void *instance, flash_offset_t offset,
   memcpy((void *)rp, (const void *)efl_lld_get_descriptor(instance)->address
                                    + offset, n);
 
-  /* Checking for errors after reading.*/
+#if defined(FLASH_SR_RDERR)
+  /* Checking for errors after reading, the value line devices have no
+     PCROP and no read error flag.*/
   if ((devp->flash->SR & FLASH_SR_RDERR) != 0U) {
     err = FLASH_ERROR_READ;
   }
+#endif
 
   /* Ready state again.*/
   devp->state = FLASH_READY;
