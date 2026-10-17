@@ -65,6 +65,10 @@
 #define STM32_OTG2_NUMBER 77
 #define STM32H7XX
 #define STM32_USBCLK 48000000U
+/* AHB clock, variable so that check_turnaround() can cover every row of
+   the full speed turnaround table.*/
+static uint32_t test_hclk = 168000000U;
+#define STM32_HCLK test_hclk
 
 /* OSAL scalar types and constants.*/
 typedef int32_t msg_t;

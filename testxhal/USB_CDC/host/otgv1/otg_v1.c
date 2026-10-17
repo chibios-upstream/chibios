@@ -299,6 +299,66 @@ static void serve(hal_usb_driver_c *usbp, uint32_t status) {
   test_isr = false;
 }
 
+/* Full speed turnaround, minimum values of the reference manual "TRDT
+   values" table for the AHB clock.*/
+static uint32_t expected_trdt_fs(uint32_t hclk) {
+  static const uint32_t rows[][2] = {
+    {32000000U, 6U}, {27500000U, 7U}, {24000000U, 8U}, {21800000U, 9U},
+    {20000000U, 10U}, {18500000U, 11U}, {17200000U, 12U},
+    {16000000U, 13U}, {15000000U, 14U}
+  };
+
+  for (unsigned i = 0U; i < sizeof rows / sizeof rows[0]; i++) {
+    if (hclk >= rows[i][0]) {
+      return rows[i][1];
+    }
+  }
+  return 15U;
+}
+
+/* Full speed turnaround from the AHB clock, on both sides of every row of
+   the table. An external or integrated high speed PHY starts with the high
+   speed value, the integrated one keeps it after a full speed
+   enumeration.*/
+static void check_turnaround(hal_usb_driver_c *usbp, unsigned index) {
+  static const uint32_t clocks[] = {
+    14200000U, 14999999U, 15000000U, 15999999U, 16000000U, 17199999U,
+    17200000U, 18499999U, 18500000U, 19999999U, 20000000U, 21799999U,
+    21800000U, 23986000U, 23999999U, 24000000U, 27499999U, 27500000U,
+    31999999U, 32000000U, 48005000U, 168000000U
+  };
+  stm32_otg_t *otgp = usbp->otg;
+  bool hs_phy = false;
+  unsigned k;
+
+#if STM32_USB_USE_OTG2 && (STM32_USB_OTG2_PHY != STM32_OTG_PHY_EMBEDDED_FS)
+  hs_phy = index == 1U;
+#endif
+  test_clock = 48000000U;
+  for (k = 0U; k < sizeof clocks / sizeof clocks[0]; k++) {
+    uint32_t fs;
+
+    test_hclk = clocks[k];
+    fs = expected_trdt_fs(test_hclk);
+    assert(usb_lld_start(usbp) == HAL_RET_SUCCESS);
+    assert((otgp->GUSBCFG & GUSBCFG_TRDT_MASK) ==
+           GUSBCFG_TRDT(hs_phy ? 9U : fs));
+    otgp->DSTS = DSTS_ENUMSPD_FS_48;
+    serve(usbp, GINTSTS_ENUMDNE);
+    assert((otgp->GUSBCFG & GUSBCFG_TRDT_MASK) ==
+           GUSBCFG_TRDT(otg_uses_integrated_hs_phy(usbp) ? 9U : fs));
+    if (hs_phy) {
+      otgp->DSTS = DSTS_ENUMSPD_HS_480;
+      serve(usbp, GINTSTS_ENUMDNE);
+      assert((otgp->GUSBCFG & GUSBCFG_TRDT_MASK) == GUSBCFG_TRDT(9U));
+    }
+    usb_lld_stop(usbp);
+  }
+  test_hclk = 168000000U;
+  printf("PASS: OTG%u turnaround from the AHB clock, %u clocks\n",
+         index + 1U, k);
+}
+
 static void finish_out_disable(hal_usb_driver_c *usbp) {
   stm32_otg_t *otgp = usbp->otg;
 
@@ -1742,6 +1802,7 @@ int main(void) {
   check_phy_delays(&USBD1, 0U);
   check_reset_timeouts(&USBD1, 0U);
   check_driver(&USBD1, 0U);
+  check_turnaround(&USBD1, 0U);
   check_sof_resume(&USBD1, 0U);
   check_runtime_faults(&USBD1, 0U);
   check_out_teardown(&USBD1, 0U);
@@ -1760,6 +1821,7 @@ int main(void) {
   check_phy_delays(&USBD2, 1U);
   check_reset_timeouts(&USBD2, 1U);
   check_driver(&USBD2, 1U);
+  check_turnaround(&USBD2, 1U);
   check_sof_resume(&USBD2, 1U);
   check_runtime_faults(&USBD2, 1U);
   check_out_teardown(&USBD2, 1U);

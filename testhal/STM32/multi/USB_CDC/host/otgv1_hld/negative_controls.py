@@ -22,6 +22,10 @@ COPIED = ['os/hal/include', 'os/hal/src', 'os/hal/ports/STM32/LLD/OTGv1',
           'os/hal/ports/STM32/STM32U5xx']
 
 MUTATIONS = {
+  # Full speed turnaround: the old fixed value, then a boundary moved by
+  # one Hz.
+  'trdt-fixed': (LLD, '      return 6U + i;\n', '      return 5U;\n'),
+  'trdt-boundary': (LLD, '    if (hclk >= min_hclk[i]) {\n', '    if (hclk > min_hclk[i]) {\n'),
   # An empty EP0 reply waits for the OUT status, no zero size data
   # packet and no IN status stage (EP0 thread and legacy handler).
   'ep0-empty-reply-thread': (CORE, '  else if (max != 0U) {\n    /* Empty reply to a request with a data stage, a zero size packet is\n       the data stage.*/\n    usbp->ep0state = USB_EP0_IN_WAITING_TX0;\n    usbStartTransmitI(usbp, 0, NULL, 0);\n  }\n  else {\n    /* No data stage, the status stage is an IN transaction.*/\n    usbp->ep0state = USB_EP0_IN_SENDING_STS;\n#if (USB_EP0_STATUS_STAGE == USB_EP0_STATUS_STAGE_SW)\n    usbStartTransmitI(usbp, 0, NULL, 0);\n#else\n    usb_lld_end_setup(usbp, 0);\n#endif\n  }\n',

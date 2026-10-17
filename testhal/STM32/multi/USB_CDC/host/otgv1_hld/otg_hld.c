@@ -705,6 +705,40 @@ static void check_vbus(USBDriver *usbp) {
   assert(otgp->GCCFG == (is_ulpi(usbp) ? 0U : (uint32_t)TEST_GCCFG));
 }
 
+/* Full speed turnaround, minimum values of the reference manual "TRDT
+   values" table for the AHB clock.*/
+static uint32_t expected_trdt_fs(uint32_t hclk) {
+
+  if (hclk >= 32000000U) {
+    return 6U;
+  }
+  if (hclk >= 27500000U) {
+    return 7U;
+  }
+  if (hclk >= 24000000U) {
+    return 8U;
+  }
+  if (hclk >= 21800000U) {
+    return 9U;
+  }
+  if (hclk >= 20000000U) {
+    return 10U;
+  }
+  if (hclk >= 18500000U) {
+    return 11U;
+  }
+  if (hclk >= 17200000U) {
+    return 12U;
+  }
+  if (hclk >= 16000000U) {
+    return 13U;
+  }
+  if (hclk >= 15000000U) {
+    return 14U;
+  }
+  return 15U;
+}
+
 static void bus_reset(USBDriver *usbp) {
   stm32_otg_t *otgp = usbp->otg;
 
@@ -712,7 +746,7 @@ static void bus_reset(USBDriver *usbp) {
   otgp->DSTS = is_hs(usbp) ? DSTS_ENUMSPD_HS_480 : DSTS_ENUMSPD_FS_48;
   assert(serve(usbp, GINTSTS_ENUMDNE));
   assert((otgp->GUSBCFG & GUSBCFG_TRDT_MASK) ==
-         GUSBCFG_TRDT(is_hs(usbp) ? 9U : 5U));
+         GUSBCFG_TRDT(is_hs(usbp) ? 9U : expected_trdt_fs(test_hclk)));
 }
 
 static void enumerate(USBDriver *usbp, const USBConfig *config) {
@@ -1946,6 +1980,35 @@ static void check_wakeup_host(USBDriver *usbp) {
   printf("PASS: OTG%u remote wakeup\n", i + 1U);
 }
 
+/* Full speed turnaround from the AHB clock, on both sides of every row
+   of the table, when the driver starts (ULPI uses the high speed value)
+   and after enumeration (high speed keeps its value).*/
+static void check_turnaround(USBDriver *usbp) {
+  static const uint32_t clocks[] = {
+    14200000U, 14999999U, 15000000U, 15999999U, 16000000U, 17199999U,
+    17200000U, 18499999U, 18500000U, 19999999U, 20000000U, 21799999U,
+    21800000U, 23986000U, 23999999U, 24000000U, 27499999U, 27500000U,
+    31999999U, 32000000U, 48005000U, 168000000U
+  };
+  stm32_otg_t *otgp = usbp->otg;
+  uint32_t saved = test_hclk;
+  unsigned k;
+
+  for (k = 0U; k < sizeof clocks / sizeof clocks[0]; k++) {
+    test_hclk = clocks[k];
+    fresh_device(usbp);
+    assert(usbStart(usbp, &cfg) == HAL_RET_SUCCESS);
+    assert((otgp->GUSBCFG & GUSBCFG_TRDT_MASK) ==
+           GUSBCFG_TRDT(is_ulpi(usbp) ? 9U : expected_trdt_fs(test_hclk)));
+    usbConnectBus(usbp);
+    bus_reset(usbp);
+    usbStop(usbp);
+  }
+  test_hclk = saved;
+  printf("PASS: OTG%u turnaround from the AHB clock, %u clocks\n",
+         drv_index(usbp) + 1U, k);
+}
+
 static void check_connect(USBDriver *usbp) {
   unsigned i = drv_index(usbp);
 
@@ -2596,6 +2659,7 @@ int main(void) {
     check_suspend(usbp);
     check_fault_suspended(usbp);
     check_wakeup_host(usbp);
+    check_turnaround(usbp);
     check_connect(usbp);
     check_bounds(usbp);
     check_ep_requests(usbp);

@@ -78,6 +78,7 @@
 #define STM32_IRQ_OTG2_PRIORITY 14
 #define CH_IRQ_IS_VALID_PRIORITY(p) ((p) >= 0 && (p) < 16)
 #define STM32_USBCLK test_clock
+#define STM32_HCLK test_hclk
 #define HAL_RET_SUCCESS 0
 #define HAL_RET_CONFIG_ERROR -16
 #define HAL_RET_HW_FAILURE -19
@@ -206,6 +207,9 @@ typedef struct {
 } test_peripherals_t;
 static test_peripherals_t *test_hw;
 static uint32_t test_clock = 48000000U;
+/* AHB clock, variable so that check_turnaround() can cover every row of
+   the full speed turnaround table.*/
+static uint32_t test_hclk = 168000000U;
 static uint32_t test_basepri;
 static unsigned test_enables[2], test_disables[2], test_resets[2];
 static unsigned test_ulpi_enables, test_ulpi_disables;

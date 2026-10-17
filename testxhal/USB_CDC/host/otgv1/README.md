@@ -50,6 +50,8 @@ Regressions include:
   packet when wLength is not zero, the IN status stage when it is zero.
 - `usbUnbind()`: refused while the bus uses the binder, otherwise the driver
   drops the binder and the unbind hooks run outside the lock.
+- Full speed turnaround (TRDT) from the AHB clock on both sides of every row
+  of the reference manual table; high speed PHYs keep the high speed value.
 - OUT global-NAK/disable/release ordering, deferred configuration and receive
   starts, stale packets/events, independently completing endpoints, temporary
   SOF subscription, cancellation and stuck-handshake timeouts.
