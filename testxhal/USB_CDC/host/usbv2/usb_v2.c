@@ -228,6 +228,34 @@ static void test_bus_events(void) {
   test_isr = false;
 }
 
+/* While the driver is stopping the interrupt serves no event, it only
+   disables the interrupt sources.*/
+static void test_stopping(void) {
+  const uint32_t sources = USB_CNTR_CTRM | USB_CNTR_WKUPM | USB_CNTR_SUSPM |
+                           USB_CNTR_RESETM | USB_CNTR_SOFM;
+  const uint32_t istr = USB_ISTR_CTR | USB_ISTR_RESET | USB_ISTR_SUSP |
+                        USB_ISTR_WKUP | USB_ISTR_SOF;
+  unsigned resets, suspends, wakeups, sofs;
+
+  fresh_start();
+  USBD1.binder = &USBD1;
+  usb_lld_reset(&USBD1);
+  assert((test_usb.CNTR & sources) == sources);
+  resets = test_bus_resets;
+  suspends = test_suspends;
+  wakeups = test_wakeups;
+  sofs = test_sofs;
+  USBD1.state = HAL_DRV_STATE_STOPPING;
+  test_usb.ISTR = istr;
+  test_isr = true;
+  usb_lld_serve_interrupt(&USBD1);
+  test_isr = false;
+  assert((test_usb.CNTR & sources) == 0U && test_usb.ISTR == istr);
+  assert(test_bus_resets == resets && test_suspends == suspends);
+  assert(test_wakeups == wakeups && test_sofs == sofs);
+  USBD1.state = 0U;
+}
+
 #if STM32_USB_USE_ISOCHRONOUS
 static void test_isochronous(void) {
   USBEndpointConfig cfg = ep1config;
@@ -287,6 +315,7 @@ int main(void) {
   test_pma_and_packets();
   test_transactions();
   test_bus_events();
+  test_stopping();
 #if STM32_USB_USE_ISOCHRONOUS
   test_isochronous();
 #endif

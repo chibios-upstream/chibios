@@ -116,7 +116,10 @@ struct usb_configurations {
   unsigned cfgsnum;
   hal_usb_config_t cfgs[2];
 };
+#define HAL_DRV_STATE_STOPPING 2U
+
 struct hal_usb_driver {
+  unsigned state;
   const hal_usb_config_t *config;
   void *binder;
   const USBEndpointConfig *epc[USB_MAX_ENDPOINTS + 1U];

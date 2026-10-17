@@ -316,14 +316,28 @@ int main(void) {
 #if SPI_SUPPORTS_CIRCULAR
     assert(spi.sequence == 2U);
 #endif
-    /* Unchanged single-event helpers compile in both capability models. */
+    /* The single-event helpers, in both capability models, serve only an
+       active transfer: the buffer events keep it active, the error ends it
+       and the completion after it is discarded.*/
     test_isr = true;
     _spi_isr_half_code(&spi);
     _spi_isr_full_code(&spi);
     _spi_isr_error_code(spip);
     _spi_isr_complete_code(spip);
     test_isr = false;
-    assert(halves == 1U && fulls == 1U && errors == 1U && completions == 1U);
+    assert(halves == 1U && fulls == 1U && errors == 1U && completions == 0U);
+    assert(spi.state == HAL_DRV_STATE_READY);
+
+    /* A new transfer completes, an error after the completion is
+       discarded.*/
+    chSysLock();
+    assert(start_transfer() == MSG_OK);
+    chSysUnlock();
+    test_isr = true;
+    _spi_isr_complete_code(spip);
+    _spi_isr_error_code(spip);
+    test_isr = false;
+    assert(errors == 1U && completions == 1U);
     assert(spi.state == HAL_DRV_STATE_READY);
 
     start_result = HAL_RET_CONFIG_ERROR;
@@ -332,7 +346,7 @@ int main(void) {
     chSysUnlock();
     assert(spi.state == HAL_DRV_STATE_READY);
 #if SPI_SUPPORTS_CIRCULAR
-    assert(spi.sequence == 3U);
+    assert(spi.sequence == 4U);
     test_circular();
 #endif
   }
