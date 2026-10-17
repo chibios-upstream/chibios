@@ -16,6 +16,11 @@ VARIANTS = ['normal', 'iso', 'fast_iso', 'ep0_thread']
 COPIED = ['os/hal/include', 'os/hal/src', 'os/hal/ports/STM32/LLD/USBv2']
 
 MUTATIONS = {
+  # Remote wakeup: suspend left enabled, no wait for the host, latched
+  # suspend always discarded.
+  'wakeup-suspend-enabled': (LLD, '  usbp->usb->CNTR = (usbp->usb->CNTR & ~USB_CNTR_SUSPM) | USB_CNTR_L2RES;\n', '  usbp->usb->CNTR |= USB_CNTR_L2RES;\n'),
+  'wakeup-no-host-wait': (LLD, '  for (i = 0U; i < (unsigned)STM32_USB_HOST_RESUME_TIMEOUT; i++) {\n', '  for (i = 0U; i < 1U; i++) {\n'),
+  'wakeup-suspend-discarded': (LLD, '  if ((usbp->usb->FNR & USB_FNR_LCK) != 0U) {\n    /* SOFs are received', '  if (true) {\n    /* SOFs are received'),
   'err-irq-enabled': (LLD, '/* USB_CNTR_ERRM | USB_CNTR_PMAOVRM |*/', 'USB_CNTR_ERRM | /* USB_CNTR_PMAOVRM |*/'),
   'pma-rx-unrounded': (LLD, '    return (size + 31U) & ~(size_t)31U;', '    return size;'),
   'reset-keeps-snapshot': (LLD, '    /* Reset invalidated endpoints and events in the saved snapshot.*/\n    return;\n', ''),

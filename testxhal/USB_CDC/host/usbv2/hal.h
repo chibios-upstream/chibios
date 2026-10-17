@@ -99,7 +99,7 @@ static uint32_t test_pma[STM32_USB_PMA_SIZE / sizeof(uint32_t)];
 static unsigned test_enables, test_disables, test_resets, test_bus_resets;
 static unsigned test_suspends, test_wakeups, test_sofs;
 static unsigned test_in, test_out, test_setup;
-static bool test_isr;
+static bool test_isr, test_locked;
 
 #undef USB_DRD_BASE
 #undef USB_DRD_PMAADDR
@@ -132,7 +132,14 @@ struct hal_usb_driver {
 #define rccEnableUSB(lp) ((void)(lp), test_enables++)
 #define rccDisableUSB() (test_disables++)
 #define rccResetUSB() (test_resets++)
-#define chThdSleepMilliseconds(n) ((void)(n))
+/* Sleeps never happen under the lock. The remote wakeup check models the
+   host side through the hook.*/
+static void (*test_sleep_hook)(uint32_t ms);
+#define chThdSleepMilliseconds(n)                                           \
+  (assert(!test_locked && !test_isr),                                      \
+   (test_sleep_hook != NULL ? test_sleep_hook((uint32_t)(n)) : (void)0))
+#define chSysLock() (assert(!test_locked && !test_isr), test_locked = true)
+#define chSysUnlock() (assert(test_locked && !test_isr), test_locked = false)
 
 static void usbObjectInit(hal_usb_driver_c *usbp) {
 

@@ -395,6 +395,64 @@ static void check_iso_idle(void) {
 }
 #endif
 
+static unsigned wake_sleeps, wake_lock_at;
+
+/* Host side of a remote wakeup: a false suspend latches while the device
+   signals resume, the frame timer locks at a given sleep.*/
+static void wake_host(uint32_t ms) {
+
+  wake_sleeps++;
+  assert((test_usb.CNTR & USB_CNTR_SUSPM) == 0U);
+  if (wake_sleeps == 1U) {
+    assert(ms == STM32_USB_HOST_WAKEUP_DURATION);
+    assert((test_usb.CNTR & USB_CNTR_L2RES) != 0U);
+    test_usb.ISTR = USB_ISTR_SUSP;
+  }
+  else {
+    assert((ms == 1U) && ((test_usb.CNTR & USB_CNTR_L2RES) == 0U));
+  }
+  if (wake_sleeps == wake_lock_at) {
+    test_usb.FNR = USB_FNR_LCK;
+  }
+}
+
+/* Remote wakeup: the suspend interrupt is disabled until the host resumes
+   the bus. A suspend latched meanwhile is discarded when SOFs are received
+   and kept when the host does not resume.*/
+static void check_wakeup_host(void) {
+  static const unsigned lock_at[2] = {4U, 0U};
+
+  for (unsigned k = 0U; k < 2U; k++) {
+    fresh_start();
+    test_isr = true;
+    test_usb.ISTR = USB_ISTR_SUSP;
+    usb_lld_serve_interrupt(&USBD1);
+    test_isr = false;
+    assert(USBD1.state == USB_SUSPENDED);
+    test_usb.ISTR = 0U;
+    test_usb.FNR = 0U;
+    wake_sleeps = 0U;
+    wake_lock_at = lock_at[k];
+    test_sleep_hook = wake_host;
+    usbWakeupHost(&USBD1);
+    test_sleep_hook = NULL;
+    assert(!test_locked);
+    assert((test_usb.CNTR & (USB_CNTR_SUSPM | USB_CNTR_L2RES)) == USB_CNTR_SUSPM);
+    if (lock_at[k] != 0U) {
+      /* Locked at the third poll, the false suspend is discarded.*/
+      assert(wake_sleeps == lock_at[k]);
+      assert(test_usb.ISTR == ~(uint32_t)USB_ISTR_SUSP);
+    }
+    else {
+      /* No resume from the host, the suspend is served.*/
+      assert(wake_sleeps == 1U + STM32_USB_HOST_RESUME_TIMEOUT);
+      assert(test_usb.ISTR == USB_ISTR_SUSP);
+    }
+    usbStop(&USBD1);
+  }
+  puts("PASS: remote wakeup, suspend disabled until the host resumes");
+}
+
 static void check_wakeup(void) {
   unsigned before_suspends = suspends, before_wakeups = wakeups;
 
@@ -533,6 +591,7 @@ int main(int argc, char **argv) {
     check_iso_idle();
 #endif
     check_wakeup();
+    check_wakeup_host();
     check_reset();
   }
   usbStop(&USBD1);

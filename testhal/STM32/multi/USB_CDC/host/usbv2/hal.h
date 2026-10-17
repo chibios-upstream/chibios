@@ -82,7 +82,12 @@ static stm32_usb_t test_usb;
 #define osalSysLockFromISR() (assert(!test_locked && test_isr), test_locked = true)
 #define osalSysUnlockFromISR() (assert(test_locked && test_isr), test_locked = false)
 #define osalOsRescheduleS() assert(test_locked)
-#define osalThreadSleepMilliseconds(n) ((void)(n), assert(!test_locked && !test_isr))
+/* Sleeps never happen under the lock. The remote wakeup check models the
+   host side through the hook.*/
+static void (*test_sleep_hook)(uint32_t ms);
+#define osalThreadSleepMilliseconds(n)                                      \
+  (assert(!test_locked && !test_isr),                                      \
+   (test_sleep_hook != NULL ? test_sleep_hook((uint32_t)(n)) : (void)0))
 #define rccEnableUSB(lp) ((void)(lp), assert(test_locked), test_enables++)
 #define rccDisableUSB() (assert(test_locked), test_disables++)
 #define rccResetUSB() memset(&test_usb, 0, sizeof test_usb)

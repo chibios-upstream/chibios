@@ -16,6 +16,11 @@ VARIANTS = ['normal', 'iso', 'fast_iso', 'ep0_thread', 'sparse', 'sparse_iso']
 COPIED = ['os/hal/include', 'os/hal/src', 'os/hal/ports/STM32/LLD/USBv1']
 
 MUTATIONS = {
+  # Remote wakeup: suspend left enabled, no wait for the host, latched
+  # suspend always discarded.
+  'wakeup-suspend-enabled': (LLD, '  STM32_USB->CNTR = (STM32_USB->CNTR & ~CNTR_SUSPM) | CNTR_RESUME;\n', '  STM32_USB->CNTR |= CNTR_RESUME;\n'),
+  'wakeup-no-host-wait': (LLD, '  for (i = 0U; i < (unsigned)STM32_USB_HOST_RESUME_TIMEOUT; i++) {\n', '  for (i = 0U; i < 1U; i++) {\n'),
+  'wakeup-suspend-discarded': (LLD, '  if ((STM32_USB->FNR & FNR_LCK) != 0U) {\n    /* SOFs are received', '  if (true) {\n    /* SOFs are received'),
   'err-irq-enabled': (LLD, '/* CNTR_ERRM | CNTR_PMAOVRM |*/', 'CNTR_ERRM | /* CNTR_PMAOVRM |*/'),
   'pma-rx-unrounded': (LLD, '    return (size + 31U) & ~(size_t)31U;', '    return size;'),
   'setup-halfword-store': (LLD, '    *buf++ = (uint8_t)w;\n    *buf++ = (uint8_t)(w >> 8);\n  }\n}',
