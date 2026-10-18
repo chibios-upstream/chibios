@@ -10,6 +10,7 @@ not separate backlogs:
 - [Lifecycle and restart protocol](note_sb_lifecycle.md)
 - [SVC and MPU optimizations](note_svc_mpu_optimizations.md)
 - [TTY integration and signal delivery](note_sb_tty.md)
+- [System block and userspace VRQ critical zones](note_sb_system_block.md)
 
 ## Completed baseline
 
@@ -177,6 +178,13 @@ Detailed designs are in
   immediate from guest code. Clamp the 32-bit guest value with `uxtb` before
   table indexing and batch this with an SB ABI revision.
 - Precompute the deliverable-VRQ word used on syscall return.
+- Add the 32-byte sandbox system block at the top of the startup data area,
+  passed in the fourth parameter word, holding the VRQ status and masks.
+  Keep the VRQ fastcalls unchanged and add an opt-in `sbuser.h` switch for
+  userspace VRQ disable/enable with a conditional enable fastcall. Measure
+  with `test/sb` and the RT suite inside the sandbox. Follow-ups: VRQ status
+  delivery through the block and deferred VRQ replay. See
+  [note_sb_system_block.md](note_sb_system_block.md).
 - If SVCall is later moved into the kernel priority band, audit every handler
   for the required locking contract first.
 
