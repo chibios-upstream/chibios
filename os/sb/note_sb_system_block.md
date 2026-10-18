@@ -1,8 +1,9 @@
 # Note: Sandbox System Block and Userspace VRQ Critical Zones
 
-Design discussion recorded 2026-10-17, not implemented. Implementation
-status and remaining work are tracked only in [open_points.md](open_points.md).
-This note retains the measurements and the design rationale.
+Design discussion recorded 2026-10-17, prototyped 2026-10-18 on the
+`chibios-fastvrq-dev` branch, not merged. Implementation status and
+remaining work are tracked only in [open_points.md](open_points.md). This
+note retains the measurements and the design rationale.
 
 ## Problem
 
@@ -13,8 +14,9 @@ fastcall. Every guest critical zone therefore crosses the sandbox boundary
 twice.
 
 Measured on STM32G474RE at 170 MHz (`RT-SB-SWITCHED-XSHELL-FREERTOS-MULTI`,
-GCC 14.3.1, host debug checks disabled, FPU disabled), using the `test/sb`
-and `test/rt` suites executed inside SB1:
+GCC 14.3.1, host debug checks disabled, FPU disabled, host built with the
+demo default `-Og`), using the `test/sb` and `test/rt` suites executed inside
+SB1:
 
 | Benchmark                       | Cycles per iteration |
 |---------------------------------|----------------------|
@@ -43,19 +45,29 @@ of an RT guest is dominated by its critical zones.
 ## System block
 
 A fixed 32-byte structure, 32-byte aligned (one Cortex-M7 cache line), for
-system data shared between the host and the sandbox:
+system data shared between the host and the sandbox, defined in
+`common/sbsysc.h`:
 
 ```c
-typedef struct {
-  volatile uint32_t   vrq_isr;      /* Global VRQ status, SB_VRQ_ISR_DISABLED.*/
-  volatile uint32_t   vrq_wtmask;   /* Pending VRQs.*/
-  volatile uint32_t   vrq_enmask;   /* Enabled VRQs.*/
-  uint32_t            reserved[5];  /* Zero, future system data.*/
+typedef struct sb_sysblock {
+  uint32_t                  vrq_isr;      /* Global VRQ status.*/
+  uint32_t                  vrq_wtmask;   /* Pending VRQs.*/
+  uint32_t                  vrq_enmask;   /* Enabled VRQs.*/
+  uint32_t                  features;     /* Sandbox features.*/
+  uint32_t                  reserved[4];  /* Zero, future system data.*/
 } sb_sysblock_t;
 ```
 
-The type and `SB_VRQ_ISR_DISABLED` would move to `common/sbsysc.h`, both
-sides need them.
+`SB_VRQ_ISR_DISABLED` moved from `host/sbvrq.h` to `common/sbsysc.h`. The
+layout constants (`SB_SYSBLOCK_ALIGN`, `SB_SYSBLOCK_FEATURES_OFFSET`) and the
+feature bits (`SB_SYSBLOCK_FEAT_VRQ_FLAGS`) have no suffixes because the
+sandbox `crt0` uses them.
+
+The fields are not volatile. The host accesses them under the same rules as
+its own VRQ state, the sandbox accesses them through a
+`volatile sb_sysblock_t *`. Volatile fields made the host reload values it
+had just read, which raised the register pressure enough to add pushes to
+leaf functions on the VRQ paths.
 
 ### Location
 
@@ -64,22 +76,17 @@ and copies there the environment and argument strings, then pushes the
 four-word parameter block popped by the sandbox `crt0`. The system block is
 reserved first, as the topmost item of that area:
 
-- The host computes the address, no guest pointer is validated and no
+- The host computes the address, no sandbox pointer is validated and no
   registration fastcall is needed.
-- The block is outside `.data`, `.bss` and the heap. `crt0` does not clear
-  it and `heap_end`, taken from the stack pointer after popping the
-  parameters, already stays below the host-written area. Host state set
-  before the guest runs is preserved.
 - It is far from the bottom of the data region, which is the bottom of the
   main stack, the ARMv8-M `PSPLIM` and the location of the doomed context
   frame written by `vrq_set_doomed()`.
 - Static and dynamic sandboxes share `sb_init_environment()`.
 
-The address is passed in the fourth parameter word. The host currently
-writes the filler `0x55555555` there and the sandbox-side
-`sb_parameters_t.sb_end` field, mapped on that word, is not used, the field
-becomes the block pointer. An old host is recognized because the filler is
-an odd address.
+The address is passed in the fourth parameter word, where the host used to
+write the filler `0x55555555`. The sandbox `sb_parameters_t.sb_end` field,
+mapped on that word and not used, became `sysblk`. The old filler is a
+misaligned address, so it identifies hosts without the block.
 
 Rejected locations:
 
@@ -90,23 +97,55 @@ Rejected locations:
 - A registration fastcall: an extra call, a runtime pointer check and a
   handover of the state already pending at registration time.
 
+### Sandbox-side reservation
+
+The ChibiOS/RT and NIL core allocator takes memory from the top of the data
+region: with `CH_CFG_MEMCORE_SIZE == 0` its limit is the linker symbol
+`__heap_end__` and `chCoreAlloc()` maps to `chCoreAllocFromTop()`. The first
+prototype run failed because the shell working area overwrote the block.
+Newlib `sbrk()` is not affected, it uses `__sb_parameters.heap_end`.
+
+The `ARMCMx-SB` `rules_memory.ld` therefore reserves the top 32 bytes in a
+named `.sbsysblock` section, the heap ends below it and a link-time assertion
+rejects a misaligned block. This file is used only by sandbox builds. RAM
+sandboxes linked with `ram_sandbox.ld` (`os/sb/apps`) use `sbrk()` only and
+need no reservation. Guests with their own linker scripts, such as Zephyr,
+need an equivalent reservation.
+
+The host places the block at the top of its own data region. If the host
+region is larger than the guest `DATA_SPACE`, the block is above the guest
+memory and the guest-side reservation stays unused, which is safe.
+
+Guest binaries linked without the reservation overwrite the block, which
+breaks their VRQs but not the host. Guests must be rebuilt for hosts with
+the block.
+
+The same allocator already overwrites the environment and argument strings
+at the top of the region, this is a separate pre-existing issue.
+
 ### Host side
 
-The host keeps the three VRQ words directly in the block, reached through a
-pointer in `sb_class_t`. This is a single copy of the state, not a mirror,
-so nothing can become stale. The pointer must be outside `sbp->vrq` because
-`sb_start_unprivileged()` clears that structure, the block is initialized
-right after that clearing (masks zero, `vrq_isr` disabled). The waiting
-thread reference, the alarm virtual timer and `flags[]` stay in host memory.
+The host keeps the three VRQ words directly in the block, reached through
+`sbp->sysblk`. This is a single copy of the state, not a mirror, so nothing
+can become stale. The block is initialized by `sb_init_environment()` (masks
+zero, `vrq_isr` disabled), the pointer is outside `sbp->vrq` because
+`sb_start_unprivileged()` clears that structure, and it is cleared by
+`sbFinalize()` and on failed starts because the block is in released memory
+afterward. The waiting thread reference, the alarm virtual timer and
+`flags[]` stay in host memory.
+
+The VRQ functions load `sbp->sysblk` once and pass it to the internal
+helpers, the helper parameters follow the register order of the fastcall
+handlers. The chaining path of `SB_FASTC_VRQ_RETURN` is a separate function,
+so that the common return path needs no saved registers.
 
 All VRQ fastcalls and syscalls keep their semantics and remain the complete
-interface, a guest that never accesses the block is not affected.
+interface.
 
 ## Userspace VRQ critical zones
 
-A compile-time switch in `user/sbuser.h`, disabled by default, lets the VRQ
-proxy functions access the block directly. The name is to be decided, the
-block is shared state and not a cache.
+`SB_USER_CFG_FAST_VRQ` in `user/sbuser.h`, disabled by default, lets the VRQ
+proxy functions access the block directly:
 
 - `__sb_vrq_disable()`: stores `vrq_isr = SB_VRQ_ISR_DISABLED`, followed by a
   compiler barrier.
@@ -118,13 +157,16 @@ block is shared state and not a cache.
 - The other VRQ operations (pending and enable mask changes, flags, wait,
   return) remain fastcalls, they are infrequent or require delivery.
 
-The RT and FreeRTOS sandbox ports use these proxies, no port changes are
-needed. The switch requires a host providing the block, a debug assertion at
-startup can reject the old-host filler.
+The RT, NIL, FreeRTOS and ThreadX sandbox ports use these proxies, no port
+changes are needed. The switch requires a host providing the block.
 
 The compiler barriers are mandatory: the replaced `svc` asm statements have a
-`memory` clobber, which currently keeps the compiler from moving accesses
-outside the critical zone.
+`memory` clobber, which keeps the compiler from moving accesses outside the
+critical zone.
+
+`sbuser.h` is also included without `ch.h`, it defines `TRUE` and `FALSE`
+with the same guards used by the kernels, otherwise the switch tests would
+evaluate both sides as zero.
 
 ### Race analysis
 
@@ -135,9 +177,10 @@ Writers of the block words:
 | `vrq_isr`    | read only                      | set at delivery, cleared on return | plain stores     |
 | `vrq_wtmask` | set bits                       | clear bits (`CLRWT`, delivery)     | read only        |
 | `vrq_enmask` | read only                      | set and clear bits (`SETEN/CLREN`) | read only        |
+| `features`   | not accessed                   | read at delivery                   | set at startup   |
 
 The host read-modify-write sequences are unchanged and stay atomic for the
-same reason as today: the fastcall and delivery paths run at the SVCall
+same reason as before: the fastcall and delivery paths run at the SVCall
 priority, which out-prioritizes every IRQ allowed to call `sbVRQTriggerI()`
 or `sbVRQSetFlagsI()` (see the guard at the top of `host/sbvrq.c`). Moving
 the words into sandbox memory changes their address, not this invariant.
@@ -188,6 +231,7 @@ Every value the sandbox can write is harmless to the host:
   fastcall.
 - Clearing `vrq_isr` inside a handler is equivalent to invoking
   `SB_FASTC_VRQ_ENABLE` there, which is already possible.
+- A wrong `features` value only affects the flags delivery of that sandbox.
 
 The host reads each word once per decision. Host read-modify-write sequences
 on the block cannot be interrupted by the sandbox.
@@ -203,29 +247,33 @@ accessing VRQ state. The block lives in sandbox memory, so this check must
 keep preceding any block access, dynamic sandboxes release that memory on
 termination.
 
-### Expected gain
-
-The critical zone goes from ~144 cycles to a few cycles when no VRQ is
-pending, semaphore wait + signal from ~287 to ~30 and mutex lock + unlock
-from ~356 to ~75 cycles. The other RT benchmarks inside the sandbox should
-move between the native ALT and native results.
-
-The `test/sb` cases 3.3 and 3.4 exercise a VRQ made pending inside the
-critical zone and served at unlock. Benchmark 4.5 and the RT suite executed
-inside the sandbox measure the gain, comparing builds with the switch
-disabled and enabled.
-
-## Follow-ups
-
-### VRQ status delivery
+## VRQ flags as handler arguments
 
 The I2C, ADC, SPI, GPT and ETH VIO drivers set flags before triggering the
-VRQ, the guest handler fetches them with the `SB_FASTC_VRQ_GCSTS` fastcall,
-one extra round trip per event.
+VRQ, the guest handlers used to fetch them with the `SB_FASTC_VRQ_GCSTS`
+fastcall, one extra round trip per event.
 
-The host can instead read and clear `flags[n]` while building the frame of
-VRQ n and pass the value in R1, next to the VRQ number in R0. The storage
-stays in the host `sb_class_t` object, it does not use the system block.
+For sandboxes announcing `SB_SYSBLOCK_FEAT_VRQ_FLAGS`, the host reads and
+clears `flags[n]` while building the frame of VRQ n and passes the value in
+R1, next to the VRQ number in R0 (`vrq_initctx()` and the chaining helper of
+`SB_FASTC_VRQ_RETURN`). `__crt0_vrq` passes R0 and R1 unchanged to the
+vector, so handlers receive both as arguments:
+
+- `SB_VRQ_HANDLER(id)` in `user/sbuser.h` declares
+  `void id(uint32_t nvrq, uint32_t flags)`, the XHAL VIO drivers use it.
+- The FreeRTOS `portVRQ_HANDLER(n)` provides `ulVRQ` and `ulFlags`, the
+  ThreadX `TX_SB_VRQ_HANDLER(n)` provides `vrq` and `flags`.
+- Handlers declared without parameters remain valid, the arguments are
+  ignored.
+- `__sb_vrq_gcsts()`, `ulPortVRQGetFlags()` and `tx_sb_vrq_get_flags()`
+  return the flags not yet delivered.
+
+The `ARMCMx-SB` `crt0` announces the feature unconditionally, after storing
+the parameters, unless the system block pointer is misaligned. Old guest
+binaries never announce it and keep fetching the flags with `GCSTS`. Guests
+using their own startup code, such as Zephyr, keep the previous behavior.
+New guests on hosts without the block receive leftover stack contents as
+flags, this combination is not supported.
 
 `flags[]` cannot be replaced by writing the flags directly into the frame:
 a frame exists only at delivery, which is often deferred after the trigger
@@ -243,47 +291,82 @@ The read-and-clear is race-free:
   above every IRQ allowed to produce VRQs. Frames built by
   `sbVRQTriggerI()`/`sbVRQTriggerS()` run under the kernel lock.
 - The pending bit and the flags are cleared in the same atomic host
-  sequence (`vrq_initctx()` and the chaining code in `SB_FASTC_VRQ_RETURN`),
-  the flags stay paired with the delivered instance.
+  sequence, the flags stay paired with the delivered instance.
 - Producers call `sbVRQSetFlagsI()` and `sbVRQTriggerI()` in one locked
   section, and delivery points either run synchronously with sandbox
   execution or inside a trigger, so no delivery can fall between the two.
 - Flags set after a delivery accumulate and make the VRQ pending again, the
-  next delivery carries them. Today a producer interrupting a handler before
-  its `GCSTS` gives the handler both flag sets and causes a further
-  invocation with empty flags, pairing the flags with the instance removes
-  that case.
+  next delivery carries them. With `GCSTS`, a producer interrupting a
+  handler before the fetch gave the handler both flag sets and caused a
+  further invocation with empty flags, pairing the flags with the instance
+  removes that case.
 
-`__crt0_vrq` receives R1 together with R0. VRQs are not nested and chaining
-re-enters `__crt0_vrq`, so it can store R1 in a sandbox-private variable
-before calling the vector, the VIO handlers read it instead of invoking
-`GCSTS`.
+An intermediate variant stored R0 and R1 in sandbox variables from
+`__crt0_vrq` and returned them from `__sb_vrq_gcsts()` for the VRQ being
+served. Passing them as handler arguments is simpler and cheaper.
 
-Unchanged guests still fetch the flags with `GCSTS` and would find them
-already cleared, so the host does this only for sandboxes announcing support,
-for example with a feature bit written by the sandbox into a reserved word
-of the system block. The value is untrusted but harmless, a wrong setting
-only affects the flags of that sandbox.
-
-Masked get-and-clear operations do not require shared flags either: the
-sandbox can merge each R1 snapshot into a private per-VRQ word and operate on
-it, the sandbox is the only writer and its own critical zone protects it
-from its handlers.
+Masked get-and-clear operations do not require shared flags: the sandbox can
+merge the flags received by the handler into a private per-VRQ word and
+operate on it, the sandbox is the only writer and its own critical zone
+protects it from its handlers.
 
 Flags shared in sandbox memory would only add visibility of flags not yet
 delivered, without a fastcall. Each flag bit is a coalescing event like a
 pending bit, so the `vrq_req`/`vrq_ack` split described for the replay
 would also work per flag bit, with sandbox-side clears performed while VRQs
 are disabled. It would take two words per VRQ, 256 bytes outside the system
-block, so the replay would rather keep using `GCSTS` for VRQs carrying
-flags, still avoiding the frame and the return fastcall.
+block.
+
+## Prototype results
+
+STM32G474RE at 170 MHz, `RT-SB-SWITCHED-XSHELL-FREERTOS-MULTI`, GCC 14.3.1,
+host debug checks disabled. The demo builds the host with `-Og`, the figures
+below use `-O2` hosts with the same guest code. The fast guest is built with
+`SB_USER_CFG_FAST_VRQ` enabled.
+
+| Cycles per iteration           | Old host | New host, default guest | New host, fast guest |
+|--------------------------------|----------|-------------------------|----------------------|
+| Null fastcall                  | 61       | 61                      | 61                   |
+| Null syscall                   | 148      | 152                     | 152                  |
+| Software-triggered VRQ         | 259      | 290                     | 290                  |
+| VRQ in a VIO handler (flags)   | ~360     | 290                     | 290                  |
+| Critical zone (lock + unlock)  | 122      | 126                     | 24                   |
+
+RT suite inside SB1, `-O2` hosts, cycles per operation:
+
+| Benchmark                | Old host | New host, fast guest |
+|--------------------------|----------|----------------------|
+| Messages #1              | 515      | 242                  |
+| Context switch           | 80       | 68                   |
+| Semaphore wait + signal  | 244      | 89                   |
+| Mutex lock + unlock      | 313      | 113                  |
+
+The old-host VRQ in a VIO handler includes the `GCSTS` fastcall that the
+handler needed. The remaining host cost on a bare VRQ (~31 cycles) comes from
+the block pointer loads, the flags move at delivery and the register
+allocation of the VRQ paths.
+
+`__crt0_vrq` placement mattered: when its code crossed a flash/ART line it
+cost ~47 cycles per VRQ, it is now aligned to 32 bytes.
+
+The fast enable is inlined at every critical zone exit, the RT XSHELL client
+grows by 8.5 KB, mostly in the RT and OSLIB test suites. An out-of-line
+enable would trade a few cycles for size.
+
+Validation: `test/rt`, `test/oslib` and `test/sb` pass with default and fast
+guests, `test/sb` case 3.1 checks the handler arguments, the FreeRTOS guest
+self-test passes, and the `testsb` VIO SPI test, whose VRQs carry flags,
+passes with default and fast clients. The `testsb` `adc linear` command also
+hangs on unmodified hosts, it is a separate issue.
+
+## Follow-ups
 
 ### Deferred VRQ replay
 
 A VRQ triggered inside a critical zone costs the full delivery round trip at
-unlock (~282 cycles). The sandbox could instead dispatch it with a plain
-function call from the unlock path, since that call site already lets the
-compiler preserve the caller-saved registers:
+unlock. The sandbox could instead dispatch it with a plain function call
+from the unlock path, since that call site already lets the compiler
+preserve the caller-saved registers:
 
 ```c
 /* Inline unlock.*/
@@ -296,12 +379,16 @@ do {
   blk->vrq_isr = SB_VRQ_ISR_DISABLED;   /* No nesting, no host delivery.*/
   /* Claiming the lowest pending and enabled VRQ, see below.*/
   if (claimed) {
-    /* Same processing as __crt0_vrq: __sb_in_vrq, vector call, then
-       chSchPreemption() or SB_VECTORS_EPILOGUE_HOOK.*/
+    /* Same processing as __crt0_vrq: __sb_in_vrq, vector call with the
+       VRQ number and flags, then chSchPreemption() or
+       SB_VECTORS_EPILOGUE_HOOK.*/
   }
   blk->vrq_isr = 0U;
 } while ((blk->vrq_wtmask & blk->vrq_enmask) != 0U);
 ```
+
+The flags stay in host memory, so replaying a VRQ that carries flags needs
+the `GCSTS` fastcall, still avoiding the frame and the return fastcall.
 
 Claiming is the only sandbox-side clearing of a pending VRQ. A plain
 read-modify-write of `vrq_wtmask` would lose bits set by producers in the
@@ -329,10 +416,9 @@ writes that word:
 - A producer triggering another VRQ while the toggle is in progress uses
   the unchanged bits of `vrq_ack`.
 
-If the replay is expected, the base layout should define `vrq_req` and
-`vrq_ack` from the start, with `vrq_ack` left zero by sandboxes that do not
-replay. The host then computes the pending mask with one extra XOR per
-decision, and the base design is otherwise unchanged.
+The split needs one of the reserved words for `vrq_ack`, left zero by
+sandboxes that do not replay, and costs the host one extra XOR per
+decision.
 
 The deferred case would cost about the handler plus ~20 cycles. The replay is
 a second dispatch path that must match `__crt0_vrq` exactly, it is only

@@ -178,13 +178,13 @@ Detailed designs are in
   immediate from guest code. Clamp the 32-bit guest value with `uxtb` before
   table indexing and batch this with an SB ABI revision.
 - Precompute the deliverable-VRQ word used on syscall return.
-- Add the 32-byte sandbox system block at the top of the startup data area,
-  passed in the fourth parameter word, holding the VRQ status and masks.
-  Keep the VRQ fastcalls unchanged and add an opt-in `sbuser.h` switch for
-  userspace VRQ disable/enable with a conditional enable fastcall. Measure
-  with `test/sb` and the RT suite inside the sandbox. Follow-ups: VRQ status
-  delivery through the block and deferred VRQ replay. See
-  [note_sb_system_block.md](note_sb_system_block.md).
+- Merge the sandbox system block prototype from `chibios-fastvrq-dev`:
+  32-byte block at the top of the startup data area holding the VRQ status
+  and masks, `SB_USER_CFG_FAST_VRQ` userspace VRQ critical zones, and VRQ
+  flags passed to the handlers with the VRQ number. Before merging, run the
+  H563 targets on hardware and add the block reservation to the Zephyr
+  guest. Optional: out-of-line fast enable to reduce code size, deferred VRQ
+  replay. See [note_sb_system_block.md](note_sb_system_block.md).
 - If SVCall is later moved into the kernel priority band, audit every handler
   for the required locking contract first.
 
