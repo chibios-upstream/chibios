@@ -221,12 +221,62 @@ disabled and enabled.
 
 The I2C, ADC, SPI, GPT and ETH VIO drivers set flags before triggering the
 VRQ, the guest handler fetches them with the `SB_FASTC_VRQ_GCSTS` fastcall,
-one extra round trip per event. `flags[32]` does not fit the block, but VRQs
-do not nest: one reserved word could receive the flags of the VRQ being
-served, fetched and cleared by the host at delivery, including the chained
-delivery in `SB_FASTC_VRQ_RETURN`. Unchanged guests still use `GCSTS`, so
-the host would do this only for sandboxes announcing support in another
-reserved word.
+one extra round trip per event.
+
+The host can instead read and clear `flags[n]` while building the frame of
+VRQ n and pass the value in R1, next to the VRQ number in R0. The storage
+stays in the host `sb_class_t` object, it does not use the system block.
+
+`flags[]` cannot be replaced by writing the flags directly into the frame:
+a frame exists only at delivery, which is often deferred after the trigger
+(VRQs globally or individually disabled, sandbox inside a syscall or a
+handler, waiting on `SB_SYSC_VRQ_WAIT`, or switched out in privileged mode),
+and the flags of several producers must accumulate for a single pending
+VRQ. The array is the accumulator between trigger and delivery, the frame
+receives its snapshot.
+
+The read-and-clear is race-free:
+
+- Every delivery point excludes the producers. Frames built on fastcall
+  return (`vrq_fastc_check_pending()`, `SB_FASTC_VRQ_ENABLE`, the chaining in
+  `SB_FASTC_VRQ_RETURN`) and on syscall return run at the SVCall priority,
+  above every IRQ allowed to produce VRQs. Frames built by
+  `sbVRQTriggerI()`/`sbVRQTriggerS()` run under the kernel lock.
+- The pending bit and the flags are cleared in the same atomic host
+  sequence (`vrq_initctx()` and the chaining code in `SB_FASTC_VRQ_RETURN`),
+  the flags stay paired with the delivered instance.
+- Producers call `sbVRQSetFlagsI()` and `sbVRQTriggerI()` in one locked
+  section, and delivery points either run synchronously with sandbox
+  execution or inside a trigger, so no delivery can fall between the two.
+- Flags set after a delivery accumulate and make the VRQ pending again, the
+  next delivery carries them. Today a producer interrupting a handler before
+  its `GCSTS` gives the handler both flag sets and causes a further
+  invocation with empty flags, pairing the flags with the instance removes
+  that case.
+
+`__crt0_vrq` receives R1 together with R0. VRQs are not nested and chaining
+re-enters `__crt0_vrq`, so it can store R1 in a sandbox-private variable
+before calling the vector, the VIO handlers read it instead of invoking
+`GCSTS`.
+
+Unchanged guests still fetch the flags with `GCSTS` and would find them
+already cleared, so the host does this only for sandboxes announcing support,
+for example with a feature bit written by the sandbox into a reserved word
+of the system block. The value is untrusted but harmless, a wrong setting
+only affects the flags of that sandbox.
+
+Masked get-and-clear operations do not require shared flags either: the
+sandbox can merge each R1 snapshot into a private per-VRQ word and operate on
+it, the sandbox is the only writer and its own critical zone protects it
+from its handlers.
+
+Flags shared in sandbox memory would only add visibility of flags not yet
+delivered, without a fastcall. Each flag bit is a coalescing event like a
+pending bit, so the `vrq_req`/`vrq_ack` split described for the replay
+would also work per flag bit, with sandbox-side clears performed while VRQs
+are disabled. It would take two words per VRQ, 256 bytes outside the system
+block, so the replay would rather keep using `GCSTS` for VRQs carrying
+flags, still avoiding the frame and the return fastcall.
 
 ### Deferred VRQ replay
 
