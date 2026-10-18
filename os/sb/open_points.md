@@ -98,7 +98,8 @@ transport are in [note_sb_tty.md](note_sb_tty.md).
 
 - Reserve one signal-delivery VRQ and define its sandbox-visible pending
   signal bits. The proposed transport reuses `sbVRQSetFlagsI()`,
-  `sbVRQTriggerI()` and `__sb_vrq_gcsts()`; no additional event queue is
+  `sbVRQTriggerI()` and `__sb_vrq_gcsts()`, or the handler `flags` argument
+  once the system block prototype is merged; no additional event queue is
   required. A name such as `SB_VRQ_SIGNALS` is provisional.
 - Connect the TTY callback to this transport, mapping `INTR`, `QUIT` and
   `SUSP` into the common signal ABI. Preserve callback context, VRQ masking
@@ -181,7 +182,8 @@ Detailed designs are in
 - Merge the sandbox system block prototype from `chibios-fastvrq-dev`:
   32-byte block at the top of the startup data area holding the VRQ status
   and masks, `SB_USER_CFG_FAST_VRQ` userspace VRQ critical zones, and VRQ
-  flags passed to the handlers with the VRQ number. Before merging, run the
+  flags passed to the handlers with the VRQ number, replacing the removed
+  `SB_FASTC_VRQ_GCSTS` (code 119 retired). Before merging, run the
   H563 targets on hardware and add the block reservation to the Zephyr
   guest. Optional: out-of-line fast enable to reduce code size, deferred VRQ
   replay. See [note_sb_system_block.md](note_sb_system_block.md).

@@ -148,7 +148,10 @@ system-lock interval. The driver invokes its callback from ISR context
 outside the system lock; the bridge acquires and releases that lock itself.
 
 The guest handler retrieves and clears the accumulated flags using
-`__sb_vrq_gcsts()`. The bitmap represents pending signals, not a mask of
+`__sb_vrq_gcsts()`. With the system block prototype the fastcall is removed
+and the handler receives the flags as its `flags` argument, cleared by the
+host on delivery, see [note_sb_system_block.md](note_sb_system_block.md).
+The bitmap represents pending signals, not a mask of
 blocked signals. Repeated occurrences of one signal coalesce; different
 signals retain separate bits. The transport provides neither counts nor
 ordering and needs no additional message queue.

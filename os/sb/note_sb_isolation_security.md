@@ -153,6 +153,9 @@ closed by construction:
   VRQ.
 - `flags[n]` read-and-clear in `gcsts` vs. `sbVRQSetFlagsI`'s `|=` — no
   interleave, no lost completion flags (this is the VIO completion path).
+  With the system block prototype the read-and-clear moves to VRQ delivery,
+  under the same priority argument, see
+  [note_sb_system_block.md](note_sb_system_block.md).
 - the `isr = 0` -> mask-check window in `vrq_enable` / `vrq_return` — no
   producer runs between the store and the check; the `asm("":::"memory")`
   barrier is only compiler-ordering belt-and-suspenders.

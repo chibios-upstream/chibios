@@ -53,15 +53,12 @@ typedef struct sb_sysblock {
   uint32_t                  vrq_isr;      /* Global VRQ status.*/
   uint32_t                  vrq_wtmask;   /* Pending VRQs.*/
   uint32_t                  vrq_enmask;   /* Enabled VRQs.*/
-  uint32_t                  features;     /* Sandbox features.*/
-  uint32_t                  reserved[4];  /* Zero, future system data.*/
+  uint32_t                  reserved[5];  /* Zero, future system data.*/
 } sb_sysblock_t;
 ```
 
-`SB_VRQ_ISR_DISABLED` moved from `host/sbvrq.h` to `common/sbsysc.h`. The
-layout constants (`SB_SYSBLOCK_ALIGN`, `SB_SYSBLOCK_FEATURES_OFFSET`) and the
-feature bits (`SB_SYSBLOCK_FEAT_VRQ_FLAGS`) have no suffixes because the
-sandbox `crt0` uses them.
+`SB_VRQ_ISR_DISABLED` moved from `host/sbvrq.h` to `common/sbsysc.h`, next
+to `SB_SYSBLOCK_ALIGN`.
 
 The fields are not volatile. The host accesses them under the same rules as
 its own VRQ state, the sandbox accesses them through a
@@ -177,7 +174,6 @@ Writers of the block words:
 | `vrq_isr`    | read only                      | set at delivery, cleared on return | plain stores     |
 | `vrq_wtmask` | set bits                       | clear bits (`CLRWT`, delivery)     | read only        |
 | `vrq_enmask` | read only                      | set and clear bits (`SETEN/CLREN`) | read only        |
-| `features`   | not accessed                   | read at delivery                   | set at startup   |
 
 The host read-modify-write sequences are unchanged and stay atomic for the
 same reason as before: the fastcall and delivery paths run at the SVCall
@@ -231,7 +227,6 @@ Every value the sandbox can write is harmless to the host:
   fastcall.
 - Clearing `vrq_isr` inside a handler is equivalent to invoking
   `SB_FASTC_VRQ_ENABLE` there, which is already possible.
-- A wrong `features` value only affects the flags delivery of that sandbox.
 
 The host reads each word once per decision. Host read-modify-write sequences
 on the block cannot be interrupted by the sandbox.
@@ -253,11 +248,10 @@ The I2C, ADC, SPI, GPT and ETH VIO drivers set flags before triggering the
 VRQ, the guest handlers used to fetch them with the `SB_FASTC_VRQ_GCSTS`
 fastcall, one extra round trip per event.
 
-For sandboxes announcing `SB_SYSBLOCK_FEAT_VRQ_FLAGS`, the host reads and
-clears `flags[n]` while building the frame of VRQ n and passes the value in
-R1, next to the VRQ number in R0 (`vrq_initctx()` and the chaining helper of
-`SB_FASTC_VRQ_RETURN`). `__crt0_vrq` passes R0 and R1 unchanged to the
-vector, so handlers receive both as arguments:
+The host reads and clears `flags[n]` while building the frame of VRQ n and
+passes the value in R1, next to the VRQ number in R0 (`vrq_initctx()` and
+the chaining helper of `SB_FASTC_VRQ_RETURN`). `__crt0_vrq` passes R0 and
+R1 unchanged to the vector, so handlers receive both as arguments:
 
 - `SB_VRQ_HANDLER(id)` in `user/sbuser.h` declares
   `void id(uint32_t nvrq, uint32_t flags)`, the XHAL VIO drivers use it.
@@ -265,15 +259,22 @@ vector, so handlers receive both as arguments:
   ThreadX `TX_SB_VRQ_HANDLER(n)` provides `vrq` and `flags`.
 - Handlers declared without parameters remain valid, the arguments are
   ignored.
-- `__sb_vrq_gcsts()`, `ulPortVRQGetFlags()` and `tx_sb_vrq_get_flags()`
-  return the flags not yet delivered.
 
-The `ARMCMx-SB` `crt0` announces the feature unconditionally, after storing
-the parameters, unless the system block pointer is misaligned. Old guest
-binaries never announce it and keep fetching the flags with `GCSTS`. Guests
-using their own startup code, such as Zephyr, keep the previous behavior.
-New guests on hosts without the block receive leftover stack contents as
-flags, this combination is not supported.
+`SB_FASTC_VRQ_GCSTS` was removed together with `__sb_vrq_gcsts()`,
+`ulPortVRQGetFlags()` and `tx_sb_vrq_get_flags()`, code 119 is retired and
+not reused. Without it the host always moves the flags in R1: an earlier
+step kept the fastcall for guests that did not announce R1 delivery through
+a feature bit in the system block, removing the bit also removed its test
+from every delivery (~8 cycles). Consequences:
+
+- Flags not yet delivered cannot be read anymore, for example those of an
+  individually disabled VRQ, they are passed when the VRQ is enabled and
+  delivered.
+- Guests ignoring R1, such as the Zephyr guest, are not affected.
+- Old guest binaries get `CH_RET_ENOSYS` from the removed fastcall, they
+  must be rebuilt anyway because of the block reservation.
+- New guests on hosts without this change receive leftover stack contents
+  as flags, this combination is not supported.
 
 `flags[]` cannot be replaced by writing the flags directly into the frame:
 a frame exists only at delivery, which is often deferred after the trigger
@@ -310,8 +311,8 @@ merge the flags received by the handler into a private per-VRQ word and
 operate on it, the sandbox is the only writer and its own critical zone
 protects it from its handlers.
 
-Flags shared in sandbox memory would only add visibility of flags not yet
-delivered, without a fastcall. Each flag bit is a coalescing event like a
+Flags shared in sandbox memory would add visibility of flags not yet
+delivered, which the removal of `GCSTS` dropped. Each flag bit is a coalescing event like a
 pending bit, so the `vrq_req`/`vrq_ack` split described for the replay
 would also work per flag bit, with sandbox-side clears performed while VRQs
 are disabled. It would take two words per VRQ, 256 bytes outside the system
@@ -328,8 +329,8 @@ below use `-O2` hosts with the same guest code. The fast guest is built with
 |--------------------------------|----------|-------------------------|----------------------|
 | Null fastcall                  | 61       | 61                      | 61                   |
 | Null syscall                   | 148      | 152                     | 152                  |
-| Software-triggered VRQ         | 259      | 290                     | 290                  |
-| VRQ in a VIO handler (flags)   | ~360     | 290                     | 290                  |
+| Software-triggered VRQ         | 259      | 282                     | 282                  |
+| VRQ in a VIO handler (flags)   | ~360     | 282                     | 282                  |
 | Critical zone (lock + unlock)  | 122      | 126                     | 24                   |
 
 RT suite inside SB1, `-O2` hosts, cycles per operation:
@@ -342,7 +343,7 @@ RT suite inside SB1, `-O2` hosts, cycles per operation:
 | Mutex lock + unlock      | 313      | 113                  |
 
 The old-host VRQ in a VIO handler includes the `GCSTS` fastcall that the
-handler needed. The remaining host cost on a bare VRQ (~31 cycles) comes from
+handler needed. The remaining host cost on a bare VRQ (~23 cycles) comes from
 the block pointer loads, the flags move at delivery and the register
 allocation of the VRQ paths.
 
@@ -387,8 +388,9 @@ do {
 } while ((blk->vrq_wtmask & blk->vrq_enmask) != 0U);
 ```
 
-The flags stay in host memory, so replaying a VRQ that carries flags needs
-the `GCSTS` fastcall, still avoiding the frame and the return fastcall.
+The flags stay in host memory, so replaying a VRQ that carries flags would
+need a host operation returning them, `GCSTS` was removed. A replay could be
+limited to VRQs without flags, or such an operation reintroduced for it.
 
 Claiming is the only sandbox-side clearing of a pending VRQ. A plain
 read-modify-write of `vrq_wtmask` would lose bits set by producers in the
