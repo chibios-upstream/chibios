@@ -157,6 +157,24 @@ sequence clears `vrq_isr` before reading the masks:
 - A host trigger between the check and the fastcall delivers the VRQ, the
   fastcall then finds nothing to do.
 
+The enable can therefore be requested twice, once by the sandbox decision
+and once implicitly by a host trigger landing in that window. This is
+harmless:
+
+- Delivery is exactly-once: the host clears the pending bit when it builds
+  the VRQ frame, at SVCall priority, and `SB_FASTC_VRQ_RETURN` chains the
+  remaining pending VRQs. The redundant `SB_FASTC_VRQ_ENABLE` only sets
+  `vrq_isr` to zero again and finds nothing pending.
+- Only an IRQ that triggers a VRQ delivers anything. An unrelated host IRQ
+  in the window leaves the pending VRQ to the sandbox fastcall, as intended.
+- If the asynchronously delivered handler preempts the sandbox thread, the
+  thread later resumes through `SB_FASTC_VRQ_RETURN`, which restores
+  `vrq_isr` to zero, and its pending fastcall runs in the unlocked state it
+  already had.
+
+The cost is one wasted fastcall when a VRQ-triggering IRQ hits a window of a
+few instructions, and only when a VRQ was already pending.
+
 No memory barriers are required, the core observes its own accesses in
 program order, also from exception handlers.
 
