@@ -156,11 +156,13 @@ __port_exit_from_isr:
 /*--------------------------------------------------------------------------*
  * Common IRQ entry/exit point with software dispatching.
  *
- * All regular interrupt vectors point here (see vectors_alt.S). The
- * EXC_RETURN value is captured on entry, before any compiler-generated
- * code can run, then the handler is invoked through the __port_vectors
- * dispatch table indexed by the IPSR exception number (biased by 15,
- * SysTick is the first entry). On exit, for the outermost ISR only, an
+ * The SysTick and external interrupt vectors point here (see the bindings
+ * below). The EXC_RETURN value is captured on entry, before any
+ * compiler-generated code can run, then the handler is invoked through the
+ * __port_vectors dispatch table indexed by the IPSR exception number
+ * (biased by 15, SysTick is the first entry). Handlers are called as plain
+ * functions: LR does not hold EXC_RETURN and MSP is 8 bytes below its
+ * value at exception entry. On exit, for the outermost ISR only, an
  * artificial return context is injected in order to perform the eventual
  * reschedule atomically after returning from the exception.
  *
@@ -205,24 +207,20 @@ __port_irq_common:
  * IRQ dispatch table and hardware vector table bindings.
  *
  * The hardware vector table (vectors_alt.S) references __-prefixed
- * symbols, the port binds all regular interrupt slots to the common
- * dispatcher above, which reaches the actual handlers, defined with the
- * conventional VectorXX names, through the __port_vectors table. Slots
- * with no handler defined fall back to __port_unhandled_irq.
+ * symbols, the port binds the SysTick and external interrupt slots to the
+ * common dispatcher above, which reaches the actual handlers, defined with
+ * the conventional SysTick_Handler and VectorXX names, through the
+ * __port_vectors table. Handlers not defined elsewhere resolve to the weak
+ * defaults in vectors_alt.S, which call _unhandled_exception as vectors.S
+ * does, here from within the dispatcher: an _unhandled_exception override
+ * then finds MSP 8 bytes below its value at exception entry. The other
+ * system slots are not dispatched, vectors_alt.S forwards them to their
+ * conventional handlers; the port only takes the NMI or PendSV slot used
+ * for the post-IRQ switch, see chcore.c.
  *--------------------------------------------------------------------------*/
 #if CORTEX_NUM_VECTORS > 32
 #error "unsupported number of vectors, ARMv6-M allows 32 interrupts at most"
 #endif
-
-                .thumb_func
-__port_unhandled_irq:
-1:              b       1b
-
-                /* Default (weak) targets of the dispatch table.*/
-                .macro  swvec name
-                .weak   \name
-                .thumb_set \name, __port_unhandled_irq
-                .endm
 
                 /* Bindings (strong) of the hardware vector table slots.*/
                 .macro  hwvec name
@@ -230,82 +228,50 @@ __port_unhandled_irq:
                 .globl  __\name
                 .endm
 
-                swvec   SysTick_Handler
                 hwvec   SysTick_Handler
-                swvec   Vector40
                 hwvec   Vector40
-                swvec   Vector44
                 hwvec   Vector44
-                swvec   Vector48
                 hwvec   Vector48
-                swvec   Vector4C
                 hwvec   Vector4C
-                swvec   Vector50
                 hwvec   Vector50
-                swvec   Vector54
                 hwvec   Vector54
-                swvec   Vector58
                 hwvec   Vector58
-                swvec   Vector5C
                 hwvec   Vector5C
 #if CORTEX_NUM_VECTORS > 8
-                swvec   Vector60
                 hwvec   Vector60
-                swvec   Vector64
                 hwvec   Vector64
-                swvec   Vector68
                 hwvec   Vector68
-                swvec   Vector6C
                 hwvec   Vector6C
-                swvec   Vector70
                 hwvec   Vector70
-                swvec   Vector74
                 hwvec   Vector74
-                swvec   Vector78
                 hwvec   Vector78
-                swvec   Vector7C
                 hwvec   Vector7C
 #endif
 #if CORTEX_NUM_VECTORS > 16
-                swvec   Vector80
                 hwvec   Vector80
-                swvec   Vector84
                 hwvec   Vector84
-                swvec   Vector88
                 hwvec   Vector88
-                swvec   Vector8C
                 hwvec   Vector8C
-                swvec   Vector90
                 hwvec   Vector90
-                swvec   Vector94
                 hwvec   Vector94
-                swvec   Vector98
                 hwvec   Vector98
-                swvec   Vector9C
                 hwvec   Vector9C
 #endif
 #if CORTEX_NUM_VECTORS > 24
-                swvec   VectorA0
                 hwvec   VectorA0
-                swvec   VectorA4
                 hwvec   VectorA4
-                swvec   VectorA8
                 hwvec   VectorA8
-                swvec   VectorAC
                 hwvec   VectorAC
-                swvec   VectorB0
                 hwvec   VectorB0
-                swvec   VectorB4
                 hwvec   VectorB4
-                swvec   VectorB8
                 hwvec   VectorB8
-                swvec   VectorBC
                 hwvec   VectorBC
 #endif
 
                 /* Software dispatch table, indexed by the IPSR exception
                    number biased by 15, SysTick first then the external
-                   interrupts.*/
+                   interrupts. The weak defaults of the names are in
+                   vectors_alt.S.*/
                 .section .rodata
                 .align  2
                 .globl  __port_vectors
