@@ -15,9 +15,10 @@ PORTASM = $(CHIBIOS)/os/common/ports/ARMv6-M-ALT/compilers/GCC/chcoreasm.S \
 PORTINC = $(CHIBIOS)/os/common/ports/ARMv6-M-ALT
 
 # This port interposes on the hardware vectors using the alternate vector
-# table. Startup files are included before port files in ChibiOS projects.
-STARTUPASM  := $(filter-out $(PORTSTDVECTORS),$(STARTUPASM))
-ALLXASMSRC  := $(filter-out $(PORTSTDVECTORS),$(ALLXASMSRC))
+# table, the build rules remove the standard table listed by the startup
+# makefile from ASMXSRC, so the startup and port makefiles can be included
+# in any order.
+ASMXSRC_EXCLUDE += $(PORTSTDVECTORS)
 
 # Shared variables
 ALLXASMSRC += $(PORTASM)
