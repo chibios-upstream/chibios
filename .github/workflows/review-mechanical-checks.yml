@@ -148,7 +148,9 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y make gcc-arm-none-eabi
+          # gcc and binutils provide the native build used by the registry
+          # check.
+          sudo apt-get install -y make gcc-arm-none-eabi gcc binutils
 
       - name: Build and clean ARMv7-M smoke target
         shell: bash
@@ -156,3 +158,42 @@ jobs:
           set -euo pipefail
           make -C test/rt-ports/testbuild -f make/ARMv7-M.make all
           make -C test/rt-ports/testbuild -f make/ARMv7-M.make clean
+
+      - name: Build and clean ARMv6-M smoke targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Both switch methods, the setting must also reach the assembler.
+          psv="-DSTM32G0B1xx -DCH_CFG_USE_TM=FALSE -DCORTEX_ALTERNATE_SWITCH=TRUE"
+          for m in ARMv6-M ARMv6-M-ALT; do
+            make -C test/rt-ports/testbuild -f "make/$m.make" all
+            make -C test/rt-ports/testbuild -f "make/$m.make" clean
+            for t in all clean; do
+              make -C test/rt-ports/testbuild -f "make/$m.make" \
+                UDEFS="$psv" UADEFS="$psv" \
+                BUILDDIR="./build/$m-pendsv" DEPDIR="./.dep/$m-pendsv" $t
+            done
+          done
+
+      - name: Build and clean NIL alternate-port fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Compile and link only, with -Werror.
+          for d in v6_alt v7_alt v8_alt; do
+            make -C "test/nil/testbuild/$d" all
+            make -C "test/nil/testbuild/$d" clean
+          done
+          # ARMv6-M-ALT with the PendSV switch method.
+          psv="-DCORTEX_ALTERNATE_SWITCH=TRUE"
+          for t in all clean; do
+            make -C test/nil/testbuild/v6_alt USE_COPT="$psv" \
+              UADEFS="-DSTM32G0B1xx $psv" $t
+          done
+
+      - name: Check RT registry descriptors
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Builds in a temporary directory removed on exit.
+          python3 test/rt-ports/testbuild/check_registry.py
