@@ -288,6 +288,47 @@
 			</storageModule>
 			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
 		</cconfiguration>
+		<cconfiguration id="0.1570569554.1629784558.1356569442.1616305735.1243341191.489896566.1499665027">
+			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="0.1570569554.1629784558.1356569442.1616305735.1243341191.489896566.1499665027" moduleId="org.eclipse.cdt.core.settings" name="Build for STM32G0B1RE-Nucleo64 (alternate)">
+				<externalSettings/>
+				<extensions>
+					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.VCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+				</extensions>
+			</storageModule>
+			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
+				<configuration artifactName="${ProjName}" buildProperties="" description="" id="0.1570569554.1629784558.1356569442.1616305735.1243341191.489896566.1499665027" name="Build for STM32G0B1RE-Nucleo64 (alternate)" parent="org.eclipse.cdt.build.core.prefbase.cfg">
+					<folderInfo id="0.1570569554.1629784558.1356569442.1616305735.1243341191.489896566.1499665027." name="/" resourcePath="">
+						<toolChain id="org.eclipse.cdt.build.core.prefbase.toolchain.1518940102" name="No ToolChain" resourceTypeBasedDiscovery="false" superClass="org.eclipse.cdt.build.core.prefbase.toolchain">
+							<targetPlatform binaryParser="org.eclipse.cdt.core.ELF" id="org.eclipse.cdt.build.core.prefbase.toolchain.1518940102.697255225" name=""/>
+							<builder arguments="-f make/stm32g0b1re_nucleo64_alt.make" command="make" id="org.eclipse.cdt.build.core.settings.default.builder.784313105" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" parallelBuildOn="true" parallelizationNumber="optimal" superClass="org.eclipse.cdt.build.core.settings.default.builder"/>
+							<tool id="org.eclipse.cdt.build.core.settings.holder.libs.1576819552" name="holder for library settings" superClass="org.eclipse.cdt.build.core.settings.holder.libs"/>
+							<tool id="org.eclipse.cdt.build.core.settings.holder.1073709725" name="Assembly" superClass="org.eclipse.cdt.build.core.settings.holder">
+								<option id="org.eclipse.cdt.build.core.settings.holder.incpaths.1414618947" name="Include Paths" superClass="org.eclipse.cdt.build.core.settings.holder.incpaths"/>
+								<option id="org.eclipse.cdt.build.core.settings.holder.undef.incpaths.595171912" name="Undefined Include Paths" superClass="org.eclipse.cdt.build.core.settings.holder.undef.incpaths"/>
+								<inputType id="org.eclipse.cdt.build.core.settings.holder.inType.1802375507" languageId="org.eclipse.cdt.core.assembly" languageName="Assembly" sourceContentType="org.eclipse.cdt.core.asmSource" superClass="org.eclipse.cdt.build.core.settings.holder.inType"/>
+							</tool>
+							<tool id="org.eclipse.cdt.build.core.settings.holder.1171223431" name="GNU C++" superClass="org.eclipse.cdt.build.core.settings.holder">
+								<option id="org.eclipse.cdt.build.core.settings.holder.incpaths.1461221858" name="Include Paths" superClass="org.eclipse.cdt.build.core.settings.holder.incpaths"/>
+								<option id="org.eclipse.cdt.build.core.settings.holder.undef.incpaths.255666501" name="Undefined Include Paths" superClass="org.eclipse.cdt.build.core.settings.holder.undef.incpaths"/>
+								<inputType id="org.eclipse.cdt.build.core.settings.holder.inType.1785894584" languageId="org.eclipse.cdt.core.g++" languageName="GNU C++" sourceContentType="org.eclipse.cdt.core.cxxSource,org.eclipse.cdt.core.cxxHeader" superClass="org.eclipse.cdt.build.core.settings.holder.inType"/>
+							</tool>
+							<tool id="org.eclipse.cdt.build.core.settings.holder.936542235" name="GNU C" superClass="org.eclipse.cdt.build.core.settings.holder">
+								<option id="org.eclipse.cdt.build.core.settings.holder.incpaths.1747876188" name="Include Paths" superClass="org.eclipse.cdt.build.core.settings.holder.incpaths"/>
+								<option id="org.eclipse.cdt.build.core.settings.holder.undef.incpaths.105209570" name="Undefined Include Paths" superClass="org.eclipse.cdt.build.core.settings.holder.undef.incpaths"/>
+								<inputType id="org.eclipse.cdt.build.core.settings.holder.inType.1452979628" languageId="org.eclipse.cdt.core.gcc" languageName="GNU C" sourceContentType="org.eclipse.cdt.core.cSource,org.eclipse.cdt.core.cHeader" superClass="org.eclipse.cdt.build.core.settings.holder.inType"/>
+							</tool>
+						</toolChain>
+					</folderInfo>
+				</configuration>
+			</storageModule>
+			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
+		</cconfiguration>
 	</storageModule>
 	<storageModule moduleId="cdtBuildSystem" version="4.0.0">
 		<project id="TEST-RT-IRQ_STORM.null.100047313" name="TEST-RT-IRQ_STORM"/>
@@ -295,6 +336,9 @@
 	<storageModule moduleId="org.eclipse.cdt.core.LanguageSettingsProviders"/>
 	<storageModule moduleId="refreshScope" versionNumber="2">
 		<configuration configurationName="Build for STM32G474RE-Nucleo64">
+			<resource resourceType="PROJECT" workspacePath="/TEST-RT-IRQ_STORM"/>
+		</configuration>
+		<configuration configurationName="Build for STM32G0B1RE-Nucleo64 (alternate)">
 			<resource resourceType="PROJECT" workspacePath="/TEST-RT-IRQ_STORM"/>
 		</configuration>
 		<configuration configurationName="Build for STM32G474RE-Nucleo64 (alternate)">
@@ -359,6 +403,9 @@
 			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="org.eclipse.cdt.make.core.GCCStandardMakePerProjectProfile"/>
 		</scannerConfigBuildInfo>
 		<scannerConfigBuildInfo instanceId="0.1570569554.1256756031">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="org.eclipse.cdt.make.core.GCCStandardMakePerProjectProfile"/>
+		</scannerConfigBuildInfo>
+		<scannerConfigBuildInfo instanceId="0.1570569554.1629784558.1356569442.1616305735.1243341191.489896566.1499665027">
 			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="org.eclipse.cdt.make.core.GCCStandardMakePerProjectProfile"/>
 		</scannerConfigBuildInfo>
 	</storageModule>
