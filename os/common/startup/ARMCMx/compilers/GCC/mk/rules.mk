@@ -94,6 +94,12 @@ endif
 # of the "all" target using user-provided rules.
 ADDITIONAL_OUTFILES ?=
 
+# Excluded sources, the ASMXSRC_EXCLUDE variable can be appended to by
+# makefiles included before this one, the listed files are removed from
+# ASMXSRC, for example the startup vector table replaced by a port.
+ASMXSRC_EXCLUDE ?=
+ASMXSRC := $(filter-out $(ASMXSRC_EXCLUDE),$(ASMXSRC))
+
 # Source files groups and paths
 SRC      := $(CSRC) $(CPPSRC)
 SRCPATHS += $(sort $(dir $(ASMXSRC)) $(dir $(ASMSRC)) $(dir $(SRC)))
