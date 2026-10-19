@@ -55,9 +55,13 @@
  * @brief   NMI vector.
  * @details The NMI vector is used for exception mode re-entering after a
  *          context switch.
+ * @note    The port owns this vector: defining the conventional name makes
+ *          a second definition in the application a link error, as with
+ *          the standard port. The vector table references the
+ *          @p __NMI_Handler alias, see @p vectors_alt.S.
  */
 /*lint -save -e9075 [8.4] All symbols are invoked from asm context.*/
-void __NMI_Handler(void) {
+void NMI_Handler(void) {
 /*lint -restore*/
 
   /* The port_extctx structure is pointed by the PSP register.*/
@@ -73,6 +77,12 @@ void __NMI_Handler(void) {
   /* Restoring the normal interrupts status.*/
   port_unlock_from_isr();
 }
+
+#if !defined(__DOXYGEN__)
+/*lint -save -e9075 [8.4] All symbols are invoked from asm context.*/
+void __NMI_Handler(void) __attribute__((alias("NMI_Handler")));
+/*lint -restore*/
+#endif
 #endif /* !CORTEX_ALTERNATE_SWITCH */
 
 #if (CORTEX_ALTERNATE_SWITCH == TRUE) || defined(__DOXYGEN__)
@@ -80,9 +90,13 @@ void __NMI_Handler(void) {
  * @brief   PendSV vector.
  * @details The PendSV vector is used for exception mode re-entering after a
  *          context switch.
+ * @note    The port owns this vector: defining the conventional name makes
+ *          a second definition in the application a link error, as with
+ *          the standard port. The vector table references the
+ *          @p __PendSV_Handler alias, see @p vectors_alt.S.
  */
 /*lint -save -e9075 [8.4] All symbols are invoked from asm context.*/
-void __PendSV_Handler(void) {
+void PendSV_Handler(void) {
 /*lint -restore*/
 
   /* The port_extctx structure is pointed by the PSP register.*/
@@ -95,6 +109,12 @@ void __PendSV_Handler(void) {
   /* Writing back the modified PSP value.*/
   __set_PSP((uint32_t)ctxp);
 }
+
+#if !defined(__DOXYGEN__)
+/*lint -save -e9075 [8.4] All symbols are invoked from asm context.*/
+void __PendSV_Handler(void) __attribute__((alias("PendSV_Handler")));
+/*lint -restore*/
+#endif
 #endif /* CORTEX_ALTERNATE_SWITCH */
 
 /*===========================================================================*/
