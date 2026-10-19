@@ -11,6 +11,7 @@ not separate backlogs:
 - [SVC and MPU optimizations](note_svc_mpu_optimizations.md)
 - [TTY integration and signal delivery](note_sb_tty.md)
 - [System block and userspace VRQ critical zones](note_sb_system_block.md)
+- [VSRV, services between sandboxes, draft spec](note_sb_vsrv.md)
 
 ## Completed baseline
 
@@ -152,6 +153,10 @@ semantics.
   the live MPU registers in the same critical section. Revocation must take
   effect immediately because context switching compares table pointers and
   will not reload a modified active table.
+- VSRV ([note_sb_vsrv.md](note_sb_vsrv.md)) maps shared areas on demand,
+  always in a syscall of the sandbox owning the table, so only the live
+  update of the active table applies; it never revokes a mapping of
+  another sandbox.
 
 ### VETH completeness
 
