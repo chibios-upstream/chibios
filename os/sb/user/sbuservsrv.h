@@ -38,7 +38,6 @@
  *          @p CH_RET_SUCCESS, a @p SB_VSRV_RET_xxx or a @p CH_RET_xxx error
  *          code. @p SB_VSRV_RET_STALE means that the service instance the
  *          handle refers to is gone, the handle can only be closed.
- * @note    The design is described in @p os/sb/note_sb_vsrv.md.
  *
  * @addtogroup ARM_SANDBOX_USER_VSRV_API
  * @{

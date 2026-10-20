@@ -21,7 +21,6 @@
  *          the services, binding names to a server sandbox, the allowed
  *          client sandboxes and a shared area, and grants each sandbox the
  *          right to publish and to attach with its VSRV settings.
- * @note    The design is described in @p os/sb/note_sb_vsrv.md.
  *
  * @addtogroup ARM_SANDBOX_VSRV
  * @{
