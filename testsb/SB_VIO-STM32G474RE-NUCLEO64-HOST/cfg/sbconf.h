@@ -42,7 +42,7 @@
  * @brief   Number of memory regions for each sandbox.
  */
 #if !defined(SB_CFG_NUM_REGIONS) || defined(__DOXYGEN__)
-#define SB_CFG_NUM_REGIONS                  2
+#define SB_CFG_NUM_REGIONS                  4
 #endif
 
 /**
@@ -63,7 +63,7 @@
  * @brief   Enables support for sandbox virtual services.
  */
 #if !defined(SB_CFG_ENABLE_VSRV) || defined(__DOXYGEN__)
-#define SB_CFG_ENABLE_VSRV                  FALSE
+#define SB_CFG_ENABLE_VSRV                  TRUE
 #endif
 
 /**

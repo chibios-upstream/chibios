@@ -21,10 +21,15 @@
 
 #include "oop_chprintf.h"
 #include "xshell.h"
+#include "sbuservsrv.h"
 
 /* Application-defined calls of the testsb host.*/
 #define TSB_FASTC_ADD           64
 #define TSB_SYSC_HOST_INFO      192
+#define TSB_SYSC_MAP            193
+#define TSB_SYSC_UNMAP          194
+#define TSB_SYSC_MAPCHECK       195
+#define TSB_MAP_AREA_SIZE       256U
 
 static hal_buffered_sio_c bsio1;
 static uint8_t rxbuf[32];
@@ -367,6 +372,539 @@ static void cmd_userapi(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   chprintf(xshp->stream, "unassigned fastcall: %d\r\n", (int)msg);
 }
 
+/*
+ * Checks that a mapped test area is filled with a byte.
+ */
+static bool map_check(const volatile uint8_t *p, uint8_t b) {
+  unsigned i;
+
+  for (i = 0U; i < TSB_MAP_AREA_SIZE; i++) {
+    if (p[i] != b) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static void map_report(xshell_t *xshp, const char *what, bool ok) {
+
+  chprintf(xshp->stream, "%s: %s\r\n", what, ok ? "ok" : "FAIL");
+}
+
+static void cmd_maptest(xshell_t *xshp, int argc, char *argv[],
+                        char *envp[]) {
+  uint32_t a0, a1, a2;
+  char buf[48];
+  msg_t msg;
+  unsigned i;
+  bool ok;
+
+  (void)argv;
+  (void)envp;
+
+  if (argc > 1) {
+    xshellUsage(xshp, "maptest");
+    return;
+  }
+
+  /* Two areas mapped, read and written through the mappings.*/
+  a0 = sbSyscall2(TSB_SYSC_MAP, 0U, 0x5AU);
+  a1 = sbSyscall2(TSB_SYSC_MAP, 1U, 0x11U);
+  chprintf(xshp->stream, "areas at 0x%08x 0x%08x\r\n",
+           (unsigned)a0, (unsigned)a1);
+  ok = !CH_RET_IS_ERROR(a0) && !CH_RET_IS_ERROR(a1) &&
+       map_check((const volatile uint8_t *)a0, 0x5AU) &&
+       map_check((const volatile uint8_t *)a1, 0x11U);
+  map_report(xshp, "map and read", ok);
+  if (!ok) {
+    return;
+  }
+  memset((void *)a0, 0xA5, TSB_MAP_AREA_SIZE);
+  map_report(xshp, "write, seen by the host",
+             (msg_t)sbSyscall2(TSB_SYSC_MAPCHECK, 0U, 0xA5U) ==
+             CH_RET_SUCCESS);
+
+  /* The host syscalls pointer checks ignore mappings.*/
+  msg = (msg_t)sbSyscall2(TSB_SYSC_HOST_INFO, a1, sizeof (buf));
+  map_report(xshp, "host syscall rejects a mapped buffer",
+             msg == CH_RET_EFAULT);
+
+  /* No free region left for a third area.*/
+  msg = (msg_t)sbSyscall2(TSB_SYSC_MAP, 2U, 0x22U);
+  map_report(xshp, "third area refused", msg == CH_RET_EMFILE);
+
+  /* Freed region reused.*/
+  msg = (msg_t)sbSyscall1(TSB_SYSC_UNMAP, 0U);
+  a2 = sbSyscall2(TSB_SYSC_MAP, 2U, 0x22U);
+  map_report(xshp, "region reused after unmap",
+             (msg == CH_RET_SUCCESS) && !CH_RET_IS_ERROR(a2) &&
+             map_check((const volatile uint8_t *)a2, 0x22U) &&
+             map_check((const volatile uint8_t *)a1, 0x11U));
+
+  /* Repeated mapping and unmapping.*/
+  msg = (msg_t)sbSyscall1(TSB_SYSC_UNMAP, 2U);
+  ok = msg == CH_RET_SUCCESS;
+  for (i = 0U; ok && (i < 1000U); i++) {
+    const volatile uint8_t *p;
+
+    a0 = sbSyscall2(TSB_SYSC_MAP, 0U, i);
+    ok = !CH_RET_IS_ERROR(a0);
+    if (ok) {
+      p = (const volatile uint8_t *)a0;
+      ok = (p[0] == (uint8_t)i) &&
+           (p[TSB_MAP_AREA_SIZE - 1U] == (uint8_t)i) &&
+           ((msg_t)sbSyscall1(TSB_SYSC_UNMAP, 0U) == CH_RET_SUCCESS);
+    }
+  }
+  map_report(xshp, "1000 map and unmap cycles", ok);
+
+  msg = (msg_t)sbSyscall1(TSB_SYSC_UNMAP, 1U);
+  map_report(xshp, "all unmapped", msg == CH_RET_SUCCESS);
+}
+
+static void cmd_mapfault(xshell_t *xshp, int argc, char *argv[],
+                         char *envp[]) {
+  const volatile uint8_t *p;
+  uint32_t a;
+
+  (void)argv;
+  (void)envp;
+
+  if (argc > 1) {
+    xshellUsage(xshp, "mapfault");
+    return;
+  }
+
+  a = sbSyscall2(TSB_SYSC_MAP, 0U, 0x33U);
+  if (CH_RET_IS_ERROR(a)) {
+    chprintf(xshp->stream, "map failed: %d\r\n", (int)a);
+    return;
+  }
+  p = (const volatile uint8_t *)a;
+  chprintf(xshp->stream, "mapped: 0x%02x\r\n", p[0]);
+  (void)sbSyscall1(TSB_SYSC_UNMAP, 0U);
+  chprintf(xshp->stream, "reading after unmap, expecting a fault\r\n");
+  chThdSleepMilliseconds(20);
+  chprintf(xshp->stream, "read: 0x%02x\r\n", p[0]);
+}
+
+/*
+ * VSRV checks, SB1 serves the "test" service for itself, two slices of
+ * 256 bytes; "other" is served by SB2, not accessible to SB1.
+ */
+#define VSRV_TEST_SVRQ          20
+#define VSRV_TEST_CVRQ          21
+
+/* Flags delivered on the server and client VRQs.*/
+static volatile uint32_t vsrv_server_flags;
+static volatile uint32_t vsrv_client_flags;
+
+SB_VRQ_HANDLER(MK_VECTOR(VSRV_TEST_SVRQ)) {
+
+  CH_IRQ_PROLOGUE();
+  vsrv_server_flags |= flags;
+  CH_IRQ_EPILOGUE();
+}
+
+SB_VRQ_HANDLER(MK_VECTOR(VSRV_TEST_CVRQ)) {
+
+  CH_IRQ_PROLOGUE();
+  vsrv_client_flags |= flags;
+  CH_IRQ_EPILOGUE();
+}
+
+/* Returns and clears the flags delivered on a VRQ.*/
+static uint32_t vsrv_take(volatile uint32_t *fp) {
+  uint32_t f;
+
+  chSysLock();
+  f = *fp;
+  *fp = 0U;
+  chSysUnlock();
+
+  return f;
+}
+
+static bool vsrv_check(xshell_t *xshp, const char *what, bool ok) {
+
+  chprintf(xshp->stream, "%s: %s\r\n", what, ok ? "ok" : "FAIL");
+
+  return ok;
+}
+
+static void cmd_vsrvtest(xshell_t *xshp, int argc, char *argv[],
+                         char *envp[]) {
+  vsrv_area_t area, slice, slice2, cslice;
+  uint32_t attached, reset, svc, h;
+  pid_t pid;
+  msg_t msg;
+
+  (void)argv;
+  (void)envp;
+
+  if (argc > 1) {
+    xshellUsage(xshp, "vsrvtest");
+    return;
+  }
+
+  /* Publishing errors.*/
+  (void)vsrv_check(xshp, "open of an offline service",
+                   vsrvOpen("test", VSRV_TEST_CVRQ, &slice) == CH_RET_ENOENT);
+  (void)vsrv_check(xshp, "publish of an undefined name",
+                   vsrvPublish("nope", 0U, VSRV_TEST_SVRQ, &area) ==
+                   CH_RET_ENOENT);
+  (void)vsrv_check(xshp, "publish of a service of another server",
+                   vsrvPublish("other", 0U, VSRV_TEST_SVRQ, &area) ==
+                   CH_RET_EACCES);
+  (void)vsrv_check(xshp, "publish with minsize above the slice size",
+                   vsrvPublish("test", 512U, VSRV_TEST_SVRQ, &area) ==
+                   CH_RET_EINVAL);
+  (void)vsrv_check(xshp, "publish with an invalid VRQ",
+                   vsrvPublish("test", 0U, 40U, &area) == CH_RET_EINVAL);
+  (void)vsrv_check(xshp, "publish with an invalid name pointer",
+                   vsrvPublish((const char *)0x20000000U, 0U, VSRV_TEST_SVRQ,
+                               &area) == CH_RET_EFAULT);
+
+  /* Publishing.*/
+  msg = vsrvPublish("test", 64U, VSRV_TEST_SVRQ, &area);
+  chprintf(xshp->stream, "published: %d, area 0x%08x %u\r\n",
+           (int)msg, (unsigned)area.base, (unsigned)area.size);
+  if (!vsrv_check(xshp, "publish", msg >= 0)) {
+    return;
+  }
+  svc = (uint32_t)msg;
+  (void)vsrv_check(xshp, "second publish",
+                   vsrvPublish("test", 64U, VSRV_TEST_SVRQ, &area) ==
+                   CH_RET_EBUSY);
+  (void)vsrv_check(xshp, "no slice attached",
+                   (vsrvGetSlices(svc, &attached, &reset) == CH_RET_SUCCESS) &&
+                   (attached == 0U) && (reset == 0U));
+
+  /* Opening.*/
+  (void)vsrv_check(xshp, "open of a service not allowing the client",
+                   vsrvOpen("other", VSRV_TEST_CVRQ, &slice) == CH_RET_EACCES);
+  msg = vsrvOpen("test", VSRV_TEST_CVRQ, &slice);
+  chprintf(xshp->stream, "opened: %d, slice 0x%08x %u\r\n",
+           (int)msg, (unsigned)slice.base, (unsigned)slice.size);
+  if (!vsrv_check(xshp, "open", msg >= 0)) {
+    return;
+  }
+  h = (uint32_t)msg;
+  (void)vsrv_check(xshp, "slice inside the area",
+                   ((uint8_t *)slice.base >= (uint8_t *)area.base) &&
+                   ((uint8_t *)slice.base + slice.size <=
+                    (uint8_t *)area.base + area.size) &&
+                   (slice.size == 256U));
+  (void)vsrv_check(xshp, "second open",
+                   vsrvOpen("test", VSRV_TEST_CVRQ, &slice2) ==
+                   CH_RET_EEXIST);
+  (void)vsrv_check(xshp, "slice attached",
+                   (vsrvGetSlices(svc, &attached, &reset) == CH_RET_SUCCESS) &&
+                   (attached == 1U) && (reset == 0U));
+  msg = vsrvGetClient(svc, 0U, &cslice, &pid);
+  (void)vsrv_check(xshp, "client query",
+                   (msg == 0) && (cslice.base == slice.base) &&
+                   (cslice.size == slice.size) && (pid == getpid()));
+  memset(slice.base, 0x5A, slice.size);
+  (void)vsrv_check(xshp, "slice written",
+                   ((volatile uint8_t *)slice.base)[slice.size - 1U] == 0x5AU);
+  (void)vsrv_check(xshp, "no free region left",
+                   (msg_t)sbSyscall2(TSB_SYSC_MAP, 0U, 0U) == CH_RET_EMFILE);
+  (void)vsrv_check(xshp, "send, still pending at close",
+                   vsrvSendFixed(h, VSRV_MSG_NOP) == CH_RET_SUCCESS);
+
+  /* Closing, the slice goes to RESET, the next open takes the other
+     slice, then no slice is free.*/
+  (void)vsrv_check(xshp, "close", vsrvClose(h) == CH_RET_SUCCESS);
+  (void)vsrv_check(xshp, "close of a closed handle",
+                   vsrvClose(h) == CH_RET_EBADF);
+  (void)vsrv_check(xshp, "slice in reset",
+                   (vsrvGetSlices(svc, &attached, &reset) == CH_RET_SUCCESS) &&
+                   (attached == 0U) && (reset == 1U));
+  msg = vsrvOpen("test", VSRV_TEST_CVRQ, &slice2);
+  (void)vsrv_check(xshp, "open takes the other slice",
+                   (msg >= 0) && (slice2.base != slice.base) &&
+                   (((volatile uint8_t *)slice2.base)[0] == 0U));
+  h = (uint32_t)msg;
+  (void)vsrv_check(xshp, "close", vsrvClose(h) == CH_RET_SUCCESS);
+  (void)vsrv_check(xshp, "open with all slices in reset",
+                   vsrvOpen("test", VSRV_TEST_CVRQ, &slice2) == CH_RET_EBUSY);
+
+  /* Withdrawing, publishing again frees the slices in reset.*/
+  (void)vsrv_check(xshp, "withdraw", vsrvWithdraw(svc) == CH_RET_SUCCESS);
+  (void)vsrv_check(xshp, "second withdraw",
+                   vsrvWithdraw(svc) == CH_RET_EBADF);
+  (void)vsrv_check(xshp, "query after withdraw",
+                   vsrvGetSlices(svc, &attached, &reset) == CH_RET_EBADF);
+  msg = vsrvPublish("test", 64U, VSRV_TEST_SVRQ, &area);
+  (void)vsrv_check(xshp, "publish again",
+                   (msg >= 0) &&
+                   (vsrvGetSlices((uint32_t)msg, &attached, &reset) ==
+                    CH_RET_SUCCESS) && (attached == 0U) && (reset == 0U));
+  svc = (uint32_t)msg;
+  msg = vsrvOpen("test", VSRV_TEST_CVRQ, &slice);
+  (void)vsrv_check(xshp, "open, slice cleared",
+                   (msg >= 0) && (((volatile uint8_t *)slice.base)[0] == 0U));
+  h = (uint32_t)msg;
+
+  /* A withdraw leaves the handle stale, it can only be closed.*/
+  (void)vsrv_check(xshp, "withdraw with an open handle",
+                   vsrvWithdraw(svc) == CH_RET_SUCCESS);
+  (void)vsrv_check(xshp, "open again with the stale handle",
+                   vsrvOpen("test", VSRV_TEST_CVRQ, &slice2) ==
+                   CH_RET_ENOENT);
+  (void)vsrv_check(xshp, "close of the stale handle",
+                   vsrvClose(h) == CH_RET_SUCCESS);
+}
+
+static void cmd_vsrvnotify(xshell_t *xshp, int argc, char *argv[],
+                           char *envp[]) {
+  vsrv_area_t area, slice, slice2;
+  uint32_t attached, reset, svc, h, f;
+  msg_t msg;
+
+  (void)argv;
+  (void)envp;
+
+  if (argc > 1) {
+    xshellUsage(xshp, "vsrvnotify");
+    return;
+  }
+
+  (void)__sb_vrq_seten((1U << VSRV_TEST_SVRQ) | (1U << VSRV_TEST_CVRQ));
+  (void)vsrv_take(&vsrv_server_flags);
+  (void)vsrv_take(&vsrv_client_flags);
+
+  msg = vsrvPublish("test", 0U, VSRV_TEST_SVRQ, &area);
+  if (!vsrv_check(xshp, "publish", msg >= 0)) {
+    return;
+  }
+  svc = (uint32_t)msg;
+  msg = vsrvOpen("test", VSRV_TEST_CVRQ, &slice);
+  if (!vsrv_check(xshp, "open", msg >= 0)) {
+    return;
+  }
+  h = (uint32_t)msg;
+  f = vsrv_take(&vsrv_server_flags);
+  (void)vsrv_check(xshp, "server told of the attach",
+                   f == SB_VSRV_FL_SLICES);
+
+  /* Notifications both ways.*/
+  (void)vsrv_check(xshp, "client notify", vsrvNotify(h) == CH_RET_SUCCESS);
+  f = vsrv_take(&vsrv_server_flags);
+  (void)vsrv_check(xshp, "server got the slice flag",
+                   f == SB_VSRV_FL_SLICE(0U));
+  (void)vsrv_check(xshp, "server notify",
+                   vsrvNotifyClient(svc, 0U) == CH_RET_SUCCESS);
+  f = vsrv_take(&vsrv_client_flags);
+  (void)vsrv_check(xshp, "client got the notify flag",
+                   f == SB_VSRV_FL_NOTIFY);
+  (void)vsrv_check(xshp, "notify of a free slice",
+                   vsrvNotifyClient(svc, 1U) == SB_VSRV_RET_STALE);
+  (void)vsrv_check(xshp, "notify of an invalid slice",
+                   vsrvNotifyClient(svc, 2U) == CH_RET_EINVAL);
+  (void)vsrv_check(xshp, "reset done of an attached slice",
+                   vsrvResetDone(svc, 0U) == CH_RET_EINVAL);
+
+  /* Close, the server is told, the slice is in reset until done.*/
+  (void)vsrv_check(xshp, "close", vsrvClose(h) == CH_RET_SUCCESS);
+  f = vsrv_take(&vsrv_server_flags);
+  (void)vsrv_check(xshp, "server told of the release",
+                   f == SB_VSRV_FL_SLICES);
+  (void)vsrv_check(xshp, "notify of a slice in reset",
+                   vsrvNotifyClient(svc, 0U) == SB_VSRV_RET_STALE);
+  (void)vsrv_check(xshp, "reset done",
+                   (vsrvResetDone(svc, 0U) == CH_RET_SUCCESS) &&
+                   (vsrvGetSlices(svc, &attached, &reset) == CH_RET_SUCCESS) &&
+                   (attached == 0U) && (reset == 0U));
+  msg = vsrvOpen("test", VSRV_TEST_CVRQ, &slice2);
+  (void)vsrv_check(xshp, "slice free again",
+                   (msg >= 0) && (slice2.base == slice.base));
+  h = (uint32_t)msg;
+  (void)vsrv_take(&vsrv_server_flags);
+
+  /* Withdraw, the client is told, its handle is stale.*/
+  (void)vsrv_check(xshp, "withdraw", vsrvWithdraw(svc) == CH_RET_SUCCESS);
+  f = vsrv_take(&vsrv_client_flags);
+  (void)vsrv_check(xshp, "client told of the loss", f == SB_VSRV_FL_LOST);
+  (void)vsrv_check(xshp, "notify on a stale handle",
+                   vsrvNotify(h) == SB_VSRV_RET_STALE);
+  (void)vsrv_check(xshp, "server notify after withdraw",
+                   vsrvNotifyClient(svc, 0U) == CH_RET_EBADF);
+  (void)vsrv_check(xshp, "close of the stale handle",
+                   vsrvClose(h) == CH_RET_SUCCESS);
+  (void)vsrv_check(xshp, "no unexpected flags",
+                   (vsrv_take(&vsrv_server_flags) == 0U) &&
+                   (vsrv_take(&vsrv_client_flags) == 0U));
+}
+
+static void cmd_vsrvmsg(xshell_t *xshp, int argc, char *argv[],
+                        char *envp[]) {
+  vsrv_area_t area, slice, cslice;
+  vsrv_cmd_header_t *hp;
+  uint32_t svc, h, attached, reset;
+  vsrv_msg_t m;
+  msg_t msg, status;
+  pid_t pid;
+
+  (void)argv;
+  (void)envp;
+
+  if (argc > 1) {
+    xshellUsage(xshp, "vsrvmsg");
+    return;
+  }
+
+  (void)__sb_vrq_seten((1U << VSRV_TEST_SVRQ) | (1U << VSRV_TEST_CVRQ));
+  msg = vsrvPublish("test", 0U, VSRV_TEST_SVRQ, &area);
+  if (!vsrv_check(xshp, "publish", msg >= 0)) {
+    return;
+  }
+  svc = (uint32_t)msg;
+  msg = vsrvOpen("test", VSRV_TEST_CVRQ, &slice);
+  if (!vsrv_check(xshp, "open", msg >= 0)) {
+    return;
+  }
+  h = (uint32_t)msg;
+  (void)vsrv_take(&vsrv_server_flags);
+  (void)vsrv_take(&vsrv_client_flags);
+
+  /* Fixed message round trip.*/
+  (void)vsrv_check(xshp, "receive with no request",
+                   vsrvReceive(svc, &m) == SB_VSRV_RET_EMPTY);
+  (void)vsrv_check(xshp, "send of a fixed message",
+                   vsrvSendFixed(h, VSRV_MSG_INFO) == CH_RET_SUCCESS);
+  (void)vsrv_check(xshp, "server told of the request",
+                   vsrv_take(&vsrv_server_flags) == SB_VSRV_FL_REQUESTS);
+  (void)vsrv_check(xshp, "second send",
+                   vsrvSendFixed(h, VSRV_MSG_NOP) == CH_RET_EBUSY);
+  (void)vsrv_check(xshp, "result while queued",
+                   vsrvResult(h, &status) == SB_VSRV_RET_PENDING);
+  (void)vsrv_check(xshp, "receive",
+                   (vsrvReceive(svc, &m) == 0) && (m == VSRV_MSG_INFO));
+  (void)vsrv_check(xshp, "queue empty again",
+                   vsrvReceive(svc, &m) == SB_VSRV_RET_EMPTY);
+  (void)vsrv_check(xshp, "result while received",
+                   vsrvResult(h, &status) == SB_VSRV_RET_PENDING);
+  (void)vsrv_check(xshp, "cancel of a received request",
+                   vsrvCancel(h) == CH_RET_EBUSY);
+  (void)vsrv_check(xshp, "reply",
+                   vsrvReply(svc, 0U, (msg_t)VSRV_VERSION(1, 2)) ==
+                   CH_RET_SUCCESS);
+  (void)vsrv_check(xshp, "client told of the reply",
+                   vsrv_take(&vsrv_client_flags) == SB_VSRV_FL_REPLY);
+  (void)vsrv_check(xshp, "second reply",
+                   vsrvReply(svc, 0U, CH_RET_SUCCESS) == CH_RET_EINVAL);
+  (void)vsrv_check(xshp, "result",
+                   (vsrvResult(h, &status) == CH_RET_SUCCESS) &&
+                   (status == (msg_t)VSRV_VERSION(1, 2)));
+  (void)vsrv_check(xshp, "result with no request",
+                   vsrvResult(h, &status) == CH_RET_EINVAL);
+
+  /* Command structure in the slice, validated by the server.*/
+  hp = (vsrv_cmd_header_t *)slice.base;
+  hp->cmd  = 1U;
+  hp->size = sizeof (vsrv_cmd_header_t);
+  (void)vsrv_check(xshp, "send of a command structure",
+                   vsrvSend(h, hp) == CH_RET_SUCCESS);
+  msg = vsrvReceive(svc, &m);
+  (void)vsrv_check(xshp, "server checks the structure in the client slice",
+                   (msg == 0) && !VSRV_MSG_IS_FIXED(m) &&
+                   (vsrvGetClient(svc, 0U, &cslice, &pid) == 0) &&
+                   vsrvIsValidRange(&cslice, VSRV_MSG_CMD(m),
+                                    sizeof (vsrv_cmd_header_t)) &&
+                   (VSRV_MSG_CMD(m)->cmd == 1U));
+  (void)vsrvReply(svc, 0U, 42);
+  (void)vsrv_check(xshp, "non-negative result",
+                   (vsrvResult(h, &status) == CH_RET_SUCCESS) &&
+                   (status == 42));
+  (void)vsrv_take(&vsrv_server_flags);
+  (void)vsrv_take(&vsrv_client_flags);
+
+  /* Request words refused by the host.*/
+  (void)vsrv_check(xshp, "structure outside the slice",
+                   vsrvSend(h, (vsrv_cmd_header_t *)&status) ==
+                   CH_RET_EFAULT);
+  (void)vsrv_check(xshp, "structure without room for the header",
+                   vsrvSend(h, (vsrv_cmd_header_t *)
+                               ((uint8_t *)slice.base + slice.size - 4U)) ==
+                   CH_RET_EFAULT);
+  (void)vsrv_check(xshp, "misaligned structure",
+                   vsrvSend(h, (vsrv_cmd_header_t *)
+                               ((uint8_t *)slice.base + 2U)) ==
+                   CH_RET_EFAULT);
+  (void)vsrv_check(xshp, "no request queued by the refusals",
+                   vsrvReceive(svc, &m) == SB_VSRV_RET_EMPTY);
+
+  /* Cancel of a queued request.*/
+  (void)vsrvSendFixed(h, VSRV_MSG_NOP);
+  (void)vsrv_check(xshp, "cancel",
+                   (vsrvCancel(h) == CH_RET_SUCCESS) &&
+                   (vsrvReceive(svc, &m) == SB_VSRV_RET_EMPTY) &&
+                   (vsrvResult(h, &status) == CH_RET_EINVAL));
+
+  /* Reply to a client that closed, and reply to an idle slice.*/
+  (void)vsrvSendFixed(h, VSRV_MSG_NOP);
+  (void)vsrvReceive(svc, &m);
+  (void)vsrvClose(h);
+  (void)vsrv_check(xshp, "reply to a closed client",
+                   vsrvReply(svc, 0U, CH_RET_SUCCESS) == SB_VSRV_RET_STALE);
+  (void)vsrvResetDone(svc, 0U);
+  msg = vsrvOpen("test", VSRV_TEST_CVRQ, &slice);
+  h = (uint32_t)msg;
+  (void)vsrv_check(xshp, "reply to an idle slice",
+                   (msg >= 0) &&
+                   (vsrvReply(svc, 0U, CH_RET_SUCCESS) == CH_RET_EINVAL));
+
+  /* A queued request is removed by close.*/
+  (void)vsrvSendFixed(h, VSRV_MSG_NOP);
+  (void)vsrvClose(h);
+  (void)vsrv_check(xshp, "request removed by close",
+                   vsrvReceive(svc, &m) == SB_VSRV_RET_EMPTY);
+  (void)vsrvResetDone(svc, 0U);
+
+  /* Requests dropped by withdraw, the result is stale.*/
+  msg = vsrvOpen("test", VSRV_TEST_CVRQ, &slice);
+  h = (uint32_t)msg;
+  (void)vsrvSendFixed(h, VSRV_MSG_NOP);
+  (void)vsrvWithdraw(svc);
+  (void)vsrv_check(xshp, "result after withdraw",
+                   (msg >= 0) &&
+                   (vsrvResult(h, &status) == SB_VSRV_RET_STALE) &&
+                   (vsrvSendFixed(h, VSRV_MSG_NOP) == SB_VSRV_RET_STALE));
+  (void)vsrvClose(h);
+  (void)vsrv_check(xshp, "all slices free",
+                   (vsrvPublish("test", 0U, VSRV_TEST_SVRQ, &area) >= 0) &&
+                   (vsrvGetSlices(svc, &attached, &reset) == CH_RET_SUCCESS) &&
+                   (attached == 0U) && (reset == 0U) &&
+                   (vsrvWithdraw(svc) == CH_RET_SUCCESS));
+  (void)vsrv_take(&vsrv_server_flags);
+  (void)vsrv_take(&vsrv_client_flags);
+}
+
+static void cmd_vsrvcrash(xshell_t *xshp, int argc, char *argv[],
+                          char *envp[]) {
+  vsrv_area_t area, slice;
+
+  (void)argv;
+  (void)envp;
+
+  if (argc > 1) {
+    xshellUsage(xshp, "vsrvcrash");
+    return;
+  }
+
+  chprintf(xshp->stream, "publish %d, open %d, crashing\r\n",
+           (int)vsrvPublish("test", 0U, VSRV_TEST_SVRQ, &area),
+           (int)vsrvOpen("test", VSRV_TEST_CVRQ, &slice));
+  chThdSleepMilliseconds(20);
+  asm volatile ("mov r0, #64");
+  asm volatile ("mov sp, r0");
+  while (true) {
+  }
+}
+
 static void cmd_sbexit(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 
   (void)argv;
@@ -389,6 +927,12 @@ static const xshell_command_t commands[] = {
   {"sbcrash", cmd_sbcrash},
   {"sbexit", cmd_sbexit},
   {"userapi", cmd_userapi},
+  {"maptest", cmd_maptest},
+  {"mapfault", cmd_mapfault},
+  {"vsrvtest", cmd_vsrvtest},
+  {"vsrvnotify", cmd_vsrvnotify},
+  {"vsrvmsg", cmd_vsrvmsg},
+  {"vsrvcrash", cmd_vsrvcrash},
   {NULL, NULL}
 };
 
