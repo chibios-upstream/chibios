@@ -430,23 +430,26 @@ Client side:
 
 - **Send** `(handle, msg)`: the handle must be `IDLE` (`CH_RET_EBUSY`
   otherwise) and a request that is not a fixed message must point inside the
-  slice of the handle (`CH_RET_EFAULT` otherwise). Stores the request word,
-  queues the request, raises the "request pending" flag on the server VRQ.
+  slice of the handle, 4 bytes aligned, with room for the command header
+  (`CH_RET_EFAULT` otherwise). Stores the request word, queues the request,
+  raises the "request pending" flag on the server VRQ.
 - **Result** `(handle)`: if the request was replied returns the server
-  status, the handle goes back to `IDLE`; otherwise a VSRV "pending" code.
+  status, the handle goes back to `IDLE`; a request still queued or
+  received returns `SB_VSRV_RET_PENDING`, no request `CH_RET_EINVAL`.
 - **Cancel** `(handle)`: removes a `PENDING` request from the queue. A
-  `RECEIVED` request can't be cancelled, the client waits for the reply or
-  closes the handle; a green thread giving up on a timeout leaves the
-  handle busy until the reply.
+  `RECEIVED` request can't be cancelled (`CH_RET_EBUSY`), the client waits for
+  the reply or closes the handle; a green thread giving up on a timeout leaves
+  the handle busy until the reply.
 
 Server side:
 
 - **Receive** `(service)`: dequeues the oldest pending request, returns its
   slice index and the request word, not validated; the slice goes to
   `RECEIVED`. An empty queue returns a VSRV code.
-- **Reply** `(service, j, status)`: slice j must be `RECEIVED`. Stores the
-  status, raises the "reply" flag on the client VRQ. If the client went
-  away meanwhile, the reply is discarded and a stale code returned.
+- **Reply** `(service, j, status)`: slice j must be `RECEIVED` (`CH_RET_EINVAL`
+  otherwise). Stores the status, raises the "reply" flag on the client VRQ. If
+  the client went away meanwhile, the reply is discarded and a stale code
+  returned.
 
 A call in a guest runtime is: fill the command structure in the slice,
 send, wait for the handle VRQ on the calling green thread, take the status
@@ -543,7 +546,7 @@ billion sandbox starts.
   can't flood the server, neither side can make the host allocate or hold
   more.
 - A client can only reach its own slice, and holds at most one slice per
-  service, of at most the maximum size.
+  service.
 - Requests are served in FIFO order across clients. Notifications arrive in
   one VRQ flags word and their order is up to the server.
 - A server that never answers only stalls its own service; clients can wait
@@ -563,11 +566,10 @@ messages.
 
 ## ABI sketch
 
-Prototyped in `os/sb/user/sbuservsrv.h` (guest API),
-`os/sb/vsrv/sbvsrv.h` (host types and interface, included by `sb.h` when
-`SB_CFG_ENABLE_VSRV` is `TRUE`, `FALSE` by default while VSRV is a
-prototype, `os/sb/vsrv/sbvsrv.mk`) and `os/sb/common/sbsysc.h` (codes);
-the host side is not implemented yet.
+Guest API in `os/sb/user/sbuservsrv.h`, host in `os/sb/vsrv` (`sbvsrv.h`,
+included by `sb.h` when `SB_CFG_ENABLE_VSRV` is `TRUE`, `FALSE` by default
+while VSRV is new, `sbvsrv.c` and `sbvsrv.mk`), codes in
+`os/sb/common/sbsysc.h`.
 
 - One syscall and one fastcall code, as VIO does, with sub-codes in R0
   bits 0-7 and a single numbering space:
@@ -604,16 +606,16 @@ the host side is not implemented yet.
   `vsrvCancel()`, `vsrvNotify()`; `vsrvIsValidRange()` for the server
   checks. The command header, the `VSRV_MSG_xxx` fixed messages and macros
   and `VSRV_VERSION()` are in the same header, the host doesn't use them.
-- Host interface, prototyped: `vsrv_service_def_t`, `vsrv_service_t`,
+- Host interface: `vsrv_service_def_t`, `vsrv_service_t`,
   `vsrv_slice_t`, `vsrv_conf_t`, `vsrv_handle_t`, the `VSRV_CONF_xxx`
   flags, `sbVsrvObjectInit()`; `sbSetVirtualServices()`
   in `sbhost.h` and a `vsrvconf` pointer in `sb_class_t`, next to `vioconf`.
-- Host code to come in `os/sb/vsrv/sbvsrv.c`: `sb_sysc_vsrv()` and
+- Host code in `os/sb/vsrv/sbvsrv.c`: `sb_sysc_vsrv()` and
   `sb_fastc_vsrv()` bound with `SB_SVC_HANDLER()`, `__sb_vsrv_cleanup()`
-  hooked in the sandbox termination next to `__sb_vio_cleanup()`. A helper
-  in `sbhost.c` maps or unmaps one switched region of the current sandbox,
-  table entry and MPU registers, reusing `get_mpu_settings()`. Until then
-  both codes return `CH_RET_ENOSYS`.
+  hooked in the exit and abort paths next to `__sb_vio_cleanup()`,
+  `__sb_vsrv_init()` called by `sbHostInit()`. Mappings through
+  `sbMapRegion()` and `sbUnmapRegion()` of `sbhost.c`, raises through
+  `sbVRQRaisePidS()` and `sbVRQRaisePidI()`.
 - Adding codes is not an ABI break, `SB_ABI_VERSION` stays unchanged.
 
 ## Security notes
