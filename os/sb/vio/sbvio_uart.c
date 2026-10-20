@@ -306,8 +306,15 @@ void sb_fastc_vio_uart(sb_class_t *sbp, struct port_extctx *ectxp) {
       }
     case SB_VUART_GCEVT:
       {
-        ectxp->r0 = (uint32_t)sioGetAndClearEventsX(unitp->siop,
-                                                    (sioevents_t)ectxp->r1);
+        sioevents_t mask = (sioevents_t)ectxp->r1;
+        sioevents_t events;
+
+        /* The transmission end is returned but never cleared on behalf of
+           the sandbox, on some peripherals it is the transmitter status
+           and the host relies on it, see __sb_vio_cleanup().*/
+        events = sioGetAndClearEventsX(unitp->siop, mask & ~SIO_EV_TX_END);
+        events |= sioGetEventsX(unitp->siop) & mask & SIO_EV_TX_END;
+        ectxp->r0 = (uint32_t)events;
         break;
       }
     case SB_VUART_GEVT:

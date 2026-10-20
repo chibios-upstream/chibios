@@ -1324,12 +1324,17 @@ while (!sioIsRXEmptyX(bsiop->siop)) {
 hal_sio_driver_c *siop = (hal_sio_driver_c *)ip;
 hal_buffered_sio_c *bsiop = (hal_buffered_sio_c *)siop->arg;
 sioevents_t events;
+bool txend;
 
 if (bsiop == NULL) {
   return;
 }
 
 chSysLockFromISR();
+
+/* The transmission end is only reported if it was requested, the request
+   is withdrawn by __bsio_push_data() once the transmission is over.*/
+txend = (bool)((sioGetEnableFlagsX(siop) & SIO_EV_TX_END) != 0U);
 
 /* Drain/fill FIFOs before re-enabling data interrupts in the LLD.
    NOTE: this assumes status/error flags are not cleared by data reads,
@@ -1342,8 +1347,13 @@ if (!sioIsTXFullX(siop)) {
 }
 
 /* Posting the non-data SIO events as channel event flags, the masks are
-   made to match.*/
-events = sioGetAndClearEventsX(siop, SIO_EV_ALL_EVENTS);
+   made to match. The transmission end is not cleared, on some peripherals
+   it is the transmitter status and clearing it would make sioIsTXOngoingX()
+   report an ongoing transmission while idle.*/
+events = sioGetAndClearEventsX(siop, SIO_EV_ALL_EVENTS & ~SIO_EV_TX_END);
+if (txend && !sioIsTXOngoingX(siop)) {
+  events |= SIO_EV_TX_END;
+}
 bsAddFlagsI(bsiop, (eventflags_t)(events & ~SIO_EV_ALL_DATA));
 
 chSysUnlockFromISR();]]></implementation>

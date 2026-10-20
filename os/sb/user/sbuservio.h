@@ -363,6 +363,8 @@ static inline uint32_t vuartGetAndClearErrors(uint32_t unit) {
 
 /**
  * @brief   Returns and clears pending events.
+ * @note    @p SB_VUART_EV_TX_END is returned but not cleared, the host
+ *          keeps it as the transmitter status.
  *
  * @param[in] unit      VIO UART unit
  * @param[in] mask      @p SB_VUART_EV_xxx events to be returned and cleared
