@@ -199,7 +199,7 @@ switched MPU regions (`PORT_SWITCHED_REGIONS_NUMBER == 0`).
 - ARMv8-M only needs 32 bytes alignment of base and size: the slice size
   is a multiple of 32 and the area is aligned to 32 bytes.
 - An area `get_mpu_settings()` can't represent is a host configuration
-  error, caught by the definitions check or at the first publish.
+  error, caught by the definition check or at the first publish.
 - `PORT_SWITCHED_REGIONS_NUMBER` is global, every switch between two
   sandboxes loads all the regions: 2 words more per region on the burst
   load, a second burst on ARMv8-M above 4 regions.
@@ -222,26 +222,26 @@ static uint8_t log_area[4][256] __attribute__((aligned(1024)));
 static vsrv_slice_t log_slices[4];
 static sb_class_t * const log_clients[] = {&sbx2, &sbx3, &sbx4, NULL};
 
-static const vsrv_service_def_t service_defs[] = {
-  {
-    .name      = "log",
-    .server    = &sbx1,
-    .clients   = log_clients,
-    .area      = (uint8_t *)log_area,
-    .slicesize = 256U,          /* Power of two on ARMv7-M.*/
-    .slices    = log_slices,    /* Slice objects storage.*/
-    .nslices   = 4U             /* Clients attached at the same time.*/
-  }
+static const vsrv_service_def_t log_def = {
+  .name      = "log",
+  .server    = &sbx1,
+  .clients   = log_clients,
+  .area      = (uint8_t *)log_area,
+  .slicesize = 256U,            /* Power of two on ARMv7-M.*/
+  .slices    = log_slices,      /* Slice objects storage.*/
+  .nslices   = 4U               /* Clients attached at the same time.*/
 };
-static vsrv_service_t services[1];
+static vsrv_service_t log_service;
 
-  /* Before starting the sandboxes.*/
-  sbVsrvInit(services, service_defs, 1U);
+  /* Before starting the server and the clients.*/
+  sbVsrvObjectInit(&log_service, &log_def);
 ```
 
-`sbVsrvInit()` binds the service objects to their definitions, makes them
-known by name and, in debug builds, checks the definitions: areas disjoint
-and representable, servers and clients initialized sandboxes. The storage
+`sbVsrvObjectInit()` binds a service object to its definition and
+registers it, the service is known by name; in debug builds it checks the
+definition: unique name, slices, slice size and area alignment, area
+disjoint from the static regions of the server and of the clients. The
+module itself is initialized by `sbHostInit()`. The storage
 of the slice objects comes from the application like the handle tables, so
 a definition costs only what it uses.
 
@@ -322,10 +322,11 @@ static const vsrv_conf_t sbx2_vsrvconf = {
   the slice. A PID different from the one seen before means a new execution
   of the client.
 - **Notify** `(service, j)`: sets the server flag on the handle VRQ of the
-  client on slice j, if the slice is attached to a client of this server
-  instance.
+  client on slice j. A slice not attached to a client of this server
+  instance, or a client that went away, returns `SB_VSRV_RET_STALE`.
 - **Reset done** `(service, j)`: the server no longer uses slice j after
-  its client went away, the slice goes from `RESET` to `FREE`.
+  its client went away, the slice goes from `RESET` to `FREE`; a slice not
+  in `RESET` returns `CH_RET_EINVAL`.
 - **Withdraw** `(service)`: same effect as the server termination for that
   service, then unmaps the area from the caller.
 
@@ -340,7 +341,8 @@ static const vsrv_conf_t sbx2_vsrvconf = {
   base and size of the slice. `vrq` receives the server notifications
   (flag 0), the "service lost" event (flag 1) and the replies (flag 2).
 - **Notify** `(handle)`: checks the handle (see invalidation), sets flag j
-  on the server VRQ.
+  on the server VRQ. A stale handle, or a server that went away, returns
+  `SB_VSRV_RET_STALE`.
 - **Close** `(handle)`: unmaps the slice from the caller and releases it,
   whether the server is alive or not. If the server instance that served
   the slice is still running (service `ONLINE`, same generation), the slice
@@ -604,7 +606,7 @@ the host side is not implemented yet.
   and `VSRV_VERSION()` are in the same header, the host doesn't use them.
 - Host interface, prototyped: `vsrv_service_def_t`, `vsrv_service_t`,
   `vsrv_slice_t`, `vsrv_conf_t`, `vsrv_handle_t`, the `VSRV_CONF_xxx`
-  flags, `sbVsrvInit()`; `sbSetVirtualServices()`
+  flags, `sbVsrvObjectInit()`; `sbSetVirtualServices()`
   in `sbhost.h` and a `vsrvconf` pointer in `sb_class_t`, next to `vioconf`.
 - Host code to come in `os/sb/vsrv/sbvsrv.c`: `sb_sysc_vsrv()` and
   `sb_fastc_vsrv()` bound with `SB_SVC_HANDLER()`, `__sb_vsrv_cleanup()`
