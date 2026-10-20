@@ -745,6 +745,14 @@ bool sbFinalize(sb_class_t *sbp) {
  *          syscalls, which only consider the static regions.
  * @note    Mappings are dropped when the sandbox terminates, its regions
  *          table is built again from the static regions at start.
+ * @note    Static MPU regions numbered from
+ *          @p PORT_SWITCHED_REGIONS_NUMBER up take precedence where they
+ *          overlap a mapping, an area must not be covered by host regions
+ *          denying unprivileged access.
+ * @note    The memory attributes should match the ones of the host access
+ *          to the area, cacheable for SRAM: a non-cacheable mapping of
+ *          memory the host accesses through the cache needs cache
+ *          maintenance on cores with a data cache.
  * @pre     Called by the sandbox thread in a syscall, its regions table is
  *          the active one.
  *
