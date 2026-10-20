@@ -8,6 +8,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [SB] Sandbox PIDs: each start of a sandbox gets a new positive PID, valid
+  until `sbFinalize()`, returned by `sbGetPidX()` on the host so that objects
+  referring to one execution can detect a restart; guests get it with
+  `sbGetPid()` and POSIX `getpid()`, and the `SB-CLIENT-RT-XHAL-XSHELL` demo
+  has an `sbpid` command
+  ([#537](https://github.com/chibios-upstream/chibios/pull/537)).
 - [SB] Application-defined sandbox fastcalls and syscalls: the host table
   entries are weak aliases of the not implemented handler and
   `SB_SVC_HANDLER()` binds a handler to a code, for the host modules and for
