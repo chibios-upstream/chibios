@@ -1,5 +1,5 @@
 # List of the ChibiOS sandbox VSRV files.
-SBVSRVSRC =
+SBVSRVSRC = $(CHIBIOS)/os/sb/vsrv/sbvsrv.c
 
 SBVSRVASM =
 

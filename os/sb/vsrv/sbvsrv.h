@@ -51,6 +51,11 @@
 #define VSRV_CONF_ATTACH        (1U << 1)
 /** @} */
 
+/**
+ * @brief   No slice, end of the pending requests queue.
+ */
+#define VSRV_NO_SLICE           0xFFU
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -61,6 +66,10 @@
 
 #if SB_CFG_ENABLE_VRQ != TRUE
 #error "VSRV requires SB_CFG_ENABLE_VRQ == TRUE"
+#endif
+
+#if CH_CFG_USE_MUTEXES != TRUE
+#error "VSRV requires CH_CFG_USE_MUTEXES == TRUE"
 #endif
 
 #if PORT_SWITCHED_REGIONS_NUMBER == 0

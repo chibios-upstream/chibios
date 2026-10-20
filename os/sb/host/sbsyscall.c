@@ -206,14 +206,19 @@ void __sb_abort(msg_t msg) {
   chVTResetI(&sbp->vrq.alarm_vt);
 #endif
 
-#if SB_CFG_ENABLE_VFS == TRUE
+#if (SB_CFG_ENABLE_VFS == TRUE) || (SB_CFG_ENABLE_VIO == TRUE) ||          \
+    (SB_CFG_ENABLE_VSRV == TRUE)
+  /* Modules cleanup, in a single unlocked window because it can block.*/
   chSysUnlock();
+#if SB_CFG_ENABLE_VFS == TRUE
   __sb_io_cleanup(sbp);
-  chSysLock();
 #endif
 #if SB_CFG_ENABLE_VIO == TRUE
-  chSysUnlock();
   __sb_vio_cleanup(sbp);
+#endif
+#if SB_CFG_ENABLE_VSRV == TRUE
+  __sb_vsrv_cleanup(sbp);
+#endif
   chSysLock();
 #endif
 
