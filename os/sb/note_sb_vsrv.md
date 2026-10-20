@@ -80,9 +80,9 @@ switched MPU regions (`PORT_SWITCHED_REGIONS_NUMBER == 0`).
  ---------               -----------                    ---------
                                                   <---- publish("log", min)
                          maps the area in the server
- open("log", size) ----> policy check, allocates
-                         slice j in the area, maps it
-                         in the client, handle
+ open("log") ----------> policy check, takes slice j,
+                         maps its block in the client,
+                         handle
  writes slice j
  notify(h) ------------> flag j on the service VRQ ---> VRQ, R1 = flags
                                                         reads slice j,
@@ -100,20 +100,18 @@ switched MPU regions (`PORT_SWITCHED_REGIONS_NUMBER == 0`).
   publishing execution, allowed clients, state (`OFFLINE`/`ONLINE`),
   generation and its area.
 - The **area** of a service is host-owned memory, never part of a sandbox's
-  own memory, from which the **slices** are allocated.
+  own memory, divided in one block of the maximum slice size per slice.
 - A **PID** identifies one execution of a sandbox, `sbGetPidX()`: a new
   one is assigned at each start, it is zero while the sandbox is stopped.
   VSRV stores the PID next to every sandbox pointer and compares it before
   acting on the sandbox, see [Invalidation](#invalidation).
-- A **slice** is a block of the area allocated when a client opens the
-  service, at least the minimum size defined by the server, larger if the
-  client requests it, up to the maximum allowed by the host. It is
-  identified by an index j, 0 to 30, used for the notifications. Slice j is
-  `FREE` (no block), `ATTACHED` (to one client, with the service generation
-  at attach time) or `RESET` (released by its client while the server
-  instance that served it is still running, see
-  [Invalidation](#invalidation)). Its block returns to the area when it goes
-  `FREE`.
+- A **slice** is the attachment of one client to the service, identified
+  by an index j, 0 to 29, used for the notifications. Slice j always uses
+  block j of the area and the client maps the whole block, the slice size
+  is defined by the service. Slice j is `FREE` (not attached),
+  `ATTACHED` (to one client, with the service generation at attach time) or
+  `RESET` (released by its client while the server instance that served it
+  is still running, see [Invalidation](#invalidation)).
 - A **handle** is a small integer in a per-client host table, like a file
   descriptor. The table entry stores the service, the slice and the service
   generation seen at open time, and the region of the client holding the
@@ -163,14 +161,15 @@ switched MPU regions (`PORT_SWITCHED_REGIONS_NUMBER == 0`).
     heap are never placed there.
 - **No finalization race.** Slices aren't sandbox memory, `sbFinalize()` of
   a dynamic server or client never frees memory mapped by another sandbox.
-- **Allocator state outside the area.** The free blocks of an area are
-  tracked by the host in host memory, a buddy allocator with a bitmap per
-  service. An allocator keeping its headers or free lists inside the blocks,
-  such as a ChibiOS heap over the area, would hand host metadata to the
+- **No allocator.** Slice j always uses block j of the area, taking a free
+  slice index is the allocation and the slice table, in host memory, is the
+  free list. An allocator keeping headers or free lists inside the area, a
+  ChibiOS heap or memory pool over it, would hand host metadata to the
   server, which maps the whole area.
-- **The host never reads slices.** It only clears them: a slice when it is
-  allocated, the free blocks when the service is published, so no data of a
-  previous client or server instance is visible.
+- **The host never reads slices.** It only clears them: a block when its
+  slice is attached, the blocks of the free slices when the service is
+  published, so no data of a previous client or server instance is
+  visible.
 - **Validation by the receiver.** The messages in a slice are validated by
   the receiving side only, server or client. The host doesn't read, check or
   interpret them and knows nothing of their format. The receiver reads each
@@ -193,13 +192,12 @@ switched MPU regions (`PORT_SWITCHED_REGIONS_NUMBER == 0`).
   not on the services a sandbox can use over its run: with 2 free regions a
   sandbox can serve one service and use another one, or use two.
 - ARMv7-M regions are a power of two in size, at least 32 bytes, and
-  aligned to their size, with 8 subregions. The buddy allocator produces
-  exactly such blocks: the area is a sequence of blocks of the maximum slice
-  size, aligned to it, a requested slice size is rounded up to the next
-  power of two. The area also has to fit one region of the server: a power
-  of two, or a larger region with subregions disabled.
-- ARMv8-M only needs 32 bytes alignment of base and size, the same
-  allocator wastes memory there but keeps one implementation.
+  aligned to their size, with 8 subregions: the slice size is a power of
+  two and the area is aligned to it, so every block is a valid client
+  region. The area also has to fit one region of the server: a power of
+  two, or a larger region with subregions disabled.
+- ARMv8-M only needs 32 bytes alignment of base and size: the slice size
+  is a multiple of 32 and the area is aligned to 32 bytes.
 - An area `get_mpu_settings()` can't represent is a host configuration
   error, caught by the definitions check or at the first publish.
 - `PORT_SWITCHED_REGIONS_NUMBER` is global, every switch between two
@@ -219,22 +217,19 @@ sandbox the right to publish and to attach at all. An operation needs both.
 The host application defines the services statically, as it configures VIO:
 
 ```c
-/* Area of the "log" service: 4 slices of the maximum size.*/
-static uint8_t log_area[1024] __attribute__((aligned(1024)));
+/* Area of the "log" service: one block per slice.*/
+static uint8_t log_area[4][256] __attribute__((aligned(1024)));
 static vsrv_slice_t log_slices[4];
-static uint32_t log_allocmap[VSRV_ALLOCMAP_WORDS(sizeof log_area)];
 
 static const vsrv_service_def_t service_defs[] = {
   {
-    .name     = "log",
-    .server   = &sbx1,
-    .clients  = (sb_class_t * const []){&sbx2, &sbx3, &sbx4, NULL},
-    .area     = log_area,
-    .areasize = sizeof log_area,
-    .maxsize  = 256U,           /* Largest slice, power of two.*/
-    .slices   = log_slices,     /* Slice objects storage.*/
-    .nslices  = 4U,             /* Clients attached at the same time.*/
-    .allocmap = log_allocmap    /* Allocator map storage.*/
+    .name      = "log",
+    .server    = &sbx1,
+    .clients   = (sb_class_t * const []){&sbx2, &sbx3, &sbx4, NULL},
+    .area      = (uint8_t *)log_area,
+    .slicesize = 256U,          /* Power of two on ARMv7-M.*/
+    .slices    = log_slices,    /* Slice objects storage.*/
+    .nslices   = 4U             /* Clients attached at the same time.*/
   }
 };
 static vsrv_service_t services[1];
@@ -246,19 +241,20 @@ static vsrv_service_t services[1];
 `sbVsrvInit()` binds the service objects to their definitions, makes them
 known by name and, in debug builds, checks the definitions: areas disjoint
 and representable, servers and clients initialized sandboxes. The storage
-of the slice objects and of the allocator map comes from the application
-like the handle tables, so a definition costs only what it uses.
+of the slice objects comes from the application like the handle tables, so
+a definition costs only what it uses.
 
 - No mapping is configured by the application: the area is given to the
   server and the slices to the clients by publish and open. Access to the
   memory follows from the policy checks.
-- The host sets the limits: how many clients can be attached at the same
-  time and the largest slice. The server sets the minimum slice size at
-  publish, its protocol knows what it needs, within the host maximum.
-- An area of `nslices` blocks of `maxsize` guarantees that every open
-  within the limits finds a block: with at most `nslices - 1` slices
-  allocated, one block of `maxsize` is entirely free. A smaller area
-  overcommits, an open can then fail with `CH_RET_ENOMEM`.
+- The host defines the slice size and how many clients can be attached
+  at the same time. The server states at publish the smallest slice its
+  protocol works with, publish fails if the host slice is smaller: a host
+  configuration not matching the server image is caught before the service
+  goes online.
+- The area is `nslices` blocks of `slicesize`, each slice has its own
+  block: an open never fails for lack of memory and memory never moves
+  between clients.
 - Areas must be disjoint from each other, from every private region of any
   sandbox and from host data. A host check of the definitions, run before
   starting the sandboxes, verifies this and the MPU representation in debug
@@ -269,10 +265,10 @@ like the handle tables, so a definition costs only what it uses.
 - Publishing only turns a defined service `ONLINE`. A sandbox can't create a
   name that the host did not define, and can't serve a name defined for
   another sandbox.
-- One handle per client and service, and the maximum slice size, so a
-  client can't take the area away from the other allowed clients.
-- Host state is static: a service object with its allocator bitmap and the
-  request state of its slices per definition, a handle table per sandbox
+- One handle per client and service, so a client can't take all the
+  slices away from the other allowed clients.
+- Host state is static: a service object and the state of its slices per
+  definition, a handle table per sandbox
   from its settings. No heap allocation.
 - At most 30 slices per service, one notification flag each.
 
@@ -310,14 +306,14 @@ static const vsrv_conf_t sbx2_vsrvconf = {
 
 ## Server operations
 
-- **Publish** `(name, minsize, vrq)`: the caller must have `VSRV_CONF_PUBLISH`,
-  be the defined server and the service `OFFLINE`, `minsize` can't exceed the
-  host maximum (`CH_RET_EINVAL`). Maps the area in a free region of the caller
-  (`CH_RET_EMFILE` if none), clears the free blocks, the service becomes
-  `ONLINE` and the generation is incremented. `vrq` receives the notifications:
-  flag j when the client of slice j notifies, flag 30 when requests are
-  pending, flag 31 when a slice changes state. Returns a service id, base and
-  size of the area.
+- **Publish** `(name, minsize, vrq)`: the caller must have
+  `VSRV_CONF_PUBLISH`, be the defined server and the service `OFFLINE`, the
+  host slice size can't be smaller than `minsize` (`CH_RET_EINVAL`). Maps
+  the area in a free region of the caller (`CH_RET_EMFILE` if none), clears
+  the free slices, the service becomes `ONLINE` and the generation is
+  incremented. `vrq` receives the notifications: flag j when the client of
+  slice j notifies, flag 30 when requests are pending, flag 31 when a slice
+  changes state. Returns a service id, base and size of the area.
 - **Slices** `(service)`: returns the masks of the slices attached to
   clients of this server instance and of the slices in `RESET`.
 - **Client** `(service, j)`: returns the identity of the client on slice j,
@@ -328,34 +324,27 @@ static const vsrv_conf_t sbx2_vsrvconf = {
   client on slice j, if the slice is attached to a client of this server
   instance.
 - **Reset done** `(service, j)`: the server no longer uses slice j after
-  its client went away, the slice goes from `RESET` to `FREE` and its block
-  returns to the area.
+  its client went away, the slice goes from `RESET` to `FREE`.
 - **Withdraw** `(service)`: same effect as the server termination for that
   service, then unmaps the area from the caller.
 
 ## Client operations
 
-- **Open** `(name, size, vrq)`: the caller must have `VSRV_CONF_ATTACH`, a free
-  entry in its handle table (`CH_RET_EMFILE` otherwise), be an allowed client
-  without a handle on the service, the service `ONLINE`. `size` is raised to
-  the server minimum, zero asks for the minimum, above the host maximum is
-  `CH_RET_EINVAL`. Takes a `FREE` slice index (`CH_RET_EBUSY` if none),
-  allocates a block (`CH_RET_ENOMEM` if none), maps it in a free region of the
-  caller (`CH_RET_EMFILE` if none), clears it, the slice becomes `ATTACHED`,
-  the server gets the slice change flag. Returns the handle, base and final
-  size of the slice. `vrq` receives the server notifications (flag 0), the
-  "service lost" event (flag 1) and the replies (flag 2). The final size can be
-  larger than requested because of the MPU alignment constraints, a power of
-  two on ARMv7-M; the rounding rule is not part of the ABI, the client uses the
-  returned size and must not assume one. The server gets the same final size
-  from the client query.
+- **Open** `(name, vrq)`: the caller must have `VSRV_CONF_ATTACH`, a free
+  entry in its handle table (`CH_RET_EMFILE` otherwise), be an allowed
+  client without a handle on the service, the service `ONLINE`. Takes a
+  `FREE` slice (`CH_RET_EBUSY` if none), maps its block in a free region of
+  the caller (`CH_RET_EMFILE` if none), clears it, the slice becomes
+  `ATTACHED`, the server gets the slice change flag. Returns the handle,
+  base and size of the slice. `vrq` receives the server notifications
+  (flag 0), the "service lost" event (flag 1) and the replies (flag 2).
 - **Notify** `(handle)`: checks the handle (see invalidation), sets flag j
   on the server VRQ.
 - **Close** `(handle)`: unmaps the slice from the caller and releases it,
   whether the server is alive or not. If the server instance that served
   the slice is still running (service `ONLINE`, same generation), the slice
   goes to `RESET` and the server gets the slice change flag, otherwise it
-  goes to `FREE` and its block returns to the area. The handle is freed.
+  goes to `FREE`. The handle is freed.
   Close also accepts stale handles.
 
 ## Synchronous messages
@@ -397,7 +386,11 @@ Fields can point to other data, buffers or strings, which must be in the
 same slice. The structure and the data it points to belong to the server
 from send until the result, the client doesn't touch them meanwhile.
 
-The server validates everything, the host doesn't:
+The host checks only the request word: a request that is not a fixed
+message must point inside the slice of the sender, with room for the
+command header, otherwise send fails with `CH_RET_EFAULT` (decided
+2026-10-20, defense in depth, the check is a few compares). The host never
+reads the structure. The server still validates everything:
 
 - the request pointer and every pointer in the structure must be inside the
   slice of the *requesting client*, not just inside the service area: the
@@ -433,8 +426,9 @@ The server tells them apart before any validation:
 Client side:
 
 - **Send** `(handle, msg)`: the handle must be `IDLE` (`CH_RET_EBUSY`
-  otherwise). Stores the request word, queues the request, raises the "request
-  pending" flag on the server VRQ.
+  otherwise) and a request that is not a fixed message must point inside the
+  slice of the handle (`CH_RET_EFAULT` otherwise). Stores the request word,
+  queues the request, raises the "request pending" flag on the server VRQ.
 - **Result** `(handle)`: if the request was replied returns the server
   status, the handle goes back to `IDLE`; otherwise a VSRV "pending" code.
 - **Cancel** `(handle)`: removes a `PENDING` request from the queue. A
@@ -496,11 +490,14 @@ handle returns `SB_VSRV_RET_STALE` and can only be closed.
 PIDs cover the sandboxes: before raising a flag on a sandbox, notification,
 reply, request pending, slice change or service lost, the host compares the
 PID stored with the sandbox pointer (server PID in the service, client PID in
-the slice) with the current one, and drops the event if they differ. A
-restarted server or client never gets an event meant for its previous
-execution, also if an event raced with the termination cleanup. The service
-generation is still needed because a server can withdraw and publish again
-within the same execution, with the same PID.
+the slice) with the current one, and drops the event if they differ,
+`sbVRQRaisePidS()`/`sbVRQRaisePidI()` returning `CH_RET_ESRCH`; an operation
+of a sandbox, a server notifying a client that restarted for example, then
+returns `SB_VSRV_RET_STALE`. A restarted server or client never gets an
+event meant for its previous execution, also if an event raced with the
+termination cleanup. The service generation is still needed because a
+server can withdraw and publish again within the same execution, with the
+same PID.
 
 On server termination (exit, fault, abort), within the `STOPPING` cleanup
 and before `sbFinalize()` is allowed:
@@ -511,8 +508,7 @@ and before `sbFinalize()` is allowed:
    handle VRQ, so the waiting green threads wake up; `PENDING` and
    `RECEIVED` requests are dropped, their result is the stale error; the
    slices stay attached and mapped until each client closes;
-3. the `RESET` slices become `FREE` and their blocks return to the area,
-   the server is gone;
+3. the `RESET` slices become `FREE`, the server is gone;
 4. the server mapping goes with its table.
 
 After a restart the server publishes again, the new generation keeps the old
@@ -588,7 +584,8 @@ the host side is not implemented yet.
   a slice index; receive returns the request word and result the server
   status in R1; publish, open and slices return two more values in R1-R2,
   client three in R1-R3 (base, size, PID), through the new
-  `__syscall1rrrr()` and `__syscall3rrrr()` macros of `sbuser.h`.
+  `__syscall1rrrr()`, `__syscall2rrrr()` and `__syscall3rrrr()` macros of
+  `sbuser.h`.
 - Return codes: `CH_RET_xxx` plus `SB_VSRV_RET_STALE` (handle of a service
   instance that is gone), `SB_VSRV_RET_PENDING` (no reply yet) and
   `SB_VSRV_RET_EMPTY` (no request queued), values outside the Posix-mapped
@@ -606,7 +603,7 @@ the host side is not implemented yet.
   and `VSRV_VERSION()` are in the same header, the host doesn't use them.
 - Host interface, prototyped: `vsrv_service_def_t`, `vsrv_service_t`,
   `vsrv_slice_t`, `vsrv_conf_t`, `vsrv_handle_t`, the `VSRV_CONF_xxx`
-  flags, `VSRV_ALLOCMAP_WORDS()`, `sbVsrvInit()`; `sbSetVirtualServices()`
+  flags, `sbVsrvInit()`; `sbSetVirtualServices()`
   in `sbhost.h` and a `vsrvconf` pointer in `sb_class_t`, next to `vioconf`.
 - Host code to come in `os/sb/vsrv/sbvsrv.c`: `sb_sysc_vsrv()` and
   `sb_fastc_vsrv()` bound with `SB_SVC_HANDLER()`, `__sb_vsrv_cleanup()`
@@ -652,9 +649,8 @@ the host side is not implemented yet.
    mapping from a table that isn't active (safe on a single core, the next
    switch-in reloads it) but the client faults if it touches the slice, so
    probably only together with terminating the client.
-7. Slice sizes: a 32 bytes granularity allocator on ARMv8-M, transparent
-   to the guests since the final size is returned; maximum sizes per client
-   in the definition; growing a slice while attached.
+7. Slice sizes per client in the definition, for services whose clients
+   have different needs.
 8. Priority donation.
 9. Host-provided services through the same API, and host access to sandbox
    services.
@@ -678,6 +674,19 @@ taken for each service it might ever use, every allowed client needed its
 own slice, and a new region attribute was needed to keep the slices out of
 the pointer checks. Attaching on demand ties regions and slices to the open
 handles only.
+
+**Slice size requested by the client**, with a minimum set by the server
+at publish and a maximum set by the host, rounded up for the MPU. With one
+block per slice the request no longer saved memory, the slice size is now
+defined by the service.
+
+**Buddy allocator** for the slices, in the variable size revision. Blocks
+of power of two sizes, split and merged, fit the ARMv7-M MPU rules and could
+overcommit the area, but they fragment like a heap: scattered small slices
+can block a larger request while enough memory is free, and the allocator
+needs its own map. With the area sized for one block of the maximum size
+per slice, which the spec recommended anyway, a fixed block per slice uses
+the same memory with no allocator and no fragmentation.
 
 **Mailboxes**, for the commands. Two host mailboxes per slice, one message
 each way, the server could send messages to its clients too. A reply could
