@@ -221,19 +221,33 @@ The host application defines the services statically, as it configures VIO:
 ```c
 /* Area of the "log" service: 4 slices of the maximum size.*/
 static uint8_t log_area[1024] __attribute__((aligned(1024)));
+static vsrv_slice_t log_slices[4];
+static uint32_t log_allocmap[VSRV_ALLOCMAP_WORDS(sizeof log_area)];
 
-static const sb_vsrv_def_t vsrv_defs[] = {
+static const vsrv_service_def_t service_defs[] = {
   {
     .name     = "log",
     .server   = &sbx1,
     .clients  = (sb_class_t * const []){&sbx2, &sbx3, &sbx4, NULL},
     .area     = log_area,
     .areasize = sizeof log_area,
+    .maxsize  = 256U,           /* Largest slice, power of two.*/
+    .slices   = log_slices,     /* Slice objects storage.*/
     .nslices  = 4U,             /* Clients attached at the same time.*/
-    .maxsize  = 256U            /* Largest slice, power of two.*/
+    .allocmap = log_allocmap    /* Allocator map storage.*/
   }
 };
+static vsrv_service_t services[1];
+
+  /* Before starting the sandboxes.*/
+  sbVsrvInit(services, service_defs, 1U);
 ```
+
+`sbVsrvInit()` binds the service objects to their definitions, makes them
+known by name and, in debug builds, checks the definitions: areas disjoint
+and representable, servers and clients initialized sandboxes. The storage
+of the slice objects and of the allocator map comes from the application
+like the handle tables, so a definition costs only what it uses.
 
 - No mapping is configured by the application: the area is given to the
   server and the slices to the clients by publish and open. Access to the
@@ -397,7 +411,7 @@ The server validates everything, the host doesn't:
   Bulk data can be used in place when its content changing is harmless to
   the server.
 
-`vsrvIsValidRange()` in `vsrv.h` checks a range against a slice.
+`vsrvIsValidRange()` in `sbuservsrv.h` checks a range against a slice.
 
 ### Fixed messages
 
@@ -550,8 +564,11 @@ messages.
 
 ## ABI sketch
 
-Prototyped in `os/sb/vsrv/include/vsrv.h` (guest API) and
-`os/sb/common/sbsysc.h` (codes), the host side is not implemented yet.
+Prototyped in `os/sb/user/sbuservsrv.h` (guest API),
+`os/sb/vsrv/sbvsrv.h` (host types and interface, included by `sb.h` when
+`SB_CFG_ENABLE_VSRV` is `TRUE`, `FALSE` by default while VSRV is a
+prototype, `os/sb/vsrv/sbvsrv.mk`) and `os/sb/common/sbsysc.h` (codes);
+the host side is not implemented yet.
 
 - One syscall and one fastcall code, as VIO does, with sub-codes in R0
   bits 0-7 and a single numbering space:
@@ -587,14 +604,16 @@ Prototyped in `os/sb/vsrv/include/vsrv.h` (guest API) and
   `vsrvCancel()`, `vsrvNotify()`; `vsrvIsValidRange()` for the server
   checks. The command header, the `VSRV_MSG_xxx` fixed messages and macros
   and `VSRV_VERSION()` are in the same header, the host doesn't use them.
-- Host code to come in `os/sb/vsrv`, handlers bound with `SB_SVC_HANDLER()`,
-  cleanup hooked in the sandbox termination next to `__sb_vio_cleanup()`. Host
-  side: `SB_CFG_ENABLE_VSRV`, `vsrv_conf_t`, `vsrv_handle_t`, the
-  `VSRV_CONF_xxx` flags, `sbSetVirtualServices()` in `sbhost.h` and a
-  `vsrvconf` pointer in `sb_class_t`, next to `vioconf`. A helper in `sbhost.c`
-  maps or unmaps one switched region of the current sandbox, table entry and
-  MPU registers, reusing `get_mpu_settings()`. Until then both codes return
-  `CH_RET_ENOSYS`.
+- Host interface, prototyped: `vsrv_service_def_t`, `vsrv_service_t`,
+  `vsrv_slice_t`, `vsrv_conf_t`, `vsrv_handle_t`, the `VSRV_CONF_xxx`
+  flags, `VSRV_ALLOCMAP_WORDS()`, `sbVsrvInit()`; `sbSetVirtualServices()`
+  in `sbhost.h` and a `vsrvconf` pointer in `sb_class_t`, next to `vioconf`.
+- Host code to come in `os/sb/vsrv/sbvsrv.c`: `sb_sysc_vsrv()` and
+  `sb_fastc_vsrv()` bound with `SB_SVC_HANDLER()`, `__sb_vsrv_cleanup()`
+  hooked in the sandbox termination next to `__sb_vio_cleanup()`. A helper
+  in `sbhost.c` maps or unmaps one switched region of the current sandbox,
+  table entry and MPU registers, reusing `get_mpu_settings()`. Until then
+  both codes return `CH_RET_ENOSYS`.
 - Adding codes is not an ABI break, `SB_ABI_VERSION` stays unchanged.
 
 ## Security notes
@@ -680,8 +699,9 @@ one word, leave the results in the slice and reduce the reply to a status.
 
 **VSRV, Virtual SeRVices**, chosen 2026-10-19: the "V" of the other
 virtualized SB subsystems, VIO, VFS and VRQ. Guest wrappers are `vsrvXxx()`,
-host types `sb_vsrv_xxx_t`, codes `SB_FASTC_VSRV_xxx` and
-`SB_SYSC_VSRV_xxx`.
+host types `vsrv_xxx_t` as VIO does with `vio_xxx_t`, host functions
+`sbVsrvXxx()` and `sbSetVirtualServices()`, codes `SB_FASTC_VSRV` and
+`SB_SYSC_VSRV` with `SB_VSRV_xxx` sub-codes.
 
 Other candidates considered: Gates (endpoint metaphor), ISC (Inter-Sandbox
 Calls), NSR (Named Service Registry).
