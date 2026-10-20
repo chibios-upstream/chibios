@@ -242,9 +242,93 @@ static void tsb_sysc_host_info(sb_class_t *sbp, struct port_extctx *ectxp) {
   ectxp->r0 = (uint32_t)(sizeof (info) - 1U);
 }
 
+/*
+ * Areas mapped in the sandbox on request by the following syscalls, two
+ * switched regions are free for them. An area is mapped when the PID
+ * recorded with it is the one of the running sandbox execution, the
+ * mappings of a previous execution are dropped by its termination.
+ */
+#define TSB_MAP_AREAS           3U
+#define TSB_MAP_AREA_SIZE       256U
+
+static uint8_t tsb_map_areas[TSB_MAP_AREAS][TSB_MAP_AREA_SIZE]
+    __attribute__((aligned(TSB_MAP_AREA_SIZE)));
+
+static struct {
+  sb_pid_t                      pid;
+  unsigned                      region;
+} tsb_maps[TSB_MAP_AREAS];
+
+/*
+ * Application-defined syscall, fills the test area R0 with the byte R1 and
+ * maps it in the sandbox, returns the area address or an error code.
+ */
+static void tsb_sysc_map(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t n = ectxp->r0;
+  msg_t region;
+
+  if ((n >= TSB_MAP_AREAS) || (tsb_maps[n].pid == sbGetPidX(sbp))) {
+    ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+    return;
+  }
+
+  memset(tsb_map_areas[n], (int)(ectxp->r1 & 0xFFU), TSB_MAP_AREA_SIZE);
+  region = sbMapRegion(sbp, tsb_map_areas[n], TSB_MAP_AREA_SIZE,
+                       SB_REG_IS_DATA);
+  if (region < 0) {
+    ectxp->r0 = (uint32_t)region;
+    return;
+  }
+
+  tsb_maps[n].pid    = sbGetPidX(sbp);
+  tsb_maps[n].region = (unsigned)region;
+  ectxp->r0 = (uint32_t)tsb_map_areas[n];
+}
+
+/*
+ * Application-defined syscall, unmaps the test area R0 from the sandbox.
+ */
+static void tsb_sysc_unmap(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t n = ectxp->r0;
+
+  if ((n >= TSB_MAP_AREAS) || (tsb_maps[n].pid != sbGetPidX(sbp))) {
+    ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+    return;
+  }
+
+  sbUnmapRegion(sbp, tsb_maps[n].region);
+  tsb_maps[n].pid = (sb_pid_t)0;
+  ectxp->r0 = (uint32_t)CH_RET_SUCCESS;
+}
+
+/*
+ * Application-defined syscall, checks that the test area R0 is filled with
+ * the byte R1, written by the sandbox through the mapping.
+ */
+static void tsb_sysc_mapcheck(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t n = ectxp->r0;
+  unsigned i;
+
+  if ((n >= TSB_MAP_AREAS) || (tsb_maps[n].pid != sbGetPidX(sbp))) {
+    ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+    return;
+  }
+
+  for (i = 0U; i < TSB_MAP_AREA_SIZE; i++) {
+    if (tsb_map_areas[n][i] != (uint8_t)ectxp->r1) {
+      ectxp->r0 = (uint32_t)CH_RET_EIO;
+      return;
+    }
+  }
+  ectxp->r0 = (uint32_t)CH_RET_SUCCESS;
+}
+
 /* Application handlers bound to codes in the application ranges.*/
 SB_SVC_HANDLER(64, tsb_fastc_add);
 SB_SVC_HANDLER(192, tsb_sysc_host_info);
+SB_SVC_HANDLER(193, tsb_sysc_map);
+SB_SVC_HANDLER(194, tsb_sysc_unmap);
+SB_SVC_HANDLER(195, tsb_sysc_mapcheck);
 
 /* Privileged stacks for sandboxes.*/
 static SB_STACK(sbx1stk);

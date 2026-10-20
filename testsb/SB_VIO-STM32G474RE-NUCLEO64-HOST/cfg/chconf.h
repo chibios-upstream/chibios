@@ -961,7 +961,7 @@
 /*===========================================================================*/
 
 #define PORT_USE_SYSCALL                    TRUE
-#define PORT_SWITCHED_REGIONS_NUMBER        2
+#define PORT_SWITCHED_REGIONS_NUMBER        4
 
 #endif  /* CHCONF_H */
 

@@ -25,6 +25,10 @@
 /* Application-defined calls of the testsb host.*/
 #define TSB_FASTC_ADD           64
 #define TSB_SYSC_HOST_INFO      192
+#define TSB_SYSC_MAP            193
+#define TSB_SYSC_UNMAP          194
+#define TSB_SYSC_MAPCHECK       195
+#define TSB_MAP_AREA_SIZE       256U
 
 static hal_buffered_sio_c bsio1;
 static uint8_t rxbuf[32];
@@ -367,6 +371,123 @@ static void cmd_userapi(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   chprintf(xshp->stream, "unassigned fastcall: %d\r\n", (int)msg);
 }
 
+/*
+ * Checks that a mapped test area is filled with a byte.
+ */
+static bool map_check(const volatile uint8_t *p, uint8_t b) {
+  unsigned i;
+
+  for (i = 0U; i < TSB_MAP_AREA_SIZE; i++) {
+    if (p[i] != b) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static void map_report(xshell_t *xshp, const char *what, bool ok) {
+
+  chprintf(xshp->stream, "%s: %s\r\n", what, ok ? "ok" : "FAIL");
+}
+
+static void cmd_maptest(xshell_t *xshp, int argc, char *argv[],
+                        char *envp[]) {
+  uint32_t a0, a1, a2;
+  char buf[48];
+  msg_t msg;
+  unsigned i;
+  bool ok;
+
+  (void)argv;
+  (void)envp;
+
+  if (argc > 1) {
+    xshellUsage(xshp, "maptest");
+    return;
+  }
+
+  /* Two areas mapped, read and written through the mappings.*/
+  a0 = sbSyscall2(TSB_SYSC_MAP, 0U, 0x5AU);
+  a1 = sbSyscall2(TSB_SYSC_MAP, 1U, 0x11U);
+  chprintf(xshp->stream, "areas at 0x%08x 0x%08x\r\n",
+           (unsigned)a0, (unsigned)a1);
+  ok = !CH_RET_IS_ERROR(a0) && !CH_RET_IS_ERROR(a1) &&
+       map_check((const volatile uint8_t *)a0, 0x5AU) &&
+       map_check((const volatile uint8_t *)a1, 0x11U);
+  map_report(xshp, "map and read", ok);
+  if (!ok) {
+    return;
+  }
+  memset((void *)a0, 0xA5, TSB_MAP_AREA_SIZE);
+  map_report(xshp, "write, seen by the host",
+             (msg_t)sbSyscall2(TSB_SYSC_MAPCHECK, 0U, 0xA5U) ==
+             CH_RET_SUCCESS);
+
+  /* The host syscalls pointer checks ignore mappings.*/
+  msg = (msg_t)sbSyscall2(TSB_SYSC_HOST_INFO, a1, sizeof (buf));
+  map_report(xshp, "host syscall rejects a mapped buffer",
+             msg == CH_RET_EFAULT);
+
+  /* No free region left for a third area.*/
+  msg = (msg_t)sbSyscall2(TSB_SYSC_MAP, 2U, 0x22U);
+  map_report(xshp, "third area refused", msg == CH_RET_EMFILE);
+
+  /* Freed region reused.*/
+  msg = (msg_t)sbSyscall1(TSB_SYSC_UNMAP, 0U);
+  a2 = sbSyscall2(TSB_SYSC_MAP, 2U, 0x22U);
+  map_report(xshp, "region reused after unmap",
+             (msg == CH_RET_SUCCESS) && !CH_RET_IS_ERROR(a2) &&
+             map_check((const volatile uint8_t *)a2, 0x22U) &&
+             map_check((const volatile uint8_t *)a1, 0x11U));
+
+  /* Repeated mapping and unmapping.*/
+  msg = (msg_t)sbSyscall1(TSB_SYSC_UNMAP, 2U);
+  ok = msg == CH_RET_SUCCESS;
+  for (i = 0U; ok && (i < 1000U); i++) {
+    const volatile uint8_t *p;
+
+    a0 = sbSyscall2(TSB_SYSC_MAP, 0U, i);
+    ok = !CH_RET_IS_ERROR(a0);
+    if (ok) {
+      p = (const volatile uint8_t *)a0;
+      ok = (p[0] == (uint8_t)i) &&
+           (p[TSB_MAP_AREA_SIZE - 1U] == (uint8_t)i) &&
+           ((msg_t)sbSyscall1(TSB_SYSC_UNMAP, 0U) == CH_RET_SUCCESS);
+    }
+  }
+  map_report(xshp, "1000 map and unmap cycles", ok);
+
+  msg = (msg_t)sbSyscall1(TSB_SYSC_UNMAP, 1U);
+  map_report(xshp, "all unmapped", msg == CH_RET_SUCCESS);
+}
+
+static void cmd_mapfault(xshell_t *xshp, int argc, char *argv[],
+                         char *envp[]) {
+  const volatile uint8_t *p;
+  uint32_t a;
+
+  (void)argv;
+  (void)envp;
+
+  if (argc > 1) {
+    xshellUsage(xshp, "mapfault");
+    return;
+  }
+
+  a = sbSyscall2(TSB_SYSC_MAP, 0U, 0x33U);
+  if (CH_RET_IS_ERROR(a)) {
+    chprintf(xshp->stream, "map failed: %d\r\n", (int)a);
+    return;
+  }
+  p = (const volatile uint8_t *)a;
+  chprintf(xshp->stream, "mapped: 0x%02x\r\n", p[0]);
+  (void)sbSyscall1(TSB_SYSC_UNMAP, 0U);
+  chprintf(xshp->stream, "reading after unmap, expecting a fault\r\n");
+  chThdSleepMilliseconds(20);
+  chprintf(xshp->stream, "read: 0x%02x\r\n", p[0]);
+}
+
 static void cmd_sbexit(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 
   (void)argv;
@@ -389,6 +510,8 @@ static const xshell_command_t commands[] = {
   {"sbcrash", cmd_sbcrash},
   {"sbexit", cmd_sbexit},
   {"userapi", cmd_userapi},
+  {"maptest", cmd_maptest},
+  {"mapfault", cmd_mapfault},
   {NULL, NULL}
 };
 
