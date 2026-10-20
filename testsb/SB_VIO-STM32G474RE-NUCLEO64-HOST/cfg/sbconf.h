@@ -60,6 +60,13 @@
 #endif
 
 /**
+ * @brief   Enables support for sandbox virtual services.
+ */
+#if !defined(SB_CFG_ENABLE_VSRV) || defined(__DOXYGEN__)
+#define SB_CFG_ENABLE_VSRV                  TRUE
+#endif
+
+/**
  * @brief   Enables Posix API in sandboxes using VFS.
  */
 #if !defined(SB_CFG_ENABLE_VFS) || defined(__DOXYGEN__)

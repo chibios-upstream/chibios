@@ -323,6 +323,46 @@ static void tsb_sysc_mapcheck(sb_class_t *sbp, struct port_extctx *ectxp) {
   ectxp->r0 = (uint32_t)CH_RET_SUCCESS;
 }
 
+/*
+ * VSRV services: "test" served by SB1 for itself, "other" served by SB2
+ * for itself, SB1 can neither publish nor open it.
+ */
+static uint8_t tsb_test_area[2][256] __attribute__((aligned(512)));
+static vsrv_slice_t tsb_test_slices[2];
+static sb_class_t * const tsb_test_clients[] = {&sbx1, NULL};
+static uint8_t tsb_other_area[1][256] __attribute__((aligned(256)));
+static vsrv_slice_t tsb_other_slices[1];
+static sb_class_t * const tsb_other_clients[] = {&sbx2, NULL};
+
+static const vsrv_service_def_t tsb_service_defs[] = {
+  {
+    .name      = "test",
+    .server    = &sbx1,
+    .clients   = tsb_test_clients,
+    .area      = (uint8_t *)tsb_test_area,
+    .slicesize = sizeof tsb_test_area[0],
+    .slices    = tsb_test_slices,
+    .nslices   = 2U
+  },
+  {
+    .name      = "other",
+    .server    = &sbx2,
+    .clients   = tsb_other_clients,
+    .area      = (uint8_t *)tsb_other_area,
+    .slicesize = sizeof tsb_other_area[0],
+    .slices    = tsb_other_slices,
+    .nslices   = 1U
+  }
+};
+static vsrv_service_t tsb_services[2];
+
+static vsrv_handle_t sbx1_handles[2];
+static const vsrv_conf_t sbx1_vsrvconf = {
+  .flags    = VSRV_CONF_PUBLISH | VSRV_CONF_ATTACH,
+  .handles  = sbx1_handles,
+  .nhandles = 2U
+};
+
 /* Application handlers bound to codes in the application ranges.*/
 SB_SVC_HANDLER(64, tsb_fastc_add);
 SB_SVC_HANDLER(192, tsb_sysc_host_info);
@@ -573,6 +613,8 @@ int main(void) {
   sbSetRegion(&sbx1, 0, STARTUP_FLASH1_BASE, STARTUP_FLASH1_SIZE, SB_REG_IS_CODE);
   sbSetRegion(&sbx1, 1, STARTUP_RAM1_BASE,   STARTUP_RAM1_SIZE, SB_REG_IS_DATA);
   sbSetVirtualIO(&sbx1, &vio_config1);
+  sbSetVirtualServices(&sbx1, &sbx1_vsrvconf);
+  sbVsrvInit(tsb_services, tsb_service_defs, 2U);
 
   /* Lifecycle initialization and failed-start checks.*/
   chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_STOPPED,
