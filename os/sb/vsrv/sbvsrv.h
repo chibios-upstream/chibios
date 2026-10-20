@@ -135,14 +135,6 @@ typedef struct {
    */
   sb_vrqnum_t                   vrq;
   /**
-   * @brief   Block base.
-   */
-  uint8_t                       *base;
-  /**
-   * @brief   Block size.
-   */
-  size_t                        size;
-  /**
    * @brief   Request word, a fixed message or a command structure pointer.
    */
   uint32_t                      request;
@@ -158,10 +150,14 @@ typedef struct {
 
 /**
  * @brief   Type of a service definition.
- * @note    The area must be a multiple of @p maxsize, aligned to it, and
- *          representable as one MPU region of the server; it must be
- *          disjoint from every other area, from the private regions of
- *          all sandboxes and from host data.
+ * @details The area is made of @p nslices blocks of @p slicesize bytes,
+ *          slice j always uses block j, there is no allocator.
+ * @note    On ARMv7-M the slice size is a power of two, at least 32, and the
+ *          area is aligned to it; on ARMv8-M the slice size is a multiple of
+ *          32 and the area is aligned to 32 bytes. The area must be
+ *          representable as one MPU region of the server and disjoint from
+ *          every other area, from the private regions of all sandboxes and
+ *          from host data.
  */
 typedef struct {
   /**
@@ -179,17 +175,13 @@ typedef struct {
    */
   sb_class_t * const            *clients;
   /**
-   * @brief   Shared area.
+   * @brief   Shared area, @p nslices blocks of @p slicesize bytes.
    */
   uint8_t                       *area;
   /**
-   * @brief   Size of the shared area.
+   * @brief   Slice size.
    */
-  size_t                        areasize;
-  /**
-   * @brief   Largest slice, a power of two.
-   */
-  size_t                        maxsize;
+  size_t                        slicesize;
   /**
    * @brief   Slice objects storage, one per client attached at the same
    *          time.
@@ -199,11 +191,6 @@ typedef struct {
    * @brief   Number of slices, at most @p SB_VSRV_MAX_SLICES.
    */
   unsigned                      nslices;
-  /**
-   * @brief   Allocator map storage.
-   * @note    @p VSRV_ALLOCMAP_WORDS() words.
-   */
-  uint32_t                      *allocmap;
 } vsrv_service_def_t;
 
 /**
@@ -230,10 +217,6 @@ struct vsrv_service {
    * @brief   Server VRQ.
    */
   sb_vrqnum_t                   vrq;
-  /**
-   * @brief   Minimum slice size set by the server.
-   */
-  size_t                        minsize;
   /**
    * @brief   Server switched region holding the area mapping.
    */
@@ -293,17 +276,6 @@ typedef struct vsrv_conf {
 /*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/
-
-/**
- * @brief   Size of the allocator map of an area.
- * @details One bit per node of the buddy tree, the smallest block is 32
- *          bytes.
- *
- * @param[in] areasize  size of the area
- * @return              The number of 32 bits words.
- */
-#define VSRV_ALLOCMAP_WORDS(areasize)                                       \
-  ((((size_t)(areasize) / 32U) * 2U + 31U) / 32U)
 
 /*===========================================================================*/
 /* External declarations.                                                    */

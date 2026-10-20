@@ -224,7 +224,9 @@ typedef struct {
  *          notifications and slice changes are signaled on @p vrq.
  *
  * @param[in] name      service name, at most @p SB_VSRV_NAME_MAX characters
- * @param[in] minsize   minimum slice size required by the service protocol
+ * @param[in] minsize   smallest slice the service protocol works with, the
+ *                      publication fails if the slices defined by the host
+ *                      are smaller
  * @param[in] vrq       VRQ receiving the server flags
  * @param[out] areap    descriptor of the service area
  * @return              The service identifier or an error code.
@@ -397,23 +399,19 @@ static inline msg_t vsrvResetDone(uint32_t service, uint32_t slice) {
 /**
  * @brief   Opens a service.
  * @details The caller must be a client allowed by the host for the name.
- *          A slice is allocated in the service area and mapped in the
- *          caller, notifications, replies and the service loss are
- *          signaled on @p vrq.
- * @note    The final size can be larger than requested because of the MPU
- *          alignment constraints, do not assume a rounding rule.
+ *          A free slice of the service area is mapped in the caller,
+ *          notifications, replies and the service loss are signaled on
+ *          @p vrq. The slice size is defined by the service.
  *
  * @param[in] name      service name, at most @p SB_VSRV_NAME_MAX characters
- * @param[in] size      requested slice size, zero for the service minimum
  * @param[in] vrq       VRQ receiving the client flags
- * @param[out] slicep   descriptor of the slice, with its final size
+ * @param[out] slicep   descriptor of the slice
  * @return              The handle or an error code.
  */
-static inline msg_t vsrvOpen(const char *name, size_t size,
-                             uint32_t vrq, vsrv_area_t *slicep) {
+static inline msg_t vsrvOpen(const char *name, uint32_t vrq,
+                             vsrv_area_t *slicep) {
 
-  __syscall3rrrr(SB_SYSC_VSRV, VSRV_CALL(SB_VSRV_OPEN, vrq, 0U),
-                 name, size);
+  __syscall2rrrr(SB_SYSC_VSRV, VSRV_CALL(SB_VSRV_OPEN, vrq, 0U), name);
   (void)r3;
   if (CH_RET_IS_SUCCESS(r0)) {
     slicep->base = (void *)r1;
