@@ -249,10 +249,8 @@ a definition costs only what it uses.
   server and the slices to the clients by publish and open. Access to the
   memory follows from the policy checks.
 - The host defines the slice size and how many clients can be attached
-  at the same time. The server states at publish the smallest slice its
-  protocol works with, publish fails if the host slice is smaller: a host
-  configuration not matching the server image is caught before the service
-  goes online.
+  at the same time. The server gets the slice size at publish and checks it
+  against the needs of its protocol.
 - The area is `nslices` blocks of `slicesize`, each slice has its own
   block: an open never fails for lack of memory and memory never moves
   between clients.
@@ -307,14 +305,14 @@ static const vsrv_conf_t sbx2_vsrvconf = {
 
 ## Server operations
 
-- **Publish** `(name, minsize, vrq)`: the caller must have
-  `VSRV_CONF_PUBLISH`, be the defined server and the service `OFFLINE`, the
-  host slice size can't be smaller than `minsize` (`CH_RET_EINVAL`). Maps
+- **Publish** `(name, vrq)`: the caller must have `VSRV_CONF_PUBLISH`, be
+  the defined server and the service `OFFLINE`. Maps
   the area in a free region of the caller (`CH_RET_EMFILE` if none), clears
   the free slices, the service becomes `ONLINE` and the generation is
   incremented. `vrq` receives the notifications: flag j when the client of
   slice j notifies, flag 30 when requests are pending, flag 31 when a slice
-  changes state. Returns a service id, base and size of the area.
+  changes state. Returns a service id, base and size of the area, size of
+  the slices.
 - **Slices** `(service)`: returns the masks of the slices attached to
   clients of this server instance and of the slices in `RESET`.
 - **Client** `(service, j)`: returns the identity of the client on slice j,
@@ -444,8 +442,10 @@ Client side:
 Server side:
 
 - **Receive** `(service)`: dequeues the oldest pending request, returns its
-  slice index and the request word, not validated; the slice goes to
-  `RECEIVED`. An empty queue returns a VSRV code.
+  slice index, the request word, not validated, the index of the client in
+  the definition and its PID; the slice goes to `RECEIVED`. An empty queue
+  returns `SB_VSRV_RET_EMPTY`. The bounds of the slice, needed to validate a
+  command structure, come from the client query, once per attach.
 - **Reply** `(service, j, status)`: slice j must be `RECEIVED` (`CH_RET_EINVAL`
   otherwise). Stores the status, raises the "reply" flag on the client VRQ. If
   the client went away meanwhile, the reply is discarded and a stale code
@@ -586,11 +586,11 @@ while VSRV is new, `sbvsrv.c` and `sbvsrv.mk`), codes in
   16-23. R1-R2 carry the other parameters: the request word for send, the
   status for reply.
 - Results come back in R0-R3: R0 is the status, a handle, a service id or
-  a slice index; receive returns the request word and result the server
-  status in R1; publish, open and slices return two more values in R1-R2,
-  client three in R1-R3 (base, size, PID), through the new
-  `__syscall1rrrr()`, `__syscall2rrrr()` and `__syscall3rrrr()` macros of
-  `sbuser.h`.
+  a slice index; result returns the server status in R1; open and slices
+  return two more values in R1-R2; publish three in R1-R3 (area base and
+  size, slice size), receive three (request word, client index, PID),
+  client three (base, size, PID), through the new `__syscall1rrrr()` and
+  `__syscall2rrrr()` macros of `sbuser.h`.
 - Return codes: `CH_RET_xxx` plus `SB_VSRV_RET_STALE` (handle of a service
   instance that is gone), `SB_VSRV_RET_PENDING` (no reply yet) and
   `SB_VSRV_RET_EMPTY` (no request queued), values outside the Posix-mapped
