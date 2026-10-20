@@ -220,12 +220,13 @@ The host application defines the services statically, as it configures VIO:
 /* Area of the "log" service: one block per slice.*/
 static uint8_t log_area[4][256] __attribute__((aligned(1024)));
 static vsrv_slice_t log_slices[4];
+static sb_class_t * const log_clients[] = {&sbx2, &sbx3, &sbx4, NULL};
 
 static const vsrv_service_def_t service_defs[] = {
   {
     .name      = "log",
     .server    = &sbx1,
-    .clients   = (sb_class_t * const []){&sbx2, &sbx3, &sbx4, NULL},
+    .clients   = log_clients,
     .area      = (uint8_t *)log_area,
     .slicesize = 256U,          /* Power of two on ARMv7-M.*/
     .slices    = log_slices,    /* Slice objects storage.*/
