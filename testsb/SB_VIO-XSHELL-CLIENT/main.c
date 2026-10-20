@@ -536,6 +536,7 @@ static bool vsrv_check(xshell_t *xshp, const char *what, bool ok) {
 static void cmd_vsrvtest(xshell_t *xshp, int argc, char *argv[],
                          char *envp[]) {
   vsrv_area_t area, slice, slice2, cslice;
+  size_t slicesize;
   uint32_t attached, reset, svc, h;
   pid_t pid;
   msg_t msg;
@@ -552,30 +553,29 @@ static void cmd_vsrvtest(xshell_t *xshp, int argc, char *argv[],
   (void)vsrv_check(xshp, "open of an offline service",
                    vsrvOpen("test", VSRV_TEST_CVRQ, &slice) == CH_RET_ENOENT);
   (void)vsrv_check(xshp, "publish of an undefined name",
-                   vsrvPublish("nope", 0U, VSRV_TEST_SVRQ, &area) ==
+                   vsrvPublish("nope", VSRV_TEST_SVRQ, &area, &slicesize) ==
                    CH_RET_ENOENT);
   (void)vsrv_check(xshp, "publish of a service of another server",
-                   vsrvPublish("other", 0U, VSRV_TEST_SVRQ, &area) ==
+                   vsrvPublish("other", VSRV_TEST_SVRQ, &area, &slicesize) ==
                    CH_RET_EACCES);
-  (void)vsrv_check(xshp, "publish with minsize above the slice size",
-                   vsrvPublish("test", 512U, VSRV_TEST_SVRQ, &area) ==
-                   CH_RET_EINVAL);
   (void)vsrv_check(xshp, "publish with an invalid VRQ",
-                   vsrvPublish("test", 0U, 40U, &area) == CH_RET_EINVAL);
+                   vsrvPublish("test", 40U, &area, &slicesize) ==
+                   CH_RET_EINVAL);
   (void)vsrv_check(xshp, "publish with an invalid name pointer",
-                   vsrvPublish((const char *)0x20000000U, 0U, VSRV_TEST_SVRQ,
-                               &area) == CH_RET_EFAULT);
+                   vsrvPublish((const char *)0x20000000U, VSRV_TEST_SVRQ,
+                               &area, &slicesize) == CH_RET_EFAULT);
 
   /* Publishing.*/
-  msg = vsrvPublish("test", 64U, VSRV_TEST_SVRQ, &area);
+  msg = vsrvPublish("test", VSRV_TEST_SVRQ, &area, &slicesize);
   chprintf(xshp->stream, "published: %d, area 0x%08x %u\r\n",
            (int)msg, (unsigned)area.base, (unsigned)area.size);
   if (!vsrv_check(xshp, "publish", msg >= 0)) {
     return;
   }
   svc = (uint32_t)msg;
+  (void)vsrv_check(xshp, "slice size returned", slicesize == 256U);
   (void)vsrv_check(xshp, "second publish",
-                   vsrvPublish("test", 64U, VSRV_TEST_SVRQ, &area) ==
+                   vsrvPublish("test", VSRV_TEST_SVRQ, &area, &slicesize) ==
                    CH_RET_EBUSY);
   (void)vsrv_check(xshp, "no slice attached",
                    (vsrvGetSlices(svc, &attached, &reset) == CH_RET_SUCCESS) &&
@@ -637,7 +637,7 @@ static void cmd_vsrvtest(xshell_t *xshp, int argc, char *argv[],
                    vsrvWithdraw(svc) == CH_RET_EBADF);
   (void)vsrv_check(xshp, "query after withdraw",
                    vsrvGetSlices(svc, &attached, &reset) == CH_RET_EBADF);
-  msg = vsrvPublish("test", 64U, VSRV_TEST_SVRQ, &area);
+  msg = vsrvPublish("test", VSRV_TEST_SVRQ, &area, &slicesize);
   (void)vsrv_check(xshp, "publish again",
                    (msg >= 0) &&
                    (vsrvGetSlices((uint32_t)msg, &attached, &reset) ==
@@ -661,6 +661,7 @@ static void cmd_vsrvtest(xshell_t *xshp, int argc, char *argv[],
 static void cmd_vsrvnotify(xshell_t *xshp, int argc, char *argv[],
                            char *envp[]) {
   vsrv_area_t area, slice, slice2;
+  size_t slicesize;
   uint32_t attached, reset, svc, h, f;
   msg_t msg;
 
@@ -676,7 +677,7 @@ static void cmd_vsrvnotify(xshell_t *xshp, int argc, char *argv[],
   (void)vsrv_take(&vsrv_server_flags);
   (void)vsrv_take(&vsrv_client_flags);
 
-  msg = vsrvPublish("test", 0U, VSRV_TEST_SVRQ, &area);
+  msg = vsrvPublish("test", VSRV_TEST_SVRQ, &area, &slicesize);
   if (!vsrv_check(xshp, "publish", msg >= 0)) {
     return;
   }
@@ -742,8 +743,9 @@ static void cmd_vsrvnotify(xshell_t *xshp, int argc, char *argv[],
 static void cmd_vsrvmsg(xshell_t *xshp, int argc, char *argv[],
                         char *envp[]) {
   vsrv_area_t area, slice, cslice;
+  size_t slicesize;
   vsrv_cmd_header_t *hp;
-  uint32_t svc, h, attached, reset;
+  uint32_t svc, h, attached, reset, client;
   vsrv_msg_t m;
   msg_t msg, status;
   pid_t pid;
@@ -757,7 +759,7 @@ static void cmd_vsrvmsg(xshell_t *xshp, int argc, char *argv[],
   }
 
   (void)__sb_vrq_seten((1U << VSRV_TEST_SVRQ) | (1U << VSRV_TEST_CVRQ));
-  msg = vsrvPublish("test", 0U, VSRV_TEST_SVRQ, &area);
+  msg = vsrvPublish("test", VSRV_TEST_SVRQ, &area, &slicesize);
   if (!vsrv_check(xshp, "publish", msg >= 0)) {
     return;
   }
@@ -772,7 +774,7 @@ static void cmd_vsrvmsg(xshell_t *xshp, int argc, char *argv[],
 
   /* Fixed message round trip.*/
   (void)vsrv_check(xshp, "receive with no request",
-                   vsrvReceive(svc, &m) == SB_VSRV_RET_EMPTY);
+                   vsrvReceive(svc, &m, NULL, NULL) == SB_VSRV_RET_EMPTY);
   (void)vsrv_check(xshp, "send of a fixed message",
                    vsrvSendFixed(h, VSRV_MSG_INFO) == CH_RET_SUCCESS);
   (void)vsrv_check(xshp, "server told of the request",
@@ -781,10 +783,12 @@ static void cmd_vsrvmsg(xshell_t *xshp, int argc, char *argv[],
                    vsrvSendFixed(h, VSRV_MSG_NOP) == CH_RET_EBUSY);
   (void)vsrv_check(xshp, "result while queued",
                    vsrvResult(h, &status) == SB_VSRV_RET_PENDING);
-  (void)vsrv_check(xshp, "receive",
-                   (vsrvReceive(svc, &m) == 0) && (m == VSRV_MSG_INFO));
+  (void)vsrv_check(xshp, "receive, with the client index and PID",
+                   (vsrvReceive(svc, &m, &client, &pid) == 0) &&
+                   (m == VSRV_MSG_INFO) && (client == 0U) &&
+                   (pid == getpid()));
   (void)vsrv_check(xshp, "queue empty again",
-                   vsrvReceive(svc, &m) == SB_VSRV_RET_EMPTY);
+                   vsrvReceive(svc, &m, NULL, NULL) == SB_VSRV_RET_EMPTY);
   (void)vsrv_check(xshp, "result while received",
                    vsrvResult(h, &status) == SB_VSRV_RET_PENDING);
   (void)vsrv_check(xshp, "cancel of a received request",
@@ -808,7 +812,7 @@ static void cmd_vsrvmsg(xshell_t *xshp, int argc, char *argv[],
   hp->size = sizeof (vsrv_cmd_header_t);
   (void)vsrv_check(xshp, "send of a command structure",
                    vsrvSend(h, hp) == CH_RET_SUCCESS);
-  msg = vsrvReceive(svc, &m);
+  msg = vsrvReceive(svc, &m, NULL, NULL);
   (void)vsrv_check(xshp, "server checks the structure in the client slice",
                    (msg == 0) && !VSRV_MSG_IS_FIXED(m) &&
                    (vsrvGetClient(svc, 0U, &cslice, &pid) == 0) &&
@@ -835,18 +839,18 @@ static void cmd_vsrvmsg(xshell_t *xshp, int argc, char *argv[],
                                ((uint8_t *)slice.base + 2U)) ==
                    CH_RET_EFAULT);
   (void)vsrv_check(xshp, "no request queued by the refusals",
-                   vsrvReceive(svc, &m) == SB_VSRV_RET_EMPTY);
+                   vsrvReceive(svc, &m, NULL, NULL) == SB_VSRV_RET_EMPTY);
 
   /* Cancel of a queued request.*/
   (void)vsrvSendFixed(h, VSRV_MSG_NOP);
   (void)vsrv_check(xshp, "cancel",
                    (vsrvCancel(h) == CH_RET_SUCCESS) &&
-                   (vsrvReceive(svc, &m) == SB_VSRV_RET_EMPTY) &&
+                   (vsrvReceive(svc, &m, NULL, NULL) == SB_VSRV_RET_EMPTY) &&
                    (vsrvResult(h, &status) == CH_RET_EINVAL));
 
   /* Reply to a client that closed, and reply to an idle slice.*/
   (void)vsrvSendFixed(h, VSRV_MSG_NOP);
-  (void)vsrvReceive(svc, &m);
+  (void)vsrvReceive(svc, &m, NULL, NULL);
   (void)vsrvClose(h);
   (void)vsrv_check(xshp, "reply to a closed client",
                    vsrvReply(svc, 0U, CH_RET_SUCCESS) == SB_VSRV_RET_STALE);
@@ -861,7 +865,7 @@ static void cmd_vsrvmsg(xshell_t *xshp, int argc, char *argv[],
   (void)vsrvSendFixed(h, VSRV_MSG_NOP);
   (void)vsrvClose(h);
   (void)vsrv_check(xshp, "request removed by close",
-                   vsrvReceive(svc, &m) == SB_VSRV_RET_EMPTY);
+                   vsrvReceive(svc, &m, NULL, NULL) == SB_VSRV_RET_EMPTY);
   (void)vsrvResetDone(svc, 0U);
 
   /* Requests dropped by withdraw, the result is stale.*/
@@ -875,7 +879,8 @@ static void cmd_vsrvmsg(xshell_t *xshp, int argc, char *argv[],
                    (vsrvSendFixed(h, VSRV_MSG_NOP) == SB_VSRV_RET_STALE));
   (void)vsrvClose(h);
   (void)vsrv_check(xshp, "all slices free",
-                   (vsrvPublish("test", 0U, VSRV_TEST_SVRQ, &area) >= 0) &&
+                   (vsrvPublish("test", VSRV_TEST_SVRQ, &area,
+                                &slicesize) >= 0) &&
                    (vsrvGetSlices(svc, &attached, &reset) == CH_RET_SUCCESS) &&
                    (attached == 0U) && (reset == 0U) &&
                    (vsrvWithdraw(svc) == CH_RET_SUCCESS));
@@ -886,6 +891,7 @@ static void cmd_vsrvmsg(xshell_t *xshp, int argc, char *argv[],
 static void cmd_vsrvcrash(xshell_t *xshp, int argc, char *argv[],
                           char *envp[]) {
   vsrv_area_t area, slice;
+  size_t slicesize;
 
   (void)argv;
   (void)envp;
@@ -896,7 +902,7 @@ static void cmd_vsrvcrash(xshell_t *xshp, int argc, char *argv[],
   }
 
   chprintf(xshp->stream, "publish %d, open %d, crashing\r\n",
-           (int)vsrvPublish("test", 0U, VSRV_TEST_SVRQ, &area),
+           (int)vsrvPublish("test", VSRV_TEST_SVRQ, &area, &slicesize),
            (int)vsrvOpen("test", VSRV_TEST_CVRQ, &slice));
   chThdSleepMilliseconds(20);
   asm volatile ("mov r0, #64");

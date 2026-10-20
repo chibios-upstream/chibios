@@ -225,23 +225,23 @@ typedef char vsrv_cmd_header_size_check_t
  *          name. The service area is mapped in the caller, requests,
  *          notifications and slice changes are signaled on @p vrq.
  *
+ * @note    The slice size is defined by the host, the server checks it
+ *          against the needs of its protocol.
+ *
  * @param[in] name      service name, at most @p SB_VSRV_NAME_MAX characters
- * @param[in] minsize   smallest slice the service protocol works with, the
- *                      publication fails if the slices defined by the host
- *                      are smaller
  * @param[in] vrq       VRQ receiving the server flags
  * @param[out] areap    descriptor of the service area
+ * @param[out] slicesizep size of the slices
  * @return              The service identifier or an error code.
  */
-static inline msg_t vsrvPublish(const char *name, size_t minsize,
-                                uint32_t vrq, vsrv_area_t *areap) {
+static inline msg_t vsrvPublish(const char *name, uint32_t vrq,
+                                vsrv_area_t *areap, size_t *slicesizep) {
 
-  __syscall3rrrr(SB_SYSC_VSRV, VSRV_CALL(SB_VSRV_PUBLISH, vrq, 0U),
-                 name, minsize);
-  (void)r3;
+  __syscall2rrrr(SB_SYSC_VSRV, VSRV_CALL(SB_VSRV_PUBLISH, vrq, 0U), name);
   if (CH_RET_IS_SUCCESS(r0)) {
     areap->base = (void *)r1;
     areap->size = (size_t)r2;
+    *slicesizep = (size_t)r3;
   }
   return (msg_t)r0;
 }
@@ -268,15 +268,27 @@ static inline msg_t vsrvWithdraw(uint32_t service) {
  *
  * @param[in] service   service identifier
  * @param[out] msgp     the request word
+ * @param[out] clientp  index of the client in the host definition of the
+ *                      service, can be @p NULL
+ * @param[out] pidp     PID of the client, a different PID than the one
+ *                      seen before means a new execution of the client,
+ *                      can be @p NULL
  * @return              The index of the slice of the requesting client,
  *                      @p SB_VSRV_RET_EMPTY if no request is pending or an
  *                      error code.
  */
-static inline msg_t vsrvReceive(uint32_t service, vsrv_msg_t *msgp) {
+static inline msg_t vsrvReceive(uint32_t service, vsrv_msg_t *msgp,
+                                uint32_t *clientp, pid_t *pidp) {
 
-  __syscall1rr(SB_FASTC_VSRV, VSRV_CALL(SB_VSRV_RECEIVE, service, 0U));
+  __syscall1rrrr(SB_FASTC_VSRV, VSRV_CALL(SB_VSRV_RECEIVE, service, 0U));
   if (CH_RET_IS_SUCCESS(r0)) {
     *msgp = (vsrv_msg_t)r1;
+    if (clientp != NULL) {
+      *clientp = r2;
+    }
+    if (pidp != NULL) {
+      *pidp = (pid_t)r3;
+    }
   }
   return (msg_t)r0;
 }

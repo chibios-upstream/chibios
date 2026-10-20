@@ -133,17 +133,23 @@ static msg_t upper_serve(uint32_t svc, uint32_t j, vsrv_msg_t m) {
 static THD_WORKING_AREA(waThread2, 256);
 static THD_FUNCTION(Thread2, arg) {
   vsrv_area_t area;
+  size_t slicesize;
   uint32_t svc;
   msg_t msg;
 
   (void)arg;
 
-  /* On hosts not defining the service this thread just sleeps.*/
-  msg = vsrvPublish("upper", sizeof (upper_convert_t), UPPER_SVRQ, &area);
+  /* On hosts not defining the service this thread just sleeps, also if
+     the slices are too small for a command structure.*/
+  msg = vsrvPublish("upper", UPPER_SVRQ, &area, &slicesize);
   if (msg < 0) {
     chThdSleep(TIME_INFINITE);
   }
   svc = (uint32_t)msg;
+  if (slicesize < sizeof (upper_convert_t)) {
+    (void)vsrvWithdraw(svc);
+    chThdSleep(TIME_INFINITE);
+  }
   (void)__sb_vrq_seten(1U << UPPER_SVRQ);
 
   while (true) {
@@ -167,7 +173,7 @@ static THD_FUNCTION(Thread2, arg) {
     }
 
     /* Serving all the queued requests.*/
-    while ((msg = vsrvReceive(svc, &m)) >= 0) {
+    while ((msg = vsrvReceive(svc, &m, NULL, NULL)) >= 0) {
       (void)vsrvReply(svc, (uint32_t)msg, upper_serve(svc, (uint32_t)msg, m));
     }
   }
