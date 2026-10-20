@@ -85,6 +85,11 @@ extern "C" {
                              msg_t msg,
                              sysinterval_t timeout);
 #endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 0
+  msg_t sbMapRegion(sb_class_t *sbp, uint8_t *base, size_t size,
+                    uint32_t attr);
+  void sbUnmapRegion(sb_class_t *sbp, unsigned region);
+#endif
 #ifdef __cplusplus
 }
 #endif
