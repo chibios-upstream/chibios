@@ -380,7 +380,7 @@ static msg_t vsrv_publish(sb_class_t *sbp, struct port_extctx *ectxp) {
   if (is_online(svcp)) {
     return CH_RET_EBUSY;
   }
-  if (!is_valid_vrq(sbp, vrq) || ((size_t)ectxp->r2 > dp->slicesize)) {
+  if (!is_valid_vrq(sbp, vrq)) {
     return CH_RET_EINVAL;
   }
 
@@ -419,6 +419,7 @@ static msg_t vsrv_publish(sb_class_t *sbp, struct port_extctx *ectxp) {
 
   ectxp->r1 = (uint32_t)dp->area;
   ectxp->r2 = (uint32_t)get_area_size(dp);
+  ectxp->r3 = (uint32_t)dp->slicesize;
 
   return (msg_t)svcp->id;
 }
@@ -656,6 +657,8 @@ static msg_t vsrv_receive(sb_class_t *sbp, struct port_extctx *ectxp) {
   slp = &svcp->def->slices[j];
   slp->rqstate = VSRV_RQ_RECEIVED;
   ectxp->r1 = slp->request;
+  ectxp->r2 = (uint32_t)get_client_index(svcp->def, slp->client);
+  ectxp->r3 = (uint32_t)slp->client_pid;
 
   return (msg_t)j;
 }
