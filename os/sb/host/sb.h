@@ -125,7 +125,7 @@
 #error "SB_CFG_FD_NUM not defined in sbconf.h"
 #endif
 
-/* VSRV is a prototype, disabled when not specified in sbconf.h.*/
+/* VSRV is new, disabled when not specified in sbconf.h.*/
 #if !defined(SB_CFG_ENABLE_VSRV) || defined(__DOXYGEN__)
 #define SB_CFG_ENABLE_VSRV                  FALSE
 #endif

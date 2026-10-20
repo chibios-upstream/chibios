@@ -18,8 +18,8 @@
  * @file    sb/vsrv/sbvsrv.c
  * @brief   ARM SandBox host VSRV module code.
  * @details Services registry, publishing and attaching, notifications,
- *          service queries and termination cleanup. Messages are not
- *          implemented yet, their sub-codes return @p CH_RET_ENOSYS.
+ *          synchronous messages, service queries and termination
+ *          cleanup.
  *
  * @addtogroup ARM_SANDBOX_VSRV
  * @{
@@ -233,6 +233,69 @@ static bool is_handle_current(const vsrv_handle_t *hp) {
 }
 
 /*
+ * Appends slice j to the pending requests queue, called under lock.
+ */
+static void rq_enqueue(vsrv_service_t *svcp, unsigned j) {
+  vsrv_slice_t *slices = svcp->def->slices;
+
+  slices[j].next = VSRV_NO_SLICE;
+  if (svcp->rqtail == VSRV_NO_SLICE) {
+    svcp->rqhead = (uint8_t)j;
+  }
+  else {
+    slices[svcp->rqtail].next = (uint8_t)j;
+  }
+  svcp->rqtail = (uint8_t)j;
+}
+
+/*
+ * Removes the oldest slice from the pending requests queue, called under
+ * lock. Returns VSRV_NO_SLICE if the queue is empty.
+ */
+static unsigned rq_dequeue(vsrv_service_t *svcp) {
+  vsrv_slice_t *slices = svcp->def->slices;
+  unsigned j = svcp->rqhead;
+
+  if (j != VSRV_NO_SLICE) {
+    svcp->rqhead = slices[j].next;
+    if (svcp->rqhead == VSRV_NO_SLICE) {
+      svcp->rqtail = VSRV_NO_SLICE;
+    }
+    slices[j].next = VSRV_NO_SLICE;
+  }
+
+  return j;
+}
+
+/*
+ * Removes slice j from the pending requests queue, called under lock.
+ */
+static void rq_remove(vsrv_service_t *svcp, unsigned j) {
+  vsrv_slice_t *slices = svcp->def->slices;
+  unsigned prev = VSRV_NO_SLICE;
+  unsigned k = svcp->rqhead;
+
+  while ((k != VSRV_NO_SLICE) && (k != j)) {
+    prev = k;
+    k = slices[k].next;
+  }
+  if (k == VSRV_NO_SLICE) {
+    return;
+  }
+
+  if (prev == VSRV_NO_SLICE) {
+    svcp->rqhead = slices[j].next;
+  }
+  else {
+    slices[prev].next = slices[j].next;
+  }
+  if (svcp->rqtail == (uint8_t)j) {
+    svcp->rqtail = (uint8_t)prev;
+  }
+  slices[j].next = VSRV_NO_SLICE;
+}
+
+/*
  * Turns a service offline, the clients of the attached slices get the
  * service lost flag and keep their slices until they close the handles.
  * Called with the VSRV mutex taken.
@@ -248,6 +311,7 @@ static void service_offline(vsrv_service_t *svcp) {
   for (j = 0U; j < dp->nslices; j++) {
     vsrv_slice_t *slp = &dp->slices[j];
 
+    slp->next = VSRV_NO_SLICE;
     if (slp->state == VSRV_SLICE_ATTACHED) {
       /* Requests in flight are dropped, the results are stale.*/
       slp->rqstate = VSRV_RQ_IDLE;
@@ -271,6 +335,9 @@ static void slice_release(const vsrv_handle_t *hp) {
   vsrv_slice_t *slp = &svcp->def->slices[hp->slice];
 
   chSysLock();
+  if (slp->rqstate == VSRV_RQ_PENDING) {
+    rq_remove(svcp, hp->slice);
+  }
   slp->rqstate    = VSRV_RQ_IDLE;
   slp->client     = NULL;
   slp->client_pid = (sb_pid_t)0;
@@ -470,6 +537,161 @@ static msg_t vsrv_close(sb_class_t *sbp, struct port_extctx *ectxp) {
   sbUnmapRegion(sbp, hp->region);
   slice_release(hp);
   hp->svcp = NULL;
+
+  return CH_RET_SUCCESS;
+}
+
+static msg_t vsrv_send(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t msg = ectxp->r1;
+  const vsrv_handle_t *hp;
+  vsrv_service_t *svcp;
+  vsrv_slice_t *slp;
+  msg_t ret;
+
+  hp = get_handle(sbp, VSRV_CALL_ID(ectxp->r0));
+  if (hp == NULL) {
+    return CH_RET_EBADF;
+  }
+
+  svcp = hp->svcp;
+  if (!is_handle_current(hp)) {
+    return SB_VSRV_RET_STALE;
+  }
+
+  slp = &svcp->def->slices[hp->slice];
+  if (slp->rqstate != VSRV_RQ_IDLE) {
+    return CH_RET_EBUSY;
+  }
+
+  /* A command structure must be in the slice of the sender, aligned, with
+     room for its header. The server still validates it.*/
+  if (msg < SB_VSRV_MSG_FIXED_BASE) {
+    uint32_t base = (uint32_t)get_slice_base(svcp->def, hp->slice);
+
+    if (!MEM_IS_ALIGNED(msg, 4U) || (msg < base) ||
+        ((msg - base) > (svcp->def->slicesize - SB_VSRV_CMD_HDR_SIZE))) {
+      return CH_RET_EFAULT;
+    }
+  }
+
+  ret = sbVRQRaisePidI(svcp->def->server, svcp->server_pid, svcp->vrq,
+                       SB_VSRV_FL_REQUESTS);
+  if (CH_RET_IS_ERROR(ret)) {
+    return SB_VSRV_RET_STALE;
+  }
+
+  slp->request = msg;
+  slp->rqstate = VSRV_RQ_PENDING;
+  rq_enqueue(svcp, hp->slice);
+
+  return CH_RET_SUCCESS;
+}
+
+static msg_t vsrv_result(sb_class_t *sbp, struct port_extctx *ectxp) {
+  const vsrv_handle_t *hp;
+  vsrv_slice_t *slp;
+
+  hp = get_handle(sbp, VSRV_CALL_ID(ectxp->r0));
+  if (hp == NULL) {
+    return CH_RET_EBADF;
+  }
+  if (!is_handle_current(hp)) {
+    return SB_VSRV_RET_STALE;
+  }
+
+  slp = &hp->svcp->def->slices[hp->slice];
+  switch (slp->rqstate) {
+  case VSRV_RQ_REPLIED:
+    ectxp->r1 = (uint32_t)slp->status;
+    slp->rqstate = VSRV_RQ_IDLE;
+    return CH_RET_SUCCESS;
+  case VSRV_RQ_PENDING:
+  case VSRV_RQ_RECEIVED:
+    return SB_VSRV_RET_PENDING;
+  default:
+    return CH_RET_EINVAL;
+  }
+}
+
+static msg_t vsrv_cancel(sb_class_t *sbp, struct port_extctx *ectxp) {
+  const vsrv_handle_t *hp;
+  vsrv_slice_t *slp;
+
+  hp = get_handle(sbp, VSRV_CALL_ID(ectxp->r0));
+  if (hp == NULL) {
+    return CH_RET_EBADF;
+  }
+  if (!is_handle_current(hp)) {
+    return SB_VSRV_RET_STALE;
+  }
+
+  slp = &hp->svcp->def->slices[hp->slice];
+  switch (slp->rqstate) {
+  case VSRV_RQ_PENDING:
+    rq_remove(hp->svcp, hp->slice);
+    slp->rqstate = VSRV_RQ_IDLE;
+    return CH_RET_SUCCESS;
+  case VSRV_RQ_RECEIVED:
+    return CH_RET_EBUSY;
+  default:
+    return CH_RET_EINVAL;
+  }
+}
+
+static msg_t vsrv_receive(sb_class_t *sbp, struct port_extctx *ectxp) {
+  vsrv_service_t *svcp;
+  vsrv_slice_t *slp;
+  unsigned j;
+
+  svcp = get_served(sbp, VSRV_CALL_ID(ectxp->r0));
+  if (svcp == NULL) {
+    return CH_RET_EBADF;
+  }
+
+  j = rq_dequeue(svcp);
+  if (j == VSRV_NO_SLICE) {
+    return SB_VSRV_RET_EMPTY;
+  }
+
+  slp = &svcp->def->slices[j];
+  slp->rqstate = VSRV_RQ_RECEIVED;
+  ectxp->r1 = slp->request;
+
+  return (msg_t)j;
+}
+
+static msg_t vsrv_reply(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t j = VSRV_CALL_SLICE(ectxp->r0);
+  vsrv_service_t *svcp;
+  vsrv_slice_t *slp;
+  msg_t ret;
+
+  svcp = get_served(sbp, VSRV_CALL_ID(ectxp->r0));
+  if (svcp == NULL) {
+    return CH_RET_EBADF;
+  }
+  if (j >= (uint32_t)svcp->def->nslices) {
+    return CH_RET_EINVAL;
+  }
+
+  /* The client went away, the reply is discarded.*/
+  slp = &svcp->def->slices[j];
+  if ((slp->state != VSRV_SLICE_ATTACHED) ||
+      (slp->generation != svcp->generation)) {
+    return SB_VSRV_RET_STALE;
+  }
+  if (slp->rqstate != VSRV_RQ_RECEIVED) {
+    return CH_RET_EINVAL;
+  }
+
+  ret = sbVRQRaisePidI(slp->client, slp->client_pid, slp->vrq,
+                       SB_VSRV_FL_REPLY);
+  if (CH_RET_IS_ERROR(ret)) {
+    return SB_VSRV_RET_STALE;
+  }
+
+  slp->status  = (msg_t)ectxp->r1;
+  slp->rqstate = VSRV_RQ_REPLIED;
 
   return CH_RET_SUCCESS;
 }
@@ -778,6 +1000,21 @@ void sb_fastc_vsrv(sb_class_t *sbp, struct port_extctx *ectxp) {
   CH_IRQ_PROLOGUE();
   chSysLockFromISR();
   switch (VSRV_CALL_SUBCODE(ectxp->r0)) {
+  case SB_VSRV_SEND:
+    ret = vsrv_send(sbp, ectxp);
+    break;
+  case SB_VSRV_RESULT:
+    ret = vsrv_result(sbp, ectxp);
+    break;
+  case SB_VSRV_CANCEL:
+    ret = vsrv_cancel(sbp, ectxp);
+    break;
+  case SB_VSRV_RECEIVE:
+    ret = vsrv_receive(sbp, ectxp);
+    break;
+  case SB_VSRV_REPLY:
+    ret = vsrv_reply(sbp, ectxp);
+    break;
   case SB_VSRV_NOTIFY:
     ret = vsrv_notify(sbp, ectxp);
     break;

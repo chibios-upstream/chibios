@@ -316,6 +316,23 @@
 /** @} */
 
 /**
+ * @name    VSRV messages
+ * @{
+ */
+/**
+ * @brief   First fixed message, lower request words are pointers to
+ *          command structures.
+ */
+#define SB_VSRV_MSG_FIXED_BASE   0xFFFFFF00U
+/**
+ * @brief   Size of the command structure header.
+ * @note    The host checks that a command structure pointer leaves room
+ *          for the header in the sender slice.
+ */
+#define SB_VSRV_CMD_HDR_SIZE     8U
+/** @} */
+
+/**
  * @name    VSRV return codes
  * @note    Returned by the VSRV calls in addition to the @p CH_RET_xxx
  *          codes.

@@ -38,8 +38,7 @@
  *          @p CH_RET_SUCCESS, a @p SB_VSRV_RET_xxx or a @p CH_RET_xxx error
  *          code. @p SB_VSRV_RET_STALE means that the service instance the
  *          handle refers to is gone, the handle can only be closed.
- * @note    This is a prototype of the API, the host side is not
- *          implemented yet, see @p os/sb/note_sb_vsrv.md.
+ * @note    The design is described in @p os/sb/note_sb_vsrv.md.
  *
  * @addtogroup ARM_SANDBOX_USER_VSRV_API
  * @{
@@ -69,7 +68,7 @@
 /**
  * @brief   First fixed message.
  */
-#define VSRV_MSG_FIXED_BASE     0xFFFFFF00U
+#define VSRV_MSG_FIXED_BASE     SB_VSRV_MSG_FIXED_BASE
 /**
  * @brief   No operation, replies with @p CH_RET_SUCCESS.
  */
@@ -137,6 +136,10 @@ typedef struct {
    */
   uint32_t                  size;
 } vsrv_cmd_header_t;
+
+/* The host checks the room for the header, the sizes must match.*/
+typedef char vsrv_cmd_header_size_check_t
+    [(sizeof (vsrv_cmd_header_t) == SB_VSRV_CMD_HDR_SIZE) ? 1 : -1];
 
 /*===========================================================================*/
 /* Module macros.                                                            */
