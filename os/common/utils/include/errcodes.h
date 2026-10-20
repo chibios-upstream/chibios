@@ -45,6 +45,7 @@
  * @{
  */
 #define CH_RET_ENOENT           CH_ENCODE_ERROR(ENOENT)     /* No such file or directory */
+#define CH_RET_ESRCH            CH_ENCODE_ERROR(ESRCH)      /* No such process */
 #define CH_RET_EIO              CH_ENCODE_ERROR(EIO)        /* I/O error */
 #define CH_RET_EBADF            CH_ENCODE_ERROR(EBADF)      /* Bad file number */
 #define CH_RET_ENOMEM           CH_ENCODE_ERROR(ENOMEM)     /* Not enough space */
