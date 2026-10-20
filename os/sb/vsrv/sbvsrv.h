@@ -207,6 +207,14 @@ typedef struct {
  */
 struct vsrv_service {
   /**
+   * @brief   Next registered service.
+   */
+  vsrv_service_t                *next;
+  /**
+   * @brief   Service identifier, assigned at registration.
+   */
+  uint32_t                      id;
+  /**
    * @brief   Service definition.
    */
   const vsrv_service_def_t      *def;
@@ -293,8 +301,8 @@ typedef struct vsrv_conf {
 #ifdef __cplusplus
 extern "C" {
 #endif
-  void sbVsrvInit(vsrv_service_t *svcs, const vsrv_service_def_t *defs,
-                  unsigned n);
+  void __sb_vsrv_init(void);
+  void sbVsrvObjectInit(vsrv_service_t *svcp, const vsrv_service_def_t *defp);
   void __sb_vsrv_cleanup(sb_class_t *sbp);
   void sb_sysc_vsrv(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_fastc_vsrv(sb_class_t *sbp, struct port_extctx *ectxp);

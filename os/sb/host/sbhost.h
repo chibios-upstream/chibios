@@ -109,6 +109,9 @@ static inline void sbHostInit(void) {
 #if (CH_CFG_USE_EVENTS == TRUE) || defined(__DOXYGEN__)
   chEvtObjectInit(&sb.termination_es);
 #endif
+#if (SB_CFG_ENABLE_VSRV == TRUE) || defined(__DOXYGEN__)
+  __sb_vsrv_init();
+#endif
 }
 
 /**

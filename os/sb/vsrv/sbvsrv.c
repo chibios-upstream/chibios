@@ -17,8 +17,8 @@
 /**
  * @file    sb/vsrv/sbvsrv.c
  * @brief   ARM SandBox host VSRV module code.
- * @details Services registry, publishing and attaching, service queries
- *          and termination cleanup. Notifications and messages are not
+ * @details Services registry, publishing and attaching, notifications,
+ *          service queries and termination cleanup. Messages are not
  *          implemented yet, their sub-codes return @p CH_RET_ENOSYS.
  *
  * @addtogroup ARM_SANDBOX_VSRV
@@ -48,14 +48,14 @@
 /*===========================================================================*/
 
 /**
- * @brief   Registered services, @p NULL before @p sbVsrvInit().
+ * @brief   List of the registered services.
  */
-static vsrv_service_t *vsrv_services;
+static vsrv_service_t *vsrv_list;
 
 /**
- * @brief   Number of registered services.
+ * @brief   Number of registered services, next identifier.
  */
-static unsigned vsrv_nservices;
+static uint32_t vsrv_nservices;
 
 /**
  * @brief   Mutex serializing the VSRV syscalls and cleanups.
@@ -118,13 +118,13 @@ static bool is_area_isolated(const vsrv_service_def_t *dp) {
 }
 
 /*
- * Returns true if the name of definition i is not used by a previous one.
+ * Returns true if a name is not used by a registered service.
  */
-static bool is_name_unique(const vsrv_service_def_t *defs, unsigned i) {
-  unsigned k;
+static bool is_name_unique(const char *name) {
+  const vsrv_service_t *svcp;
 
-  for (k = 0U; k < i; k++) {
-    if (strcmp(defs[k].name, defs[i].name) == 0) {
+  for (svcp = vsrv_list; svcp != NULL; svcp = svcp->next) {
+    if (strcmp(svcp->def->name, name) == 0) {
       return false;
     }
   }
@@ -150,11 +150,11 @@ static msg_t copy_name(sb_class_t *sbp, const char *name, char *buf) {
 }
 
 static vsrv_service_t *find_service(const char *name) {
-  unsigned i;
+  vsrv_service_t *svcp;
 
-  for (i = 0U; i < vsrv_nservices; i++) {
-    if (strcmp(vsrv_services[i].def->name, name) == 0) {
-      return &vsrv_services[i];
+  for (svcp = vsrv_list; svcp != NULL; svcp = svcp->next) {
+    if (strcmp(svcp->def->name, name) == 0) {
+      return svcp;
     }
   }
 
@@ -199,16 +199,37 @@ static bool is_online(const vsrv_service_t *svcp) {
 static vsrv_service_t *get_served(sb_class_t *sbp, uint32_t id) {
   vsrv_service_t *svcp;
 
-  if (id >= (uint32_t)vsrv_nservices) {
+  for (svcp = vsrv_list; svcp != NULL; svcp = svcp->next) {
+    if (svcp->id == id) {
+      if ((svcp->def->server != sbp) || !is_online(svcp)) {
+        return NULL;
+      }
+      return svcp;
+    }
+  }
+
+  return NULL;
+}
+
+/*
+ * Returns the handle entry of a sandbox, NULL if not in use.
+ */
+static vsrv_handle_t *get_handle(sb_class_t *sbp, uint32_t h) {
+  const vsrv_conf_t *confp = sbp->vsrvconf;
+
+  if ((h >= (uint32_t)confp->nhandles) || (confp->handles[h].svcp == NULL)) {
     return NULL;
   }
 
-  svcp = &vsrv_services[id];
-  if ((svcp->def->server != sbp) || !is_online(svcp)) {
-    return NULL;
-  }
+  return &confp->handles[h];
+}
 
-  return svcp;
+/*
+ * Returns true if a handle refers to the running instance of its service.
+ */
+static bool is_handle_current(const vsrv_handle_t *hp) {
+
+  return is_online(hp->svcp) && (hp->generation == hp->svcp->generation);
 }
 
 /*
@@ -332,7 +353,7 @@ static msg_t vsrv_publish(sb_class_t *sbp, struct port_extctx *ectxp) {
   ectxp->r1 = (uint32_t)dp->area;
   ectxp->r2 = (uint32_t)get_area_size(dp);
 
-  return (msg_t)(svcp - vsrv_services);
+  return (msg_t)svcp->id;
 }
 
 static msg_t vsrv_withdraw(sb_class_t *sbp, struct port_extctx *ectxp) {
@@ -439,18 +460,91 @@ static msg_t vsrv_open(sb_class_t *sbp, struct port_extctx *ectxp) {
 }
 
 static msg_t vsrv_close(sb_class_t *sbp, struct port_extctx *ectxp) {
-  const vsrv_conf_t *confp = sbp->vsrvconf;
-  uint32_t h = VSRV_CALL_ID(ectxp->r0);
   vsrv_handle_t *hp;
 
-  if ((h >= (uint32_t)confp->nhandles) || (confp->handles[h].svcp == NULL)) {
+  hp = get_handle(sbp, VSRV_CALL_ID(ectxp->r0));
+  if (hp == NULL) {
     return CH_RET_EBADF;
   }
 
-  hp = &confp->handles[h];
   sbUnmapRegion(sbp, hp->region);
   slice_release(hp);
   hp->svcp = NULL;
+
+  return CH_RET_SUCCESS;
+}
+
+static msg_t vsrv_notify(sb_class_t *sbp, struct port_extctx *ectxp) {
+  const vsrv_handle_t *hp;
+  vsrv_service_t *svcp;
+  msg_t ret;
+
+  hp = get_handle(sbp, VSRV_CALL_ID(ectxp->r0));
+  if (hp == NULL) {
+    return CH_RET_EBADF;
+  }
+
+  svcp = hp->svcp;
+  if (!is_handle_current(hp)) {
+    return SB_VSRV_RET_STALE;
+  }
+
+  ret = sbVRQRaisePidI(svcp->def->server, svcp->server_pid, svcp->vrq,
+                       SB_VSRV_FL_SLICE(hp->slice));
+  if (CH_RET_IS_ERROR(ret)) {
+    return SB_VSRV_RET_STALE;
+  }
+
+  return CH_RET_SUCCESS;
+}
+
+static msg_t vsrv_notify_client(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t j = VSRV_CALL_SLICE(ectxp->r0);
+  const vsrv_slice_t *slp;
+  vsrv_service_t *svcp;
+  msg_t ret;
+
+  svcp = get_served(sbp, VSRV_CALL_ID(ectxp->r0));
+  if (svcp == NULL) {
+    return CH_RET_EBADF;
+  }
+  if (j >= (uint32_t)svcp->def->nslices) {
+    return CH_RET_EINVAL;
+  }
+
+  slp = &svcp->def->slices[j];
+  if ((slp->state != VSRV_SLICE_ATTACHED) ||
+      (slp->generation != svcp->generation)) {
+    return SB_VSRV_RET_STALE;
+  }
+
+  ret = sbVRQRaisePidI(slp->client, slp->client_pid, slp->vrq,
+                       SB_VSRV_FL_NOTIFY);
+  if (CH_RET_IS_ERROR(ret)) {
+    return SB_VSRV_RET_STALE;
+  }
+
+  return CH_RET_SUCCESS;
+}
+
+static msg_t vsrv_reset_done(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t j = VSRV_CALL_SLICE(ectxp->r0);
+  vsrv_service_t *svcp;
+  vsrv_slice_t *slp;
+
+  svcp = get_served(sbp, VSRV_CALL_ID(ectxp->r0));
+  if (svcp == NULL) {
+    return CH_RET_EBADF;
+  }
+  if (j >= (uint32_t)svcp->def->nslices) {
+    return CH_RET_EINVAL;
+  }
+
+  slp = &svcp->def->slices[j];
+  if (slp->state != VSRV_SLICE_RESET) {
+    return CH_RET_EINVAL;
+  }
+  slp->state = VSRV_SLICE_FREE;
 
   return CH_RET_SUCCESS;
 }
@@ -519,64 +613,72 @@ static msg_t vsrv_client(sb_class_t *sbp, struct port_extctx *ectxp) {
 /*===========================================================================*/
 
 /**
- * @brief   VSRV initialization.
- * @details Binds the service objects to their definitions and makes the
- *          services known by name, all services start offline.
- * @pre     The static regions of the servers and of the clients are set,
- *          no sandbox is started yet.
+ * @brief   VSRV module initialization.
+ * @note    Called by @p sbHostInit().
  *
- * @param[out] svcs     array of @p n service objects
- * @param[in] defs      array of @p n service definitions
- * @param[in] n         number of services
+ * @notapi
+ */
+void __sb_vsrv_init(void) {
+
+  vsrv_list      = NULL;
+  vsrv_nservices = 0U;
+  chMtxObjectInit(&vsrv_mtx);
+}
+
+/**
+ * @brief   Initializes a service object.
+ * @details Binds the service object to its definition and registers it,
+ *          the service is known by name and starts offline.
+ * @pre     The static regions of the server and of the clients are set,
+ *          they are not started yet.
+ *
+ * @param[out] svcp     pointer to the @p vsrv_service_t object
+ * @param[in] defp      pointer to the service definition
  *
  * @init
  */
-void sbVsrvInit(vsrv_service_t *svcs, const vsrv_service_def_t *defs,
-                unsigned n) {
-  unsigned i, j;
+void sbVsrvObjectInit(vsrv_service_t *svcp, const vsrv_service_def_t *defp) {
+  unsigned j;
 
-  chDbgCheck((svcs != NULL) && (defs != NULL) && (n > 0U));
-
-  for (i = 0U; i < n; i++) {
-    const vsrv_service_def_t *dp = &defs[i];
-    vsrv_service_t *svcp = &svcs[i];
-
-    chDbgCheck((dp->name != NULL) && (dp->server != NULL) &&
-               (dp->clients != NULL) && (dp->area != NULL) &&
-               (dp->slices != NULL));
-    chDbgCheck((strlen(dp->name) > (size_t)0) &&
-               (strlen(dp->name) <= SB_VSRV_NAME_MAX) &&
-               is_name_unique(defs, i));
-    chDbgCheck((dp->nslices > 0U) && (dp->nslices <= SB_VSRV_MAX_SLICES));
+  chDbgCheck((svcp != NULL) && (defp != NULL));
+  chDbgCheck((defp->name != NULL) && (defp->server != NULL) &&
+             (defp->clients != NULL) && (defp->area != NULL) &&
+             (defp->slices != NULL));
+  chDbgCheck((strlen(defp->name) > (size_t)0) &&
+             (strlen(defp->name) <= SB_VSRV_NAME_MAX) &&
+             is_name_unique(defp->name));
+  chDbgCheck((defp->nslices > 0U) && (defp->nslices <= SB_VSRV_MAX_SLICES));
 #if !defined(PORT_ARCHITECTURE_ARM_V8M_MAINLINE)
-    chDbgCheck((dp->slicesize >= 32U) &&
-               ((dp->slicesize & (dp->slicesize - 1U)) == 0U) &&
-               MEM_IS_ALIGNED(dp->area, dp->slicesize));
+  chDbgCheck((defp->slicesize >= 32U) &&
+             ((defp->slicesize & (defp->slicesize - 1U)) == 0U) &&
+             MEM_IS_ALIGNED(defp->area, defp->slicesize));
 #else
-    chDbgCheck((dp->slicesize >= 32U) &&
-               MEM_IS_ALIGNED(dp->slicesize, 32U) &&
-               MEM_IS_ALIGNED(dp->area, 32U));
+  chDbgCheck((defp->slicesize >= 32U) &&
+             MEM_IS_ALIGNED(defp->slicesize, 32U) &&
+             MEM_IS_ALIGNED(defp->area, 32U));
 #endif
-    chDbgCheck(is_area_isolated(dp));
+  chDbgCheck(is_area_isolated(defp));
 
-    svcp->def        = dp;
-    svcp->state      = VSRV_SVC_OFFLINE;
-    svcp->generation = 0U;
-    svcp->server_pid = (sb_pid_t)0;
-    svcp->vrq        = (sb_vrqnum_t)0;
-    svcp->region     = 0U;
-    svcp->rqhead     = VSRV_NO_SLICE;
-    svcp->rqtail     = VSRV_NO_SLICE;
-    for (j = 0U; j < dp->nslices; j++) {
-      memset(&dp->slices[j], 0, sizeof (vsrv_slice_t));
-      dp->slices[j].state = VSRV_SLICE_FREE;
-      dp->slices[j].next  = VSRV_NO_SLICE;
-    }
+  svcp->def        = defp;
+  svcp->state      = VSRV_SVC_OFFLINE;
+  svcp->generation = 0U;
+  svcp->server_pid = (sb_pid_t)0;
+  svcp->vrq        = (sb_vrqnum_t)0;
+  svcp->region     = 0U;
+  svcp->rqhead     = VSRV_NO_SLICE;
+  svcp->rqtail     = VSRV_NO_SLICE;
+  for (j = 0U; j < defp->nslices; j++) {
+    memset(&defp->slices[j], 0, sizeof (vsrv_slice_t));
+    defp->slices[j].state = VSRV_SLICE_FREE;
+    defp->slices[j].next  = VSRV_NO_SLICE;
   }
 
-  chMtxObjectInit(&vsrv_mtx);
-  vsrv_services  = svcs;
-  vsrv_nservices = n;
+  /* Registration, the list can be walked by running sandboxes.*/
+  chSysLock();
+  svcp->id   = vsrv_nservices++;
+  svcp->next = vsrv_list;
+  vsrv_list  = svcp;
+  chSysUnlock();
 }
 
 /**
@@ -590,17 +692,16 @@ void sbVsrvInit(vsrv_service_t *svcs, const vsrv_service_def_t *defs,
  * @notapi
  */
 void __sb_vsrv_cleanup(sb_class_t *sbp) {
+  vsrv_service_t *svcp;
   unsigned i;
 
-  if ((vsrv_services == NULL) || (sbp->vsrvconf == NULL)) {
+  if (sbp->vsrvconf == NULL) {
     return;
   }
 
   chMtxLock(&vsrv_mtx);
 
-  for (i = 0U; i < vsrv_nservices; i++) {
-    vsrv_service_t *svcp = &vsrv_services[i];
-
+  for (svcp = vsrv_list; svcp != NULL; svcp = svcp->next) {
     if ((svcp->def->server == sbp) && (svcp->state == VSRV_SVC_ONLINE) &&
         (svcp->server_pid == sbGetPidX(sbp))) {
       service_offline(svcp);
@@ -630,7 +731,7 @@ void __sb_vsrv_cleanup(sb_class_t *sbp) {
 void sb_sysc_vsrv(sb_class_t *sbp, struct port_extctx *ectxp) {
   msg_t ret;
 
-  if ((vsrv_services == NULL) || (sbp->vsrvconf == NULL)) {
+  if (sbp->vsrvconf == NULL) {
     ectxp->r0 = (uint32_t)CH_RET_EACCES;
     return;
   }
@@ -669,7 +770,7 @@ void sb_sysc_vsrv(sb_class_t *sbp, struct port_extctx *ectxp) {
 void sb_fastc_vsrv(sb_class_t *sbp, struct port_extctx *ectxp) {
   msg_t ret;
 
-  if ((vsrv_services == NULL) || (sbp->vsrvconf == NULL)) {
+  if (sbp->vsrvconf == NULL) {
     ectxp->r0 = (uint32_t)CH_RET_EACCES;
     return;
   }
@@ -677,6 +778,15 @@ void sb_fastc_vsrv(sb_class_t *sbp, struct port_extctx *ectxp) {
   CH_IRQ_PROLOGUE();
   chSysLockFromISR();
   switch (VSRV_CALL_SUBCODE(ectxp->r0)) {
+  case SB_VSRV_NOTIFY:
+    ret = vsrv_notify(sbp, ectxp);
+    break;
+  case SB_VSRV_NOTIFYC:
+    ret = vsrv_notify_client(sbp, ectxp);
+    break;
+  case SB_VSRV_RESETDONE:
+    ret = vsrv_reset_done(sbp, ectxp);
+    break;
   case SB_VSRV_SLICES:
     ret = vsrv_slices(sbp, ectxp);
     break;
