@@ -334,27 +334,25 @@ static uint8_t tsb_other_area[1][256] __attribute__((aligned(256)));
 static vsrv_slice_t tsb_other_slices[1];
 static sb_class_t * const tsb_other_clients[] = {&sbx2, NULL};
 
-static const vsrv_service_def_t tsb_service_defs[] = {
-  {
-    .name      = "test",
-    .server    = &sbx1,
-    .clients   = tsb_test_clients,
-    .area      = (uint8_t *)tsb_test_area,
-    .slicesize = sizeof tsb_test_area[0],
-    .slices    = tsb_test_slices,
-    .nslices   = 2U
-  },
-  {
-    .name      = "other",
-    .server    = &sbx2,
-    .clients   = tsb_other_clients,
-    .area      = (uint8_t *)tsb_other_area,
-    .slicesize = sizeof tsb_other_area[0],
-    .slices    = tsb_other_slices,
-    .nslices   = 1U
-  }
+static const vsrv_service_def_t tsb_test_def = {
+  .name      = "test",
+  .server    = &sbx1,
+  .clients   = tsb_test_clients,
+  .area      = (uint8_t *)tsb_test_area,
+  .slicesize = sizeof tsb_test_area[0],
+  .slices    = tsb_test_slices,
+  .nslices   = 2U
 };
-static vsrv_service_t tsb_services[2];
+static const vsrv_service_def_t tsb_other_def = {
+  .name      = "other",
+  .server    = &sbx2,
+  .clients   = tsb_other_clients,
+  .area      = (uint8_t *)tsb_other_area,
+  .slicesize = sizeof tsb_other_area[0],
+  .slices    = tsb_other_slices,
+  .nslices   = 1U
+};
+static vsrv_service_t tsb_test_service, tsb_other_service;
 
 static vsrv_handle_t sbx1_handles[2];
 static const vsrv_conf_t sbx1_vsrvconf = {
@@ -614,7 +612,8 @@ int main(void) {
   sbSetRegion(&sbx1, 1, STARTUP_RAM1_BASE,   STARTUP_RAM1_SIZE, SB_REG_IS_DATA);
   sbSetVirtualIO(&sbx1, &vio_config1);
   sbSetVirtualServices(&sbx1, &sbx1_vsrvconf);
-  sbVsrvInit(tsb_services, tsb_service_defs, 2U);
+  sbVsrvObjectInit(&tsb_test_service, &tsb_test_def);
+  sbVsrvObjectInit(&tsb_other_service, &tsb_other_def);
 
   /* Lifecycle initialization and failed-start checks.*/
   chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_STOPPED,

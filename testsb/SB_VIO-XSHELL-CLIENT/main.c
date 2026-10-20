@@ -493,8 +493,38 @@ static void cmd_mapfault(xshell_t *xshp, int argc, char *argv[],
  * VSRV checks, SB1 serves the "test" service for itself, two slices of
  * 256 bytes; "other" is served by SB2, not accessible to SB1.
  */
-#define VSRV_TEST_SVRQ          5U
-#define VSRV_TEST_CVRQ          6U
+#define VSRV_TEST_SVRQ          20
+#define VSRV_TEST_CVRQ          21
+
+/* Flags delivered on the server and client VRQs.*/
+static volatile uint32_t vsrv_server_flags;
+static volatile uint32_t vsrv_client_flags;
+
+SB_VRQ_HANDLER(MK_VECTOR(VSRV_TEST_SVRQ)) {
+
+  CH_IRQ_PROLOGUE();
+  vsrv_server_flags |= flags;
+  CH_IRQ_EPILOGUE();
+}
+
+SB_VRQ_HANDLER(MK_VECTOR(VSRV_TEST_CVRQ)) {
+
+  CH_IRQ_PROLOGUE();
+  vsrv_client_flags |= flags;
+  CH_IRQ_EPILOGUE();
+}
+
+/* Returns and clears the flags delivered on a VRQ.*/
+static uint32_t vsrv_take(volatile uint32_t *fp) {
+  uint32_t f;
+
+  chSysLock();
+  f = *fp;
+  *fp = 0U;
+  chSysUnlock();
+
+  return f;
+}
 
 static bool vsrv_check(xshell_t *xshp, const char *what, bool ok) {
 
@@ -581,8 +611,8 @@ static void cmd_vsrvtest(xshell_t *xshp, int argc, char *argv[],
                    ((volatile uint8_t *)slice.base)[slice.size - 1U] == 0x5AU);
   (void)vsrv_check(xshp, "no free region left",
                    (msg_t)sbSyscall2(TSB_SYSC_MAP, 0U, 0U) == CH_RET_EMFILE);
-  (void)vsrv_check(xshp, "notifications not implemented",
-                   vsrvNotify(h) == CH_RET_ENOSYS);
+  (void)vsrv_check(xshp, "messages not implemented",
+                   vsrvSendFixed(h, VSRV_MSG_NOP) == CH_RET_ENOSYS);
 
   /* Closing, the slice goes to RESET, the next open takes the other
      slice, then no slice is free.*/
@@ -626,6 +656,87 @@ static void cmd_vsrvtest(xshell_t *xshp, int argc, char *argv[],
                    CH_RET_ENOENT);
   (void)vsrv_check(xshp, "close of the stale handle",
                    vsrvClose(h) == CH_RET_SUCCESS);
+}
+
+static void cmd_vsrvnotify(xshell_t *xshp, int argc, char *argv[],
+                           char *envp[]) {
+  vsrv_area_t area, slice, slice2;
+  uint32_t attached, reset, svc, h, f;
+  msg_t msg;
+
+  (void)argv;
+  (void)envp;
+
+  if (argc > 1) {
+    xshellUsage(xshp, "vsrvnotify");
+    return;
+  }
+
+  (void)__sb_vrq_seten((1U << VSRV_TEST_SVRQ) | (1U << VSRV_TEST_CVRQ));
+  (void)vsrv_take(&vsrv_server_flags);
+  (void)vsrv_take(&vsrv_client_flags);
+
+  msg = vsrvPublish("test", 0U, VSRV_TEST_SVRQ, &area);
+  if (!vsrv_check(xshp, "publish", msg >= 0)) {
+    return;
+  }
+  svc = (uint32_t)msg;
+  msg = vsrvOpen("test", VSRV_TEST_CVRQ, &slice);
+  if (!vsrv_check(xshp, "open", msg >= 0)) {
+    return;
+  }
+  h = (uint32_t)msg;
+  f = vsrv_take(&vsrv_server_flags);
+  (void)vsrv_check(xshp, "server told of the attach",
+                   f == SB_VSRV_FL_SLICES);
+
+  /* Notifications both ways.*/
+  (void)vsrv_check(xshp, "client notify", vsrvNotify(h) == CH_RET_SUCCESS);
+  f = vsrv_take(&vsrv_server_flags);
+  (void)vsrv_check(xshp, "server got the slice flag",
+                   f == SB_VSRV_FL_SLICE(0U));
+  (void)vsrv_check(xshp, "server notify",
+                   vsrvNotifyClient(svc, 0U) == CH_RET_SUCCESS);
+  f = vsrv_take(&vsrv_client_flags);
+  (void)vsrv_check(xshp, "client got the notify flag",
+                   f == SB_VSRV_FL_NOTIFY);
+  (void)vsrv_check(xshp, "notify of a free slice",
+                   vsrvNotifyClient(svc, 1U) == SB_VSRV_RET_STALE);
+  (void)vsrv_check(xshp, "notify of an invalid slice",
+                   vsrvNotifyClient(svc, 2U) == CH_RET_EINVAL);
+  (void)vsrv_check(xshp, "reset done of an attached slice",
+                   vsrvResetDone(svc, 0U) == CH_RET_EINVAL);
+
+  /* Close, the server is told, the slice is in reset until done.*/
+  (void)vsrv_check(xshp, "close", vsrvClose(h) == CH_RET_SUCCESS);
+  f = vsrv_take(&vsrv_server_flags);
+  (void)vsrv_check(xshp, "server told of the release",
+                   f == SB_VSRV_FL_SLICES);
+  (void)vsrv_check(xshp, "notify of a slice in reset",
+                   vsrvNotifyClient(svc, 0U) == SB_VSRV_RET_STALE);
+  (void)vsrv_check(xshp, "reset done",
+                   (vsrvResetDone(svc, 0U) == CH_RET_SUCCESS) &&
+                   (vsrvGetSlices(svc, &attached, &reset) == CH_RET_SUCCESS) &&
+                   (attached == 0U) && (reset == 0U));
+  msg = vsrvOpen("test", VSRV_TEST_CVRQ, &slice2);
+  (void)vsrv_check(xshp, "slice free again",
+                   (msg >= 0) && (slice2.base == slice.base));
+  h = (uint32_t)msg;
+  (void)vsrv_take(&vsrv_server_flags);
+
+  /* Withdraw, the client is told, its handle is stale.*/
+  (void)vsrv_check(xshp, "withdraw", vsrvWithdraw(svc) == CH_RET_SUCCESS);
+  f = vsrv_take(&vsrv_client_flags);
+  (void)vsrv_check(xshp, "client told of the loss", f == SB_VSRV_FL_LOST);
+  (void)vsrv_check(xshp, "notify on a stale handle",
+                   vsrvNotify(h) == SB_VSRV_RET_STALE);
+  (void)vsrv_check(xshp, "server notify after withdraw",
+                   vsrvNotifyClient(svc, 0U) == CH_RET_EBADF);
+  (void)vsrv_check(xshp, "close of the stale handle",
+                   vsrvClose(h) == CH_RET_SUCCESS);
+  (void)vsrv_check(xshp, "no unexpected flags",
+                   (vsrv_take(&vsrv_server_flags) == 0U) &&
+                   (vsrv_take(&vsrv_client_flags) == 0U));
 }
 
 static void cmd_vsrvcrash(xshell_t *xshp, int argc, char *argv[],
@@ -675,6 +786,7 @@ static const xshell_command_t commands[] = {
   {"maptest", cmd_maptest},
   {"mapfault", cmd_mapfault},
   {"vsrvtest", cmd_vsrvtest},
+  {"vsrvnotify", cmd_vsrvnotify},
   {"vsrvcrash", cmd_vsrvcrash},
   {NULL, NULL}
 };
