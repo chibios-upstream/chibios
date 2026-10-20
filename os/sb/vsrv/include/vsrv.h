@@ -337,17 +337,19 @@ static inline msg_t vsrvGetSlices(uint32_t service, uint32_t *attachedp,
  * @param[in] service   service identifier
  * @param[in] slice     slice index
  * @param[out] slicep   descriptor of the slice
+ * @param[out] pidp     PID of the client, a different PID than the one seen
+ *                      before means a new execution of the client
  * @return              The index of the client in the host definition of
  *                      the service or an error code.
  */
 static inline msg_t vsrvGetClient(uint32_t service, uint32_t slice,
-                                  vsrv_area_t *slicep) {
+                                  vsrv_area_t *slicep, pid_t *pidp) {
 
   __syscall1rrrr(SB_FASTC_VSRV, VSRV_CALL(SB_VSRV_CLIENT, service, slice));
-  (void)r3;
   if (CH_RET_IS_SUCCESS(r0)) {
     slicep->base = (void *)r1;
     slicep->size = (size_t)r2;
+    *pidp        = (pid_t)r3;
   }
   return (msg_t)r0;
 }
