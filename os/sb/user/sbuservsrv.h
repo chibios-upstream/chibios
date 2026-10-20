@@ -15,8 +15,8 @@
 */
 
 /**
- * @file    sb/vsrv/include/vsrv.h
- * @brief   ARM SandBox VSRV API.
+ * @file    sb/user/sbuservsrv.h
+ * @brief   ARM SandBox user VSRV API.
  * @details Virtual SeRVices (VSRV) guest API. A server sandbox publishes
  *          named services, client sandboxes open them and exchange data
  *          through slices of a shared area mapped by the host. Commands
@@ -45,8 +45,8 @@
  * @{
  */
 
-#ifndef VSRV_H
-#define VSRV_H
+#ifndef SBUSERVSRV_H
+#define SBUSERVSRV_H
 
 #include <stddef.h>
 
@@ -518,6 +518,6 @@ static inline msg_t vsrvNotify(uint32_t handle) {
 }
 /** @} */
 
-#endif /* VSRV_H */
+#endif /* SBUSERVSRV_H */
 
 /** @} */

@@ -125,6 +125,11 @@
 #error "SB_CFG_FD_NUM not defined in sbconf.h"
 #endif
 
+/* VSRV is a prototype, disabled when not specified in sbconf.h.*/
+#if !defined(SB_CFG_ENABLE_VSRV) || defined(__DOXYGEN__)
+#define SB_CFG_ENABLE_VSRV                  FALSE
+#endif
+
 /* License checks.*/
 #if !defined(CH_CUSTOMER_LIC_SB) || !defined(CH_LICENSE_FEATURES)
 #error "malformed chlicense.h"
@@ -234,6 +239,10 @@ typedef struct sb_class sb_class_t;
 #include "sbvio.h"
 #endif
 
+#if (SB_CFG_ENABLE_VSRV == TRUE) || defined (__DOXYGEN__)
+#include "sbvsrv.h"
+#endif
+
 #if (SB_CFG_ENABLE_VFS == TRUE) || defined(__DOXYGEN__)
 #include "sbposix.h"
 #endif
@@ -317,6 +326,13 @@ struct sb_class {
    * @brief   VIO configuration associated to this sandbox.
    */
   const vio_conf_t              *vioconf;
+#endif
+#if (SB_CFG_ENABLE_VSRV == TRUE) || defined(__DOXYGEN__)
+  /**
+   * @brief   VSRV settings associated to this sandbox.
+   * @note    @p NULL means no VSRV access.
+   */
+  const vsrv_conf_t             *vsrvconf;
 #endif
   /**
    * @brief   Base API-related fields.
