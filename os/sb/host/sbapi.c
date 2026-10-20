@@ -94,6 +94,11 @@ void sb_fastc_get_frequency(sb_class_t *sbp, struct port_extctx *ectxp) {
   ectxp->r0 = (uint32_t)CH_CFG_ST_FREQUENCY;
 }
 
+void sb_fastc_get_pid(sb_class_t *sbp, struct port_extctx *ectxp) {
+
+  ectxp->r0 = (uint32_t)sbp->pid;
+}
+
 void sb_sysc_nop(sb_class_t *sbp, struct port_extctx *ectxp) {
 
   (void)sbp;
@@ -304,6 +309,7 @@ void sb_sysc_loadelf(sb_class_t *sbp, struct port_extctx *ectxp) {
 /* Handlers bound to their codes.*/
 SB_SVC_HANDLER(SB_FASTC_GET_SYSTIME, sb_fastc_get_systime);
 SB_SVC_HANDLER(SB_FASTC_GET_FREQUENCY, sb_fastc_get_frequency);
+SB_SVC_HANDLER(SB_FASTC_GET_PID, sb_fastc_get_pid);
 SB_SVC_HANDLER(SB_FASTC_EVENT_BROADCAST, sb_fastc_broadcast_flags);
 SB_SVC_HANDLER(SB_FASTC_NOP, sb_fastc_nop);
 SB_SVC_HANDLER(SB_SYSC_EXIT, sb_sysc_exit);

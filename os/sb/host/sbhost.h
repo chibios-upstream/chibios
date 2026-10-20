@@ -100,6 +100,7 @@ extern "C" {
  */
 static inline void sbHostInit(void) {
 
+  sb.last_pid = (sb_pid_t)0;
 #if (CH_CFG_USE_EVENTS == TRUE) || defined(__DOXYGEN__)
   chEvtObjectInit(&sb.termination_es);
 #endif
@@ -116,6 +117,25 @@ static inline void sbHostInit(void) {
 static inline sb_state_t sbGetStateX(const sb_class_t *sbp) {
 
   return sbp->state;
+}
+
+/**
+ * @brief   Returns the PID of the sandbox execution.
+ * @details A new PID is assigned each time the sandbox starts, it stays
+ *          valid until the sandbox is finalized. Host objects referring to
+ *          one execution of a sandbox can store the PID with the sandbox
+ *          pointer and compare it before acting on the sandbox.
+ * @note    PIDs are positive and increase at each start, after the largest
+ *          value they restart from one.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @return              The PID, zero if the sandbox is not started.
+ *
+ * @xclass
+ */
+static inline sb_pid_t sbGetPidX(const sb_class_t *sbp) {
+
+  return sbp->pid;
 }
 
 /**

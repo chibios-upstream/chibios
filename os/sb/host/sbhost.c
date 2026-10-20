@@ -455,6 +455,16 @@ static bool sb_start_begin(sb_class_t *sbp) {
   started = sbp->state == SB_STATE_STOPPED;
   if (started) {
     sbp->state = SB_STATE_STARTING;
+
+    /* New PID for this execution, positive, restarting from one after
+       the largest value.*/
+    if (sb.last_pid < (sb_pid_t)INT32_MAX) {
+      sb.last_pid++;
+    }
+    else {
+      sb.last_pid = (sb_pid_t)1;
+    }
+    sbp->pid = sb.last_pid;
   }
   chSysUnlock();
 
@@ -472,6 +482,7 @@ static void sb_start_failed(sb_class_t *sbp) {
   chSysLock();
   chDbgAssert(sbp->state == SB_STATE_STARTING, "invalid lifecycle state");
   sbp->state = SB_STATE_STOPPED;
+  sbp->pid = (sb_pid_t)0;
   sbp->sysblk = NULL;
   chSysUnlock();
 }
@@ -684,6 +695,7 @@ bool sbFinalize(sb_class_t *sbp) {
   chSysLock();
   chDbgAssert(sbp->state == SB_STATE_STOPPING, "invalid lifecycle state");
   sbp->state = SB_STATE_STOPPED;
+  sbp->pid = (sb_pid_t)0;
   sbp->sysblk = NULL;
   chSysUnlock();
 

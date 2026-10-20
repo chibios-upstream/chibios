@@ -67,6 +67,7 @@
 #define SB_FASTC_GET_FREQUENCY   2
 #define SB_FASTC_EVENT_BROADCAST 3
 #define SB_FASTC_NOP             4
+#define SB_FASTC_GET_PID         5
 #define SB_FASTC_VIO_VGPIO       96
 #define SB_FASTC_VIO_VUART       97
 #define SB_FASTC_VIO_VSPI        98

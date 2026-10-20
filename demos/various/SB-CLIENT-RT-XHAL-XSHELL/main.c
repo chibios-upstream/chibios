@@ -14,6 +14,8 @@
     limitations under the License.
 */
 
+#include <unistd.h>
+
 #include "ch.h"
 #include "hal.h"
 
@@ -145,6 +147,19 @@ static void cmd_sbsvccrash(xshell_t *xshp, int argc, char *argv[],
   }
 }
 
+static void cmd_sbpid(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
+
+  (void)argv;
+  (void)envp;
+
+  if (argc > 1) {
+    xshellUsage(xshp, "sbpid");
+    return;
+  }
+
+  chprintf(xshp->stream, "%d\r\n", (int)getpid());
+}
+
 static void cmd_sbexit(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 
   (void)argv;
@@ -166,6 +181,7 @@ static const xshell_command_t commands[] = {
   {"sbcrash", cmd_sbcrash},
   {"sbsvccrash", cmd_sbsvccrash},
   {"sbexit", cmd_sbexit},
+  {"sbpid", cmd_sbpid},
   {NULL, NULL}
 };
 

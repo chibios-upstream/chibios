@@ -80,6 +80,7 @@ extern "C" {
   void sb_fastc_nop(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_fastc_get_systime(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_fastc_get_frequency(sb_class_t *sbp, struct port_extctx *ectxp);
+  void sb_fastc_get_pid(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_fastc_broadcast_flags(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_sysc_nop(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_sysc_exit(sb_class_t *sbp, struct port_extctx *ectxp);

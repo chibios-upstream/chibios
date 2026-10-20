@@ -178,8 +178,7 @@ int _kill(int pid, int sig) {
 __attribute__((used))
 int _getpid(void) {
 
-  return 1;
-  abort();
+  return (int)sbGetPid();
 }
 
 /* Additional functions not part of newlib.*/

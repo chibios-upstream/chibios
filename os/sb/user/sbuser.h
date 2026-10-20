@@ -735,6 +735,19 @@ static inline uint32_t sbGetFrequency(void) {
 }
 
 /**
+ * @brief   Returns the PID of the sandbox.
+ * @details The PID identifies the current execution of the sandbox, a new
+ *          one is assigned each time the sandbox starts.
+ *
+ * @return              The PID.
+ */
+static inline pid_t sbGetPid(void) {
+
+  __syscall0r(SB_FASTC_GET_PID);
+  return (pid_t)r0;
+}
+
+/**
  * @brief   Terminates the sandbox.
  *
  * @param[in] msg       The exit message.

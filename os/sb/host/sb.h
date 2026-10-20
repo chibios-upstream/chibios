@@ -212,6 +212,13 @@ typedef enum {
 } sb_state_t;
 
 /**
+ * @brief   Type of a sandbox PID.
+ * @details Positive values identify sandbox executions, zero means no
+ *          execution. Guests see the same value as a @p pid_t.
+ */
+typedef int32_t sb_pid_t;
+
+/**
  * @brief   Type of a sandbox object.
  */
 typedef struct sb_class sb_class_t;
@@ -235,6 +242,10 @@ typedef struct sb_class sb_class_t;
  * @brief   Type of a sandbox manager global structure.
  */
 typedef struct {
+  /**
+   * @brief   Last assigned PID.
+   */
+  sb_pid_t                      last_pid;
 #if (CH_CFG_USE_EVENTS == TRUE) || defined(__DOXYGEN__)
   /**
    * @brief   Event source for sandbox termination.
@@ -255,6 +266,12 @@ struct sb_class {
    * @brief   Indicates that the sandbox is dynamically allocated from heap.
    */
   bool                          is_dynamic;
+  /**
+   * @brief   PID of the current execution.
+   * @details Assigned when the sandbox starts, zero while it is
+   *          @p SB_STATE_STOPPED.
+   */
+  sb_pid_t                      pid;
   /**
    * @brief   SandBox regions.
    * @note    Region zero is always used for code execution. The data
