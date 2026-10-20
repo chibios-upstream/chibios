@@ -35,6 +35,33 @@ be inspected with the `(SB2)` debug configurations in `nil.dbg_panic_msg`.
 The RT XSHELL client also toggles VIO GPIO unit 0 from its blinker thread,
 SB1 has no GPIO units assigned so those operations are ignored by the host.
 
+## Virtual services
+
+SB2 serves the "upper" service to SB1 through VSRV, see
+`os/sb/note_sb_vsrv.md`: it converts a text in the client slice to upper
+case.
+
+- Host: the service definition with one slice of 256 bytes in host memory,
+  SB2 can publish, SB1 can open with one handle. VSRV maps the area and the
+  slice in the switched regions left free by code and data, the host uses
+  4 switched regions (`PORT_SWITCHED_REGIONS_NUMBER`, `SB_CFG_NUM_REGIONS`).
+- SB2: a second NIL thread publishes the service and serves the requests,
+  woken by VRQ 20; the slices released by the client are acknowledged with
+  reset done.
+- SB1: the `vsrv` command, replies on VRQ 21:
+  - `vsrv upper <text>`: command structure and text in the slice, the
+    server validates both against the slice and replies the length.
+  - `vsrv info`: protocol version and number of conversions.
+  - `vsrv bench`: 1000 NOP round trips, about 41 us each on the G474.
+  - `vsrv fault`: the server faults on purpose, the host restarts SB2 and
+    SB1 gets "service lost"; the service is back after the restart.
+  - `vsrv close`: closes the handle, opened on first use.
+- A fault or an exit of SB1 with the handle open releases the slice, the
+  restarted SB1 opens it again.
+
+The same XSHELL client runs on hosts not defining the service, there the
+`vsrv` command reports the error code of the call.
+
 ## Build
 
 From this directory:
