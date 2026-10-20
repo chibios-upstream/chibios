@@ -401,6 +401,90 @@ void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq) {
   }
 }
 
+/**
+ * @brief   Raises a VRQ on an execution of a sandbox.
+ * @details Adds the flags to the VRQ and triggers it, in the same lock
+ *          interval, if the sandbox still runs the execution identified
+ *          by @p pid.
+ * @note    Events meant for a previous execution of the sandbox are
+ *          refused, as are calls made while the sandbox is not running.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @param[in] pid       PID of the target execution, see @p sbGetPidX()
+ * @param[in] nvrq      number of VRQ to be activated
+ * @param[in] flags     flags to be added to the VRQ
+ * @return              The operation status.
+ * @retval CH_RET_SUCCESS if the VRQ has been raised, it is delivered when
+ *                      enabled.
+ * @retval CH_RET_ESRCH if the execution identified by @p pid is not
+ *                      running.
+ *
+ * @sclass
+ */
+msg_t sbVRQRaisePidS(sb_class_t *sbp, sb_pid_t pid, sb_vrqnum_t nvrq,
+                     uint32_t flags) {
+  const sb_vrqnum_t vrq_num =
+    (sb_vrqnum_t)(sizeof sbp->vrq.flags / sizeof sbp->vrq.flags[0]);
+
+  chDbgCheckClassS();
+
+  chDbgCheck(nvrq < vrq_num);
+
+  /* Refusing events meant for another execution of the sandbox or for
+     an execution that is no more running.*/
+  if ((sbp->pid != pid) || (sbp->state != SB_STATE_RUNNING)) {
+    return CH_RET_ESRCH;
+  }
+
+  sbVRQSetFlagsI(sbp, nvrq, flags);
+  sbVRQTriggerS(sbp, nvrq);
+
+  return CH_RET_SUCCESS;
+}
+
+/**
+ * @brief   Raises a VRQ on an execution of a sandbox.
+ * @details Adds the flags to the VRQ and triggers it, in the same lock
+ *          interval, if the sandbox still runs the execution identified
+ *          by @p pid.
+ * @note    This function must be called from IRQ context because
+ *          it manipulates exception stack frames.
+ * @note    Events meant for a previous execution of the sandbox are
+ *          refused, as are calls made while the sandbox is not running.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @param[in] pid       PID of the target execution, see @p sbGetPidX()
+ * @param[in] nvrq      number of VRQ to be activated
+ * @param[in] flags     flags to be added to the VRQ
+ * @return              The operation status.
+ * @retval CH_RET_SUCCESS if the VRQ has been raised, it is delivered when
+ *                      enabled.
+ * @retval CH_RET_ESRCH if the execution identified by @p pid is not
+ *                      running.
+ *
+ * @iclass
+ */
+msg_t sbVRQRaisePidI(sb_class_t *sbp, sb_pid_t pid, sb_vrqnum_t nvrq,
+                     uint32_t flags) {
+  const sb_vrqnum_t vrq_num =
+    (sb_vrqnum_t)(sizeof sbp->vrq.flags / sizeof sbp->vrq.flags[0]);
+
+  chDbgCheckClassI();
+
+  chDbgCheck(nvrq < vrq_num);
+
+  /* Refusing events meant for another execution of the sandbox or for
+     an execution that is no more running.*/
+  if ((sbp->pid != pid) || (sbp->state != SB_STATE_RUNNING)) {
+    return CH_RET_ESRCH;
+  }
+
+  sbVRQSetFlagsI(sbp, nvrq, flags);
+  sbVRQTriggerI(sbp, nvrq);
+
+  return CH_RET_SUCCESS;
+}
+
 void sb_fastc_vrq_set_alarm(sb_class_t *sbp, struct port_extctx *ectxp) {
   sysinterval_t interval = (sysinterval_t)ectxp->r0;
   bool reload = (bool)ectxp->r1;
