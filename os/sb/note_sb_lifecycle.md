@@ -103,6 +103,12 @@ drained, detached without retaining any sandbox reference, or joined, that
 producer needs a separate generation-aware endpoint; lifecycle state alone
 cannot distinguish its old event after a new execution reaches `RUNNING`.
 
+Sandbox PIDs, added 2026-10-20, provide that endpoint: `sbGetPidX()` returns
+the PID of the current execution, a new one is assigned at each start and it
+is zero while the sandbox is `STOPPED`. Such a producer stores the PID with
+the sandbox pointer and drops its event if the PID changed. Guests read their
+PID with `sbGetPid()` or POSIX `getpid()`.
+
 ## Required validation
 
 - Normal guest exit and fault/abort both enter `STOPPING` before cleanup.
