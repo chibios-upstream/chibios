@@ -30,10 +30,11 @@ static void check_endpoint_bounds(hal_usb_driver_c *usbp) {
         for (unsigned r = 0U; r < sizeof requests; r++) {
           bool handled;
 
-          memset(usbp->setup, 0, sizeof usbp->setup);
-          usbp->setup[0] = USB_RTYPE_RECIPIENT_ENDPOINT;
-          usbp->setup[1] = requests[r];
-          usbp->setup[4] = (uint8_t)(ep | (dir << 7U));
+          memset(usbp->ep0req, 0, sizeof usbp->ep0req);
+          usbp->ep0req[0] = USB_RTYPE_RECIPIENT_ENDPOINT;
+          usbp->ep0req[1] = requests[r];
+          usbp->ep0req[4] = (uint8_t)(ep | (dir << 7U));
+          usbp->ep0rseq = usbp->ep0seq;
           usbp->ep0state = USB_EP0_STP_WAITING;
           assert(usbEp0HandleStandardRequest(usbp, &handled) == MSG_OK);
           assert(handled && usbp->ep0state == USB_EP0_ERROR);

@@ -654,10 +654,10 @@ static void check_empty_reply(hal_usb_driver_c *usbp) {
     usbp->transmitting &= ~1U;
     usbp->receiving &= ~1U;
     usbp->ep0rseq = usbp->ep0seq;
-    memset(usbp->setup, 0, sizeof(usbp->setup));
-    usbp->setup[0] = 0xC0U;
-    usbp->setup[6] = (uint8_t)lengths[k];
-    usbp->setup[7] = (uint8_t)(lengths[k] >> 8);
+    memset(usbp->ep0req, 0, sizeof(usbp->ep0req));
+    usbp->ep0req[0] = 0xC0U;
+    usbp->ep0req[6] = (uint8_t)lengths[k];
+    usbp->ep0req[7] = (uint8_t)(lengths[k] >> 8);
     test_reply_driver = usbp;
     test_reply_state = USB_EP0_ERROR;
     test_suspend_hook = reply_suspend_hook;
@@ -675,6 +675,86 @@ static void check_empty_reply(hal_usb_driver_c *usbp) {
   }
   usbp->ep0state = USB_EP0_STP_WAITING;
   puts("PASS: empty EP0 reply, zero size data packet or IN status");
+}
+
+/* A request taken by the EP0 worker is a snapshot: a later SETUP does not
+   change it, and while it is stale its side effects and its stall are not
+   applied. While current, the side effect applies.*/
+static void check_request_token(hal_usb_driver_c *usbp) {
+  static const uint8_t wakeup[8] = {
+    0x00U, USB_REQ_SET_FEATURE, USB_FEATURE_DEVICE_REMOTE_WAKEUP,
+    0U, 0U, 0U, 0U, 0U
+  };
+  static const uint8_t config[8] = {
+    0x00U, USB_REQ_SET_CONFIGURATION, 1U, 0U, 0U, 0U, 0U, 0U
+  };
+  static const uint8_t other[8] = {
+    0x80U, USB_REQ_GET_STATUS, 0U, 0U, 0U, 0U, 2U, 0U
+  };
+  stm32_otg_t *otgp = usbp->otg;
+  stm32_otg_in_ep_t in0 = otgp->ie[0];
+  stm32_otg_out_ep_t out0 = otgp->oe[0];
+  uint32_t empmsk = otgp->DIEPEMPMSK;
+  unsigned saved_state = usbp->state, saved_reset = usbp->ep0reset;
+  unsigned state = HAL_DRV_STATE_READY;
+  uint8_t configuration = usbp->configuration;
+  uint32_t stalled = usbp->events & USB_FLAGS_STALLED;
+  bool handled;
+  unsigned k;
+
+  /* The LLD was started directly, the requests need a running driver.*/
+  usbp->state = state;
+  usbp->ep0reset = 0U;
+  for (k = 0U; k < 2U; k++) {
+    const uint8_t *req = k == 0U ? wakeup : config;
+
+    usbp->ep0state = USB_EP0_STP_WAITING;
+    usbp->status = 0U;
+    memcpy(usbp->setup, req, 8U);
+    usbp->ep0setup = 1U;
+    assert(usbEp0WaitSetup(usbp) == MSG_OK);
+    assert(memcmp(usbp->ep0req, req, 8U) == 0);
+    assert(usbp->ep0rseq == usbp->ep0seq);
+
+    /* A new SETUP replaces the live buffer, not the request.*/
+    memcpy(usbp->setup, other, 8U);
+    usbp->ep0seq++;
+    assert(memcmp(usbp->ep0req, req, 8U) == 0);
+
+    handled = false;
+    assert(usbEp0HandleStandardRequest(usbp, &handled) == MSG_RESET);
+    assert(handled && !test_locked);
+    assert(usbp->status == 0U && usbp->configuration == configuration);
+    assert(usbp->state == state);
+    usbEp0Stall(usbp);
+    assert(!test_locked && usbp->ep0state == USB_EP0_STP_WAITING);
+    assert((usbp->events & USB_FLAGS_STALLED) == stalled);
+    assert(memcmp((const void *)&otgp->ie[0], &in0, sizeof in0) == 0);
+    assert(memcmp((const void *)&otgp->oe[0], &out0, sizeof out0) == 0);
+  }
+
+  /* The current request applies its side effect, then acknowledges.*/
+  memcpy(usbp->setup, wakeup, 8U);
+  usbp->ep0setup = 1U;
+  assert(usbEp0WaitSetup(usbp) == MSG_OK);
+  test_reply_driver = usbp;
+  test_reply_state = USB_EP0_ERROR;
+  test_suspend_hook = reply_suspend_hook;
+  handled = false;
+  assert(usbEp0HandleStandardRequest(usbp, &handled) == MSG_OK && handled);
+  test_suspend_hook = NULL;
+  assert(usbp->status == 2U && test_reply_state == USB_EP0_IN_SENDING_STS);
+
+  usbp->status = 0U;
+  usbp->ep0state = USB_EP0_STP_WAITING;
+  usbp->transmitting &= ~1U;
+  usbp->receiving &= ~1U;
+  otgp->ie[0] = in0;
+  otgp->oe[0] = out0;
+  otgp->DIEPEMPMSK = empmsk;
+  usbp->state = saved_state;
+  usbp->ep0reset = saved_reset;
+  puts("PASS: EP0 requests are snapshots, stale ones apply nothing");
 }
 
 static void check_setup_status_order(hal_usb_driver_c *usbp) {
@@ -1192,6 +1272,7 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   check_setup_bursts(usbp);
   check_setup_status_order(usbp);
   check_empty_reply(usbp);
+  check_request_token(usbp);
   memset(usbp->ep0setup_buffer, 0x73, 8U);
   usb_lld_read_setup(usbp, 0U, buffer + 1U);
   assert(buffer[1] == 0x73 && buffer[8] == 0x73);
@@ -1525,9 +1606,10 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
       bool handled = false;
 
       usbp->state = USB_SELECTED;
-      usbp->setup[0] = USB_RTYPE_RECIPIENT_DEVICE;
-      usbp->setup[1] = USB_REQ_SET_CONFIGURATION;
-      usbp->setup[2] = 1U;
+      usbp->ep0req[0] = USB_RTYPE_RECIPIENT_DEVICE;
+      usbp->ep0req[1] = USB_REQ_SET_CONFIGURATION;
+      usbp->ep0req[2] = 1U;
+      usbp->ep0rseq = usbp->ep0seq;
       assert(usbEp0HandleStandardRequest(usbp, &handled) == HAL_RET_HW_FAILURE);
       assert(handled);
     }
@@ -1599,9 +1681,13 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
       usleep(50);
     }
     assert(drvStart(usbp, NULL) == HAL_RET_INV_STATE);
+    /* A request taken before the stop never becomes current again.*/
+    usbp->ep0rseq = usbp->ep0seq;
     drvStop(usbp);
     assert(usbp->state == HAL_DRV_STATE_STOP && usbp->binder == NULL);
+    assert(usbp->ep0rseq != usbp->ep0seq);
     assert(drvStart(usbp, NULL) == HAL_RET_SUCCESS);
+    assert(usbp->ep0rseq != usbp->ep0seq);
     usbp->binder = usbp;
     serve(usbp, GINTSTS_USBRST);
     assert(usbp->state == HAL_DRV_STATE_READY);
@@ -1729,7 +1815,7 @@ static void check_event_posting(void) {
 
   /* The address helper acquires and releases its own short critical
      section.*/
-  usb.setup[2] = 42U;
+  usb.ep0req[2] = 42U;
   set_address(&usb);
   assert(!test_locked && test_isr);
   assert(usb.state == USB_SELECTED);

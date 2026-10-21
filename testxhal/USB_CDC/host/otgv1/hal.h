@@ -187,7 +187,7 @@ struct hal_usb_driver {
   unsigned state, ep0state, saved_state;
   uint32_t events;
   uint16_t status;
-  uint8_t configuration, setup[8];
+  uint8_t configuration, setup[8], ep0req[8];
   size_t ep0n;
   uint8_t *ep0next;
   void (*ep0endcb)(hal_usb_driver_c *);

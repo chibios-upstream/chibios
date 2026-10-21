@@ -52,6 +52,9 @@ Regressions include:
   drops the binder and the unbind hooks run outside the lock.
 - Full speed turnaround (TRDT) from the AHB clock on both sides of every row
   of the reference manual table; high speed PHYs keep the high speed value.
+- EP0 requests are snapshots with a token: a later SETUP does not change the
+  request taken by the worker, stale requests apply no side effect or stall,
+  and stop/start never make an old request current again.
 - OUT global-NAK/disable/release ordering, deferred configuration and receive
   starts, stale packets/events, independently completing endpoints, temporary
   SOF subscription, cancellation and stuck-handshake timeouts.
