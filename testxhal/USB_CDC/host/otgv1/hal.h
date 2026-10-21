@@ -188,6 +188,7 @@ struct hal_usb_driver {
   uint32_t events;
   uint16_t status;
   uint8_t configuration, setup[8], ep0req[8];
+  bool svcconfigured;
   size_t ep0n;
   uint8_t *ep0next;
   void (*ep0endcb)(hal_usb_driver_c *);
@@ -293,11 +294,18 @@ static void chThdResumeI(thread_reference_t *trp, msg_t msg) {
    operation is faulted and must not suspend.*/
 static void (*test_suspend_hook)(void);
 static msg_t chThdSuspendTimeoutS(thread_reference_t *trp, int timeout) {
-  (void)trp;
+  test_waiter_t self = {0};
+
   (void)timeout;
-  assert(test_suspend_hook != NULL);
+  assert(test_suspend_hook != NULL && *trp == NULL);
+  *trp = &self;
   test_suspend_hook();
-  return MSG_OK;
+  if (self.resumes == 0U) {
+    /* Not resumed by the hook, the operation completed.*/
+    *trp = NULL;
+    return MSG_OK;
+  }
+  return self.msg;
 }
 static void usbBinderResetI(void *binder) {
   assert(test_locked && binder != NULL);
@@ -321,20 +329,38 @@ void usbStartReceiveI(void *ip, usbep_t ep, uint8_t *buf, size_t n);
 void usbStartTransmitI(void *ip, usbep_t ep, const uint8_t *buf, size_t n);
 void usbInitEndpointI(void *ip, usbep_t ep, const USBEndpointConfig *epcp);
 void usbEp0Stall(void *ip);
+/* The binder is the driver. Unconfigure notifications are delivered once,
+   the services are no longer marked configured.*/
+static unsigned test_configures, test_unconfigures;
 static void usbBinderConfigureI(void *binder) {
   assert(test_locked && binder != NULL && test_config_ep != NULL);
+  assert(((hal_usb_driver_c *)binder)->svcconfigured);
+  test_configures++;
   usbInitEndpointI(binder, 2U, test_config_ep);
 }
 static void usbBinderUnconfigureI(void *binder) {
   assert(test_locked && binder != NULL);
+  assert(!((hal_usb_driver_c *)binder)->svcconfigured);
+  test_unconfigures++;
 }
 /* The unbind hooks are API functions. When set, the driver passed to
-   usbUnbind() must already have dropped the binder.*/
+   usbUnbind() or drvStop() must already have dropped the binder and
+   unconfigured the services. On stop the waiters are already released.*/
 static hal_usb_driver_c *test_unbind_driver;
 static unsigned test_unbinds;
 static void usbBinderUnbind(void *binder) {
+  hal_usb_driver_c *usbp = test_unbind_driver;
+
   assert(!test_locked && !test_isr && binder != NULL);
-  assert(test_unbind_driver == NULL || test_unbind_driver->binder == NULL);
+  if (usbp != NULL) {
+    assert(usbp->binder == NULL && !usbp->svcconfigured);
+    if (usbp->state == HAL_DRV_STATE_STOPPING) {
+      assert(usbp->ep0thread == NULL);
+      for (unsigned i = 0U; i <= USB_MAX_ENDPOINTS; i++) {
+        assert(usbp->epc[i] == NULL);
+      }
+    }
+  }
   test_unbinds++;
 }
 static const usb_descriptor_t *usbBinderGetDescriptor(void *b, unsigned a,

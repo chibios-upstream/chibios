@@ -1515,7 +1515,7 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
   uint8_t buffer[64] = {0};
   unsigned fault;
 
-  for (fault = 1U; fault <= 9U; fault++) {
+  for (fault = 1U; fault <= 10U; fault++) {
 #if STM32_USB_USE_ISOCHRONOUS == FALSE
     /* Fault 8 is in an isochronous retirement.*/
     if (fault == 8U) {
@@ -1524,6 +1524,7 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
 #endif
     test_waiter_t txwait = {0}, rxwait = {0}, ep0wait = {0};
     unsigned callbacks, resets, enables, disables, calls;
+    unsigned configures, unconfigures;
     uint32_t saved_in, saved_out;
 
     usbp->state = HAL_DRV_STATE_STOP;
@@ -1532,6 +1533,7 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
     assert(drvStart(usbp, &config) == HAL_RET_SUCCESS);
     serve(usbp, GINTSTS_USBRST);
     usbp->state = USB_ACTIVE;
+    usbp->svcconfigured = true;
     usbp->epc[1] = &ep;
     ep.in_state = &in;
     ep2.in_state = &in2;
@@ -1545,6 +1547,8 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
     usbp->events = 0U;
     callbacks = test_in + test_out + test_setup + test_sofs;
     resets = test_binder_resets;
+    configures = test_configures;
+    unconfigures = test_unconfigures;
     enables = test_enables[index];
     disables = test_disables[index];
     calls = test_counter_calls;
@@ -1605,10 +1609,15 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
     else {
       bool handled = false;
 
-      usbp->state = USB_SELECTED;
+      /* Fault 9 in the configure hooks, fault 10 in the endpoints disable
+         before the unconfigure hooks.*/
+      if (fault == 9U) {
+        usbp->state = USB_SELECTED;
+        usbp->svcconfigured = false;
+      }
       usbp->ep0req[0] = USB_RTYPE_RECIPIENT_DEVICE;
       usbp->ep0req[1] = USB_REQ_SET_CONFIGURATION;
-      usbp->ep0req[2] = 1U;
+      usbp->ep0req[2] = fault == 9U ? 1U : 0U;
       usbp->ep0rseq = usbp->ep0seq;
       assert(usbEp0HandleStandardRequest(usbp, &handled) == HAL_RET_HW_FAILURE);
       assert(handled);
@@ -1623,9 +1632,10 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
     assert(otg_isoc_in_pending(usbp) == 0U && !usbp->ep0setup_pending);
     assert(ep0wait.resumes == 1U && ep0wait.msg == HAL_RET_HW_FAILURE);
 #if USB_USE_SYNCHRONIZATION
-    /* A bus reset aborts transfers before its hardware reset attempt.
-       Runtime faults in other paths abort remaining waits with HW_FAILURE.*/
-    if (fault <= 2U) {
+    /* A bus reset and an endpoints disable abort transfers before their
+       hardware operations. Runtime faults in other paths abort remaining
+       waits with HW_FAILURE.*/
+    if ((fault <= 2U) || (fault == 10U)) {
       assert(txwait.resumes == 1U && txwait.msg == MSG_RESET);
       assert(rxwait.resumes == 1U && rxwait.msg == MSG_RESET);
     }
@@ -1635,6 +1645,15 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
     }
 #endif
     assert(test_binder_resets == resets);
+    /* The fault handler does not call the unconfigure hooks. A failure in
+       SET_CONFIGURATION unconfigures the services once its hooks returned.*/
+    assert(test_configures == configures + (fault == 9U ? 1U : 0U));
+    if (fault >= 9U) {
+      assert(test_unconfigures == unconfigures + 1U && !usbp->svcconfigured);
+    }
+    else {
+      assert(test_unconfigures == unconfigures && usbp->svcconfigured);
+    }
     assert(test_in + test_out + test_setup + test_sofs == callbacks);
     assert(test_enables[index] == enables && test_disables[index] == disables);
     assert(otgp->GINTMSK == 0U && otgp->GAHBCFG == 0U);
@@ -1654,7 +1673,11 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
     usbStartTransmitI(usbp, 1U, buffer, sizeof(buffer));
     usbDisableEndpointsI(usbp);
     chSysUnlock();
+    /* The EP0 worker unconfigures the services, once.*/
     assert(usbEp0WaitSetup(usbp) == HAL_RET_HW_FAILURE);
+    assert(test_unconfigures == unconfigures + 1U && !usbp->svcconfigured);
+    assert(usbEp0WaitSetup(usbp) == HAL_RET_HW_FAILURE);
+    assert(test_unconfigures == unconfigures + 1U);
     assert(usbEp0Reply(usbp, buffer, sizeof(buffer)) == HAL_RET_HW_FAILURE);
     assert(usbEp0Receive(usbp, buffer, sizeof(buffer)) == HAL_RET_HW_FAILURE);
     assert(usbEp0Acknowledge(usbp) == HAL_RET_HW_FAILURE);
@@ -1695,9 +1718,118 @@ static void check_runtime_faults(hal_usb_driver_c *usbp, unsigned index) {
     assert(usbp->epc[0] == &usbp->ep0config);
     assert(test_binder_resets == resets + 1U);
     drvStop(usbp);
+    assert(test_unconfigures == unconfigures + 1U);
   }
-  printf("PASS: OTG%u nine runtime faults, HLD notification/guards and retry\n",
+  printf("PASS: OTG%u ten runtime faults, HLD notification/guards and retry\n",
          index + 1U);
+}
+
+static hal_usb_driver_c *test_lifecycle_driver;
+static bool test_lifecycle_stale;
+
+/* A failure while the EP0 worker waits for a SETUP. A stale failure is
+   seen by the worker after a restart and a new configuration.*/
+static void lifecycle_suspend_hook(void) {
+  hal_usb_driver_c *usbp = test_lifecycle_driver;
+
+  _usb_error_i(usbp);
+  if (test_lifecycle_stale) {
+    usbp->state = USB_ACTIVE;
+    usbp->svcconfigured = true;
+  }
+}
+
+/* Configured services are unconfigured once by stop, by unbind or after
+   a failure, never by the fault handler. Stop unconfigures the services
+   and releases the waiters before the unbind hooks. A bus reset replaces
+   the unconfigure notification.*/
+static void check_service_lifecycle(hal_usb_driver_c *usbp) {
+  hal_usb_config_t config = {};
+  USBInEndpointState in = {0};
+  USBOutEndpointState out = {0};
+  USBEndpointConfig ep = {
+    USB_EP_MODE_TYPE_BULK, NULL, _usb_ep0in, _usb_ep0out,
+    64U, 64U, &in, &out, 1U, NULL
+  };
+  unsigned k;
+
+  for (k = 0U; k < 7U; k++) {
+    test_waiter_t ep0wait = {0}, txwait = {0}, rxwait = {0};
+    unsigned unconfigures = test_unconfigures, unbinds = test_unbinds;
+    unsigned resets, expected = 1U;
+    msg_t waitmsg = MSG_RESET;
+
+    assert(drvStart(usbp, &config) == HAL_RET_SUCCESS);
+    serve(usbp, GINTSTS_USBRST);
+    usbp->binder = usbp;
+    usbp->state = USB_ACTIVE;
+    usbp->svcconfigured = true;
+    usbp->ep0setup = 0U;
+    usbp->ep0reset = 0U;
+    usbp->epc[1] = &ep;
+    in.thread = &txwait;
+    out.thread = &rxwait;
+    usbp->ep0thread = &ep0wait;
+    resets = test_binder_resets;
+    test_unbind_driver = usbp;
+
+    if ((k >= 1U) && (k <= 3U)) {
+      chSysLock();
+      _usb_error_i(usbp);
+      chSysUnlock();
+      assert(test_unconfigures == unconfigures && usbp->svcconfigured);
+      waitmsg = HAL_RET_HW_FAILURE;
+    }
+    if (k == 2U) {
+      /* Unbinding a faulted driver unconfigures the services first.*/
+      assert(usbUnbind(usbp) == HAL_RET_SUCCESS);
+      assert(test_unconfigures == unconfigures + 1U && !usbp->svcconfigured);
+      assert(test_unbinds == unbinds + 1U && usbp->binder == NULL);
+    }
+    else if (k == 3U) {
+      assert(usbEp0WaitSetup(usbp) == HAL_RET_HW_FAILURE);
+      assert(usbEp0WaitSetup(usbp) == HAL_RET_HW_FAILURE);
+      assert(test_unconfigures == unconfigures + 1U && !usbp->svcconfigured);
+    }
+    else if ((k == 4U) || (k == 5U)) {
+      /* The failure wakes the waiting worker. A stale failure does not
+         unconfigure the new configuration, stop does.*/
+      usbp->ep0thread = NULL;
+      test_lifecycle_driver = usbp;
+      test_lifecycle_stale = k == 5U;
+      test_suspend_hook = lifecycle_suspend_hook;
+      assert(usbEp0WaitSetup(usbp) == HAL_RET_HW_FAILURE);
+      test_suspend_hook = NULL;
+      assert(usbp->ep0thread == NULL);
+      assert(test_unconfigures == unconfigures + (k == 4U ? 1U : 0U));
+      assert(usbp->svcconfigured == (k == 5U));
+      waitmsg = HAL_RET_HW_FAILURE;
+    }
+    else if (k == 6U) {
+      /* The reset notification is the unconfigure notification.*/
+      serve(usbp, GINTSTS_USBRST);
+      assert(test_binder_resets == resets + 1U && !usbp->svcconfigured);
+      expected = 0U;
+    }
+
+    drvStop(usbp);
+    test_unbind_driver = NULL;
+    assert(usbp->state == HAL_DRV_STATE_STOP && usbp->binder == NULL);
+    assert(!usbp->svcconfigured);
+    assert(test_unconfigures == unconfigures + expected);
+    assert(test_unbinds == unbinds + 1U);
+    if ((k == 4U) || (k == 5U)) {
+      assert(ep0wait.resumes == 0U);
+    }
+    else {
+      assert(ep0wait.resumes == 1U && ep0wait.msg == waitmsg);
+    }
+#if USB_USE_SYNCHRONIZATION
+    assert(txwait.resumes == 1U && rxwait.resumes == 1U);
+    assert(txwait.msg == (k == 6U ? MSG_RESET : waitmsg));
+#endif
+  }
+  puts("PASS: services unconfigured once by stop, unbind or the EP0 worker");
 }
 
 /* Only self-clearing reset/flush/disable bits are modeled. FIFO pop and W1C
@@ -1891,6 +2023,7 @@ int main(void) {
   check_turnaround(&USBD1, 0U);
   check_sof_resume(&USBD1, 0U);
   check_runtime_faults(&USBD1, 0U);
+  check_service_lifecycle(&USBD1);
   check_out_teardown(&USBD1, 0U);
   check_in_teardown(&USBD1, 0U);
   check_endpoint_bounds(&USBD1);
@@ -1910,6 +2043,7 @@ int main(void) {
   check_turnaround(&USBD2, 1U);
   check_sof_resume(&USBD2, 1U);
   check_runtime_faults(&USBD2, 1U);
+  check_service_lifecycle(&USBD2);
   check_out_teardown(&USBD2, 1U);
   check_in_teardown(&USBD2, 1U);
   check_endpoint_bounds(&USBD2);

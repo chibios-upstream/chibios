@@ -55,6 +55,11 @@ Regressions include:
 - EP0 requests are snapshots with a token: a later SETUP does not change the
   request taken by the worker, stale requests apply no side effect or stall,
   and stop/start never make an old request current again.
+- Service lifecycle: configured services are unconfigured once by stop, by
+  `usbUnbind()` or, after a failure, by the EP0 worker in `usbEp0WaitSetup()`
+  and never by the fault handler; a failure inside SET_CONFIGURATION
+  unconfigures them when its hooks return; stop wakes the waiters before the
+  unbind hooks; a bus reset replaces the unconfigure notification.
 - OUT global-NAK/disable/release ordering, deferred configuration and receive
   starts, stale packets/events, independently completing endpoints, temporary
   SOF subscription, cancellation and stuck-handshake timeouts.
