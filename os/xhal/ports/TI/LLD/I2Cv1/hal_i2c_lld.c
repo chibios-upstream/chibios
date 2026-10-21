@@ -100,6 +100,84 @@ static inline void i2c_putreg(hal_i2c_driver_c *i2cp, uint32_t offset,
 }
 
 /**
+ * @brief   Computes the SCL timing of a configuration.
+ * @details The prescaler divides the functional clock to the 12 MHz
+ *          internal reference, then:
+ *          SCL = 12 MHz / ((SCLL + 7) + (SCLH + 5)).
+ *
+ * @param[in] i2cp      pointer to the @p hal_i2c_driver_c object
+ * @param[in] config    pointer to the @p hal_i2c_config_t structure
+ * @param[out] pscp     prescaler value
+ * @param[out] scllp    SCL low time value
+ * @param[out] sclhp    SCL high time value
+ * @return              The outcome.
+ * @retval true         the SCL frequency is reachable.
+ * @retval false        the SCL frequency is zero or not reachable.
+ */
+static bool i2c_get_timing(hal_i2c_driver_c *i2cp,
+                           const hal_i2c_config_t *config,
+                           uint32_t *pscp, uint32_t *scllp, uint32_t *sclhp) {
+  uint32_t d;
+
+  if (config->frequency == 0U) {
+    return false;
+  }
+
+  d      = I2C_INTERNAL_CLOCK / config->frequency;
+  *pscp  = (i2cp->clock / I2C_INTERNAL_CLOCK) - 1U;
+  *scllp = (d / 2U) - 7U;
+  *sclhp = (d / 2U) - 5U;
+
+  return (*scllp >= 1U) && (*scllp <= 255U) && (*sclhp <= 255U);
+}
+
+/**
+ * @brief   Programs the SCL timing.
+ * @details The timing registers are written with the module disabled,
+ *          which also clears its FIFOs and status, then the module is
+ *          enabled again with every interrupt source off.
+ *
+ * @param[in] i2cp      pointer to the @p hal_i2c_driver_c object
+ * @param[in] psc       prescaler value
+ * @param[in] scll      SCL low time value
+ * @param[in] sclh      SCL high time value
+ * @return              The outcome.
+ * @retval true         the timing is in place and the module enabled.
+ * @retval false        the timing did not read back, the module is left
+ *                      disabled.
+ */
+static bool i2c_set_timing(hal_i2c_driver_c *i2cp, uint32_t psc,
+                           uint32_t scll, uint32_t sclh) {
+
+  i2c_putreg(i2cp, I2C_CON_OFFSET, 0U);
+  i2c_putreg(i2cp, I2C_PSC_OFFSET, psc);
+  i2c_putreg(i2cp, I2C_SCLL_OFFSET, scll);
+  i2c_putreg(i2cp, I2C_SCLH_OFFSET, sclh);
+
+  /* Readback guard for the reset race described in i2c_hw_init(): if the
+     reset was still in flight these registers now read back as zero
+     rather than what was just written.*/
+  if ((i2c_getreg(i2cp, I2C_SCLL_OFFSET) != scll) ||
+      (i2c_getreg(i2cp, I2C_SCLH_OFFSET) != sclh) ||
+      (i2c_getreg(i2cp, I2C_PSC_OFFSET) != psc)) {
+    return false;
+  }
+
+  i2c_putreg(i2cp, I2C_CON_OFFSET, I2C_CON_EN);
+
+  /* All wakeup sources on (the TI Linux driver does the same to stop the
+     I2C freezing across WFI on AM6x-class devices).*/
+  i2c_putreg(i2cp, I2C_WE_OFFSET, I2C_WE_ALLMASK);
+
+  /* Clean slate: interrupts off, pending flags and FIFOs cleared.*/
+  i2c_putreg(i2cp, I2C_IRQENABLE_CLR_OFFSET, I2C_IRQ_ALLMASK);
+  i2c_putreg(i2cp, I2C_IRQSTATUS_OFFSET, I2C_IRQ_ALLMASK);
+  i2c_putreg(i2cp, I2C_BUF_OFFSET, I2C_BUF_TXFIFO_CLR | I2C_BUF_RXFIFO_CLR);
+
+  return true;
+}
+
+/**
  * @brief   Controller reset and timing configuration.
  * @details Sequence from NuttX am67_i2c_init(): the TI I2C requires
  *          CON.EN=1 for the internal reset to complete, and no-idle mode
@@ -112,7 +190,7 @@ static inline void i2c_putreg(hal_i2c_driver_c *i2cp, uint32_t offset,
  */
 static void i2c_hw_init(hal_i2c_driver_c *i2cp) {
   const hal_i2c_config_t *config = (const hal_i2c_config_t *)i2cp->config;
-  uint32_t psc, d, scll, sclh, i;
+  uint32_t psc, scll, sclh, i;
 
   i2cp->ready      = false;
   i2cp->init_error = I2C_INIT_OK;
@@ -126,7 +204,8 @@ static void i2c_hw_init(hal_i2c_driver_c *i2cp) {
      zeroed SCL timing: no clock is ever generated, START never completes
      and every transfer times out. Wait for RST_DONE to drop first, then
      for it to come back. Falling through the first wait is legitimate (a
-     reset fast enough to miss), the readback below is the real guard.*/
+     reset fast enough to miss), the timing readback in i2c_set_timing()
+     is the real guard.*/
   i2c_putreg(i2cp, I2C_CON_OFFSET, 0U);
   i2c_putreg(i2cp, I2C_SYSC_OFFSET, I2C_SYSC_SRST);
   i2c_putreg(i2cp, I2C_CON_OFFSET, I2C_CON_EN);
@@ -147,47 +226,15 @@ static void i2c_hw_init(hal_i2c_driver_c *i2cp) {
 
   i2c_putreg(i2cp, I2C_SYSC_OFFSET, I2C_SYSC_IDLE_NO | I2C_SYSC_CLK_BOTH);
 
-  /* SCL timing, written with the module disabled. The prescaler divides
-     the functional clock to the 12 MHz internal reference, then:
-     SCL = 12 MHz / ((SCLL + 7) + (SCLH + 5)).*/
-  i2c_putreg(i2cp, I2C_CON_OFFSET, 0U);
-
-  if (config->frequency == 0U) {
+  if (!i2c_get_timing(i2cp, config, &psc, &scll, &sclh)) {
+    i2c_putreg(i2cp, I2C_CON_OFFSET, 0U);
     i2cp->init_error = I2C_INIT_BAD_FREQUENCY;
     return;
   }
-  psc = (i2cp->clock / I2C_INTERNAL_CLOCK) - 1U;
-  d   = I2C_INTERNAL_CLOCK / config->frequency;
-  scll = (d / 2U) - 7U;
-  sclh = (d / 2U) - 5U;
-  if ((scll < 1U) || (scll > 255U) || (sclh > 255U)) {
-    i2cp->init_error = I2C_INIT_BAD_FREQUENCY;
-    return;
-  }
-  i2c_putreg(i2cp, I2C_PSC_OFFSET, psc);
-  i2c_putreg(i2cp, I2C_SCLL_OFFSET, scll);
-  i2c_putreg(i2cp, I2C_SCLH_OFFSET, sclh);
-
-  /* Readback guard for the reset race described above: if the reset was
-     still in flight these registers now read back as zero rather than
-     what was just written.*/
-  if ((i2c_getreg(i2cp, I2C_SCLL_OFFSET) != scll) ||
-      (i2c_getreg(i2cp, I2C_SCLH_OFFSET) != sclh) ||
-      (i2c_getreg(i2cp, I2C_PSC_OFFSET) != psc)) {
+  if (!i2c_set_timing(i2cp, psc, scll, sclh)) {
     i2cp->init_error = I2C_INIT_TIMING_LOST;
     return;
   }
-
-  i2c_putreg(i2cp, I2C_CON_OFFSET, I2C_CON_EN);
-
-  /* All wakeup sources on (the TI Linux driver does the same to stop the
-     I2C freezing across WFI on AM6x-class devices).*/
-  i2c_putreg(i2cp, I2C_WE_OFFSET, I2C_WE_ALLMASK);
-
-  /* Clean slate: interrupts off, pending flags and FIFOs cleared.*/
-  i2c_putreg(i2cp, I2C_IRQENABLE_CLR_OFFSET, I2C_IRQ_ALLMASK);
-  i2c_putreg(i2cp, I2C_IRQSTATUS_OFFSET, I2C_IRQ_ALLMASK);
-  i2c_putreg(i2cp, I2C_BUF_OFFSET, I2C_BUF_TXFIFO_CLR | I2C_BUF_RXFIFO_CLR);
 
   /* A soft reset resets this master but not the bus. If the previous
      transaction ended without a STOP (the NACK path releases the engine
@@ -512,17 +559,39 @@ void i2c_lld_stop(hal_i2c_driver_c *i2cp) {
  *          board-independent default, so a @p NULL configuration always
  *          falls through to @p i2c_lld_selcfg().
  *
+ *          The class layer also calls this while starting, before
+ *          @p i2c_lld_start() brings the module up, so the configuration
+ *          is only validated then. While @p HAL_DRV_STATE_READY it is a
+ *          live reconfiguration and the new SCL timing is programmed.
+ *
  * @param[in] i2cp      pointer to the @p hal_i2c_driver_c object
  * @param[in] config    pointer to the @p hal_i2c_config_t structure
- * @return              A pointer to the configuration to use.
+ * @return              A pointer to the configuration to use, or @p NULL
+ *                      if the SCL frequency is not reachable.
  *
  * @notapi
  */
 const hal_i2c_config_t *i2c_lld_setcfg(hal_i2c_driver_c *i2cp,
                                        const hal_i2c_config_t *config) {
+  uint32_t psc, scll, sclh;
 
   if (config == NULL) {
     return i2c_lld_selcfg(i2cp, 0U);
+  }
+
+  if (!i2c_get_timing(i2cp, config, &psc, &scll, &sclh)) {
+    return NULL;
+  }
+
+  if (i2cp->state == HAL_DRV_STATE_READY) {
+    /* Disabling the module to write the timing would cut short a STOP
+       left by the last transfer, it completes first. A bus still busy is
+       reported by the next transfer.*/
+    (void)i2c_wait_bus_free(i2cp);
+    if (!i2c_set_timing(i2cp, psc, scll, sclh)) {
+      i2cp->ready = false;
+      return NULL;
+    }
   }
 
   return config;
@@ -530,6 +599,8 @@ const hal_i2c_config_t *i2c_lld_setcfg(hal_i2c_driver_c *i2cp,
 
 /**
  * @brief   Selects one of the pre-defined I2C configurations.
+ * @details The selected configuration goes through @p i2c_lld_setcfg(),
+ *          @p drvSelectCfgX() applies it with no other hook.
  *
  * @param[in] i2cp      pointer to the @p hal_i2c_driver_c object
  * @param[in] cfgnum    driver configuration number
@@ -539,15 +610,15 @@ const hal_i2c_config_t *i2c_lld_setcfg(hal_i2c_driver_c *i2cp,
  */
 const hal_i2c_config_t *i2c_lld_selcfg(hal_i2c_driver_c *i2cp,
                                        unsigned cfgnum) {
-  (void)i2cp;
 
 #if I2C_USE_CONFIGURATIONS == TRUE
   extern const i2c_configurations_t i2c_configurations;
 
   if (cfgnum < i2c_configurations.cfgsnum) {
-    return &i2c_configurations.cfgs[cfgnum];
+    return i2c_lld_setcfg(i2cp, &i2c_configurations.cfgs[cfgnum]);
   }
 #else
+  (void)i2cp;
   (void)cfgnum;
 #endif
 
