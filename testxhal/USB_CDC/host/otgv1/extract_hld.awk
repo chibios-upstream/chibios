@@ -1,6 +1,6 @@
 # Extract complete generated functions verbatim, not a rewritten HLD model.
 BEGIN {
-  split("get_hword ep0_resume_waiter_i ep0_signal_reset_i ep0_reply_or_ack ep0_receive_or_status _usb_error_i _usb_reset _usb_suspend _usb_wakeup usbUnbind usbConnectBus usbDisconnectBus usbInitEndpointI usbDisableEndpointsI usbStartReceiveI usbStartTransmitI usbReceive usbTransmit usbEp0WaitSetup usbEp0Reply usbEp0Receive usbEp0Acknowledge usb_post_events_i usb_unconfigure_services_i setup_error_i ep0_take_request_i ep0_is_current_i set_address usbEp0Stall usbEp0HandleStandardRequest __usb_start_impl __usb_stop_impl drvStart drvStop", functions)
+  split("get_hword ep0_resume_waiter_i ep0_signal_reset_i ep0_reply_or_ack ep0_receive_or_status _usb_error_i _usb_reset _usb_suspend _usb_wakeup usbUnbind usbConnectBus usbDisconnectBus usbInitEndpointI usbDisableEndpointsI usbStartReceiveI usbStartTransmitI usbReceive usbTransmit usbEp0WaitSetup usbEp0Reply usbEp0Receive usbEp0Acknowledge usb_post_events_i usb_unconfigure_services_i usb_unconfigure_device_i setup_reset_i setup_error_i ep0_take_request_i ep0_is_current_i set_address usbEp0Stall usbEp0HandleStandardRequest usbWakeupHost _usb_ep0out __usb_start_impl __usb_stop_impl drvStart drvStop", functions)
   for (i in functions) wanted[functions[i]] = 1
 }
 /^(static )?(void|msg_t|uint16_t|bool) [a-zA-Z0-9_]+\(/ {
@@ -11,6 +11,7 @@ BEGIN {
   sync = name == "usbReceive" || name == "usbTransmit"
   if (copy && sync) print "#if USB_USE_SYNCHRONIZATION == TRUE"
 }
+copy && name == "_usb_ep0out" && !renamed { sub(/_usb_ep0out\(/, "hld_usb_ep0out("); renamed = 1 }
 copy { print }
 /^static const uint8_t (zero_status|active_status|halted_status)\[\]/ { print }
 copy && /^}/ {

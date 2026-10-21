@@ -60,6 +60,12 @@ Regressions include:
   and never by the fault handler; a failure inside SET_CONFIGURATION
   unconfigures them when its hooks return; stop wakes the waiters before the
   unbind hooks; a bus reset replaces the unconfigure notification.
+- Request cleanups: SET_ADDRESS while configured unconfigures the device, its
+  status stage neither undoes STOPPING nor selects address zero; an EP0
+  receive buffer smaller than wLength stalls the request; a status OUT
+  carrying data completes the request (`_usb_ep0out` extracted as
+  `hld_usb_ep0out`); `usbWakeupHost()` needs the host enable;
+  `usb_lld_selcfg(0)` without configurations returns the default.
 - OUT global-NAK/disable/release ordering, deferred configuration and receive
   starts, stale packets/events, independently completing endpoints, temporary
   SOF subscription, cancellation and stuck-handshake timeouts.

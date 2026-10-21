@@ -1140,6 +1140,9 @@ static void check_driver(hal_usb_driver_c *usbp, unsigned index) {
   assert(usb_lld_setcfg(usbp, NULL) == &default_usb_config);
 #if USB_USE_CONFIGURATIONS
   assert(usb_lld_selcfg(usbp, 1U) == &usb_configurations.cfgs[1]);
+#else
+  /* Without configurations zero selects the default one.*/
+  assert(usb_lld_selcfg(usbp, 0U) == &default_usb_config);
 #endif
   assert(usb_lld_selcfg(usbp, 99U) == NULL);
   test_clock = 47000000U;
@@ -1832,6 +1835,147 @@ static void check_service_lifecycle(hal_usb_driver_c *usbp) {
   puts("PASS: services unconfigured once by stop, unbind or the EP0 worker");
 }
 
+/* SET_ADDRESS while configured unconfigures the device, its status stage
+   neither undoes STOPPING nor selects address zero. A receive buffer
+   smaller than the data stage stalls the request. A status OUT carrying
+   data completes the request. Remote wakeup needs the host enable.*/
+static void check_request_cleanups(hal_usb_driver_c *usbp) {
+  static const size_t sizes[4] = {0U, 7U, 8U, 16U};
+  hal_usb_config_t config = {};
+  USBInEndpointState in = {0};
+  USBOutEndpointState out = {0};
+  USBEndpointConfig ep = {
+    USB_EP_MODE_TYPE_BULK, NULL, _usb_ep0in, _usb_ep0out,
+    64U, 64U, &in, &out, 1U, NULL
+  };
+  test_waiter_t waiter = {0};
+  stm32_otg_t *otgp;
+  stm32_otg_in_ep_t in0;
+  stm32_otg_out_ep_t out0;
+  uint8_t buffer[16];
+  unsigned unconfigures, k;
+  bool handled;
+  msg_t msg;
+
+  assert(drvStart(usbp, &config) == HAL_RET_SUCCESS);
+  serve(usbp, GINTSTS_USBRST);
+  otgp = usbp->otg;
+  in0 = otgp->ie[0];
+  out0 = otgp->oe[0];
+  usbp->ep0reset = 0U;
+  usbp->binder = usbp;
+  test_reply_driver = usbp;
+
+  /* SET_ADDRESS(5) while configured, then SET_ADDRESS(0).*/
+  for (k = 0U; k < 2U; k++) {
+    if (k == 0U) {
+      usbp->state = USB_ACTIVE;
+      usbp->svcconfigured = true;
+      usbp->configuration = 1U;
+      usbp->epc[1] = &ep;
+      usb_lld_init_endpoint(usbp, 1U);
+    }
+    usbp->events = 0U;
+    unconfigures = test_unconfigures;
+    memset(usbp->ep0req, 0, sizeof(usbp->ep0req));
+    usbp->ep0req[1] = USB_REQ_SET_ADDRESS;
+    usbp->ep0req[2] = k == 0U ? 5U : 0U;
+    usbp->ep0rseq = usbp->ep0seq;
+    usbp->ep0state = USB_EP0_STP_WAITING;
+    test_suspend_hook = reply_suspend_hook;
+    handled = false;
+    assert(usbEp0HandleStandardRequest(usbp, &handled) == MSG_OK && handled);
+    test_suspend_hook = NULL;
+    assert(!test_locked && usbp->ep0endcb != NULL);
+    if (k == 0U) {
+      assert(test_unconfigures == unconfigures + 1U && !usbp->svcconfigured);
+      assert(usbp->state == USB_SELECTED && usbp->configuration == 0U);
+      assert(usbp->epc[1] == NULL);
+      assert((usbp->events & USB_FLAGS_UNCONFIGURED) != 0U);
+    }
+    else {
+      assert(test_unconfigures == unconfigures);
+    }
+    /* The status stage completes.*/
+    test_isr = true;
+    usbp->ep0endcb(usbp);
+    test_isr = false;
+    assert(usbp->address == usbp->ep0req[2]);
+    assert(usbp->state == (k == 0U ? USB_SELECTED : HAL_DRV_STATE_READY));
+    assert((usbp->events & USB_FLAGS_ADDRESS) != 0U);
+    usbp->ep0endcb = NULL;
+    usbp->ep0state = USB_EP0_STP_WAITING;
+    usbp->transmitting &= ~1U;
+    otgp->ie[0] = in0;
+    otgp->oe[0] = out0;
+  }
+
+  /* A SET_ADDRESS status stage completing while stopping.*/
+  usbp->state = HAL_DRV_STATE_STOPPING;
+  usbp->events = 0U;
+  test_isr = true;
+  set_address(usbp);
+  test_isr = false;
+  assert(usbp->state == HAL_DRV_STATE_STOPPING && usbp->events == 0U);
+
+  /* Receive buffers smaller than, equal to and larger than the data
+     stage of eight bytes.*/
+  for (k = 0U; k < 4U; k++) {
+    usbp->state = USB_SELECTED;
+    usbp->ep0state = USB_EP0_STP_WAITING;
+    usbp->events = 0U;
+    memset(usbp->ep0req, 0, sizeof(usbp->ep0req));
+    usbp->ep0req[0] = USB_RTYPE_TYPE_CLASS | USB_RTYPE_RECIPIENT_INTERFACE;
+    usbp->ep0req[6] = 8U;
+    usbp->ep0rseq = usbp->ep0seq;
+    test_reply_state = USB_EP0_ERROR;
+    test_reply_busy = 0U;
+    test_suspend_hook = reply_suspend_hook;
+    msg = usbEp0Receive(usbp, buffer, sizes[k]);
+    test_suspend_hook = NULL;
+    assert(!test_locked);
+    if (sizes[k] < 8U) {
+      assert(msg == MSG_RESET && usbp->ep0state == USB_EP0_ERROR);
+      assert((usbp->events & USB_FLAGS_STALLED) != 0U);
+      assert((otgp->ie[0].DIEPCTL & DIEPCTL_STALL) != 0U);
+      assert((otgp->oe[0].DOEPCTL & DOEPCTL_STALL) != 0U);
+    }
+    else {
+      assert(msg == MSG_OK && usbp->events == 0U);
+      assert(test_reply_state == USB_EP0_OUT_RX && test_reply_busy == 2U);
+      assert(usbp->ep0n == 8U);
+    }
+    usbp->transmitting &= ~1U;
+    usbp->receiving &= ~1U;
+    otgp->ie[0] = in0;
+    otgp->oe[0] = out0;
+  }
+
+  /* A status OUT carrying data.*/
+  usbp->ep0state = USB_EP0_OUT_WAITING_STS;
+  usbp->ep0endcb = NULL;
+  usbp->ep0thread = &waiter;
+  usbp->ep0_state.out.rxcnt = 3U;
+  test_isr = true;
+  hld_usb_ep0out(usbp, 0U);
+  test_isr = false;
+  assert(waiter.resumes == 1U && waiter.msg == MSG_OK);
+  assert(usbp->ep0thread == NULL && usbp->ep0state == USB_EP0_STP_WAITING);
+
+  /* Remote wakeup, without and with the host enable.*/
+  for (k = 0U; k < 2U; k++) {
+    usbp->state = USB_SUSPENDED;
+    usbp->status = k == 0U ? 0U : 2U;
+    otgp->GINTMSK &= ~GINTMSK_SOFM;
+    usbWakeupHost(usbp);
+    assert(!test_locked);
+    assert(((otgp->GINTMSK & GINTMSK_SOFM) != 0U) == (k == 1U));
+  }
+  usbp->status = 0U;
+  drvStop(usbp);
+  puts("PASS: SET_ADDRESS, EP0 receive size, status OUT data, remote wakeup enable");
+}
+
 /* Only self-clearing reset/flush/disable bits are modeled. FIFO pop and W1C
    semantics are deliberately not emulated; tests drive event snapshots.*/
 #include "out_disable.inc"
@@ -1946,8 +2090,10 @@ static void check_event_posting(void) {
   assert(usb.ep0state == USB_EP0_ERROR);
 
   /* The address helper acquires and releases its own short critical
-     section.*/
+     section. In the early SET_ADDRESS mode the worker already set the
+     address.*/
   usb.ep0req[2] = 42U;
+  usb.address = 42U;
   set_address(&usb);
   assert(!test_locked && test_isr);
   assert(usb.state == USB_SELECTED);
@@ -2024,6 +2170,7 @@ int main(void) {
   check_sof_resume(&USBD1, 0U);
   check_runtime_faults(&USBD1, 0U);
   check_service_lifecycle(&USBD1);
+  check_request_cleanups(&USBD1);
   check_out_teardown(&USBD1, 0U);
   check_in_teardown(&USBD1, 0U);
   check_endpoint_bounds(&USBD1);
@@ -2044,6 +2191,7 @@ int main(void) {
   check_sof_resume(&USBD2, 1U);
   check_runtime_faults(&USBD2, 1U);
   check_service_lifecycle(&USBD2);
+  check_request_cleanups(&USBD2);
   check_out_teardown(&USBD2, 1U);
   check_in_teardown(&USBD2, 1U);
   check_endpoint_bounds(&USBD2);

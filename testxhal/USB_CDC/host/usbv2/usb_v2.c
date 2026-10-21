@@ -61,7 +61,8 @@ static void test_lifecycle(void) {
 #if USB_USE_CONFIGURATIONS == TRUE
   assert(usb_lld_selcfg(&USBD1, 1U) == &usb_configurations.cfgs[1]);
 #else
-  assert(usb_lld_selcfg(&USBD1, 0U) == NULL);
+  /* Without configurations zero selects the default one.*/
+  assert(usb_lld_selcfg(&USBD1, 0U) == usb_lld_setcfg(&USBD1, NULL));
 #endif
   assert(usb_lld_selcfg(&USBD1, 2U) == NULL);
   USBD1.config = &cfg;

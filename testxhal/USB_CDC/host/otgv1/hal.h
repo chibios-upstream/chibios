@@ -328,7 +328,11 @@ void _usb_reset(hal_usb_driver_c *usbp);
 void usbStartReceiveI(void *ip, usbep_t ep, uint8_t *buf, size_t n);
 void usbStartTransmitI(void *ip, usbep_t ep, const uint8_t *buf, size_t n);
 void usbInitEndpointI(void *ip, usbep_t ep, const USBEndpointConfig *epcp);
+void usbDisableEndpointsI(void *ip);
 void usbEp0Stall(void *ip);
+/* Only a mutated endpoint-zero OUT handler reads the received size.*/
+#define usbGetReceiveTransactionSizeX(usbp, ep) \
+  ((usbp)->epc[ep]->out_state->rxcnt)
 /* The binder is the driver. Unconfigure notifications are delivered once,
    the services are no longer marked configured.*/
 static unsigned test_configures, test_unconfigures;
