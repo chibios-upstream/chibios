@@ -358,20 +358,14 @@ static void i2c_quiesce(hal_i2c_driver_c *i2cp) {
 static void i2c_serve_interrupt(hal_i2c_driver_c *i2cp) {
   uint32_t status, raw, fatal;
 
-  /* While the driver is stopping the sources are masked and the events
-     discarded, the stop path masks the line and disables the module
-     shortly after. Completing here would set READY over STOPPING.*/
-  if (i2cp->state == HAL_DRV_STATE_STOPPING) {
-    i2c_putreg(i2cp, I2C_IRQENABLE_CLR_OFFSET, I2C_IRQ_ALLMASK);
-    i2c_putreg(i2cp, I2C_IRQSTATUS_OFFSET, I2C_IRQ_ALLMASK);
-    return;
-  }
-
-  /* No transfer in progress, nothing to complete or fail: the event is a
-     late one or, the line being shared with Linux on the stock board
-     image, not this driver's.*/
+  /* No event is served while the driver is stopping or with no transfer
+     in progress: the sources are silenced and the stop path, or the
+     transfer stop, owns the waiter and the callback. Clearing the enables
+     is enough, the line only follows the enabled status bits.*/
   if ((i2cp->state != HAL_DRV_STATE_ACTIVE) &&
       (i2cp->state != I2C_ACTIVE_RX)) {
+    i2c_putreg(i2cp, I2C_IRQENABLE_CLR_OFFSET, I2C_IRQ_ALLMASK);
+    i2c_putreg(i2cp, I2C_IRQSTATUS_OFFSET, I2C_IRQ_ALLMASK);
     return;
   }
 
