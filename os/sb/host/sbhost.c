@@ -302,6 +302,38 @@ static bool get_mpu_settings(const sb_memory_region_t *mrp,
   return false;
 }
 #endif /* defined(PORT_ARCHITECTURE_ARM_V8M_MAINLINE) */
+
+/*
+ * Returns true if a switched region table entry is enabled.
+ */
+static inline bool is_mpureg_enabled(const port_mpureg_t *mpur) {
+
+#if !defined(PORT_ARCHITECTURE_ARM_V8M_MAINLINE)
+  return (mpur->rasr & MPU_RASR_ENABLE) != 0U;
+#else
+  return (mpur->rlar & MPU_RLAR_ENABLE) != 0U;
+#endif
+}
+
+/*
+ * Writes a switched region table entry in the MPU, the caller holds the
+ * kernel lock. On ARMv7-M the region number is pre-baked in RBAR.
+ */
+static inline void load_mpureg(unsigned region, const port_mpureg_t *mpur) {
+
+#if !defined(PORT_ARCHITECTURE_ARM_V8M_MAINLINE)
+  (void)region;
+
+  MPU->RBAR = mpur->rbar;
+  MPU->RASR = mpur->rasr;
+#else
+  MPU->RNR  = (uint32_t)region;
+  MPU->RBAR = mpur->rbar;
+  MPU->RLAR = mpur->rlar;
+#endif
+  __DSB();
+  __ISB();
+}
 #endif /* PORT_SWITCHED_REGIONS_NUMBER > 0 */
 
 static const sb_memory_region_t *sb_locate_data_region(sb_class_t *sbp) {
@@ -701,6 +733,119 @@ bool sbFinalize(sb_class_t *sbp) {
 
   return true;
 }
+
+#if (PORT_SWITCHED_REGIONS_NUMBER > 0) || defined(__DOXYGEN__)
+/**
+ * @brief   Maps a memory area in the running sandbox.
+ * @details The area is mapped in a free switched region: a region unused in
+ *          the static sandbox regions and not holding another mapping. The
+ *          sandbox regions table and the MPU are updated in the same
+ *          critical section, the mapping is effective on return.
+ * @note    Mappings are not seen by the pointer checks of the host
+ *          syscalls, which only consider the static regions.
+ * @note    Mappings are dropped when the sandbox terminates, its regions
+ *          table is built again from the static regions at start.
+ * @note    Static MPU regions numbered from
+ *          @p PORT_SWITCHED_REGIONS_NUMBER up take precedence where they
+ *          overlap a mapping, an area must not be covered by host regions
+ *          denying unprivileged access.
+ * @note    The memory attributes should match the ones of the host access
+ *          to the area, cacheable for SRAM: a non-cacheable mapping of
+ *          memory the host accesses through the cache needs cache
+ *          maintenance on cores with a data cache.
+ * @pre     Called by the sandbox thread in a syscall, its regions table is
+ *          the active one.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @param[in] base      area base
+ * @param[in] size      area size
+ * @param[in] attr      area attributes, @p SB_REG_IS_DATA for example
+ * @return              The region number or an error code.
+ * @retval CH_RET_EMFILE if there is no free switched region.
+ * @retval CH_RET_EINVAL if the area can't be represented by a region.
+ *
+ * @api
+ */
+msg_t sbMapRegion(sb_class_t *sbp, uint8_t *base, size_t size,
+                  uint32_t attr) {
+  sb_memory_region_t mr;
+  port_mpureg_t mpureg;
+  unsigned i;
+
+  chDbgCheck((sbp != NULL) && (base != NULL) && (size > 0U));
+
+  chDbgAssert(sbp->state == SB_STATE_RUNNING, "invalid lifecycle state");
+  chDbgAssert(chThdGetSelfX() == &sbp->thread, "not the sandbox thread");
+
+  mr.area.base  = base;
+  mr.area.size  = size;
+  mr.attributes = attr;
+  if (sb_reg_is_unused(&mr) || get_mpu_settings(&mr, &mpureg)) {
+    return CH_RET_EINVAL;
+  }
+
+  /* Searching a free switched region, only this thread changes the
+     table while the sandbox is running.*/
+  for (i = 0U; i < (unsigned)PORT_SWITCHED_REGIONS_NUMBER; i++) {
+    if (sb_reg_is_unused(&sbp->regions[i]) &&
+        !is_mpureg_enabled(&sbp->mpuregs[i])) {
+      break;
+    }
+  }
+  if (i >= (unsigned)PORT_SWITCHED_REGIONS_NUMBER) {
+    return CH_RET_EMFILE;
+  }
+#if !defined(PORT_ARCHITECTURE_ARM_V8M_MAINLINE)
+  mpureg.rbar |= MPU_RBAR_VALID | MPU_RBAR_REGION(i);
+#endif
+
+  /* The table entry and the MPU together, the switch code only compares
+     table pointers and would not reload the active table.*/
+  chSysLock();
+  sbp->mpuregs[i] = mpureg;
+  load_mpureg(i, &mpureg);
+  chSysUnlock();
+
+  return (msg_t)i;
+}
+
+/**
+ * @brief   Unmaps a memory area from the running sandbox.
+ * @details The sandbox regions table and the MPU are updated in the same
+ *          critical section, the area is no more accessible on return.
+ * @pre     Called by the sandbox thread in a syscall, its regions table is
+ *          the active one.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @param[in] region    region number returned by @p sbMapRegion()
+ *
+ * @api
+ */
+void sbUnmapRegion(sb_class_t *sbp, unsigned region) {
+  port_mpureg_t mpureg;
+
+  chDbgCheck((sbp != NULL) &&
+             (region < (unsigned)PORT_SWITCHED_REGIONS_NUMBER));
+
+  chDbgAssert(sbp->state == SB_STATE_RUNNING, "invalid lifecycle state");
+  chDbgAssert(chThdGetSelfX() == &sbp->thread, "not the sandbox thread");
+  chDbgAssert(sb_reg_is_unused(&sbp->regions[region]) &&
+              is_mpureg_enabled(&sbp->mpuregs[region]), "not a mapping");
+
+#if !defined(PORT_ARCHITECTURE_ARM_V8M_MAINLINE)
+  mpureg.rbar = MPU_RBAR_VALID | MPU_RBAR_REGION(region);
+  mpureg.rasr = 0U;
+#else
+  mpureg.rbar = 0U;
+  mpureg.rlar = 0U;
+#endif
+
+  chSysLock();
+  sbp->mpuregs[region] = mpureg;
+  load_mpureg(region, &mpureg);
+  chSysUnlock();
+}
+#endif /* PORT_SWITCHED_REGIONS_NUMBER > 0 */
 
 /**
  * @brief   Starts a static sandbox.

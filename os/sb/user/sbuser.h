@@ -317,6 +317,24 @@ typedef uint32_t eventflags_t;
                               [nr] "i" (x), "r" (r0), "r" (r1),             \
                               "r" (r2), "r" (r3) :                          \
                               "memory")
+
+#define __syscall1rrrr(x, p1)                                               \
+  register uint32_t r0 asm ("r0") = (uint32_t)(p1);                         \
+  register uint32_t r1 asm ("r1");                                          \
+  register uint32_t r2 asm ("r2");                                          \
+  register uint32_t r3 asm ("r3");                                          \
+  asm volatile ("svc %[nr]" : "=r" (r0), "=r" (r1), "=r" (r2), "=r" (r3) :  \
+                              [nr] "i" (x), "r" (r0) :                      \
+                              "memory")
+
+#define __syscall2rrrr(x, p1, p2)                                           \
+  register uint32_t r0 asm ("r0") = (uint32_t)(p1);                         \
+  register uint32_t r1 asm ("r1") = (uint32_t)(p2);                         \
+  register uint32_t r2 asm ("r2");                                          \
+  register uint32_t r3 asm ("r3");                                          \
+  asm volatile ("svc %[nr]" : "=r" (r0), "=r" (r1), "=r" (r2), "=r" (r3) :  \
+                              [nr] "i" (x), "r" (r0), "r" (r1) :            \
+                              "memory")
 /** @} */
 
 /**

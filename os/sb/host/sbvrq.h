@@ -92,6 +92,10 @@ extern "C" {
   void sbVRQSetFlagsI(sb_class_t *sbp, sb_vrqnum_t nvrq, uint32_t flags);
   void sbVRQTriggerS(sb_class_t *sbp, sb_vrqnum_t nvrq);
   void sbVRQTriggerI(sb_class_t *sbp, sb_vrqnum_t nvrq);
+  msg_t sbVRQRaisePidS(sb_class_t *sbp, sb_pid_t pid, sb_vrqnum_t nvrq,
+                       uint32_t flags);
+  msg_t sbVRQRaisePidI(sb_class_t *sbp, sb_pid_t pid, sb_vrqnum_t nvrq,
+                       uint32_t flags);
   void sb_fastc_vrq_set_alarm(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_fastc_vrq_reset_alarm(sb_class_t *sbp, struct port_extctx *ectxp);
   void sb_sysc_vrq_wait(sb_class_t *sbp, struct port_extctx *ectxp);

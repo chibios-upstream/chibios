@@ -117,6 +117,7 @@ include $(CHIBIOS)/os/common/ports/ARMv8-M-ML-ALT/compilers/GCC/mk/port.mk
 # SB files (optional).
 include $(CHIBIOS)/os/sb/host/compilers/GCC/sbhost.mk
 include $(CHIBIOS)/os/sb/vio/sbvio.mk
+include $(CHIBIOS)/os/sb/vsrv/sbvsrv.mk
 # VFS files (optional).
 include $(CHIBIOS)/os/vfs/vfs.mk
 # Auto-build files in ./source recursively.

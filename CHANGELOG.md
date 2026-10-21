@@ -8,6 +8,22 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [SB] VSRV, virtual services between sandboxes: a sandbox publishes
+  named services, the sandboxes allowed by the host definitions and by
+  their settings open them; data goes through slices of a host area mapped
+  on demand in the server and in each client, commands are synchronous
+  messages, a fixed message or a pointer to a command structure in the
+  client slice replied with a status code, events are VRQ flags; handles
+  become stale when the server stops and the PIDs of the peers are checked
+  before raising events. `os/sb/vsrv`, `sbuservsrv.h`, the
+  `RT-SB-SWITCHED-XSHELL-NIL-MULTI` demo and the testsb tests; the new
+  `SB_CFG_ENABLE_VSRV` option is required in `sbconf.h`
+  ([#539](https://github.com/chibios-upstream/chibios/pull/539)).
+- [SB] `sbMapRegion()` and `sbUnmapRegion()` map an area in a free switched
+  region of the running sandbox; `sbVRQRaisePidS()` and `sbVRQRaisePidI()`
+  raise a VRQ only on the execution identified by a PID, otherwise they
+  return the new `CH_RET_ESRCH` code
+  ([#539](https://github.com/chibios-upstream/chibios/pull/539)).
 - [SB] Sandbox PIDs: each start of a sandbox gets a new positive PID, valid
   until `sbFinalize()`, returned by `sbGetPidX()` on the host so that objects
   referring to one execution can detect a restart; guests get it with

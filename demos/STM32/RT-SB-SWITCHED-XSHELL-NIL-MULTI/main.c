@@ -89,6 +89,43 @@ static vio_conf_t vio_config2 = {
 };
 
 /*===========================================================================*/
+/* VSRV-related.                                                             */
+/*===========================================================================*/
+
+/* The "upper" service, served by SB2 for SB1, one slice of 256 bytes in
+   host memory.*/
+static uint8_t upper_area[1][256] __attribute__((aligned(256)));
+static vsrv_slice_t upper_slices[1];
+static sb_class_t * const upper_clients[] = {&sbx1, NULL};
+
+static const vsrv_service_def_t upper_def = {
+  .name      = "upper",
+  .server    = &sbx2,
+  .clients   = upper_clients,
+  .area      = (uint8_t *)upper_area,
+  .slicesize = sizeof upper_area[0],
+  .slices    = upper_slices,
+  .nslices   = 1U
+};
+
+static vsrv_service_t upper_service;
+
+/* SB1 can open services, SB2 can publish them.*/
+static vsrv_handle_t sbx1_handles[1];
+
+static const vsrv_conf_t sbx1_vsrvconf = {
+  .flags        = VSRV_CONF_ATTACH,
+  .handles      = sbx1_handles,
+  .nhandles     = 1U
+};
+
+static const vsrv_conf_t sbx2_vsrvconf = {
+  .flags        = VSRV_CONF_PUBLISH,
+  .handles      = NULL,
+  .nhandles     = 0U
+};
+
+/*===========================================================================*/
 /* VFS-related.                                                              */
 /*===========================================================================*/
 
@@ -253,6 +290,7 @@ int main(void) {
   sbSetRegion(&sbx1, 1, STARTUP_RAM1_BASE, STARTUP_RAM1_SIZE,
               SB_REG_IS_DATA);
   sbSetVirtualIO(&sbx1, &vio_config1);
+  sbSetVirtualServices(&sbx1, &sbx1_vsrvconf);
 
   sbObjectInit(&sbx2);
   sbSetRegion(&sbx2, 0, STARTUP_FLASH2_BASE, STARTUP_FLASH2_SIZE,
@@ -260,7 +298,11 @@ int main(void) {
   sbSetRegion(&sbx2, 1, STARTUP_RAM2_BASE, STARTUP_RAM2_SIZE,
               SB_REG_IS_DATA);
   sbSetVirtualIO(&sbx2, &vio_config2);
+  sbSetVirtualServices(&sbx2, &sbx2_vsrvconf);
   sbSetRoot(&sbx2, &sb2_root_driver);
+
+  /* Services, the regions of the server and of the clients are set.*/
+  sbVsrvObjectInit(&upper_service, &upper_def);
 
   /* Starting sandboxed threads.*/
   start_sb1();

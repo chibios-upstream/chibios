@@ -122,6 +122,9 @@ void sb_sysc_exit(sb_class_t *sbp, struct port_extctx *ectxp) {
 #if SB_CFG_ENABLE_VIO == TRUE
   __sb_vio_cleanup(sbp);
 #endif
+#if SB_CFG_ENABLE_VSRV == TRUE
+  __sb_vsrv_cleanup(sbp);
+#endif
 
   chSysLock();
 #if CH_CFG_USE_EVENTS == TRUE

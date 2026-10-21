@@ -242,9 +242,131 @@ static void tsb_sysc_host_info(sb_class_t *sbp, struct port_extctx *ectxp) {
   ectxp->r0 = (uint32_t)(sizeof (info) - 1U);
 }
 
+/*
+ * Areas mapped in the sandbox on request by the following syscalls, two
+ * switched regions are free for them. An area is mapped when the PID
+ * recorded with it is the one of the running sandbox execution, the
+ * mappings of a previous execution are dropped by its termination.
+ */
+#define TSB_MAP_AREAS           3U
+#define TSB_MAP_AREA_SIZE       256U
+
+static uint8_t tsb_map_areas[TSB_MAP_AREAS][TSB_MAP_AREA_SIZE]
+    __attribute__((aligned(TSB_MAP_AREA_SIZE)));
+
+static struct {
+  sb_pid_t                      pid;
+  unsigned                      region;
+} tsb_maps[TSB_MAP_AREAS];
+
+/*
+ * Application-defined syscall, fills the test area R0 with the byte R1 and
+ * maps it in the sandbox, returns the area address or an error code.
+ */
+static void tsb_sysc_map(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t n = ectxp->r0;
+  msg_t region;
+
+  if ((n >= TSB_MAP_AREAS) || (tsb_maps[n].pid == sbGetPidX(sbp))) {
+    ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+    return;
+  }
+
+  memset(tsb_map_areas[n], (int)(ectxp->r1 & 0xFFU), TSB_MAP_AREA_SIZE);
+  region = sbMapRegion(sbp, tsb_map_areas[n], TSB_MAP_AREA_SIZE,
+                       SB_REG_IS_DATA);
+  if (region < 0) {
+    ectxp->r0 = (uint32_t)region;
+    return;
+  }
+
+  tsb_maps[n].pid    = sbGetPidX(sbp);
+  tsb_maps[n].region = (unsigned)region;
+  ectxp->r0 = (uint32_t)tsb_map_areas[n];
+}
+
+/*
+ * Application-defined syscall, unmaps the test area R0 from the sandbox.
+ */
+static void tsb_sysc_unmap(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t n = ectxp->r0;
+
+  if ((n >= TSB_MAP_AREAS) || (tsb_maps[n].pid != sbGetPidX(sbp))) {
+    ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+    return;
+  }
+
+  sbUnmapRegion(sbp, tsb_maps[n].region);
+  tsb_maps[n].pid = (sb_pid_t)0;
+  ectxp->r0 = (uint32_t)CH_RET_SUCCESS;
+}
+
+/*
+ * Application-defined syscall, checks that the test area R0 is filled with
+ * the byte R1, written by the sandbox through the mapping.
+ */
+static void tsb_sysc_mapcheck(sb_class_t *sbp, struct port_extctx *ectxp) {
+  uint32_t n = ectxp->r0;
+  unsigned i;
+
+  if ((n >= TSB_MAP_AREAS) || (tsb_maps[n].pid != sbGetPidX(sbp))) {
+    ectxp->r0 = (uint32_t)CH_RET_EINVAL;
+    return;
+  }
+
+  for (i = 0U; i < TSB_MAP_AREA_SIZE; i++) {
+    if (tsb_map_areas[n][i] != (uint8_t)ectxp->r1) {
+      ectxp->r0 = (uint32_t)CH_RET_EIO;
+      return;
+    }
+  }
+  ectxp->r0 = (uint32_t)CH_RET_SUCCESS;
+}
+
+/*
+ * VSRV services: "test" served by SB1 for itself, "other" served by SB2
+ * for itself, SB1 can neither publish nor open it.
+ */
+static uint8_t tsb_test_area[2][256] __attribute__((aligned(512)));
+static vsrv_slice_t tsb_test_slices[2];
+static sb_class_t * const tsb_test_clients[] = {&sbx1, NULL};
+static uint8_t tsb_other_area[1][256] __attribute__((aligned(256)));
+static vsrv_slice_t tsb_other_slices[1];
+static sb_class_t * const tsb_other_clients[] = {&sbx2, NULL};
+
+static const vsrv_service_def_t tsb_test_def = {
+  .name      = "test",
+  .server    = &sbx1,
+  .clients   = tsb_test_clients,
+  .area      = (uint8_t *)tsb_test_area,
+  .slicesize = sizeof tsb_test_area[0],
+  .slices    = tsb_test_slices,
+  .nslices   = 2U
+};
+static const vsrv_service_def_t tsb_other_def = {
+  .name      = "other",
+  .server    = &sbx2,
+  .clients   = tsb_other_clients,
+  .area      = (uint8_t *)tsb_other_area,
+  .slicesize = sizeof tsb_other_area[0],
+  .slices    = tsb_other_slices,
+  .nslices   = 1U
+};
+static vsrv_service_t tsb_test_service, tsb_other_service;
+
+static vsrv_handle_t sbx1_handles[2];
+static const vsrv_conf_t sbx1_vsrvconf = {
+  .flags    = VSRV_CONF_PUBLISH | VSRV_CONF_ATTACH,
+  .handles  = sbx1_handles,
+  .nhandles = 2U
+};
+
 /* Application handlers bound to codes in the application ranges.*/
 SB_SVC_HANDLER(64, tsb_fastc_add);
 SB_SVC_HANDLER(192, tsb_sysc_host_info);
+SB_SVC_HANDLER(193, tsb_sysc_map);
+SB_SVC_HANDLER(194, tsb_sysc_unmap);
+SB_SVC_HANDLER(195, tsb_sysc_mapcheck);
 
 /* Privileged stacks for sandboxes.*/
 static SB_STACK(sbx1stk);
@@ -489,6 +611,9 @@ int main(void) {
   sbSetRegion(&sbx1, 0, STARTUP_FLASH1_BASE, STARTUP_FLASH1_SIZE, SB_REG_IS_CODE);
   sbSetRegion(&sbx1, 1, STARTUP_RAM1_BASE,   STARTUP_RAM1_SIZE, SB_REG_IS_DATA);
   sbSetVirtualIO(&sbx1, &vio_config1);
+  sbSetVirtualServices(&sbx1, &sbx1_vsrvconf);
+  sbVsrvObjectInit(&tsb_test_service, &tsb_test_def);
+  sbVsrvObjectInit(&tsb_other_service, &tsb_other_def);
 
   /* Lifecycle initialization and failed-start checks.*/
   chDbgAssert(sbGetStateX(&sbx1) == SB_STATE_STOPPED,

@@ -85,6 +85,11 @@ extern "C" {
                              msg_t msg,
                              sysinterval_t timeout);
 #endif
+#if PORT_SWITCHED_REGIONS_NUMBER > 0
+  msg_t sbMapRegion(sb_class_t *sbp, uint8_t *base, size_t size,
+                    uint32_t attr);
+  void sbUnmapRegion(sb_class_t *sbp, unsigned region);
+#endif
 #ifdef __cplusplus
 }
 #endif
@@ -103,6 +108,9 @@ static inline void sbHostInit(void) {
   sb.last_pid = (sb_pid_t)0;
 #if (CH_CFG_USE_EVENTS == TRUE) || defined(__DOXYGEN__)
   chEvtObjectInit(&sb.termination_es);
+#endif
+#if (SB_CFG_ENABLE_VSRV == TRUE) || defined(__DOXYGEN__)
+  __sb_vsrv_init();
 #endif
 }
 
@@ -270,6 +278,28 @@ static inline void sbSetVirtualIO(sb_class_t *sbp, const vio_conf_t *vioconf) {
   sbp->vioconf = vioconf;
 }
 #endif /* SB_CFG_ENABLE_VIO == TRUE */
+
+#if (SB_CFG_ENABLE_VSRV == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Associates VSRV settings to a sandbox.
+ * @details The settings grant the sandbox the right to publish and to
+ *          attach to services, the service definitions still decide which
+ *          names. Without settings the sandbox has no VSRV access.
+ * @pre     The sandbox must be in @p SB_STATE_STOPPED state.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @param[in] vsrvconf  pointer to a VSRV settings structure or @p NULL
+ *
+ * @api
+ */
+static inline void sbSetVirtualServices(sb_class_t *sbp,
+                                        const vsrv_conf_t *vsrvconf) {
+
+  chDbgAssert(sbp->state == SB_STATE_STOPPED, "invalid lifecycle state");
+
+  sbp->vsrvconf = vsrvconf;
+}
+#endif /* SB_CFG_ENABLE_VSRV == TRUE */
 
 #if (CH_CFG_USE_MESSAGES == TRUE) || defined(__DOXYGEN__)
 /**

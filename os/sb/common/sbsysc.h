@@ -75,6 +75,7 @@
 #define SB_FASTC_VIO_VADC        100
 #define SB_FASTC_VIO_VGPT        101
 #define SB_FASTC_VIO_VI2C        102
+#define SB_FASTC_VSRV            103
 #define SB_FASTC_VRQ_SET_ALARM   117
 #define SB_FASTC_VRQ_RESET_ALARM 118
 #define SB_FASTC_VRQ_SETWT       120
@@ -115,6 +116,7 @@
 #define SB_SYSC_VIO_VADC         228
 #define SB_SYSC_VIO_VGPT         229
 #define SB_SYSC_VIO_VI2C         230
+#define SB_SYSC_VSRV             231
 #define SB_SYSC_VRQ_WAIT         255
 /** @} */
 
@@ -279,6 +281,84 @@
 #define SB_VUART_GCEVT          12
 #define SB_VUART_GEVT           13
 #define SB_VUART_CTL            14
+/** @} */
+
+/**
+ * @name    VSRV sub-codes
+ * @note    PUBLISH, WITHDRAW, OPEN and CLOSE are handled by the syscall
+ *          handler (SVC 231); all the other sub-codes are handled by the
+ *          fastcall handler (SVC 103) and therefore share a single
+ *          numbering space.
+ * @{
+ */
+#define SB_VSRV_PUBLISH          0
+#define SB_VSRV_WITHDRAW         1
+#define SB_VSRV_OPEN             2
+#define SB_VSRV_CLOSE            3
+#define SB_VSRV_SEND             4
+#define SB_VSRV_RESULT           5
+#define SB_VSRV_CANCEL           6
+#define SB_VSRV_NOTIFY           7
+#define SB_VSRV_RECEIVE          8
+#define SB_VSRV_REPLY            9
+#define SB_VSRV_NOTIFYC          10
+#define SB_VSRV_SLICES           11
+#define SB_VSRV_CLIENT           12
+#define SB_VSRV_RESETDONE        13
+/** @} */
+
+/**
+ * @name    VSRV limits
+ * @{
+ */
+#define SB_VSRV_NAME_MAX         15U
+#define SB_VSRV_MAX_SLICES       30U
+/** @} */
+
+/**
+ * @name    VSRV messages
+ * @{
+ */
+/**
+ * @brief   First fixed message, lower request words are pointers to
+ *          command structures.
+ */
+#define SB_VSRV_MSG_FIXED_BASE   0xFFFFFF00U
+/**
+ * @brief   Size of the command structure header.
+ * @note    The host checks that a command structure pointer leaves room
+ *          for the header in the sender slice.
+ */
+#define SB_VSRV_CMD_HDR_SIZE     8U
+/** @} */
+
+/**
+ * @name    VSRV return codes
+ * @note    Returned by the VSRV calls in addition to the @p CH_RET_xxx
+ *          codes.
+ * @{
+ */
+#define SB_VSRV_RET_STALE        (-32)
+#define SB_VSRV_RET_PENDING      (-33)
+#define SB_VSRV_RET_EMPTY        (-34)
+/** @} */
+
+/**
+ * @name    VSRV server VRQ flags
+ * @{
+ */
+#define SB_VSRV_FL_SLICE(j)      (1U << (j))
+#define SB_VSRV_FL_REQUESTS      (1U << 30)
+#define SB_VSRV_FL_SLICES        (1U << 31)
+/** @} */
+
+/**
+ * @name    VSRV client VRQ flags
+ * @{
+ */
+#define SB_VSRV_FL_NOTIFY        (1U << 0)
+#define SB_VSRV_FL_LOST          (1U << 1)
+#define SB_VSRV_FL_REPLY         (1U << 2)
 /** @} */
 
 /**
@@ -462,6 +542,41 @@ typedef struct sb_sysblock {
  * @return              The VIO call unit identifier.
  */
 #define VIO_CALL_UNIT(n)        ((uint32_t)(n) >> 24)
+
+/**
+ * @brief   Builds a VSRV call 1st parameter.
+ *
+ * @param[in] c         the sub-code
+ * @param[in] id        the handle, the service or the VRQ number
+ * @param[in] j         the slice index, zero when not used
+ * @return              The formatted VSRV call 1st parameter.
+ */
+#define VSRV_CALL(c, id, j)                                                 \
+  (((uint32_t)(id) << 24) | ((uint32_t)(j) << 16) | (uint32_t)(c))
+
+/**
+ * @brief   Sub-code part of VSRV calls 1st parameter.
+ *
+ * @param[in] n         the VSRV 1st parameter
+ * @return              The VSRV call sub-code.
+ */
+#define VSRV_CALL_SUBCODE(n)    ((uint32_t)(n) & 0xFFU)
+
+/**
+ * @brief   Identifier part of VSRV calls 1st parameter.
+ *
+ * @param[in] n         the VSRV 1st parameter
+ * @return              The handle, the service or the VRQ number.
+ */
+#define VSRV_CALL_ID(n)         ((uint32_t)(n) >> 24)
+
+/**
+ * @brief   Slice index part of VSRV calls 1st parameter.
+ *
+ * @param[in] n         the VSRV 1st parameter
+ * @return              The slice index.
+ */
+#define VSRV_CALL_SLICE(n)      (((uint32_t)(n) >> 16) & 0xFFU)
 
 /*===========================================================================*/
 /* External declarations.                                                    */

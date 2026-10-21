@@ -14,6 +14,7 @@
     limitations under the License.
 */
 
+#include <string.h>
 #include <unistd.h>
 
 #include "ch.h"
@@ -21,6 +22,7 @@
 
 #include "oop_chprintf.h"
 #include "xshell.h"
+#include "sbuservsrv.h"
 
 static hal_buffered_sio_c bsio1;
 static uint8_t rxbuf[32];
@@ -160,6 +162,218 @@ static void cmd_sbpid(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   chprintf(xshp->stream, "%d\r\n", (int)getpid());
 }
 
+/*
+ * Client of the "upper" service of SB-CLIENT-NIL-XHAL, available on the
+ * hosts defining it. The protocol definitions must match the server ones.
+ */
+#define UPPER_CVRQ              21
+#define UPPER_CMD_CONVERT       1U
+#define UPPER_MSG_COUNT         VSRV_MSG_FIXED(VSRV_MSG_SERVICE_CODE + 0U)
+#define UPPER_MSG_FAULT         VSRV_MSG_FIXED(VSRV_MSG_SERVICE_CODE + 1U)
+#define UPPER_BENCH_CALLS       1000U
+
+typedef struct {
+  vsrv_cmd_header_t     header;
+  char                  *text;
+  uint32_t              length;
+} upper_convert_t;
+
+static SEMAPHORE_DECL(upper_sem, 0);
+static volatile uint32_t upper_flags;
+static msg_t upper_handle = -1;
+static vsrv_area_t upper_slice;
+
+SB_VRQ_HANDLER(MK_VECTOR(UPPER_CVRQ)) {
+
+  CH_IRQ_PROLOGUE();
+
+  chSysLockFromISR();
+  upper_flags |= flags;
+  chSemSignalI(&upper_sem);
+  chSysUnlockFromISR();
+
+  CH_IRQ_EPILOGUE();
+}
+
+static msg_t upper_open(void) {
+  msg_t msg;
+
+  if (upper_handle >= 0) {
+    return CH_RET_SUCCESS;
+  }
+
+  (void)__sb_vrq_seten(1U << UPPER_CVRQ);
+  msg = vsrvOpen("upper", UPPER_CVRQ, &upper_slice);
+  if (msg < 0) {
+    return msg;
+  }
+  upper_handle = msg;
+
+  return CH_RET_SUCCESS;
+}
+
+static void upper_close(void) {
+
+  if (upper_handle >= 0) {
+    (void)vsrvClose((uint32_t)upper_handle);
+    upper_handle = -1;
+  }
+}
+
+/*
+ * Sends a request and waits for the reply on the client VRQ, a stale
+ * handle is closed.
+ */
+static msg_t upper_call(vsrv_msg_t m, msg_t *statusp) {
+  msg_t msg;
+
+  msg = upper_open();
+  if (msg < 0) {
+    return msg;
+  }
+
+  if (VSRV_MSG_IS_FIXED(m)) {
+    msg = vsrvSendFixed((uint32_t)upper_handle, m);
+  }
+  else {
+    msg = vsrvSend((uint32_t)upper_handle, VSRV_MSG_CMD(m));
+  }
+  if (msg == CH_RET_SUCCESS) {
+    while (true) {
+      msg = vsrvResult((uint32_t)upper_handle, statusp);
+      if (msg != SB_VSRV_RET_PENDING) {
+        break;
+      }
+      if (chSemWaitTimeout(&upper_sem, TIME_MS2I(500)) == MSG_TIMEOUT) {
+        msg = CH_RET_TIMEOUT;
+        break;
+      }
+    }
+  }
+
+  if (msg == SB_VSRV_RET_STALE) {
+    upper_close();
+  }
+
+  return msg;
+}
+
+static void vsrv_upper(xshell_t *xshp, const char *s) {
+  upper_convert_t *cp;
+  size_t n, max;
+  msg_t msg, status;
+  char *text;
+
+  msg = upper_open();
+  if (msg < 0) {
+    chprintf(xshp->stream, "open failed: %d\r\n", (int)msg);
+    return;
+  }
+
+  /* Command structure and text in the slice.*/
+  cp   = (upper_convert_t *)upper_slice.base;
+  text = (char *)(cp + 1);
+  max  = upper_slice.size - sizeof (upper_convert_t) - 1U;
+  n    = strlen(s);
+  if (n > max) {
+    n = max;
+  }
+  memcpy(text, s, n);
+  text[n] = '\0';
+  cp->header.cmd  = UPPER_CMD_CONVERT;
+  cp->header.size = sizeof (upper_convert_t);
+  cp->text        = text;
+  cp->length      = (uint32_t)n;
+
+  msg = upper_call((vsrv_msg_t)cp, &status);
+  if ((msg == CH_RET_SUCCESS) && (status >= 0)) {
+    chprintf(xshp->stream, "%s\r\n", text);
+  }
+  else {
+    chprintf(xshp->stream, "call %d, status %d\r\n", (int)msg,
+             (int)status);
+  }
+}
+
+static void vsrv_info(xshell_t *xshp) {
+  msg_t msg, version, count;
+
+  msg = upper_call(VSRV_MSG_INFO, &version);
+  if (msg == CH_RET_SUCCESS) {
+    msg = upper_call(UPPER_MSG_COUNT, &count);
+  }
+  if (msg == CH_RET_SUCCESS) {
+    chprintf(xshp->stream, "protocol %u.%u, %u conversions, pid %d\r\n",
+             (unsigned)VSRV_VERSION_MAJOR(version),
+             (unsigned)VSRV_VERSION_MINOR(version),
+             (unsigned)count, (int)getpid());
+  }
+  else {
+    chprintf(xshp->stream, "call %d\r\n", (int)msg);
+  }
+}
+
+static void vsrv_bench(xshell_t *xshp) {
+  systime_t start, ticks;
+  msg_t msg, status;
+  uint64_t ns;
+  unsigned i;
+
+  msg = CH_RET_SUCCESS;
+  start = sbGetSystemTime();
+  for (i = 0U; (i < UPPER_BENCH_CALLS) && (msg == CH_RET_SUCCESS); i++) {
+    msg = upper_call(VSRV_MSG_NOP, &status);
+  }
+  ticks = (systime_t)(sbGetSystemTime() - start);
+
+  if (msg != CH_RET_SUCCESS) {
+    chprintf(xshp->stream, "call %u failed: %d\r\n", i, (int)msg);
+    return;
+  }
+  ns = ((uint64_t)ticks * 1000000000ULL) /
+       ((uint64_t)sbGetFrequency() * UPPER_BENCH_CALLS);
+  chprintf(xshp->stream, "%u round trips in %u ticks, %u ns each\r\n",
+           UPPER_BENCH_CALLS, (unsigned)ticks, (unsigned)ns);
+}
+
+static void vsrv_fault(xshell_t *xshp) {
+  msg_t msg, status;
+
+  msg = upper_call(UPPER_MSG_FAULT, &status);
+  chprintf(xshp->stream, "%s (%d)\r\n",
+           msg == SB_VSRV_RET_STALE ? "service lost" : "unexpected", (int)msg);
+}
+
+static void cmd_vsrv(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
+
+  (void)envp;
+
+  if ((argc == 3) && (strcmp(argv[1], "upper") == 0)) {
+    vsrv_upper(xshp, argv[2]);
+    return;
+  }
+  if (argc == 2) {
+    if (strcmp(argv[1], "info") == 0) {
+      vsrv_info(xshp);
+      return;
+    }
+    if (strcmp(argv[1], "bench") == 0) {
+      vsrv_bench(xshp);
+      return;
+    }
+    if (strcmp(argv[1], "fault") == 0) {
+      vsrv_fault(xshp);
+      return;
+    }
+    if (strcmp(argv[1], "close") == 0) {
+      upper_close();
+      return;
+    }
+  }
+
+  xshellUsage(xshp, "vsrv upper <text>|info|bench|fault|close");
+}
+
 static void cmd_sbexit(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 
   (void)argv;
@@ -182,6 +396,7 @@ static const xshell_command_t commands[] = {
   {"sbsvccrash", cmd_sbsvccrash},
   {"sbexit", cmd_sbexit},
   {"sbpid", cmd_sbpid},
+  {"vsrv", cmd_vsrv},
   {NULL, NULL}
 };
 
