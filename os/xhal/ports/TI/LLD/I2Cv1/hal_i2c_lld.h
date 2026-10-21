@@ -166,17 +166,6 @@
   bool                      ready;                                          \
   /* Reason the last initialization failed, one of I2C_INIT_*.*/            \
   uint32_t                  init_error;                                     \
-  /* Controller registers sampled when a transfer times out or is          \
-     otherwise stopped early. Bring-up diagnostic: a timeout says nothing  \
-     about whether the clock was configured, the bus was held or the       \
-     interrupt simply never arrived. Strip once the bus is trusted.*/      \
-  struct {                                                                  \
-    uint32_t                con;                                            \
-    uint32_t                raw;                                            \
-    uint32_t                scll;                                           \
-    uint32_t                irqen;                                          \
-    uint32_t                vim;                                            \
-  }                         dbg;                                            \
   /* Slave address of the current transfer.*/                               \
   i2caddr_t                 addr;                                           \
   /* Transmit pointer of the current transfer.*/                            \

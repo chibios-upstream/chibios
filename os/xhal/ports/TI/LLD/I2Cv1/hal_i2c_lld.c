@@ -26,6 +26,12 @@
  *          fires an immediate STOP), every segment ends with the bus held
  *          and the final STOP is issued explicitly from the ARDY window.
  *
+ *          Pads are not touched here. Which pads carry the bus, and whether
+ *          the internal pull-ups are enabled on them, is a board decision,
+ *          so the board configures them before the driver is started. See
+ *          @p board_i2c0_pinmux() in the T3 Gemstone O1 board files for the
+ *          reference implementation.
+ *
  *          XHAL moves the thread-suspend/timeout bookkeeping the classic
  *          driver did itself (i2c_run_transfer()) up into the class layer
  *          (hal_i2c.c: i2cSynchronizeS() suspends and calls
@@ -46,18 +52,12 @@
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
 
-#include "am67_padcfg.h"
-
-/* MCU-domain pad offsets for the MCU_I2C0 signals (header pins 3/5).*/
-#define AM67_PAD_I2C0_SCL           0x0044U
-#define AM67_PAD_I2C0_SDA           0x0048U
-
 /* Internal reference clock the prescaler divides down to, per the TRM
    recommendation for standard and fast mode.*/
 #define I2C_INTERNAL_CLOCK          12000000U
 
 /* Bound for the reset-done busy wait, avoids a silent hard hang if the
-   module clock is gated (i2c_lld_start() runs in a lock zone).*/
+   module clock is gated.*/
 #define I2C_RESET_WAIT_LOOPS        1000000U
 
 /* Bound for the wait that observes the reset actually starting. Short: it
@@ -91,23 +91,6 @@ static inline void i2c_putreg(hal_i2c_driver_c *i2cp, uint32_t offset,
                               uint32_t value) {
 
   *(volatile uint32_t *)(i2cp->base + offset) = value;
-}
-
-/*
- * Routes the MCU_I2C0 SCL/SDA pads to the I2C controller (mux mode 0)
- * with receivers and internal pull-ups enabled (matches the Linux device
- * tree pin configuration, PIN_INPUT_PULLUP).
- */
-static void i2c0_pinmux(void) {
-
-  am67_mcu_padcfg_unlock();
-
-  am67_mcu_pad_config(AM67_PAD_I2C0_SCL,
-                      AM67_PIN_MODE(0) | AM67_PIN_INPUT_ENABLE |
-                      AM67_PIN_PULLUP);
-  am67_mcu_pad_config(AM67_PAD_I2C0_SDA,
-                      AM67_PIN_MODE(0) | AM67_PIN_INPUT_ENABLE |
-                      AM67_PIN_PULLUP);
 }
 
 /**
@@ -163,6 +146,10 @@ static void i2c_hw_init(hal_i2c_driver_c *i2cp) {
      SCL = 12 MHz / ((SCLL + 7) + (SCLH + 5)).*/
   i2c_putreg(i2cp, I2C_CON_OFFSET, 0U);
 
+  if (config->frequency == 0U) {
+    i2cp->init_error = I2C_INIT_BAD_FREQUENCY;
+    return;
+  }
   psc = (i2cp->clock / I2C_INTERNAL_CLOCK) - 1U;
   d   = I2C_INTERNAL_CLOCK / config->frequency;
   scll = (d / 2U) - 7U;
@@ -427,7 +414,6 @@ msg_t i2c_lld_start(hal_i2c_driver_c *i2cp) {
 
 #if AM67_I2C_USE_MCU_I2C0 == TRUE
   if (i2cp == &I2CD1) {
-    i2c0_pinmux();
     i2c_hw_init(i2cp);
     if (!i2cp->ready) {
       if (i2cp->init_error == I2C_INIT_BAD_FREQUENCY) {
@@ -599,10 +585,7 @@ msg_t i2c_lld_start_master_receive(hal_i2c_driver_c *i2cp, i2caddr_t addr,
 /**
  * @brief   Stops the ongoing I2C transfer, if any.
  * @details Called by the class layer both for an explicit @p
- *          i2cStopTransfer() and when @p i2cSynchronizeS() times out, so
- *          this is also where the timeout debug snapshot is taken -- the
- *          classic driver's i2c_run_transfer() used to sample the same
- *          registers right before calling this same quiesce logic.
+ *          i2cStopTransfer() and when @p i2cSynchronizeS() times out.
  *
  * @param[in] i2cp      pointer to the @p hal_i2c_driver_c object
  * @return              The operation status.
@@ -610,16 +593,6 @@ msg_t i2c_lld_start_master_receive(hal_i2c_driver_c *i2cp, i2caddr_t addr,
  * @notapi
  */
 msg_t i2c_lld_stop_transfer(hal_i2c_driver_c *i2cp) {
-
-  /* Sample before the quiesce tears the evidence down. irqen and vim
-     together locate the break: an asserted, enabled peripheral line that
-     the VIM never dispatched is a VIM problem, an unset irqen is a driver
-     problem.*/
-  i2cp->dbg.con   = i2c_getreg(i2cp, I2C_CON_OFFSET);
-  i2cp->dbg.raw   = i2c_getreg(i2cp, I2C_IRQSTATUS_RAW_OFFSET);
-  i2cp->dbg.scll  = i2c_getreg(i2cp, I2C_SCLL_OFFSET);
-  i2cp->dbg.irqen = i2c_getreg(i2cp, I2C_IRQENABLE_SET_OFFSET);
-  i2cp->dbg.vim   = vimGetLineState(AM67_MCU_I2C0_IRQ);
 
   i2c_quiesce(i2cp);
 
