@@ -833,13 +833,8 @@ static void i2c_probe_bus(void) {
     trace_printf("I2C probe: got 0x%02x from 0x50\n", data);
   }
   else {
-    /* Not i2cGetAndClearErrorsX(): it calls chSysGetStatusAndLockX(), which
-       chsys.c only compiles when CH_PORT_SUPPORTS_RECURSIVE_LOCKS == TRUE --
-       this ARMv7-R port does not define it, so that call is an unresolved
-       symbol here. No transfer is active at this point, so the plain,
-       non-locking read is equally correct.*/
     trace_printf("I2C probe: msg=%d errors=0x%02x (NACK expected)\n",
-                 (int)msg, (unsigned)i2cGetErrorsX(&I2CD1));
+                 (int)msg, (unsigned)i2cGetAndClearErrorsX(&I2CD1));
   }
   console_write("I2C probe done\r\n");
 }
