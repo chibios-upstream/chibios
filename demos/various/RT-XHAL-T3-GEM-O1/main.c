@@ -49,8 +49,6 @@ static const SPIConfig spi_icm20948_config = {
  * I2C configuration for MCU_I2C0, the 40-pin header instance (pins 3/5).
  * Standard mode: no sensor is wired to this bus on the Gemstone O1 (both
  * onboard sensors are on SPI), so this is a bus-level smoke test only.
- * Confirmed on hardware 2026-08-10 (T3 Gemstone O1): the probe below
- * returned MSG_RESET with I2C_ACK_FAILURE set, the expected clean NACK.
  */
 static const I2CConfig i2c0_config = {
   .frequency            = 100000U
@@ -821,7 +819,14 @@ static void i2c_probe_bus(void) {
   uint8_t data;
   msg_t msg;
 
-  drvStart(&I2CD1, &i2c0_config);
+  /* The board owns the pads and decides on their pull-ups.*/
+  board_i2c0_pinmux();
+
+  if (drvStart(&I2CD1, &i2c0_config) != HAL_RET_SUCCESS) {
+    trace_printf("I2C start failed\n");
+    console_write("I2C start FAILED\r\n");
+    return;
+  }
 
   msg = i2cMasterReceiveTimeout(&I2CD1, 0x50U, &data, 1U, TIME_MS2I(50));
   if (msg == MSG_OK) {
@@ -833,8 +838,8 @@ static void i2c_probe_bus(void) {
        this ARMv7-R port does not define it, so that call is an unresolved
        symbol here. No transfer is active at this point, so the plain,
        non-locking read is equally correct.*/
-    trace_printf("I2C probe: msg=%d errors=0x%02x (NACK expected, nothing wired)\n",
-                (int)msg, (unsigned)i2cGetErrorsX(&I2CD1));
+    trace_printf("I2C probe: msg=%d errors=0x%02x (NACK expected)\n",
+                 (int)msg, (unsigned)i2cGetErrorsX(&I2CD1));
   }
   console_write("I2C probe done\r\n");
 }
