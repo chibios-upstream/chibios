@@ -69,6 +69,12 @@
    previous transaction.*/
 #define I2C_BUS_FREE_LOOPS          100000U
 
+/* Bound for the wait before a new START, which runs in a lock zone. One
+   poll takes about 0.54 us on the T3 Gemstone O1, so this is about 1 ms,
+   over 20 bit times at the slowest reachable SCL rate (about 23 kHz). The
+   longest wait measured was 29 polls, at 100 kHz.*/
+#define I2C_START_WAIT_LOOPS        2000U
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -243,6 +249,35 @@ static void i2c_start_segment(hal_i2c_driver_c *i2cp, bool tx) {
              (tx ? I2C_IRQ_XRDY : I2C_IRQ_RRDY));
 
   i2c_putreg(i2cp, I2C_CON_OFFSET, con | I2C_CON_STT);
+}
+
+/**
+ * @brief   Waits for the bus to be released before a new START.
+ * @details The error and stop paths end a transfer by setting STP and
+ *          returning, the STOP itself completes on the bus afterwards. A
+ *          START requested before then can cancel that STOP or be issued
+ *          on a busy bus, and the ARDY/BF events the late STOP raises
+ *          would be taken for the new transfer's. Not used for the
+ *          repeated START, which is issued on a bus this master holds.
+ *
+ * @param[in] i2cp      pointer to the @p hal_i2c_driver_c object
+ * @return              The bus state.
+ * @retval true         the bus is free, the stale events are cleared.
+ * @retval false        the bus is still busy after the bounded wait.
+ */
+static bool i2c_wait_bus_free(hal_i2c_driver_c *i2cp) {
+  uint32_t i;
+
+  for (i = 0U; i < I2C_START_WAIT_LOOPS; i++) {
+    if (((i2c_getreg(i2cp, I2C_CON_OFFSET) &
+          (I2C_CON_STT | I2C_CON_STP)) == 0U) &&
+        ((i2c_getreg(i2cp, I2C_IRQSTATUS_RAW_OFFSET) & I2C_IRQ_BB) == 0U)) {
+      i2c_putreg(i2cp, I2C_IRQSTATUS_OFFSET, I2C_IRQ_ALLMASK);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -558,6 +593,9 @@ msg_t i2c_lld_start_master_transmit(hal_i2c_driver_c *i2cp, i2caddr_t addr,
   if (!i2cp->ready) {
     return HAL_RET_HW_FAILURE;
   }
+  if (!i2c_wait_bus_free(i2cp)) {
+    return HAL_RET_HW_BUSY;
+  }
 
   i2cp->addr       = addr;
   i2cp->txptr      = txbuf;
@@ -587,6 +625,9 @@ msg_t i2c_lld_start_master_receive(hal_i2c_driver_c *i2cp, i2caddr_t addr,
 
   if (!i2cp->ready) {
     return HAL_RET_HW_FAILURE;
+  }
+  if (!i2c_wait_bus_free(i2cp)) {
+    return HAL_RET_HW_BUSY;
   }
 
   i2cp->addr       = addr;
