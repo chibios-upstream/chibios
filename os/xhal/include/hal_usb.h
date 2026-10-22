@@ -36,21 +36,6 @@
 /*===========================================================================*/
 
 /**
- * @name    Endpoint direction helpers
- * @{
- */
-/**
- * @brief       Builds an OUT endpoint address.
- */
-#define USB_ENDPOINT_OUT                    (ep)
-
-/**
- * @brief       Builds an IN endpoint address.
- */
-#define USB_ENDPOINT_IN                     ((ep) | 0x80U)
-/** @} */
-
-/**
  * @name    Request type encoding
  * @{
  */
@@ -257,6 +242,27 @@
 /*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/
+
+/**
+ * @name    Endpoint address helpers
+ * @{
+ */
+/**
+ * @brief       Builds an OUT endpoint address.
+ *
+ * @param[in]     ep            Endpoint number.
+ */
+#define USB_ENDPOINT_OUT(ep)                                                \
+  (ep)
+
+/**
+ * @brief       Builds an IN endpoint address.
+ *
+ * @param[in]     ep            Endpoint number.
+ */
+#define USB_ENDPOINT_IN(ep)                                                 \
+  ((ep) | 0x80U)
+/** @} */
 
 /**
  * @name    Low level driver helper macros
@@ -664,7 +670,9 @@ typedef struct hal_usb_service_info hal_usb_service_info_t;
  * @brief       USB service ownership metadata.
  * @details     This structure identifies the interfaces and endpoints managed
  *              by a USB service instance. Endpoint zero is never owned by a
- *              service.
+ *              service. The driver keeps one configuration per endpoint
+ *              number, so two services cannot own the same endpoint number,
+ *              not even in different directions.
  */
 struct hal_usb_service_info {
   /**
@@ -696,8 +704,14 @@ struct hal_usb_service_info {
  *              managed by a USB binder. A service exposes static ownership
  *              metadata together with USB-specific lifecycle and dispatch
  *              hooks, but it does not own the USB peripheral lifecycle. The
- *              virtual methods carrying the @p I suffix must be invoked with
- *              the system lock already held by the caller.
+ *              bind and unbind hooks are invoked from thread context, outside
+ *              the system lock. The virtual methods carrying the @p I suffix
+ *              are invoked with the system lock held, from thread or ISR
+ *              context. Once configured, a service receives an unconfigure or
+ *              reset notification before it is configured again or unbound,
+ *              this also happens when the driver is stopped, when the binder
+ *              is unbound and after a hardware failure. The service releases
+ *              its workers and waiters on this notification.
  *
  * @name        Class @p hal_usb_service_c structures
  * @{
@@ -725,6 +739,8 @@ struct hal_usb_service_vmt {
   void (*sof)(void *ip);
   void (*in)(void *ip, usbep_t ep);
   void (*out)(void *ip, usbep_t ep);
+  bool (*clear_halt)(void *ip, usbep_t ep, bool in);
+  void (*halt_cleared)(void *ip, usbep_t ep, bool in);
   msg_t (*setup)(void *ip, bool *handledp);
 };
 
@@ -767,9 +783,10 @@ struct hal_usb_service {
  * @details     A binder is the device-composition object sitting between a USB
  *              driver instance and one or more USB services. The binder owns
  *              the final descriptors and dispatches USB events to the
- *              registered services. The virtual methods carrying the @p I
- *              suffix must be invoked with the system lock already held by the
- *              caller.
+ *              registered services. The bind and unbind hooks are invoked from
+ *              thread context, outside the system lock. The virtual methods
+ *              carrying the @p I suffix are invoked with the system lock held,
+ *              from thread or ISR context.
  *
  * @name        Class @p hal_usb_binder_c structures
  * @{
@@ -845,7 +862,10 @@ struct hal_usb_binder {
  *              event does not clear the fault. The application must serialize
  *              recovery with its USB workers, call @p drvStop(), then @p
  *              drvStart(), rebind its binder and reconnect after the required
- *              disconnect interval. Services remain bound until stop; no
+ *              disconnect interval. Configured services are unconfigured after
+ *              a failure, not by the fault handler: by @p usbEp0WaitSetup() in
+ *              the EP0 worker or, at the latest, by @p drvStop() or @p
+ *              usbUnbind(). Services remain bound until stop or unbind; no
  *              successful transfer or bus-reset callback is synthesized for a
  *              hardware failure.
  *
@@ -969,12 +989,15 @@ struct hal_usb_driver {
   thread_reference_t        ep0thread;
   /**
    * @brief       Current EP0 sequence number.
+   * @note        Incremented by every SETUP, bus reset, fault and stop, it is
+   *              never reset.
    */
-  uint8_t                   ep0seq;
+  uint32_t                  ep0seq;
   /**
-   * @brief       EP0 sequence number owned by the worker thread.
+   * @brief       EP0 sequence number of the request taken by the worker
+   *              thread.
    */
-  uint8_t                   ep0rseq;
+  uint32_t                  ep0rseq;
   /**
    * @brief       Pending setup notification for the worker thread.
    */
@@ -985,8 +1008,16 @@ struct hal_usb_driver {
   uint8_t                   ep0reset;
   /**
    * @brief       Setup packet buffer.
+   * @note        Written by every SETUP packet, the worker thread uses @p
+   *              ep0req instead.
    */
   uint8_t                   setup[8];
+  /**
+   * @brief       Request taken by the worker thread.
+   * @note        Copied from @p setup by @p usbEp0WaitSetup(), a later SETUP
+   *              packet does not change it.
+   */
+  uint8_t                   ep0req[8];
   /**
    * @brief       Current USB device status.
    */
@@ -999,6 +1030,12 @@ struct hal_usb_driver {
    * @brief       Current USB device configuration.
    */
   uint8_t                   configuration;
+  /**
+   * @brief       Services configured and not yet unconfigured.
+   * @note        Set when the configure notification is delivered, cleared
+   *              when the unconfigure or reset notification is delivered.
+   */
+  bool                      svcconfigured;
   /**
    * @brief       State of the driver when a suspend happened.
    */
@@ -1031,6 +1068,8 @@ extern "C" {
   void __usbsvc_sof_impl(void *ip);
   void __usbsvc_in_impl(void *ip, usbep_t ep);
   void __usbsvc_out_impl(void *ip, usbep_t ep);
+  bool __usbsvc_clear_halt_impl(void *ip, usbep_t ep, bool in);
+  void __usbsvc_halt_cleared_impl(void *ip, usbep_t ep, bool in);
   msg_t __usbsvc_setup_impl(void *ip, bool *handledp);
   /* Methods of hal_usb_binder_c.*/
   void *__usbbnd_objinit_impl(void *ip, const void *vmt);
@@ -1074,6 +1113,8 @@ extern "C" {
   msg_t usbEp0Receive(void *ip, uint8_t *buf, size_t n);
   msg_t usbEp0Acknowledge(void *ip);
   void usbEp0Stall(void *ip);
+  const uint8_t *usbEp0GetRequestX(void *ip);
+  bool usbEp0IsCurrentI(void *ip);
   msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp);
   bool usbStallReceiveI(void *ip, usbep_t ep);
   bool usbStallTransmitI(void *ip, usbep_t ep);
@@ -1105,6 +1146,8 @@ extern "C" {
   void usbBinderSOFI(void *ip);
   void usbBinderInI(void *ip, usbep_t ep);
   void usbBinderOutI(void *ip, usbep_t ep);
+  bool usbBinderClearHaltI(void *ip, usbep_t ep, bool in);
+  void usbBinderHaltClearedI(void *ip, usbep_t ep, bool in);
   msg_t usbBinderSetup(void *ip, bool *handledp);
   void usbInit(void);
   void _usb_error_i(hal_usb_driver_c *usbp);
@@ -1182,6 +1225,9 @@ static inline void usbServiceOnConfigureI(void *ip) {
 
 /**
  * @brief       Service-specific unconfigure notification hook.
+ * @note        Also invoked by @p drvStop(), by @p usbUnbind() and after a
+ *              hardware failure. In these cases the endpoints are no longer
+ *              usable: transfers are not completed and must not be restarted.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_service_c instance.
  *
@@ -1267,6 +1313,46 @@ static inline void usbServiceOnOutI(void *ip, usbep_t ep) {
 }
 
 /**
+ * @brief       Service-specific endpoint halt clear hook.
+ * @details     Invoked when the host clears the halt of an owned endpoint with
+ *              CLEAR_FEATURE(ENDPOINT_HALT), before the halt is cleared.
+ *              Returning @p true keeps the endpoint halted, the request is
+ *              acknowledged anyway, for example until a class-specific reset
+ *              recovery.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_usb_service_c instance.
+ * @param[in]     ep            Endpoint number.
+ * @param[in]     in            @p true for the IN direction.
+ * @return                      @p true to keep the endpoint halted.
+ *
+ * @iclass
+ */
+CC_FORCE_INLINE
+static inline bool usbServiceOnClearHaltI(void *ip, usbep_t ep, bool in) {
+  hal_usb_service_c *self = (hal_usb_service_c *)ip;
+
+  return self->vmt->clear_halt(ip, ep, in);
+}
+
+/**
+ * @brief       Service-specific endpoint halt cleared notification hook.
+ * @details     Invoked after the host cleared the halt of an owned endpoint,
+ *              transfers can be restarted from here.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_usb_service_c instance.
+ * @param[in]     ep            Endpoint number.
+ * @param[in]     in            @p true for the IN direction.
+ *
+ * @iclass
+ */
+CC_FORCE_INLINE
+static inline void usbServiceOnHaltClearedI(void *ip, usbep_t ep, bool in) {
+  hal_usb_service_c *self = (hal_usb_service_c *)ip;
+
+  self->vmt->halt_cleared(ip, ep, in);
+}
+
+/**
  * @brief       Service-specific endpoint-zero request hook.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_service_c instance.
@@ -1289,7 +1375,8 @@ static inline msg_t usbServiceOnSetup(void *ip, bool *handledp) {
  * @brief       Initializes the base USB service part of a derived object.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_service_c instance.
- * @param[in]     infop         Service ownership metadata.
+ * @param[in]     infop         Service ownership metadata, it must not change
+ *                              while the service exists.
  * @param[in]     vmt           VMT of the concrete derived service.
  * @return                      Pointer to the initialized object.
  *
@@ -1593,6 +1680,10 @@ static inline void usbBinderOnOutI(void *ip, usbep_t ep) {
 
 /**
  * @brief       Default endpoint-zero request dispatcher.
+ * @details     Interface and endpoint requests go to the service owning the
+ *              interface or the endpoint, unowned ones are not handled. Device
+ *              and other requests go to every service in registration order,
+ *              until one handles them.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_binder_c instance.
  * @param[out]    handledp      Handled flag.

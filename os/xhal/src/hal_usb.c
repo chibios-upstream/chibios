@@ -52,7 +52,7 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
-static uint16_t get_hword(uint8_t *p) {
+static uint16_t get_hword(const uint8_t *p) {
   uint16_t hw;
 
   hw  = (uint16_t)*p++;
@@ -77,19 +77,54 @@ static bool usbbnd_if_conflict(const hal_usb_service_info_t *ap,
   return (abase < blimit) && (bbase < alimit);
 }
 
+/**
+ * @brief       Returns the service owning an interface, @p NULL if none.
+ *
+ */
+static hal_usb_service_c *usbbnd_get_if_owner(hal_usb_binder_c *binderp,
+                                              uint8_t ifn) {
+  hal_usb_service_c *servicep;
+
+  for (servicep = binderp->services; servicep != NULL;
+       servicep = servicep->next) {
+    if (usbServiceOwnsInterfaceX(servicep, ifn)) {
+      return servicep;
+    }
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief       Returns the service owning an endpoint direction, @p NULL if
+ *              none.
+ *
+ */
+static hal_usb_service_c *usbbnd_get_ep_owner(hal_usb_binder_c *binderp,
+                                              usbep_t ep, bool in) {
+  hal_usb_service_c *servicep;
+
+  for (servicep = binderp->services; servicep != NULL;
+       servicep = servicep->next) {
+    if (in ? usbServiceOwnsInEndpointX(servicep, ep) :
+             usbServiceOwnsOutEndpointX(servicep, ep)) {
+      return servicep;
+    }
+  }
+
+  return NULL;
+}
+
 static bool usbbnd_service_conflict(const hal_usb_service_info_t *ap,
                                     const hal_usb_service_info_t *bp) {
   if (usbbnd_if_conflict(ap, bp)) {
     return true;
   }
-  if ((ap->in_ep_mask & bp->in_ep_mask) != 0U) {
-    return true;
-  }
-  if ((ap->out_ep_mask & bp->out_ep_mask) != 0U) {
-    return true;
-  }
 
-  return false;
+  /* The driver keeps one configuration per endpoint number, the directions
+     are not owned separately.*/
+  return ((ap->in_ep_mask | ap->out_ep_mask) &
+          (bp->in_ep_mask | bp->out_ep_mask)) != 0U;
 }
 
 /**
@@ -105,6 +140,47 @@ static void usb_post_events_i(hal_usb_driver_c *usbp, usbeventflags_t flags) {
 
   if (usbp->state != USB_ERROR) {
     usbp->events |= flags;
+  }
+}
+
+/**
+ * @brief       Delivers a pending unconfigure notification to the services.
+ * @details     The notification is delivered once, only if the services are
+ *              configured and not yet unconfigured or reset.
+ *
+ * @param[in,out] usbp          USB driver instance.
+ *
+ * @iclass
+ */
+static void usb_unconfigure_services_i(hal_usb_driver_c *usbp) {
+  chDbgCheckClassI();
+
+  if (usbp->svcconfigured) {
+    usbp->svcconfigured = false;
+    if (usbp->binder != NULL) {
+      usbBinderUnconfigureI(usbp->binder);
+    }
+  }
+}
+
+/**
+ * @brief       Leaves the configured state.
+ * @details     The endpoints are disabled and the services unconfigured. On a
+ *              hardware failure the driver stays in @p USB_ERROR.
+ *
+ * @param[in,out] usbp          USB driver instance.
+ *
+ * @iclass
+ */
+static void usb_unconfigure_device_i(hal_usb_driver_c *usbp) {
+  chDbgCheckClassI();
+
+  usbDisableEndpointsI(usbp);
+  usb_unconfigure_services_i(usbp);
+  if (usbp->state != USB_ERROR) {
+    usbp->configuration = 0U;
+    usbp->state = USB_SELECTED;
+    usb_post_events_i(usbp, USB_FLAGS_UNCONFIGURED);
   }
 }
 
@@ -169,15 +245,36 @@ static void ep0_signal_setup_i(hal_usb_driver_c *usbp, msg_t msg) {
   ep0_resume_waiter_i(usbp, msg);
 }
 
+static void ep0_take_request_i(hal_usb_driver_c *usbp) {
+  memcpy(usbp->ep0req, usbp->setup, sizeof (usbp->ep0req));
+  usbp->ep0rseq = usbp->ep0seq;
+}
+
+static bool ep0_is_current_i(hal_usb_driver_c *usbp) {
+  if ((usbp->state == HAL_DRV_STATE_UNINIT) ||
+      (usbp->state == HAL_DRV_STATE_STOP) ||
+      (usbp->state == HAL_DRV_STATE_STARTING) ||
+      (usbp->state == HAL_DRV_STATE_STOPPING) ||
+      (usbp->state == USB_ERROR)) {
+    return false;
+  }
+
+  return usbp->ep0rseq == usbp->ep0seq;
+}
+
 static void set_address(hal_usb_driver_c *usbp) {
-#if USB_SET_ADDRESS_MODE == USB_LATE_SET_ADDRESS
-  usbp->address = usbp->setup[2];
-  usb_lld_set_address(usbp);
-#endif
   chSysLockFromISR();
-  usb_post_events_i(usbp, USB_FLAGS_ADDRESS);
+  /* Bus events must not undo the lifecycle transition made by drvStop().*/
+  if ((usbp->state == HAL_DRV_STATE_READY) || (usbp->state == USB_SELECTED)) {
+#if USB_SET_ADDRESS_MODE == USB_LATE_SET_ADDRESS
+    usbp->address = usbp->ep0req[2];
+    usb_lld_set_address(usbp);
+#endif
+    /* Address zero is the default state.*/
+    usbp->state = (usbp->address != 0U) ? USB_SELECTED : HAL_DRV_STATE_READY;
+    usb_post_events_i(usbp, USB_FLAGS_ADDRESS);
+  }
   chSysUnlockFromISR();
-  usbp->state = USB_SELECTED;
 }
 
 static msg_t ep0_reply_or_ack(hal_usb_driver_c *usbp, const uint8_t *buf,
@@ -197,7 +294,7 @@ static msg_t ep0_reply_or_ack(hal_usb_driver_c *usbp, const uint8_t *buf,
     return MSG_RESET;
   }
 
-  max = (size_t)get_hword(&usbp->setup[6]);
+  max = (size_t)get_hword(&usbp->ep0req[6]);
   if (n > max) {
     n = max;
   }
@@ -245,10 +342,14 @@ static msg_t ep0_receive_or_status(hal_usb_driver_c *usbp, uint8_t *buf,
     return MSG_RESET;
   }
 
-  max = (size_t)get_hword(&usbp->setup[6]);
-  if (n > max) {
-    n = max;
+  max = (size_t)get_hword(&usbp->ep0req[6]);
+  if (n < max) {
+    /* The host would send more than the buffer holds.*/
+    setup_error_i(usbp);
+    chSysUnlock();
+    return MSG_RESET;
   }
+  n = max;
 
   usbp->ep0next = buf;
   usbp->ep0n = n;
@@ -539,6 +640,11 @@ msg_t usbBinderRegisterService(void *ip, hal_usb_service_c *servicep) {
   chDbgAssert((servicep->next == NULL) && (servicep->prev == NULL),
                 "service already linked");
   chDbgAssert(usbServiceGetInfoX(servicep) != NULL, "missing service info");
+  /* Only endpoints 1 to USB_MAX_ENDPOINTS can be owned.*/
+  chDbgAssert(((usbServiceGetInfoX(servicep)->in_ep_mask |
+                usbServiceGetInfoX(servicep)->out_ep_mask) &
+               ~((2U << (unsigned)USB_MAX_ENDPOINTS) - 2U)) == 0U,
+              "invalid endpoints in service info");
 
   for (sp = self->services; sp != NULL; sp = sp->next) {
     chDbgAssert(sp != servicep, "service already registered");
@@ -765,6 +871,59 @@ void usbBinderOutI(void *ip, usbep_t ep) {
 }
 
 /**
+ * @brief       Offers a host endpoint halt clear to the endpoint owner.
+ * @details     Invoked by the endpoint-zero worker on a
+ *              CLEAR_FEATURE(ENDPOINT_HALT) request, before the halt is
+ *              cleared.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_usb_binder_c instance.
+ * @param[in]     ep            Endpoint number.
+ * @param[in]     in            @p true for the IN direction.
+ * @return                      @p true if the owning service keeps the
+ *                              endpoint halted.
+ *
+ * @iclass
+ */
+bool usbBinderClearHaltI(void *ip, usbep_t ep, bool in) {
+  hal_usb_binder_c *self = (hal_usb_binder_c *)ip;
+  hal_usb_service_c *servicep;
+
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (ep <= (usbep_t)USB_MAX_ENDPOINTS));
+
+  servicep = usbbnd_get_ep_owner(self, ep, in);
+  if (servicep == NULL) {
+    return false;
+  }
+
+  return usbServiceOnClearHaltI(servicep, ep, in);
+}
+
+/**
+ * @brief       Notifies the endpoint owner of a host endpoint halt clear.
+ * @details     Invoked by the endpoint-zero worker after clearing the halt on
+ *              a CLEAR_FEATURE(ENDPOINT_HALT) request.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_usb_binder_c instance.
+ * @param[in]     ep            Endpoint number.
+ * @param[in]     in            @p true for the IN direction.
+ *
+ * @iclass
+ */
+void usbBinderHaltClearedI(void *ip, usbep_t ep, bool in) {
+  hal_usb_binder_c *self = (hal_usb_binder_c *)ip;
+  hal_usb_service_c *servicep;
+
+  chDbgCheckClassI();
+  chDbgCheck((self != NULL) && (ep <= (usbep_t)USB_MAX_ENDPOINTS));
+
+  servicep = usbbnd_get_ep_owner(self, ep, in);
+  if (servicep != NULL) {
+    usbServiceOnHaltClearedI(servicep, ep, in);
+  }
+}
+
+/**
  * @brief       Dispatches an endpoint-zero request through a USB binder.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_binder_c instance.
@@ -881,6 +1040,8 @@ void _usb_reset(hal_usb_driver_c *usbp) {
       return;
     }
     chSysLockFromISR();
+    /* For the services a reset is also an unconfigure notification.*/
+    usbp->svcconfigured = false;
     if (usbp->binder != NULL) {
       usbBinderResetI(usbp->binder);
     }
@@ -964,6 +1125,11 @@ void _usb_ep0setup(hal_usb_driver_c *usbp, usbep_t ep) {
   chDbgAssert(ep == 0U, "EP not zero");
 
   chSysLockFromISR();
+  if ((usbp->state == HAL_DRV_STATE_STARTING) ||
+      (usbp->state == HAL_DRV_STATE_STOPPING)) {
+    chSysUnlockFromISR();
+    return;
+  }
   if (usbp->ep0state != USB_EP0_STP_WAITING) {
     setup_reset_i(usbp);
     msg = MSG_RESET;
@@ -988,7 +1154,7 @@ void _usb_ep0in(hal_usb_driver_c *usbp, usbep_t ep) {
 
   switch (usbp->ep0state) {
   case USB_EP0_IN_TX:
-    max = (size_t)get_hword(&usbp->setup[6]);
+    max = (size_t)get_hword(&usbp->ep0req[6]);
     if ((usbp->ep0n < max) &&
         ((usbp->ep0n % usbp->epc[0]->in_maxsize) == 0U)) {
       chSysLockFromISR();
@@ -1045,9 +1211,7 @@ void _usb_ep0out(hal_usb_driver_c *usbp, usbep_t ep) {
     chSysUnlockFromISR();
     return;
   case USB_EP0_OUT_WAITING_STS:
-    if (usbGetReceiveTransactionSizeX(usbp, 0U) != 0U) {
-      break;
-    }
+    /* A status stage carrying data is accepted as a zero size one.*/
     if (usbp->ep0endcb != NULL) {
       usbp->ep0endcb(usbp);
     }
@@ -1236,6 +1400,39 @@ void __usbsvc_out_impl(void *ip, usbep_t ep) {
   hal_usb_service_c *self = (hal_usb_service_c *)ip;
   (void)self;
   (void)ep;
+}
+
+/**
+ * @brief       Implementation of method @p usbServiceOnClearHaltI().
+ * @note        This function is meant to be used by derived classes.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_usb_service_c instance.
+ * @param[in]     ep            Endpoint number.
+ * @param[in]     in            @p true for the IN direction.
+ * @return                      @p true to keep the endpoint halted.
+ */
+bool __usbsvc_clear_halt_impl(void *ip, usbep_t ep, bool in) {
+  hal_usb_service_c *self = (hal_usb_service_c *)ip;
+  (void)self;
+  (void)ep;
+  (void)in;
+
+  return false;
+}
+
+/**
+ * @brief       Implementation of method @p usbServiceOnHaltClearedI().
+ * @note        This function is meant to be used by derived classes.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_usb_service_c instance.
+ * @param[in]     ep            Endpoint number.
+ * @param[in]     in            @p true for the IN direction.
+ */
+void __usbsvc_halt_cleared_impl(void *ip, usbep_t ep, bool in) {
+  hal_usb_service_c *self = (hal_usb_service_c *)ip;
+  (void)self;
+  (void)ep;
+  (void)in;
 }
 
 /**
@@ -1495,21 +1692,39 @@ void __usbbnd_out_impl(void *ip, usbep_t ep) {
 msg_t __usbbnd_setup_impl(void *ip, bool *handledp) {
   hal_usb_binder_c *self = (hal_usb_binder_c *)ip;
   hal_usb_service_c *servicep;
+  const uint8_t *req;
 
   *handledp = false;
-  for (servicep = self->services; servicep != NULL; servicep = servicep->next) {
-    msg_t msg;
-    bool handled;
+  req = usbEp0GetRequestX(self->usbp);
+  switch (req[0] & USB_RTYPE_RECIPIENT_MASK) {
+  case USB_RTYPE_RECIPIENT_INTERFACE:
+    servicep = usbbnd_get_if_owner(self, req[4]);
+    break;
+  case USB_RTYPE_RECIPIENT_ENDPOINT:
+    servicep = usbbnd_get_ep_owner(self, (usbep_t)(req[4] & 0x0FU),
+                                   (req[4] & 0x80U) != 0U);
+    break;
+  default:
+    for (servicep = self->services; servicep != NULL;
+         servicep = servicep->next) {
+      msg_t msg;
+      bool handled;
 
-    handled = false;
-    msg = usbServiceSetup(servicep, &handled);
-    if ((msg != HAL_RET_SUCCESS) || handled) {
-      *handledp = handled;
-      return msg;
+      handled = false;
+      msg = usbServiceSetup(servicep, &handled);
+      if ((msg != HAL_RET_SUCCESS) || handled) {
+        *handledp = handled;
+        return msg;
+      }
     }
+    return HAL_RET_SUCCESS;
   }
 
-  return HAL_RET_SUCCESS;
+  if (servicep == NULL) {
+    return HAL_RET_SUCCESS;
+  }
+
+  return usbServiceSetup(servicep, handledp);
 }
 /** @} */
 
@@ -1537,32 +1752,12 @@ void *__usb_objinit_impl(void *ip, const void *vmt) {
   __drv_objinit_impl(self, vmt);
 
   /* Initialization code.*/
-  unsigned i;
-
-  self->events        = (usbeventflags_t)0U;
-  self->binder        = NULL;
-  self->transmitting  = 0U;
-  self->receiving     = 0U;
+  /* The fields after the base class ones are zeroed, the LLD initializes its
+     own fields after this function.*/
+  memset((uint8_t *)self + offsetof(hal_usb_driver_c, events), 0,
+         sizeof (hal_usb_driver_c) - offsetof(hal_usb_driver_c, events));
   self->ep0state      = USB_EP0_STP_WAITING;
-  self->ep0next       = NULL;
-  self->ep0n          = 0U;
-  self->ep0endcb      = NULL;
-  self->ep0thread     = NULL;
-  self->ep0seq        = 0U;
-  self->ep0rseq       = 0U;
-  self->ep0setup      = 0U;
-  self->ep0reset      = 0U;
-  self->status        = 0U;
-  self->address       = 0U;
-  self->configuration = 0U;
   self->saved_state   = HAL_DRV_STATE_STOP;
-  for (i = 0U; i <= (unsigned)USB_MAX_ENDPOINTS; i++) {
-    self->epc[i] = NULL;
-  }
-  for (i = 0U; i < (unsigned)USB_MAX_ENDPOINTS; i++) {
-    self->in_params[i] = NULL;
-    self->out_params[i] = NULL;
-  }
 
   return self;
 }
@@ -1612,13 +1807,14 @@ msg_t __usb_start_impl(void *ip, const void *config) {
   self->ep0next       = NULL;
   self->ep0n          = 0U;
   self->ep0endcb      = NULL;
-  self->ep0seq        = 0U;
-  self->ep0rseq       = 0U;
+  /* Requests taken before are stale, the sequence is never reset.*/
+  self->ep0seq++;
   self->ep0setup      = 0U;
   self->ep0reset      = 0U;
   self->status        = 0U;
   self->address       = 0U;
   self->configuration = 0U;
+  self->svcconfigured = false;
   self->saved_state   = HAL_DRV_STATE_STOP;
   for (i = 0U; i <= (unsigned)USB_MAX_ENDPOINTS; i++) {
     self->epc[i] = NULL;
@@ -1642,17 +1838,20 @@ msg_t __usb_start_impl(void *ip, const void *config) {
  */
 void __usb_stop_impl(void *ip, driver_state_t prevstate) {
   hal_usb_driver_c *self = (hal_usb_driver_c *)ip;
+  hal_usb_binder_c *binderp;
   unsigned i;
 
   (void)prevstate;
 
   usb_lld_stop(self);
-  if (self->binder != NULL) {
-    usbBinderUnbind(self->binder);
-    self->binder = NULL;
-  }
-  /* EP0 has a waiter even when USB_USE_SYNCHRONIZATION is disabled.*/
+
+  /* Services are unconfigured and the waiters woken before unbinding, the
+     EP0 worker can be inside a service request hook. EP0 has a waiter even
+     when USB_USE_SYNCHRONIZATION is disabled.*/
   chSysLock();
+  usb_unconfigure_services_i(self);
+  binderp = self->binder;
+  self->binder = NULL;
   self->events        = (usbeventflags_t)0U;
   self->transmitting  = 0U;
   self->receiving     = 0U;
@@ -1660,8 +1859,8 @@ void __usb_stop_impl(void *ip, driver_state_t prevstate) {
   self->ep0next       = NULL;
   self->ep0n          = 0U;
   self->ep0endcb      = NULL;
-  self->ep0seq        = 0U;
-  self->ep0rseq       = 0U;
+  /* Requests taken before are stale, the sequence is never reset.*/
+  self->ep0seq++;
   self->ep0setup      = 0U;
   self->ep0reset      = 0U;
   self->status        = 0U;
@@ -1684,6 +1883,11 @@ void __usb_stop_impl(void *ip, driver_state_t prevstate) {
   }
   chSchRescheduleS();
   chSysUnlock();
+
+  /* The unbind hooks are API functions and run outside the lock.*/
+  if (binderp != NULL) {
+    usbBinderUnbind(binderp);
+  }
 }
 
 /**
@@ -1794,8 +1998,11 @@ msg_t usbUnbind(void *ip) {
     chSysUnlock();
     return HAL_RET_INV_STATE;
   }
+  /* A hardware failure can leave the services configured.*/
+  usb_unconfigure_services_i(self);
   binderp = self->binder;
   self->binder = NULL;
+  chSchRescheduleS();
   chSysUnlock();
 
   /* The driver no longer refers to the binder, the unbind hooks are API
@@ -2018,6 +2225,8 @@ msg_t usbReceive(void *ip, usbep_t ep, uint8_t *buf, size_t n) {
   hal_usb_driver_c *self = (hal_usb_driver_c *)ip;
   msg_t msg;
 
+  chDbgCheck((self != NULL) && (ep <= (usbep_t)USB_MAX_ENDPOINTS));
+
   chSysLock();
   if (self->state == USB_ERROR) {
     chSysUnlock();
@@ -2049,6 +2258,8 @@ msg_t usbReceive(void *ip, usbep_t ep, uint8_t *buf, size_t n) {
 msg_t usbTransmit(void *ip, usbep_t ep, const uint8_t *buf, size_t n) {
   hal_usb_driver_c *self = (hal_usb_driver_c *)ip;
   msg_t msg;
+
+  chDbgCheck((self != NULL) && (ep <= (usbep_t)USB_MAX_ENDPOINTS));
 
   chSysLock();
   if (self->state == USB_ERROR) {
@@ -2085,6 +2296,10 @@ msg_t usbTransmit(void *ip, usbep_t ep, const uint8_t *buf, size_t n) {
  *              polling for stop must sleep between retries to let the
  *              application handle @p USB_FLAGS_HW_FAILURE and call @p
  *              drvStop().
+ * @note        On a hardware failure, configured services receive the
+ *              unconfigure notification from this function, in the caller
+ *              context. It must be called by the EP0 worker only, outside any
+ *              service hook.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_driver_c instance.
  * @return                      @p MSG_OK if a setup packet is available, @p
@@ -2102,6 +2317,10 @@ msg_t usbEp0WaitSetup(void *ip) {
 
   chSysLock();
   if (self->state == USB_ERROR) {
+    /* The fault handler does not call service hooks, the services are
+       unconfigured here, outside any service code.*/
+    usb_unconfigure_services_i(self);
+    chSchRescheduleS();
     chSysUnlock();
     return HAL_RET_HW_FAILURE;
   }
@@ -2118,7 +2337,7 @@ msg_t usbEp0WaitSetup(void *ip) {
   }
   if (self->ep0setup != 0U) {
     self->ep0setup = 0U;
-    self->ep0rseq = self->ep0seq;
+    ep0_take_request_i(self);
     chSysUnlock();
     return MSG_OK;
   }
@@ -2126,10 +2345,16 @@ msg_t usbEp0WaitSetup(void *ip) {
   msg = chThdSuspendTimeoutS(&self->ep0thread, TIME_INFINITE);
   if (msg == MSG_OK) {
     self->ep0setup = 0U;
-    self->ep0rseq = self->ep0seq;
+    ep0_take_request_i(self);
   }
   else {
     self->ep0reset = 0U;
+    /* The state is checked, not the message: after a restart a stale
+       failure must not unconfigure the new session.*/
+    if (self->state == USB_ERROR) {
+      usb_unconfigure_services_i(self);
+      chSchRescheduleS();
+    }
   }
   chSysUnlock();
 
@@ -2155,6 +2380,9 @@ msg_t usbEp0Reply(void *ip, const uint8_t *buf, size_t n) {
 
 /**
  * @brief       Receives the data phase of the current endpoint-zero request.
+ * @note        A buffer smaller than the data stage announced by the request
+ *              cannot receive it: the request is stalled and @p MSG_RESET
+ *              returned.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_driver_c instance.
  * @param[out]    buf           Receive buffer.
@@ -2197,7 +2425,9 @@ void usbEp0Stall(void *ip) {
   chDbgCheck(self != NULL);
 
   chSysLock();
-  if (self->state == USB_ERROR) {
+  /* A request replaced by a SETUP, a reset or a stop is not stalled, the
+     stall would hit the next request.*/
+  if (!ep0_is_current_i(self)) {
     chSysUnlock();
     return;
   }
@@ -2213,7 +2443,49 @@ void usbEp0Stall(void *ip) {
 }
 
 /**
+ * @brief       Returns the request taken by the endpoint-zero worker.
+ * @details     The eight bytes of the SETUP packet taken by the last
+ *              successful @p usbEp0WaitSetup(). A later SETUP packet does not
+ *              change them.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_usb_driver_c instance.
+ * @return                      Pointer to the request bytes.
+ *
+ * @xclass
+ */
+const uint8_t *usbEp0GetRequestX(void *ip) {
+  hal_usb_driver_c *self = (hal_usb_driver_c *)ip;
+  return self->ep0req;
+}
+
+/**
+ * @brief       Checks whether the request taken by the endpoint-zero worker is
+ *              still current.
+ * @details     A request stops being current when a new SETUP packet, a bus
+ *              reset, a fault or a stop replaces it. Side effects of a
+ *              request, like a state change, must be applied in the same
+ *              critical section as this check.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_usb_driver_c instance.
+ * @return                      The request status.
+ * @retval false                The request has been replaced.
+ * @retval true                 The request is still current.
+ *
+ * @iclass
+ */
+bool usbEp0IsCurrentI(void *ip) {
+  hal_usb_driver_c *self = (hal_usb_driver_c *)ip;
+  chDbgCheckClassI();
+
+  return ep0_is_current_i(self);
+}
+
+/**
  * @brief       Handles the current standard endpoint-zero request.
+ * @details     Interface descriptors, SYNCH_FRAME and the other standard
+ *              requests not handled here are left to the binder, which routes
+ *              them to the owning service. The owner of an endpoint can keep
+ *              its halt on CLEAR_FEATURE(ENDPOINT_HALT).
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_driver_c instance.
  * @param[out]    handledp      Standard-request handled flag.
@@ -2228,6 +2500,7 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
   uint16_t recipient;
   uint16_t request;
   const usb_descriptor_t *dp;
+  const uint8_t *req;
   usbep_t ep;
   bool in;
 
@@ -2238,22 +2511,26 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
   if (self->state == USB_ERROR) {
     return HAL_RET_HW_FAILURE;
   }
-  if ((self->setup[0] & USB_RTYPE_TYPE_MASK) != USB_RTYPE_TYPE_STD) {
+
+  /* The request taken by usbEp0WaitSetup(), a later SETUP does not change
+     it. Side effects are applied only while it is still current.*/
+  req = self->ep0req;
+  if ((req[0] & USB_RTYPE_TYPE_MASK) != USB_RTYPE_TYPE_STD) {
     return MSG_OK;
   }
 
   *handledp = true;
-  recipient = self->setup[0] & USB_RTYPE_RECIPIENT_MASK;
-  request = self->setup[1];
+  recipient = req[0] & USB_RTYPE_RECIPIENT_MASK;
+  request = req[1];
   type = recipient | (uint16_t)(request << 8U);
-  ep = self->setup[4] & 0x0FU;
-  in = (self->setup[4] & 0x80U) != 0U;
+  ep = req[4] & 0x0FU;
+  in = (req[4] & 0x80U) != 0U;
 
   /* Endpoint addresses come from the host, not from a checked driver API.
      Reject nonexistent endpoints and directions before any LLD access.*/
   if (recipient == USB_RTYPE_RECIPIENT_ENDPOINT) {
     chSysLock();
-    if (((self->setup[4] & 0x70U) != 0U) || (self->setup[5] != 0U) ||
+    if (((req[4] & 0x70U) != 0U) || (req[5] != 0U) ||
         (ep > USB_MAX_ENDPOINTS) || (self->epc[ep] == NULL) ||
         (in ?
          (self->epc[ep]->in_state == NULL) :
@@ -2272,8 +2549,14 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
     break;
   case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
        ((uint32_t)USB_REQ_CLEAR_FEATURE << 8):
-    if (self->setup[2] == USB_FEATURE_DEVICE_REMOTE_WAKEUP) {
+    if (req[2] == USB_FEATURE_DEVICE_REMOTE_WAKEUP) {
+      chSysLock();
+      if (!ep0_is_current_i(self)) {
+        chSysUnlock();
+        return MSG_RESET;
+      }
       self->status &= ~2U;
+      chSysUnlock();
       msg = usbEp0Acknowledge(self);
     }
     else {
@@ -2282,8 +2565,14 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
     break;
   case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
        ((uint32_t)USB_REQ_SET_FEATURE << 8):
-    if (self->setup[2] == USB_FEATURE_DEVICE_REMOTE_WAKEUP) {
+    if (req[2] == USB_FEATURE_DEVICE_REMOTE_WAKEUP) {
+      chSysLock();
+      if (!ep0_is_current_i(self)) {
+        chSysUnlock();
+        return MSG_RESET;
+      }
       self->status |= 2U;
+      chSysUnlock();
       msg = usbEp0Acknowledge(self);
     }
     else {
@@ -2293,31 +2582,38 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
   case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
        ((uint32_t)USB_REQ_SET_ADDRESS << 8):
     chSysLock();
-    if ((self->state == HAL_DRV_STATE_STOP) ||
-        (self->ep0rseq != self->ep0seq)) {
+    if (!ep0_is_current_i(self)) {
       chSysUnlock();
       return MSG_RESET;
     }
+    if (self->state == USB_ACTIVE) {
+      usb_unconfigure_device_i(self);
+      if (self->state == USB_ERROR) {
+        chSchRescheduleS();
+        chSysUnlock();
+        return HAL_RET_HW_FAILURE;
+      }
+    }
 #if USB_SET_ADDRESS_MODE == USB_EARLY_SET_ADDRESS
-    self->address = self->setup[2];
+    self->address = req[2];
     usb_lld_set_address(self);
 #endif
     /* Commit before another SETUP or reset can replace the request state.*/
     self->ep0endcb = set_address;
+    /* The unconfigure hooks can wake threads.*/
+    chSchRescheduleS();
     chSysUnlock();
     msg = usbEp0Acknowledge(self);
     break;
   case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
        ((uint32_t)USB_REQ_GET_DESCRIPTOR << 8):
-  case (uint32_t)USB_RTYPE_RECIPIENT_INTERFACE |
-       ((uint32_t)USB_REQ_GET_DESCRIPTOR << 8):
     if (self->binder == NULL) {
       usbEp0Stall(self);
       break;
     }
-    dp = usbBinderGetDescriptor(self->binder, self->setup[3],
-                                self->setup[2],
-                                get_hword(&self->setup[4]));
+    dp = usbBinderGetDescriptor(self->binder, req[3],
+                                req[2],
+                                get_hword(&req[4]));
     if (dp != NULL) {
       msg = usbEp0Reply(self, dp->ud_string, dp->ud_size);
     }
@@ -2336,38 +2632,42 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
       chSysUnlock();
       return HAL_RET_HW_FAILURE;
     }
+    if (!ep0_is_current_i(self)) {
+      chSysUnlock();
+      return MSG_RESET;
+    }
     if (self->state == USB_ACTIVE) {
-      usbDisableEndpointsI(self);
-      if (self->binder != NULL) {
-        usbBinderUnconfigureI(self->binder);
-      }
+      usb_unconfigure_device_i(self);
       if (self->state == USB_ERROR) {
+        chSchRescheduleS();
         chSysUnlock();
         return HAL_RET_HW_FAILURE;
       }
-      self->configuration = 0U;
-      self->state = USB_SELECTED;
-      usb_post_events_i(self, USB_FLAGS_UNCONFIGURED);
     }
-    if (self->setup[2] != 0U) {
-      self->configuration = self->setup[2];
+    if (req[2] != 0U) {
+      self->configuration = req[2];
       self->state = USB_ACTIVE;
       if (self->binder != NULL) {
+        self->svcconfigured = true;
         usbBinderConfigureI(self->binder);
       }
       if (self->state == USB_ERROR) {
+        /* Failure inside the configure hooks, all of them returned and the
+           services can be unconfigured now.*/
+        usb_unconfigure_services_i(self);
+        chSchRescheduleS();
         chSysUnlock();
         return HAL_RET_HW_FAILURE;
       }
       usb_post_events_i(self, USB_FLAGS_CONFIGURED);
     }
+    /* Unconfigure and configure hooks can wake threads.*/
+    chSchRescheduleS();
     chSysUnlock();
     msg = usbEp0Acknowledge(self);
     break;
   case (uint32_t)USB_RTYPE_RECIPIENT_INTERFACE |
        ((uint32_t)USB_REQ_GET_STATUS << 8):
-  case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
-       ((uint32_t)USB_REQ_SYNCH_FRAME << 8):
     msg = usbEp0Reply(self, zero_status, 2U);
     break;
   case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
@@ -2403,16 +2703,29 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
     break;
   case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
        ((uint32_t)USB_REQ_CLEAR_FEATURE << 8):
-    if (self->setup[2] == USB_FEATURE_ENDPOINT_HALT) {
+    if (req[2] == USB_FEATURE_ENDPOINT_HALT) {
       chSysLock();
-      if (ep != 0U) {
+      if (!ep0_is_current_i(self)) {
+        chSysUnlock();
+        return MSG_RESET;
+      }
+      /* The owning service can keep the halt, the request is acknowledged
+         anyway.*/
+      if ((ep != 0U) &&
+          ((self->binder == NULL) ||
+           !usbBinderClearHaltI(self->binder, ep, in))) {
         if (in) {
           usb_lld_clear_in(self, ep);
         }
         else {
           usb_lld_clear_out(self, ep);
         }
+        if (self->binder != NULL) {
+          usbBinderHaltClearedI(self->binder, ep, in);
+        }
       }
+      /* The halt hooks can wake threads.*/
+      chSchRescheduleS();
       chSysUnlock();
       msg = usbEp0Acknowledge(self);
     }
@@ -2422,8 +2735,12 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
     break;
   case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
        ((uint32_t)USB_REQ_SET_FEATURE << 8):
-    if (self->setup[2] == USB_FEATURE_ENDPOINT_HALT) {
+    if (req[2] == USB_FEATURE_ENDPOINT_HALT) {
       chSysLock();
+      if (!ep0_is_current_i(self)) {
+        chSysUnlock();
+        return MSG_RESET;
+      }
       if (ep != 0U) {
         if (in) {
           usb_lld_stall_in(self, ep);
@@ -2460,7 +2777,7 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
 bool usbStallReceiveI(void *ip, usbep_t ep) {
   hal_usb_driver_c *self = (hal_usb_driver_c *)ip;
   chDbgCheckClassI();
-  chDbgCheck(self != NULL);
+  chDbgCheck((self != NULL) && (ep <= (usbep_t)USB_MAX_ENDPOINTS));
 
   if (((self->receiving &
         (uint16_t)((unsigned)1U << (unsigned)ep))) != 0U) {
@@ -2484,7 +2801,7 @@ bool usbStallReceiveI(void *ip, usbep_t ep) {
 bool usbStallTransmitI(void *ip, usbep_t ep) {
   hal_usb_driver_c *self = (hal_usb_driver_c *)ip;
   chDbgCheckClassI();
-  chDbgCheck(self != NULL);
+  chDbgCheck((self != NULL) && (ep <= (usbep_t)USB_MAX_ENDPOINTS));
 
   if (((self->transmitting &
         (uint16_t)((unsigned)1U << (unsigned)ep))) != 0U) {
@@ -2497,6 +2814,8 @@ bool usbStallTransmitI(void *ip, usbep_t ep) {
 
 /**
  * @brief       Starts the host wake-up procedure.
+ * @note        Nothing is done unless the device is suspended and the host
+ *              enabled the remote wake-up feature.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_driver_c instance.
  *
@@ -2506,7 +2825,7 @@ void usbWakeupHost(void *ip) {
   hal_usb_driver_c *self = (hal_usb_driver_c *)ip;
   chDbgCheck(self != NULL);
 
-  if (self->state == USB_SUSPENDED) {
+  if ((self->state == USB_SUSPENDED) && ((self->status & 2U) != 0U)) {
     usb_lld_wakeup_host(self);
   }
 }

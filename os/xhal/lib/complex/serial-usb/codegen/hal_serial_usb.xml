@@ -231,8 +231,23 @@ return HAL_RET_UNKNOWN_CTL;]]></implementation>
         </fields>
         <methods>
           <objinit callsuper="false">
+            <param name="config" ctype="const SerialUSBConfig *" dir="in">
+              Driver configuration, it determines the service ownership
+              metadata.
+            </param>
             <implementation><![CDATA[
-__cdcsvc_objinit_impl((void *)self, vmt);
+chDbgCheck(config != NULL);
+chDbgCheck((config->bulk_in_maxsize > 0U) &&
+             (config->bulk_in_maxsize <= SERIAL_USB_BUFFERS_SIZE));
+chDbgCheck((config->bulk_out_maxsize > 0U) &&
+             (config->bulk_out_maxsize <= SERIAL_USB_BUFFERS_SIZE));
+if (config->int_in > 0U) {
+  chDbgCheck((config->int_in_maxsize > 0U) &&
+               (config->int_in_maxsize <= SERIAL_USB_BUFFERS_SIZE));
+}
+
+__cdcsvc_objinit_impl((void *)self, vmt,
+                      (const hal_usb_cdc_config_t *)config);
 iqObjectInit(&self->iqueue, self->ib, sizeof(self->ib), sdu_inotify, self);
 oqObjectInit(&self->oqueue, self->ob, sizeof(self->ob), sdu_onotify, self);
 chEvtObjectInit(&self->event);
@@ -341,11 +356,9 @@ return (hal_usb_service_c *)self;]]></implementation>
       </function>
       <function name="sduStart" ctype="msg_t">
         <brief>Starts a serial USB driver instance.</brief>
+        <details>The configuration was given at object initialization.</details>
         <param name="ip" ctype="void *" dir="both">
           Pointer to a @p SerialUSBDriver instance.
-        </param>
-        <param name="config" ctype="const SerialUSBConfig *" dir="in">
-          Driver configuration.
         </param>
         <return>The operation status.</return>
         <api />
@@ -353,18 +366,9 @@ return (hal_usb_service_c *)self;]]></implementation>
 SerialUSBDriver *self = (SerialUSBDriver *)ip;
 msg_t msg;
 
-chDbgCheck((self != NULL) && (config != NULL));
-chDbgCheck((config->bulk_in_maxsize > 0U) &&
-             (config->bulk_in_maxsize <= SERIAL_USB_BUFFERS_SIZE));
-chDbgCheck((config->bulk_out_maxsize > 0U) &&
-             (config->bulk_out_maxsize <= SERIAL_USB_BUFFERS_SIZE));
-if (config->int_in > 0U) {
-  chDbgCheck((config->int_in_maxsize > 0U) &&
-               (config->int_in_maxsize <= SERIAL_USB_BUFFERS_SIZE));
-}
+chDbgCheck(self != NULL);
 
-msg = usbCdcServiceStart((void *)self,
-                         (const hal_usb_cdc_config_t *)config);
+msg = usbCdcServiceStart((void *)self);
 if (msg == HAL_RET_SUCCESS) {
   chSysLock();
   self->flags = CHN_FL_NONE;

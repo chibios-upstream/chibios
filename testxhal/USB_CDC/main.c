@@ -208,9 +208,9 @@ int main(void) {
 
   portab_setup();
   usbcdcObjectInit();
-  sduObjectInit(&PORTAB_SDU1);
+  sduObjectInit(&PORTAB_SDU1, &serusbcfg);
 
-  test_assert(sduStart(&PORTAB_SDU1, &serusbcfg) == HAL_RET_SUCCESS);
+  test_assert(sduStart(&PORTAB_SDU1) == HAL_RET_SUCCESS);
   test_assert(usbBinderRegisterService(&usbcdc_binder,
                                        sduGetServiceX(&PORTAB_SDU1)) ==
               HAL_RET_SUCCESS);

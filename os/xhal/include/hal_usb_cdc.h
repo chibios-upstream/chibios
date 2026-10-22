@@ -200,6 +200,8 @@ struct hal_usb_cdc_service_vmt {
   void (*sof)(void *ip);
   void (*in)(void *ip, usbep_t ep);
   void (*out)(void *ip, usbep_t ep);
+  bool (*clear_halt)(void *ip, usbep_t ep, bool in);
+  void (*halt_cleared)(void *ip, usbep_t ep, bool in);
   msg_t (*setup)(void *ip, bool *handledp);
   /* From hal_usb_cdc_service_c.*/
   void (*configured)(void *ip);
@@ -241,7 +243,7 @@ struct hal_usb_cdc_service {
    */
   hal_usb_service_c *       prev;
   /**
-   * @brief       Active CDC service configuration.
+   * @brief       CDC service configuration, given at object initialization.
    */
   const hal_usb_cdc_config_t * config;
   /**
@@ -285,7 +287,8 @@ struct hal_usb_cdc_service {
    */
   USBEndpointConfig         int_in_epc;
   /**
-   * @brief       Mutable CDC service ownership metadata.
+   * @brief       CDC service ownership metadata, built at object
+   *              initialization and never changed.
    */
   hal_usb_service_info_t    svcinfo;
 };
@@ -299,7 +302,8 @@ struct hal_usb_cdc_service {
 extern "C" {
 #endif
   /* Methods of hal_usb_cdc_service_c.*/
-  void *__cdcsvc_objinit_impl(void *ip, const void *vmt);
+  void *__cdcsvc_objinit_impl(void *ip, const void *vmt,
+                              const hal_usb_cdc_config_t *config);
   void __cdcsvc_dispose_impl(void *ip);
   msg_t __cdcsvc_bind_impl(void *ip, struct hal_usb_binder *binderp);
   void __cdcsvc_unbind_impl(void *ip);
@@ -321,7 +325,7 @@ extern "C" {
   void __cdcsvc_irq_transmitted_impl(void *ip, usbep_t ep);
   void __cdcsvc_control_line_state_impl(void *ip);
   /* Regular functions.*/
-  msg_t usbCdcServiceStart(void *ip, const hal_usb_cdc_config_t *config);
+  msg_t usbCdcServiceStart(void *ip);
   void usbCdcServiceStop(void *ip);
   const usb_cdc_linecoding_t *usbCdcServiceGetLineCodingX(void *ip);
   uint16_t usbCdcServiceGetControlLineStateX(void *ip);

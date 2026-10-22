@@ -632,6 +632,32 @@ struct port_context {
 #define port_switch(ntp, otp) __port_switch_arm(ntp, otp)
 #endif
 
+#if (CH_CFG_SMP_MODE == FALSE) || defined(__DOXYGEN__)
+/**
+ * @brief   Returns a word representing a critical section status.
+ * @note    In this port the kernel lock is the CPSR I bit. IRQ handlers
+ *          run with the I bit set, so they are always seen as locked:
+ *          @p chSysGetStatusAndLockX() does not enter the kernel lock
+ *          there and I-class functions called by X-class code from an
+ *          IRQ handler would fail the state checker.
+ * @note    Single core only, in SMP mode the I bit does not tell if the
+ *          inter-core lock is held.
+ *
+ * @return              The critical section status.
+ */
+#define port_get_lock_status() port_get_irq_status()
+
+/**
+ * @brief   Determines if in a critical section.
+ *
+ * @param[in] sts       status word returned by @p port_get_lock_status()
+ * @return              The current status.
+ * @retval false        if running outside a critical section.
+ * @retval true         if running within a critical section.
+ */
+#define port_is_locked(sts) (!port_irq_enabled(sts))
+#endif
+
 /*===========================================================================*/
 /* External declarations.                                                    */
 /*===========================================================================*/

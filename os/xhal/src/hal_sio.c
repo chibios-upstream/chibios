@@ -156,9 +156,11 @@ static void __bsio_default_cb(void *ip) {
   /* Posting the non-data SIO events as channel event flags, the masks are
      made to match. The transmission end is not cleared, on some peripherals
      it is the transmitter status and clearing it would make sioIsTXOngoingX()
-     report an ongoing transmission while idle.*/
+     report an ongoing transmission while idle. It is reported by the callback
+     withdrawing the request: the transmitter status is only read once, by
+     __bsio_push_data(), so the end is reported once per transmission.*/
   events = sioGetAndClearEventsX(siop, SIO_EV_ALL_EVENTS & ~SIO_EV_TX_END);
-  if (txend && !sioIsTXOngoingX(siop)) {
+  if (txend && ((sioGetEnableFlagsX(siop) & SIO_EV_TX_END) == 0U)) {
     events |= SIO_EV_TX_END;
   }
   bsAddFlagsI(bsiop, (eventflags_t)(events & ~SIO_EV_ALL_DATA));

@@ -278,29 +278,20 @@ hal_usb_service_c *sduGetServiceX(void *ip) {
 
 /**
  * @brief       Starts a serial USB driver instance.
+ * @details     The configuration was given at object initialization.
  *
  * @param[in,out] ip            Pointer to a @p SerialUSBDriver instance.
- * @param[in]     config        Driver configuration.
  * @return                      The operation status.
  *
  * @api
  */
-msg_t sduStart(void *ip, const SerialUSBConfig *config) {
+msg_t sduStart(void *ip) {
   SerialUSBDriver *self = (SerialUSBDriver *)ip;
   msg_t msg;
 
-  chDbgCheck((self != NULL) && (config != NULL));
-  chDbgCheck((config->bulk_in_maxsize > 0U) &&
-               (config->bulk_in_maxsize <= SERIAL_USB_BUFFERS_SIZE));
-  chDbgCheck((config->bulk_out_maxsize > 0U) &&
-               (config->bulk_out_maxsize <= SERIAL_USB_BUFFERS_SIZE));
-  if (config->int_in > 0U) {
-    chDbgCheck((config->int_in_maxsize > 0U) &&
-                 (config->int_in_maxsize <= SERIAL_USB_BUFFERS_SIZE));
-  }
+  chDbgCheck(self != NULL);
 
-  msg = usbCdcServiceStart((void *)self,
-                           (const hal_usb_cdc_config_t *)config);
+  msg = usbCdcServiceStart((void *)self);
   if (msg == HAL_RET_SUCCESS) {
     chSysLock();
     self->flags = CHN_FL_NONE;
@@ -611,9 +602,12 @@ static msg_t __sdu_chn_ctl_impl(void *ip, unsigned int operation, void *arg) {
  * @param[out]    ip            Pointer to a @p hal_serial_usb_driver_c
  *                              instance to be initialized.
  * @param[in]     vmt           VMT pointer for the new object.
+ * @param[in]     config        Driver configuration, it determines the service
+ *                              ownership metadata.
  * @return                      A new reference to the object.
  */
-void *__sdu_objinit_impl(void *ip, const void *vmt) {
+void *__sdu_objinit_impl(void *ip, const void *vmt,
+                         const SerialUSBConfig *config) {
   hal_serial_usb_driver_c *self = (hal_serial_usb_driver_c *)ip;
 
   /* Initialization of interface asynchronous_channel_i.*/
@@ -636,7 +630,18 @@ void *__sdu_objinit_impl(void *ip, const void *vmt) {
   }
 
   /* Initialization code.*/
-  __cdcsvc_objinit_impl((void *)self, vmt);
+  chDbgCheck(config != NULL);
+  chDbgCheck((config->bulk_in_maxsize > 0U) &&
+               (config->bulk_in_maxsize <= SERIAL_USB_BUFFERS_SIZE));
+  chDbgCheck((config->bulk_out_maxsize > 0U) &&
+               (config->bulk_out_maxsize <= SERIAL_USB_BUFFERS_SIZE));
+  if (config->int_in > 0U) {
+    chDbgCheck((config->int_in_maxsize > 0U) &&
+                 (config->int_in_maxsize <= SERIAL_USB_BUFFERS_SIZE));
+  }
+
+  __cdcsvc_objinit_impl((void *)self, vmt,
+                        (const hal_usb_cdc_config_t *)config);
   iqObjectInit(&self->iqueue, self->ib, sizeof(self->ib), sdu_inotify, self);
   oqObjectInit(&self->oqueue, self->ob, sizeof(self->ob), sdu_onotify, self);
   chEvtObjectInit(&self->event);
@@ -794,6 +799,8 @@ const struct hal_serial_usb_driver_vmt __hal_serial_usb_driver_vmt = {
   .sof                      = __cdcsvc_sof_impl,
   .in                       = __cdcsvc_in_impl,
   .out                      = __cdcsvc_out_impl,
+  .clear_halt               = __usbsvc_clear_halt_impl,
+  .halt_cleared             = __usbsvc_halt_cleared_impl,
   .setup                    = __cdcsvc_setup_impl,
   .configured               = __sdu_configured_impl,
   .disconnected             = __sdu_disconnected_impl,

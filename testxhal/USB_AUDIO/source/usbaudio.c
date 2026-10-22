@@ -254,29 +254,29 @@ static void audio_out(void *ip, usbep_t ep) {
 static msg_t audio_setup(void *ip, bool *handledp) {
   hal_usb_service_c *self = ip;
   hal_usb_driver_c *usbp = self->binder->usbp;
+  const uint8_t *req = usbEp0GetRequestX(usbp);
   uint8_t iface, alt;
   bool get_interface;
 
   *handledp = false;
   chSysLock();
   /* Do not act on a SETUP superseded while the worker slept. */
-  if ((usbp->ep0rseq != usbp->ep0seq) ||
-      (usbGetDriverStateX(usbp) != USB_ACTIVE)) {
+  if (!usbEp0IsCurrentI(usbp) || (usbGetDriverStateX(usbp) != USB_ACTIVE)) {
     chSysUnlock();
     return MSG_RESET;
   }
 
-  iface = usbp->setup[4];
-  get_interface = (usbp->setup[0] == 0x81U) &&
-                  (usbp->setup[1] == USB_REQ_GET_INTERFACE);
-  if ((usbp->setup[3] != 0U) || (iface > SPEAKER_STREAMING_INTERFACE) ||
-      (usbp->setup[5] != 0U) || (usbp->setup[7] != 0U)) {
+  iface = req[4];
+  get_interface = (req[0] == 0x81U) &&
+                  (req[1] == USB_REQ_GET_INTERFACE);
+  if ((req[3] != 0U) || (iface > SPEAKER_STREAMING_INTERFACE) ||
+      (req[5] != 0U) || (req[7] != 0U)) {
     chSysUnlock();
     return MSG_OK;
   }
 
-  if (get_interface && (usbp->setup[2] == 0U) &&
-      (usbp->setup[6] == 1U)) {
+  if (get_interface && (req[2] == 0U) &&
+      (req[6] == 1U)) {
     if (iface == AUDIO_STREAMING_INTERFACE) {
       alt = audio_alt;
     }
@@ -287,11 +287,11 @@ static msg_t audio_setup(void *ip, bool *handledp) {
       alt = 0U;
     }
   }
-  else if ((usbp->setup[0] == 0x01U) &&
-           (usbp->setup[1] == USB_REQ_SET_INTERFACE) &&
-           (usbp->setup[6] == 0U) &&
-           (usbp->setup[2] <= (iface == 0U ? 0U : 1U))) {
-    alt = usbp->setup[2];
+  else if ((req[0] == 0x01U) &&
+           (req[1] == USB_REQ_SET_INTERFACE) &&
+           (req[6] == 0U) &&
+           (req[2] <= (iface == 0U ? 0U : 1U))) {
+    alt = req[2];
     if (iface == AUDIO_STREAMING_INTERFACE) {
       if (audio_alt == 1U) {
         audio_stats.stops++;
@@ -335,18 +335,20 @@ static const hal_usb_service_info_t audio_service_info = {
 };
 
 static const struct hal_usb_service_vmt audio_service_vmt = {
-  .dispose     = __usbsvc_dispose_impl,
-  .bind        = __usbsvc_bind_impl,
-  .unbind      = __usbsvc_unbind_impl,
-  .reset       = audio_reset,
-  .configure   = audio_configure,
-  .unconfigure = audio_clear,
-  .suspend     = audio_suspend,
-  .wakeup      = __usbsvc_wakeup_impl,
-  .sof         = audio_sof,
-  .in          = audio_in,
-  .out         = audio_out,
-  .setup       = audio_setup
+  .dispose      = __usbsvc_dispose_impl,
+  .bind         = __usbsvc_bind_impl,
+  .unbind       = __usbsvc_unbind_impl,
+  .reset        = audio_reset,
+  .configure    = audio_configure,
+  .unconfigure  = audio_clear,
+  .suspend      = audio_suspend,
+  .wakeup       = __usbsvc_wakeup_impl,
+  .sof          = audio_sof,
+  .in           = audio_in,
+  .out          = audio_out,
+  .clear_halt   = __usbsvc_clear_halt_impl,
+  .halt_cleared = __usbsvc_halt_cleared_impl,
+  .setup        = audio_setup
 };
 
 void audioObjectInit(void) {

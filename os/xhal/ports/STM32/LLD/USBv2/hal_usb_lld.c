@@ -1061,8 +1061,10 @@ const hal_usb_config_t *usb_lld_selcfg(hal_usb_driver_c *usbp,
     return usb_lld_setcfg(usbp, &usb_configurations.cfgs[cfgnum]);
   }
 #else
-  (void)usbp;
-  (void)cfgnum;
+  /* Without configurations zero selects the default one.*/
+  if (cfgnum == 0U) {
+    return usb_lld_setcfg(usbp, NULL);
+  }
 #endif
 
   return NULL;

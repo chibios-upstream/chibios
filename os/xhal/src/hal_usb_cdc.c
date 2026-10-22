@@ -90,34 +90,26 @@ static void cdcsvc_endpoint_out_cb(hal_usb_driver_c *usbp, usbep_t ep) {
 
 /**
  * @brief       Starts a CDC service instance.
+ * @details     The configuration was given at object initialization.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_cdc_service_c instance.
- * @param[in]     config        CDC service configuration.
  * @return                      The operation status.
  *
  * @api
  */
-msg_t usbCdcServiceStart(void *ip, const hal_usb_cdc_config_t *config) {
+msg_t usbCdcServiceStart(void *ip) {
   hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
+  const hal_usb_cdc_config_t *config;
   hal_usb_driver_c *usbp;
 
-  chDbgCheck((self != NULL) && (config != NULL) && (config->usbp != NULL));
-  chDbgCheck((config->bulk_in > 0U) &&
-               (config->bulk_in <= (usbep_t)USB_MAX_ENDPOINTS));
-  chDbgCheck((config->bulk_out > 0U) &&
-               (config->bulk_out <= (usbep_t)USB_MAX_ENDPOINTS));
-  chDbgCheck(config->bulk_in_maxsize > 0U);
-  chDbgCheck(config->bulk_out_maxsize > 0U);
-  if (config->int_in > 0U) {
-    chDbgCheck((config->int_in <= (usbep_t)USB_MAX_ENDPOINTS) &&
-                 (config->int_in_maxsize > 0U));
-  }
+  chDbgCheck(self != NULL);
   chDbgAssert(usbServiceGetBinderX(self) == NULL, "service bound");
 
   chSysLock();
   chDbgAssert((self->state == USB_CDC_SERVICE_STOP) ||
                 (self->state == USB_CDC_SERVICE_READY), "invalid state");
 
+  config = self->config;
   usbp = config->usbp;
   usbp->in_params[config->bulk_in - 1U] = self;
   usbp->out_params[config->bulk_out - 1U] = self;
@@ -125,33 +117,7 @@ msg_t usbCdcServiceStart(void *ip, const hal_usb_cdc_config_t *config) {
     usbp->in_params[config->int_in - 1U] = self;
   }
 
-  self->bulk_in_epc.in_maxsize = config->bulk_in_maxsize;
-  self->bulk_out_epc.out_maxsize = config->bulk_out_maxsize;
-  self->int_in_epc.in_maxsize = config->int_in_maxsize;
-
-  if (config->bulk_in == config->bulk_out) {
-    self->bulk_in_epc.out_cb = cdcsvc_endpoint_out_cb;
-    self->bulk_in_epc.out_state = &self->bulk_out_state;
-    self->bulk_in_epc.out_maxsize = config->bulk_out_maxsize;
-  }
-  else {
-    self->bulk_in_epc.out_cb = NULL;
-    self->bulk_in_epc.out_state = NULL;
-    self->bulk_in_epc.out_maxsize = 0U;
-  }
-
-  self->config = config;
   self->connected = false;
-  self->svcinfo.if_base = config->control_if;
-  self->svcinfo.if_count = 2U;
-  self->svcinfo.in_ep_mask =
-      (uint16_t)((uint16_t)1U << (unsigned)config->bulk_in);
-  if (config->int_in > 0U) {
-    self->svcinfo.in_ep_mask |=
-        (uint16_t)((uint16_t)1U << (unsigned)config->int_in);
-  }
-  self->svcinfo.out_ep_mask =
-      (uint16_t)((uint16_t)1U << (unsigned)config->bulk_out);
   self->state = USB_CDC_SERVICE_READY;
   chSysUnlock();
 
@@ -167,7 +133,7 @@ msg_t usbCdcServiceStart(void *ip, const hal_usb_cdc_config_t *config) {
  */
 void usbCdcServiceStop(void *ip) {
   hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
-  hal_usb_driver_c *usbp = NULL;
+  hal_usb_driver_c *usbp;
 
   chDbgCheck(self != NULL);
   chDbgAssert(usbServiceGetBinderX(self) == NULL, "service bound");
@@ -176,21 +142,16 @@ void usbCdcServiceStop(void *ip) {
   chDbgAssert((self->state == USB_CDC_SERVICE_STOP) ||
                 (self->state == USB_CDC_SERVICE_READY), "invalid state");
 
-  if (self->config != NULL) {
-    usbp = self->config->usbp;
-    usbp->in_params[self->config->bulk_in - 1U] = NULL;
-    usbp->out_params[self->config->bulk_out - 1U] = NULL;
-    if (self->config->int_in > 0U) {
-      usbp->in_params[self->config->int_in - 1U] = NULL;
-    }
+  usbp = self->config->usbp;
+  usbp->in_params[self->config->bulk_in - 1U] = NULL;
+  usbp->out_params[self->config->bulk_out - 1U] = NULL;
+  if (self->config->int_in > 0U) {
+    usbp->in_params[self->config->int_in - 1U] = NULL;
   }
 
-  self->config = NULL;
+  /* The configuration and the ownership metadata stay, they belong to the
+     object.*/
   self->connected = false;
-  self->svcinfo.if_base = 0U;
-  self->svcinfo.if_count = 0U;
-  self->svcinfo.in_ep_mask = 0U;
-  self->svcinfo.out_ep_mask = 0U;
   self->state = USB_CDC_SERVICE_STOP;
   chSysUnlock();
 }
@@ -228,10 +189,11 @@ uint16_t usbCdcServiceGetControlLineStateX(void *ip) {
 }
 
 /**
- * @brief       Returns the active CDC configuration.
+ * @brief       Returns the CDC configuration.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_cdc_service_c instance.
- * @return                      The active CDC configuration or @p NULL.
+ * @return                      The CDC configuration given at object
+ *                              initialization.
  *
  * @xclass
  */
@@ -274,15 +236,42 @@ bool usbCdcServiceIsConnectedX(void *ip) {
  * @param[out]    ip            Pointer to a @p hal_usb_cdc_service_c instance
  *                              to be initialized.
  * @param[in]     vmt           VMT pointer for the new object.
+ * @param[in]     config        CDC service configuration, it determines the
+ *                              service ownership metadata.
  * @return                      A new reference to the object.
  */
-void *__cdcsvc_objinit_impl(void *ip, const void *vmt) {
+void *__cdcsvc_objinit_impl(void *ip, const void *vmt,
+                            const hal_usb_cdc_config_t *config) {
   hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
 
   /* Initialization code.*/
+  chDbgCheck((config != NULL) && (config->usbp != NULL));
+  chDbgCheck((config->bulk_in > 0U) &&
+               (config->bulk_in <= (usbep_t)USB_MAX_ENDPOINTS));
+  chDbgCheck((config->bulk_out > 0U) &&
+               (config->bulk_out <= (usbep_t)USB_MAX_ENDPOINTS));
+  chDbgCheck(config->bulk_in_maxsize > 0U);
+  chDbgCheck(config->bulk_out_maxsize > 0U);
+  if (config->int_in > 0U) {
+    chDbgCheck((config->int_in <= (usbep_t)USB_MAX_ENDPOINTS) &&
+                 (config->int_in_maxsize > 0U));
+  }
+
   usbServiceObjectInit((void *)self, &self->svcinfo,
                        (const struct hal_usb_service_vmt *)vmt);
-  self->config = NULL;
+  self->config = config;
+  /* The ownership metadata is complete before the service can be registered
+     and never changes.*/
+  self->svcinfo.if_base = config->control_if;
+  self->svcinfo.if_count = 2U;
+  self->svcinfo.in_ep_mask =
+      (uint16_t)((uint16_t)1U << (unsigned)config->bulk_in);
+  if (config->int_in > 0U) {
+    self->svcinfo.in_ep_mask |=
+        (uint16_t)((uint16_t)1U << (unsigned)config->int_in);
+  }
+  self->svcinfo.out_ep_mask =
+      (uint16_t)((uint16_t)1U << (unsigned)config->bulk_out);
   self->state = USB_CDC_SERVICE_STOP;
   self->connected = false;
   self->control_line_state = 0U;
@@ -305,10 +294,15 @@ void *__cdcsvc_objinit_impl(void *ip, const void *vmt) {
   self->int_in_epc.in_cb       = cdcsvc_endpoint_in_cb;
   self->int_in_epc.in_state    = &self->int_in_state;
 
-  self->svcinfo.if_base = 0U;
-  self->svcinfo.if_count = 0U;
-  self->svcinfo.in_ep_mask = 0U;
-  self->svcinfo.out_ep_mask = 0U;
+  self->bulk_in_epc.in_maxsize = config->bulk_in_maxsize;
+  self->bulk_out_epc.out_maxsize = config->bulk_out_maxsize;
+  self->int_in_epc.in_maxsize = config->int_in_maxsize;
+  if (config->bulk_in == config->bulk_out) {
+    /* Both directions on the same endpoint number, one configuration.*/
+    self->bulk_in_epc.out_cb = cdcsvc_endpoint_out_cb;
+    self->bulk_in_epc.out_state = &self->bulk_out_state;
+    self->bulk_in_epc.out_maxsize = config->bulk_out_maxsize;
+  }
   cdcsvc_set_default_linecoding(self);
 
   return self;
@@ -340,7 +334,7 @@ void __cdcsvc_dispose_impl(void *ip) {
  */
 msg_t __cdcsvc_bind_impl(void *ip, struct hal_usb_binder *binderp) {
   hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
-  if ((self->config == NULL) || (binderp == NULL)) {
+  if ((self->state != USB_CDC_SERVICE_READY) || (binderp == NULL)) {
     return HAL_RET_INV_STATE;
   }
   if (binderp->usbp != self->config->usbp) {
@@ -378,7 +372,7 @@ void __cdcsvc_reset_impl(void *ip) {
  */
 void __cdcsvc_configure_impl(void *ip) {
   hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
-  chDbgAssert(self->config != NULL, "service not started");
+  chDbgAssert(self->state == USB_CDC_SERVICE_READY, "service not started");
 
   usbInitEndpointI(self->config->usbp, self->config->bulk_in,
                    &self->bulk_in_epc);
@@ -476,13 +470,13 @@ void __cdcsvc_out_impl(void *ip, usbep_t ep) {
  */
 msg_t __cdcsvc_setup_impl(void *ip, bool *handledp) {
   hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
-  uint8_t *setup;
+  const uint8_t *setup;
 
   chDbgAssert((handledp != NULL) && (self->config != NULL),
                 "invalid setup context");
 
   *handledp = false;
-  setup = self->config->usbp->setup;
+  setup = usbEp0GetRequestX(self->config->usbp);
   if ((setup[0] & USB_RTYPE_TYPE_MASK) != USB_RTYPE_TYPE_CLASS) {
     return HAL_RET_SUCCESS;
   }
