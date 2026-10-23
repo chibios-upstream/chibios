@@ -18,15 +18,17 @@ counter it does shorten wrap time to eight seconds and half-range timestamp
 maintenance to about four seconds. The application-owned CCR2 maintenance
 below must therefore remain enabled.
 
-The 8192 Hz/delta-8 configuration has custom-board application evidence, but
-this exact updated NUCLEO demo and its autonomous PA1 probe still require
-hardware validation. Earlier 1024 Hz demo results do not qualify this build.
+Hardware validation of this demo and its autonomous PA1 probe on the
+NUCLEO-U575ZI-Q remains pending.
 
 The user button starts a two-second STOP2 interval. The LPTIM3 CCR1 compare wakes
 the core, and the common ChibiOS IRQ-prologue hook restores the default RUN
 clock tree before the SYSTICKv3 driver dispatches the virtual-timer callback.
 The callback turns on the green LED and wakes the application thread. Results
-are reported over SD1 at the ChibiOS demo default of 38400 baud.
+are reported over SD1 at the ChibiOS demo default of 38400 baud. Before arming
+STOP2, the application waits for `CHN_TRANSMISSION_END` so the entry message
+has left USART1 before its PCLK2 clock stops. The elapsed-time measurement
+starts after this wait.
 
 The common hook runs after ChibiOS has entered its statistics, trace and debug
 state, but before any normal IRQ driver body. It therefore covers system-timer

@@ -215,10 +215,7 @@ static void autonomousProbeStart(void) {
   RCC->SRDAMR |= RCC_SRDAMR_LPTIM1AMEN | RCC_SRDAMR_LPDMA1AMEN |
                  RCC_SRDAMR_LPGPIO1AMEN | RCC_SRDAMR_SRAM4AMEN;
 
-  GPIOA->AFRL = (GPIOA->AFRL & ~(0xFU << 4U)) | (11U << 4U);
-  GPIOA->OTYPER &= ~(1U << 1U);
-  GPIOA->PUPDR &= ~(3U << 2U);
-  GPIOA->MODER = (GPIOA->MODER & ~(3U << 2U)) | (2U << 2U);
+  palSetPadMode(GPIOA, 1U, PAL_MODE_ALTERNATE(11U));
 
   probe_words[0] = 1U << DEMO_PROBE_LPGPIO_PIN;
   probe_words[1] = 1U << (DEMO_PROBE_LPGPIO_PIN + 16U);
@@ -273,6 +270,7 @@ static void autonomousProbeStart(void) {
 
 /** @brief Runs one timed STOP2 cycle and reports its timestamp duration. */
 static void runStop2Cycle(BaseSequentialStream *chp) {
+  event_listener_t el;
   systimestamp_t start;
   systimestamp_t end;
   sysinterval_t elapsed;
@@ -287,9 +285,18 @@ static void runStop2Cycle(BaseSequentialStream *chp) {
   start = chVTGetTimeStamp();
   start_hi = (uint32_t)(start >> 32);
   start_lo = (uint32_t)start;
-  chprintf(chp, "\r\nSTOP2: entering for 2000 ms, timestamp=%08lX%08lX\r\n",
+  /* Register before printing so a completed transmission cannot be missed.
+     USART1 uses PCLK2, which stops in STOP2.*/
+  chEvtRegisterMaskWithFlags(chnGetEventSource(&PORTAB_SD1), &el,
+                             EVENT_MASK(0), CHN_TRANSMISSION_END);
+  chprintf(chp, "\r\nSTOP2: entering for %lu ms, timestamp=%08lX%08lX\r\n",
+           (unsigned long)TIME_I2MS(DEMO_STOP2_INTERVAL),
            (unsigned long)start_hi, (unsigned long)start_lo);
+  (void)chEvtWaitAny(EVENT_MASK(0));
+  chEvtUnregister(chnGetEventSource(&PORTAB_SD1), &el);
 
+  /* Measure the timed interval without the serial transmission delay.*/
+  start = chVTGetTimeStamp();
   chVTSet(&stop2_wake_vt, DEMO_STOP2_INTERVAL,
           stop2WakeCallback, NULL);
   stop2_armed = true;
