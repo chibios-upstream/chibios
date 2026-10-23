@@ -8,6 +8,19 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [ARMV6M] Runtime targets and CI coverage for the `ARMv6-M-ALT` port: the
+  `testrt/ICF_STORM` test (nested interrupts served by byte-identical,
+  foldable OS-aware handlers, and an outermost fast handler) for the RP2040
+  Pico with the standard and the alternate port, `_alt` targets of
+  `IRQ_STORM` (STM32G0B1) and `VT_STORM` (RP2040), the NIL `v6_alt` link
+  fixture and a standard `ARMv6-M` port test build. CI now builds both
+  ARMv6-M port test builds and the `v6_alt` fixture in NMI and PendSV mode
+  and the `v7_alt` and `v8_alt` fixtures, and runs `check_registry.py`
+  ([#557](https://github.com/chibios-upstream/chibios/pull/557)).
+- [BUILD] `ASMXSRC_EXCLUDE` variable in the ARMCMx GCC and LLVM build rules:
+  makefiles included before the rules can now remove files listed by other
+  makefiles from `ASMXSRC`, such as the standard vector table replaced by a
+  port ([#557](https://github.com/chibios-upstream/chibios/pull/557)).
 - [TEST] `TEST_CFG_ASSERT_MESSAGES` option in the test framework: set to
   `FALSE`, the assertion messages are not stored and a failure reports only
   the test case and the step. The AVR RT and OSLIB test suite demos use it:
@@ -567,6 +580,24 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [ARMV6M] The ARMv6-M-ALT IRQ dispatcher used divided-syntax mnemonics that
+  Clang's integrated assembler rejects, so the port could not be built with
+  the ARMCMx LLVM build rules; it is now assembled in unified syntax, with
+  unchanged machine code except an equivalent `mov` encoding in
+  `__port_thread_start`, and CI assembles both ARMv6-M ports and the vector
+  tables with Clang. The port's `chcore.h` also stops with "unsupported
+  compiler" under IAR and RVCT, for which the port has no assembly or vector
+  table, instead of naming them
+  ([#557](https://github.com/chibios-upstream/chibios/pull/557)).
+- [ARMV6M] The ARMv6-M-ALT port makefile removed the standard `vectors.S`
+  with immediate assignments, so it had to be included after the startup
+  makefile and it froze the startup file lists: an `RP2040_BOOT_STAGE2`
+  override set later in the project makefile was silently ignored and the
+  default second stage bootloader was linked. The port now lists
+  `vectors.S` in `ASMXSRC_EXCLUDE`, the override is honoured, and the
+  startup and port makefiles can be included in any order; a project with
+  its own copy of the ARMCMx `rules.mk` needs the new lines
+  ([#557](https://github.com/chibios-upstream/chibios/pull/557)).
 - [STM32] STM32H7A3/H7B3/H7B0 (classic and XHAL): the APB3 and APB4 clocks
   were named `STM32_CDPCLK` and `STM32_SRDPCLK` while the clock tree used
   `STM32_PCLK4` for LPTIM2-5, LPUART1, SPI6, I2C4 and DFSDM2, so builds using
