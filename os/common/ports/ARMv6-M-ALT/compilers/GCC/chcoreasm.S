@@ -56,6 +56,7 @@
                 .set    ICSR_PENDSVSET, 0x10000000
                 .set    ICSR_NMIPENDSET, 0x80000000
 
+                .syntax unified
                 .cpu    cortex-m0
                 .fpu    softvfp
 
@@ -175,13 +176,13 @@ __port_irq_common:
                                            keeping the stack 64-bits
                                            aligned.*/
                 mrs     r0, IPSR
-                sub     r0, #15
-                lsl     r0, #2
+                subs    r0, #15
+                lsls    r0, r0, #2
                 ldr     r1, =__port_vectors
                 ldr     r1, [r1, r0]
                 blx     r1
                 ldr     r1, [sp, #4]    /* Saved EXC_RETURN value.*/
-                add     r1, #15         /* Zero if nested (0xFFFFFFF1).*/
+                adds    r1, #15         /* Zero if nested (0xFFFFFFF1).*/
                 beq     1f
                 cpsid   i
 #if CH_CFG_SMP_MODE == TRUE
@@ -189,7 +190,7 @@ __port_irq_common:
 #endif
                 bl      chSchIsPreemptionRequired
                 mrs     r1, PSP
-                sub     r1, #32         /* Artificial return context.*/
+                subs    r1, #32         /* Artificial return context.*/
                 msr     PSP, r1
                 ldr     r2, =0x01000000
                 str     r2, [r1, #28]   /* Artificial xPSR, T bit set.*/

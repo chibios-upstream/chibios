@@ -574,6 +574,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [ARMV6M] The ARMv6-M-ALT IRQ dispatcher used divided-syntax mnemonics that
+  Clang's integrated assembler rejects, so the port could not be built with
+  the ARMCMx LLVM build rules; it is now assembled in unified syntax, with
+  unchanged machine code except an equivalent `mov` encoding in
+  `__port_thread_start`, and CI assembles both ARMv6-M ports and the vector
+  tables with Clang
+  ([#559](https://github.com/chibios-upstream/chibios/pull/559)).
 - [RP] At `-O0`, `__port_smp_halt_from_ram()`, the RAM-resident remote-panic
   halt of the `ARMv6-M` (RP2040) and `ARMv8-M-ML-ALT` (RP2350) RP2 SMP back
   ends, called an out-of-line `port_get_core_id()` in flash, against its

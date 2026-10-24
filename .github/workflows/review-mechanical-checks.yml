@@ -156,3 +156,41 @@ jobs:
           set -euo pipefail
           make -C test/rt-ports/testbuild -f make/ARMv7-M.make all
           make -C test/rt-ports/testbuild -f make/ARMv7-M.make clean
+
+      - name: Assemble the ARMv6-M ports with clang
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Clang's integrated assembler, as used by the ARMCMx LLVM build
+          # rules, must accept the port assembly and the vector tables.
+          sudo apt-get install -y clang
+          cd test/rt-ports/testbuild
+          inc="-I./cfg -I../../../os/license -I../../../os/rt/include \
+               -I../../../os/oslib/include -I../../../os/common/portability/GCC \
+               -I../../../os/common/ports/ARM-common/include \
+               -I../../../os/common/startup/ARMCMx/compilers/GCC \
+               -I../../../os/common/startup/ARMCMx/devices/STM32G0xx \
+               -I../../../os/common/ext/ARM/CMSIS/Core/Include \
+               -I../../../os/common/ext/ST/STM32G0xx"
+          for sw in FALSE TRUE; do
+            defs="-DSTM32G0B1xx -DCH_CFG_USE_TM=FALSE -DCORTEX_USE_FPU=FALSE \
+                  -DCORTEX_ALTERNATE_SWITCH=$sw"
+            # Also with the SMP and debug branches of the port assembly.
+            for p in ARMv6-M ARMv6-M-ALT; do
+              for x in "" "-DCH_CFG_SMP_MODE=TRUE \
+                          -DCH_DBG_SYSTEM_STATE_CHECK=TRUE \
+                          -DCH_DBG_STATISTICS=TRUE"; do
+                clang --target=arm-none-eabi -mcpu=cortex-m0 -mthumb \
+                  -Werror -Wa,--fatal-warnings -c $defs $x $inc \
+                  -I../../../os/common/ports/$p \
+                  ../../../os/common/ports/$p/compilers/GCC/chcoreasm.S \
+                  -o /dev/null
+              done
+            done
+            for v in vectors vectors_alt; do
+              clang --target=arm-none-eabi -mcpu=cortex-m0 -mthumb \
+                -Werror -Wa,--fatal-warnings -c $defs $inc \
+                ../../../os/common/startup/ARMCMx/compilers/GCC/$v.S \
+                -o /dev/null
+            done
+          done
