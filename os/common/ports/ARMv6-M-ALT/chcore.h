@@ -52,12 +52,6 @@
 #if defined(__GNUC__) || defined(__DOXYGEN__)
 #define PORT_COMPILER_NAME              "GCC " __VERSION__
 
-#elif defined(__ICCARM__)
-#define PORT_COMPILER_NAME              "IAR"
-
-#elif defined(__CC_ARM)
-#define PORT_COMPILER_NAME              "RVCT"
-
 #else
 #error "unsupported compiler"
 #endif

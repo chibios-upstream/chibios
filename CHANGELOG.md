@@ -400,6 +400,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [ARMV6M] The ARMv6-M-ALT port's `chcore.h` stops with "unsupported
+  compiler" under IAR and RVCT, for which the port has no assembly or vector
+  table, instead of naming them; such a build would never reschedule on
+  interrupt exit ([#560](https://github.com/chibios-upstream/chibios/pull/560)).
 - [RP] The RP2040 and RP2350 demo and test configurations set
   `CH_CFG_ST_TIMEDELTA` to 50 instead of 20, 50 microseconds at their 1 MHz
   system tick, except `testrt/VT_STORM`. Their tickless wakeup executes from
