@@ -94,9 +94,15 @@ endif
 # of the "all" target using user-provided rules.
 ADDITIONAL_OUTFILES ?=
 
+# Excluded sources, the ASMXSRC_EXCLUDE variable can be appended to by
+# makefiles included before this one, the listed files are left out of the
+# sources built from ASMXSRC, for example the startup vector table replaced
+# by a port. ASMXSRC itself is not modified.
+ASMXSRC_EXCLUDE ?=
+
 # Source files groups and paths
 SRC      := $(CSRC) $(CPPSRC)
-SRCPATHS += $(sort $(dir $(ASMXSRC)) $(dir $(ASMSRC)) $(dir $(SRC)))
+SRCPATHS += $(sort $(dir $(filter-out $(ASMXSRC_EXCLUDE),$(ASMXSRC))) $(dir $(ASMSRC)) $(dir $(SRC)))
 
 # Various directories
 OBJDIR    := $(BUILDDIR)/obj
@@ -107,7 +113,7 @@ COBJS    := $(addprefix $(OBJDIR)/, $(notdir $(CSRC:.c=.o)))
 CPPOBJS  := $(addprefix $(OBJDIR)/, $(notdir $(patsubst %.cpp, %.o, $(filter %.cpp, $(CPPSRC)))))
 CCOBJS   := $(addprefix $(OBJDIR)/, $(notdir $(patsubst %.cc, %.o, $(filter %.cc, $(CPPSRC)))))
 ASMOBJS  := $(addprefix $(OBJDIR)/, $(notdir $(ASMSRC:.s=.o)))
-ASMXOBJS := $(addprefix $(OBJDIR)/, $(notdir $(ASMXSRC:.S=.o)))
+ASMXOBJS := $(addprefix $(OBJDIR)/, $(notdir $(patsubst %.S,%.o,$(filter-out $(ASMXSRC_EXCLUDE),$(ASMXSRC)))))
 OBJS     += $(ASMXOBJS) $(ASMOBJS) $(COBJS) $(CPPOBJS) $(CCOBJS)
 
 # Paths

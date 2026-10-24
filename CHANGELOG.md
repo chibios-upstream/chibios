@@ -8,6 +8,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [BUILD] `ASMXSRC_EXCLUDE` variable in the ARMCMx GCC and LLVM build rules:
+  makefiles included before the rules can now leave files listed by other
+  makefiles out of the build, such as the standard vector table replaced by
+  a port; `ASMXSRC` itself is not modified
+  ([#558](https://github.com/chibios-upstream/chibios/pull/558)).
 - [TEST] `TEST_CFG_ASSERT_MESSAGES` option in the test framework: set to
   `FALSE`, the assertion messages are not stored and a failure reports only
   the test case and the step. The AVR RT and OSLIB test suite demos use it:
@@ -574,6 +579,15 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [ARMV6M] The ARMv6-M-ALT port makefile removed the standard `vectors.S`
+  with immediate assignments, so it had to be included after the startup
+  makefile and it froze the startup file lists: an `RP2040_BOOT_STAGE2`
+  override set later in the project makefile was silently ignored and the
+  default second stage bootloader was linked. The port now lists
+  `vectors.S` in `ASMXSRC_EXCLUDE`, the override is honoured, and the
+  startup and port makefiles can be included in any order; a project with
+  its own copy of the ARMCMx `rules.mk` needs the new lines
+  ([#558](https://github.com/chibios-upstream/chibios/pull/558)).
 - [RP] At `-O0`, `__port_smp_halt_from_ram()`, the RAM-resident remote-panic
   halt of the `ARMv6-M` (RP2040) and `ARMv8-M-ML-ALT` (RP2350) RP2 SMP back
   ends, called an out-of-line `port_get_core_id()` in flash, against its
