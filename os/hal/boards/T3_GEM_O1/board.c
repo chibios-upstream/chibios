@@ -447,3 +447,21 @@ bool board_spi0_pinmux(unsigned channel) {
 
   return true;
 }
+
+/*
+ * Routes the MCU_I2C0 SCL/SDA pads to the I2C controller.
+ *
+ * The receiver is enabled on both pads, the controller reads the bus back
+ * for acknowledge and clock stretching. The internal pull-ups are enabled
+ * too, matching the Linux device tree (PIN_INPUT_PULLUP), so the bus idles
+ * high with nothing wired to the header.
+ */
+void board_i2c0_pinmux(void) {
+
+  am67_mcu_padcfg_unlock();
+
+  am67_mcu_pad_config(AM67_PAD_I2C0_SCL,
+            AM67_PIN_MODE(0) | AM67_PIN_INPUT_ENABLE | AM67_PIN_PULLUP);
+  am67_mcu_pad_config(AM67_PAD_I2C0_SDA,
+            AM67_PIN_MODE(0) | AM67_PIN_INPUT_ENABLE | AM67_PIN_PULLUP);
+}

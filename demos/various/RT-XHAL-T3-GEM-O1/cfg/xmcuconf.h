@@ -50,6 +50,12 @@
 #define AM67_SPI_USE_MCSPI0                 TRUE
 #define AM67_SPI_MCSPI0_IRQ_PRIORITY        8U
 
+/*
+ * I2C driver system settings.
+ */
+#define AM67_I2C_USE_MCU_I2C0               TRUE
+#define AM67_I2C_MCU_I2C0_IRQ_PRIORITY      8U
+
 #endif /* XMCUCONF_H */
 
 /** @} */
