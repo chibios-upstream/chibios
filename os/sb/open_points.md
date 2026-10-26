@@ -12,6 +12,7 @@ not separate backlogs:
 - [TTY integration and signal delivery](note_sb_tty.md)
 - [System block and userspace VRQ critical zones](note_sb_system_block.md)
 - [VSHM, shared memory among sandboxes, draft spec](note_sb_vshm.md)
+- [VMSG, messages with temporary mapping, draft spec](note_sb_vmsg.md)
 
 ## Completed baseline
 
