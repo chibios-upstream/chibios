@@ -11,6 +11,7 @@ not separate backlogs:
 - [SVC and MPU optimizations](note_svc_mpu_optimizations.md)
 - [TTY integration and signal delivery](note_sb_tty.md)
 - [System block and userspace VRQ critical zones](note_sb_system_block.md)
+- [VSHM, shared memory among sandboxes, draft spec](note_sb_vshm.md)
 
 ## Completed baseline
 
