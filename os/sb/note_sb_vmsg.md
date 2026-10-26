@@ -1,8 +1,9 @@
 # Spec: SB messages with temporary mapping (VMSG), draft
 
 Specification draft started 2026-10-26, nothing implemented, the name is
-provisional. An alternative to [VSHM](note_sb_vshm.md) focused on messages:
-no shared memory at all. A client sends a fixed format message, a command
+provisional. The message mechanism of SB, next to [VSHM](note_sb_vshm.md)
+which gives shared memory; messages need no shared memory at all. A client
+sends a fixed format message, a command
 and four parameters, snapshotted by the host at send and copied in the
 memory of the server at receive. Parameters can point to buffers in the
 client memory: the server gets temporary access to the client data region
@@ -14,13 +15,12 @@ guest RTOS of the sandbox. A guest thread waiting for an answer, or a
 server thread waiting for a message, blocks on the objects of its own RTOS,
 woken from the VRQ handler.
 
-Compared to VSHM there is no memory allocation, no pools or attributes, no
-reference counts on memory, no hold timer or forced release, no clearing
-between clients, and every MPU change happens in the table of the server,
-in its own syscalls. The price is trust: the server sees the client data
-region.
+Messages need no memory allocation and no reference counts on memory, and
+every MPU change happens in the table of the server, in its own syscalls.
+The price is trust: the server sees the client data region. Bulk data
+without that trust goes through a VSHM shared memory mapped by both.
 
-Related: [note_sb_vshm.md](note_sb_vshm.md) (the shared memory option),
+Related: [note_sb_vshm.md](note_sb_vshm.md) (shared memory),
 [note_sb_lifecycle.md](note_sb_lifecycle.md) (producer contract, PIDs),
 [note_sb_isolation_security.md](note_sb_isolation_security.md)
 (copy-in-once, TOCTOU),
@@ -218,11 +218,13 @@ the target execution (`sbVRQRaisePidS()`/`sbVRQRaisePidI()`).
 The MPU changes of the message cycle are in the table of the server, in its
 own syscalls, on its core; the client table is never touched. The events
 cross cores, a send raises a VRQ on the server, a reply on the client, and
-`sbVRQTriggerS()`/`sbVRQTriggerI()` assert the core: they need the
-cross-core posting of [note_sb_vshm.md](note_sb_vshm.md), a per-core host
-thread woken with the RT cross-core wakeup raising the VRQ on the core of
-the target. The same posting carries a revocation. The queue and the slots
-are under the system lock.
+`sbVRQTriggerS()`/`sbVRQTriggerI()` assert the core: they need a
+cross-core posting. The raise is recorded in the state of the target and a
+per-core host thread is woken on its core with the RT cross-core wakeup,
+`chSchReadyI()` notifying the instance; the thread raises the VRQ there. On
+a single core, and for a target on the same core, posting is a direct call.
+The same posting carries a revocation. The queue and the slots are under
+the system lock.
 
 ## Reuse from VSRV
 
@@ -236,8 +238,9 @@ From `park/sb-vsrv`:
 - the syscall and fastcall codes with sub-codes, the testsb harness and the
   NIL-MULTI demo structure.
 
-The private SMs of VSHM, run-time allocations with attributes such as
-coherent, are independent of the messages and can stay a separate feature.
+Zero-copy bulk data without opening the client data region: a VSHM shared
+memory mapped by client and server, simple messages pointing into it, see
+[note_sb_vshm.md](note_sb_vshm.md).
 
 ## Open questions
 
