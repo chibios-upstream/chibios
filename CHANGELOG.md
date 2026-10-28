@@ -8,6 +8,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [XHAL] Stub platform in `os/xhal/ports/stub`, without drivers:
+  XHAL-based code such as the test suites builds on targets that have no
+  XHAL platform yet. The application provides the board files and an
+  `xmcuconf.h` defining `__STUB_XMCUCONF__`; the system tick, periodic mode
+  only, comes from the OS port or the application
+  ([#564](https://github.com/chibios-upstream/chibios/pull/564)).
 - [BUILD] `ASMXSRC_EXCLUDE` variable in the ARMCMx GCC and LLVM build rules:
   makefiles included before the rules can now leave files listed by other
   makefiles out of the build, such as the standard vector table replaced by
