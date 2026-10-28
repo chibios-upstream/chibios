@@ -583,6 +583,17 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [ARMV6M] ARMv6-M-ALT never called application definitions of
+  `HardFault_Handler`, `SVC_Handler` or of the `NMI_Handler` or
+  `PendSV_Handler` the port does not use, and linked a conflicting
+  definition of the one it uses without an error. When the application
+  overrode `Reset_Handler`, the reset vector kept the default, so only a
+  debugger start through the ELF entry ran the override, and unhandled IRQs
+  and SysTick spun in a loop instead of calling `_unhandled_exception`.
+  Every vector the port does not own now reaches its conventional handler
+  as with `vectors.S`, and defining the `NMI_Handler` or `PendSV_Handler`
+  the port uses fails to link, as with the standard port
+  ([#563](https://github.com/chibios-upstream/chibios/pull/563)).
 - [ARMV6M] The ARMv6-M-ALT IRQ dispatcher used divided-syntax mnemonics that
   Clang's integrated assembler rejects, so the port could not be built with
   the ARMCMx LLVM build rules; it is now assembled in unified syntax, with
