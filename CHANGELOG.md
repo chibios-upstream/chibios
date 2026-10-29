@@ -8,6 +8,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [RT] DATA variants of the memory classes, from `CH_MEM_GLOBAL_DATA` to
+  `CH_MEM_PRIVATE_COHERENT_DATA()`, for initialized variables such as the
+  objects declared with `SEMAPHORE_DECL()`: the BSS classes discard the
+  initializer without a warning. Without a port definition they fall back
+  to the normal `.data`
+  ([#565](https://github.com/chibios-upstream/chibios/pull/565)).
+
 - [XHAL] Stub platform in `os/xhal/ports/stub`, without drivers:
   XHAL-based code such as the test suites builds on targets that have no
   XHAL platform yet. The application provides the board files and an
@@ -410,6 +417,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   ([#316](https://github.com/chibios-upstream/chibios/pull/316)).
 
 ### Changed
+
+- [OSLIB] The memory core, default heap and objects factory descriptors
+  are in the global coherent memory class, in SMP mode all cores use them.
+  The RT idle thread stacks move to the private class, their `thread_t` is
+  in the OS instance. No change on the current ports
+  ([#565](https://github.com/chibios-upstream/chibios/pull/565)).
 
 - [ARMV6M] The ARMv6-M-ALT port's `chcore.h` stops with "unsupported
   compiler" under IAR and RVCT, for which the port has no assembly or vector

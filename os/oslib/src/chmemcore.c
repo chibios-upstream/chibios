@@ -54,7 +54,7 @@
 /**
  * @brief   Memory core descriptor.
  */
-memcore_t ch_memcore;
+CH_MEM_GLOBAL_COHERENT_BSS memcore_t ch_memcore;
 
 /*===========================================================================*/
 /* Module local types.                                                       */

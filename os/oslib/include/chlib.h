@@ -221,6 +221,17 @@
 /* Module macros.                                                            */
 /*===========================================================================*/
 
+/**
+ * @brief   Global and coherent RAM affinity macro.
+ * @details The library global data is shared by all cores, it is declared
+ *          using this memory class.
+ * @note    Defined here only if the kernel does not implement memory
+ *          classes, as a normal BSS variable.
+ */
+#if !defined(CH_MEM_GLOBAL_COHERENT_BSS) || defined(__DOXYGEN__)
+#define CH_MEM_GLOBAL_COHERENT_BSS      /* Default BSS.*/
+#endif
+
 /*===========================================================================*/
 /* External declarations.                                                    */
 /*===========================================================================*/

@@ -89,7 +89,7 @@
  * @note    It is a global object because it could be accessed through
  *          a specific debugger plugin.
  */
-objects_factory_t ch_factory;
+CH_MEM_GLOBAL_COHERENT_BSS objects_factory_t ch_factory;
 
 /*===========================================================================*/
 /* Module local types.                                                       */
