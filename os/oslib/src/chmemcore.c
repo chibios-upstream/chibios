@@ -37,6 +37,15 @@
  *          This allocator, alone, is also useful for very simple
  *          applications that just require a simple way to get memory
  *          blocks.
+ *          <h2>SMP with non-coherent caches</h2>
+ *          The core memory is shared by the cores through the default heap,
+ *          the objects factory and any other allocator using it as provider,
+ *          so it must be in coherent memory. When @p CH_CFG_MEMCORE_SIZE is
+ *          zero the area is the linker heap, the linker script must place it
+ *          in a coherent region. Otherwise the area is allocated in the
+ *          global coherent memory class.<br>
+ *          Dynamic memory used by a single core should come from heaps and
+ *          pools on buffers placed in that core memory.
  * @pre     In order to use the core memory manager APIs the @p CH_CFG_USE_MEMCORE
  *          option must be enabled in @p chconf.h.
  * @note    Compatible with RT and NIL.
@@ -87,7 +96,8 @@ void __core_init(void) {
   ch_memcore.topmem  = __heap_end__;
   /*lint restore*/
 #else
-  static uint8_t static_heap[CH_CFG_MEMCORE_SIZE];
+  /* Shared by the cores, in coherent memory.*/
+  static CH_MEM_GLOBAL_COHERENT_BSS uint8_t static_heap[CH_CFG_MEMCORE_SIZE];
 
   ch_memcore.basemem = &static_heap[0];
   ch_memcore.topmem  = &static_heap[CH_CFG_MEMCORE_SIZE];
