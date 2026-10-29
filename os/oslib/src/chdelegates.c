@@ -44,6 +44,13 @@
  *          holding any thread reference required by the kernel. Calls to the
  *          current thread and cyclic synchronous call dependencies must be
  *          avoided because they cannot complete.
+ *          <h2>SMP with non-coherent caches</h2>
+ *          The call descriptor, the @p va_list and the arguments are on the
+ *          caller stack, the receiver reads them and advances the
+ *          @p va_list in place. On SMP systems whose data caches are not
+ *          coherent, the caller and the receiver must run on the same core.
+ *          Cross-core calls are only possible if the caller stack and any
+ *          data referenced by the arguments are in coherent memory.
  *          <h2>Receiver shutdown</h2>
  *          Stop new submissions and complete or reject outstanding calls
  *          before terminating the receiver. On RT, pending calls can be
@@ -175,6 +182,8 @@ msg_t __ch_delegate_fn4(va_list *argsp) {
  *          or @p chDelegateDispatchTimeout().
  * @pre     The receiver must not be the current thread. The caller must keep
  *          the receiver valid and avoid cyclic synchronous call dependencies.
+ * @pre     On SMP systems with non-coherent caches the receiver must run on
+ *          the caller core, see @ref oslib_delegates.
  * @note    The veneer must obey the module's callback and lifetime rules:
  *          return normally, do not recursively dispatch or receive messages
  *          on the same receiver, and do not retain argument storage.
