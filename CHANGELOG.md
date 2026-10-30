@@ -8,6 +8,15 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [RT] Dynamic threads of the spawn kind, `chThdSpawnFromHeap()` and
+  `chThdSpawnFromMemoryPool()`: the `thread_t` comes from a pool and the
+  stack from a heap or a pool, described by the new
+  `thread_heap_descriptor_t` and `thread_pool_descriptor_t` types and their
+  `THD_HEAP_DECL()` and `THD_POOL_DECL()` initializers. No change to
+  `thread_t`. The threads and dynamic threads documentation cover SMP
+  systems with non-coherent caches, where the `thread_t` must be coherent
+  and the stack can be in the core cacheable memory
+  ([#567](https://github.com/chibios-upstream/chibios/pull/567)).
 - [RT] DATA variants of the memory classes, from `CH_MEM_GLOBAL_DATA` to
   `CH_MEM_PRIVATE_COHERENT_DATA()`, for initialized variables such as the
   objects declared with `SEMAPHORE_DECL()`: the BSS classes discard the
