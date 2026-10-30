@@ -10,10 +10,10 @@ DDEFS += -DPORT_HAS_PLATFORM=TRUE                             \
          -DGICV2_INTERFACE_BASE=0xAE000100U                   \
          -DGICV2_DISTRIBUTOR_BASE=0xAE001000U
 
-PORTSIMSRC = $(CHIBIOS)/os/common/ports/ARMv7-R/platforms/simulator/port_platform.c
+PORTSIMR8SRC = $(CHIBIOS)/os/common/ports/ARMv7-R/platforms/sim-r8/port_platform.c
 
-PORTSIMINC = $(CHIBIOS)/os/common/ports/ARMv7-R/platforms/simulator
+PORTSIMR8INC = $(CHIBIOS)/os/common/ports/ARMv7-R/platforms/sim-r8
 
 # Shared variables.
-ALLCSRC += $(PORTSIMSRC)
-ALLINC  += $(PORTSIMINC)
+ALLCSRC += $(PORTSIMR8SRC)
+ALLINC  += $(PORTSIMR8INC)

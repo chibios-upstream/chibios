@@ -15,10 +15,10 @@
 */
 
 /**
- * @file    ARMv7-R/platforms/simulator/port_platform.h
+ * @file    ARMv7-R/platforms/sim-r8/port_platform.h
  * @brief   ARMv7-R simulator sub-port support.
  *
- * @addtogroup ARMV7R_SIMULATOR
+ * @addtogroup ARMV7R_SIM_R8
  * @{
  */
 

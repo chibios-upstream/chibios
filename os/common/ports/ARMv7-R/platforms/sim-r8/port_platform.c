@@ -15,10 +15,10 @@
 */
 
 /**
- * @file    ARMv7-R/platforms/simulator/port_platform.c
+ * @file    ARMv7-R/platforms/sim-r8/port_platform.c
  * @brief   ARMv7-R simulator sub-port support code.
  *
- * @addtogroup ARMV7R_SIMULATOR
+ * @addtogroup ARMV7R_SIM_R8
  * @{
  */
 
@@ -50,14 +50,24 @@
 
 /**
  * @brief   Simulator IRQ dispatcher adapter.
+ * @note    The dispatch is bracketed by the kernel IRQ macros. The handlers
+ *          call the I-class API, which the system state checker only
+ *          permits inside a declared ISR.
  *
  * @return              The preemption-required flag.
  *
  * @notapi
  */
 bool __port_irq_dispatch(void) {
+  bool preemption_required;
 
-  return gicv2Dispatch();
+  CH_IRQ_PROLOGUE();
+
+  preemption_required = gicv2Dispatch();
+
+  CH_IRQ_EPILOGUE();
+
+  return preemption_required;
 }
 
 /*===========================================================================*/
