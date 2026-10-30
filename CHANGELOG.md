@@ -614,6 +614,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [ARMV7R] The simulator platform IRQ dispatcher did not declare the ISR to
+  the kernel, so with `CH_DBG_SYSTEM_STATE_CHECK` enabled the first system
+  tick halted with "SV#6" in RT-ARMCR8-GENERIC. The dispatch is now
+  bracketed by `CH_IRQ_PROLOGUE()` and `CH_IRQ_EPILOGUE()` like on the AM67
+  platform. No change in the default configuration
+  ([#568](https://github.com/chibios-upstream/chibios/pull/568)).
 - [ARMV6M] ARMv6-M-ALT never called application definitions of
   `HardFault_Handler`, `SVC_Handler` or of the `NMI_Handler` or
   `PendSV_Handler` the port does not use, and linked a conflicting
