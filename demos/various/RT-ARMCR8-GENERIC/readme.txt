@@ -20,3 +20,7 @@ Run make from this directory.
 
 The generic linker script can be overridden by defining FLASH_ORIGIN,
 FLASH_LEN, RAM_ORIGIN and RAM_LEN from the Makefile or command line.
+
+With USE_FPU=hard, main() first runs a test of the FPU registers across
+interrupts (source/fpu_irq_test.c): the results are in fpu_irq_result and
+fpu_irq_passed.
