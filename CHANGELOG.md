@@ -426,6 +426,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [ARMV7R] The simulator platform is renamed after the simulated core:
+  `platforms/simulator` becomes `platforms/sim-r8` and `port_simulator.mk`
+  becomes `port_sim-r8.mk`, makefiles including the old file must be
+  updated. No code change
+  ([#568](https://github.com/chibios-upstream/chibios/pull/568)).
 - [OSLIB] The core allocator static area, used when `CH_CFG_MEMCORE_SIZE`
   is not zero, is in the global coherent memory class like the memory core
   descriptor. The core allocator and delegates documentation cover SMP
