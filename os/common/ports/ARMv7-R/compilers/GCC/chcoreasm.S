@@ -63,20 +63,47 @@
                 .arm
                 .text
 
+#if CORTEX_USE_FPU == TRUE
+/*
+ * Saves the FPU registers not preserved by called functions: d0-d7 and
+ * FPSCR. The second register is only used as padding, keeping the stack
+ * 8 bytes aligned. Frame size is 72 bytes.
+ */
+                .macro  FPU_SAVE_CALLER_SAVED tmp, pad
+                vmrs    \tmp, fpscr
+                stmfd   sp!, {\tmp, \pad}
+                vstmdb  sp!, {d0-d7}
+                .endm
+
+/*
+ * Restores the registers saved by FPU_SAVE_CALLER_SAVED.
+ */
+                .macro  FPU_RESTORE_CALLER_SAVED tmp, pad
+                vldmia  sp!, {d0-d7}
+                ldmfd   sp!, {\tmp, \pad}
+                vmsr    fpscr, \tmp
+                .endm
+#endif /* CORTEX_USE_FPU == TRUE */
+
                 .balign 16
 
+/*
+ * Context switch, it is always invoked as a function so only the registers
+ * preserved by called functions are saved: r4-r11, d8-d15 and FPSCR, the
+ * latter because its control bits are per-thread state.
+ */
                 .global __port_switch_arm
 __port_switch_arm:
                 stmfd   sp!, {r4, r5, r6, r7, r8, r9, r10, r11, lr}
 #if CORTEX_USE_FPU == TRUE
                 vmrs    r2, fpscr
                 stmfd   sp!, {r2}
-                vstmdb  sp!, {d0-d15}
+                vstmdb  sp!, {d8-d15}
 #endif
                 str     sp, [r1, #CONTEXT_OFFSET]
                 ldr     sp, [r0, #CONTEXT_OFFSET]
 #if CORTEX_USE_FPU == TRUE
-                vldmia  sp!, {d0-d15}
+                vldmia  sp!, {d8-d15}
                 ldmfd   sp!, {r2}
                 vmsr    fpscr, r2
 #endif
@@ -89,18 +116,28 @@ __port_switch_arm:
  * __port_irq_dispatch(), which is expected to claim, dispatch and complete
  * the current interrupt. It returns non-zero when preemption is required.
  *
- * System stack frame structure after a context switch in the interrupt handler:
+ * Interrupt handlers are C code, so they can use any register not preserved
+ * by called functions, FPU registers included: the compiler may use them
+ * even in code without floating point operations. When the FPU is enabled,
+ * d0-d7 and FPSCR are saved on the IRQ stack around the dispatch, adding
+ * 72 bytes to its usage.
+ *
+ * System stack frame structure after a context switch in the interrupt
+ * handler, the FPU part is present only when the FPU is enabled:
  *
  * High +------------+
- *      |   LR_USR   | -+
+ *      |    CPSR    | -+   (user code status)
+ *      |     PC     |  |   (user code return address)
+ *      |   LR_USR   |  |
  *      |     r12    |  |
  *      |     r3     |  |
- *      |     r2     |  | External context: IRQ handler frame
- *      |     r1     |  |
+ *      |     r2     |  |
+ *      |     r1     |  | External context: IRQ handler frame
  *      |     r0     |  |
- *      |    CPSR    |  |   (user code status)
- *      |     PC     | -+   (user code return address)
- *      |    ....    | <- chSchDoReschedule() stack frame
+ *      |  padding   |  |
+ *      |    FPSCR   |  |
+ *      |   d0-d7    | -+
+ *      |    ....    | <- chSchDoPreemption() stack frame
  *      |     LR     | -+   (system code return address)
  *      |     r11    |  |
  *      |     r10    |  |
@@ -109,14 +146,22 @@ __port_switch_arm:
  *      |     r7     |  |
  *      |     r6     |  |
  *      |     r5     |  |
- * SP-> |     r4     | -+
+ *      |     r4     |  |
+ *      |    FPSCR   |  |
+ * SP-> |   d8-d15   | -+
  * Low  +------------+
  */
                 .balign 16
                 .global Irq_Handler
 Irq_Handler:
                 stmfd   sp!, {r0-r3, r12, lr}
+#if CORTEX_USE_FPU == TRUE
+                FPU_SAVE_CALLER_SAVED r0, r1
+#endif
                 bl      __port_irq_dispatch
+#if CORTEX_USE_FPU == TRUE
+                FPU_RESTORE_CALLER_SAVED r1, r2
+#endif
                 cmp     r0, #0
                 ldmfd   sp!, {r0-r3, r12, lr}
                 beq     .Lirq_return
@@ -124,11 +169,16 @@ Irq_Handler:
                 /* Now the frame is created in the system stack, the IRQ
                    stack is empty. The IRQ return state is stored using the
                    ARMv7-R SRS instruction, then completed with the remaining
-                   volatile registers in system mode.*/
+                   volatile registers in system mode. The FPU registers are
+                   saved again in the thread frame because the code before
+                   the context switch can change them.*/
                 sub     lr, lr, #4
                 srsdb   sp!, #MODE_SYS
                 msr     CPSR_c, #(MODE_SYS | I_BIT)
                 stmfd   sp!, {r0-r3, r12, lr}
+#if CORTEX_USE_FPU == TRUE
+                FPU_SAVE_CALLER_SAVED r0, r1
+#endif
 
                 /* Context switch.*/
 #if CH_DBG_SYSTEM_STATE_CHECK
@@ -141,6 +191,9 @@ Irq_Handler:
 
                 /* The new thread exception frame is restored from the system
                    stack using the ARMv7-R RFE instruction.*/
+#if CORTEX_USE_FPU == TRUE
+                FPU_RESTORE_CALLER_SAVED r0, r1
+#endif
                 ldmfd   sp!, {r0-r3, r12, lr}
                 rfeia   sp!
 .Lirq_return:

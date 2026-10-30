@@ -619,6 +619,15 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [ARMV7R] With `CORTEX_USE_FPU` enabled, the IRQ entry saved only the
+  integer registers, so an interrupt handler using the FPU, or compiled
+  code using the FPU registers for integer data, corrupted the FPU state
+  of the interrupted thread. The IRQ entry now saves d0-d7 and FPSCR, also
+  in the thread frame when the interrupt exits through a context switch,
+  and the context switch saves only d8-d15 and FPSCR. The IRQ stack usage
+  grows by 72 bytes. RT-ARMCR8-GENERIC runs a test of the FPU registers
+  across interrupts in FPU builds. No change without the FPU
+  ([#569](https://github.com/chibios-upstream/chibios/pull/569)).
 - [ARMV7R] The simulator platform IRQ dispatcher did not declare the ISR to
   the kernel, so with `CH_DBG_SYSTEM_STATE_CHECK` enabled the first system
   tick halted with "SV#6" in RT-ARMCR8-GENERIC. The dispatch is now

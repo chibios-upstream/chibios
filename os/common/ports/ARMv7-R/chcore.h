@@ -153,6 +153,11 @@
 /**
  * @brief   FPU support in context switch.
  * @details Activating this option activates the FPU support in the kernel.
+ *          Threads and interrupt handlers can both use the FPU: the IRQ
+ *          entry code saves the FPU registers not preserved by called
+ *          functions (d0-d7, FPSCR) and the context switch saves the
+ *          others (d8-d15, FPSCR).
+ * @note    The IRQ stack usage grows by 72 bytes.
  */
 #if !defined(CORTEX_USE_FPU)
 #define CORTEX_USE_FPU                  FALSE
@@ -509,14 +514,19 @@
  *          interrupt handler when preemption is required.
  */
 struct port_extctx {
-  uint32_t              pc_irq;
-  uint32_t              cpsr_irq;
+#if (CORTEX_USE_FPU == TRUE) || defined(__DOXYGEN__)
+  uint64_t              d0_d7[8];
+  uint32_t              fpscr;
+  uint32_t              reserved;
+#endif
   uint32_t              r0;
   uint32_t              r1;
   uint32_t              r2;
   uint32_t              r3;
   uint32_t              r12;
   uint32_t              lr_usr;
+  uint32_t              pc_irq;
+  uint32_t              cpsr_irq;
 };
 
 /**
@@ -526,7 +536,7 @@ struct port_extctx {
  */
 struct port_intctx {
 #if (CORTEX_USE_FPU == TRUE) || defined(__DOXYGEN__)
-  uint64_t              d[16];
+  uint64_t              d8_d15[8];
   uint32_t              fpscr;
 #endif
   uint32_t              r4;
