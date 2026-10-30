@@ -97,10 +97,11 @@ const testsuite_t rt_test_suite = {
 
 /*
  * Shared thread storage, usable as legacy working areas or as stack/object
- * pairs for descriptor-based thread creation.
+ * pairs for descriptor-based thread creation. It contains the thread
+ * objects so it is in coherent memory.
  */
-ALIGNED_VAR(PORT_WORKING_AREA_ALIGN) test_thread_slot_t
-  test_thread_slots[MAX_THREADS];
+CH_MEM_GLOBAL_COHERENT_BSS ALIGNED_VAR(PORT_WORKING_AREA_ALIGN)
+test_thread_slot_t test_thread_slots[MAX_THREADS];
 
 /*
  * Pointers to the spawned threads.

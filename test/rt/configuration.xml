@@ -108,10 +108,11 @@ bool test_find_ready_trace(thread_t *tp, tstate_t state, msg_t *msgp);
     <global_code>
       <value><![CDATA[/*
  * Shared thread storage, usable as legacy working areas or as stack/object
- * pairs for descriptor-based thread creation.
+ * pairs for descriptor-based thread creation. It contains the thread
+ * objects so it is in coherent memory.
  */
-ALIGNED_VAR(PORT_WORKING_AREA_ALIGN) test_thread_slot_t
-  test_thread_slots[MAX_THREADS];
+CH_MEM_GLOBAL_COHERENT_BSS ALIGNED_VAR(PORT_WORKING_AREA_ALIGN)
+test_thread_slot_t test_thread_slots[MAX_THREADS];
 
 /*
  * Pointers to the spawned threads.
@@ -6289,7 +6290,7 @@ static memory_heap_t heap1;
 #if CH_CFG_USE_MEMPOOLS
 static memory_pool_t mp1;
 static memory_pool_t mp2;
-static thread_t thd_objs[4];
+static CH_MEM_GLOBAL_COHERENT_BSS thread_t thd_objs[4];
 #endif
 
 static THD_FUNCTION(dyn_thread1, p) {

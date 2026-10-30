@@ -58,7 +58,10 @@
  *          The creating core writes the initial context into the stack,
  *          and the whole stack with @p CH_DBG_FILL_THREADS. A thread with
  *          a cacheable stack must be created by its owner core, creating
- *          a thread for another core requires a coherent stack.
+ *          a thread for another core requires a coherent stack.<br>
+ *          Thread references and threads queues used to resume threads
+ *          from another core must be in coherent memory, like the other
+ *          synchronization objects.
  * @{
  */
 

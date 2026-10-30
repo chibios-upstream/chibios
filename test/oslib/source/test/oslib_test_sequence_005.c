@@ -99,7 +99,7 @@ static msg_t dis_func_end(void) {
   return (msg_t)0xAA55;
 }
 
-static THD_WORKING_AREA(waThread1, 256);
+static CH_MEM_GLOBAL_COHERENT_BSS THD_WORKING_AREA(waThread1, 256);
 static THD_FUNCTION(Thread1, arg) {
 
   (void)arg;

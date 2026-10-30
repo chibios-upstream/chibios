@@ -43,6 +43,11 @@
  *          example) from the posting side and free it on the fetching side.
  *          Another approach is to set a "done" flag into the structure pointed
  *          by the message.
+ *          <h2>SMP with non-coherent caches</h2>
+ *          A mailbox used by more than one core must be in coherent memory
+ *          together with its messages buffer. When the messages are
+ *          pointers, the pointed data must be in coherent memory or the
+ *          sender and the receiver must run on the same core.
  * @pre     In order to use the mailboxes APIs the @p CH_CFG_USE_MAILBOXES
  *          option must be enabled in @p chconf.h.
  * @note    Compatible with RT and NIL.
