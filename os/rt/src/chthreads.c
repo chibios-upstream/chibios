@@ -44,6 +44,21 @@
  *          - <b>SetPriority</b>, a thread changes its own priority level.
  *          - <b>Yield</b>, a thread voluntarily renounces its time slot.
  *          .
+ *          <h2>SMP with non-coherent caches</h2>
+ *          The @p thread_t structures are written by all cores through the
+ *          registry, the scheduler and the synchronization objects, so they
+ *          must be in coherent memory. A stack is used only by its own
+ *          core and can be in that core cacheable memory.<br>
+ *          The spawn functions take the @p thread_t separately from the
+ *          stack, they are the intended way to create threads: a
+ *          @p thread_t in coherent memory and a stack declared with
+ *          @p THD_STACK() in the core memory. The create functions place
+ *          the @p thread_t at the top of the working area, so the whole
+ *          working area must be in coherent memory.<br>
+ *          The creating core writes the initial context into the stack,
+ *          and the whole stack with @p CH_DBG_FILL_THREADS. A thread with
+ *          a cacheable stack must be created by its owner core, creating
+ *          a thread for another core requires a coherent stack.
  * @{
  */
 
@@ -313,6 +328,8 @@ thread_t *__thd_spawn_suspended(thread_t *tp,
  * @pre     The thread object and its working area must not overlap each other.
  *          Neither resource may overlap a resource of the same type belonging
  *          to an active thread.
+ * @pre     On SMP systems with non-coherent caches the thread object must
+ *          be in coherent memory, see @ref threads.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
@@ -360,6 +377,8 @@ thread_t *chThdSpawnSuspendedI(thread_t *tp,
  * @pre     The thread object and its working area must not overlap each other.
  *          Neither resource may overlap a resource of the same type belonging
  *          to an active thread.
+ * @pre     On SMP systems with non-coherent caches the thread object must
+ *          be in coherent memory, see @ref threads.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
@@ -393,6 +412,8 @@ thread_t *chThdSpawnSuspended(thread_t *tp,
  * @pre     The thread object and its working area must not overlap each other.
  *          Neither resource may overlap a resource of the same type belonging
  *          to an active thread.
+ * @pre     On SMP systems with non-coherent caches the thread object must
+ *          be in coherent memory, see @ref threads.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
@@ -421,6 +442,8 @@ thread_t *chThdSpawnRunningI(thread_t *tp, const thread_descriptor_t *tdp) {
  * @pre     The thread object and its working area must not overlap each other.
  *          Neither resource may overlap a resource of the same type belonging
  *          to an active thread.
+ * @pre     On SMP systems with non-coherent caches the thread object must
+ *          be in coherent memory, see @ref threads.
  *
  * @param[out] tp       pointer to a @p thread_t object
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
@@ -455,6 +478,9 @@ thread_t *chThdSpawnRunning(thread_t *tp, const thread_descriptor_t *tdp) {
  * @note    Threads created using this function do not honor the
  *          @p CH_DBG_FILL_THREADS debug option because it would stay
  *          in a critical section for too long while filling.
+ * @pre     On SMP systems with non-coherent caches the working area must be
+ *          in coherent memory because it contains the thread object,
+ *          see @ref threads.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
  * @return              Pointer to the @p thread_t object.
@@ -519,6 +545,9 @@ thread_t *chThdCreateSuspendedI(const thread_descriptor_t *tdp) {
  * @post    The initialized thread can be subsequently started by invoking
  *          @p chThdStart(), @p chThdStartI() or @p chSchWakeupS()
  *          depending on the execution context.
+ * @pre     On SMP systems with non-coherent caches the working area must be
+ *          in coherent memory because it contains the thread object,
+ *          see @ref threads.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
  * @return              Pointer to the @p thread_t object.
@@ -552,6 +581,9 @@ thread_t *chThdCreateSuspended(const thread_descriptor_t *tdp) {
  * @note    Threads created using this function do not honor the
  *          @p CH_DBG_FILL_THREADS debug option because it would keep
  *          the kernel locked for too much time.
+ * @pre     On SMP systems with non-coherent caches the working area must be
+ *          in coherent memory because it contains the thread object,
+ *          see @ref threads.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
  * @return              Pointer to the @p thread_t object.
@@ -577,6 +609,9 @@ thread_t *chThdCreateI(const thread_descriptor_t *tdp) {
  *          to eventually release that reference using @p chThdRelease() or,
  *          if @p CH_CFG_USE_WAITEXIT is @p TRUE, @p chThdWait(). The thread
  *          persists in the registry until its reference counter reaches zero.
+ * @pre     On SMP systems with non-coherent caches the working area must be
+ *          in coherent memory because it contains the thread object,
+ *          see @ref threads.
  *
  * @param[in] tdp       pointer to a @p thread_descriptor_t object
  * @return              Pointer to the @p thread_t object.
@@ -607,6 +642,9 @@ thread_t *chThdCreate(const thread_descriptor_t *tdp) {
  *          persists in the registry until its reference counter reaches zero.
  * @note    A thread can terminate by calling @p chThdExit() or by simply
  *          returning from its main function.
+ * @pre     On SMP systems with non-coherent caches the working area must be
+ *          in coherent memory because it contains the thread object,
+ *          see @ref threads.
  *
  * @param[out] wbase    working area base address
  * @param[in] wsize     working area size

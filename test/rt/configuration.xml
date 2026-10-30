@@ -6288,6 +6288,8 @@ static memory_heap_t heap1;
 #endif
 #if CH_CFG_USE_MEMPOOLS
 static memory_pool_t mp1;
+static memory_pool_t mp2;
+static thread_t thd_objs[4];
 #endif
 
 static THD_FUNCTION(dyn_thread1, p) {
@@ -6652,6 +6654,246 @@ n3 = chHeapStatus(&heap1, &total3, &largest3);
 test_assert(n1 == n3, "fragmentation changed");
 test_assert(total1 == total3, "total free space changed");
 test_assert(largest1 == largest3, "largest fragment size changed");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Threads spawning from Memory Pool and Memory Heap.</value>
+          </brief>
+          <description>
+            <value>Thread objects are allocated from a pool containing two
+              elements and stacks from the Memory Heap.&lt;br&gt;&#xD;
+              The test expects a spawn with a huge stack requirement to fail
+              without consuming a thread object, then two spawns to succeed
+              and a third one to fail because the pool is empty.</value>
+          </description>
+          <condition>
+            <value><![CDATA[(CH_CFG_USE_HEAP == TRUE) && (CH_CFG_USE_MEMPOOLS == TRUE)]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chHeapObjectInit(&heap1, TEST_SHARED_BUFFER,
+                 TEST_SHARED_BUFFER_SIZE);
+chPoolObjectInit(&mp1, sizeof (thread_t), NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chPoolObjectDispose(&mp1);
+chHeapObjectDispose(&heap1);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[size_t n1, total1, largest1;
+size_t n2, total2, largest2;
+unsigned i;
+tprio_t prio;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Getting base priority and heap info, adding two thread
+                  objects to the pool.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[prio = chThdGetPriorityX();
+n1 = chHeapStatus(&heap1, &total1, &largest1);
+test_assert(n1 == 1, "heap fragmented");
+for (i = 0; i < 2; i++)
+  chPoolFree(&mp1, &thd_objs[i]);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Spawning a thread with a huge stack, it is expected to
+                  fail.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[THD_HEAP_DECL(td, "dyn1", &heap1, (((size_t)-1) >> 1U) + 1U,
+              prio-1, dyn_thread1, "X", NULL);
+
+threads[0] = chThdSpawnFromHeap(&mp1, &td);
+test_assert(threads[0] == NULL, "thread spawn not failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Spawning three threads, the first two are expected to
+                  succeed and the third one to fail because the pool is
+                  empty.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[thread_heap_descriptor_t td[3] = {
+  __THD_HEAP_DECL_DATA("dyn1", &heap1, THD_STACK_SIZE(THREADS_STACK_SIZE),
+                       prio-1, dyn_thread1, "A", NULL),
+  __THD_HEAP_DECL_DATA("dyn2", &heap1, THD_STACK_SIZE(THREADS_STACK_SIZE),
+                       prio-2, dyn_thread1, "B", NULL),
+  __THD_HEAP_DECL_DATA("dyn3", &heap1, THD_STACK_SIZE(THREADS_STACK_SIZE),
+                       prio-3, dyn_thread1, "C", NULL)
+};
+
+for (i = 0; i < 3; i++)
+  threads[i] = chThdSpawnFromHeap(&mp1, &td[i]);
+test_assert((threads[0] != NULL) &&
+            (threads[1] != NULL),
+            "thread spawn failed");
+test_assert(threads[2] == NULL,
+            "thread spawn not failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Letting threads execute then checking the start order and
+                  freeing memory.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_wait_threads();
+test_assert_sequence("AB", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Getting heap info again for verification, testing that
+                  the pool contains two elements again.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[n2 = chHeapStatus(&heap1, &total2, &largest2);
+test_assert(n1 == n2, "fragmentation changed");
+test_assert(total1 == total2, "total free space changed");
+test_assert(largest1 == largest2, "largest fragment size changed");
+for (i = 0; i < 2; i++)
+  test_assert(chPoolAlloc(&mp1) != NULL, "pool list empty");
+test_assert(chPoolAlloc(&mp1) == NULL, "pool list not empty");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Threads spawning from Memory Pools.</value>
+          </brief>
+          <description>
+            <value>Thread objects are allocated from a pool containing four
+              elements and stacks from a pool containing three
+              elements.&lt;br&gt;&#xD;
+              The test expects the first three spawns to succeed and the
+              fourth one to fail without consuming a thread object.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_MEMPOOLS == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chPoolObjectInit(&mp1, sizeof (thread_t), NULL);
+chPoolObjectInitAligned(&mp2, THD_POOL_STACK_SIZE(THREADS_STACK_SIZE),
+                        PORT_WORKING_AREA_ALIGN, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chPoolObjectDispose(&mp2);
+chPoolObjectDispose(&mp1);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[unsigned i;
+tprio_t prio;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Adding four thread objects to the first pool and three
+                  stacks to the second pool.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0; i < 4; i++)
+  chPoolFree(&mp1, &thd_objs[i]);
+for (i = 0; i < 3; i++)
+  chPoolFree(&mp2, wa[i]);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Getting base priority for threads.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[prio = chThdGetPriorityX();]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Spawning four threads, the first three are expected to
+                  succeed and the fourth one to fail because the stacks
+                  pool is empty.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[thread_pool_descriptor_t td[4] = {
+  __THD_POOL_DECL_DATA("dyn1", &mp2, prio-1, dyn_thread1, "A", NULL),
+  __THD_POOL_DECL_DATA("dyn2", &mp2, prio-2, dyn_thread1, "B", NULL),
+  __THD_POOL_DECL_DATA("dyn3", &mp2, prio-3, dyn_thread1, "C", NULL),
+  __THD_POOL_DECL_DATA("dyn4", &mp2, prio-4, dyn_thread1, "D", NULL)
+};
+
+for (i = 0; i < 4; i++)
+  threads[i] = chThdSpawnFromMemoryPool(&mp1, &td[i]);
+test_assert((threads[0] != NULL) &&
+            (threads[1] != NULL) &&
+            (threads[2] != NULL),
+            "thread spawn failed");
+test_assert(threads[3] == NULL,
+            "thread spawn not failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Letting them run, free the memory then checking the
+                  execution sequence.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_wait_threads();
+test_assert_sequence("ABC", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Testing that the pools contain four thread objects and
+                  three stacks again.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0; i < 4; i++)
+  test_assert(chPoolAlloc(&mp1) != NULL, "objects pool list empty");
+test_assert(chPoolAlloc(&mp1) == NULL, "objects pool list not empty");
+for (i = 0; i < 3; i++)
+  test_assert(chPoolAlloc(&mp2) != NULL, "stacks pool list empty");
+test_assert(chPoolAlloc(&mp2) == NULL, "stacks pool list not empty");]]></value>
               </code>
             </step>
           </steps>
