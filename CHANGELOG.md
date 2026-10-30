@@ -426,6 +426,15 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [ARMV7R] Stacks and working areas are aligned to the cache line and their
+  sizes are multiples of it, so they never share a line with other data:
+  `PORT_STACK_ALIGN` and `PORT_WORKING_AREA_ALIGN` are the new
+  `PORT_CACHE_LINE_SIZE` setting, by default the L1 data cache line of the
+  core, 32 bytes on Cortex-R5 and Cortex-R8. It can be raised for an outer
+  cache with larger lines. Working areas can be slightly larger, no code
+  change. The MPU regions initialization settings are grouped in the
+  documentation
+  ([#570](https://github.com/chibios-upstream/chibios/pull/570)).
 - [ARMV7R] The simulator platform is renamed after the simulated core:
   `platforms/simulator` becomes `platforms/sim-r8` and `port_simulator.mk`
   becomes `port_sim-r8.mk`, makefiles including the old file must be
