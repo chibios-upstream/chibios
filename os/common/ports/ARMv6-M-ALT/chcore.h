@@ -482,7 +482,9 @@ __CH_STATIC_ASSERT(port_registry_context_sizes,
  *          enabled to invoke system APIs.
  * @note    The reschedule evaluation is performed by the common dispatcher
  *          @p __port_irq_common after the handler returns, nothing is
- *          required here.
+ *          required here. Only the @p SysTick and external interrupt
+ *          handlers are dispatched, the other system exception handlers
+ *          get no reschedule on exit.
  */
 #define PORT_IRQ_EPILOGUE()
 
@@ -490,9 +492,13 @@ __CH_STATIC_ASSERT(port_registry_context_sizes,
  * @brief   IRQ handler function declaration.
  * @note    @p id can be a function name or a vector number depending on the
  *          port implementation.
- * @details Handlers are plain C functions reached through the
- *          @p __port_vectors dispatch table, all hardware interrupt vectors
- *          point to the common dispatcher @p __port_irq_common (see
+ * @details Handlers are plain C functions. The @p SysTick and external
+ *          interrupt vectors point to the common dispatcher
+ *          @p __port_irq_common, which calls their handlers through the
+ *          @p __port_vectors table: @p LR does not hold @p EXC_RETURN and
+ *          @p MSP is 8 bytes below its value at exception entry. The other
+ *          system exception vectors are not dispatched, their conventional
+ *          handlers run with the architectural entry state (see
  *          @p vectors_alt.S and @p chcoreasm.S).
  */
 #ifdef __cplusplus
