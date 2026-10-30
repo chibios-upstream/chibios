@@ -56,6 +56,35 @@
  *          implemented by placing variables in a non-cacheable area. This
  *          can have a performance impact so it is better to not place
  *          variables in coherent classes unless strictly required.
+ *          <h2>SMP with non-coherent caches</h2>
+ *          When the data caches of the cores are not coherent, the coherent
+ *          classes are the only memory where a core sees the writes of the
+ *          other cores, usually because they are not cacheable. The other
+ *          classes can be cached: their data must be used by a single core
+ *          or exchanged with cache maintenance by the application, the
+ *          kernel performs none. The private classes hold the data of a
+ *          single core, such as the thread stacks.<br>
+ *          The following must be in a coherent class:
+ *          - all the @p thread_t structures, the registry links them in a
+ *            list shared by all cores, and the scheduler and the
+ *            synchronization objects write them from any core;
+ *          - the synchronization objects used by more than one core,
+ *            including thread references, threads queues, event sources
+ *            and their listeners;
+ *          - the data passed through pointers to a thread on another core,
+ *            for example with messages, mailboxes, objects FIFOs and jobs.
+ *          .
+ *          An object and its buffers use the same class, for example a
+ *          mailbox and its messages buffer, a pipe and its buffer, a heap
+ *          or a memory pool and its memory area.<br>
+ *          Cacheable data written by different cores must not share a
+ *          cache line, the write-back of a dirty line overwrites the bytes
+ *          written by the other core in the same line. The private classes
+ *          should be separate areas for each core, and the ports of cores
+ *          with data caches align thread stacks and working areas to the
+ *          cache line.<br>
+ *          The threads, events and messages modules and the OSLIB modules
+ *          describe their own requirements.
  * @{
  */
 

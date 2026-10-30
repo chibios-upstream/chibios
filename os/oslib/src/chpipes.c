@@ -28,6 +28,11 @@
  *          - <b>Reset</b>: The pipe is emptied and all the stored data
  *            is lost.
  *          .
+ *          <h2>SMP with non-coherent caches</h2>
+ *          A pipe used by more than one core must be in coherent memory
+ *          together with its buffer. The data is copied through the pipe
+ *          buffer, the buffers passed to the read and write functions are
+ *          only accessed by the calling thread.
  * @pre     In order to use the pipes APIs the @p CH_CFG_USE_PIPES
  *          option must be enabled in @p chconf.h.
  * @note    Compatible with RT and NIL.

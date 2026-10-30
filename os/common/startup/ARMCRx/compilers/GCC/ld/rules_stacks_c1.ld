@@ -23,7 +23,7 @@ __c1_sys_stack_size__   = DEFINED(__c1_sys_stack_size__) ? __c1_sys_stack_size__
 
 SECTIONS
 {
-    .c1_stacks (NOLOAD) :
+    .c1_stacks (NOLOAD) : ALIGN(__stacks_align__)
     {
         . = ALIGN(8);
         __c1_und_stack_base__ = .;
@@ -54,7 +54,7 @@ SECTIONS
         __c1_sys_stack_base__ = .;
         __c1_main_thread_stack_base__ = .;
         . += __c1_sys_stack_size__;
-        . = ALIGN(8);
+        . = ALIGN(__stacks_align__);
         __c1_sys_stack_end__ = .;
         __c1_main_thread_stack_end__ = .;
     } > C1_STACKS_RAM

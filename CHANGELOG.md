@@ -426,6 +426,28 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [RT] The memory classes documentation lists what must be in coherent
+  memory on SMP systems with non-coherent caches, all the `thread_t`
+  structures, the synchronization objects used by more than one core and
+  the data passed through pointers to another core, and the cache line
+  rule. The events, messages and threads documentation cover event
+  listeners, message payloads, thread references and threads queues. No
+  code change
+  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
+- [OSLIB] The mailboxes, objects FIFOs, pipes, jobs queues and objects
+  caches documentation cover SMP systems with non-coherent caches. No code
+  change
+  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
+- [TEST] The RT and OSLIB test suites keep the storage of the test threads,
+  which contains their `thread_t`, in the global coherent memory class. No
+  change on the current ports
+  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
+- [ARMV7R] The ARMCRx linker rules align both ends of the banked mode stacks
+  areas to `__stacks_align__`, 64 bytes by default and overridable in the
+  linker script, so the stacks do not share cache lines with the adjacent
+  data. No change with stack sizes multiple of 64 bytes, as in the current
+  demos
+  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
 - [ARMV7R] Stacks and working areas are aligned to the cache line and their
   sizes are multiples of it, so they never share a line with other data:
   `PORT_STACK_ALIGN` and `PORT_WORKING_AREA_ALIGN` are the new

@@ -35,6 +35,13 @@
  *          Messages are usually processed in FIFO order but it is possible to
  *          process them in priority order by enabling the
  *          @p CH_CFG_USE_MESSAGES_PRIORITY option in @p chconf.h.<br>
+ *          <h2>SMP with non-coherent caches</h2>
+ *          Messages and answers are stored in the @p thread_t of the sender,
+ *          which is in coherent memory. When the message is a pointer, the
+ *          pointed data must be in coherent memory or the sender and the
+ *          receiver must run on the same core. Data on the stack of the
+ *          sender, which is waiting for the answer, can be passed to
+ *          another core only if that stack is coherent.
  * @pre     In order to use the message APIs the @p CH_CFG_USE_MESSAGES option
  *          must be enabled in @p chconf.h.
  * @post    Enabling messages requires 6-12 (depending on the architecture)

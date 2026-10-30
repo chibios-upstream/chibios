@@ -27,6 +27,12 @@
  *          - <b>Post</b>: A job is posted to the queue, it will be
  *            returned to the pool after execution.
  *          .
+ *          <h2>SMP with non-coherent caches</h2>
+ *          A jobs queue used by more than one core must be in coherent
+ *          memory together with its job descriptors and its messages
+ *          buffer. When a job is posted by a core and executed by another,
+ *          the data reached through the job argument must be in coherent
+ *          memory too.
  *
  * @addtogroup oslib_jobs_queues
  * @{

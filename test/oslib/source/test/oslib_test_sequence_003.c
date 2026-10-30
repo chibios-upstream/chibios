@@ -67,8 +67,8 @@ typedef struct {
   uint8_t data[PIPE_SIZE];
 } pipe_test_context_t;
 
-static THD_WORKING_AREA(waPipe1, 256);
-static THD_WORKING_AREA(waPipe2, 256);
+static CH_MEM_GLOBAL_COHERENT_BSS THD_WORKING_AREA(waPipe1, 256);
+static CH_MEM_GLOBAL_COHERENT_BSS THD_WORKING_AREA(waPipe2, 256);
 
 static THD_FUNCTION(pipe_thread, arg) {
   pipe_test_context_t *ctx = arg;

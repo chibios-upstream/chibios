@@ -58,8 +58,8 @@ static void job_slow(void *arg) {
   chThdSleepMilliseconds(10);
 }
 
-static THD_WORKING_AREA(wa1Thread1, 256);
-static THD_WORKING_AREA(wa2Thread1, 256);
+static CH_MEM_GLOBAL_COHERENT_BSS THD_WORKING_AREA(wa1Thread1, 256);
+static CH_MEM_GLOBAL_COHERENT_BSS THD_WORKING_AREA(wa2Thread1, 256);
 static THD_FUNCTION(Thread1, arg) {
   msg_t msg;
 
