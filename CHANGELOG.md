@@ -658,6 +658,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [ARMV7R] The IRQ return did not clear the local exclusive monitor, which
+  ARMv7-R requires after a context switch. Code using LDREX/STREX with
+  IRQs enabled, such as the C11 and GCC atomics, could see a Store-Exclusive
+  succeed after an interrupt although the monitor had been armed by other
+  code, or the location written by a plain store, in between. Both IRQ
+  returns now execute CLREX
+  ([#575](https://github.com/chibios-upstream/chibios/pull/575)).
 - [BUILD] The ARMCRx, ARMCMx (GCC and LLVM) and RISC-V Hazard3 build rules
   passed the makefile `--defsym` options after the linker script, so a
   script assignment with a `DEFINED()` default ignored them: the layout

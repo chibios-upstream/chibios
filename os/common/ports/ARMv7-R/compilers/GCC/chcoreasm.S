@@ -122,6 +122,15 @@ __port_switch_arm:
  * d0-d7 and FPSCR are saved on the IRQ stack around the dispatch, adding
  * 72 bytes to its usage.
  *
+ * The local exclusive monitor is cleared before both IRQ returns. The
+ * kernel does not use LDREX/STREX, but other code uses them with IRQs
+ * enabled, the C11 and GCC atomics for example. A thread interrupted
+ * between LDREX and STREX resumes through an IRQ return, and its STREX
+ * must fail if the monitor was armed by other code in between, or if a
+ * plain store, which may leave the monitor untouched, wrote the same
+ * location. ARMv7-R requires software to clear the monitor, DDI 0406C
+ * A3.4.4.
+ *
  * System stack frame structure after a context switch in the interrupt
  * handler, the FPU part is present only when the FPU is enabled:
  *
@@ -195,8 +204,10 @@ Irq_Handler:
                 FPU_RESTORE_CALLER_SAVED r0, r1
 #endif
                 ldmfd   sp!, {r0-r3, r12, lr}
+                clrex
                 rfeia   sp!
 .Lirq_return:
+                clrex
                 subs    pc, lr, #4
 
 /*
