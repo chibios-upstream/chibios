@@ -39,10 +39,10 @@
 /* Shared code.                                                              */
 /*===========================================================================*/
 
-static thread_reference_t tr1;
-static threads_queue_t tq1;
-static msg_t qmsg1;
-static msg_t qmsg2;
+static CH_MEM_GLOBAL_COHERENT_BSS thread_reference_t tr1;
+static CH_MEM_GLOBAL_COHERENT_BSS threads_queue_t tq1;
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t qmsg1;
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t qmsg2;
 
 static THD_FUNCTION(thread1, p) {
 

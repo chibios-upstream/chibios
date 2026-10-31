@@ -426,6 +426,14 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [TEST] The RT and OSLIB test suites keep all their data in the global
+  coherent memory class, the static objects and buffers of the test
+  sequences and the test framework context, so on SMP systems with
+  non-coherent caches the suites run on a core after the other without
+  cache maintenance in the application. `chlib.h` defines
+  `CH_MEM_GLOBAL_COHERENT_DATA` as normal DATA for NIL. No change on the
+  current ports
+  ([#573](https://github.com/chibios-upstream/chibios/pull/573)).
 - [RT] The memory classes documentation lists what must be in coherent
   memory on SMP systems with non-coherent caches, all the `thread_t`
   structures, the synchronization objects used by more than one core and

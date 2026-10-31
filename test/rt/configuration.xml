@@ -117,7 +117,7 @@ test_thread_slot_t test_thread_slots[MAX_THREADS];
 /*
  * Pointers to the spawned threads.
  */
-thread_t *threads[MAX_THREADS];
+CH_MEM_GLOBAL_COHERENT_BSS thread_t *threads[MAX_THREADS];
 
 /*
  * Pointers to the working areas.
@@ -737,14 +737,14 @@ enum {
 };
 
 #if CH_CFG_USE_TM || defined(__DOXYGEN__)
-static time_measurement_t tm1, tm2, tm3;
+static CH_MEM_GLOBAL_COHERENT_BSS time_measurement_t tm1, tm2, tm3;
 #endif
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
-static virtual_timer_t timers_state_vt;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t timers_state_vt;
 #if (CH_CFG_USE_RFCU == TRUE) || defined(__DOXYGEN__)
-static virtual_timer_t timers_overflow_anchor;
-static virtual_timer_t timers_overflow_vt;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t timers_overflow_anchor;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t timers_overflow_vt;
 #endif
 
 static void timers_state_cb(virtual_timer_t *vtp, void *param) {
@@ -1433,7 +1433,7 @@ static THD_FUNCTION(registry_thread, p) {
 #endif
 
 #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
-static MUTEX_DECL(priority_mtx);
+static CH_MEM_GLOBAL_COHERENT_DATA MUTEX_DECL(priority_mtx);
 
 static THD_FUNCTION(priority_thread, p) {
 
@@ -2444,10 +2444,10 @@ test_assert_sequence("D", "invalid sequence");]]></value>
         <value />
       </condition>
       <shared_code>
-        <value><![CDATA[static thread_reference_t tr1;
-static threads_queue_t tq1;
-static msg_t qmsg1;
-static msg_t qmsg2;
+        <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_BSS thread_reference_t tr1;
+static CH_MEM_GLOBAL_COHERENT_BSS threads_queue_t tq1;
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t qmsg1;
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t qmsg2;
 
 static THD_FUNCTION(thread1, p) {
 
@@ -2726,8 +2726,8 @@ test_assert_sequence("DE", "invalid sequence");]]></value>
       <shared_code>
         <value><![CDATA[#include "ch.h"
 
-static semaphore_t sem1;
-static semaphore_t sem2;
+static CH_MEM_GLOBAL_COHERENT_BSS semaphore_t sem1;
+static CH_MEM_GLOBAL_COHERENT_BSS semaphore_t sem2;
 
 static THD_FUNCTION(thread1, p) {
 
@@ -3435,10 +3435,10 @@ test_assert(empty, "invalid wait semaphore");]]></value>
         <value><![CDATA[CH_CFG_USE_MUTEXES == TRUE]]></value>
       </condition>
       <shared_code>
-        <value><![CDATA[static MUTEX_DECL(m1);
-static MUTEX_DECL(m2);
+        <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_DATA MUTEX_DECL(m1);
+static CH_MEM_GLOBAL_COHERENT_DATA MUTEX_DECL(m2);
 #if CH_CFG_USE_CONDVARS || defined(__DOXYGEN__)
-static CONDVAR_DECL(c1);
+static CH_MEM_GLOBAL_COHERENT_DATA CONDVAR_DECL(c1);
 #endif
 
 #if CH_DBG_THREADS_PROFILING || defined(__DOXYGEN__)
@@ -3589,7 +3589,7 @@ static THD_FUNCTION(thread11M, p) {
   test_emit_token(*(char *)p);
 }
 
-static thread_reference_t priority_chain_ref;
+static CH_MEM_GLOBAL_COHERENT_BSS thread_reference_t priority_chain_ref;
 
 static THD_FUNCTION(thread13L, p) {
 
@@ -5098,7 +5098,7 @@ typedef struct {
   char token;
 } msg_sender_args_t;
 
-static msg_sender_args_t msg_sender_args[2];
+static CH_MEM_GLOBAL_COHERENT_BSS msg_sender_args_t msg_sender_args[2];
 
 static THD_FUNCTION(msg_lifecycle_sender, p) {
   msg_sender_args_t *ap = (msg_sender_args_t *)p;
@@ -5571,8 +5571,8 @@ test_assert_sequence("AB", "queued senders not rejected");]]></value>
         <value><![CDATA[CH_CFG_USE_EVENTS == TRUE]]></value>
       </condition>
       <shared_code>
-        <value><![CDATA[static EVENTSOURCE_DECL(es1);
-static EVENTSOURCE_DECL(es2);
+        <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_DATA EVENTSOURCE_DECL(es1);
+static CH_MEM_GLOBAL_COHERENT_DATA EVENTSOURCE_DECL(es2);
 
 static void h1(eventid_t id) {(void)id;test_emit_token('A');}
 static void h2(eventid_t id) {(void)id;test_emit_token('B');}
@@ -6285,11 +6285,11 @@ test_assert_lock(!chEvtIsListeningI(&es2), "stuck listener");]]></value>
       </condition>
       <shared_code>
         <value><![CDATA[#if CH_CFG_USE_HEAP
-static memory_heap_t heap1;
+static CH_MEM_GLOBAL_COHERENT_BSS memory_heap_t heap1;
 #endif
 #if CH_CFG_USE_MEMPOOLS
-static memory_pool_t mp1;
-static memory_pool_t mp2;
+static CH_MEM_GLOBAL_COHERENT_BSS memory_pool_t mp1;
+static CH_MEM_GLOBAL_COHERENT_BSS memory_pool_t mp2;
 static CH_MEM_GLOBAL_COHERENT_BSS thread_t thd_objs[4];
 #endif
 
@@ -6923,10 +6923,10 @@ test_assert(chPoolAlloc(&mp2) == NULL, "stacks pool list not empty");]]></value>
       </condition>
       <shared_code>
         <value><![CDATA[#if CH_CFG_USE_SEMAPHORES || defined(__DOXYGEN__)
-static semaphore_t sem1;
+static CH_MEM_GLOBAL_COHERENT_BSS semaphore_t sem1;
 #endif
 #if CH_CFG_USE_MUTEXES || defined(__DOXYGEN__)
-static mutex_t mtx1;
+static CH_MEM_GLOBAL_COHERENT_BSS mutex_t mtx1;
 #endif
 
 static void tmo(virtual_timer_t *vtp, void *param) {
@@ -6935,8 +6935,8 @@ static void tmo(virtual_timer_t *vtp, void *param) {
   (void)param;
 }
 
-static virtual_timer_t vt1, vt2;
-static volatile uint32_t vt_counter;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t vt1, vt2;
+static CH_MEM_GLOBAL_COHERENT_BSS volatile uint32_t vt_counter;
 
 static void vt_continuous_cb(virtual_timer_t *vtp, void *param) {
 
@@ -8033,7 +8033,7 @@ test_assert(stamp1 <= stamp2, "not monotonic");]]></value>
               <value />
             </teardown_code>
             <local_variables>
-              <value><![CDATA[static virtual_timer_t vt1, vt2;
+              <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t vt1, vt2;
 uint32_t n;]]></value>
             </local_variables>
           </various_code>
@@ -8409,7 +8409,7 @@ test_println(" bytes");
 }
 
 #if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
-static mutex_t m1;
+static CH_MEM_GLOBAL_COHERENT_BSS mutex_t m1;
 #endif]]></value>
       </shared_code>
       <cases>

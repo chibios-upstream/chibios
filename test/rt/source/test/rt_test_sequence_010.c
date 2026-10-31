@@ -52,8 +52,8 @@
 /* Shared code.                                                              */
 /*===========================================================================*/
 
-static EVENTSOURCE_DECL(es1);
-static EVENTSOURCE_DECL(es2);
+static CH_MEM_GLOBAL_COHERENT_DATA EVENTSOURCE_DECL(es1);
+static CH_MEM_GLOBAL_COHERENT_DATA EVENTSOURCE_DECL(es2);
 
 static void h1(eventid_t id) {(void)id;test_emit_token('A');}
 static void h2(eventid_t id) {(void)id;test_emit_token('B');}

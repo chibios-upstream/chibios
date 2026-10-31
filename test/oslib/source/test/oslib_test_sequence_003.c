@@ -54,8 +54,8 @@
 
 #define PIPE_SIZE 16
 
-static uint8_t buffer[PIPE_SIZE];
-static PIPE_DECL(pipe1, buffer, PIPE_SIZE);
+static CH_MEM_GLOBAL_COHERENT_BSS uint8_t buffer[PIPE_SIZE];
+static CH_MEM_GLOBAL_COHERENT_DATA PIPE_DECL(pipe1, buffer, PIPE_SIZE);
 
 static const uint8_t pipe_pattern[] = "0123456789ABCDEF";
 

@@ -45,7 +45,7 @@ static THD_FUNCTION(test_thread, arg) {
 }
 
 #if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
-static mutex_t m1;
+static CH_MEM_GLOBAL_COHERENT_BSS mutex_t m1;
 #endif
 
 /*===========================================================================*/

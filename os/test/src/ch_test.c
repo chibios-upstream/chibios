@@ -36,8 +36,15 @@
 
 /**
  * @brief   Test engine context variable.
+ * @note    In the global coherent memory class when the kernel defines it,
+ *          on SMP systems the test suites can run on a core after the
+ *          other.
  */
+#if defined(CH_MEM_GLOBAL_COHERENT_BSS) || defined(__DOXYGEN__)
+CH_MEM_GLOBAL_COHERENT_BSS ch_test_context_t chtest;
+#else
 ch_test_context_t chtest;
+#endif
 
 /*===========================================================================*/
 /* Module local types.                                                       */

@@ -53,17 +53,17 @@
 
 #define MB_SIZE 4
 
-static msg_t mb_buffer[MB_SIZE];
-static MAILBOX_DECL(mb1, mb_buffer, MB_SIZE);
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t mb_buffer[MB_SIZE];
+static CH_MEM_GLOBAL_COHERENT_DATA MAILBOX_DECL(mb1, mb_buffer, MB_SIZE);
 
 #if CH_CFG_USE_OBJ_FIFOS == TRUE
 #define FIFO_SIZE 3U
 #define FIFO_OBJECT_SIZE MEM_ALIGN_NEXT(sizeof (void *), PORT_NATURAL_ALIGN)
 
-static objects_fifo_t fifo1;
-static ALIGNED_VAR(PORT_NATURAL_ALIGN)
+static CH_MEM_GLOBAL_COHERENT_BSS objects_fifo_t fifo1;
+static CH_MEM_GLOBAL_COHERENT_BSS ALIGNED_VAR(PORT_NATURAL_ALIGN)
   uint8_t fifo_objects[FIFO_SIZE][FIFO_OBJECT_SIZE];
-static msg_t fifo_messages[FIFO_SIZE];
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t fifo_messages[FIFO_SIZE];
 #endif
 
 /*===========================================================================*/

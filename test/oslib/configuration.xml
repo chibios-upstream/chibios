@@ -285,17 +285,17 @@ test_println("");]]></value>
       <shared_code>
         <value><![CDATA[#define MB_SIZE 4
 
-static msg_t mb_buffer[MB_SIZE];
-static MAILBOX_DECL(mb1, mb_buffer, MB_SIZE);
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t mb_buffer[MB_SIZE];
+static CH_MEM_GLOBAL_COHERENT_DATA MAILBOX_DECL(mb1, mb_buffer, MB_SIZE);
 
 #if CH_CFG_USE_OBJ_FIFOS == TRUE
 #define FIFO_SIZE 3U
 #define FIFO_OBJECT_SIZE MEM_ALIGN_NEXT(sizeof (void *), PORT_NATURAL_ALIGN)
 
-static objects_fifo_t fifo1;
-static ALIGNED_VAR(PORT_NATURAL_ALIGN)
+static CH_MEM_GLOBAL_COHERENT_BSS objects_fifo_t fifo1;
+static CH_MEM_GLOBAL_COHERENT_BSS ALIGNED_VAR(PORT_NATURAL_ALIGN)
   uint8_t fifo_objects[FIFO_SIZE][FIFO_OBJECT_SIZE];
-static msg_t fifo_messages[FIFO_SIZE];
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t fifo_messages[FIFO_SIZE];
 #endif]]></value>
       </shared_code>
       <cases>
@@ -1008,8 +1008,8 @@ test_assert(received == &fifo1, "output changed on finite timeout");]]></value>
 
 #define PIPE_SIZE 16
 
-static uint8_t buffer[PIPE_SIZE];
-static PIPE_DECL(pipe1, buffer, PIPE_SIZE);
+static CH_MEM_GLOBAL_COHERENT_BSS uint8_t buffer[PIPE_SIZE];
+static CH_MEM_GLOBAL_COHERENT_DATA PIPE_DECL(pipe1, buffer, PIPE_SIZE);
 
 static const uint8_t pipe_pattern[] = "0123456789ABCDEF";
 
@@ -1640,9 +1640,9 @@ test_assert(chPipeGetUsedCount(&pipe1) == 0,
         <value><![CDATA[
 #define JOBS_QUEUE_SIZE 4
 
-static jobs_queue_t jq;
-static job_descriptor_t jobs[JOBS_QUEUE_SIZE];
-static msg_t msg_queue[JOBS_QUEUE_SIZE];
+static CH_MEM_GLOBAL_COHERENT_BSS jobs_queue_t jq;
+static CH_MEM_GLOBAL_COHERENT_BSS job_descriptor_t jobs[JOBS_QUEUE_SIZE];
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t msg_queue[JOBS_QUEUE_SIZE];
 
 static void job_slow(void *arg) {
 
@@ -1823,7 +1823,7 @@ test_assert(used == 0U, "pending jobs");
       </condition>
       <shared_code>
         <value><![CDATA[
-static bool exit_flag;
+static CH_MEM_GLOBAL_COHERENT_BSS bool exit_flag;
 
 static msg_t dis_func0(void) {
 
@@ -2138,9 +2138,10 @@ typedef struct {
   uint8_t           data[SIZE_OBJECTS];
 } cached_object_t;
 
-static oc_hash_element_t hash_elements[NUM_HASH_ENTRIES];
-static cached_object_t objects[NUM_OBJECTS];
-static objects_cache_t cache1;
+static CH_MEM_GLOBAL_COHERENT_BSS
+  oc_hash_element_t hash_elements[NUM_HASH_ENTRIES];
+static CH_MEM_GLOBAL_COHERENT_BSS cached_object_t objects[NUM_OBJECTS];
+static CH_MEM_GLOBAL_COHERENT_BSS objects_cache_t cache1;
 
 static bool obj_read(objects_cache_t *ocp,
                      oc_object_t *objp,
@@ -2423,11 +2424,13 @@ test_assert_sequence("", "unexpected tokens");
       <shared_code>
         <value><![CDATA[#define MEMORY_POOL_SIZE 4
 
-static uintptr_t objects[MEMORY_POOL_SIZE];
-static MEMORYPOOL_DECL(mp1, sizeof (uintptr_t), PORT_NATURAL_ALIGN, NULL);
+static CH_MEM_GLOBAL_COHERENT_BSS uintptr_t objects[MEMORY_POOL_SIZE];
+static CH_MEM_GLOBAL_COHERENT_DATA
+  MEMORYPOOL_DECL(mp1, sizeof (uintptr_t), PORT_NATURAL_ALIGN, NULL);
 
 #if CH_CFG_USE_SEMAPHORES
-static GUARDEDMEMORYPOOL_DECL(gmp1, sizeof (uintptr_t), PORT_NATURAL_ALIGN);
+static CH_MEM_GLOBAL_COHERENT_DATA
+  GUARDEDMEMORYPOOL_DECL(gmp1, sizeof (uintptr_t), PORT_NATURAL_ALIGN);
 #endif
 
 static void *null_provider(size_t size, unsigned align) {
@@ -2704,9 +2707,10 @@ test_assert(chPoolAlloc(&mp1) == NULL, "provider returned memory");]]></value>
         <value><![CDATA[#define ALLOC_SIZE 16
 #define HEAP_SIZE (ALLOC_SIZE * 8)
 
-static memory_heap_t test_heap;
-static uint8_t test_heap_buffer[HEAP_SIZE];
-static ALIGNED_VAR(CH_HEAP_ALIGNMENT) heap_header_t integrity_buffer[8];]]></value>
+static CH_MEM_GLOBAL_COHERENT_BSS memory_heap_t test_heap;
+static CH_MEM_GLOBAL_COHERENT_BSS uint8_t test_heap_buffer[HEAP_SIZE];
+static CH_MEM_GLOBAL_COHERENT_BSS ALIGNED_VAR(CH_HEAP_ALIGNMENT)
+  heap_header_t integrity_buffer[8];]]></value>
       </shared_code>
       <cases>
         <case>
@@ -3362,7 +3366,7 @@ test_assert(rop == NULL, "found");]]></value>
                 <value />
               </tags>
               <code>
-                <value><![CDATA[static uint32_t myobj = 0x55aa;
+                <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_DATA uint32_t myobj = 0x55aa;
 
 rop = chFactoryRegisterObject("myobj", (void *)&myobj);
 test_assert(rop != NULL, "cannot register");]]></value>
@@ -3378,7 +3382,7 @@ test_assert(rop != NULL, "cannot register");]]></value>
               </tags>
               <code>
                 <value><![CDATA[registered_object_t *rop1;
-static uint32_t myobj = 0x55aa;
+static CH_MEM_GLOBAL_COHERENT_DATA uint32_t myobj = 0x55aa;
 
 rop1 = chFactoryRegisterObject("myobj", (void *)&myobj);
 test_assert(rop1 == NULL, "can register");]]></value>
@@ -4083,7 +4087,7 @@ test_assert(dpp == NULL, "found");]]></value>
         <value>CH_CFG_USE_MEMCORE == TRUE</value>
       </condition>
       <shared_code>
-        <value><![CDATA[static ALIGNED_VAR(16) uint8_t core_buffer[64];
+        <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_BSS ALIGNED_VAR(16) uint8_t core_buffer[64];
 
 /* The real allocator is restored before unlocking or checking test results.
    No test assertion or rescheduling operation runs with the test arena
@@ -4368,7 +4372,7 @@ test_assert(result.topmem == &core_buffer[16], "top changed");]]></value>
         <value />
       </condition>
       <shared_code>
-        <value><![CDATA[static uint8_t area_buffer[64];
+        <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_BSS uint8_t area_buffer[64];
 
 static bool intersection_matches(const memory_area_t *map1,
                                  const memory_area_t *map2,
