@@ -213,6 +213,15 @@ void port_init(os_instance_t *oip) {
 #if (PORT_MPU_INITIALIZE == TRUE) || (PORT_ENABLE_GUARD_PAGES == TRUE)
   /* MPU is enabled.*/
   mpuEnable(MPU_CTRL_PRIVDEFENA);
+
+#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT != 0U)
+  /* The startup code enables the data cache, the regions can make memory
+     already used through it non-cacheable: its dirty lines are written
+     back and all lines are invalidated.*/
+  if ((SCB->CCR & SCB_CCR_DC_Msk) != 0U) {
+    SCB_CleanInvalidateDCache();
+  }
+#endif
 #endif
 }
 

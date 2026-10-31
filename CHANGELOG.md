@@ -650,6 +650,14 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [ARMV7M] On the Cortex-M7 the ARMv7-M and ARMv7-M-ALT ports enabled the
+  MPU, for `PORT_MPU_INITIALIZE`, the guard pages or the switched regions,
+  with the data cache already enabled by the startup code and without
+  cache maintenance: memory made non-cacheable by a region after the
+  startup used it through the cache could keep dirty lines, which
+  overwrote it when evicted. The data cache is now cleaned and invalidated
+  after the MPU is enabled. No change on cores without data cache
+  ([#572](https://github.com/chibios-upstream/chibios/pull/572)).
 - [ARMV7R] With `CORTEX_USE_FPU` enabled, the IRQ entry saved only the
   integer registers, so an interrupt handler using the FPU, or compiled
   code using the FPU registers for integer data, corrupted the FPU state
