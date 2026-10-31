@@ -47,7 +47,7 @@
 /* Shared code.                                                              */
 /*===========================================================================*/
 
-static uint8_t area_buffer[64];
+static CH_MEM_GLOBAL_COHERENT_BSS uint8_t area_buffer[64];
 
 static bool intersection_matches(const memory_area_t *map1,
                                  const memory_area_t *map2,

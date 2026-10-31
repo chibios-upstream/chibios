@@ -106,7 +106,7 @@ test_thread_slot_t test_thread_slots[MAX_THREADS];
 /*
  * Pointers to the spawned threads.
  */
-thread_t *threads[MAX_THREADS];
+CH_MEM_GLOBAL_COHERENT_BSS thread_t *threads[MAX_THREADS];
 
 /*
  * Pointers to the working areas.

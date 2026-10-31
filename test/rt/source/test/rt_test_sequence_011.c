@@ -51,11 +51,11 @@
 /*===========================================================================*/
 
 #if CH_CFG_USE_HEAP
-static memory_heap_t heap1;
+static CH_MEM_GLOBAL_COHERENT_BSS memory_heap_t heap1;
 #endif
 #if CH_CFG_USE_MEMPOOLS
-static memory_pool_t mp1;
-static memory_pool_t mp2;
+static CH_MEM_GLOBAL_COHERENT_BSS memory_pool_t mp1;
+static CH_MEM_GLOBAL_COHERENT_BSS memory_pool_t mp2;
 static CH_MEM_GLOBAL_COHERENT_BSS thread_t thd_objs[4];
 #endif
 

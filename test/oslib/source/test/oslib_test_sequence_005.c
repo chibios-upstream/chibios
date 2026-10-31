@@ -48,7 +48,7 @@
 /* Shared code.                                                              */
 /*===========================================================================*/
 
-static bool exit_flag;
+static CH_MEM_GLOBAL_COHERENT_BSS bool exit_flag;
 
 static msg_t dis_func0(void) {
 

@@ -232,6 +232,16 @@
 #define CH_MEM_GLOBAL_COHERENT_BSS      /* Default BSS.*/
 #endif
 
+/**
+ * @brief   Global and coherent RAM affinity macro for initialized variables.
+ * @details DATA variant of @p CH_MEM_GLOBAL_COHERENT_BSS.
+ * @note    Defined here only if the kernel does not implement memory
+ *          classes, as a normal DATA variable.
+ */
+#if !defined(CH_MEM_GLOBAL_COHERENT_DATA) || defined(__DOXYGEN__)
+#define CH_MEM_GLOBAL_COHERENT_DATA     /* Default DATA.*/
+#endif
+
 /*===========================================================================*/
 /* External declarations.                                                    */
 /*===========================================================================*/
