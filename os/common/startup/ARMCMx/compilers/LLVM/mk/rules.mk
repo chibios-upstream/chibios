@@ -148,7 +148,7 @@ CPPFLAGS += -MD -MP -MF $(DEPDIR)/$(@F).d
 # Paths
 IINCDIR   := $(patsubst %,-I%,$(INCDIR) $(DINCDIR) $(UINCDIR))
 LLIBDIR   := $(patsubst %,-L%,$(DLIBDIR) $(ULIBDIR) $(ARM_CORTEXM_SYSROOT)/lib/$(ARM_CORTEXM_MULTI_DIR))
-LDFLAGS   = $(MCFLAGS) $(OPT) -nostartfiles $(LLIBDIR) $(ARM_CORTEXM_BUILTINS) -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--library-path=$(STARTUPLD),--script=$(LDSCRIPT)$(LDOPT)
+LDFLAGS   = $(MCFLAGS) $(OPT) -nostartfiles $(LLIBDIR) $(ARM_CORTEXM_BUILTINS) -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--library-path=$(STARTUPLD)$(LDOPT),--script=$(LDSCRIPT)
 
 # Paths where to search for sources
 VPATH     = $(SRCPATHS)

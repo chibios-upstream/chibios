@@ -658,6 +658,15 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [BUILD] The ARMCRx, ARMCMx (GCC and LLVM) and RISC-V Hazard3 build rules
+  passed the makefile `--defsym` options after the linker script, so a
+  script assignment with a `DEFINED()` default ignored them: the layout
+  used the default while the symbol took the makefile value. The ARMCRx
+  `USE_*_STACKSIZE` settings and the RP2350 RISC-V core 1 stack sizes were
+  affected. The makefile options now come before the script and take
+  precedence. No change in the current demos, which pass the script
+  defaults or nothing
+  ([#574](https://github.com/chibios-upstream/chibios/pull/574)).
 - [ARMV7M] On the Cortex-M7 the ARMv7-M and ARMv7-M-ALT ports enabled the
   MPU, for `PORT_MPU_INITIALIZE`, the guard pages or the switched regions,
   with the data cache already enabled by the startup code and without
