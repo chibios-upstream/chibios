@@ -75,7 +75,8 @@ static uint8_t __nocache_lfs_lookahead_buffer[16];
 
 static const hal_lfs_binding_t binding1 = {
   .base                 = 0,
-  .flp                  = (BaseFlash *)&snor1.n25q.fls, /* Dirty trick, "fls" at same offset by design.*/
+  /* The "fls" interface is at the same offset in all union members.*/
+  .flp                  = oopGetIf(&snor1.n25q, fls),
 };
 
 static const struct lfs_config lfscfg = {
