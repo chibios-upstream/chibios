@@ -15,6 +15,10 @@ guest RTOS of the sandbox. A guest thread waiting for an answer, or a
 server thread waiting for a message, blocks on the objects of its own RTOS,
 woken from the VRQ handler.
 
+Supervisor threads, on the host side, can publish endpoints with a native
+API, in the same name space as the sandboxes, and serve sandbox clients;
+they are not clients, see [Supervisor threads](#supervisor-threads).
+
 Messages need no memory allocation and no reference counts on memory, and
 every MPU change happens in the table of the server, in its own syscalls.
 The price is trust: the server sees the client data region. Bulk data
@@ -29,10 +33,11 @@ region tables).
 
 ## Concepts
 
-- An **endpoint** is published by a sandbox, its **server**, under a name,
-  with the server VRQ. The endpoint metadata, in host memory, holds the
-  name, the server and the PID of its publishing execution, the queue of
-  the messages and the message being processed.
+- An **endpoint** is published by a sandbox or a supervisor thread, its
+  **server**, under a name; a sandbox server gives its VRQ. The endpoint
+  metadata, in host memory, holds the name, the server and the PID of its
+  publishing execution, the queue of the messages and the message being
+  processed.
 - **Groups.** Each sandbox is assigned a group ID (GID, 0 to 31) in its
   configuration, and a mask of friendly GIDs: a client can open the
   endpoints of servers whose GID is in its mask. Sending exposes the client
@@ -213,6 +218,47 @@ the target execution (`sbVRQRaisePidS()`/`sbVRQRaisePidI()`).
 - A restarted server publishes a new endpoint; handles are bound to the PID
   of the server execution they were opened to, a client reopens.
 
+## Supervisor threads
+
+Host threads publish endpoints with a native API. They are privileged and
+can block, so the API has blocking calls with timeouts and needs no VRQ.
+
+Supervisor threads are trusted. Their clients are not, the checks
+protecting the host from sandboxes stay.
+
+Host threads don't open endpoints as clients. The host already reaches the
+sandboxes with its own means, VRQs, VIO, the RT messages behind
+`SB_SYSC_MESSAGE_WAIT`; a host client would add a second kind of slot and
+completion to every path ending a message. So every message has a sandbox
+client: slots, VRQ completion, PID and GID checks are uniform.
+
+- **Host endpoints** are host objects, initialized one at a time with an
+  `ObjectInit()` call and a definition: name and GID of the endpoint. The
+  initialization links the endpoint in the name registry, published. The
+  GID puts host services under the configuration masks as any server: a
+  sandbox opens a host endpoint only if its GID is in the friendly mask.
+- **Host server**: receive blocks with a timeout; an optional callback in
+  the definition, called on "message queued" and "client lost", lets a
+  thread serving several endpoints wait on its own objects. Nothing is
+  mapped, privileged code reaches the client memory directly. Every
+  pointer and size from the message is checked with the host range checks
+  on the client sandbox, `sb_is_valid_read_range()` and
+  `sb_is_valid_write_range()`, otherwise a client could make the host read
+  or write any memory. They cover all the client regions: a host server
+  can read constants in the code region of a client, string literals
+  included. The VSHM rule on coherent memory applies, a host server
+  doesn't touch a coherent SM with the CPU.
+- **Host server and client termination**: the region can't be revoked,
+  privileged accesses aren't bound by the MPU. The host server gets
+  "client lost" and must undo within the release interval; the client
+  waits in `__sb_abort()` until it does, with no expiry action, a late
+  host write would reach the next execution. Host code is trusted, an
+  overrun is a host bug, reported by a debug check.
+- **Lifecycle**: a host endpoint is withdrawn by its owner, the queued
+  messages and the one being processed complete as for a server
+  termination, "server lost" on the client VRQs; a host server replies
+  first.
+
 ## Multicore
 
 The MPU changes of the message cycle are in the table of the server, in its
@@ -223,8 +269,10 @@ cross-core posting. The raise is recorded in the state of the target and a
 per-core host thread is woken on its core with the RT cross-core wakeup,
 `chSchReadyI()` notifying the instance; the thread raises the VRQ there. On
 a single core, and for a target on the same core, posting is a direct call.
-The same posting carries a revocation. The queue and the slots are under
-the system lock.
+The same posting carries a revocation. Host servers are bound to a core
+too: they are woken with the RT cross-core wakeup directly, their replies
+raise the client VRQs through the posting. The queue and the slots are
+under the system lock.
 
 ## Reuse from VSRV
 
