@@ -52,6 +52,7 @@
 #define AM67_HAS_MCU_I2C0                   TRUE
 #define AM67_MCU_I2C0_BASE                  0x04900000U
 #define AM67_MCU_I2C0_IRQ                   197U
+#define AM67_MCU_I2C0_CLOCK                 96000000U
 
 /* UART attributes.*/
 #define AM67_HAS_MAIN_UART1                 TRUE
