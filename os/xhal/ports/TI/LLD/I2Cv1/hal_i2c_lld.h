@@ -40,6 +40,12 @@
 /* Driver constants.                                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   This I2C LLD signals the end of a transfer after its closing STOP.
+ * @details Completion and errors are signaled on the bus free event.
+ */
+#define I2C_LLD_SUPPORTS_STOP_DETECTION     TRUE
+
 /* Register offsets **********************************************************/
 
 #define I2C_SYSC_OFFSET             0x010U
@@ -177,7 +183,9 @@
   /* Receive bytes still to be read.*/                                      \
   size_t                    rxbytes;                                        \
   /* True once the receive segment has been programmed.*/                   \
-  bool                      rx_started
+  bool                      rx_started;                                     \
+  /* Error waiting for the bus free event to be signaled.*/                 \
+  bool                      error_pending
 
 /**
  * @brief   Low level fields of the I2C configuration structure.
