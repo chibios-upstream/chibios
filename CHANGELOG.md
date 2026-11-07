@@ -8,6 +8,15 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [STM32] STM32H5F5 support in the classic HAL and XHAL STM32H5xx ports:
+  registry, `STM32H5F5xJ.ld` linker script, mcuconf/xmcuconf templates and
+  updater scripts, the `ST_STM32H5F5J_DK` board and RT-STM32-MULTI and
+  RT-XHAL-STM32-MULTI configurations
+  ([#578](https://github.com/chibios-upstream/chibios/pull/578)).
+- [ARMV7R] Recursive locks in the ARMv7-R port, single core:
+  `port_get_lock_status()` and `port_is_locked()`, so the X-class functions
+  using them, such as `i2cGetAndClearErrorsX()`, link on ARMv7-R targets
+  ([#543](https://github.com/chibios-upstream/chibios/pull/543)).
 - [RT] Dynamic threads of the spawn kind, `chThdSpawnFromHeap()` and
   `chThdSpawnFromMemoryPool()`: the `thread_t` comes from a pool and the
   stack from a heap or a pool, described by the new
@@ -23,6 +32,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   initializer without a warning. Without a port definition they fall back
   to the normal `.data`
   ([#565](https://github.com/chibios-upstream/chibios/pull/565)).
+  The memory classes documentation lists what must be in coherent memory
+  on SMP systems with non-coherent caches: all the `thread_t` structures,
+  the synchronization objects used by more than one core, the data passed
+  through pointers to another core, and the cache line rule
+  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
 - [XHAL] Stub platform in `os/xhal/ports/stub`, without drivers:
   XHAL-based code such as the test suites builds on targets that have no
   XHAL platform yet. The application provides the board files and an
@@ -150,11 +164,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 - [XHAL] XHAL port for the TI AM67/J722S MCU-domain Cortex-R5F, the first TI
   port in XHAL: `AM67R5F` startup device, ARMv7-R AM67 sub-port handling the
   VIM interrupt manager, platform in `os/xhal/ports/TI/AM67`, DMTIMERv1 ST,
-  UARTv1 SIO and MCSPIv1 SPI drivers, the `T3_GEM_O1` board (T3 Gemstone O1)
-  and the `RT-XHAL-T3-GEM-O1` demo
+  UARTv1 SIO, MCSPIv1 SPI and I2Cv1 I2C drivers, the `T3_GEM_O1` board
+  (T3 Gemstone O1) and the `RT-XHAL-T3-GEM-O1` demo
   ([#287](https://github.com/chibios-upstream/chibios/pull/287),
   [#289](https://github.com/chibios-upstream/chibios/pull/289),
-  [#320](https://github.com/chibios-upstream/chibios/pull/320)).
+  [#320](https://github.com/chibios-upstream/chibios/pull/320),
+  [#541](https://github.com/chibios-upstream/chibios/pull/541)).
 - [XHAL] Plain non-blocking byte queue (`plain_queue_t`, `qObjectInit()`,
   `qResetI()`, `qPutI()`, `qGetI()`, `qReadI()`, `qWriteI()`) in the XHAL
   queues module, now aggregated by the input and output queues; `qSpaceI()`
@@ -303,6 +318,16 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   [#225](https://github.com/chibios-upstream/chibios/pull/225)).
 - [ARMV6M] Alternate common IRQ dispatcher port for ARMv6-M
   ([#171](https://github.com/chibios-upstream/chibios/pull/171)).
+  Every vector the port does not own reaches its conventional handler as
+  with `vectors.S`
+  ([#563](https://github.com/chibios-upstream/chibios/pull/563)),
+  the standard vector table is left out through `ASMXSRC_EXCLUDE`, so the
+  startup and port makefiles can be included in any order
+  ([#558](https://github.com/chibios-upstream/chibios/pull/558)),
+  the dispatcher is assembled in unified syntax and builds with Clang
+  ([#559](https://github.com/chibios-upstream/chibios/pull/559)),
+  and IAR and RVCT are rejected
+  ([#560](https://github.com/chibios-upstream/chibios/pull/560)).
 - [RP] RP2350 POWMAN register map added to the CMSIS device header
   ([#147](https://github.com/chibios-upstream/chibios/pull/147)).
 - [RT] RT non-releasing thread synchronization
@@ -427,63 +452,44 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 ### Changed
 
 - [TEST] The RT and OSLIB test suites keep all their data in the global
-  coherent memory class, the static objects and buffers of the test
-  sequences and the test framework context, so on SMP systems with
-  non-coherent caches the suites run on a core after the other without
-  cache maintenance in the application. `chlib.h` defines
-  `CH_MEM_GLOBAL_COHERENT_DATA` as normal DATA for NIL. No change on the
-  current ports
-  ([#573](https://github.com/chibios-upstream/chibios/pull/573)).
-- [RT] The memory classes documentation lists what must be in coherent
-  memory on SMP systems with non-coherent caches, all the `thread_t`
-  structures, the synchronization objects used by more than one core and
-  the data passed through pointers to another core, and the cache line
-  rule. The events, messages and threads documentation cover event
-  listeners, message payloads, thread references and threads queues. No
-  code change
-  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
-- [OSLIB] The mailboxes, objects FIFOs, pipes, jobs queues and objects
-  caches documentation cover SMP systems with non-coherent caches. No code
-  change
-  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
-- [TEST] The RT and OSLIB test suites keep the storage of the test threads,
-  which contains their `thread_t`, in the global coherent memory class. No
-  change on the current ports
-  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
-- [ARMV7R] The ARMCRx linker rules align both ends of the banked mode stacks
-  areas to `__stacks_align__`, 64 bytes by default and overridable in the
-  linker script, so the stacks do not share cache lines with the adjacent
-  data. No change with stack sizes multiple of 64 bytes, as in the current
-  demos
-  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
+  coherent memory class: the storage of the test threads, which contains
+  their `thread_t`, the static objects and buffers of the test sequences
+  and the test framework context. On SMP systems with non-coherent caches
+  the suites run on a core after the other without cache maintenance in the
+  application. `chlib.h` defines `CH_MEM_GLOBAL_COHERENT_DATA` as normal
+  DATA for NIL. No change on the current ports
+  ([#571](https://github.com/chibios-upstream/chibios/pull/571),
+  [#573](https://github.com/chibios-upstream/chibios/pull/573)).
 - [ARMV7R] Stacks and working areas are aligned to the cache line and their
   sizes are multiples of it, so they never share a line with other data:
   `PORT_STACK_ALIGN` and `PORT_WORKING_AREA_ALIGN` are the new
   `PORT_CACHE_LINE_SIZE` setting, by default the L1 data cache line of the
-  core, 32 bytes on Cortex-R5 and Cortex-R8. It can be raised for an outer
-  cache with larger lines. Working areas can be slightly larger, no code
-  change. The MPU regions initialization settings are grouped in the
-  documentation
+  core, 32 bytes on Cortex-R5 and Cortex-R8, and it can be raised for an
+  outer cache with larger lines
   ([#570](https://github.com/chibios-upstream/chibios/pull/570)).
+  The ARMCRx linker rules align both ends of the banked mode stacks areas
+  to `__stacks_align__`, 64 bytes by default and overridable in the linker
+  script
+  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
+  Working areas can be slightly larger, no code change, and no change with
+  stack sizes multiple of 64 bytes, as in the current demos.
 - [ARMV7R] The simulator platform is renamed after the simulated core:
   `platforms/simulator` becomes `platforms/sim-r8` and `port_simulator.mk`
   becomes `port_sim-r8.mk`, makefiles including the old file must be
   updated. No code change
   ([#568](https://github.com/chibios-upstream/chibios/pull/568)).
-- [OSLIB] The core allocator static area, used when `CH_CFG_MEMCORE_SIZE`
-  is not zero, is in the global coherent memory class like the memory core
-  descriptor. The core allocator and delegates documentation cover SMP
-  systems with non-coherent caches. No change on the current ports
-  ([#566](https://github.com/chibios-upstream/chibios/pull/566)).
-- [OSLIB] The memory core, default heap and objects factory descriptors
-  are in the global coherent memory class, in SMP mode all cores use them.
-  The RT idle thread stacks move to the private class, their `thread_t` is
-  in the OS instance. No change on the current ports
+- [OSLIB] For SMP systems with non-coherent caches, the memory core,
+  default heap and objects factory descriptors are in the global coherent
+  memory class, all cores use them, and the RT idle thread stacks move to
+  the private class, their `thread_t` is in the OS instance
   ([#565](https://github.com/chibios-upstream/chibios/pull/565)).
-- [ARMV6M] The ARMv6-M-ALT port's `chcore.h` stops with "unsupported
-  compiler" under IAR and RVCT, for which the port has no assembly or vector
-  table, instead of naming them; such a build would never reschedule on
-  interrupt exit ([#560](https://github.com/chibios-upstream/chibios/pull/560)).
+  The core allocator static area, used when `CH_CFG_MEMCORE_SIZE` is not
+  zero, is in the global coherent class too, and the core allocator,
+  delegates, mailboxes, objects FIFOs, pipes, jobs queues and objects
+  caches documentation cover these systems
+  ([#566](https://github.com/chibios-upstream/chibios/pull/566),
+  [#571](https://github.com/chibios-upstream/chibios/pull/571)).
+  No change on the current ports.
 - [RP] The RP2040 and RP2350 demo and test configurations set
   `CH_CFG_ST_TIMEDELTA` to 50 instead of 20, 50 microseconds at their 1 MHz
   system tick, except `testrt/VT_STORM`. Their tickless wakeup executes from
@@ -658,6 +664,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [HAL] AVR ATmega GPIOv2: a stray character in the PCINT4 pin-state
+  declaration broke the build of configurations with `AVR_GPIO_USE_PCINT4`
+  enabled (ATmega324PB)
+  ([#579](https://github.com/chibios-upstream/chibios/pull/579)).
 - [ARMV7R] The IRQ return did not clear the local exclusive monitor, which
   ARMv7-R requires after a context switch. Code using LDREX/STREX with
   IRQs enabled, such as the C11 and GCC atomics, could see a Store-Exclusive
@@ -697,40 +707,6 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   bracketed by `CH_IRQ_PROLOGUE()` and `CH_IRQ_EPILOGUE()` like on the AM67
   platform. No change in the default configuration
   ([#568](https://github.com/chibios-upstream/chibios/pull/568)).
-- [ARMV6M] ARMv6-M-ALT never called application definitions of
-  `HardFault_Handler`, `SVC_Handler` or of the `NMI_Handler` or
-  `PendSV_Handler` the port does not use, and linked a conflicting
-  definition of the one it uses without an error. When the application
-  overrode `Reset_Handler`, the reset vector kept the default, so only a
-  debugger start through the ELF entry ran the override, and unhandled IRQs
-  and SysTick spun in a loop instead of calling `_unhandled_exception`.
-  Every vector the port does not own now reaches its conventional handler
-  as with `vectors.S`, and defining the `NMI_Handler` or `PendSV_Handler`
-  the port uses fails to link, as with the standard port
-  ([#563](https://github.com/chibios-upstream/chibios/pull/563)).
-- [ARMV6M] The ARMv6-M-ALT IRQ dispatcher used divided-syntax mnemonics that
-  Clang's integrated assembler rejects, so the port could not be built with
-  the ARMCMx LLVM build rules; it is now assembled in unified syntax, with
-  unchanged machine code except an equivalent `mov` encoding in
-  `__port_thread_start`, and CI assembles both ARMv6-M ports and the vector
-  tables with Clang
-  ([#559](https://github.com/chibios-upstream/chibios/pull/559)).
-- [ARMV6M] The ARMv6-M-ALT port makefile removed the standard `vectors.S`
-  with immediate assignments, so it had to be included after the startup
-  makefile and it froze the startup file lists: an `RP2040_BOOT_STAGE2`
-  override set later in the project makefile was silently ignored and the
-  default second stage bootloader was linked. The port now lists
-  `vectors.S` in `ASMXSRC_EXCLUDE`, the override is honoured, and the
-  startup and port makefiles can be included in any order; a project with
-  its own copy of the ARMCMx `rules.mk` needs the new lines
-  ([#558](https://github.com/chibios-upstream/chibios/pull/558)).
-- [RP] At `-O0`, `__port_smp_halt_from_ram()`, the RAM-resident remote-panic
-  halt of the `ARMv6-M` (RP2040) and `ARMv8-M-ML-ALT` (RP2350) RP2 SMP back
-  ends, called an out-of-line `port_get_core_id()` in flash, against its
-  contract of not relying on flash; no in-tree path reaches it with XIP
-  disabled. It now reads `SIO->CPUID` directly, and the other optimization
-  levels generate the same code as before
-  ([#556](https://github.com/chibios-upstream/chibios/pull/556)).
 - [STM32] STM32H7A3/H7B3/H7B0 (classic and XHAL): the APB3 and APB4 clocks
   were named `STM32_CDPCLK` and `STM32_SRDPCLK` while the clock tree used
   `STM32_PCLK4` for LPTIM2-5, LPUART1, SPI6, I2C4 and DFSDM2, so builds using
@@ -738,11 +714,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   `RT-STM32-MULTI` H7A3 demo among them. The clocks are now `STM32_PCLK3` and
   `STM32_PCLK4`, as on the other STM32H7 devices, and the APB3 frequency
   check is enabled
-  ([#553](https://github.com/chibios-upstream/chibios/pull/553)).
+  ([#553](https://github.com/chibios-upstream/chibios/pull/553))
+  *(backported to 21.11.6)*.
 - [STM32] STM32H7 (classic and XHAL): with LSE selected as the USART2-8 clock
   source, UART5 had no clock defined and its baud rate was computed from
   PCLK1
-  ([#553](https://github.com/chibios-upstream/chibios/pull/553)).
+  ([#553](https://github.com/chibios-upstream/chibios/pull/553))
+  *(backported to 21.11.6)*.
 - [SB] A sandbox executing an SVC with an invalid stack pointer was not
   terminated: the SVC left pending by the failed exception stacking was taken
   on the fault exit frame and resumed the sandbox with the kernel lock held,
@@ -1218,9 +1196,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   longer depends on inter-core FIFO space
   ([#251](https://github.com/chibios-upstream/chibios/pull/251)), flash-lockout
   startup-readiness serialization
-  ([#250](https://github.com/chibios-upstream/chibios/pull/250)), and
+  ([#250](https://github.com/chibios-upstream/chibios/pull/250)),
   compile-time rejection of unsafe ARMv8-M spinlock overrides (RP2350-E2)
-  ([#249](https://github.com/chibios-upstream/chibios/pull/249)).
+  ([#249](https://github.com/chibios-upstream/chibios/pull/249)), and a
+  RAM-resident remote-panic halt that no longer calls into flash at `-O0`
+  ([#556](https://github.com/chibios-upstream/chibios/pull/556)).
 - [RT] Initial SMP kernel-lock ownership is now established at startup
   ([#241](https://github.com/chibios-upstream/chibios/pull/241)), and explicit
   thread affinity is validated
