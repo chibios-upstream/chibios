@@ -348,6 +348,7 @@ static inline bool halClockResume(void) {
 #include "hal_mmcsd.h"
 #include "hal_persistent.h"
 #include "hal_flash.h"
+#include "hal_encoder.h"
 
 /* Shared headers.*/
 #include "hal_safety.h"
