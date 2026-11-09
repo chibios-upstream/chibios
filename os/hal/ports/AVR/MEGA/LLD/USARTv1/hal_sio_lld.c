@@ -239,13 +239,14 @@ static uint8_t usart_pop(SIODriver *siop) {
 /**
  * @brief   Pushes one frame into the TX buffer.
  * @note    Must be called with interrupts disabled. TXC is cleared
- *          before the frame is loaded so it can only be set again by the
- *          end of this transmission.
+ *          after the frame is loaded: a TXC left by the end of the
+ *          previous frame is discarded and this frame cannot complete
+ *          before the clear.
  */
 static void usart_push(SIODriver *siop, uint8_t data) {
 
-  AVR_SIO_REG(siop, ucsra) = UCSRA_CLEAR_TXC;
   AVR_SIO_REG(siop, udr)   = data;
+  AVR_SIO_REG(siop, ucsra) = UCSRA_CLEAR_TXC;
   siop->txactive           = true;
 }
 
