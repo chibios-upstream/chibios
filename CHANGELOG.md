@@ -675,6 +675,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   declaration broke the build of configurations with `AVR_GPIO_USE_PCINT4`
   enabled (ATmega324PB)
   ([#579](https://github.com/chibios-upstream/chibios/pull/579)).
+- [ARM] THUMB mode (`USE_THUMB = yes`) of the ARM7 port did not link since
+  18.2.0: the port lost its THUMB entry points and, since 19.1.1, the
+  startup its pure THUMB calls, while `chcore.h` still used them. Both are
+  restored from 17.6.4; pure ARM builds are unchanged. THUMB builds also
+  need [#587](https://github.com/chibios-upstream/chibios/pull/587)
+  ([#588](https://github.com/chibios-upstream/chibios/pull/588)).
 - [ARMV7R] The IRQ return did not clear the local exclusive monitor, which
   ARMv7-R requires after a context switch. Code using LDREX/STREX with
   IRQs enabled, such as the C11 and GCC atomics, could see a Store-Exclusive
