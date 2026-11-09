@@ -123,6 +123,16 @@ ASMXOBJS  = $(addprefix $(OBJDIR)/, $(notdir $(ASMXSRC:.S=.o)))
 #OBJS      = $(ASMXOBJS) $(ASMOBJS) $(ACOBJS) $(TCOBJS) $(ACPPOBJS) $(TCPPOBJS)
 OBJS      = $(ASMXOBJS) $(ASMOBJS) $(ACOBJS) $(TCOBJS) $(ACPPOBJS) $(ACCOBJS) $(TCPPOBJS) $(TCOBJS)
 
+# Different source files must have different names, the object files share
+# a flat directory.
+SRCFILES  := $(sort $(abspath $(ACSRC) $(ACPPSRC) $(TCSRC) $(TCPPSRC) $(ASMSRC) $(ASMXSRC)))
+SRCNAMES  := $(notdir $(basename $(SRCFILES)))
+SRCDUPS   := $(sort $(foreach n,$(SRCNAMES),$(if $(word 2,$(filter $(n),$(SRCNAMES))),$(n))))
+ifneq ($(SRCDUPS),)
+  SRCCLASH := $(strip $(foreach f,$(SRCFILES),$(if $(filter $(SRCDUPS),$(notdir $(basename $(f)))),$(f))))
+  $(error source files with the same name, their object files would clash: $(SRCCLASH))
+endif
+
 # Paths
 IINCDIR   = $(sort $(patsubst %,-I%,$(INCDIR) $(DINCDIR) $(UINCDIR)))
 LLIBDIR   = $(sort $(patsubst %,-L%,$(DLIBDIR) $(ULIBDIR)))

@@ -112,6 +112,16 @@ ASMXOBJS  := $(addprefix $(OBJDIR)/, $(notdir $(patsubst %.S,%.o,$(filter-out $(
 #OBJS      := $(ASMXOBJS) $(ASMOBJS) $(ACOBJS) $(TCOBJS) $(ACPPOBJS) $(TCPPOBJS)
 OBJS      := $(ASMXOBJS) $(ASMOBJS) $(ACOBJS) $(TCOBJS) $(ACPPOBJS) $(TCPPOBJS) $(TCCOBJS)
 
+# Different source files must have different names, the object files share
+# a flat directory.
+SRCFILES  := $(sort $(abspath $(TCSRC) $(TCPPSRC) $(ASMSRC) $(filter-out $(ASMXSRC_EXCLUDE),$(ASMXSRC))))
+SRCNAMES  := $(notdir $(basename $(SRCFILES)))
+SRCDUPS   := $(sort $(foreach n,$(SRCNAMES),$(if $(word 2,$(filter $(n),$(SRCNAMES))),$(n))))
+ifneq ($(SRCDUPS),)
+  SRCCLASH := $(strip $(foreach f,$(SRCFILES),$(if $(filter $(SRCDUPS),$(notdir $(basename $(f)))),$(f))))
+  $(error source files with the same name, their object files would clash: $(SRCCLASH))
+endif
+
 # Macros
 DEFS      := $(DDEFS) $(UDEFS)
 ADEFS     := $(DADEFS) $(UADEFS)
