@@ -688,6 +688,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [BUILD] The ARM build rules, also used by ARMCRx, built the ARM mode C++
+  objects from the Thumb source list and listed the Thumb C objects twice:
+  in ARM mode C++ sources were silently left out of the build, and with
+  `USE_THUMB=yes` the link failed with multiple definitions. No change for
+  the current projects, which build in ARM mode without C++
+  ([#587](https://github.com/chibios-upstream/chibios/pull/587)).
 - [HAL] AVR ATmega GPIOv2: a stray character in the PCINT4 pin-state
   declaration broke the build of configurations with `AVR_GPIO_USE_PCINT4`
   enabled (ATmega324PB)
