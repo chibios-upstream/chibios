@@ -126,6 +126,41 @@
 #endif
 
 /**
+ * @brief   Puts the boot flash in continuous read.
+ * @details A flash in continuous read takes each XIP read without the
+ *          command byte, eight flash clocks less on every cache miss.
+ *          The read format the bootrom configured is kept: one read sends
+ *          @p RP_QMI_CONTINUOUS_READ_MODE as its mode byte, then the
+ *          command is dropped, and only if the flash then reads back
+ *          correctly. Otherwise reads stay as they were.
+ * @note    Needs a bootrom read format with an 8-bit mode byte, such as
+ *          the EBh quad or BBh dual I/O read; other formats are left
+ *          untouched.
+ */
+#if !defined(RP_QMI_USE_CONTINUOUS_READ) || defined(__DOXYGEN__)
+#define RP_QMI_USE_CONTINUOUS_READ          FALSE
+#endif
+
+/**
+ * @brief   Mode byte that keeps the boot flash in continuous read.
+ * @note    The default suits Winbond parts (M5-4 = 10).
+ */
+#if !defined(RP_QMI_CONTINUOUS_READ_MODE) || defined(__DOXYGEN__)
+#define RP_QMI_CONTINUOUS_READ_MODE         0xA0U
+#endif
+
+/**
+ * @brief   Minimum boot flash chip select high time between reads, in
+ *          nanoseconds.
+ * @details Zero keeps the value the bootrom programmed. Otherwise the QMI
+ *          MIN_DESELECT field is set to the fewest system clocks covering
+ *          this time, at initialization and on every clock switch.
+ */
+#if !defined(RP_QMI_MIN_DESELECT_NS) || defined(__DOXYGEN__)
+#define RP_QMI_MIN_DESELECT_NS              0U
+#endif
+
+/**
  * @brief   Starts core 1 after initialization.
  */
 #if !defined(RP_CORE1_START) || defined(__DOXYGEN__)
@@ -270,6 +305,16 @@
 #if (RP_ALLOW_OVERCLOCK == TRUE) &&                                         \
     ((RP_CLK_SYS_OVERCLOCK_MAX) < (RP_CLK_SYS_MAX))
 #error "RP_CLK_SYS_OVERCLOCK_MAX below the rated system frequency"
+#endif
+
+#if (RP_QMI_CONTINUOUS_READ_MODE < 0) || (RP_QMI_CONTINUOUS_READ_MODE > 0xFF)
+#error "RP_QMI_CONTINUOUS_READ_MODE must be a single byte"
+#endif
+
+#if (RP_QMI_MIN_DESELECT_NS < 0) ||                                         \
+    ((((RP_QMI_MIN_DESELECT_NS) * (((RP_CLK_SYS_FREQ) + 999) / 1000)) +     \
+      999999) / 1000000 > 31)
+#error "RP_QMI_MIN_DESELECT_NS does not fit the QMI MIN_DESELECT field"
 #endif
 
 /**

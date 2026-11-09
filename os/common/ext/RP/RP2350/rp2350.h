@@ -2576,6 +2576,49 @@ typedef struct {
 /** @} */
 
 /**
+ * @name    QMI M0_RFMT / M1_RFMT bits definitions
+ * @note    See RP2350 Datasheet 12.14.6 QMI List of Registers
+ * @{
+ */
+#define QMI_RFMT_PREFIX_WIDTH_Pos         0U
+#define QMI_RFMT_PREFIX_WIDTH_Msk         (0x3U << QMI_RFMT_PREFIX_WIDTH_Pos)
+#define QMI_RFMT_ADDR_WIDTH_Pos           2U
+#define QMI_RFMT_ADDR_WIDTH_Msk           (0x3U << QMI_RFMT_ADDR_WIDTH_Pos)
+#define QMI_RFMT_SUFFIX_WIDTH_Pos         4U
+#define QMI_RFMT_SUFFIX_WIDTH_Msk         (0x3U << QMI_RFMT_SUFFIX_WIDTH_Pos)
+#define QMI_RFMT_DUMMY_WIDTH_Pos          6U
+#define QMI_RFMT_DUMMY_WIDTH_Msk          (0x3U << QMI_RFMT_DUMMY_WIDTH_Pos)
+#define QMI_RFMT_DATA_WIDTH_Pos           8U
+#define QMI_RFMT_DATA_WIDTH_Msk           (0x3U << QMI_RFMT_DATA_WIDTH_Pos)
+#define QMI_RFMT_PREFIX_LEN               (1U << 12)
+#define QMI_RFMT_SUFFIX_LEN_Pos           14U
+#define QMI_RFMT_SUFFIX_LEN_Msk           (0x3U << QMI_RFMT_SUFFIX_LEN_Pos)
+#define QMI_RFMT_SUFFIX_LEN(n)            ((n) << QMI_RFMT_SUFFIX_LEN_Pos)
+#define QMI_RFMT_DUMMY_LEN_Pos            16U
+#define QMI_RFMT_DUMMY_LEN_Msk            (0x7U << QMI_RFMT_DUMMY_LEN_Pos)
+#define QMI_RFMT_DUMMY_LEN(n)             ((n) << QMI_RFMT_DUMMY_LEN_Pos)
+#define QMI_RFMT_DTR                      (1U << 28)
+
+/** SUFFIX_LEN encoded values. */
+#define QMI_RFMT_SUFFIX_LEN_NONE          0U
+#define QMI_RFMT_SUFFIX_LEN_8             2U
+#define QMI_RFMT_SUFFIX_LEN_16            3U
+/** @} */
+
+/**
+ * @name    QMI M0_RCMD / M1_RCMD bits definitions
+ * @note    See RP2350 Datasheet 12.14.6 QMI List of Registers
+ * @{
+ */
+#define QMI_RCMD_PREFIX_Pos               0U
+#define QMI_RCMD_PREFIX_Msk               (0xFFU << QMI_RCMD_PREFIX_Pos)
+#define QMI_RCMD_PREFIX(n)                ((n) << QMI_RCMD_PREFIX_Pos)
+#define QMI_RCMD_SUFFIX_Pos               8U
+#define QMI_RCMD_SUFFIX_Msk               (0xFFU << QMI_RCMD_SUFFIX_Pos)
+#define QMI_RCMD_SUFFIX(n)                ((n) << QMI_RCMD_SUFFIX_Pos)
+/** @} */
+
+/**
  * @name    QMI DIRECT_CSR bits definitions
  * @{
  */
