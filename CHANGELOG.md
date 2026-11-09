@@ -8,6 +8,23 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [HAL] AVR ATmega SIO driver on the USARTv1: `SIOD0`–`SIOD3` on
+  USART0–USART3, allocated with the `AVR_SIO_USE_USARTx` switches, and a
+  `testhal/AVR/MEGA/SIO` echo test for the Arduino Uno
+  ([#584](https://github.com/chibios-upstream/chibios/pull/584)).
+- [HAL] Quadrature encoder abstract interface, `BaseEncoder` in
+  `hal_encoder.h`, and a GPIO quadrature encoder complex driver
+  implementing it in software on PAL pad events, usable on any port with
+  `PAL_USE_CALLBACKS` (`os/hal/lib/complex/gpio_qencoder`). Self-checking
+  test for the Arduino Uno in `testhal/AVR/MEGA/ENCODER`
+  ([#582](https://github.com/chibios-upstream/chibios/pull/582)).
+- [RP] RP2350 boot flash options in the classic HAL and XHAL ports, both off
+  by default: `RP_QMI_USE_CONTINUOUS_READ` puts the flash in continuous
+  read, so an XIP cache miss skips the read command (28 flash clocks
+  instead of 36 for a quad EBh read), and falls back to normal reads if
+  the check fails; `RP_QMI_MIN_DESELECT_NS` sets the chip select high
+  time between reads, also across `RP_CLOCK_DYNAMIC` clock switches
+  ([#581](https://github.com/chibios-upstream/chibios/pull/581)).
 - [STM32] STM32H5F5 support in the classic HAL and XHAL STM32H5xx ports:
   registry, `STM32H5F5xJ.ld` linker script, mcuconf/xmcuconf templates and
   updater scripts, the `ST_STM32H5F5J_DK` board and RT-STM32-MULTI and
