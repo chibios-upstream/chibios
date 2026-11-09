@@ -451,6 +451,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [BUILD] All the build rules stop with an error listing the clashing files
+  when two source files have the same name in different directories, such
+  as `imu/driver.c` and `baro/driver.c`. The object files share a flat
+  directory: make compiled only one of the two and linked it twice, so the
+  link failed far from the cause. Names are compared without the extension,
+  so `foo.c` and `foo.S` clash too
+  ([#585](https://github.com/chibios-upstream/chibios/pull/585)).
 - [TEST] The RT and OSLIB test suites keep all their data in the global
   coherent memory class: the storage of the test threads, which contains
   their `thread_t`, the static objects and buffers of the test sequences
