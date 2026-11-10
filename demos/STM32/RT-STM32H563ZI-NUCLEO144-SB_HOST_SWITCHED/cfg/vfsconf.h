@@ -253,7 +253,7 @@
 /*===========================================================================*/
 
 #if !defined(DRV_CFG_ROM_ENABLE_COMPRESSION) || defined(__DOXYGEN__)
-#define DRV_CFG_ROM_ENABLE_COMPRESSION     TRUE
+#define DRV_CFG_ROM_ENABLE_COMPRESSION      TRUE
 #endif
 
 #if !defined(DRV_CFG_ROM_DIR_NODES_NUM) || defined(__DOXYGEN__)
@@ -263,6 +263,8 @@
 #if !defined(DRV_CFG_ROM_FILE_NODES_NUM) || defined(__DOXYGEN__)
 #define DRV_CFG_ROM_FILE_NODES_NUM          4
 #endif
+
+/** @} */
 
 #endif /* VFSCONF_H */
 
