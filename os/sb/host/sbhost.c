@@ -317,26 +317,6 @@ static const sb_memory_region_t *sb_locate_data_region(sb_class_t *sbp) {
   return NULL;
 }
 
-#if (SB_CFG_ENABLE_VFS == TRUE) || defined(__DOXYGEN__)
-/*
- * Locates a region suitable for coherent data, the first writable
- * non-cacheable memory region. Region zero is excluded because it is
- * reserved for the main code and data.
- */
-static const sb_memory_region_t *sb_locate_nocache_region(sb_class_t *sbp) {
-  const sb_memory_region_t *rp = &sbp->regions[1];
-
-  while (rp < &sbp->regions[SB_CFG_NUM_REGIONS]) {
-    if (sb_reg_is_memory(rp) && sb_reg_is_writable(rp) &&
-        !sb_reg_is_cacheable(rp)) {
-      return rp;
-    }
-    rp++;
-  }
-
-  return NULL;
-}
-#endif /* SB_CFG_ENABLE_VFS == TRUE */
 
 static msg_t sb_check_header(const sb_header_t *sbhp,
                              const memory_area_t *code_area) {
@@ -790,6 +770,41 @@ failed:
   return NULL;
 }
 
+/**
+ * @brief   Locates the sandbox region assigned to coherent data.
+ * @details The first writable non-cacheable memory region is returned,
+ *          region zero is excluded because it is reserved for the main
+ *          code and data.
+ * @note    When MPU regions switching is in use only the regions reaching
+ *          the guest MPU table are eligible, a region configured beyond
+ *          @p PORT_SWITCHED_REGIONS_NUMBER would not be accessible by the
+ *          sandbox code.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @return              Pointer to the coherent data region.
+ * @retval NULL         if no suitable region is configured.
+ *
+ * @api
+ */
+const sb_memory_region_t *sbGetNoCacheRegion(sb_class_t *sbp) {
+  const sb_memory_region_t *rp = &sbp->regions[1];
+#if PORT_SWITCHED_REGIONS_NUMBER > 0
+  const sb_memory_region_t *endp = &sbp->regions[PORT_SWITCHED_REGIONS_NUMBER];
+#else
+  const sb_memory_region_t *endp = &sbp->regions[SB_CFG_NUM_REGIONS];
+#endif
+
+  while (rp < endp) {
+    if (sb_reg_is_memory(rp) && sb_reg_is_writable(rp) &&
+        !sb_reg_is_cacheable(rp)) {
+      return rp;
+    }
+    rp++;
+  }
+
+  return NULL;
+}
+
 #if (SB_CFG_ENABLE_VFS == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Execute an elf file within a sandbox.
@@ -849,7 +864,7 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
 
   /* Locating an optional region for coherent data, it is required if the
      image contains a coherent data section.*/
-  ncrp = sb_locate_nocache_region(sbp);
+  ncrp = sbGetNoCacheRegion(sbp);
 
   /* Loading sandbox code into the specified memory area.*/
   ret = sbElfLoadFile(sbGetRoot(sbp), path, &ma,
@@ -948,7 +963,7 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
      must have been configured and be large enough.*/
   ncrp = NULL;
   if (ncsize > (size_t)0) {
-    ncrp = sb_locate_nocache_region(sbp);
+    ncrp = sbGetNoCacheRegion(sbp);
     if ((ncrp == NULL) || (ncsize > ncrp->area.size)) {
       ret = CH_RET_ENOMEM;
       goto skip1;
