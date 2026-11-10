@@ -771,22 +771,33 @@ failed:
 }
 
 /**
- * @brief   Locates the sandbox region assigned to coherent data.
- * @details The first writable non-cacheable memory region is returned,
- *          region zero is excluded because it is reserved for the main
- *          code and data.
+ * @brief   Locates a discoverable sandbox region with given attributes.
+ * @details The first region marked with @p SB_REG_ATTR_DISCOVERABLE and
+ *          matching the specified attributes filter is returned. Region
+ *          zero is excluded because it is reserved for the main code and
+ *          data.
+ *          The loader uses it with the filter selecting non-cacheable
+ *          regions as destination of the coherent data section, other
+ *          kinds of discoverable regions can be defined in the future.
+ * @note    The discoverable attribute is deliberately explicit, regions
+ *          mapped by other features are never considered regardless of
+ *          their attributes.
  * @note    When MPU regions switching is in use only the regions reaching
  *          the guest MPU table are eligible, a region configured beyond
  *          @p PORT_SWITCHED_REGIONS_NUMBER would not be accessible by the
  *          sandbox code.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
- * @return              Pointer to the coherent data region.
- * @retval NULL         if no suitable region is configured.
+ * @param[in] mask      mask of the relevant attributes bits
+ * @param[in] attr      expected value of the masked attributes bits
+ * @return              Pointer to the discoverable region.
+ * @retval NULL         if no matching discoverable region is configured.
  *
  * @api
  */
-const sb_memory_region_t *sbGetNoCacheRegion(sb_class_t *sbp) {
+const sb_memory_region_t *sbGetDiscoverableRegion(sb_class_t *sbp,
+                                                  uint32_t mask,
+                                                  uint32_t attr) {
   const sb_memory_region_t *rp = &sbp->regions[1];
 #if PORT_SWITCHED_REGIONS_NUMBER > 0
   const sb_memory_region_t *endp = &sbp->regions[PORT_SWITCHED_REGIONS_NUMBER];
@@ -795,8 +806,8 @@ const sb_memory_region_t *sbGetNoCacheRegion(sb_class_t *sbp) {
 #endif
 
   while (rp < endp) {
-    if (sb_reg_is_memory(rp) && sb_reg_is_writable(rp) &&
-        !sb_reg_is_cacheable(rp)) {
+    if (!sb_reg_is_unused(rp) && sb_reg_is_discoverable(rp) &&
+        ((rp->attributes & mask) == attr)) {
       return rp;
     }
     rp++;
@@ -812,9 +823,9 @@ const sb_memory_region_t *sbGetNoCacheRegion(sb_class_t *sbp) {
  *          assumed to be used for both code and data, extra regions are
  *          not touched by this function except for the coherent data
  *          section, if the image contains one then it is mapped onto the
- *          first writable non-cacheable memory region, which is entirely
- *          zeroed, an error is returned if no such region is configured
- *          or the region is too small.
+ *          discoverable non-cacheable region, see
+ *          @p sbGetDiscoverableRegion(). An error is returned if no such
+ *          region is configured or the region is too small.
  * @note    The size of the privileged stack is assumed to be always
  *          @p SB_CFG_PRIVILEGED_STACK_SIZE.
  *
@@ -864,11 +875,10 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
 
   /* Locating an optional region for coherent data, it is required if the
      image contains a coherent data section.*/
-  ncrp = sbGetNoCacheRegion(sbp);
+  ncrp = sbGetDiscoverableRegion(sbp, SB_REG_ATTR_CACHEABLE, 0U);
 
   /* Loading sandbox code into the specified memory area.*/
-  ret = sbElfLoadFile(sbGetRoot(sbp), path, &ma,
-                      (ncrp != NULL) ? &ncrp->area : NULL);
+  ret = sbElfLoadFile(sbGetRoot(sbp), path, &ma, ncrp);
   if (CH_RET_IS_ERROR(ret)) {
     goto failed;
   }
@@ -909,10 +919,10 @@ failed:
     defined(__DOXYGEN__)
 /**
  * @brief   Execute an elf file within a dynamic sandbox.
- * @note    If the image contains a coherent data section then it is loaded
- *          into the first writable non-cacheable memory region, which is
- *          zeroed, an error is returned if no such region is configured or
- *          the region is too small.
+ * @note    If the image contains a coherent data section then it is mapped
+ *          onto the discoverable non-cacheable region, see
+ *          @p sbGetDiscoverableRegion(). An error is returned if no such
+ *          region is configured or the region is too small.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] prio      sandbox thread priority
@@ -963,7 +973,7 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
      must have been configured and be large enough.*/
   ncrp = NULL;
   if (ncsize > (size_t)0) {
-    ncrp = sbGetNoCacheRegion(sbp);
+    ncrp = sbGetDiscoverableRegion(sbp, SB_REG_ATTR_CACHEABLE, 0U);
     if ((ncrp == NULL) || (ncsize > ncrp->area.size)) {
       ret = CH_RET_ENOMEM;
       goto skip1;
@@ -1016,7 +1026,7 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   elfma.size -= size;
 
   /* Loading sandbox code into the specified memory area.*/
-  ret = sbElfLoad(fnp, &elfma, (ncrp != NULL) ? &ncrp->area : NULL);
+  ret = sbElfLoad(fnp, &elfma, ncrp);
   if (CH_RET_IS_ERROR(ret)) {
     goto skip3;
   }

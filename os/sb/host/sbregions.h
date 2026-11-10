@@ -44,6 +44,9 @@
 #define SB_REG_ATTR_WRITABLE    (1U << 8)
 #define SB_REG_ATTR_EXECUTABLE  (1U << 9)   /* Only for SB_REG_TYPE_MEMORY.*/
 #define SB_REG_ATTR_CACHEABLE   (1U << 10)  /* Only for SB_REG_TYPE_MEMORY.*/
+#define SB_REG_ATTR_DISCOVERABLE (1U << 11) /* Region is discoverable
+                                               through the API, combined
+                                               with other attributes.*/
 
 /* Derived region types.*/
 #define SB_REG_IS_UNUSED        (SB_REG_TYPE_UNUSED)
@@ -110,6 +113,8 @@ typedef struct {
   (bool)(((r)->attributes & SB_REG_ATTR_EXECUTABLE) != 0U)
 #define sb_reg_is_cacheable(r)                                              \
   (bool)(((r)->attributes & SB_REG_ATTR_CACHEABLE) != 0U)
+#define sb_reg_is_discoverable(r)                                           \
+  (bool)(((r)->attributes & SB_REG_ATTR_DISCOVERABLE) != 0U)
 /** @} */
 
 /*===========================================================================*/

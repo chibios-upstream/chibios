@@ -70,7 +70,9 @@ extern "C" {
   bool sbFinalize(sb_class_t *sbp);
   thread_t *sbStart(sb_class_t *sbp, tprio_t prio, stkline_t *stkbase,
                     const char *argv[], const char *envp[]);
-  const sb_memory_region_t *sbGetNoCacheRegion(sb_class_t *sbp);
+  const sb_memory_region_t *sbGetDiscoverableRegion(sb_class_t *sbp,
+                                                    uint32_t mask,
+                                                    uint32_t attr);
 #if SB_CFG_ENABLE_VFS == TRUE
   msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
                      stkline_t *stkbase, const char *path,

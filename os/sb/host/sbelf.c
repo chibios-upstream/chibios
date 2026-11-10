@@ -93,22 +93,23 @@ static msg_t vfs_read(void *cookie, size_t offset, void *buf, size_t n) {
  * @note    Sandbox images policy, the image must be linked at virtual
  *          address zero, images linked at other addresses are rejected.
  * @note    The coherent data section is BSS-like, initialized data is not
- *          supported, the non-cacheable area, when used by the image, is
- *          entirely zeroed before loading.
+ *          supported. A memory-type destination region, when used by the
+ *          image, is entirely zeroed before loading. A device-type region
+ *          is used as a pure addressing overlay, it is never written.
  *
  * @param[in] fnp       pointer to the image file node
  * @param[in] map       pointer to the main destination memory area
- * @param[in] ncmap     pointer to the non-cacheable destination memory
- *                      area, can be @p NULL if none is available
+ * @param[in] ncrp      pointer to the region destination of the coherent
+ *                      data section, can be @p NULL if none is available
  * @return              The operation status.
  * @retval CH_RET_ENOMEM        if the image does not fit the main area or
- *                              requires a non-cacheable area which is not
- *                              provided or too small.
+ *                              requires a coherent data region which is
+ *                              not provided or too small.
  *
  * @api
  */
 msg_t sbElfLoad(vfs_file_node_c *fnp, const memory_area_t *map,
-                const memory_area_t *ncmap) {
+                const sb_memory_region_t *ncrp) {
   elf32_loader_t el;
   elf32_area_t areas[2];
   uintptr_t addr;
@@ -132,19 +133,22 @@ msg_t sbElfLoad(vfs_file_node_c *fnp, const memory_area_t *map,
   ncsize = areas[1].area.size;
 
   /* Handling of the coherent data section, if used by the image then a
-     large enough non-cacheable area must have been provided, the whole
-     area is zeroed before loading.*/
+     large enough destination region must have been provided. Memory-type
+     regions are entirely zeroed before loading, other types are pure
+     addressing overlays and are not written.*/
   if (ncsize > (size_t)0) {
-    if ((ncmap == NULL) || (ncsize > ncmap->size)) {
+    if ((ncrp == NULL) || (ncsize > ncrp->area.size)) {
       return CH_RET_ENOMEM;
     }
-    memset((void *)ncmap->base, 0, ncmap->size);
+    if (sb_reg_is_memory(ncrp)) {
+      memset((void *)ncrp->area.base, 0, ncrp->area.size);
+    }
   }
 
   /* Setting up the real load areas then loading.*/
   areas[0].area = *map;
-  if (ncmap != NULL) {
-    areas[1].area = *ncmap;
+  if (ncrp != NULL) {
+    areas[1].area = ncrp->area;
   }
   else {
     areas[1].area.base = NULL;
@@ -166,8 +170,8 @@ msg_t sbElfLoad(vfs_file_node_c *fnp, const memory_area_t *map,
  * @param[in] rootp     pointer to the VFS root used to access the file
  * @param[in] path      path of the image file
  * @param[in] map       pointer to the main destination memory area
- * @param[in] ncmap     pointer to the non-cacheable destination memory
- *                      area, can be @p NULL if none is available
+ * @param[in] ncrp      pointer to the region destination of the coherent
+ *                      data section, can be @p NULL if none is available
  * @return              The operation status.
  *
  * @api
@@ -175,7 +179,7 @@ msg_t sbElfLoad(vfs_file_node_c *fnp, const memory_area_t *map,
 msg_t sbElfLoadFile(vfs_root_c *rootp,
                     const char *path,
                     const memory_area_t *map,
-                    const memory_area_t *ncmap) {
+                    const sb_memory_region_t *ncrp) {
   vfs_file_node_c *fnp;
   msg_t ret;
 
@@ -183,7 +187,7 @@ msg_t sbElfLoadFile(vfs_root_c *rootp,
   CH_RETURN_ON_ERROR(ret);
 
   do {
-    ret = sbElfLoad(fnp, map, ncmap);
+    ret = sbElfLoad(fnp, map, ncrp);
     CH_BREAK_ON_ERROR(ret);
 
   } while (false);
