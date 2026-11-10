@@ -19,7 +19,7 @@
  */
 
 /**
- * @file    chscanf.c
+ * @file    oop_chscanf.c
  * @brief   Mini scanf-like functionality.
  *
  * @addtogroup OOP_CHSCANF
@@ -83,7 +83,7 @@ static inline double ch_mpow(double x, unsigned long y)
 /**
  * @brief   System formatted input function.
  * @details This function implements a minimal @p vscanf()-like functionality
- *          with input on a @p BaseSequentialStream.
+ *          with input from a @p sequential_stream_i interface.
  *          The general parameters format is: %[*][width][l|L]p
  *          The following parameter types (p) are supported:
  *          - <b>x</b> hexadecimal integer.
@@ -98,7 +98,7 @@ static inline double ch_mpow(double x, unsigned long y)
  *          - <b>s</b> string.
  *          .
  *
- * @param[in] chp       pointer to a @p BufferedStream implementing object
+ * @param[in] stmp      pointer to a @p sequential_stream_i interface
  * @param[in] fmt       formatting string
  * @param[in] ap        list of parameters
  * @return              The number parameters in ap that have been successfully
@@ -676,7 +676,7 @@ int chvscanf(sequential_stream_i *stmp, const char *fmt, va_list ap)
 /**
  * @brief   System formatted input function.
  * @details This function implements a minimal @p scanf() like functionality
- *          with input from a @p BufferedStream.
+ *          with input from a @p sequential_stream_i interface.
  *          The general parameters format is: %[*][width][l|L]p
  *          The following parameter types (p) are supported:
  *          - <b>x</b> hexadecimal integer.
@@ -691,7 +691,7 @@ int chvscanf(sequential_stream_i *stmp, const char *fmt, va_list ap)
  *          - <b>s</b> string.
  *          .
  *
- * @param[in] chp       pointer to a @p BufferedStream implementing object
+ * @param[in] stmp      pointer to a @p sequential_stream_i interface
  * @param[in] fmt       formatting string
  * @return              The number parameters in ap that have been successfully
  *                      filled. This does not conform to the standard in that if

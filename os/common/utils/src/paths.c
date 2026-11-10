@@ -316,7 +316,7 @@ size_t path_match_element(const char *path, const char *match, size_t size) {
  *
  * @param[out] dst              The destination buffer.
  * @param[in] src               The source path, must be absolute.
- * @param[in[ size              Destination buffer size.
+ * @param[in] size              Destination buffer size.
  * @return                      The size of the normalized path.
  * @retval 0                    Path error.
  */

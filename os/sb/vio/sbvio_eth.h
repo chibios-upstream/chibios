@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    sb/vhal/sbvio_eth.h
+ * @file    sb/vio/sbvio_eth.h
  * @brief   ARM SandBox host Virtual ETH macros and structures.
  *
  * @addtogroup ARM_SANDBOX_HOST_VIO_ETH

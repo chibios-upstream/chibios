@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    vfs/src/vfspaths.h
+ * @file    vfs/include/vfspaths.h
  * @brief   VFS paths utilities header file.
  *
  * @addtogroup VFS_PATHS

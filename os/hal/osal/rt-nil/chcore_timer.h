@@ -52,9 +52,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-  void stStartAlarm(systime_t time);
+  void stStartAlarm(systime_t abstime);
   void stStopAlarm(void);
-  void stSetAlarm(systime_t time);
+  void stSetAlarm(systime_t abstime);
   systime_t stGetCounter(void);
   systime_t stGetAlarm(void);
 #ifdef __cplusplus

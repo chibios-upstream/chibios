@@ -336,13 +336,3 @@ msg_t vfsRootGetCurrentDirectory(void *ip, char *buf, size_t size) {
 /** @} */
 
 /** @} */
-
-/** @} */
-
-/** @} */
-
-/** @} */
-
-/** @} */
-
-/** @} */
