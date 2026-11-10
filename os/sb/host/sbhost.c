@@ -317,7 +317,6 @@ static const sb_memory_region_t *sb_locate_data_region(sb_class_t *sbp) {
   return NULL;
 }
 
-
 static msg_t sb_check_header(const sb_header_t *sbhp,
                              const memory_area_t *code_area) {
 
