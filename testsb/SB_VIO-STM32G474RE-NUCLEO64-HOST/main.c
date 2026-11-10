@@ -487,7 +487,14 @@ int main(void) {
 
   sbObjectInit(&sbx1);
   sbSetRegion(&sbx1, 0, STARTUP_FLASH1_BASE, STARTUP_FLASH1_SIZE, SB_REG_IS_CODE);
-  sbSetRegion(&sbx1, 1, STARTUP_RAM1_BASE,   STARTUP_RAM1_SIZE, SB_REG_IS_DATA);
+
+  /* The data region is reduced by 4KiB, the top of the RAM window is a
+     separate coherent (non-cacheable) region required by the zero-copy
+     VIO services, matching the .nocache section placement in the client
+     linker script. Regions must not overlap.*/
+  sbSetRegion(&sbx1, 1, STARTUP_RAM1_BASE, 28U * 1024U, SB_REG_IS_DATA);
+  sbSetRegion(&sbx1, 2, (uint8_t *)0x2001F000U, 4096U,
+              SB_REG_IS_NOCACHE_DATA);
   sbSetVirtualIO(&sbx1, &vio_config1);
 
   /* Lifecycle initialization and failed-start checks.*/

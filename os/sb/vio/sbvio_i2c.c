@@ -235,14 +235,14 @@ void sb_fastc_vio_i2c(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        if (!sb_is_valid_read_range(sbp, transfer.txbuf,
+        if (!sb_is_valid_coherent_read_range(sbp, transfer.txbuf,
                                     (size_t)transfer.txbytes)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
           break;
         }
 
         if ((transfer.rxbytes > 0U) &&
-            !sb_is_valid_write_range(sbp, transfer.rxbuf,
+            !sb_is_valid_coherent_write_range(sbp, transfer.rxbuf,
                                      (size_t)transfer.rxbytes)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
           break;
@@ -287,7 +287,7 @@ void sb_fastc_vio_i2c(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        if (!sb_is_valid_write_range(sbp, transfer.rxbuf,
+        if (!sb_is_valid_coherent_write_range(sbp, transfer.rxbuf,
                                      (size_t)transfer.rxbytes)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
           break;
