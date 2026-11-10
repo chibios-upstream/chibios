@@ -297,7 +297,10 @@ void sb_sysc_loadelf(sb_class_t *sbp, struct port_extctx *ectxp) {
   }
   else {
     memory_area_t ma = {buf, size};
-    ectxp->r0 = (uint32_t)sbElfLoadFile(sbGetRoot(sbp), fname, &ma);
+
+    /* Note, no coherent data section support in this context, images
+       requiring it are rejected.*/
+    ectxp->r0 = (uint32_t)sbElfLoadFile(sbGetRoot(sbp), fname, &ma, NULL);
   }
 #else
   (void)sbp;

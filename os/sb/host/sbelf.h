@@ -33,6 +33,15 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   Name of the ELF output section carrying coherent data.
+ * @details Sections with this name are placed into a non-cacheable memory
+ *          region instead of the main sandbox memory region.
+ * @note    The section is BSS-like, initialized data is not supported,
+ *          the whole destination region is zeroed before loading.
+ */
+#define SB_ELF_SECTION_NOCACHE          ".nocache"
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -57,11 +66,14 @@
 extern "C" {
 #endif
   msg_t sbElfLoad(vfs_file_node_c *fnp,
-                  const memory_area_t *map);
+                  const memory_area_t *map,
+                  const memory_area_t *ncmap);
   msg_t sbElfLoadFile(vfs_root_c *rootp,
                       const char *path,
-                      const memory_area_t *map);
-  msg_t sbElfGetAllocation(vfs_file_node_c *fnp, size_t *sizep);
+                      const memory_area_t *map,
+                      const memory_area_t *ncmap);
+  msg_t sbElfGetAllocation(vfs_file_node_c *fnp, size_t *sizep,
+                           size_t *ncsizep);
 #ifdef __cplusplus
 }
 #endif

@@ -317,6 +317,27 @@ static const sb_memory_region_t *sb_locate_data_region(sb_class_t *sbp) {
   return NULL;
 }
 
+#if (SB_CFG_ENABLE_VFS == TRUE) || defined(__DOXYGEN__)
+/*
+ * Locates a region suitable for coherent data, the first writable
+ * non-cacheable memory region. Region zero is excluded because it is
+ * reserved for the main code and data.
+ */
+static const sb_memory_region_t *sb_locate_nocache_region(sb_class_t *sbp) {
+  const sb_memory_region_t *rp = &sbp->regions[1];
+
+  while (rp < &sbp->regions[SB_CFG_NUM_REGIONS]) {
+    if (sb_reg_is_memory(rp) && sb_reg_is_writable(rp) &&
+        !sb_reg_is_cacheable(rp)) {
+      return rp;
+    }
+    rp++;
+  }
+
+  return NULL;
+}
+#endif /* SB_CFG_ENABLE_VFS == TRUE */
+
 static msg_t sb_check_header(const sb_header_t *sbhp,
                              const memory_area_t *code_area) {
 
@@ -774,7 +795,11 @@ failed:
  * @brief   Execute an elf file within a sandbox.
  * @note    The file is loaded into region zero of the sandbox which is
  *          assumed to be used for both code and data, extra regions are
- *          not touched by this function.
+ *          not touched by this function except for the coherent data
+ *          section, if the image contains one then it is mapped onto the
+ *          first writable non-cacheable memory region, which is entirely
+ *          zeroed, an error is returned if no such region is configured
+ *          or the region is too small.
  * @note    The size of the privileged stack is assumed to be always
  *          @p SB_CFG_PRIVILEGED_STACK_SIZE.
  *
@@ -795,6 +820,7 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
                    const char *argv[], const char *envp[]) {
   memory_area_t ma;
   const sb_header_t *sbhp;
+  const sb_memory_region_t *ncrp;
   size_t totsize;
   msg_t ret;
 
@@ -821,8 +847,13 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
      elf file to overwrite the environment data.*/
   ma.size -= totsize;
 
+  /* Locating an optional region for coherent data, it is required if the
+     image contains a coherent data section.*/
+  ncrp = sb_locate_nocache_region(sbp);
+
   /* Loading sandbox code into the specified memory area.*/
-  ret = sbElfLoadFile(sbGetRoot(sbp), path, &ma);
+  ret = sbElfLoadFile(sbGetRoot(sbp), path, &ma,
+                      (ncrp != NULL) ? &ncrp->area : NULL);
   if (CH_RET_IS_ERROR(ret)) {
     goto failed;
   }
@@ -863,6 +894,10 @@ failed:
     defined(__DOXYGEN__)
 /**
  * @brief   Execute an elf file within a dynamic sandbox.
+ * @note    If the image contains a coherent data section then it is loaded
+ *          into the first writable non-cacheable memory region, which is
+ *          zeroed, an error is returned if no such region is configured or
+ *          the region is too small.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] prio      sandbox thread priority
@@ -881,9 +916,10 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   memory_area_t *umap;
   memory_area_t elfma;
   const sb_header_t *sbhp;
+  const sb_memory_region_t *ncrp;
   vfs_file_node_c *fnp;
   stkline_t *stkbase;
-  size_t size, basealign;
+  size_t size, ncsize, basealign;
   msg_t ret;
 
   if (!sb_start_begin(sbp)) {
@@ -903,9 +939,20 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   }
 
   /* Calculating bare-minimum space required by the elf file.*/
-  ret = sbElfGetAllocation(fnp, &umap->size);
+  ret = sbElfGetAllocation(fnp, &umap->size, &ncsize);
   if (CH_RET_IS_ERROR(ret)) {
     goto skip1;
+  }
+
+  /* If the image contains a coherent data section then a suitable region
+     must have been configured and be large enough.*/
+  ncrp = NULL;
+  if (ncsize > (size_t)0) {
+    ncrp = sb_locate_nocache_region(sbp);
+    if ((ncrp == NULL) || (ncsize > ncrp->area.size)) {
+      ret = CH_RET_ENOMEM;
+      goto skip1;
+    }
   }
 
   /* Adding the specified extra heap space.*/
@@ -954,7 +1001,7 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   elfma.size -= size;
 
   /* Loading sandbox code into the specified memory area.*/
-  ret = sbElfLoad(fnp, &elfma);
+  ret = sbElfLoad(fnp, &elfma, (ncrp != NULL) ? &ncrp->area : NULL);
   if (CH_RET_IS_ERROR(ret)) {
     goto skip3;
   }
