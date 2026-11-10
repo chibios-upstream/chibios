@@ -301,8 +301,8 @@
 /**
  * @defgroup HAL_MMC_SPI MMC over SPI Driver
  * @brief   MMC/SD cards driver over an SPI bus.
- * @pre     In order to use the MMC over SPI driver the @p HAL_USE_MMC_SPI
- *          option must be enabled in @p xhalconf.h.
+ * @note    The driver is enabled by including @p hal_mmc_spi.mk in the
+ *          makefile.
  *
  * @ingroup HAL_COMPLEX_DRIVERS
  */

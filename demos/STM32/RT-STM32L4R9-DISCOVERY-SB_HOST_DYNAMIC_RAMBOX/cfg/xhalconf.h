@@ -55,7 +55,6 @@
 #define HAL_USE_I2C                         FALSE
 #define HAL_USE_I2S                         FALSE
 #define HAL_USE_ICU                         FALSE
-#define HAL_USE_MMC_SPI                     FALSE
 #define HAL_USE_PWM                         FALSE
 #define HAL_USE_RTC                         FALSE
 #define HAL_USE_SDC                         TRUE
