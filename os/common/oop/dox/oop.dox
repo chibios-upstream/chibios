@@ -1,0 +1,118 @@
+/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/
+
+/**
+ * @defgroup OOP OOP Framework
+ * @brief   Object-oriented framework for C.
+ * @details Classes are structures with a virtual methods table pointer,
+ *          interfaces are structures with an interface virtual methods
+ *          table pointer and the offset of the implementing instance. The
+ *          framework is shared by XHAL, VFS, VNS, SB and several complex
+ *          drivers, most of its modules are generated from XML
+ *          descriptions.
+ */
+
+/**
+ * @defgroup OOP_CLASSES Base Classes
+ * @brief   Common ancestor classes.
+ *
+ * @ingroup OOP
+ */
+
+/**
+ * @defgroup OOP_BASE_OBJECT Base Object
+ * @brief   Common ancestor abstract class.
+ *
+ * @ingroup OOP_CLASSES
+ */
+
+/**
+ * @defgroup OOP_REFERENCED_OBJECT Referenced Object
+ * @brief   Common ancestor class of all reference-counted objects.
+ *
+ * @ingroup OOP_CLASSES
+ */
+
+/**
+ * @defgroup OOP_SYNCHRONIZED_OBJECT Synchronized Object
+ * @brief   Common ancestor class of all reference-counted, synchronized
+ *          objects.
+ *
+ * @ingroup OOP_CLASSES
+ */
+
+/**
+ * @defgroup OOP_INTERFACES Interfaces
+ * @brief   Common interfaces.
+ *
+ * @ingroup OOP
+ */
+
+/**
+ * @defgroup OOP_BASE_INTERFACE Base Interface
+ * @brief   Common interfaces ancestor.
+ *
+ * @ingroup OOP_INTERFACES
+ */
+
+/**
+ * @defgroup OOP_SEQUENTIAL_STREAM Sequential Stream Interface
+ * @brief   Sequential data streams interface.
+ *
+ * @ingroup OOP_INTERFACES
+ */
+
+/**
+ * @defgroup OOP_RANDOM_STREAM Random Stream Interface
+ * @brief   Random data streams interface.
+ *
+ * @ingroup OOP_INTERFACES
+ */
+
+/**
+ * @defgroup OOP_STREAMS Streams
+ * @brief   Streams implementations and formatted I/O.
+ *
+ * @ingroup OOP
+ */
+
+/**
+ * @defgroup OOP_MEMSTREAMS Memory Streams
+ * @brief   Memory streams class.
+ *
+ * @ingroup OOP_STREAMS
+ */
+
+/**
+ * @defgroup OOP_NULLSTREAMS Null Streams
+ * @brief   Null streams class.
+ *
+ * @ingroup OOP_STREAMS
+ */
+
+/**
+ * @defgroup OOP_CHPRINTF Formatted Output
+ * @brief   Mini printf-like functionality over sequential streams.
+ *
+ * @ingroup OOP_STREAMS
+ */
+
+/**
+ * @defgroup OOP_CHSCANF Formatted Input
+ * @brief   Mini scanf-like functionality over sequential streams.
+ *
+ * @ingroup OOP_STREAMS
+ */

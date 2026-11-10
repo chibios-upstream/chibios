@@ -1,0 +1,150 @@
+/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    This file is part of ChibiOS.
+
+    ChibiOS is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation version 3 of the License.
+
+    ChibiOS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/**
+ * @defgroup VFS VFS
+ * @brief   Virtual File System.
+ * @details The VFS presents file systems of different kinds as a single
+ *          tree of directories and files. A root driver holds the current
+ *          directory, overlay drivers mount other file systems under path
+ *          prefixes and file system drivers implement the nodes for each
+ *          storage kind. See @ref vfs_architecture for the object model and
+ *          the path contracts.
+ */
+
+/**
+ * @defgroup VFS_CONF Configuration
+ * @brief   VFS Configuration.
+ * @details The file @p vfsconf.h contains the high level settings of the
+ *          VFS and of its drivers.
+ *
+ * @ingroup VFS
+ */
+
+/**
+ * @defgroup VFS_CHECKS Configuration Checks
+ * @brief   Checks on the VFS configuration.
+ *
+ * @ingroup VFS_CONF
+ */
+
+/**
+ * @defgroup VFS_CORE Core
+ * @brief   VFS core classes and utilities.
+ *
+ * @ingroup VFS
+ */
+
+/**
+ * @defgroup VFSDRIVERS Drivers
+ * @brief   File system drivers abstract class.
+ *
+ * @ingroup VFS_CORE
+ */
+
+/**
+ * @defgroup VFSNODES Nodes
+ * @brief   File system nodes abstract classes.
+ *
+ * @ingroup VFS_CORE
+ */
+
+/**
+ * @defgroup VFS_BUFFERS Path Buffers
+ * @brief   Shared path buffers.
+ *
+ * @ingroup VFS_CORE
+ */
+
+/**
+ * @defgroup VFS_PARSER Parser Utilities
+ * @brief   Path parser utilities.
+ *
+ * @ingroup VFS_CORE
+ */
+
+/**
+ * @defgroup VFS_PATHS Path Utilities
+ * @brief   Path manipulation utilities.
+ *
+ * @ingroup VFS_CORE
+ */
+
+/**
+ * @defgroup VFS_FS_DRIVERS File System Drivers
+ * @brief   VFS drivers implementations.
+ *
+ * @ingroup VFS
+ */
+
+/**
+ * @defgroup DRVROOT Root Driver
+ * @brief   VFS root driver, it holds the current directory.
+ *
+ * @ingroup VFS_FS_DRIVERS
+ */
+
+/**
+ * @defgroup DRVOVERLAY Overlay Driver
+ * @brief   VFS overlay driver, it mounts file systems under path prefixes.
+ *
+ * @ingroup VFS_FS_DRIVERS
+ */
+
+/**
+ * @defgroup DRVSTREAMS Streams Driver
+ * @brief   VFS driver exposing streams as files.
+ *
+ * @ingroup VFS_FS_DRIVERS
+ */
+
+/**
+ * @defgroup DRVROMFS ROMFS Driver
+ * @brief   VFS driver for read-only file system images.
+ *
+ * @ingroup VFS_FS_DRIVERS
+ */
+
+/**
+ * @defgroup DRVFATFS FatFS Driver
+ * @brief   VFS driver over FatFS.
+ *
+ * @ingroup VFS_FS_DRIVERS
+ */
+
+/**
+ * @defgroup DRVLITTLEFS LittleFS Driver
+ * @brief   VFS driver over LittleFS.
+ *
+ * @ingroup VFS_FS_DRIVERS
+ */
+
+/**
+ * @defgroup DRVCHFS ChibiFS Driver
+ * @brief   VFS driver over ChibiFS.
+ *
+ * @ingroup VFS_FS_DRIVERS
+ */
+
+/**
+ * @defgroup DRVTMPLFS Template Driver
+ * @brief   Template of a VFS driver, it is the starting point for new
+ *          drivers.
+ *
+ * @ingroup VFS_FS_DRIVERS
+ */

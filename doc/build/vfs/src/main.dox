@@ -1,0 +1,37 @@
+/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    This file is part of ChibiOS.
+
+    ChibiOS is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation version 3 of the License.
+
+    ChibiOS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/**
+ * @mainpage Introduction
+ ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+ *
+ * <h2>Features</h2>
+ * - Virtual File System presenting file systems of different kinds as a
+ *   single tree of directories and files.
+ * - Root driver with a current directory, overlay drivers mounting file
+ *   systems under path prefixes.
+ * - File system drivers for ROMFS images, FatFS, LittleFS, ChibiFS and
+ *   streams.
+ * - Object-oriented design, drivers and nodes are classes generated from XML
+ *   descriptions.
+ * .
+ * <h2>Related pages</h2>
+ * - @subpage vfs_architecture
+ * - @subpage concepts
+ * .
+ */

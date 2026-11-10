@@ -1,0 +1,5 @@
+del ..\..\manuals\html\sb\*.* /Q
+doxygen Doxyfile_html
+del ..\..\manuals\html\sb\*.md5
+del ..\..\manuals\html\sb\*.map
+pause

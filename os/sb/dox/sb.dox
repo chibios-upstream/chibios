@@ -1,0 +1,188 @@
+/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    This file is part of ChibiOS.
+
+    ChibiOS is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation version 3 of the License.
+
+    ChibiOS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/**
+ * @defgroup SB SB
+ * @brief   Sandboxes subsystem.
+ * @details SB runs applications in isolated sandboxes on MPU-equipped
+ *          ARM Cortex-M devices. Each sandbox has its own memory regions,
+ *          enforced by the MPU, and interacts with the host only through
+ *          fastcalls, syscalls, virtual IRQs and virtual I/O drivers.
+ *          Sandbox applications can be bare-metal or run a guest kernel.
+ */
+
+/**
+ * @defgroup SB_CONFIG Configuration
+ * @brief   SB Configuration.
+ * @details The file @p sbconf.h contains the high level settings of the
+ *          sandboxes subsystem.
+ *
+ * @ingroup SB
+ */
+
+/**
+ * @defgroup SB_HOST Host
+ * @brief   Host-side sandbox management.
+ *
+ * @ingroup SB
+ */
+
+/**
+ * @defgroup ARM_SANDBOX Sandbox Host
+ * @brief   Sandbox objects, lifecycle and isolation.
+ *
+ * @ingroup SB_HOST
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_HOSTAPI Host API
+ * @brief   Fastcalls, syscalls and POSIX services offered to sandboxes.
+ *
+ * @ingroup SB_HOST
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_VRQ Virtual IRQs
+ * @brief   Virtual IRQs delivered to sandboxes.
+ *
+ * @ingroup SB_HOST
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_REGIONS Memory Regions
+ * @brief   Sandbox memory regions.
+ *
+ * @ingroup SB_HOST
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_ELF ELF Loader
+ * @brief   Loading of sandbox ELF images.
+ *
+ * @ingroup SB_HOST
+ */
+
+/**
+ * @defgroup SB_VIO Virtual I/O
+ * @brief   Host-side virtual I/O drivers.
+ * @details VIO drivers expose XHAL drivers to sandboxes through opaque
+ *          configuration indices, without exposing hardware
+ *          configuration structures.
+ *
+ * @ingroup SB
+ */
+
+/**
+ * @defgroup VIO_CONF Configuration
+ * @brief   VIO Configuration.
+ * @details The file @p vioconf.h selects the virtual I/O drivers enabled
+ *          on the host.
+ *
+ * @ingroup SB_VIO
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_HOST_VIO VIO Core
+ * @brief   Virtual I/O common code.
+ *
+ * @ingroup SB_VIO
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_HOST_VIO_ADC Virtual ADC
+ * @ingroup SB_VIO
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_HOST_VIO_ETH Virtual ETH
+ * @ingroup SB_VIO
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_HOST_VIO_GPIO Virtual GPIO
+ * @ingroup SB_VIO
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_HOST_VIO_GPT Virtual GPT
+ * @ingroup SB_VIO
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_HOST_VIO_I2C Virtual I2C
+ * @ingroup SB_VIO
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_HOST_VIO_SPI Virtual SPI
+ * @ingroup SB_VIO
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_HOST_VIO_UART Virtual UART
+ * @ingroup SB_VIO
+ */
+
+/**
+ * @defgroup SB_USER Sandbox Side
+ * @brief   API used by the code running in a sandbox.
+ *
+ * @ingroup SB
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_USER_API User API
+ * @brief   Sandbox user API.
+ *
+ * @ingroup SB_USER
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_USER_VIO_API User VIO API
+ * @brief   Wrappers of the virtual I/O calls.
+ *
+ * @ingroup SB_USER
+ */
+
+/**
+ * @defgroup SB_COMMON Common Definitions
+ * @brief   Definitions shared by the host and the sandboxes.
+ *
+ * @ingroup SB
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_HEADER Sandbox Header
+ * @brief   Header of the sandbox images.
+ *
+ * @ingroup SB_COMMON
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_SYSCALLS Syscalls Codes
+ * @brief   Fastcall and syscall codes.
+ *
+ * @ingroup SB_COMMON
+ */
+
+/**
+ * @defgroup ARM_SANDBOX_DIRENT Directory Entries
+ * @brief   Sandbox replacement of @p dirent.h.
+ *
+ * @ingroup SB_COMMON
+ */

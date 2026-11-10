@@ -1,0 +1,505 @@
+/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/
+
+/**
+ * @defgroup XHAL XHAL
+ * @brief   Object-oriented Hardware Abstraction Layer.
+ * @details XHAL is the object-oriented evolution of the ChibiOS HAL. Device
+ *          drivers are classes deriving from a common base driver class,
+ *          high level driver interfaces and common code are generated from
+ *          XML descriptions, configuration is selected at runtime among a
+ *          set of configurations and drivers can be enumerated through a
+ *          registry.
+ */
+
+/**
+ * @defgroup XHAL_CONF Configuration
+ * @brief   XHAL Configuration.
+ * @details The file @p xhalconf.h contains the high level settings for all
+ *          the drivers supported by XHAL.
+ *
+ * @ingroup XHAL
+ */
+
+/**
+ * @defgroup HAL_NORMAL_DRIVERS Normal Drivers
+ * @brief   XHAL Normal Drivers.
+ * @details Drivers interfacing the application to an MCU peripheral through
+ *          a portable API, split in a high level part and a platform
+ *          specific low level part.
+ *
+ * @ingroup XHAL
+ */
+
+/**
+ * @defgroup HAL_COMPLEX_DRIVERS Complex Drivers
+ * @brief   XHAL Complex Drivers.
+ * @details Drivers that are fully portable, they use other drivers or
+ *          interfaces in order to implement their function.
+ *
+ * @ingroup XHAL
+ */
+
+/**
+ * @defgroup HAL_INTERFACES_CLASSES Interfaces and Classes
+ * @brief   XHAL Interfaces and Classes.
+ * @details Abstract interfaces and base classes implemented or inherited by
+ *          the XHAL drivers.
+ *
+ * @ingroup XHAL
+ */
+
+/**
+ * @defgroup HAL_INNER_CODE Inner Code
+ * @brief   XHAL Inner Code.
+ * @details Code used internally by the XHAL drivers.
+ *
+ * @ingroup XHAL
+ */
+
+/**
+ * @defgroup HAL_SUPPORT Support Code
+ * @brief   XHAL Support Code.
+ * @details Helpers and bindings to other subsystems.
+ *
+ * @ingroup XHAL
+ */
+
+/**
+ * @defgroup HAL_SAFETY Safety Subsystem
+ * @brief   XHAL Safety Manager.
+ *
+ * @ingroup XHAL
+ */
+
+/*===========================================================================*/
+/* Normal drivers.                                                           */
+/*===========================================================================*/
+
+/**
+ * @defgroup HAL HAL Driver
+ * @brief   Hardware Abstraction Layer.
+ * @details The HAL driver performs the system initialization and includes
+ *          the platform support code shared by the other drivers.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_ADC ADC Driver
+ * @brief   Generic ADC Driver.
+ * @pre     In order to use the ADC driver the @p HAL_USE_ADC option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_CAN CAN Driver
+ * @brief   Generic CAN Driver.
+ * @pre     In order to use the CAN driver the @p HAL_USE_CAN option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_CRYPTO Crypto Driver
+ * @brief   Generic Cryptographic Driver.
+ * @pre     In order to use the crypto driver the @p HAL_USE_CRY option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_DAC DAC Driver
+ * @brief   Generic DAC Driver.
+ * @pre     In order to use the DAC driver the @p HAL_USE_DAC option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_EFL Embedded Flash Driver
+ * @brief   Generic Embedded Flash Driver.
+ * @pre     In order to use the EFL driver the @p HAL_USE_EFL option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_ETH ETH Driver
+ * @brief   Generic Ethernet Driver.
+ * @pre     In order to use the ETH driver the @p HAL_USE_ETH option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_GPT GPT Driver
+ * @brief   Generic General Purpose Timer Driver.
+ * @pre     In order to use the GPT driver the @p HAL_USE_GPT option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_I2C I2C Driver
+ * @brief   Generic I2C Driver.
+ * @pre     In order to use the I2C driver the @p HAL_USE_I2C option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_I2S I2S Driver
+ * @brief   Generic I2S Driver.
+ * @pre     In order to use the I2S driver the @p HAL_USE_I2S option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_ICU ICU Driver
+ * @brief   Generic Input Capture Unit Driver.
+ * @pre     In order to use the ICU driver the @p HAL_USE_ICU option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup PAL PAL Driver
+ * @brief   I/O Ports Abstraction Layer.
+ * @pre     In order to use the PAL driver the @p HAL_USE_PAL option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_PWM PWM Driver
+ * @brief   Generic PWM Driver.
+ * @pre     In order to use the PWM driver the @p HAL_USE_PWM option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_RTC RTC Driver
+ * @brief   Generic Real Time Clock Driver.
+ * @pre     In order to use the RTC driver the @p HAL_USE_RTC option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_SDC SDC Driver
+ * @brief   Generic Secure Digital Card Driver.
+ * @pre     In order to use the SDC driver the @p HAL_USE_SDC option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_SIO SIO Driver
+ * @brief   Generic Serial I/O Driver.
+ * @pre     In order to use the SIO driver the @p HAL_USE_SIO option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_SPI SPI Driver
+ * @brief   Generic SPI Driver.
+ * @pre     In order to use the SPI driver the @p HAL_USE_SPI option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup ST ST Driver
+ * @brief   Generic System Tick Driver.
+ * @details The ST driver provides the system tick to the RTOS, it is always
+ *          enabled.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_TRNG TRNG Driver
+ * @brief   Generic True Random Numbers Generator Driver.
+ * @pre     In order to use the TRNG driver the @p HAL_USE_TRNG option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_USB USB Driver
+ * @brief   Generic USB Driver.
+ * @pre     In order to use the USB driver the @p HAL_USE_USB option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_WDG WDG Driver
+ * @brief   Generic Watchdog Driver.
+ * @pre     In order to use the WDG driver the @p HAL_USE_WDG option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_WSPI WSPI Driver
+ * @brief   Generic Wide SPI Driver.
+ * @pre     In order to use the WSPI driver the @p HAL_USE_WSPI option
+ *          must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_NORMAL_DRIVERS
+ */
+
+/*===========================================================================*/
+/* Complex drivers.                                                          */
+/*===========================================================================*/
+
+/**
+ * @defgroup HAL_MFS Managed Flash Storage
+ * @brief   Managed Flash Storage over a flash interface.
+ *
+ * @ingroup HAL_COMPLEX_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_MMC_SPI MMC over SPI Driver
+ * @brief   MMC/SD cards driver over an SPI bus.
+ * @pre     In order to use the MMC over SPI driver the @p HAL_USE_MMC_SPI
+ *          option must be enabled in @p xhalconf.h.
+ *
+ * @ingroup HAL_COMPLEX_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_SERIAL_USB Serial over USB Driver
+ * @brief   Serial over USB Driver, CDC ACM class.
+ *
+ * @ingroup HAL_COMPLEX_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_POSIX_TTY_SIO POSIX TTY over SIO Driver
+ * @brief   POSIX terminal over an SIO driver.
+ *
+ * @ingroup HAL_COMPLEX_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_SENSORS Sensors
+ * @brief   Sensors framework.
+ * @details Generic sensor interfaces and the device drivers implementing
+ *          them.
+ *
+ * @ingroup HAL_COMPLEX_DRIVERS
+ */
+
+/**
+ * @defgroup HAL_SENSOR Generic Sensor Interface
+ * @ingroup HAL_SENSORS
+ */
+
+/**
+ * @defgroup HAL_CALIBRATED_SENSOR Generic Calibrated Sensor Interface
+ * @ingroup HAL_SENSORS
+ */
+
+/**
+ * @defgroup HAL_ACCELEROMETER Generic Accelerometer Interface
+ * @ingroup HAL_SENSORS
+ */
+
+/**
+ * @defgroup HAL_BAROMETER Generic Barometer Interface
+ * @ingroup HAL_SENSORS
+ */
+
+/**
+ * @defgroup HAL_COMPASS Generic Compass Interface
+ * @ingroup HAL_SENSORS
+ */
+
+/**
+ * @defgroup HAL_GYROSCOPE Generic Gyroscope Interface
+ * @ingroup HAL_SENSORS
+ */
+
+/**
+ * @defgroup HAL_HYGROMETER Generic Hygrometer Interface
+ * @ingroup HAL_SENSORS
+ */
+
+/**
+ * @defgroup HAL_RANGEFINDER Generic Rangefinder Interface
+ * @ingroup HAL_SENSORS
+ */
+
+/**
+ * @defgroup HAL_THERMOMETER Generic Thermometer Interface
+ * @ingroup HAL_SENSORS
+ */
+
+/**
+ * @defgroup LIS302DL LIS302DL Driver
+ * @brief   ST LIS302DL MEMS accelerometer driver.
+ *
+ * @ingroup HAL_SENSORS
+ */
+
+/*===========================================================================*/
+/* Interfaces and classes.                                                   */
+/*===========================================================================*/
+
+/**
+ * @defgroup HAL_BASE_DRIVER Base Driver
+ * @brief   Common driver base abstract class.
+ * @details Lifecycle, configuration selection, mutual exclusion and registry
+ *          integration common to all the XHAL stateful drivers.
+ *
+ * @ingroup HAL_INTERFACES_CLASSES
+ */
+
+/**
+ * @defgroup HAL_CB_DRIVER Callback Driver
+ * @brief   Common ancestor of callback-based drivers.
+ *
+ * @ingroup HAL_INTERFACES_CLASSES
+ */
+
+/**
+ * @defgroup HAL_CHANNELS I/O Channels
+ * @brief   Sequential data streams interface.
+ *
+ * @ingroup HAL_INTERFACES_CLASSES
+ */
+
+/**
+ * @defgroup HAL_BLOCK_IO Block I/O
+ * @brief   Block devices interface.
+ *
+ * @ingroup HAL_INTERFACES_CLASSES
+ */
+
+/**
+ * @defgroup HAL_TTY Terminal Interface
+ * @brief   Generic terminal interface.
+ *
+ * @ingroup HAL_INTERFACES_CLASSES
+ */
+
+/**
+ * @defgroup HAL_FLASH_BASE Flash Base Driver
+ * @brief   Common base class for flash devices.
+ *
+ * @ingroup HAL_INTERFACES_CLASSES
+ */
+
+/**
+ * @defgroup HAL_FLASH Flash Compatibility
+ * @brief   Flash compatibility facade.
+ *
+ * @ingroup HAL_INTERFACES_CLASSES
+ */
+
+/*===========================================================================*/
+/* Inner and support code.                                                   */
+/*===========================================================================*/
+
+/**
+ * @defgroup HAL_QUEUES I/O Queues
+ * @brief   I/O queues.
+ *
+ * @ingroup HAL_INNER_CODE
+ */
+
+/**
+ * @defgroup HAL_MII MII
+ * @brief   Ethernet PHY MII registers.
+ *
+ * @ingroup HAL_SUPPORT
+ */
+
+/**
+ * @defgroup HAL_USB_CDC USB CDC Services
+ * @brief   USB CDC service support classes and helpers.
+ *
+ * @ingroup HAL_SUPPORT
+ */
+
+/**
+ * @defgroup XHAL_CHCORE_TIMER System Timer Bindings
+ * @brief   RT and NIL system timer bindings to the ST driver.
+ *
+ * @ingroup HAL_SUPPORT
+ */
+
+/**
+ * @defgroup HAL_LWIP_BINDINGS lwIP Bindings
+ * @brief   lwIP integration over the XHAL ETH driver.
+ *
+ * @ingroup HAL_SUPPORT
+ */
+
+/**
+ * @defgroup LWIP_THREAD lwIP Thread
+ * @brief   lwIP wrapper thread.
+ *
+ * @ingroup HAL_LWIP_BINDINGS
+ */
+
+/**
+ * @defgroup static_lwipopts lwIP Static Options
+ * @brief   lwIP options required by the bindings.
+ *
+ * @ingroup HAL_LWIP_BINDINGS
+ */
+
+/**
+ * @defgroup LWIP_HTTPD_POSIX HTTPD POSIX Bindings
+ * @brief   lwIP HTTPD file system over POSIX files.
+ *
+ * @ingroup HAL_LWIP_BINDINGS
+ */
+
+/**
+ * @defgroup LWIP_HTTPD_VFS HTTPD VFS Bindings
+ * @brief   lwIP HTTPD file system over VFS.
+ *
+ * @ingroup HAL_LWIP_BINDINGS
+ */
