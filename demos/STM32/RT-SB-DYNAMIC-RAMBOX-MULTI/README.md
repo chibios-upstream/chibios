@@ -111,8 +111,11 @@ None of the bundled applications uses `.nocache`; to try the feature add to
 any of them, for example:
 
 ```c
-static uint32_t __attribute__((section(".nocache"), used)) dma_buffer[64];
+static SB_NOCACHE uint32_t dma_buffer[64];
 ```
+
+(`SB_NOCACHE` is defined in `sbuser.h`; add `__attribute__((used))` if the
+buffer is otherwise unreferenced, GC-sections would drop it.)
 
 rebuild with `make mkfs`, and check that the application sees the buffer
 inside the exported region.

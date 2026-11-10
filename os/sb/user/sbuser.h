@@ -170,6 +170,19 @@ typedef uint32_t eventflags_t;
 /*===========================================================================*/
 
 /**
+ * @brief   Placement in the coherent data section.
+ * @details Decorates a variable declaration for placement in the
+ *          @p .nocache section, mapped by the loader onto the coherent
+ *          (non-cacheable) region exported by the host, if any.
+ * @note    The section is BSS-like, initializers are not supported, the
+ *          whole region is zeroed at load time.
+ * @note    For DMA buffers an explicit cache-line alignment is advisable,
+ *          for example <tt>static SB_NOCACHE uint8_t buf[256]
+ *          __attribute__((aligned(32)));</tt>.
+ */
+#define SB_NOCACHE  __attribute__((section(".nocache")))
+
+/**
  * @brief   VRQ handler declaration.
  * @details The handler receives the VRQ number in @p nvrq and the VRQ flags
  *          in @p flags, the host clears the flags on delivery.
