@@ -21,6 +21,7 @@ MEMORY
 {
     flash0 (rx) : org = 0x08040000, len = 128k
     ram0   (wx) : org = 0x20018000, len = 16k
+    ramnc  (w)  : org = 0x2001F000, len = 4k
 }
 
 /* Flash region to be used for exception vectors.*/
@@ -32,3 +33,15 @@ REGION_ALIAS("DATA_SPACE_LMA", flash0);
 
 /* Generic rules inclusion.*/
 INCLUDE rules.ld
+
+/* Coherent data section at a fixed address, the host maps a non-cacheable
+   region over the same range, as required by the zero-copy VIO services.
+   The section is not initialized nor zeroed.*/
+SECTIONS
+{
+    .nocache (NOLOAD) : ALIGN(4)
+    {
+        *(.nocache)
+        *(.nocache.*)
+    } > ramnc
+}
