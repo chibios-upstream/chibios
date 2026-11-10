@@ -127,6 +127,7 @@
 #include "elf32ext.h"
 #else
 #include "ch.h"
+#include "errcodes.h"
 #endif
 
 /*===========================================================================*/

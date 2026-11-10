@@ -19,55 +19,24 @@
 /**
  * @file    sb/host/sbelf.c
  * @brief   ARM SandBox ELF loader code.
+ * @details Thin wrapper over the generic ELF32 loader, it adapts VFS file
+ *          access to the loader read callback and enforces the sandbox
+ *          images policy: a single load area and images linked at virtual
+ *          address zero.
  *
  * @addtogroup ARM_SANDBOX_ELF
  * @{
  */
 
-#include <string.h>
-
 #include "ch.h"
 #include "sb.h"
+#include "elf32.h"
 
 #if (SB_CFG_ENABLE_VFS == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
 /*===========================================================================*/
-
-/* Relevant ELF file types.*/
-#define ET_EXEC                 2U
-
-/* Relevant machine and version.*/
-#define EM_ARM                  40U
-#define EV_CURRENT              1U
-
-/* Relevant section types.*/
-#define SHT_PROGBITS            1U
-#define SHT_SYMTAB              2U
-#define SHT_NOBITS              8U
-#define SHT_REL                 9U
-
-/* Relevant section flags.*/
-#define SHF_WRITE               (1U << 0)
-#define SHF_ALLOC               (1U << 1)
-#define SHF_EXECINSTR           (1U << 2)
-#define SHF_INFO_LINK           (1U << 6)
-
-/* Special section indices.*/
-#define SHN_UNDEF               0U
-
-/* Supported relocation types.*/
-#define R_ARM_ABS32             2U
-#define R_ARM_REL32             3U
-#define R_ARM_THM_PC22          10U
-#define R_ARM_THM_JUMP24        30U
-#define R_ARM_PREL31            42U
-#define R_ARM_THM_MOVW_ABS_NC   47U
-#define R_ARM_THM_MOVT_ABS      48U
-
-#define ELF32_R_SYM(v)          ((v) >> 8)
-#define ELF32_R_TYPE(v)         ((v) & 0xFFU)
 
 /*===========================================================================*/
 /* Module exported variables.                                                */
@@ -77,538 +46,89 @@
 /* Module local types.                                                       */
 /*===========================================================================*/
 
-/**
- * @brief   Type of a section number.
- */
-typedef unsigned elf_secnum_t;
-
-/**
- * @brief   Type of a loadable section info structure.
- */
-typedef struct {
-  elf_secnum_t              section;
-  memory_area_t             area;
-  size_t                    rel_size;
-  vfs_offset_t              rel_off;
-} elf_section_info_t;
-
-/**
- * @brief   Type of an ELF loader context.
- */
-typedef struct elf_load_context {
-  vfs_file_node_c           *fnp;
-  const memory_area_t       *map;
-  elf_secnum_t              sections_num;
-  vfs_offset_t              sections_off;
-  bool                      rel_movw_found;
-  uint32_t                  rel_movw_symbol;
-  uint32_t                  rel_movw_address;
-  elf_section_info_t        *next;
-  elf_section_info_t        allocated[SB_CFG_ELF_MAX_ALLOCATED];
-} elf_load_context_t;
-
-/**
- * @brief   Type of an ELF32 header.
- */
-typedef struct {
-  unsigned char             e_ident[16];
-  uint16_t                  e_type;
-  uint16_t                  e_machine;
-  uint32_t                  e_version;
-  uint32_t                  e_entry;
-  uint32_t                  e_phoff;
-  uint32_t                  e_shoff;
-  uint32_t                  e_flags;
-  uint16_t                  e_ehsize;
-  uint16_t                  e_phentsize;
-  uint16_t                  e_phnum;
-  uint16_t                  e_shentsize;
-  uint16_t                  e_shnum;
-  uint16_t                  e_shstrndx;
-} elf32_header_t;
-
-typedef struct {
-  uint32_t                  sh_name;
-  uint32_t                  sh_type;
-  uint32_t                  sh_flags;
-  uint32_t                  sh_addr;
-  uint32_t                  sh_offset;
-  uint32_t                  sh_size;
-  uint32_t                  sh_link;
-  uint32_t                  sh_info;
-  uint32_t                  sh_addralign;
-  uint32_t                  sh_entsize;
-} elf32_section_header_t;
-
-typedef struct {
-  uint32_t                  r_offset;
-  uint32_t                  r_info;
-} elf32_rel_t;
-
-typedef struct {
-  uint32_t                  st_name;
-  uint32_t                  st_value;
-  uint32_t                  st_size;
-  uint8_t                   st_info;
-  uint8_t                   st_other;
-  uint16_t                  st_shndx;
-} elf32_symbol_t;
-
 /*===========================================================================*/
 /* Module local variables.                                                   */
 /*===========================================================================*/
-
-static const uint8_t elf32_header[16] = {
-  0x7f, 0x45, 0x4c, 0x46, 0x01, 0x01, 0x01, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
 
 /*===========================================================================*/
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
-static msg_t vfs_read_exact(vfs_file_node_c *fnp, void *buf, size_t size) {
-  ssize_t ret;
-
-  ret = vfsReadFile(fnp, (uint8_t *)buf, size);
-  if (CH_RET_IS_ERROR(ret)) {
-    return (msg_t)ret;
-  }
-  if ((size_t)ret != size) {
-    return CH_RET_ENOEXEC;
-  }
-
-  return CH_RET_SUCCESS;
-}
-
-static msg_t area_is_intersecting(elf_load_context_t *ctxp,
-                                 const memory_area_t *map) {
-  elf_section_info_t *esip;
-
-  /* Scanning allocated sections.*/
-  for (esip = &ctxp->allocated[0]; esip < ctxp->next; esip++) {
-    if (chMemIsAreaIntersectingX(&esip->area, map) ||
-        chMemIsAreaIntersectingX(map, &esip->area)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-static msg_t build_mapped_area(const memory_area_t *map,
-                               uint32_t offset,
-                               uint32_t size,
-                               memory_area_t *dstp) {
-  uintptr_t base = (uintptr_t)map->base;
-
-  if ((uintptr_t)offset > (UINTPTR_MAX - base)) {
-    return CH_RET_ENOEXEC;
-  }
-
-  dstp->base = (void *)(base + (uintptr_t)offset);
-  dstp->size = (size_t)size;
-
-  if (!chMemIsAreaWithinX(map, dstp)) {
-    return CH_RET_ENOMEM;
-  }
-
-  return CH_RET_SUCCESS;
-}
-
-static msg_t build_mapped_address(const memory_area_t *map,
-                                  uint32_t offset,
-                                  size_t size,
-                                  uintptr_t *addressp) {
-  uintptr_t base = (uintptr_t)map->base;
-
-  if ((uintptr_t)offset > (UINTPTR_MAX - base)) {
-    return CH_RET_ENOEXEC;
-  }
-
-  *addressp = base + (uintptr_t)offset;
-  if (!chMemIsSpaceWithinX(map, (const void *)*addressp, size)) {
-    return CH_RET_ENOMEM;
-  }
-
-  return CH_RET_SUCCESS;
-}
-
-static msg_t allocate_section(elf_load_context_t *ctxp,
-                              elf_secnum_t section,
-                              const elf32_section_header_t *shp) {
-  elf_section_info_t *esip;
+/*
+ * Positional read callback adapting a VFS file node to the ELF32 loader.
+ */
+static msg_t vfs_read(void *cookie, size_t offset, void *buf, size_t n) {
+  vfs_file_node_c *fnp = (vfs_file_node_c *)cookie;
+  ssize_t nread;
   msg_t ret;
 
-  /* Checking if there is space in the sections table.*/
-  if (ctxp->next >= &ctxp->allocated[SB_CFG_ELF_MAX_ALLOCATED]) {
-    return CH_RET_ENOMEM;
-  }
-
-  /* Adding an entry for this section.*/
-  esip = ctxp->next;
-  esip->section = section;
-
-  /* Checking if the section can fit into the destination memory area.*/
-  ret = build_mapped_area(ctxp->map, shp->sh_addr, shp->sh_size, &esip->area);
+  ret = vfsSetFilePosition(fnp, (vfs_offset_t)offset, VFS_SEEK_SET);
   CH_RETURN_ON_ERROR(ret);
 
-  /* Checking if this section is overlapping some other allocated section.*/
-  if (area_is_intersecting(ctxp, &esip->area)) {
-    return CH_RET_ENOEXEC;
+  nread = vfsReadFile(fnp, (uint8_t *)buf, n);
+  if (CH_RET_IS_ERROR(nread)) {
+    return (msg_t)nread;
   }
-
-  ctxp->next++;
-
-  return CH_RET_SUCCESS;
-}
-
-static msg_t allocate_load_section(elf_load_context_t *ctxp,
-                                   elf_secnum_t section,
-                                   const elf32_section_header_t *shp) {
-  elf_section_info_t *esip;
-  msg_t ret;
-
-  /* Checking if there is space in the sections table.*/
-  if (ctxp->next >= &ctxp->allocated[SB_CFG_ELF_MAX_ALLOCATED]) {
-    return CH_RET_ENOMEM;
-  }
-
-  /* Adding an entry for this section.*/
-  esip = ctxp->next;
-  esip->section = section;
-
-  /* Checking if the section can fit into the destination memory area.*/
-  ret = build_mapped_area(ctxp->map, shp->sh_addr, shp->sh_size, &esip->area);
-  CH_RETURN_ON_ERROR(ret);
-
-  /* Checking if this section is overlapping some other allocated section.*/
-  if (area_is_intersecting(ctxp, &esip->area)) {
-    return CH_RET_ENOEXEC;
-  }
-
-  /* Loading section data.*/
-  ret = vfsSetFilePosition(ctxp->fnp, (vfs_offset_t)shp->sh_offset,
-                           VFS_SEEK_SET);
-  CH_RETURN_ON_ERROR(ret);
-  ret = vfs_read_exact(ctxp->fnp, (void *)esip->area.base, esip->area.size);
-  CH_RETURN_ON_ERROR(ret);
-
-  ctxp->next++;
-
-  return ret;
-}
-
-static elf_section_info_t *find_allocated_section(elf_load_context_t *ctxp,
-                                                  elf_secnum_t section) {
-  elf_section_info_t *esip;
-
-  /* Scanning allocated sections.*/
-  for (esip = &ctxp->allocated[0]; esip < ctxp->next; esip++) {
-    if (esip->section == section) {
-      return esip;
-    }
-  }
-
-  return NULL;
-}
-
-static uint32_t get_const16(uint32_t address) {
-  uint32_t ins  = ((uint32_t)(((uint16_t *)address)[0]) << 16) |
-                  ((uint32_t)(((uint16_t *)address)[1]) << 0);
-
-  return ((ins & 0x000000FFU) >> 0) |
-         ((ins & 0x00007000U) >> 4) |
-         ((ins & 0x000F0000U) >> 4) |
-         ((ins & 0x04000000U) >> 14);
-}
-
-static void set_const16(uint32_t address, uint32_t val16) {
-  uint32_t ins  = ((uint32_t)(((uint16_t *)address)[0]) << 16) |
-                  ((uint32_t)(((uint16_t *)address)[1]) << 0);
-
-  ins &= ~0x040F70FFU;
-  ins |= ((val16 & 0x00000800U) << 14) |
-         ((val16 & 0x0000F000U) << 4) |
-         ((val16 & 0x00000700U) << 4) |
-         ((val16 & 0x000000FFU) << 0);
-
-  ((uint16_t *)address)[0] = (uint16_t)(ins >> 16);
-  ((uint16_t *)address)[1] = (uint16_t)(ins >> 0);
-}
-
-static msg_t reloc_entry(elf_load_context_t *ctxp,
-                         elf_section_info_t *esip,
-                         elf32_rel_t *rp) {
-  uintptr_t relocation_address;
-  uint32_t offset;
-  msg_t ret;
-
-  /* Relocation point address.*/
-  ret = build_mapped_address(ctxp->map, rp->r_offset, sizeof (uint32_t),
-                             &relocation_address);
-  CH_RETURN_ON_ERROR(ret);
-  if (!chMemIsSpaceWithinX(&esip->area,
-                           (const void *)relocation_address,
-                           sizeof (uint32_t))) {
-    return CH_RET_ENOMEM;
-  }
-
-  /* Handling the various relocation point types.*/
-  switch (ELF32_R_TYPE(ELF32_R_TYPE(rp->r_info))) {
-  case R_ARM_ABS32:
-    if (!MEM_IS_ALIGNED((const void *)relocation_address, sizeof (uint32_t))) {
-      return CH_RET_ENOEXEC;
-    }
-    *((uint32_t *)relocation_address) += (uint32_t)ctxp->map->base;
-    break;
-  case R_ARM_THM_MOVW_ABS_NC:
-    if (!MEM_IS_ALIGNED((const void *)relocation_address, sizeof (uint16_t))) {
-      return CH_RET_ENOEXEC;
-    }
-    /* Checking for consecutive "movw" relocations without a "movt", we
-       consider this an error.*/
-    if (ctxp->rel_movw_found) {
-      return CH_RET_ENOEXEC;
-    }
-
-    /* Storing information about the "movw" instruction to be processed later
-       when the associated "movt" instruction is found.*/
-    ctxp->rel_movw_found   = true;
-    ctxp->rel_movw_symbol  = ELF32_R_SYM(rp->r_info);
-    ctxp->rel_movw_address = relocation_address;
-    break;
-  case R_ARM_THM_MOVT_ABS:
-    /* Checking if we found a "movw" instruction before this "movt".*/
-    if (!ctxp->rel_movw_found) {
-      return CH_RET_ENOEXEC;
-    }
-
-    /* Checking if both instructions referred to the same symbol.*/
-    if (ctxp->rel_movw_symbol != ELF32_R_SYM(rp->r_info)) {
-      return CH_RET_ENOEXEC;
-    }
-    if (!MEM_IS_ALIGNED((const void *)relocation_address, sizeof (uint16_t))) {
-      return CH_RET_ENOEXEC;
-    }
-
-    /* Relocating both the "movw" and the "movt" instructions.*/
-    offset  = (get_const16(relocation_address) << 16) |
-              (get_const16(ctxp->rel_movw_address) << 0);
-    offset += (uint32_t)ctxp->map->base;
-    set_const16(relocation_address, offset >> 16);
-    set_const16(ctxp->rel_movw_address, offset & 0xFFFFU);
-
-    ctxp->rel_movw_found = false;
-    break;
-  case R_ARM_REL32: /* ?? */
-  case R_ARM_THM_PC22:
-  case R_ARM_THM_JUMP24:
-  case R_ARM_PREL31:
-    /* To be ignored.*/
-    break;
-  default:
-    /* Anything unexpected is handled as an error.*/
+  if ((size_t)nread != n) {
     return CH_RET_ENOEXEC;
   }
 
   return CH_RET_SUCCESS;
-}
-
-static msg_t reloc_section(elf_load_context_t *ctxp,
-                           elf_section_info_t *esip) {
-  vfs_shared_buffer_t *shbuf;
-  elf32_rel_t *rbuf;
-  size_t size, done_size, remaining_size;
-  msg_t ret;
-
-  if ((esip->rel_size % sizeof (elf32_rel_t)) != 0U) {
-    return CH_RET_ENOEXEC;
-  }
-
-  shbuf = vfs_buffer_take_wait();
-  rbuf = (elf32_rel_t *)(void *)shbuf->buf;
-
-  /* Reading the relocation section data.*/
-  remaining_size = esip->rel_size;
-  done_size = 0U;
-  while (remaining_size > 0U) {
-    unsigned i, n;
-
-    /* Reading relocation data using buffers in order to not make continuous
-       calls to the FS which could be unbuffered.*/
-    if (remaining_size > VFS_BUFFER_SIZE) {
-      size = VFS_BUFFER_SIZE;
-    }
-    else {
-      size = remaining_size;
-    }
-
-    /* Reading a buffer-worth of relocation data.*/
-    ret = vfsSetFilePosition(ctxp->fnp,
-                             esip->rel_off + (vfs_offset_t)done_size,
-                             VFS_SEEK_SET);
-    CH_BREAK_ON_ERROR(ret);
-    ret = vfs_read_exact(ctxp->fnp, (void *)rbuf, size);
-    CH_BREAK_ON_ERROR(ret);
-
-    /* Number of relocation entries in the buffer.*/
-    n = (unsigned)size / (unsigned)sizeof (elf32_rel_t);
-    for (i = 0U; i < n; i++) {
-      ret = reloc_entry(ctxp, esip, &rbuf[i]);
-      CH_BREAK_ON_ERROR(ret);
-    }
-    CH_BREAK_ON_ERROR(ret);
-
-    remaining_size -= size;
-    done_size      += size;
-  }
-
-  /* A MOVW must be paired with a MOVT.*/
-  if (ctxp->rel_movw_found) {
-    ret = CH_RET_ENOEXEC;
-  }
-
-  vfs_buffer_release(shbuf);
-
-  return ret;
 }
 
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
 
+/**
+ * @brief   Loads an ELF image from an open file into a memory area.
+ * @details The image is loaded into the single specified memory area and
+ *          rebased there using the relocation information present in the
+ *          file.
+ * @note    Sandbox images policy, the image must be linked at virtual
+ *          address zero, images linked at other addresses are rejected.
+ *
+ * @param[in] fnp       pointer to the image file node
+ * @param[in] map       pointer to the destination memory area
+ * @return              The operation status.
+ *
+ * @api
+ */
 msg_t sbElfLoad(vfs_file_node_c *fnp, const memory_area_t *map) {
+  elf32_loader_t el;
+  elf32_area_t area;
+  uintptr_t addr;
   msg_t ret;
-  elf_load_context_t ctx;
-  elf_section_info_t *esip;
 
-  /* Large structures not used at same time, the compiler could optimize it
-     but it is still a problem when running the code without optimizations for
-     debug.*/
-  union {
-    elf32_header_t h;
-    elf32_section_header_t sh;
-  } u;
+  /* Single unnamed load area spanning the whole sandbox memory.*/
+  area.name = NULL;
+  area.area = *map;
 
-  /* Load context initialization.*/
-  {
-    /* Context fully cleared.*/
-    memset((void *)&ctx, 0, sizeof (elf_load_context_t));
+  elf32ObjectInit(&el, vfs_read, (void *)fnp, &area, 1U);
 
-    /* Initializing the fixed part of the context.*/
-    ctx.fnp  = fnp;
-    ctx.map  = map;
-    ctx.next = &ctx.allocated[0];
+  ret = elf32Load(&el, NULL);
+  CH_RETURN_ON_ERROR(ret);
 
-    /* Reading the main ELF header.*/
-    ret = vfsSetFilePosition(ctx.fnp, (vfs_offset_t)0, VFS_SEEK_SET);
-    CH_RETURN_ON_ERROR(ret);
-    ret = vfs_read_exact(ctx.fnp, (void *)&u.h, sizeof (elf32_header_t));
-    CH_RETURN_ON_ERROR(ret);
-
-    /* Checking for the expected header.*/
-    if (memcmp(u.h.e_ident, elf32_header, 16) != 0) {
-      return CH_RET_ENOEXEC;
-    }
-
-    /* Accepting executable files only.*/
-    if (u.h.e_type != ET_EXEC) {
-      return CH_RET_ENOEXEC;
-    }
-
-    if ((u.h.e_machine != EM_ARM) ||
-        (u.h.e_version != EV_CURRENT) ||
-        (u.h.e_ehsize != sizeof (elf32_header_t)) ||
-        (u.h.e_shentsize != sizeof (elf32_section_header_t))) {
-      return CH_RET_ENOEXEC;
-    }
-
-    /* Storing info required later.*/
-    ctx.sections_num = (unsigned)u.h.e_shnum;
-    ctx.sections_off = (vfs_offset_t)u.h.e_shoff;
-  }
-
-  /* Loading phase, scanning section headers.*/
-  {
-    elf_secnum_t i;
-
-    for (i = 0U; i < ctx.sections_num; i++) {
-
-      /* Reading the header.*/
-      ret = vfsSetFilePosition(ctx.fnp,
-                               ctx.sections_off +
-                               ((vfs_offset_t)i *
-                                (vfs_offset_t)sizeof (elf32_section_header_t)),
-                               VFS_SEEK_SET);
-      CH_RETURN_ON_ERROR(ret);
-      ret = vfs_read_exact(ctx.fnp, (void *)&u.sh,
-                           sizeof (elf32_section_header_t));
-      CH_RETURN_ON_ERROR(ret);
-
-      /* Empty sections are not processed.*/
-      if (u.sh.sh_size == 0U) {
-        continue;
-      }
-
-      /* Deciding what to do with the section depending on type.*/
-      switch (u.sh.sh_type) {
-      case SHT_PROGBITS:
-        /* Allocatable section type, needs to be loaded.*/
-        if ((u.sh.sh_flags & SHF_ALLOC) != 0U) {
-
-          /* Allocating and loading, could fail.*/
-          ret = allocate_load_section(&ctx, i, &u.sh);
-          CH_RETURN_ON_ERROR(ret);
-        }
-        break;
-
-      case SHT_NOBITS:
-        /* Uninitialized data section, we can have more than one, just checking
-           address ranges.*/
-        if ((u.sh.sh_flags & SHF_ALLOC) != 0U) {
-          ret = allocate_section(&ctx, i, &u.sh);
-          CH_RETURN_ON_ERROR(ret);
-        }
-        break;
-
-      case SHT_REL:
-        if ((u.sh.sh_flags & SHF_INFO_LINK) != 0U) {
-
-          esip = find_allocated_section(&ctx, (elf_secnum_t)u.sh.sh_info);
-          if (esip == NULL) {
-            /* Ignoring other relocation sections.*/
-            break;
-          }
-
-          /* Multiple relocation sections associated to the same section.*/
-          if (esip->rel_size != 0U) {
-            return CH_RET_ENOEXEC;
-          }
-
-          esip->rel_size = u.sh.sh_size;
-          esip->rel_off  = (vfs_offset_t)u.sh.sh_offset;
-        }
-        break;
-
-      default:
-        /* Ignoring other section types.*/
-        break;
-      }
-    }
-  }
-
-  /* Relocating all sections with an associated relocation table.*/
-  for (esip = &ctx.allocated[0]; esip < ctx.next; esip++) {
-    if (esip->rel_off != (vfs_offset_t)0) {
-      ret = reloc_section(&ctx, esip);
-      CH_RETURN_ON_ERROR(ret);
-    }
-  }
-
-  return ret;
+  /* Enforcing the link-at-zero policy, address zero must be part of the
+     image extent.*/
+  return elf32Translate(&el, 0U, (size_t)0, &addr);
 }
 
+/**
+ * @brief   Loads an ELF image file into a memory area.
+ * @details The image is loaded into the single specified memory area and
+ *          rebased there using the relocation information present in the
+ *          file.
+ * @note    Sandbox images policy, the image must be linked at virtual
+ *          address zero, images linked at other addresses are rejected.
+ *
+ * @param[in] rootp     pointer to the VFS root used to access the file
+ * @param[in] path      path of the image file
+ * @param[in] map       pointer to the destination memory area
+ * @return              The operation status.
+ *
+ * @api
+ */
 msg_t sbElfLoadFile(vfs_root_c *rootp,
                     const char *path,
                     const memory_area_t *map) {
@@ -629,106 +149,46 @@ msg_t sbElfLoadFile(vfs_root_c *rootp,
   return ret;
 }
 
+/**
+ * @brief   Calculates the required memory allocation of an ELF image.
+ * @details The image is scanned and the extent of its loadable sections
+ *          is returned, no memory is written.
+ * @note    Sandbox images policy, the image must be linked at virtual
+ *          address zero, the returned size is also the whole image extent
+ *          from address zero.
+ *
+ * @param[in] fnp       pointer to the image file node
+ * @param[out] sizep    required allocation size
+ * @return              The operation status.
+ *
+ * @api
+ */
 msg_t sbElfGetAllocation(vfs_file_node_c *fnp, size_t *sizep) {
+  elf32_loader_t el;
+  elf32_area_t area;
+  uintptr_t addr;
   msg_t ret;
-  bool zerofound = false;
 
-  /* The file is assumed to be loaded at address zero, one of the loadable
-     sections must start at zero.*/
-  *sizep = (size_t)0;
+  /* Single unnamed load area, the base is not relevant for allocation
+     scanning.*/
+  area.name      = NULL;
+  area.area.base = NULL;
+  area.area.size = (size_t)0;
 
-  /* Large structures not used at same time, the compiler could optimize it
-     but it is still a problem when running the code without optimizations for
-     debug.*/
-  union {
-    elf32_header_t h;
-    elf32_section_header_t sh;
-  } u;
+  elf32ObjectInit(&el, vfs_read, (void *)fnp, &area, 1U);
 
-  /* Load context initialization.*/
-  {
-    /* Reading the main ELF header.*/
-    ret = vfsSetFilePosition(fnp, (vfs_offset_t)0, VFS_SEEK_SET);
-    CH_RETURN_ON_ERROR(ret);
-    ret = vfs_read_exact(fnp, (void *)&u.h, sizeof (elf32_header_t));
-    CH_RETURN_ON_ERROR(ret);
+  ret = elf32GetAllocation(&el);
+  CH_RETURN_ON_ERROR(ret);
 
-    /* Checking for the expected header.*/
-    if (memcmp(u.h.e_ident, elf32_header, 16) != 0) {
-      return CH_RET_ENOEXEC;
-    }
+  /* Enforcing the link-at-zero policy, address zero must be part of the
+     image extent, this also makes the area size the whole required
+     allocation.*/
+  ret = elf32Translate(&el, 0U, (size_t)0, &addr);
+  CH_RETURN_ON_ERROR(ret);
 
-    /* Accepting executable files only.*/
-    if (u.h.e_type != ET_EXEC) {
-      return CH_RET_ENOEXEC;
-    }
+  *sizep = area.area.size;
 
-    if ((u.h.e_machine != EM_ARM) ||
-        (u.h.e_version != EV_CURRENT) ||
-        (u.h.e_ehsize != sizeof (elf32_header_t)) ||
-        (u.h.e_shentsize != sizeof (elf32_section_header_t))) {
-      return CH_RET_ENOEXEC;
-    }
-  }
-
-  /* Loading phase, scanning section headers.*/
-  {
-    elf_secnum_t i, sections_num;
-    vfs_offset_t sections_off;
-
-    sections_num = (elf_secnum_t)u.h.e_shnum;
-    sections_off = (vfs_offset_t)u.h.e_shoff;
-    for (i = 0U; i < sections_num; i++) {
-
-      /* Reading the header.*/
-      ret = vfsSetFilePosition(fnp,
-                               sections_off +
-                               ((vfs_offset_t)i *
-                                (vfs_offset_t)sizeof (elf32_section_header_t)),
-                               VFS_SEEK_SET);
-      CH_RETURN_ON_ERROR(ret);
-      ret = vfs_read_exact(fnp, (void *)&u.sh,
-                           sizeof (elf32_section_header_t));
-      CH_RETURN_ON_ERROR(ret);
-
-      /* Empty sections are not processed.*/
-      if (u.sh.sh_size == 0U) {
-        continue;
-      }
-
-      /* Deciding what to do with the section depending on type.*/
-      switch (u.sh.sh_type) {
-      case SHT_PROGBITS:
-        if (u.sh.sh_addr == 0U) {
-          zerofound = true;
-        }
-        /* Falls through.*/
-      case SHT_NOBITS:
-        /* Allocatable section type, needs to be loaded.*/
-        if ((u.sh.sh_flags & SHF_ALLOC) != 0U) {
-          size_t top;
-
-          top = (size_t)u.sh.sh_addr + (size_t)u.sh.sh_size;
-          if (top > *sizep) {
-            *sizep = top;
-          }
-        }
-        break;
-
-      default:
-        /* Ignoring other section types.*/
-        break;
-      }
-    }
-  }
-
-  /* Consistency check, it is expected that one of the loadable sections
-     starts from virtual address zero.*/
-  if (!zerofound) {
-    ret = CH_RET_ENOEXEC;
-  }
-
-  return ret;
+  return CH_RET_SUCCESS;
 }
 
 #endif /* SB_CFG_ENABLE_VFS == TRUE */
