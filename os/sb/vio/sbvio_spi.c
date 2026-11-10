@@ -278,7 +278,7 @@ void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
 
         bufsize = n * spiGetFrameSizeX(unitp->spip);
 
-        if (!sb_is_valid_coherent_write_range(sbp, rxbuf, bufsize)) {
+        if (!sb_is_valid_write_range(sbp, rxbuf, bufsize)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
           break;
         }
@@ -311,7 +311,7 @@ void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
 
         bufsize = n * spiGetFrameSizeX(unitp->spip);
 
-        if (!sb_is_valid_coherent_read_range(sbp, txbuf, bufsize)) {
+        if (!sb_is_valid_read_range(sbp, txbuf, bufsize)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
           break;
         }
@@ -345,12 +345,12 @@ void sb_fastc_vio_spi(sb_class_t *sbp, struct port_extctx *ectxp) {
 
         bufsize = n * spiGetFrameSizeX(unitp->spip);
 
-        if (!sb_is_valid_coherent_write_range(sbp, rxbuf, bufsize)) {
+        if (!sb_is_valid_write_range(sbp, rxbuf, bufsize)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
           break;
         }
 
-        if (!sb_is_valid_coherent_read_range(sbp, txbuf, bufsize)) {
+        if (!sb_is_valid_read_range(sbp, txbuf, bufsize)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
           break;
         }

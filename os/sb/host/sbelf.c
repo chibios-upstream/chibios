@@ -159,32 +159,7 @@ msg_t sbElfLoad(vfs_file_node_c *fnp, const memory_area_t *map,
 
   /* Enforcing the link-at-zero policy, address zero must be part of the
      image extent.*/
-  ret = elf32Translate(&el, 0U, (size_t)0, &addr);
-  CH_RETURN_ON_ERROR(ret);
-
-  /* On hosts with caches the image has been written through the data
-     cache and must be made visible to the instruction fetch path and,
-     for the coherent data region, to the guest non-cacheable view. Guest
-     data accesses through cacheable mappings need no maintenance, they
-     go through the same data cache.*/
-#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
-  SCB_CleanDCache_by_Addr((uint32_t *)(void *)map->base,
-                          (int32_t)map->size);
-  if ((ncsize > (size_t)0) && sb_reg_is_memory(ncrp)) {
-    SCB_CleanDCache_by_Addr((uint32_t *)(void *)ncrp->area.base,
-                            (int32_t)ncrp->area.size);
-  }
-#endif
-#if defined(__ICACHE_PRESENT) && (__ICACHE_PRESENT == 1U)
-  SCB_InvalidateICache();
-#endif
-
-  /* Ensuring that the loaded code is visible to the following
-     instruction fetches also on cache-less cores.*/
-  __DSB();
-  __ISB();
-
-  return CH_RET_SUCCESS;
+  return elf32Translate(&el, 0U, (size_t)0, &addr);
 }
 
 /**

@@ -78,40 +78,6 @@ bool sb_is_valid_write_range(sb_class_t *sbp, void *start, size_t size) {
   return false;
 }
 
-/*
- * Variants for buffers accessed by DMA-capable host drivers, the range is
- * additionally required to reside in a non-cacheable (coherent) region.
- * Enforced on all hosts, including cache-less ones, so that applications
- * are portable by construction; see note_sb_coherent_regions.md.
- */
-bool sb_is_valid_coherent_read_range(sb_class_t *sbp, const void *start,
-                                     size_t size) {
-  const sb_memory_region_t *rp = &sbp->regions[0];
-
-  do {
-    if (sb_reg_is_memory(rp) && chMemIsSpaceWithinX(&rp->area, start, size)) {
-      return !sb_reg_is_cacheable(rp);
-    }
-    rp++;
-  } while (rp < &sbp->regions[SB_CFG_NUM_REGIONS]);
-
-  return false;
-}
-
-bool sb_is_valid_coherent_write_range(sb_class_t *sbp, void *start,
-                                      size_t size) {
-  const sb_memory_region_t *rp = &sbp->regions[0];
-
-  do {
-    if (sb_reg_is_memory(rp) && chMemIsSpaceWithinX(&rp->area, start, size)) {
-      return sb_reg_is_writable(rp) && !sb_reg_is_cacheable(rp);
-    }
-    rp++;
-  } while (rp < &sbp->regions[SB_CFG_NUM_REGIONS]);
-
-  return false;
-}
-
 size_t sb_check_string(sb_class_t *sbp, const char *s, size_t max) {
   const sb_memory_region_t *rp = &sbp->regions[0];
 

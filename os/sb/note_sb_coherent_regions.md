@@ -85,21 +85,6 @@ An image whose `.nocache` extent exceeds the region, or which uses the
 section in a sandbox without a discoverable non-cacheable region, is
 rejected with `CH_RET_ENOMEM`.
 
-## VIO contract
-
-Zero-copy VIO data-plane services whose buffers are handed directly to
-DMA-capable host drivers (VSPI transmit/receive/exchange buffers, VADC
-sample buffers, VI2C transfer buffers) require the buffers to reside in a
-non-cacheable guest memory region, normally the coherent region through
-`SB_NOCACHE`. The check (`sb_is_valid_coherent_read/write_range()`) is
-enforced on all hosts, including cache-less ones, so applications are
-portable by construction; VIO performs no cache maintenance and imposes no
-alignment constraints. Copied services need no such requirement: VUART
-goes through SIO FIFO registers, VETH frames are copied through the MAC
-handle API, VGPIO/VGPT carry no buffers. Control-plane pointers
-(configurations, transfer descriptors, size write-backs) are CPU-accessed
-and keep the plain validation.
-
 ## Constraints and hazards
 
 - One region per sandbox and the region is zeroed on each load: only one
@@ -112,12 +97,6 @@ and keep the plain validation.
 - On cores without a data cache the region is still exported with coherent
   semantics so the same applications run unmodified on hosts with real
   caches and DMA-visible memory.
-- On cached hosts the loader performs the required maintenance after
-  loading: D-cache clean of the image and of the coherent region (the host
-  writes through its cacheable mapping, the guest reads the region
-  uncached), I-cache invalidate, barriers. Guest data accesses through
-  cacheable mappings need no maintenance, host and guest share the data
-  cache.
 
 ## Validation
 
