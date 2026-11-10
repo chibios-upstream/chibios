@@ -192,6 +192,20 @@
  */
 
 /**
+ * @defgroup OSAL_VT OSAL Virtual Timers
+ * @brief   Virtual timers implementation for OSALs without an RTOS.
+ *
+ * @ingroup OSAL
+ */
+
+/**
+ * @defgroup OSAL_CHCORE_TIMER System Timer Bindings
+ * @brief   RT and NIL system timer bindings to the ST driver.
+ *
+ * @ingroup OSAL
+ */
+
+/**
  * @defgroup HAL_SAFETY Safety Subsystem
  * @brief   HAL Safety Module
  *

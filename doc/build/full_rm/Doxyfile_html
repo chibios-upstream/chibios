@@ -48,7 +48,7 @@ PROJECT_NAME           = ChibiOS
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = 21.11.4
+PROJECT_NUMBER         = 27.1.0
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewers a
@@ -1019,6 +1019,7 @@ WARN_LOGFILE           =
 
 INPUT                  = ./src \
                          ../common/src \
+                         ../rt/src/registry.dox \
                          ../../../os/common/portability/GCC \
                          ../../../os/license \
                          ../../../os/rt/dox \
@@ -1040,13 +1041,19 @@ INPUT                  = ./src \
                          ../../../os/hal/lib/complex/buffered_sio \
                          ../../../os/hal/lib/complex/mfs \
                          ../../../os/hal/lib/complex/serial_nor \
+                         ../../../os/hal/lib/complex/serial_nor/devices/macronix_mx25 \
+                         ../../../os/hal/lib/complex/serial_nor/devices/micron_n25q \
+                         ../../../os/hal/lib/complex/usb_msd \
                          ../../../os/hal/lib/complex/xsnor/dox \
                          ../../../os/hal/lib/complex/xsnor/include \
                          ../../../os/hal/lib/complex/xsnor/src \
                          ../../../os/hal/lib/complex/xsnor/devices/macronix_mx25 \
                          ../../../os/hal/lib/complex/xsnor/devices/micron_n25q \
+                         ../../../os/hal/lib/complex/xsnor/devices/template \
                          ../../../os/hal/templates \
                          ../../../os/hal/templates/osal \
+                         ../../../os/hal/osal/lib \
+                         ../../../os/hal/osal/rt-nil/chcore_timer.h \
                          ../../../os/ex/dox \
                          ../../../os/ex/devices/ADI \
                          ../../../os/ex/devices/Bosch \
@@ -1184,8 +1191,7 @@ EXAMPLE_RECURSIVE      = NO
 # that contain images that are to be included in the documentation (see the
 # \image command).
 
-IMAGE_PATH             = ../common/rsc \
-                         ./rsc
+IMAGE_PATH             = ../common/rsc
 
 # The INPUT_FILTER tag can be used to specify a program that Doxygen should
 # invoke to filter for each input file. Doxygen will invoke the filter program
