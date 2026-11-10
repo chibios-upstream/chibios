@@ -237,3 +237,36 @@ jobs:
                 -o /dev/null
             done
           done
+
+  doxygen-check:
+    name: Doxygen documentation sets
+    runs-on: ubuntu-latest
+
+    env:
+      DOXYGEN_VERSION: 1.14.0
+      DOXYGEN_SHA256: e5d6ae24d0bf3f0cdc4d8f146726b89ca323922f19441af99b1872d503665ad6
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Doxygen
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Pinned release, the warnings depend on the Doxygen version.
+          tag="Release_${DOXYGEN_VERSION//./_}"
+          tgz="doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
+          curl -sSL -o "$RUNNER_TEMP/$tgz" \
+            "https://github.com/doxygen/doxygen/releases/download/$tag/$tgz"
+          echo "$DOXYGEN_SHA256  $RUNNER_TEMP/$tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$tgz" -C "$RUNNER_TEMP"
+          echo "DOXYGEN=$RUNNER_TEMP/doxygen-${DOXYGEN_VERSION}/bin/doxygen" >> "$GITHUB_ENV"
+
+      - name: Check groups and warnings
+        shell: bash
+        run: |
+          set -euo pipefail
+          # All doc/build/*/Doxyfile_html sets, XML output in a temporary
+          # directory: groups without a parent and Doxygen warnings fail.
+          python3 tools/doxygen/doxcheck.py
