@@ -11,6 +11,7 @@ not separate backlogs:
 - [SVC and MPU optimizations](note_svc_mpu_optimizations.md)
 - [TTY integration and signal delivery](note_sb_tty.md)
 - [System block and userspace VRQ critical zones](note_sb_system_block.md)
+- [Coherent data regions for loaded applications](note_sb_coherent_regions.md)
 
 ## Completed baseline
 
@@ -61,6 +62,16 @@ The following work is complete and must not be reintroduced as an open item:
   VRQ flags as an argument. `SB_FASTC_VRQ_GCSTS` was removed and code 119 is
   retired. Guests must be rebuilt for hosts with the block; see
   [note_sb_system_block.md](note_sb_system_block.md).
+
+- Loadable applications can place DMA-coherent data in the conventional
+  `.nocache` section, mapped by the loader onto the sandbox region marked
+  `SB_REG_ATTR_DISCOVERABLE` and non-cacheable; discovery is explicit and
+  filtered by attributes (`sbGetDiscoverableRegion()`), memory-type
+  destinations are zeroed per load, device-type destinations are pure
+  addressing overlays. Supported by `sbExecStatic()`, `sbExecDynamic()` and
+  `SB_SYSC_LOADELF`. The ELF loader itself is the generic `os/elf/elf32/`
+  module, `sbelf` is a thin wrapper. Hardware-validated on G474; see
+  [note_sb_coherent_regions.md](note_sb_coherent_regions.md).
 
 ## Priority 1: security and isolation
 
@@ -204,6 +215,10 @@ Detailed designs are in
 - Stress UART asynchronous read/write, event delivery, and restart behavior.
 - Add a minimal networking-oriented sandbox sample after the VETH contract
   is stable.
+- Validate the coherent data region path on the H563 target of
+  `RT-SB-DYNAMIC-RAMBOX-MULTI` (compile-validated only) and add a real
+  DMA showcase using the coherent region (e.g. SPI) on a cached target
+  such as STM32H7.
 
 ### API and ABI review
 

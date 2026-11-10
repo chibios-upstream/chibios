@@ -960,7 +960,7 @@
 /* Port-specific settings (override port settings defaulted in chcore.h).    */
 /*===========================================================================*/
 
-#define PORT_SWITCHED_REGIONS_NUMBER        1
+#define PORT_SWITCHED_REGIONS_NUMBER        2
 #define PORT_USE_SYSCALL                    TRUE
 #endif  /* CHCONF_H */
 

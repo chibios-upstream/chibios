@@ -90,6 +90,36 @@ make -C ../../../os/sb/apps clean
 - The same ROMFS and `/dev/ttyS0` interface are used on both targets. Each target
   makefile provides `mkfs`; only one invocation is needed for the shared image.
 
+## Coherent data region
+
+The host exports a 1 KiB coherent data region to the loaded applications as
+sandbox region 1, marked discoverable and non-cacheable
+(`SB_REG_IS_NOCACHE_DATA | SB_REG_ATTR_DISCOVERABLE`). An application placing
+data in its `.nocache` section gets that section mapped onto this region by
+the loader; the region is zeroed at each load and the section is BSS-like,
+initialized data is not supported. An application whose `.nocache` extent
+exceeds the region size fails to load.
+
+Both cores in this demo have no data cache, the region is naturally coherent
+and is exported with coherent semantics anyway so the same applications run
+unmodified on hosts with real caches and DMA-visible memory. Both target
+configurations switch two MPU regions per sandbox
+(`PORT_SWITCHED_REGIONS_NUMBER` is 2): regions beyond the switched set would
+not be accessible by sandbox code and are ignored by discovery.
+
+None of the bundled applications uses `.nocache`; to try the feature add to
+any of them, for example:
+
+```c
+static SB_NOCACHE uint32_t dma_buffer[64];
+```
+
+(`SB_NOCACHE` is defined in `sbuser.h`; add `__attribute__((used))` if the
+buffer is otherwise unreferenced, GC-sections would drop it.)
+
+rebuild with `make mkfs`, and check that the application sees the buffer
+inside the exported region.
+
 ## File systems and TTY checks
 
 `/bin` is a read-only ROMFS containing all 13 current deployable apps:

@@ -17,10 +17,10 @@
 */
 
 /**
- * @file    sb/host/sbloader.h
+ * @file    sb/host/sbelf.h
  * @brief   ARM SandBox ELF loader macros and structures.
  *
- * @addtogroup sbhost.h
+ * @addtogroup ARM_SANDBOX_ELF
  * @{
  */
 
@@ -33,24 +33,26 @@
 /* Module constants.                                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   Name of the ELF output section carrying coherent data.
+ * @details Sections with this name are placed into the discoverable
+ *          non-cacheable sandbox region (@p SB_REG_ATTR_DISCOVERABLE set,
+ *          @p SB_REG_ATTR_CACHEABLE not set) instead of the main sandbox
+ *          memory region.
+ * @note    The section is BSS-like, initialized data is not supported.
+ *          Memory-type destination regions are entirely zeroed before
+ *          loading, device-type regions are pure addressing overlays and
+ *          are never written by the loader.
+ */
+#define SB_ELF_SECTION_NOCACHE          ".nocache"
+
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
 /*===========================================================================*/
 
-/**
- * @brief   Maximum number of ELF regions that can be allocated by the loader.
- */
-#if !defined(SB_CFG_ELF_MAX_ALLOCATED) || defined(__DOXYGEN__)
-#define SB_CFG_ELF_MAX_ALLOCATED        6
-#endif
-
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
-
-#if (SB_CFG_ELF_MAX_ALLOCATED < 2) || (SB_CFG_ELF_MAX_ALLOCATED > 32)
-#error "invalid SB_CFG_ELF_MAX_ALLOCATED value"
-#endif
 
 /*===========================================================================*/
 /* Module data structures and types.                                         */
@@ -68,11 +70,14 @@
 extern "C" {
 #endif
   msg_t sbElfLoad(vfs_file_node_c *fnp,
-                  const memory_area_t *map);
+                  const memory_area_t *map,
+                  const sb_memory_region_t *ncrp);
   msg_t sbElfLoadFile(vfs_root_c *rootp,
                       const char *path,
-                      const memory_area_t *map);
-  msg_t sbElfGetAllocation(vfs_file_node_c *fnp, size_t *sizep);
+                      const memory_area_t *map,
+                      const sb_memory_region_t *ncrp);
+  msg_t sbElfGetAllocation(vfs_file_node_c *fnp, size_t *sizep,
+                           size_t *ncsizep);
 #ifdef __cplusplus
 }
 #endif

@@ -1,3 +1,6 @@
+# The sandbox ELF loader is a wrapper over the generic ELF32 loader.
+include $(CHIBIOS)/os/elf/elf32/elf32.mk
+
 # List of the ChibiOS ARMv7-M sandbox host files.
 SBHOSTSRC = $(CHIBIOS)/os/sb/host/sbhost.c \
 			$(CHIBIOS)/os/sb/host/sbregions.c \

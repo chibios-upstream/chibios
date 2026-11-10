@@ -769,12 +769,62 @@ failed:
   return NULL;
 }
 
+/**
+ * @brief   Locates a discoverable sandbox region with given attributes.
+ * @details The first region marked with @p SB_REG_ATTR_DISCOVERABLE and
+ *          matching the specified attributes filter is returned. Region
+ *          zero is excluded because it is reserved for the main code and
+ *          data.
+ *          The loader uses it with the filter selecting non-cacheable
+ *          regions as destination of the coherent data section, other
+ *          kinds of discoverable regions can be defined in the future.
+ * @note    The discoverable attribute is deliberately explicit, regions
+ *          mapped by other features are never considered regardless of
+ *          their attributes.
+ * @note    When MPU regions switching is in use only the regions reaching
+ *          the guest MPU table are eligible, a region configured beyond
+ *          @p PORT_SWITCHED_REGIONS_NUMBER would not be accessible by the
+ *          sandbox code.
+ *
+ * @param[in] sbp       pointer to a @p sb_class_t structure
+ * @param[in] mask      mask of the relevant attributes bits
+ * @param[in] attr      expected value of the masked attributes bits
+ * @return              Pointer to the discoverable region.
+ * @retval NULL         if no matching discoverable region is configured.
+ *
+ * @api
+ */
+const sb_memory_region_t *sbGetDiscoverableRegion(sb_class_t *sbp,
+                                                  uint32_t mask,
+                                                  uint32_t attr) {
+  const sb_memory_region_t *rp = &sbp->regions[1];
+#if PORT_SWITCHED_REGIONS_NUMBER > 0
+  const sb_memory_region_t *endp = &sbp->regions[PORT_SWITCHED_REGIONS_NUMBER];
+#else
+  const sb_memory_region_t *endp = &sbp->regions[SB_CFG_NUM_REGIONS];
+#endif
+
+  while (rp < endp) {
+    if (!sb_reg_is_unused(rp) && sb_reg_is_discoverable(rp) &&
+        ((rp->attributes & mask) == attr)) {
+      return rp;
+    }
+    rp++;
+  }
+
+  return NULL;
+}
+
 #if (SB_CFG_ENABLE_VFS == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Execute an elf file within a sandbox.
  * @note    The file is loaded into region zero of the sandbox which is
  *          assumed to be used for both code and data, extra regions are
- *          not touched by this function.
+ *          not touched by this function except for the coherent data
+ *          section, if the image contains one then it is mapped onto the
+ *          discoverable non-cacheable region, see
+ *          @p sbGetDiscoverableRegion(). An error is returned if no such
+ *          region is configured or the region is too small.
  * @note    The size of the privileged stack is assumed to be always
  *          @p SB_CFG_PRIVILEGED_STACK_SIZE.
  *
@@ -795,6 +845,7 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
                    const char *argv[], const char *envp[]) {
   memory_area_t ma;
   const sb_header_t *sbhp;
+  const sb_memory_region_t *ncrp;
   size_t totsize;
   msg_t ret;
 
@@ -821,8 +872,12 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
      elf file to overwrite the environment data.*/
   ma.size -= totsize;
 
+  /* Locating an optional region for coherent data, it is required if the
+     image contains a coherent data section.*/
+  ncrp = sbGetDiscoverableRegion(sbp, SB_REG_ATTR_CACHEABLE, 0U);
+
   /* Loading sandbox code into the specified memory area.*/
-  ret = sbElfLoadFile(sbGetRoot(sbp), path, &ma);
+  ret = sbElfLoadFile(sbGetRoot(sbp), path, &ma, ncrp);
   if (CH_RET_IS_ERROR(ret)) {
     goto failed;
   }
@@ -863,6 +918,10 @@ failed:
     defined(__DOXYGEN__)
 /**
  * @brief   Execute an elf file within a dynamic sandbox.
+ * @note    If the image contains a coherent data section then it is mapped
+ *          onto the discoverable non-cacheable region, see
+ *          @p sbGetDiscoverableRegion(). An error is returned if no such
+ *          region is configured or the region is too small.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] prio      sandbox thread priority
@@ -881,9 +940,10 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   memory_area_t *umap;
   memory_area_t elfma;
   const sb_header_t *sbhp;
+  const sb_memory_region_t *ncrp;
   vfs_file_node_c *fnp;
   stkline_t *stkbase;
-  size_t size, basealign;
+  size_t size, ncsize, basealign;
   msg_t ret;
 
   if (!sb_start_begin(sbp)) {
@@ -903,9 +963,20 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   }
 
   /* Calculating bare-minimum space required by the elf file.*/
-  ret = sbElfGetAllocation(fnp, &umap->size);
+  ret = sbElfGetAllocation(fnp, &umap->size, &ncsize);
   if (CH_RET_IS_ERROR(ret)) {
     goto skip1;
+  }
+
+  /* If the image contains a coherent data section then a suitable region
+     must have been configured and be large enough.*/
+  ncrp = NULL;
+  if (ncsize > (size_t)0) {
+    ncrp = sbGetDiscoverableRegion(sbp, SB_REG_ATTR_CACHEABLE, 0U);
+    if ((ncrp == NULL) || (ncsize > ncrp->area.size)) {
+      ret = CH_RET_ENOMEM;
+      goto skip1;
+    }
   }
 
   /* Adding the specified extra heap space.*/
@@ -954,7 +1025,7 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   elfma.size -= size;
 
   /* Loading sandbox code into the specified memory area.*/
-  ret = sbElfLoad(fnp, &elfma);
+  ret = sbElfLoad(fnp, &elfma, ncrp);
   if (CH_RET_IS_ERROR(ret)) {
     goto skip3;
   }

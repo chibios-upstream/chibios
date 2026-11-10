@@ -141,6 +141,12 @@ int main(void) {
   sbObjectInit(&sbx1);
   sbSetRoot(&sbx1, &sb1_root_driver);
 
+  /* Exporting a discoverable coherent data region, the ".nocache" section
+     of loaded applications is mapped onto it by the loader. The region is
+     exported with coherent semantics also on cores without data cache.*/
+  sbSetRegion(&sbx1, 1, portab_nocache_region, PORTAB_NOCACHE_REGION_SIZE,
+              SB_REG_IS_NOCACHE_DATA | SB_REG_ATTR_DISCOVERABLE);
+
   /* Load, wait for termination, finalize, and restart the shell.*/
   while (true) {
     chThdSleepMilliseconds(500);
