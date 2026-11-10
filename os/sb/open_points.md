@@ -219,6 +219,35 @@ Detailed designs are in
   `RT-SB-DYNAMIC-RAMBOX-MULTI` (compile-validated only) and add a real
   DMA showcase using the coherent region (e.g. SPI) on a cached target
   such as STM32H7.
+- Validate the ELF load cache synchronization (D-cache clean of the loaded
+  image and coherent region, I-cache invalidate in `sbElfLoad()`) on a
+  cached target; it is compile-validated for Cortex-M7 and a barrier-only
+  no-op on the current cache-less targets. The ST ICACHE peripheral of the
+  H5 family is separate from the core caches and is not covered.
+- VIO cache contract (decided and implemented 2026-11-10): zero-copy
+  data-plane buffers (VSPI, VADC, VI2C) must reside in a non-cacheable
+  guest memory region, normally the coherent region through `SB_NOCACHE`,
+  enforced uniformly on all hosts by
+  `sb_is_valid_coherent_read/write_range()` so applications are portable
+  by construction. VIO performs no cache maintenance and no alignment
+  checks. VUART (SIO FIFO) and VETH (copied frames) are exempt.
+  Consequence: hosts offering zero-copy VIO must export a coherent region
+  also on cache-less cores (already the demo convention). Remaining:
+  existing VIO guest applications must move their DMA buffers to
+  `SB_NOCACHE` (breaking, SB is WIP); re-run the VIO hardware validations
+  (ADC, SPI on G474, ETH on H563) with the new contract; a small
+  guest-side allocator over the coherent region is a possible follow-up
+  if sizing becomes awkward.
+- Deferred: guest-facing cache maintenance fastcalls (clean/invalidate by
+  validated line-aligned range, no-ops on cache-less hosts, `SB_CACHE_*`
+  alignment macros), only needed for cacheable VSHM sharing and custom
+  protocols, not for VIO under the contract above. The cache line size is
+  a host property (32 bytes on cached Cortex-M, 64 bytes on the Cortex-R
+  targets): guest compile-time alignment macros must default to the
+  pessimistic 64 (over-alignment is always valid), host-side validation
+  uses the true host line size, and the actual value can be exported at
+  runtime through a system block reserved field for dynamically allocated
+  buffers and size rounding.
 
 ### API and ABI review
 

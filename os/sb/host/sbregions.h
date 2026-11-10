@@ -126,6 +126,10 @@ extern "C" {
 #endif
   bool sb_is_valid_read_range(sb_class_t *sbp, const void *start, size_t size);
   bool sb_is_valid_write_range(sb_class_t *sbp, void *start, size_t size);
+  bool sb_is_valid_coherent_read_range(sb_class_t *sbp, const void *start,
+                                       size_t size);
+  bool sb_is_valid_coherent_write_range(sb_class_t *sbp, void *start,
+                                        size_t size);
   size_t sb_check_string(sb_class_t *sbp, const char *s, size_t max);
   size_t sb_check_pointers_array(sb_class_t *sbp, const void *pp[],
                                  size_t max);
