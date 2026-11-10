@@ -43,9 +43,11 @@ jobs:
           HEAD_SHA="${{ github.sha }}"
           BASE_SHA="$(git rev-parse "${HEAD_SHA}^1")"
 
-          # Externally provided sources retain their upstream formatting.
+          # Externally provided sources retain their upstream formatting, the
+          # RT-ARMCM4-USELIB header is preprocessor output of RT-ARMCM4-MAKELIB.
           mapfile -t CHANGED < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- \
-                                  '*.c' '*.h' ':(exclude)os/common/ext/**')
+                                  '*.c' '*.h' ':(exclude)os/common/ext/**' \
+                                  ':(exclude)demos/various/RT-ARMCM4-USELIB/rt/ch.h')
 
           if [ "${#CHANGED[@]}" -eq 0 ]; then
             echo "No changed .c/.h files in this pull request."
