@@ -21,8 +21,8 @@
  * SIO configuration, 115200 baud 8N1.
  */
 static const SIOConfig sio_config = {
-  .baud  = 115200U,
-  .ucsrc = AVR_SIO_8N1
+  .baud   = 115200U,
+  .format = AVR_SIO_8N1
 };
 
 static const uint8_t banner[] = "SIO echo test\r\n";

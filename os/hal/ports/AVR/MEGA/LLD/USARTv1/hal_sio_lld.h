@@ -60,7 +60,7 @@
 /** @} */
 
 /**
- * @name    Frame format settings for the @p ucsrc configuration field
+ * @name    Frame format settings for the @p format configuration field
  * @{
  */
 #define AVR_SIO_DATA_5                  (0U << 1)
@@ -296,7 +296,7 @@ typedef struct {
   uint32_t                  baud;                                           \
   /* Frame format, see the AVR_SIO_DATA_x, AVR_SIO_PARITY_x and             \
      AVR_SIO_STOP_x macros.*/                                               \
-  uint8_t                   ucsrc;
+  uint8_t                   format;
 
 /**
  * @brief   Determines the state of the RX FIFO.
