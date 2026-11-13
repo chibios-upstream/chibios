@@ -51,9 +51,13 @@
 
 /**
  * @brief   Type of a shared buffer structure.
+ * @note    The pointer member aligns the buffers and rounds their size to the
+ *          natural alignment required by the buffers pool, whatever the value
+ *          of @p VFS_CFG_PATHLEN_MAX.
  */
 typedef union vfs_shared_buffer {
   char                  buf[VFS_BUFFER_SIZE];
+  void                  *alignment;
 } vfs_shared_buffer_t;
 
 /*===========================================================================*/
