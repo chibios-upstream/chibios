@@ -164,7 +164,9 @@ struct vfs_chfs_driver {
 /* External declarations.                                                    */
 /*===========================================================================*/
 
+#if !defined(__DOXYGEN__)
 extern struct vfs_chfs_driver_static_struct vfs_chfs_driver_static;
+#endif /* !defined(__DOXYGEN__) */
 
 #ifdef __cplusplus
 extern "C" {

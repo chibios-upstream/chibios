@@ -105,7 +105,12 @@
 /* External declarations.                                                    */
 /*===========================================================================*/
 
+[#if module.public.variables.*?size > 0]
+#if !defined(__DOXYGEN__)
 [@ccode.GenerateVariablesExternFromNode "" module.public.variables /]
+#endif /* !defined(__DOXYGEN__) */
+
+[/#if]
 #ifdef __cplusplus
 extern "C" {
 #endif

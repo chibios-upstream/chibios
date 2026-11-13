@@ -652,6 +652,8 @@ ${varstring}
 
 [#--
   -- Generates variable extern definitions from an XML node.
+  -- @note The caller encloses the declarations in a !defined(__DOXYGEN__)
+  --       block, the variables are documented at their definitions.
   --]
 [#macro GenerateVariablesExternFromNode indent="" node=[]]
   [#list node.* as this]
@@ -660,12 +662,9 @@ ${varstring}
 [@GenerateVariableExternFromNode indent this /]
     [#elseif this?node_name == "condition"]
       [#local condcheck = (this.@check[0]!"1")?trim]
-#if (${condcheck}) || defined (__DOXYGEN__)
+#if ${condcheck}
 [@GenerateVariablesExternFromNode indent this /]
 #endif /* ${condcheck} */
-    [/#if]
-    [#if this?is_last && (node?node_name != "condition")]
-
     [/#if]
   [/#list]
 [/#macro]

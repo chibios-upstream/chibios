@@ -300,11 +300,11 @@
 
 #if !defined(__DOXYGEN__)
 extern flash_descriptor_t snor_descriptor;
-#endif
 
 #if (SNOR_BUS_DRIVER == SNOR_BUS_DRIVER_WSPI) && (WSPI_SUPPORTS_MEMMAP == TRUE)
 extern const wspi_command_t snor_memmap_read;
 #endif
+#endif /* !defined(__DOXYGEN__) */
 
 #ifdef __cplusplus
 extern "C" {

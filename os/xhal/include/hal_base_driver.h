@@ -208,9 +208,11 @@ struct hal_base_driver {
 /* External declarations.                                                    */
 /*===========================================================================*/
 
-#if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
+#if !defined(__DOXYGEN__)
+#if HAL_USE_REGISTRY == TRUE
 extern hal_regent_t         hal_registry;
 #endif /* HAL_USE_REGISTRY == TRUE */
+#endif /* !defined(__DOXYGEN__) */
 
 #ifdef __cplusplus
 extern "C" {

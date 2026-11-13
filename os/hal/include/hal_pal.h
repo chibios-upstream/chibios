@@ -268,24 +268,21 @@ typedef struct {
     _pal_events[e].cb = NULL;                                               \
     _pal_events[e].arg = NULL;                                              \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE) */
-
-#if (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
+#elif (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
 #define _pal_init_event(e)                                                  \
   do {                                                                      \
     _pal_events[e].cb = NULL;                                               \
     _pal_events[e].arg = NULL;                                              \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE) */
-
-#if (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
+#elif (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
 #define _pal_init_event(e)                                                  \
   do {                                                                      \
     osalThreadQueueObjectInit(&_pal_events[e].threads);                     \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE) */
+#endif
 
-#if ((PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE)) || defined(__DOXYGEN__)
+#if ((PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE)) ||              \
+    defined(__DOXYGEN__)
 /**
  * @brief   Clears a PAL event object.
  *
@@ -299,22 +296,18 @@ typedef struct {
     _pal_events[e].cb = NULL;                                               \
     _pal_events[e].arg = NULL;                                              \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE) */
-
-#if (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
+#elif (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
 #define _pal_clear_event(e)                                                 \
   do {                                                                      \
     _pal_events[e].cb = NULL;                                               \
     _pal_events[e].arg = NULL;                                              \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE) */
-
-#if (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
+#elif (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
 #define _pal_clear_event(e)                                                 \
   do {                                                                      \
     osalThreadDequeueAllI(&_pal_events[e].threads, MSG_RESET);              \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE) */
+#endif
 
 /**
  * @brief   Common ISR code.
@@ -336,26 +329,21 @@ typedef struct {
     osalThreadDequeueAllI(&_pal_events[e].threads, MSG_OK);                 \
     osalSysUnlockFromISR();                                                 \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE) */
-
-#if (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
+#elif (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
 #define _pal_isr_code(e)                                                    \
   do {                                                                      \
     if (_pal_events[e].cb != NULL) {                                        \
       _pal_events[e].cb(_pal_events[e].arg);                                \
     }                                                                       \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE) */
-
-#if ((PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)) ||             \
-    defined(__DOXYGEN__)
+#elif (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
 #define _pal_isr_code(e)                                                    \
   do {                                                                      \
     osalSysLockFromISR();                                                   \
     osalThreadDequeueAllI(&_pal_events[e].threads, MSG_OK);                 \
     osalSysUnlockFromISR();                                                 \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE) */
+#endif
 
 /** @} */
 #endif /* (PAL_USE_CALLBACKS == TRUE) || (PAL_USE_WAIT == TRUE) */

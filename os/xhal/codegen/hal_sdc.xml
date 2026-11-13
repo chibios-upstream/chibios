@@ -135,8 +135,7 @@ do {
             <notapi />
             <implementation><![CDATA[chThdResumeI(&(sdcp)->sync_transfer, msg)]]></implementation>
           </macro>
-        </condition>
-        <condition check="SDC_USE_SYNCHRONIZATION != TRUE">
+          <elseif />
           <macro name="_sdc_wakeup_isr">
             <brief>Wakes up the thread waiting for transfer completion.</brief>
             <param name="sdcp" dir="in">Pointer to the SDC driver instance.</param>

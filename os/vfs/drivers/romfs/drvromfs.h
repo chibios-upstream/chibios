@@ -264,14 +264,18 @@ struct vfs_romfs_tree {
   size_t                    dirs_num;
 };
 
+#if !defined(__DOXYGEN__)
 extern const vfs_romfs_compressed_ops_t vfs_romfs_chunked_stored_ops;
 extern const vfs_romfs_compressed_ops_t vfs_romfs_chunked_packbits_ops;
+#endif /* !defined(__DOXYGEN__) */
 
 /*===========================================================================*/
 /* External declarations.                                                    */
 /*===========================================================================*/
 
+#if !defined(__DOXYGEN__)
 extern struct vfs_rom_driver_static_struct vfs_rom_driver_static;
+#endif /* !defined(__DOXYGEN__) */
 
 #ifdef __cplusplus
 extern "C" {

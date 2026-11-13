@@ -143,7 +143,9 @@ struct vfs_littlefs_driver {
 /* External declarations.                                                    */
 /*===========================================================================*/
 
+#if !defined(__DOXYGEN__)
 extern struct vfs_littlefs_driver_static_struct vfs_littlefs_driver_static;
+#endif /* !defined(__DOXYGEN__) */
 
 #ifdef __cplusplus
 extern "C" {

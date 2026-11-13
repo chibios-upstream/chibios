@@ -137,8 +137,10 @@ struct vfs_fatfs_driver {
 /* External declarations.                                                    */
 /*===========================================================================*/
 
+#if !defined(__DOXYGEN__)
 extern struct vfs_fatfs_driver_static_struct vfs_fatfs_driver_static;
 extern struct vfs_fatfs_driver_static_nc_struct __nocache_vfs_fatfs_driver_static;
+#endif /* !defined(__DOXYGEN__) */
 
 #ifdef __cplusplus
 extern "C" {

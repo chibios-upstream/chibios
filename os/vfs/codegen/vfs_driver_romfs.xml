@@ -227,8 +227,10 @@ self->tree = tree;]]></implementation>
         </fields>
       </struct>
       <verbatim><![CDATA[
+#if !defined(__DOXYGEN__)
 extern const vfs_romfs_compressed_ops_t vfs_romfs_chunked_stored_ops;
-extern const vfs_romfs_compressed_ops_t vfs_romfs_chunked_packbits_ops;]]></verbatim>
+extern const vfs_romfs_compressed_ops_t vfs_romfs_chunked_packbits_ops;
+#endif /* !defined(__DOXYGEN__) */]]></verbatim>
     </types>
     <variables>
       <variable name="vfs_rom_driver_static"
