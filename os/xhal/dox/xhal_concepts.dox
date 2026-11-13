@@ -92,7 +92,9 @@
  * and installs its own callback on it.
  *
  * @section xhal_states Driver States
- * All the stateful drivers have the same states, see drvGetStateX():
+ * All the stateful drivers share the following states, see drvGetStateX().
+ * Some drivers add states of their own, for example @p I2C_LOCKED or
+ * @p SDC_READING.
  *
  * @if LATEX_PDF
  * @dot
@@ -246,8 +248,7 @@
  * - Synchronization functions, for example spiSynchronizeState() or
  *   sioSynchronizeRX(), which wait for an event with a timeout.
  * .
- * A waiting thread is released with @p MSG_RESET if the operation is
- * stopped or fails.<br>
+ * Stopping the driver releases the waiting threads with @p MSG_RESET.<br>
  * Driver functions return the codes of type @p msg_t: @p HAL_RET_SUCCESS
  * or one of the errors above, plus @p HAL_RET_UNKNOWN_CTL, an unknown
  * control code, @p HAL_RET_IS_INVALID, an invalid instance, and
