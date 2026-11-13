@@ -15,7 +15,7 @@
 */
 
 /**
- * @file    sb/host/sbhost.h
+ * @file    sb/common/sbhdr.h
  * @brief   ARM SandBox host macros and structures.
  *
  * @addtogroup ARM_SANDBOX_HEADER

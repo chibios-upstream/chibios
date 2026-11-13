@@ -1,0 +1,349 @@
+/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    This file is part of ChibiOS.
+
+    ChibiOS is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation version 3 of the License.
+
+    ChibiOS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/**
+ * @page sb_concepts Sandbox Concepts
+ * @brief ChibiOS/SB Concepts
+ * This page describes how the SB subsystem works: the isolation model, the
+ * memory regions, the lifecycle of a sandbox, the calls from the sandboxed
+ * code to the host, the communication from the host to the sandboxed code
+ * and the services offered to sandboxed applications.
+ * @note    SB is under development, this page describes the current
+ *          implementation.
+ *
+ * - @ref sb_overview
+ * - @ref sb_host_guest
+ * - @ref sb_regions
+ * - @ref sb_lifecycle
+ * - @ref sb_calls
+ * - @ref sb_host_to_guest
+ * - @ref sb_vio
+ * - @ref sb_posix
+ * - @ref sb_time
+ * - @ref sb_guests
+ * - @ref sb_faults
+ * - @ref sb_config
+ * .
+ *
+ * @section sb_overview Overview
+ * A sandbox runs an application, the <b>guest</b>, isolated from the rest
+ * of the system, the <b>host</b>. The guest code executes in unprivileged
+ * thread mode inside a host thread and can only access the memory regions
+ * assigned to its sandbox, enforced by the MPU. The host runs ChibiOS/RT,
+ * the guest can be a bare-metal application or run its own kernel, see
+ * @ref sb_guests.<br>
+ * The guest interacts with the host only through calls, see
+ * @ref sb_calls. The host interacts with the guest through messages, events
+ * and virtual IRQs, see @ref sb_host_to_guest, and can expose devices and
+ * files to it, see @ref sb_vio and @ref sb_posix.<br>
+ * The isolation is enforced by:
+ * - The MPU: when the sandbox thread is switched in, the regions of its
+ *   sandbox are programmed into the MPU. Privileged code keeps the default
+ *   memory map, unprivileged code can only access the enabled regions.
+ * - The unprivileged execution: the guest cannot change the MPU or the
+ *   processor state, all the services go through the host calls.
+ * - The validation of the guest pointers and ranges passed to the host
+ *   calls, see @ref sb_calls.
+ * - The fault handling: a fault caused by the guest terminates the sandbox,
+ *   not the host, see @ref sb_faults.
+ * .
+ * SB requires an ARMv7-M, ARMv7E-M or ARMv8-M Mainline port with
+ * @p PORT_USE_SYSCALL enabled, the alternate ports (ALT) implement it.
+ *
+ * @section sb_host_guest Host and Guest
+ * The host side is a set of modules linked into the host application:
+ * - Each sandbox is an object of type @p sb_class_t, initialized with
+ *   sbObjectInit() after a single sbHostInit() invocation. The object
+ *   embeds the thread executing the guest.
+ * - A sandbox is configured while stopped, using setters: sbSetRegion() for
+ *   the memory regions, sbSetRoot() for the file system,
+ *   sbRegisterDescriptor() for the file descriptors and sbSetVirtualIO() for
+ *   the virtual I/O.
+ * - Each sandbox has a privileged stack, declared with @p SB_STACK(), used
+ *   by the host side of the syscalls.
+ * .
+ * The guest side is an image linked with the sandbox startup code and the
+ * guest library declared in @p sbuser.h. The image starts with a header
+ * describing it to the host:
+ * | Field        | Meaning                                                  |
+ * |--------------|----------------------------------------------------------|
+ * | hdr_magic1, hdr_magic2 | Identify a sandbox image.                      |
+ * | hdr_size     | Size of the header, checked by the host.                 |
+ * | hdr_entry    | Entry point, it must be in the code region.              |
+ * | hdr_exit     | Exit vector used by the guest startup code.              |
+ * | hdr_vrq      | Entry point of the virtual IRQs, it must be in the code region. |
+ * | hdr_abi      | Version of the host-guest interface, the host rejects images with a different version. |
+ * | user[]       | Application-defined parameters.                          |
+ *
+ * The host starts the guest at @p hdr_entry with the startup parameters:
+ * arguments, environment, the address of the system block, see
+ * @ref sb_vrq, and the heap end.
+ *
+ * @section sb_regions Memory Regions
+ * Each sandbox has @p SB_CFG_NUM_REGIONS memory regions, from 1 to 4. A
+ * region is an area of memory with a type and attributes:
+ * | Type or attribute        | Meaning                                       |
+ * |--------------------------|-----------------------------------------------|
+ * | @p SB_REG_TYPE_UNUSED    | The region is not used.                       |
+ * | @p SB_REG_TYPE_MEMORY    | Normal memory.                                |
+ * | @p SB_REG_TYPE_DEVICE    | Device memory, for example a peripheral.      |
+ * | @p SB_REG_ATTR_WRITABLE  | The guest can write the region.               |
+ * | @p SB_REG_ATTR_EXECUTABLE | The guest can execute code from the region, memory only. |
+ * | @p SB_REG_ATTR_CACHEABLE | The region is cacheable, memory only.         |
+ * | @p SB_REG_ATTR_DISCOVERABLE | The host can find the region by attributes, it has no effect on the MPU. |
+ *
+ * The usual combinations are predefined: @p SB_REG_IS_CODE,
+ * @p SB_REG_IS_DATA, @p SB_REG_IS_NOCACHE_DATA, @p SB_REG_IS_CODE_AND_DATA
+ * and @p SB_REG_IS_DEVICE.<br>
+ * Region zero contains the code and the image header. The data region is
+ * the first writable memory region, it contains the guest stack and, at its
+ * top, the system block. The regions must respect the MPU constraints of
+ * the architecture: power-of-two sizes and alignments, refined using
+ * subregions, on ARMv7-M and 32-byte aligned boundaries on ARMv8-M.<br>
+ * Data shared with the hardware without cache maintenance, for example the
+ * buffers of the zero-copy virtual I/O, must be in a non-cacheable region.
+ * The guest marks such data with @p SB_NOCACHE, the ELF loaders place it in
+ * the first discoverable non-cacheable region of the sandbox, see
+ * sbGetDiscoverableRegion().<br>
+ * A sandbox is <b>static</b> when its regions are provided by the host, it
+ * is <b>dynamic</b> when it is started with sbExecDynamic(), which allocates
+ * a code and data region and the privileged stack from the heap and frees
+ * them when the sandbox is finalized.
+ *
+ * @section sb_lifecycle Lifecycle
+ * A sandbox goes through the following states, see sbGetStateX():
+ *
+ * @if LATEX_PDF
+ * @dot
+  digraph example {
+    size="5, 7";
+    rankdir="LR";
+    node [shape=circle, fontname=Helvetica, fontsize=8, fixedsize="true", width="0.9", height="0.9"];
+    edge [fontname=Helvetica, fontsize=8];
+    uninit [label="UNINIT", style="bold"];
+    stopped [label="STOPPED", shape=doublecircle];
+    starting [label="STARTING"];
+    running [label="RUNNING"];
+    stopping [label="STOPPING"];
+    uninit -> stopped [label="sbObjectInit()"];
+    stopped -> starting [label="sbStart()\nsbExecStatic()\nsbExecDynamic()"];
+    starting -> running [label="started"];
+    starting -> stopped [label="start failed"];
+    running -> stopping [label="exit or fault"];
+    stopping -> stopped [label="sbFinalize()"];
+  }
+ * @enddot
+ * @else
+ * @dot
+  digraph example {
+    rankdir="LR";
+    node [shape=circle, fontname=Helvetica, fontsize=8, fixedsize="true", width="0.9", height="0.9"];
+    edge [fontname=Helvetica, fontsize=8];
+    uninit [label="UNINIT", style="bold"];
+    stopped [label="STOPPED", shape=doublecircle];
+    starting [label="STARTING"];
+    running [label="RUNNING"];
+    stopping [label="STOPPING"];
+    uninit -> stopped [label="sbObjectInit()"];
+    stopped -> starting [label="sbStart()\nsbExecStatic()\nsbExecDynamic()"];
+    starting -> running [label="started"];
+    starting -> stopped [label="start failed"];
+    running -> stopping [label="exit or fault"];
+    stopping -> stopped [label="sbFinalize()"];
+  }
+ * @enddot
+ * @endif
+ *
+ * - <b>UNINIT</b>, the object is not initialized.
+ * - <b>STOPPED</b>, the sandbox can be configured and started.
+ * - <b>STARTING</b>, the sandbox is being started, virtual IRQs are not
+ *   accepted.
+ * - <b>RUNNING</b>, the guest is executing.
+ * - <b>STOPPING</b>, the guest exited or faulted, virtual IRQs are not
+ *   accepted. The state persists until the sandbox is finalized.
+ * .
+ * A sandbox is started in one of three ways:
+ * - sbStart(), the image is already in region zero.
+ * - sbExecStatic(), an ELF file is loaded from the sandbox file system into
+ *   region zero.
+ * - sbExecDynamic(), an ELF file is loaded into memory allocated from the
+ *   heap, the sandbox is dynamic.
+ * .
+ * Each start assigns a new positive PID, returned by sbGetPidX() on the
+ * host and by sbGetPid() or @p getpid() in the guest. The PID stays valid
+ * until the sandbox is finalized, it allows objects referring to an
+ * execution to detect a restart.<br>
+ * The guest terminates by invoking sbExit() or by returning from its main
+ * function, a fault also terminates it, see @ref sb_faults. On termination
+ * the host releases the resources of the execution and broadcasts the
+ * global termination event source of the SB subsystem. The host waits for
+ * the termination and retrieves the exit code with sbSync(), then
+ * finalizes the sandbox with sbFinalize(), which returns it to the STOPPED
+ * state.
+ *
+ * @section sb_calls Calls from the Guest
+ * The guest invokes the host using the supervisor call instruction, the call
+ * code is the instruction immediate. There are two kinds of calls:
+ * | Kind     | Codes   | Execution                                          |
+ * |----------|---------|----------------------------------------------------|
+ * | Fastcall | 1-127   | Directly in the supervisor call exception handler, short operations that cannot block. |
+ * | Syscall  | 128-255 | In the sandbox thread, in privileged mode on the privileged stack, the operation can block. |
+ *
+ * The arguments are passed in the registers R0-R3 and the result is
+ * returned in R0. The codes from 64 to 95 and from 192 to 223 are never
+ * used by ChibiOS and are reserved to the application: a host handler is
+ * bound to a code with @p SB_SVC_HANDLER(), binding two handlers to the
+ * same code is a link error. The guest invokes them with
+ * @p sbFastcallN() and @p sbSyscallN(), which check at compile time that
+ * the code is of the right kind. Codes without a handler return
+ * @p CH_RET_ENOSYS.<br>
+ * Pointers and ranges passed by the guest are validated by the host
+ * against the sandbox regions: a range must lie within a single memory
+ * region, writable if the host writes it. An invalid argument makes the
+ * call return @p CH_RET_EFAULT, the sandbox keeps running.
+ *
+ * @section sb_host_to_guest Host to Guest Communication
+ *
+ * @subsection sb_messages Messages
+ * A host thread sends a @p msg_t message to the guest with sbSendMessage()
+ * or sbSendMessageTimeout() and waits for the reply. The guest receives it
+ * with sbMsgWait() and answers with sbMsgReply(). If the sandbox terminates
+ * the pending senders are released with @p MSG_RESET.
+ *
+ * @subsection sb_events Events
+ * The host signals event flags to the sandbox thread with sbEvtSignal() or
+ * sbEvtSignalI(), the guest waits for them with sbEventWaitOneTimeout(),
+ * sbEventWaitAnyTimeout() or sbEventWaitAllTimeout().
+ *
+ * @subsection sb_vrq Virtual IRQs
+ * Virtual IRQs (VRQs) are asynchronous notifications delivered to the guest
+ * like interrupts, enabled by @p SB_CFG_ENABLE_VRQ:
+ * - Each sandbox has 32 VRQs, numbered from 0 to 31. When several are
+ *   pending the lowest number is served first. VRQ 0 is used by the alarm.
+ * - The host triggers a VRQ with sbVRQTriggerS(), sbVRQTriggerI() or
+ *   sbVRQTriggerFromISR(), only for a running sandbox on the same core.
+ *   sbVRQSetFlagsI() accumulates flags passed to the handler with the
+ *   VRQ number.
+ * - A VRQ is delivered when it is pending and enabled and the VRQs are
+ *   globally enabled: the host pushes an exception frame on the guest
+ *   stack and the guest resumes at @p hdr_vrq. If the guest is executing a
+ *   syscall, the delivery happens on the syscall return.
+ * - Handlers are declared with @p SB_VRQ_HANDLER() and run with the VRQs
+ *   globally disabled, they do not nest.
+ * - The guest can suspend until a VRQ is pending and enabled, independently
+ *   of the global enable, the guest kernels use it in their idle thread.
+ * - The guest sets an alarm with sbSetAlarm() and sbResetAlarm(), one-shot
+ *   or periodic, which triggers VRQ 0 on expiration.
+ * .
+ * The VRQ enable state and masks are kept in the <b>system block</b>, a
+ * 32-byte area at the top of the data region shared by the host and the
+ * guest. The guest disables and re-enables the VRQs with plain memory
+ * accesses, invoking the host only when a VRQ became pending meanwhile:
+ * this makes the critical zones of the guest kernels fast. The guest-side
+ * primitives are the @p __sb_vrq_xxx() functions in @p sbuser.h, normally
+ * used through a guest kernel port.
+ *
+ * @section sb_vio Virtual I/O
+ * The virtual I/O (VIO) exposes XHAL drivers to the guest without exposing
+ * the hardware, enabled by @p SB_CFG_ENABLE_VIO:
+ * - The host binds a VIO configuration to the sandbox with
+ *   sbSetVirtualIO(). It lists, for each driver, the units the guest can
+ *   use and the driver configurations it can select.
+ * - The guest refers to units and configurations by index, it never sees
+ *   the hardware configuration structures.
+ * - Drivers: GPIO, UART, SPI, I2C, ADC, GPT and ETH, enabled in
+ *   @p vioconf.h. The initialization and deinitialization of a unit are
+ *   syscalls, the other operations are fastcalls. Operations completing
+ *   asynchronously notify the guest with a VRQ assigned to the unit in the
+ *   host configuration, with flags describing the event.
+ * - Buffers used by zero-copy transfers must be in a non-cacheable region,
+ *   see @ref sb_regions.
+ * - All the units are stopped when the sandbox terminates.
+ * .
+ * The guest uses the VIO through the functions in @p sbuservio.h, or
+ * through the XHAL VIO platform, which implements XHAL drivers on top of
+ * them, so XHAL applications can run in a sandbox.
+ *
+ * @section sb_posix POSIX Layer
+ * The host offers a POSIX-like file API to the guest, enabled by
+ * @p SB_CFG_ENABLE_VFS:
+ * - The sandbox file system is a VFS root assigned with sbSetRoot(), a
+ *   root private to the sandbox gives it its own current directory and
+ *   mounts. Without a root the path-based calls return @p CH_RET_ENOSYS.
+ * - Each sandbox has @p SB_CFG_FD_NUM file descriptors. The host installs
+ *   VFS nodes on chosen descriptors with sbRegisterDescriptor(), the
+ *   standard descriptors 0, 1 and 2 are not created automatically.
+ * - The guest library provides the calls, for example sbOpen(), sbRead()
+ *   and sbWrite(), and the newlib bindings, so the C library I/O functions
+ *   work in the guest. Terminal attributes are handled by sbTcgetattr() and
+ *   sbTcsetattr() on character devices.
+ * - The calls are syscalls: a blocking call suspends the whole sandbox,
+ *   including all the threads of a guest kernel. Signals, @p EINTR and
+ *   non-blocking descriptors are not supported.
+ * .
+ *
+ * @section sb_time Time
+ * The guest reads the system time with sbGetSystemTime() and its frequency
+ * with sbGetFrequency(), and sleeps with sbSleep(), sbSleepUntil() and the
+ * conversion helpers. The system time and the intervals are 32-bit values,
+ * the host requires @p CH_CFG_ST_RESOLUTION and @p CH_CFG_INTERVALS_SIZE
+ * set to 32. The special intervals are named @p SB_TIME_IMMEDIATE and
+ * @p SB_TIME_INFINITE, the plain @p TIME_xxx names are left to a ChibiOS
+ * kernel running in the guest.
+ *
+ * @section sb_guests Guest Environments
+ * - <b>Bare-metal</b>, the application uses the guest library directly.
+ *   Applications can also be ELF files executed by a shell running in a
+ *   sandbox.
+ * - <b>ChibiOS/RT and ChibiOS/NIL</b>, over the @p ARMvx-M-SB port: the
+ *   kernel lock is the VRQ global disable, interrupts are VRQs, the idle
+ *   thread waits for VRQs and the system tick comes from the alarm or from
+ *   the XHAL VIO platform. The port requires a 32-bit system time and does
+ *   not support the tick-less mode.
+ * - <b>FreeRTOS</b>, <b>ThreadX</b> and <b>Zephyr</b>, with the bindings
+ *   in @p os/various, the system tick is VRQ 0. See the readme files of the
+ *   bindings for their requirements.
+ * .
+ * Guests can use the FPU if the host is built with the FPU enabled.
+ *
+ * @section sb_faults Faults and Termination
+ * A fault caused by the guest in unprivileged mode terminates the sandbox:
+ * the state becomes STOPPING, the alarm is reset, the files and the VIO
+ * units are released, the termination event is broadcast, the pending
+ * message senders are released and the sandbox thread exits with an exit
+ * code derived from the processor status. A VRQ frame that does not fit in
+ * the guest stack also terminates the sandbox.<br>
+ * A fault in privileged code, including the host side of a syscall, is a
+ * host fault and halts the system. The detection of overflows of the
+ * privileged stack depends on the guard area support of the port.
+ *
+ * @section sb_config Configuration
+ * The file @p sbconf.h contains the SB settings:
+ * | Option                          | Meaning                               |
+ * |---------------------------------|---------------------------------------|
+ * | @p SB_CFG_PRIVILEGED_STACK_SIZE | Size of the privileged stack of each sandbox. |
+ * | @p SB_CFG_NUM_REGIONS           | Number of memory regions of each sandbox, 1 to 4. |
+ * | @p SB_CFG_ENABLE_VRQ            | Virtual IRQs support.                 |
+ * | @p SB_CFG_ENABLE_VIO            | Virtual I/O support, configured in @p vioconf.h. |
+ * | @p SB_CFG_ENABLE_VFS            | POSIX file API, it requires the VFS root driver. |
+ * | @p SB_CFG_FD_NUM                | Number of file descriptors of each sandbox. |
+ * | @p SB_CFG_EXEC_DEBUG            | Places a breakpoint at the entry of the executed ELF images, for debugging. |
+ *
+ * The host kernel also needs @p CH_CFG_USE_WAITEXIT, @p CH_CFG_USE_DYNAMIC
+ * and @p CH_CFG_USE_MEMCHECKS enabled.
+ */

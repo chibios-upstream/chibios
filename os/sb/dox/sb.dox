@@ -24,6 +24,7 @@
  *          enforced by the MPU, and interacts with the host only through
  *          fastcalls, syscalls, virtual IRQs and virtual I/O drivers.
  *          Sandbox applications can be bare-metal or run a guest kernel.
+ *          See @ref sb_concepts for an overview of the subsystem.
  */
 
 /**

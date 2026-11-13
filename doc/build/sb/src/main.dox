@@ -32,6 +32,7 @@
  *   ChibiOS/NIL, FreeRTOS, ThreadX or Zephyr.
  * .
  * <h2>Related pages</h2>
+ * - @subpage sb_concepts
  * - @subpage concepts
  * .
  */
