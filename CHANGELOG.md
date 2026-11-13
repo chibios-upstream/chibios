@@ -468,6 +468,16 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [VFS] Root and overlay operations take their path buffers from the shared
+  pool: each root operation takes a buffer pair for its whole duration and
+  roots and overlays no longer contain path buffers. `VFS_CFG_PATHBUFS_NUM`
+  now counts buffer pairs. The path prefix moved from the overlay to the
+  root: `ovldrvObjectInit()` only takes the overlaid file system,
+  `vfsrootObjectInit()` keeps its prefix argument. The current directory of
+  a root is allocated from core memory on the first directory change. New
+  `vfsRootOpen()` opens a file or a directory through a root, relative paths
+  included
+  ([#611](https://github.com/chibios-upstream/chibios/pull/611)).
 - [BUILD] All the build rules stop with an error listing the clashing files
   when two source files have the same name in different directories, such
   as `imu/driver.c` and `baro/driver.c`. The object files share a flat
@@ -688,6 +698,16 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [VFS] Two threads using the same root or overlay, or roots sharing an
+  overlay, could overwrite each other's paths: roots and overlays kept their
+  path buffers in the object (issue #597)
+  ([#611](https://github.com/chibios-upstream/chibios/pull/611)).
+- [VFS] With a `VFS_CFG_PATHLEN_MAX` value giving buffers that are not a
+  multiple of the pointer size, 128 for example, the shared path buffers were
+  misaligned: with checks enabled the system halted in `vfsInit()`, without
+  checks the pool used misaligned pointers
+  ([#609](https://github.com/chibios-upstream/chibios/pull/609))
+  *(backported to 21.11.6)*.
 - [BUILD] The ARM build rules, also used by ARMCRx, built the ARM mode C++
   objects from the Thumb source list and listed the Thumb C objects twice:
   in ARM mode C++ sources were silently left out of the build, and with
