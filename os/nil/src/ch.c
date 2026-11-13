@@ -195,7 +195,7 @@ void __dbg_check_unlock(void) {
 }
 
 /**
- * @brief   Guard code for @p chSysLockFromIsr().
+ * @brief   Guard code for @p chSysLockFromISR().
  *
  * @notapi
  */
@@ -208,7 +208,7 @@ void __dbg_check_lock_from_isr(void) {
 }
 
 /**
- * @brief   Guard code for @p chSysUnlockFromIsr().
+ * @brief   Guard code for @p chSysUnlockFromISR().
  *
  * @notapi
  */

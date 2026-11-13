@@ -43,4 +43,9 @@
  *    - @b LPS25H: Piezoresistive 260-1260 hPa pressure sensor; 
  *    - @b LSM6DS0: 6-axis iNEMO inertial module; 
  *    - @b LSM303DLHC: Ultra compact high performance e-compass;
+ *    .
+ * .
+ * <h2>Related pages</h2>
+ * - @subpage concepts
+ * .
  */
