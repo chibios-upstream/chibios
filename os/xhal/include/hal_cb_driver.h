@@ -195,7 +195,7 @@
  * @brief       Callback invocation with @p HAL_DRV_STATE_ERROR transient
  *              state.
  * @note        After invoking the callback the driver is returned to the @p
- *              HAL_DRV_STATE_ACTIVE state.
+ *              HAL_DRV_STATE_READY state, the failed operation is stopped.
  *
  * @param[in,out] self          Pointer to driver instance.
  *
@@ -204,7 +204,7 @@
 #define __cbdrv_invoke_error_cb(self)                                       \
   __cbdrv_invoke_cb_with_transition(self,                                   \
                                     HAL_DRV_STATE_ERROR,                    \
-                                    HAL_DRV_STATE_ACTIVE);
+                                    HAL_DRV_STATE_READY);
 /** @} */
 
 /*===========================================================================*/

@@ -300,8 +300,13 @@ static inline const void *__drv_set_cfg(void *ip, const void *config) {
 /**
  * @brief       Reconfigures a ready driver with one of the pre-defined
  *              configurations.
- * @note        Only configuration zero is guaranteed to exist, it is the
- *              driver default configuration.
+ * @note        With the driver configurations table disabled (@p
+ *              XXX_USE_CONFIGURATIONS set to @p FALSE) only configuration zero
+ *              exists, it is the low level driver default configuration, the
+ *              same used by @p drvStart() with a @p NULL configuration. With
+ *              the table enabled the configurations are the entries of the
+ *              application table, configuration zero is its first entry and an
+ *              empty table has no configurations.
  * @note        The returned configuration pointer can be retained by the
  *              driver without copying and must remain valid for the whole time
  *              it is in use.

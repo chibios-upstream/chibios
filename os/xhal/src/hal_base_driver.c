@@ -166,26 +166,28 @@ hal_base_driver_c *drvStartByName(const char *name, msg_t *msgp) {
   msg_t msg = HAL_RET_SUCCESS;
   hal_base_driver_c *drvp;
 
+  /* The driver is searched under the lock, then started out of it because
+     drvStart() takes the lock itself.*/
   chSysLock();
-
   drvp = drvRegGetFirstX();
   while (drvp != NULL) {
     if (strcmp(drvGetNameX(drvp), name) == 0) {
-
-      msg = drvStart(drvp, NULL);
-      if (msg != HAL_RET_SUCCESS) {
-        drvp = NULL;
-      }
       break;
     }
     drvp = drvRegGetNextX(drvp);
+  }
+  chSysUnlock();
+
+  if (drvp != NULL) {
+    msg = drvStart(drvp, NULL);
+    if (msg != HAL_RET_SUCCESS) {
+      drvp = NULL;
+    }
   }
 
   if (msgp != NULL) {
     *msgp = msg;
   }
-
-  chSysUnlock();
 
   return drvp;
 }
@@ -263,10 +265,14 @@ void __drv_dispose_impl(void *ip) {
  * @details     Starts driver operations. When called from @p
  *              HAL_DRV_STATE_STOP the peripheral is physically initialized
  *              using the specified configuration. If @p config is @p NULL then
- *              configuration zero is used. Calls while the driver is already
- *              @p HAL_DRV_STATE_READY with @p config equal to @p NULL are
- *              ignored, calls with a non-@p NULL configuration perform a live
- *              reconfiguration equivalent to @p drvSetCfgX().
+ *              the low level driver default configuration is used. Calls while
+ *              the driver is already @p HAL_DRV_STATE_READY with @p config
+ *              equal to @p NULL are ignored, calls with a non-@p NULL
+ *              configuration perform a live reconfiguration equivalent to @p
+ *              drvSetCfgX().
+ * @note        The low level driver default configuration is configuration
+ *              zero of @p drvSelectCfgX() only when the driver configurations
+ *              table is disabled, see @p drvSelectCfgX().
  * @note        The function can fail with error @p HAL_RET_INV_STATE if called
  *              while the driver is already being started or stopped. In case
  *              you need multiple threads to perform start and stop operation
@@ -446,8 +452,13 @@ msg_t drvSetCfgX(void *ip, const void *config) {
 /**
  * @brief       Live reconfiguration using one of the pre-defined driver
  *              configurations.
- * @note        Only configuration zero is guaranteed to exist, it is the
- *              driver default configuration.
+ * @note        With the driver configurations table disabled (@p
+ *              XXX_USE_CONFIGURATIONS set to @p FALSE) only configuration zero
+ *              exists, it is the low level driver default configuration, the
+ *              same used by @p drvStart() with a @p NULL configuration. With
+ *              the table enabled the configurations are the entries of the
+ *              application table, configuration zero is its first entry and an
+ *              empty table has no configurations.
  * @note        This function is only valid in @p HAL_DRV_STATE_READY. Initial
  *              configuration is passed to @p drvStart().
  *

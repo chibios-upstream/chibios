@@ -160,8 +160,13 @@ drv_reg_remove(self);
             <method name="__drv_sel_cfg" shortname="selcfg"
               ctype="const void *">
               <brief>Reconfigures a ready driver with one of the pre-defined configurations.</brief>
-              <note>Only configuration zero is guaranteed to exist, it is the
-                driver default configuration.</note>
+              <note><![CDATA[With the driver configurations table disabled
+                (@p XXX_USE_CONFIGURATIONS set to @p FALSE) only configuration
+                zero exists, it is the low level driver default configuration,
+                the same used by @p drvStart() with a @p NULL configuration.
+                With the table enabled the configurations are the entries of
+                the application table, configuration zero is its first entry
+                and an empty table has no configurations.]]></note>
               <note><![CDATA[The returned configuration pointer can be retained
                 by the driver without copying and must remain valid for the
                 whole time it is in use.]]></note>
@@ -177,11 +182,15 @@ drv_reg_remove(self);
               <details><![CDATA[Starts driver operations. When called from
                 @p HAL_DRV_STATE_STOP the peripheral is physically initialized
                 using the specified configuration. If @p config is @p NULL then
-                configuration zero is used. Calls while the driver is already
-                @p HAL_DRV_STATE_READY with @p config equal to @p NULL are
-                ignored, calls with a non-@p NULL configuration perform a live
-                reconfiguration equivalent to @p drvSetCfgX().]]>
+                the low level driver default configuration is used. Calls while
+                the driver is already @p HAL_DRV_STATE_READY with @p config
+                equal to @p NULL are ignored, calls with a non-@p NULL
+                configuration perform a live reconfiguration equivalent to
+                @p drvSetCfgX().]]>
               </details>
+              <note><![CDATA[The low level driver default configuration is
+                configuration zero of @p drvSelectCfgX() only when the driver
+                configurations table is disabled, see @p drvSelectCfgX().]]></note>
               <note><![CDATA[The function can fail with error
                 @p HAL_RET_INV_STATE if called while the driver is already
                 being started or stopped. In case you need multiple threads
@@ -356,8 +365,13 @@ return msg;</implementation>
             </method>
             <method name="drvSelectCfgX" ctype="const void *">
               <brief>Live reconfiguration using one of the pre-defined driver configurations.</brief>
-              <note>Only configuration zero is guaranteed to exist, it is the
-                driver default configuration.</note>
+              <note><![CDATA[With the driver configurations table disabled
+                (@p XXX_USE_CONFIGURATIONS set to @p FALSE) only configuration
+                zero exists, it is the low level driver default configuration,
+                the same used by @p drvStart() with a @p NULL configuration.
+                With the table enabled the configurations are the entries of
+                the application table, configuration zero is its first entry
+                and an empty table has no configurations.]]></note>
               <note><![CDATA[This function is only valid in
                 @p HAL_DRV_STATE_READY. Initial configuration is passed to
                 @p drvStart().]]>
@@ -560,26 +574,28 @@ return oopGetOwner(hal_base_driver_c, regent, rep);]]></implementation>
 msg_t msg = HAL_RET_SUCCESS;
 hal_base_driver_c *drvp;
 
+/* The driver is searched under the lock, then started out of it because
+   drvStart() takes the lock itself.*/
 chSysLock();
-
 drvp = drvRegGetFirstX();
 while (drvp != NULL) {
   if (strcmp(drvGetNameX(drvp), name) == 0) {
-    
-    msg = drvStart(drvp, NULL);
-    if (msg != HAL_RET_SUCCESS) {
-      drvp = NULL;
-    }
     break;
   }
   drvp = drvRegGetNextX(drvp);
+}
+chSysUnlock();
+
+if (drvp != NULL) {
+  msg = drvStart(drvp, NULL);
+  if (msg != HAL_RET_SUCCESS) {
+    drvp = NULL;
+  }
 }
 
 if (msgp != NULL) {
   *msgp = msg;
 }
-
-chSysUnlock();
 
 return drvp;]]></implementation>
         </function>
