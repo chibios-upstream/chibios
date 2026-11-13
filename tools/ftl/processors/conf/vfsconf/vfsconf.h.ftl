@@ -46,6 +46,16 @@
 /*===========================================================================*/
 
 /**
+ * @brief   Enables local VFS metadata mutexes.
+ * @details Protects root CWD and overlay mount metadata. Mutexes are released
+ *          before driver calls; leaf/backend synchronization is independent.
+ *          When disabled, callers serialize shared metadata access.
+ */
+#if !defined(VFS_CFG_USE_MUTUAL_EXCLUSION) || defined(__DOXYGEN__)
+#define VFS_CFG_USE_MUTUAL_EXCLUSION        ${doc.VFS_CFG_USE_MUTUAL_EXCLUSION!"FALSE"}
+#endif
+
+/**
  * @brief   Maximum filename length.
  */
 #if !defined(VFS_CFG_NAMELEN_MAX) || defined(__DOXYGEN__)

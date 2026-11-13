@@ -39,6 +39,8 @@
  * - @subpage vfs_test_008_001
  * - @subpage vfs_test_008_002
  * - @subpage vfs_test_008_003
+ * - @subpage vfs_test_008_004
+ * - @subpage vfs_test_008_005
  * .
  */
 
@@ -75,7 +77,6 @@ static const vfs_romfs_tree_t vfs_test_routing_tree = {
 static vfs_rom_driver_c vfs_test_routing_rom;
 static vfs_overlay_driver_c vfs_test_routing_inner, vfs_test_routing_outer;
 static vfs_root_c vfs_test_routing_root;
-static char vfs_test_routing_cwd[VFS_CFG_PATHLEN_MAX + 1U];
 static vfs_shared_buffer_t *vfs_test_routing_held[VFS_CFG_PATHBUFS_NUM];
 static size_t vfs_test_routing_held_num;
 
@@ -98,6 +99,9 @@ static THD_FUNCTION(vfs_test_routing_worker, arg) {
 
 static void vfs_test_routing_wait(unsigned point, const char *path) {
 
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  chDbgAssert(chMtxGetNextMutexX() == NULL, "metadata lock reached callback");
+#endif
   if (vfs_test_routing_suspend == point) {
     vfs_test_routing_suspend = 0U;
     (void)chThdWait(vfs_test_routing_thread);
@@ -147,8 +151,9 @@ static void vfs_test_routing_setup(void) {
                          (vfs_fs_c *)&vfs_test_routing_inner);
   (void)vfsrootObjectInit(&vfs_test_routing_root,
                           (vfs_fs_c *)&vfs_test_routing_outer, "/base");
-  strcpy(vfs_test_routing_cwd, "/home/user");
-  vfs_test_routing_root.path_cwd = vfs_test_routing_cwd;
+  test_assert(vfsRootChangeCurrentDirectory(&vfs_test_routing_root,
+                                             "/home/user") == CH_RET_SUCCESS,
+              "routing CWD initialization failed");
   vfs_test_routing_held_num = 0U;
 }
 
@@ -163,7 +168,38 @@ static void vfs_test_routing_teardown(void) {
     vfs_test_routing_thread = NULL;
   }
 #endif
+  boDispose(&vfs_test_routing_root);
 }
+
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+static THD_WORKING_AREA(vfs_test_metadata_wa, 4096);
+static msg_t vfs_test_metadata_result;
+static char vfs_test_metadata_cwd[VFS_CFG_PATHLEN_MAX + 1U];
+
+static THD_FUNCTION(vfs_test_metadata_worker, arg) {
+  unsigned operation = (unsigned)(uintptr_t)arg;
+  vfs_stat_t stat;
+
+  if (operation == 0U) {
+    vfs_test_metadata_result =
+      vfsRootGetCurrentDirectory(&vfs_test_routing_root,
+                                 vfs_test_metadata_cwd,
+                                 sizeof vfs_test_metadata_cwd);
+  }
+  else if (operation == 1U) {
+    vfs_test_metadata_result = vfsFSStat(&vfs_test_routing_inner,
+                                         "/mnt/base/data", &stat);
+  }
+  else if (operation == 2U) {
+    vfs_test_metadata_result = ovldrvUnregisterDriver(&vfs_test_routing_inner,
+                                                      "mnt");
+  }
+  else {
+    vfs_test_metadata_result =
+      vfsRootChangeCurrentDirectory(&vfs_test_routing_root, "/other");
+  }
+}
+#endif
 
 /* Reserve all but the specified number of pairs without waiting.*/
 static bool vfs_test_routing_reserve(size_t available) {
@@ -393,11 +429,11 @@ static void vfs_test_008_002_execute(void) {
     (void)roRelease(np);
     ret = vfsRootChangeCurrentDirectory(&vfs_test_routing_root, "target");
     test_assert(ret == CH_RET_SUCCESS &&
-                strcmp(vfs_test_routing_cwd, "/home/user/target") == 0,
+                strcmp(vfs_test_routing_root.path_cwd, "/home/user/target") == 0,
                 "chdir stored delegated prefix");
     ret = vfsRootChangeCurrentDirectory(&vfs_test_routing_root, "/missing");
     test_assert(ret == CH_RET_ENOENT &&
-                strcmp(vfs_test_routing_cwd, "/home/user/target") == 0,
+                strcmp(vfs_test_routing_root.path_cwd, "/home/user/target") == 0,
                 "failed chdir changed CWD");
     ret = vfsRootOpen(&vfs_test_routing_root, "/home", VO_WRONLY, &np);
     test_assert(ret == CH_RET_EROFS, "ROMFS write-open error changed");
@@ -443,6 +479,7 @@ static void vfs_test_008_003_teardown(void) {
 
 static void vfs_test_008_003_execute(void) {
   vfs_node_c *np;
+  memory_area_t before, after;
   msg_t ret;
   unsigned point;
 
@@ -454,13 +491,20 @@ static void vfs_test_008_003_execute(void) {
     vfs_test_routing_vmt.openfile = vfs_test_routing_openfile;
     vfs_test_routing_vmt.opendir = vfs_test_routing_opendir;
     vfs_test_routing_rom.vmt = &vfs_test_routing_vmt;
-    for (point = 1U; point <= 3U; point++) {
-      strcpy(vfs_test_routing_cwd, "/home/user");
-      vfs_test_routing_suspend = point;
+    for (point = 1U; point <= 4U; point++) {
+      ret = vfsRootChangeCurrentDirectory(&vfs_test_routing_root, "/home/user");
+      test_assert(ret == CH_RET_SUCCESS, "CWD reset failed");
+      if (point == 4U) {
+        boDispose(&vfs_test_routing_root);
+        (void)vfsrootObjectInit(&vfs_test_routing_root,
+                                (vfs_fs_c *)&vfs_test_routing_outer, "/base");
+        chCoreGetStatusX(&before);
+      }
+      vfs_test_routing_suspend = point == 4U ? 2U : point;
       vfs_test_routing_path_preserved = true;
       vfs_test_routing_worker_result = CH_RET_EIO;
-      /* The worker runs only when the driver explicitly waits below. This
-         checks buffer ownership, not concurrent access to root metadata.*/
+      /* Driver and disposal entry must release metadata locks so another
+         operation can finish on the same root while this call sleeps.*/
       vfs_test_routing_thread = chThdCreateStatic(vfs_test_routing_wa,
                                   sizeof vfs_test_routing_wa,
                                   chThdGetPriorityX() - 1,
@@ -472,16 +516,24 @@ static void vfs_test_008_003_execute(void) {
         }
       }
       else {
-        ret = vfsRootChangeCurrentDirectory(&vfs_test_routing_root, "target");
+        ret = vfsRootChangeCurrentDirectory(&vfs_test_routing_root,
+                                 point == 4U ? "/home/user/target" : "target");
       }
       test_assert(ret == CH_RET_SUCCESS, "suspended root operation failed");
       test_assert(vfs_test_routing_thread == NULL &&
                   vfs_test_routing_worker_result == CH_RET_SUCCESS,
                   "concurrent chdir did not complete");
       test_assert(vfs_test_routing_path_preserved, "borrowed path overwritten");
-      test_assert(strcmp(vfs_test_routing_cwd,
+      test_assert(strcmp(vfs_test_routing_root.path_cwd,
                          point == 1U ? "/other" : "/home/user/target") == 0,
                   "CWD snapshot lost across suspension");
+      if (point == 4U) {
+        chCoreGetStatusX(&after);
+        test_assert(before.size - after.size >= VFS_CFG_PATHLEN_MAX + 1U &&
+                    before.size - after.size < VFS_CFG_PATHLEN_MAX + 1U +
+                                               PORT_NATURAL_ALIGN,
+                    "competing initial chdir allocated more than one CWD");
+      }
     }
     test_assert(vfs_test_routing_reserve(0U), "suspended operation leaked a pair");
   }
@@ -496,6 +548,229 @@ static const testcase_t vfs_test_008_003 = {
 };
 #endif /* VFS_CFG_PATHBUFS_NUM > 1 */
 
+#if (DRV_CFG_OVERLAY_DRV_MAX > 1) || defined(__DOXYGEN__)
+/**
+ * @page vfs_test_008_004 [8.4] Live overlay enumeration and lazy CWD allocation
+ *
+ * <h2>Description</h2>
+ * Mount changes cannot restart backing iteration, and each root
+ * allocates CWD storage only when first needed.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - DRV_CFG_OVERLAY_DRV_MAX > 1
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [8.4.1] Grow and shrink the mount table during backing iteration
+ *   and after end of directory.
+ * - [8.4.2] Queries and failed validation leave CWD unallocated;
+ *   successful changes reuse one buffer per root.
+ * .
+ */
+
+static void vfs_test_008_004_setup(void) {
+  vfs_test_routing_setup();
+}
+
+static void vfs_test_008_004_teardown(void) {
+  vfs_test_routing_teardown();
+}
+
+static void vfs_test_008_004_execute(void) {
+  vfs_directory_node_c *dnp;
+  vfs_direntry_info_t entry;
+  vfs_root_c lazy_root;
+  memory_area_t before, after;
+  char cwd[VFS_CFG_PATHLEN_MAX + 1U];
+  char *allocated_cwd;
+  msg_t ret;
+  unsigned i;
+
+  /* [8.4.1] Grow and shrink the mount table during backing iteration
+     and after end of directory.*/
+  test_set_step(1);
+  {
+    ret = ovldrvRegisterDriver(&vfs_test_routing_root,
+                                 (vfs_fs_c *)&vfs_test_routing_rom, "mnt");
+    test_assert(ret == CH_RET_SUCCESS, "mount registration failed");
+    ret = vfsFSOpenDirectory(&vfs_test_routing_root, "/", &dnp);
+    test_assert(ret == CH_RET_SUCCESS, "merged directory open failed");
+    ret = vfsDirReadFirst(dnp, &entry);
+    test_assert(ret == 1 && strcmp(entry.name, "mnt") == 0, "mount entry missing");
+    ret = vfsDirReadNext(dnp, &entry);
+    test_assert(ret == 1 && strcmp(entry.name, "data") == 0, "backing first missing");
+    ret = ovldrvRegisterDriver(&vfs_test_routing_root,
+                                 (vfs_fs_c *)&vfs_test_routing_rom, "late");
+    test_assert(ret == CH_RET_SUCCESS, "late mount failed");
+    ret = vfsDirReadNext(dnp, &entry);
+    test_assert(ret == 1 && strcmp(entry.name, "home") == 0,
+                "mount growth restarted backing iteration");
+    ret = ovldrvUnregisterDriver(&vfs_test_routing_root, "mnt");
+    test_assert(ret == CH_RET_SUCCESS, "mount removal failed");
+    ret = vfsDirReadNext(dnp, &entry);
+    test_assert(ret == 1 && strcmp(entry.name, "other") == 0,
+                "mount shrink changed backing iteration");
+    test_assert(vfsDirReadNext(dnp, &entry) == 0, "directory did not end");
+    ret = ovldrvRegisterDriver(&vfs_test_routing_root,
+                                 (vfs_fs_c *)&vfs_test_routing_rom, "new");
+    test_assert(ret == CH_RET_SUCCESS, "post-end mount failed");
+    test_assert(vfsDirReadNext(dnp, &entry) == 0, "mount growth reopened directory");
+    ret = vfsDirReadFirst(dnp, &entry);
+    test_assert(ret == 1 && strcmp(entry.name, "late") == 0, "rewind missed mount");
+    ret = vfsDirReadNext(dnp, &entry);
+    test_assert(ret == 1 && strcmp(entry.name, "new") == 0, "rewind missed new mount");
+    (void)roRelease(dnp);
+  }
+  test_end_step(1);
+
+  /* [8.4.2] Queries and failed validation leave CWD unallocated;
+     successful changes reuse one buffer per root.*/
+  test_set_step(2);
+  {
+    (void)vfsrootObjectInit(&lazy_root,
+                            (vfs_fs_c *)&vfs_test_routing_outer, "/base");
+    chCoreGetStatusX(&before);
+    test_assert(lazy_root.path_cwd == NULL, "CWD not initially lazy");
+    ret = vfsRootGetCurrentDirectory(&lazy_root, cwd, sizeof cwd);
+    test_assert(ret == CH_RET_SUCCESS && strcmp(cwd, "/") == 0,
+                "unallocated CWD is not root");
+    ret = vfsRootChangeCurrentDirectory(&lazy_root, "/missing");
+    test_assert(ret == CH_RET_ENOENT && lazy_root.path_cwd == NULL,
+                "failed chdir allocated CWD");
+    chCoreGetStatusX(&after);
+    test_assert(before.base == after.base && before.size == after.size,
+                "unused CWD consumed core memory");
+    ret = vfsRootChangeCurrentDirectory(&lazy_root, "/home/user");
+    test_assert(ret == CH_RET_SUCCESS && lazy_root.path_cwd != NULL,
+                "first chdir failed to allocate CWD");
+    allocated_cwd = lazy_root.path_cwd;
+    test_assert(allocated_cwd != vfs_test_routing_root.path_cwd,
+                "roots share CWD storage");
+    chCoreGetStatusX(&before);
+    for (i = 0U; i < 16U; i++) {
+      ret = vfsRootChangeCurrentDirectory(&lazy_root,
+                                           (i & 1U) == 0U ? "/other" : "/home");
+      test_assert(ret == CH_RET_SUCCESS && lazy_root.path_cwd == allocated_cwd,
+                  "chdir replaced the root CWD buffer");
+    }
+    chCoreGetStatusX(&after);
+    test_assert(before.base == after.base && before.size == after.size,
+                "subsequent chdir allocated more memory");
+    test_assert(strcmp(vfs_test_routing_root.path_cwd, "/home/user") == 0,
+                "chdir changed another root CWD");
+    boDispose(&lazy_root);
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_008_004 = {
+  "Live overlay enumeration and lazy CWD allocation",
+  vfs_test_008_004_setup,
+  vfs_test_008_004_teardown,
+  vfs_test_008_004_execute
+};
+#endif /* DRV_CFG_OVERLAY_DRV_MAX > 1 */
+
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page vfs_test_008_005 [8.5] Matching metadata reader and writer protection
+ *
+ * <h2>Description</h2>
+ * Root CWD reads, overlay route lookup, and mount removal wait for the
+ * owning metadata mutex.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [8.5.1] Hold metadata while a higher-priority worker attempts each
+ *   operation, then release and verify completion.
+ * - [8.5.2] A root waiting for a buffer pair leaves its metadata
+ *   available to other operations.
+ * .
+ */
+
+static void vfs_test_008_005_setup(void) {
+  vfs_test_routing_setup();
+}
+
+static void vfs_test_008_005_teardown(void) {
+  vfs_test_routing_teardown();
+}
+
+static void vfs_test_008_005_execute(void) {
+  vfs_overlay_driver_c *locked;
+  thread_t *tp;
+  msg_t ret;
+  unsigned operation;
+  bool blocked;
+
+  /* [8.5.1] Hold metadata while a higher-priority worker attempts each
+     operation, then release and verify completion.*/
+  test_set_step(1);
+  {
+    ret = ovldrvRegisterDriver(&vfs_test_routing_inner,
+                                 (vfs_fs_c *)&vfs_test_routing_rom, "mnt");
+    test_assert(ret == CH_RET_SUCCESS, "metadata test mount failed");
+    for (operation = 0U; operation < 3U; operation++) {
+      locked = operation == 0U ? (vfs_overlay_driver_c *)&vfs_test_routing_root :
+                                &vfs_test_routing_inner;
+      vfs_test_metadata_result = CH_RET_EIO;
+      __ovldrv_lock(locked);
+      tp = chThdCreateStatic(vfs_test_metadata_wa, sizeof vfs_test_metadata_wa,
+                             chThdGetPriorityX() + 1, vfs_test_metadata_worker,
+                             (void *)(uintptr_t)operation);
+      blocked = vfs_test_metadata_result == CH_RET_EIO;
+      __ovldrv_unlock(locked);
+      (void)chThdWait(tp);
+      test_assert(blocked, "metadata access bypassed local mutex");
+      test_assert(vfs_test_metadata_result == CH_RET_SUCCESS,
+                  "metadata worker failed after unlock");
+    }
+    test_assert(strcmp(vfs_test_metadata_cwd, "/home/user") == 0,
+                "metadata worker copied wrong CWD");
+  }
+  test_end_step(1);
+
+  /* [8.5.2] A root waiting for a buffer pair leaves its metadata
+     available to other operations.*/
+  test_set_step(2);
+  {
+    test_assert(vfs_test_routing_reserve(0U), "cannot exhaust pair pool");
+    vfs_test_metadata_result = CH_RET_EIO;
+    tp = chThdCreateStatic(vfs_test_metadata_wa, sizeof vfs_test_metadata_wa,
+                           chThdGetPriorityX() + 1, vfs_test_metadata_worker,
+                           (void *)(uintptr_t)3U);
+    blocked = vfs_test_metadata_result == CH_RET_EIO;
+    ret = vfsRootGetCurrentDirectory(&vfs_test_routing_root,
+                                     vfs_test_metadata_cwd,
+                                     sizeof vfs_test_metadata_cwd);
+    vfs_buffer_release(vfs_test_routing_held[--vfs_test_routing_held_num]);
+    (void)chThdWait(tp);
+    test_assert(blocked, "exhausted pair allocation did not wait");
+    test_assert(ret == CH_RET_SUCCESS &&
+                strcmp(vfs_test_metadata_cwd, "/home/user") == 0,
+                "pool waiter blocked CWD access");
+    test_assert(vfs_test_metadata_result == CH_RET_SUCCESS,
+                "pool waiter did not complete");
+    test_assert(vfs_test_routing_reserve(0U), "pool waiter leaked a pair");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_008_005 = {
+  "Matching metadata reader and writer protection",
+  vfs_test_008_005_setup,
+  vfs_test_008_005_teardown,
+  vfs_test_008_005_execute
+};
+#endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -508,6 +783,12 @@ const testcase_t * const vfs_test_sequence_008_array[] = {
   &vfs_test_008_002,
 #if (VFS_CFG_PATHBUFS_NUM > 1) || defined(__DOXYGEN__)
   &vfs_test_008_003,
+#endif
+#if (DRV_CFG_OVERLAY_DRV_MAX > 1) || defined(__DOXYGEN__)
+  &vfs_test_008_004,
+#endif
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_008_005,
 #endif
   NULL
 };

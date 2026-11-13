@@ -82,7 +82,8 @@
  * root, must remain alive until all its nodes have been released and all its
  * operations have finished. Before disposing a file system, the caller must
  * also remove every mapping or backing relationship that could access it.
- * Unregistering a mapping does not close nodes previously opened through it.
+ * Unregistering a mapping does not close nodes previously opened through it
+ * and does not wait for the operations already routed through it.
  *
  * @section vfs_arch_fs_paths File-system path contract
  *
@@ -129,13 +130,37 @@
  * for its whole duration, see @ref vfs_arch_buffers, and overlays route the
  * paths they receive without modifying their own state. Concurrent
  * operations, through the same root or through roots sharing an overlay,
- * therefore never share path storage. The remaining shared state is not
- * protected:
- * - changing the current directory of a root, or registering and
- *   unregistering file systems in an overlay or root, must not run
- *   concurrently with other operations on the same object;
- * - a node is used by one thread at a time, its position and state are not
- *   protected either.
+ * therefore never share path storage.
+ *
+ * The mount table of an overlay or root and the current directory of a root
+ * are protected by an optional mutex in the overlay object, inherited by the
+ * root, enabled by @p VFS_CFG_USE_MUTUAL_EXCLUSION:
+ * - the mutex covers mount lookups and updates and the copy or commit of the
+ *   current directory, it is released before calling another file system, a
+ *   node or a callback and before any blocking allocation, so operations
+ *   through the same root are not serialized;
+ * - a rename selects both routes in one step at each layer, and a root
+ *   resolves both paths against the same current directory;
+ * - a directory change is validated without the mutex and committed after,
+ *   concurrent successful changes take effect in commit order. The current
+ *   directory buffer is allocated with @p chCoreAlloc() on the first
+ *   successful change and never released;
+ * - with the option disabled, the default, there is no mutex and changing
+ *   the current directory of a root, or registering and unregistering file
+ *   systems, must not run concurrently with other operations on the same
+ *   object.
+ * .
+ * Enumerating the top directory of an overlay or root is a live view of its
+ * mount table: mount changes during the enumeration can skip or repeat
+ * mounted entries, a new enumeration starts from the current table.
+ *
+ * Nodes are not protected by the VFS:
+ * - a reference keeps a node alive, it does not serialize its operations;
+ * - operations on the same open node, including duplicated descriptors
+ *   sharing it, are serialized by the callers unless its driver states
+ *   otherwise, multi-call sequences need caller ordering too;
+ * - distinct nodes can be used concurrently only as far as the leaf file
+ *   system and its backend allow.
  * .
  * A leaf file system is reentrant only as far as its implementation is:
  * FatFS requires @p FF_FS_REENTRANT, LittleFS requires its thread-safe build
