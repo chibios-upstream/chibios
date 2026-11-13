@@ -24,7 +24,7 @@
 
 #include "hal.h"
 
-#if (HAL_USE_DISPLAY == TRUE) || defined(__DOXYGEN__)
+#if (HAL_USE_DSPL == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
@@ -268,6 +268,6 @@ void dspl_lld_serve_interrupt(DSPLDriver *dsplp) {
   (void)dsplp;
 }
 
-#endif /* HAL_USE_DISPLAY == TRUE */
+#endif /* HAL_USE_DSPL == TRUE */
 
 /** @} */

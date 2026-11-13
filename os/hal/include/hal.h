@@ -170,8 +170,8 @@
 #define HAL_USE_DAC                         FALSE
 #endif
 
-#if !defined(HAL_USE_DISPLAY)
-#define HAL_USE_DISPLAY                     FALSE
+#if !defined(HAL_USE_DSPL)
+#define HAL_USE_DSPL                        FALSE
 #endif
 
 #if !defined(HAL_USE_EFL)

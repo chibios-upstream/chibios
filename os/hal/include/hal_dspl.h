@@ -25,7 +25,7 @@
 #ifndef HAL_DSPL_H
 #define HAL_DSPL_H
 
-#if (HAL_USE_DISPLAY == TRUE) || defined(__DOXYGEN__)
+#if (HAL_USE_DSPL == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Driver constants.                                                         */
@@ -510,7 +510,7 @@ static inline void __dspl_timing_isr(DSPLDriver *dsplp, dsplevents_t events) {
 }
 /** @} */
 
-#endif /* HAL_USE_DISPLAY == TRUE */
+#endif /* HAL_USE_DSPL == TRUE */
 
 #endif /* HAL_DSPL_H */
 

@@ -25,7 +25,7 @@
 #include "hal.h"
 #include "hal_dspl.h"
 
-#if (HAL_USE_DISPLAY == TRUE) || defined(__DOXYGEN__)
+#if (HAL_USE_DSPL == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
@@ -517,6 +517,6 @@ msg_t dsplPresent(DSPLDriver *dsplp, void *buffer) {
 }
 #endif /* DSPL_USE_WAIT == TRUE */
 
-#endif /* HAL_USE_DISPLAY == TRUE */
+#endif /* HAL_USE_DSPL == TRUE */
 
 /** @} */
