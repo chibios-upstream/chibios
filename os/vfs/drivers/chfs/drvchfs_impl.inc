@@ -147,7 +147,7 @@ static msg_t __chfsdir_stat_impl(void *ip, vfs_stat_t *sp) {
   (void)self;
   (void)sp;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -166,7 +166,7 @@ static msg_t __chfsdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
   (void)self;
   (void)dip;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -185,7 +185,7 @@ static msg_t __chfsdir_first_impl(void *ip, vfs_direntry_info_t *dip) {
   (void)self;
   (void)dip;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 /** @} */
 
@@ -295,7 +295,7 @@ static msg_t __chfsfile_stat_impl(void *ip, vfs_stat_t *sp) {
   (void)self;
   (void)sp;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -316,7 +316,7 @@ static ssize_t __chfsfile_read_impl(void *ip, uint8_t *buf, size_t n) {
   (void)buf;
   (void)n;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -337,7 +337,7 @@ static ssize_t __chfsfile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   (void)buf;
   (void)n;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -359,7 +359,7 @@ static msg_t __chfsfile_setpos_impl(void *ip, vfs_offset_t offset,
   (void)offset;
   (void)whence;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -495,7 +495,7 @@ msg_t __chfsdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
   (void)path;
   (void)sp;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -518,7 +518,7 @@ msg_t __chfsdrv_opendir_impl(void *ip, const char *path,
   (void)path;
   (void)vdnpp;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -543,7 +543,7 @@ msg_t __chfsdrv_openfile_impl(void *ip, const char *path, int flags,
   (void)flags;
   (void)vfnpp;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -562,7 +562,7 @@ msg_t __chfsdrv_unlink_impl(void *ip, const char *path) {
   (void)self;
   (void)path;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -583,7 +583,7 @@ msg_t __chfsdrv_rename_impl(void *ip, const char *oldpath, const char *newpath) 
   (void)oldpath;
   (void)newpath;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -604,7 +604,7 @@ msg_t __chfsdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
   (void)path;
   (void)mode;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -623,7 +623,7 @@ msg_t __chfsdrv_rmdir_impl(void *ip, const char *path) {
   (void)self;
   (void)path;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 /** @} */
 
@@ -662,7 +662,7 @@ msg_t chfsdrvMount(void *ip) {
 
   (void)self;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -681,7 +681,7 @@ msg_t chfsdrvUnmount(void *ip) {
 
   (void)self;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -700,6 +700,6 @@ msg_t chfsdrvFormat(void *ip) {
 
   (void)self;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 /** @} */
