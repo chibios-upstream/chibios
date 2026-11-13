@@ -639,6 +639,9 @@ void sbObjectInit(sb_class_t *sbp) {
 
   memset((void *)sbp, 0, sizeof (sb_class_t));
   sbp->state = SB_STATE_STOPPED;
+#if CH_CFG_USE_EVENTS == TRUE
+  chEvtObjectInit(&sbp->base.es);
+#endif
 
   /* Marking the thread as terminated in order to make sbIsThreadRunningX()
      behave correctly.*/
