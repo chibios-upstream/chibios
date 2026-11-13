@@ -50,7 +50,9 @@
 #endif
 
 /**
- * @brief   Number of shared path buffers.
+ * @brief   Number of shared path buffer pairs.
+ * @details Each pool element holds two full paths or one scratch buffer
+ *          spanning both paths, and is reserved by a single allocation.
  */
 #if !defined(VFS_CFG_PATHBUFS_NUM) || defined(__DOXYGEN__)
 #define VFS_CFG_PATHBUFS_NUM                1

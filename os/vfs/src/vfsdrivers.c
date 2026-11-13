@@ -55,6 +55,11 @@
 
 /**
  * @brief       Opens a VFS file or directory.
+ * @details     The input must be a normalized absolute path, borrowed until
+ *              return. This helper does not allocate routing buffers. Use @p
+ *              vfsRootOpen() for combined opens through a root, including
+ *              relative paths, to retain one resolved path across
+ *              file-to-directory fallback.
  *
  * @param[in,out] fsp           Pointer to the @p vfs_fs_c object.
  * @param[in]     path          Absolute path of the node to be opened.
