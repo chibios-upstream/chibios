@@ -560,26 +560,28 @@ return oopGetOwner(hal_base_driver_c, regent, rep);]]></implementation>
 msg_t msg = HAL_RET_SUCCESS;
 hal_base_driver_c *drvp;
 
+/* The driver is searched under the lock, then started out of it because
+   drvStart() takes the lock itself.*/
 chSysLock();
-
 drvp = drvRegGetFirstX();
 while (drvp != NULL) {
   if (strcmp(drvGetNameX(drvp), name) == 0) {
-    
-    msg = drvStart(drvp, NULL);
-    if (msg != HAL_RET_SUCCESS) {
-      drvp = NULL;
-    }
     break;
   }
   drvp = drvRegGetNextX(drvp);
+}
+chSysUnlock();
+
+if (drvp != NULL) {
+  msg = drvStart(drvp, NULL);
+  if (msg != HAL_RET_SUCCESS) {
+    drvp = NULL;
+  }
 }
 
 if (msgp != NULL) {
   *msgp = msg;
 }
-
-chSysUnlock();
 
 return drvp;]]></implementation>
         </function>
