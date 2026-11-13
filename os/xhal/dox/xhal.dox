@@ -295,6 +295,36 @@
 /**
  * @defgroup HAL_MFS Managed Flash Storage
  * @brief   Managed Flash Storage over a flash interface.
+ * @details MFS stores data records, identified by numbers from 1 to
+ *          @p MFS_CFG_MAX_RECORDS, in a flash device. Features:
+ *          - Works over any flash driver derived from @p hal_flash_base_c,
+ *            for example the embedded flash driver or a serial NOR device.
+ *          - Two banks, each a range of flash sectors. Writing a record
+ *            appends a new instance of it to the bank in use, the most
+ *            recent instance is the valid one.
+ *          - When the bank in use is full, a garbage collection copies the
+ *            valid records into the other bank, writes the header of the
+ *            new bank after the data and erases the old bank last, the
+ *            operation returns @p MFS_WARN_GC.
+ *          - Bank headers and records are protected by CRCs. mfsStart()
+ *            checks the banks and repairs the damage left by an
+ *            interrupted operation, for example a reset during a write or a
+ *            garbage collection, and returns @p MFS_WARN_REPAIR if it did.
+ *            @p MFS_CFG_STRONG_CHECKING extends the check from the metadata
+ *            to all the data.
+ *          - Transactions: after mfsStartTransaction() the writes and
+ *            erasures of records are committed atomically by
+ *            mfsCommitTransaction() or discarded by
+ *            mfsRollbackTransaction(), up to @p MFS_CFG_TRANSACTION_MAX
+ *            operations.
+ *          .
+ *          MFS is not an XHAL driver class, it has its own API and states.
+ *          Errors are negative codes and warnings positive codes, a flash
+ *          failure puts the driver in the @p MFS_ERROR state. The buffer
+ *          passed to mfsObjectInit() is meant to be non-cacheable on
+ *          devices with data cache.
+ * @note    The module is enabled by including @p hal_mfs.mk in the
+ *          makefile.
  *
  * @ingroup HAL_COMPLEX_DRIVERS
  */
@@ -302,6 +332,29 @@
 /**
  * @defgroup HAL_MMC_SPI MMC over SPI Driver
  * @brief   MMC/SD cards driver over an SPI bus.
+ * @details The driver accesses MMC and SD cards in SPI mode through an XHAL
+ *          SPI driver. Features:
+ *          - Class @p hal_mmc_spi_driver_c, derived from
+ *            @p hal_base_driver_c, implementing the block I/O interface
+ *            @p block_io_i.
+ *          - Standard capacity cards, with byte addressing, and high
+ *            capacity cards, with block addressing, detected when the card
+ *            is connected.
+ *          - The configuration names the SPI driver, a low speed SPI
+ *            configuration for the card initialization, a high speed one
+ *            for the transfers and the card detection and write protection
+ *            callbacks. Unlike the peripheral drivers, the driver cannot be
+ *            started without a configuration.
+ *          - The driver starts the SPI driver if it is stopped and switches
+ *            its configuration as needed. With
+ *            @p MMC_SPI_USE_MUTUAL_EXCLUSION the SPI driver is locked during
+ *            each card operation, so the bus can be shared with other
+ *            devices.
+ *          - After drvStart() the card is initialized with mmcSpiConnect()
+ *            and released with mmcSpiDisconnect().
+ *          .
+ *          The driver requires @p HAL_USE_SPI and
+ *          @p SPI_USE_SYNCHRONIZATION.
  * @note    The driver is enabled by including @p hal_mmc_spi.mk in the
  *          makefile.
  *
@@ -311,6 +364,24 @@
 /**
  * @defgroup HAL_SERIAL_USB Serial over USB Driver
  * @brief   Serial over USB Driver, CDC ACM class.
+ * @details The driver is a USB CDC service implementing the asynchronous
+ *          channel interface:
+ *          - The object is initialized with sduObjectInit(), giving the USB
+ *            driver, the interface and the endpoints, and started with
+ *            sduStart().
+ *          - The service, returned by sduGetServiceX(), is registered on a
+ *            device binder with usbBinderRegisterService(). The binder owns
+ *            the descriptors and is bound to the USB driver with usbBind()
+ *            after the USB driver has been started.
+ *          - The application reads and writes through the channel
+ *            interface. The I/O conditions are broadcast on the event
+ *            source returned by sduGetEventSourceX() and the line coding set
+ *            by the host is returned by sduGetLineCodingX().
+ *          .
+ *          The buffering is configured by @p SERIAL_USB_BUFFERS_SIZE and
+ *          @p SERIAL_USB_BUFFERS_NUMBER.
+ * @note    The driver is enabled by including @p hal_serial_usb.mk in the
+ *          makefile.
  *
  * @ingroup HAL_COMPLEX_DRIVERS
  */
@@ -326,7 +397,29 @@
  * @defgroup HAL_SENSORS Sensors
  * @brief   Sensors framework.
  * @details Generic sensor interfaces and the device drivers implementing
- *          them.
+ *          them. The sensors are described by a hierarchy of interfaces:
+ *          - @p hal_sensor_i, a sensor with one or more data channels.
+ *            halSensorGetChannelNumber() returns the number of channels,
+ *            halSensorReadRaw() reads them as integers and
+ *            halSensorReadCooked() as floating point values.
+ *          - @p hal_calibrated_sensor_i adds the calibration, a bias and a
+ *            sensitivity for each channel, set with
+ *            halCalibratedSensorSetBias() and
+ *            halCalibratedSensorSetSensitivity(), restored to the device
+ *            defaults with halCalibratedSensorResetBias() and
+ *            halCalibratedSensorResetSensitivity().
+ *          - The interfaces of the sensor kinds, derived from the
+ *            calibrated sensor: accelerometer, barometer, compass,
+ *            gyroscope, hygrometer, rangefinder and thermometer.
+ *          .
+ *          A device driver is a class implementing the interfaces of its
+ *          sensors, the application obtains them with @p oopGetIf(). The
+ *          LIS302DL driver is an accelerometer over SPI, its cooked
+ *          readings are the raw readings multiplied by the sensitivity
+ *          minus the bias.
+ * @note    The interfaces are made available by including
+ *          @p hal_sensors.mk in the makefile, each device driver has its
+ *          own makefile, for example @p lis302dl.mk, which includes it.
  *
  * @ingroup HAL_COMPLEX_DRIVERS
  */

@@ -168,8 +168,9 @@
  * @section xhal_start_stop Start and Stop
  * drvStart() starts a driver in the STOP state: the low level driver
  * physically initializes the peripheral using the specified configuration,
- * or a default configuration if @p NULL is specified. Every driver can be
- * started without an application-provided configuration. On a successful
+ * or a default configuration if @p NULL is specified. Every peripheral
+ * driver can be started without an application-provided configuration,
+ * complex drivers can require one, for example MMC over SPI. On a successful
  * start the driver goes READY, otherwise it returns to STOP with one of:
  * | Error                      | Meaning                                    |
  * |----------------------------|--------------------------------------------|
