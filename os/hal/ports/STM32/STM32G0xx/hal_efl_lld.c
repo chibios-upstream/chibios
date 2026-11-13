@@ -44,6 +44,20 @@
 #define FLASH_OPTKEY1                       0x08192A3BU
 #define FLASH_OPTKEY2                       0x4C5D6E7FU
 
+#if defined(FLASH_DBANK_SUPPORT) || defined(__DOXYGEN__)
+/* Sales type field of the package data register, as used by the ST HAL:
+   type 0 devices have a single bank, type 1 devices select the bank mode
+   with the DUAL_BANK option bit, the other devices always have two banks.*/
+#define STM32_FLASH_SALES_TYPE_MASK         0x03000000U
+#define STM32_FLASH_SALES_TYPE_1            0x01000000U
+
+/* Operation in progress on either bank.*/
+#define STM32_FLASH_SR_BUSY                 (FLASH_SR_BSY1 | FLASH_SR_BSY2 |  \
+                                             FLASH_SR_CFGBSY)
+#else
+#define STM32_FLASH_SR_BUSY                 (FLASH_SR_BSY1 | FLASH_SR_CFGBSY)
+#endif
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -169,8 +183,8 @@ static inline void stm32_flash_clear_status(EFlashDriver *eflp) {
 
 static inline void stm32_flash_wait_busy(EFlashDriver *eflp) {
 
-  /* Wait for busy bit clear.*/
-  while ((eflp->flash->SR & FLASH_SR_BSY1) != 0U) {
+  /* Wait for busy bits clear.*/
+  while ((eflp->flash->SR & STM32_FLASH_SR_BUSY) != 0U) {
   }
 }
 
@@ -180,12 +194,30 @@ static inline size_t stm32_flash_get_size(void) {
 
 static inline bool stm32_flash_dual_bank(EFlashDriver *eflp) {
 
-#if STM32_FLASH_NUMBER_OF_BANKS > 1
-#error "Device settings incorrectly configured - single bank mode only supported"
-#endif
+#if defined(FLASH_DBANK_SUPPORT)
+  switch (*(const volatile uint32_t *)PACKAGE_BASE &
+          STM32_FLASH_SALES_TYPE_MASK) {
+  case 0U:
+    return false;
+  case STM32_FLASH_SALES_TYPE_1:
+    return (bool)((eflp->flash->OPTR & FLASH_OPTR_DUAL_BANK) != 0U);
+  default:
+    return true;
+  }
+#else
   (void)eflp;
+
   return false;
+#endif
 }
+
+#if defined(FLASH_DBANK_SUPPORT) || defined(__DOXYGEN__)
+static inline bool stm32_flash_banks_swapped(EFlashDriver *eflp) {
+
+  /* Bank 2 is mapped at the flash base when nSWAP_BANK is cleared.*/
+  return (bool)((eflp->flash->OPTR & FLASH_OPTR_nSWAP_BANK) == 0U);
+}
+#endif
 
 static inline flash_error_t stm32_flash_check_errors(EFlashDriver *eflp) {
   uint32_t sr = eflp->flash->SR;
@@ -231,12 +263,8 @@ void efl_lld_init(void) {
   /* Find the size of the flash and set descriptor reference. */
   uint8_t i;
   for (i = 0; i < (sizeof(efl_lld_flash_sizes) / sizeof(efl_lld_size_t)); i++) {
-      if (efl_lld_flash_sizes[i].desc->size == stm32_flash_get_size()) {
-        EFLD1.descriptor = efl_lld_flash_sizes[i].desc;
-      if (stm32_flash_dual_bank(&EFLD1)) {
-        /* Point to the dual bank descriptor. */
-        EFLD1.descriptor++;
-      }
+    if (efl_lld_flash_sizes[i].desc->size == stm32_flash_get_size()) {
+      EFLD1.descriptor = efl_lld_flash_sizes[i].desc;
       return;
     }
   }
@@ -324,10 +352,13 @@ flash_error_t efl_lld_read(void *instance, flash_offset_t offset,
   memcpy((void *)rp, (const void *)efl_lld_get_descriptor(instance)->address
                                    + offset, n);
 
-  /* Checking for errors after reading.*/
+#if defined(FLASH_SR_RDERR)
+  /* Checking for errors after reading, the value line devices have no
+     PCROP and no read error flag.*/
   if ((devp->flash->SR & FLASH_SR_RDERR) != 0U) {
     err = FLASH_ERROR_READ;
   }
+#endif
 
   /* Ready state again.*/
   devp->state = FLASH_READY;
@@ -425,9 +456,11 @@ flash_error_t efl_lld_program(void *instance, flash_offset_t offset,
 
 /**
  * @brief   Starts a whole-device erase operation.
- * @note    This function only erases bank 2 if it is present. Bank 1 is not
- *          allowed since it is normally where the primary program is located.
- *          Pages on bank 1 can be individually erased.
+ * @note    In dual bank mode this function erases the bank mapped in the
+ *          upper half of the flash, bank 2 unless the banks are swapped. The
+ *          bank at the flash base is not erased since it is normally where
+ *          the primary program is located, its pages can be individually
+ *          erased. The operation is not supported in single bank mode.
  *
  * @param[in] ip                    pointer to a @p EFlashDriver instance
  * @return                          An error code.
@@ -449,8 +482,8 @@ flash_error_t efl_lld_start_erase_all(void *instance) {
     return FLASH_BUSY_ERASING;
   }
 
-#if defined(FLASH_CR_MER2)
-  /* If dual bank is active then mass erase bank2. */
+#if defined(FLASH_DBANK_SUPPORT)
+  /* If dual bank is active then mass erase the bank in the upper half.*/
   if (stm32_flash_dual_bank(devp)) {
 
     /* FLASH_ERASE state while the operation is performed.*/
@@ -459,7 +492,12 @@ flash_error_t efl_lld_start_erase_all(void *instance) {
     /* Clearing error status bits.*/
     stm32_flash_clear_status(devp);
 
-    devp->flash->CR |= FLASH_CR_MER2;
+    if (stm32_flash_banks_swapped(devp)) {
+      devp->flash->CR |= FLASH_CR_MER1;
+    }
+    else {
+      devp->flash->CR |= FLASH_CR_MER2;
+    }
     devp->flash->CR |= FLASH_CR_STRT;
     return FLASH_NO_ERROR;
   }
@@ -506,17 +544,22 @@ flash_error_t efl_lld_start_erase_sector(void *instance,
   /* Enable page erase.*/
   devp->flash->CR |= FLASH_CR_PER;
 
-#if defined(FLASH_CR_BKER)
-  /* If dual bank is active then setup relevant bank. */
+#if defined(FLASH_DBANK_SUPPORT)
+  /* If dual bank is active then setup relevant bank, the page number is
+     relative to the bank. The bank in the upper half of the flash is bank 2
+     unless the banks are swapped.*/
   if (stm32_flash_dual_bank(devp)) {
-    if (sector < (bank->sectors_count / 2)) {
-      /* First bank.*/
-      devp->flash->CR &= ~FLASH_CR_BKER;
+    bool upper = (bool)(sector >= (bank->sectors_count / 2U));
+
+    if (upper) {
+      /* Upper half, adjusting the sector index.*/
+      sector -= bank->sectors_count / 2U;
+    }
+    if (upper != stm32_flash_banks_swapped(devp)) {
+      devp->flash->CR |= FLASH_CR_BKER;
     }
     else {
-      /* Second bank. Adjust sector index. */
-      sector -= (bank->sectors_count / 2);
-      devp->flash->CR |= FLASH_CR_BKER;
+      devp->flash->CR &= ~FLASH_CR_BKER;
     }
   }
 #endif
@@ -556,7 +599,7 @@ flash_error_t efl_lld_query_erase(void *instance, uint32_t *msec) {
   if (devp->state == FLASH_ERASE) {
 
     /* Checking for operation in progress.*/
-    if ((devp->flash->SR & FLASH_SR_BSY1) == 0U) {
+    if ((devp->flash->SR & STM32_FLASH_SR_BUSY) == 0U) {
 
       /* Disabling the various erase control bits.*/
       devp->flash->CR &= ~(FLASH_CR_MER1 |
