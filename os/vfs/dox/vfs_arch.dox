@@ -22,43 +22,19 @@
  * @section vfs_arch_object_model Object model
  *
  * The VFS object model separates file-system state from the path state of an
- * execution context. The target class hierarchy is:
- *
- * @startuml {vfs_arch.png} "VFS Core"
- * abstract class vfs_fs_c {
- *   + stat(absolute_path)
- *   + open_directory(absolute_path)
- *   + open_file(absolute_path)
- *   + unlink(absolute_path)
- *   + rename(absolute_oldpath, absolute_newpath)
- *   + mkdir(absolute_path)
- *   + rmdir(absolute_path)
- * }
- * class vfs_overlay_driver_c {
- *   - overlaid_fs: vfs_fs_c *
- *   - mounted_fs[]: vfs_fs_c *
- *   - path_prefix: const char *
- * }
- * class vfs_root_c {
- *   - current_directory
- *   + change_current_directory(path)
- *   + get_current_directory()
- *   + open(path)
- * }
- * abstract class vfs_node_c {
- *   - fs: vfs_fs_c *
- * }
- * abstract class vfs_directory_node_c
- * abstract class vfs_file_node_c
- *
- * vfs_fs_c <|-- vfs_overlay_driver_c
- * vfs_overlay_driver_c <|-- vfs_root_c
- * vfs_node_c <|-- vfs_directory_node_c
- * vfs_node_c <|-- vfs_file_node_c
- * vfs_node_c "*" --> "1" vfs_fs_c : owner
- * vfs_overlay_driver_c "1" o-- "*" vfs_fs_c : mounts
- * @enduml
- *
+ * execution context. The class hierarchy is:
+ * - @p vfs_fs_c, the abstract file system. Its methods, stat, open
+ *   directory, open file, unlink, rename, mkdir and rmdir, take absolute
+ *   paths.
+ * - @p vfs_overlay_driver_c, derived from @p vfs_fs_c. It registers other
+ *   file systems under names and delegates the other paths to an optional
+ *   overlaid file system, adding a path prefix.
+ * - @p vfs_root_c, derived from @p vfs_overlay_driver_c. It adds the current
+ *   directory and accepts relative paths.
+ * - @p vfs_node_c, the abstract node, with @p vfs_directory_node_c and
+ *   @p vfs_file_node_c derived from it. Each node refers to the file system
+ *   that owns it.
+ * .
  * File-system implementations, including non-root overlays, derive from
  * @p vfs_fs_c. A @p vfs_root_c is an overlay specialized as the entry point
  * of an application or sandbox.
@@ -127,4 +103,43 @@
  * file system is reentrant only as far as its implementation is: FatFS
  * requires @p FF_FS_REENTRANT, LittleFS requires its thread-safe build with
  * the lock callbacks.
+ */
+
+/*
+ * VFS core class diagram, PlantUML source, not part of the documentation.
+ *
+ * @startuml {vfs_arch.png} "VFS Core"
+ * abstract class vfs_fs_c {
+ *   + stat(absolute_path)
+ *   + open_directory(absolute_path)
+ *   + open_file(absolute_path)
+ *   + unlink(absolute_path)
+ *   + rename(absolute_oldpath, absolute_newpath)
+ *   + mkdir(absolute_path)
+ *   + rmdir(absolute_path)
+ * }
+ * class vfs_overlay_driver_c {
+ *   - overlaid_fs: vfs_fs_c *
+ *   - mounted_fs[]: vfs_fs_c *
+ *   - path_prefix: const char *
+ * }
+ * class vfs_root_c {
+ *   - current_directory
+ *   + change_current_directory(path)
+ *   + get_current_directory()
+ *   + open(path)
+ * }
+ * abstract class vfs_node_c {
+ *   - fs: vfs_fs_c *
+ * }
+ * abstract class vfs_directory_node_c
+ * abstract class vfs_file_node_c
+ *
+ * vfs_fs_c <|-- vfs_overlay_driver_c
+ * vfs_overlay_driver_c <|-- vfs_root_c
+ * vfs_node_c <|-- vfs_directory_node_c
+ * vfs_node_c <|-- vfs_file_node_c
+ * vfs_node_c "*" --> "1" vfs_fs_c : owner
+ * vfs_overlay_driver_c "1" o-- "*" vfs_fs_c : mounts
+ * @enduml
  */
