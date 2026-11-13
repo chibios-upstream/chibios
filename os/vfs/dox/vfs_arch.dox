@@ -108,4 +108,23 @@
  * Root path state is private to the root instance. Two roots may therefore
  * share mounted file systems without sharing their current directories.
  * Directory nodes remain per-open handles and are not file-system objects.
+ *
+ * @section vfs_arch_concurrency Concurrency contract
+ *
+ * The VFS does not serialize operations. Roots and overlays keep their path
+ * working buffers in the object: a root resolves each path into its own
+ * buffers, and an overlay routes each path through its own buffer, for the
+ * whole duration of the operation. Therefore:
+ * - a root or an overlay is used by one thread at a time, callers sharing
+ *   one must serialize its operations;
+ * - an overlay mounted in more than one root is shared by all of them, so
+ *   the threads using those roots must serialize too;
+ * - a node is used by one thread at a time, its position and state are not
+ *   protected either.
+ * .
+ * Threads that need concurrent access use separate roots and overlays and
+ * share only leaf file systems, as the private roots of sandboxes do. A leaf
+ * file system is reentrant only as far as its implementation is: FatFS
+ * requires @p FF_FS_REENTRANT, LittleFS requires its thread-safe build with
+ * the lock callbacks.
  */
