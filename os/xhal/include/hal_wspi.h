@@ -117,9 +117,9 @@
  */
 #define _wspi_wakeup_i(wspip, msg)                                          \
   chThdResumeI(&(wspip)->sync_transfer, msg)
-#endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 
-#if (WSPI_USE_SYNCHRONIZATION != TRUE) || defined (__DOXYGEN__)
+#else
+
 /**
  * @brief       Wakes up the waiting thread.
  *
@@ -147,7 +147,7 @@
     (void)(wspip);                                                          \
     (void)(msg);                                                            \
   } while (false)
-#endif /* WSPI_USE_SYNCHRONIZATION != TRUE */
+#endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 
 /**
  * @brief       Common ISR code for successful operation completion, lock held.

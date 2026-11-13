@@ -105,6 +105,9 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
+/* Factories of disabled object types are disabled. Not visible to Doxygen,
+   only the defaults above are documented.*/
+#if !defined(__DOXYGEN__)
 #if (CH_CFG_FACTORY_SEMAPHORES == TRUE) && (CH_CFG_USE_SEMAPHORES == FALSE)
 /*lint -save -e767 [20.5] Valid because the #undef.*/
 #undef CH_CFG_FACTORY_SEMAPHORES
@@ -132,6 +135,7 @@
 #define CH_CFG_FACTORY_PIPES                FALSE
 /*lint -restore*/
 #endif
+#endif /* !defined(__DOXYGEN__) */
 
 #define CH_FACTORY_REQUIRES_POOLS                                           \
   ((CH_CFG_FACTORY_OBJECTS_REGISTRY == TRUE) ||                             \

@@ -66,7 +66,7 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
-#if HAL_CRY_ENFORCE_FALLBACK == TRUE
+#if (HAL_CRY_ENFORCE_FALLBACK == TRUE) && !defined(__DOXYGEN__)
 #undef HAL_CRY_USE_FALLBACK
 #define HAL_CRY_USE_FALLBACK                TRUE
 #endif

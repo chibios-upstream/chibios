@@ -264,28 +264,25 @@ typedef struct {
  */
 #define _pal_init_event(e)                                                  \
   do {                                                                      \
-    chThdQueueObjectInit(&_pal_events[e].threads);                     \
+    chThdQueueObjectInit(&_pal_events[e].threads);                          \
     _pal_events[e].cb = NULL;                                               \
     _pal_events[e].arg = NULL;                                              \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE) */
-
-#if (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
+#elif (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
 #define _pal_init_event(e)                                                  \
   do {                                                                      \
     _pal_events[e].cb = NULL;                                               \
     _pal_events[e].arg = NULL;                                              \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE) */
-
-#if (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
+#elif (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
 #define _pal_init_event(e)                                                  \
   do {                                                                      \
-    chThdQueueObjectInit(&_pal_events[e].threads);                     \
+    chThdQueueObjectInit(&_pal_events[e].threads);                          \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE) */
+#endif
 
-#if ((PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE)) || defined(__DOXYGEN__)
+#if ((PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE)) ||              \
+    defined(__DOXYGEN__)
 /**
  * @brief   Clears a PAL event object.
  *
@@ -295,26 +292,22 @@ typedef struct {
  */
 #define _pal_clear_event(e)                                                 \
   do {                                                                      \
-    chThdDequeueAllI(&_pal_events[e].threads, MSG_RESET);              \
+    chThdDequeueAllI(&_pal_events[e].threads, MSG_RESET);                   \
     _pal_events[e].cb = NULL;                                               \
     _pal_events[e].arg = NULL;                                              \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE) */
-
-#if (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
+#elif (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
 #define _pal_clear_event(e)                                                 \
   do {                                                                      \
     _pal_events[e].cb = NULL;                                               \
     _pal_events[e].arg = NULL;                                              \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE) */
-
-#if (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
+#elif (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
 #define _pal_clear_event(e)                                                 \
   do {                                                                      \
-    chThdDequeueAllI(&_pal_events[e].threads, MSG_RESET);              \
+    chThdDequeueAllI(&_pal_events[e].threads, MSG_RESET);                   \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE) */
+#endif
 
 /**
  * @brief   Common ISR code.
@@ -332,30 +325,25 @@ typedef struct {
     if (_pal_events[e].cb != NULL) {                                        \
       _pal_events[e].cb(_pal_events[e].arg);                                \
     }                                                                       \
-    chSysLockFromISR();                                                   \
-    chThdDequeueAllI(&_pal_events[e].threads, MSG_OK);                 \
-    chSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                     \
+    chThdDequeueAllI(&_pal_events[e].threads, MSG_OK);                      \
+    chSysUnlockFromISR();                                                   \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == TRUE) */
-
-#if (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
+#elif (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE)
 #define _pal_isr_code(e)                                                    \
   do {                                                                      \
     if (_pal_events[e].cb != NULL) {                                        \
       _pal_events[e].cb(_pal_events[e].arg);                                \
     }                                                                       \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == TRUE) && (PAL_USE_WAIT == FALSE) */
-
-#if ((PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)) ||             \
-    defined(__DOXYGEN__)
+#elif (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE)
 #define _pal_isr_code(e)                                                    \
   do {                                                                      \
-    chSysLockFromISR();                                                   \
-    chThdDequeueAllI(&_pal_events[e].threads, MSG_OK);                 \
-    chSysUnlockFromISR();                                                 \
+    chSysLockFromISR();                                                     \
+    chThdDequeueAllI(&_pal_events[e].threads, MSG_OK);                      \
+    chSysUnlockFromISR();                                                   \
   } while (false)
-#endif /* (PAL_USE_CALLBACKS == FALSE) && (PAL_USE_WAIT == TRUE) */
+#endif
 
 /** @} */
 #endif /* (PAL_USE_CALLBACKS == TRUE) || (PAL_USE_WAIT == TRUE) */

@@ -379,7 +379,9 @@
 /* External declarations.                                                    */
 /*===========================================================================*/
 
+#if !defined(__DOXYGEN__)
 extern const char *osal_halt_msg;
+#endif /* !defined(__DOXYGEN__) */
 
 #ifdef __cplusplus
 extern "C" {
