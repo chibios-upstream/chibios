@@ -61,16 +61,15 @@ hal_spi_driver_c SPID2;
 static void spi_lld_serve_interrupt(hal_spi_driver_c *spip, uint32_t sts) {
 
   if ((sts & (1U << HAL_DRV_STATE_ERROR)) != 0U) {
-    /* Transfer error interrupt, discards all others.*/
-    __cbdrv_invoke_error_cb(spip);
-    __spi_wakeup_isr(spip, HAL_RET_HW_FAILURE);
+    /* Transfer error interrupt, discards all others. The host has already
+       stopped the transfer, the driver goes back to READY.*/
+    _spi_isr_error_code(spip);
     return;
   }
 
   /* Operation finished interrupt.*/
   if ((sts & (1U << HAL_DRV_STATE_COMPLETE)) != 0U) {
-    __cbdrv_invoke_complete_cb(spip);
-    __spi_wakeup_isr(spip, MSG_OK);
+    _spi_isr_complete_code(spip);
     return;
   }
 
