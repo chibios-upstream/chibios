@@ -133,7 +133,7 @@
 /**
  * @brief   Number of directory nodes pre-allocated in the pool.
  */
-#if !defined(DRV_CFG_OVERLAY_NODES_NUM) || defined(__DOXYGEN__)
+#if !defined(DRV_CFG_OVERLAY_DIR_NODES_NUM) || defined(__DOXYGEN__)
 #define DRV_CFG_OVERLAY_DIR_NODES_NUM       1
 #endif
 
@@ -223,7 +223,7 @@
 /*===========================================================================*/
 
 /**
- * @brief   Number of shared path buffers.
+ * @brief   Number of directory nodes pre-allocated in the pool.
  */
 #if !defined(DRV_CFG_LITTLEFS_DIR_NODES_NUM) || defined(__DOXYGEN__)
 #define DRV_CFG_LITTLEFS_DIR_NODES_NUM      1
