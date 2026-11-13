@@ -716,7 +716,8 @@ bool sbFinalize(sb_class_t *sbp) {
  * @param[in] prio      sandbox thread priority
  * @param[in] stkbase   base of the privileged stack area, the size is assumed
  *                      to be @p SB_CFG_PRIVILEGED_STACK_SIZE
- * @param[in] argv      array of parameters for the sandbox
+ * @param[in] argv      array of parameters for the sandbox or @p NULL, the
+ *                      first parameter is also the sandbox thread name
  * @param[in] envp      array of environment variables for the sandbox
  * @return              The thread pointer.
  * @retval NULL         if the sandbox thread creation failed.
@@ -760,7 +761,8 @@ thread_t *sbStart(sb_class_t *sbp, tprio_t prio, stkline_t *stkbase,
   sbp->is_dynamic = false;
 
   /* Everything OK, starting the unprivileged thread inside the sandbox.*/
-  utp = sb_start_unprivileged(sbp, argv[0], prio, stkbase, sbhp->hdr_entry);
+  utp = sb_start_unprivileged(sbp, (argv != NULL) ? argv[0] : NULL, prio,
+                              stkbase, sbhp->hdr_entry);
   if (utp == NULL) {
     goto failed;
   }
@@ -835,7 +837,8 @@ const sb_memory_region_t *sbGetDiscoverableRegion(sb_class_t *sbp,
  * @param[in] prio      sandbox thread priority
  * @param[in] stkbase   base of the privileged stack for the sandbox
  * @param[in] path      file to be executed
- * @param[in] argv      arguments to be passed to the sandbox
+ * @param[in] argv      arguments to be passed to the sandbox or @p NULL, the
+ *                      first argument is also the sandbox thread name
  * @param[in] envp      environment variables to be passed to the sandbox
  * @return              The operation result.
  * @retval CH_RET_EBUSY if the sandbox is not stopped
@@ -904,8 +907,8 @@ msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
   sbp->is_dynamic = false;
 
   /* Everything OK, starting the unprivileged thread inside the sandbox.*/
-  if (sb_start_unprivileged(sbp, argv[0], prio, stkbase,
-                            sbhp->hdr_entry) == NULL) {
+  if (sb_start_unprivileged(sbp, (argv != NULL) ? argv[0] : NULL,
+                            prio, stkbase, sbhp->hdr_entry) == NULL) {
     ret = CH_RET_ENOMEM;
     goto failed;
   }
@@ -930,7 +933,8 @@ failed:
  * @param[in] prio      sandbox thread priority
  * @param[in] heapsize  extra heap space for the launched application
  * @param[in] path      file to be executed
- * @param[in] argv      arguments to be passed to the sandbox
+ * @param[in] argv      arguments to be passed to the sandbox or @p NULL, the
+ *                      first argument is also the sandbox thread name
  * @param[in] envp      environment variables to be passed to the sandbox
  * @return              The operation result.
  * @retval CH_RET_EBUSY if the sandbox is not stopped
@@ -1053,8 +1057,8 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   sbp->regions[0].attributes = SB_REG_IS_CODE_AND_DATA;
 
   /* Everything OK, starting the unprivileged thread inside the sandbox.*/
-  if (sb_start_unprivileged(sbp, argv[0], prio, stkbase,
-                            sbhp->hdr_entry) == NULL) {
+  if (sb_start_unprivileged(sbp, (argv != NULL) ? argv[0] : NULL,
+                            prio, stkbase, sbhp->hdr_entry) == NULL) {
     ret = CH_RET_ENOMEM;
     goto skip3;
   }
