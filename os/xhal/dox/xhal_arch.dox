@@ -16,7 +16,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/**
+/*
+ * XHAL architecture diagrams, PlantUML source, not part of the
+ * documentation.
+ *
  * @startuml {xhal_drvsm.png} "XHAL Drivers State Machine"
  * hide empty description
  *
