@@ -30,6 +30,7 @@
  * - @ref vfs_paths
  * - @ref vfs_nodes
  * - @ref vfs_drivers
+ * - @ref vfs_concurrency
  * - @ref vfs_config
  * .
  *
@@ -193,6 +194,16 @@
  * The ChibiFS driver is a skeleton under development, its operations are
  * not implemented. The template driver is the starting point for new
  * drivers.
+ *
+ * @section vfs_concurrency Concurrent Use
+ * The VFS does not serialize operations. A root, an overlay or a node is
+ * used by one thread at a time, threads sharing one must serialize their
+ * calls. An overlay mounted in several roots is shared by all of them.
+ * Threads that need concurrent access use separate roots and overlays and
+ * share only leaf file systems, as the sandboxes do with their private
+ * roots, within the limits of the leaf driver: FatFS requires
+ * @p FF_FS_REENTRANT, LittleFS its thread-safe build. See
+ * @ref vfs_arch_concurrency.
  *
  * @section vfs_config Configuration
  * The file @p vfsconf.h contains the VFS settings:
