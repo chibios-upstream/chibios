@@ -265,11 +265,13 @@
  * driver, for example a SPI bus, can perform sequences of operations
  * without interference. The mutex is a kernel mutex, or a binary semaphore
  * if mutexes are disabled in the kernel.<br>
- * When @p HAL_USE_REGISTRY is enabled, each driver object is linked into a
- * registry at initialization and removed when disposed. The drivers are
- * enumerated with drvRegGetFirstX() and drvRegGetNextX(). Each driver has a
- * name, @p "unk" by default, set with drvSetNameX() and read with
- * drvGetNameX().
+ * When @p HAL_USE_REGISTRY is enabled, disabled by default, drivers can be
+ * added to a registry under a unique name with drvRegister(), after
+ * chSysInit(), and removed with drvUnregister(). Disposing a registered
+ * driver also removes it. drvGetNameX() returns the name of a registered
+ * driver and drvStartByName() finds a registered driver by name and starts
+ * it. The registry is enumerated with drvRegGetFirstI() and
+ * drvRegGetNextI(), with the system lock held.
  *
  * @section xhal_platforms Platforms
  * The source files of a driver are organized in layers:

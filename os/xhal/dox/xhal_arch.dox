@@ -157,7 +157,6 @@
  *     - opencnt: unsigned int
  *     - owner: void *
  *     - mutex: mutex_t *
- *     - id: unsigned int
  *     - name: const char *
  *     - regent: hal_regent_t
  *     - {abstract} __drv_start()
@@ -173,7 +172,8 @@
  *     + drvGetOwnerX()
  *     + drvSetOwnerX()
  *     + drvGetNameX()
- *     + drvSetNameX()
+ *     + drvRegister()
+ *     + drvUnregister()
  *     + drvLock()
  *     + drvUnlock()
  *   }
