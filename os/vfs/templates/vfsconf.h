@@ -264,6 +264,8 @@
 #define DRV_CFG_ROM_FILE_NODES_NUM          1
 #endif
 
+/** @} */
+
 #endif /* VFSCONF_H */
 
 /** @} */

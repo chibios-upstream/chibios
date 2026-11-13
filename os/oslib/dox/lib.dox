@@ -79,6 +79,11 @@
  */
 
 /**
+ * @defgroup oslib_memareas Memory Areas Checks
+ * @ingroup oslib_memory
+ */
+
+/**
  * @defgroup oslib_complex Complex Services
  * @ingroup oslib
  */

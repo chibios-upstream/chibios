@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    sb/vhal/sbvio_spi.c
+ * @file    sb/vio/sbvio_spi.c
  * @brief   ARM SandBox host Virtual SPI code.
  *
  * @addtogroup ARM_SANDBOX_HOST_VIO_SPI

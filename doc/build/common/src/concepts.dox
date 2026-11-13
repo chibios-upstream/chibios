@@ -19,110 +19,153 @@
 /**
  * @page concepts Kernel Concepts
  * @brief ChibiOS Kernel Concepts
- * This article applies to both RT and NIL kernels, many concepts are also
- * applicable to HAL (states and API classes).
+ * This page describes the concepts shared by the ChibiOS/RT and ChibiOS/NIL
+ * kernels. The API classes and the system states also apply to ChibiOS/HAL
+ * and XHAL, whose functions are documented with the same classes. Where the
+ * two kernels differ the difference is stated, NIL is functionally a subset
+ * of RT.
  *
  * - @ref naming
  * - @ref api_suffixes
- * - @ref interrupt_classes
  * - @ref system_states
- * - @ref scheduling
- * - @ref thread_states
- * - @ref priority
- * - @ref warea
+ * - @ref interrupt_classes
+ * - @ref thread_concepts
+ * - @ref time_concepts
+ * - @ref object_concepts
+ * - @ref instance_concepts
+ * - @ref error_detection
  * .
+ *
  * @section naming Naming Conventions
- * ChibiOS/RT and ChibiOS/NIL APIs are named following this convention:
- * @a ch\<group\>\<action\>\<suffix\>().
- * Examples of groups are: @a Sys, @a Sch, @a Time, @a VT, @a Thd, @a Sem, etc.
- *
- * @section api_suffixes API Name Suffixes
- * The suffix can be one of the following:
- * - <b>None</b>, APIs without any suffix can be invoked only from the user
- *   code in the <b>Normal</b> state unless differently specified. See
- *   @ref system_states.
- * - @anchor I-Class <b>"I"</b>, I-Class APIs are invokable only from the
- *   <b>I-Locked</b> or <b>S-Locked</b> states. See @ref system_states.
- *   This kind of functions never reschedule internally and are meant to be
- *   used from interrupt handlers. If used from thread level then
- *   an explicit reschedule operation could be necessary before leaving the
- *   containing critical zone.
- * - @anchor S-Class <b>"S"</b>, S-Class APIs are invokable only from the
- *   <b>S-Locked</b> state. See @ref system_states.
- *   This kind of functions can reschedule internally but are not guaranteed
- *   to do so necessarily. For example a wait function on a semaphore can
- *   reschedule or not reschedule depending on the semaphore state.
- * - @anchor X-Class <b>"X"</b>, X-Class APIs are invokable from any context.
+ * The kernel APIs are named following the convention
+ * <tt>ch\<Group\>\<Action\>\<Suffix\>()</tt>, the group identifies the module
+ * and the suffix identifies the API class, see @ref api_suffixes. For example
+ * chSemWaitTimeoutS() is the @a WaitTimeout action of the @a Sem module,
+ * an S-Class API.<br>
+ * Groups of the kernel modules:
+ * - @a Sys, system.
+ * - @a Sch, scheduler.
+ * - @a VT, virtual timers and system time.
+ * - @a Thd, threads.
+ * - @a Sem, @a Mtx, @a Cond, @a Evt, @a Msg, semaphores, mutexes,
+ *   condition variables, events and messages.
+ * - @a Reg, registry.
+ * - @a TM, time measurement.
+ * - @a Dbg, @a Sft, @a RFCU, debug, safety and runtime faults.
  * .
- * Examples: @p chThdCreateStatic(), @p chSemSignalI(), @p chThdCreateStatic().
- *
- * @section interrupt_classes Interrupt Classes
- * In ChibiOS/RT there are three logical interrupt classes:
- * - <b>Regular Interrupts</b>. Maskable interrupt sources that cannot
- *   preempt (small parts of) the kernel code and are thus able to invoke
- *   operating system APIs from within their handlers. The interrupt handlers
- *   belonging to this class must be written following some rules. See the
- *   system APIs group and the web article
- *   <a href="http://chibios.sourceforge.net/dokuwiki/doku.php?id=chibios:howtos:interrupts">
- *   How to write interrupt handlers</a>.
- * - <b>Fast Interrupts</b>. Maskable interrupt sources with the ability
- *   to preempt the kernel code and thus have a lower latency and are less
- *   subject to jitter, see the web article
- *   <a href="http://chibios.sourceforge.net/dokuwiki/doku.php?id=chibios:articles:jitter">
- *   Response Time and Jitter</a>.
- *   Such sources are not supported on all the architectures.<br>
- *   Fast interrupts are not allowed to invoke any operating system API from
- *   within their handlers. Fast interrupt sources may, however, pend a lower
- *   priority regular interrupt where access to the operating system is
- *   possible.
- * - <b>Non Maskable Interrupts</b>. Non maskable interrupt sources are
- *   totally out of the operating system control and have the lowest latency.
- *   Such sources are not supported on all the architectures.
+ * Groups of the OS library modules: @a BSem binary semaphores, @a MB
+ * mailboxes, @a Pipe pipes, @a Core, @a Heap, @a Pool and @a GuardedPool
+ * memory allocators, @a Fifo objects FIFOs, @a Factory objects factory,
+ * @a Delegate delegate threads and @a Job jobs queues.<br>
+ * Other naming rules:
+ * - Types are lowercase with a @p _t suffix, for example @p thread_t,
+ *   @p semaphore_t, @p msg_t, @p systime_t.
+ * - Kernel configuration options in @p chconf.h are named @p CH_CFG_xxx,
+ *   debug options @p CH_DBG_xxx.
+ * - Port layer definitions are named @p PORT_xxx.
+ * - Static initializers of objects are named @p xxx_DECL(), see
+ *   @ref object_concepts.
  * .
- * The mapping of the above logical classes into physical interrupts priorities
- * is, of course, port dependent. See the documentation of the various ports
- * for details.
+ *
+ * @section api_suffixes API Classes
+ * Each API belongs to a class stating the system states it can be invoked
+ * from, see @ref system_states. The class is encoded in the API name suffix:
+ * - <b>No suffix</b>, normal APIs can be invoked only from thread context,
+ *   in the <b>Normal</b> state, outside of any lock zone and not from
+ *   interrupt handlers. Examples: chSemWait(), chThdSleep().
+ * - @anchor I-Class <b>"I"</b>, I-Class APIs can be invoked only from the
+ *   <b>I-Locked</b> or <b>S-Locked</b> states, from a lock zone in a thread
+ *   or in an interrupt handler. These functions never reschedule, invoked
+ *   from a thread an explicit reschedule could be required before leaving
+ *   the lock zone, for example using chSchRescheduleS().<br>
+ *   Being in an interrupt handler is not enough: the handler must enter the
+ *   I-Locked state using chSysLockFromISR() before invoking any I-Class API.
+ *   Examples: chSemSignalI(), chEvtBroadcastFlagsI().
+ * - @anchor S-Class <b>"S"</b>, S-Class APIs can be invoked only from the
+ *   <b>S-Locked</b> state, from a lock zone in a thread. These functions can
+ *   reschedule internally but are not guaranteed to do so, for example a
+ *   wait on a semaphore reschedules only if the semaphore counter is not
+ *   positive. Examples: chSemWaitS(), chSchRescheduleS().
+ * - @anchor X-Class <b>"X"</b>, X-Class APIs can be invoked from any
+ *   context, fast interrupt handlers included, with or without a lock. They
+ *   cannot be invoked from non-maskable interrupt handlers. Examples:
+ *   chVTGetSystemTimeX(), chThdGetSelfX().
+ * .
+ *
+ * @subsection function_classes Function Classes
+ * The documentation of each function states its class in a
+ * <b>Function Class</b> paragraph, the classes beyond the four above are
+ * used for functions that do not follow the general rules:
+ * | Function class        | Meaning                                         |
+ * |-----------------------|-------------------------------------------------|
+ * | Normal API            | No suffix, see above.                           |
+ * | I-Class, S-Class, X-Class | See above.                                  |
+ * | Special function      | The requirements are stated in the notes of the function, for example chSysLock() and chSysHalt(). |
+ * | Module initializer    | Invoked once during the system initialization, for example the HAL drivers initializers invoked by halInit(). |
+ * | Object instance constructor | Initializes an object, see @ref object_concepts. |
+ * | Object instance finalizer   | Disposes an object, see @ref object_concepts. |
+ * | Interrupt handler     | Must not be invoked directly.                   |
+ * | Not an API            | Internal function, not meant for applications.  |
+ *
+ * @subsection state_checker State Checker
+ * When the option @p CH_DBG_SYSTEM_STATE_CHECK is enabled the kernel
+ * tracks the lock and interrupt nesting of each core and verifies the call
+ * protocol at runtime. A violation halts the system, see
+ * @ref error_detection, with one of the following reasons:
+ * | Reason | Detected violation                                              |
+ * |--------|-----------------------------------------------------------------|
+ * | SV#1   | chSysDisable() invoked from a lock zone or an interrupt handler. |
+ * | SV#2   | chSysSuspend() invoked from a lock zone or an interrupt handler. |
+ * | SV#3   | chSysEnable() invoked from a lock zone or an interrupt handler.  |
+ * | SV#4   | chSysLock() invoked from a lock zone or an interrupt handler.    |
+ * | SV#5   | chSysUnlock() invoked outside a lock zone or from an interrupt handler. |
+ * | SV#6   | chSysLockFromISR() invoked outside an interrupt handler or from a lock zone. |
+ * | SV#7   | chSysUnlockFromISR() invoked outside an interrupt handler or outside a lock zone. |
+ * | SV#8   | @p CH_IRQ_PROLOGUE() executed within a lock zone.               |
+ * | SV#9   | @p CH_IRQ_EPILOGUE() executed within a lock zone or without a matching prologue. |
+ * | SV#10  | An I-Class API invoked outside a lock zone.                      |
+ * | SV#11  | An S-Class API invoked outside a lock zone or from an interrupt handler. |
  *
  * @section system_states System States
- * When using ChibiOS/RT the system can be in one of the following logical
- * operating states:
- * - <b>Init</b>. When the system is in this state all the maskable
- *   interrupt sources are disabled. In this state it is not possible to use
- *   any system API except @p chSysInit(). This state is entered after a
- *   physical reset.
- * - <b>Normal</b>. All the interrupt sources are enabled and the system APIs
- *   are accessible, threads are running.
- * - <b>Suspended</b>. In this state the fast interrupt sources are enabled but
- *   the regular interrupt sources are not. In this state it is not possible
- *   to use any system API except @p chSysDisable() or @p chSysEnable() in
- *   order to change state.
- * - <b>Disabled</b>. When the system is in this state both the maskable
- *   regular and fast interrupt sources are disabled. In this state it is not
- *   possible to use any system API except @p chSysSuspend() or
- *   @p chSysEnable() in order to change state.
- * - <b>Sleep</b>. Architecture-dependent low power mode, the idle thread
- *   goes in this state and waits for interrupts, after servicing the interrupt
- *   the Normal state is restored and the scheduler has a chance to reschedule.
- * - <b>S-Locked</b>. Kernel locked and regular interrupt sources disabled.
- *   Fast interrupt sources are enabled. @ref S-Class and @ref I-Class APIs are
- *   invokable in this state.
- * - <b>I-Locked</b>. Kernel locked and regular interrupt sources disabled.
- *   @ref I-Class APIs are invokable from this state.
- * - <b>Serving Regular Interrupt</b>. No system APIs are accessible but it is
- *   possible to switch to the I-Locked state using @p chSysLockFromIsr() and
- *   then invoke any @ref I-Class API. Interrupt handlers can be preemptable on
- *   some architectures thus is important to switch to I-Locked state before
- *   invoking system APIs.
- * - <b>Serving Fast Interrupt</b>. System APIs are not accessible.
- * - <b>Serving Non-Maskable Interrupt</b>. System APIs are not accessible.
- * - <b>Halted</b>. All interrupt sources are disabled and system stopped into
- *   an infinite loop. This state can be reached if the debug mode is activated
- *   <b>and</b> an error is detected <b>or</b> after explicitly invoking
- *   @p chSysHalt().
+ * The system can be in one of the following logical states:
+ * - <b>Init</b>. The state after a reset, the maskable interrupt sources
+ *   are disabled. Only the initialization functions, halInit() and
+ *   chSysInit(), can be invoked.
+ * - <b>Normal</b>. All the interrupt sources are enabled, threads are
+ *   running. Normal APIs and X-Class APIs can be invoked.
+ * - <b>Suspended</b>. The regular interrupt sources are disabled, the fast
+ *   interrupt sources are enabled. Only X-Class APIs and the state change
+ *   functions chSysDisable() and chSysEnable() can be invoked.
+ * - <b>Disabled</b>. Both the regular and the fast interrupt sources are
+ *   disabled. Only X-Class APIs and the state change functions
+ *   chSysSuspend() and chSysEnable() can be invoked.
+ * - <b>Sleep</b>. Architecture-dependent low power mode entered by the idle
+ *   thread while waiting for interrupts. After an interrupt is served the
+ *   Normal state is restored and the scheduler can reschedule.
+ * - <b>S-Locked</b>. A thread is in a lock zone, entered with chSysLock().
+ *   The regular interrupt sources are disabled, the fast interrupt sources
+ *   are enabled. S-Class, I-Class and X-Class APIs can be invoked.
+ * - <b>I-Locked</b>. An interrupt handler is in a lock zone, entered with
+ *   chSysLockFromISR(). I-Class and X-Class APIs can be invoked.
+ * - <b>Serving Regular Interrupt</b> (SRI). An interrupt handler of the
+ *   regular class is executing outside a lock zone. Only X-Class APIs can
+ *   be invoked, the handler enters the I-Locked state using
+ *   chSysLockFromISR() in order to invoke I-Class APIs. Interrupt handlers
+ *   can be preempted by higher priority interrupts on some architectures.
+ * - <b>Serving Fast Interrupt</b> (SFI). Only X-Class APIs can be invoked.
+ * - <b>Serving Non-Maskable Interrupt</b> (SNMI). No APIs can be invoked.
+ * - <b>Halted</b>. All the interrupt sources are disabled and the system is
+ *   stopped. This state is reached when an error is detected or after
+ *   invoking chSysHalt(), see @ref error_detection.
  * .
- * Note that the above states are just <b>Logical States</b> that may have no
- * real associated machine state on some architectures. The following diagram
- * shows the possible transitions between the states:
+ * The above states are logical states, they may have no associated
+ * machine state on some architectures. Code that does not know the state it
+ * runs in can use chSysGetStatusAndLockX() and chSysRestoreStatusX() in
+ * order to enter and leave a lock zone, on ports supporting them.<br>
+ * On multi-core systems each core has its own state. With
+ * @p CH_CFG_SMP_MODE enabled the lock zone also excludes the other cores,
+ * see @ref instance_concepts. The following diagram shows the transitions
+ * between the states:
  *
  * @if LATEX_PDF
  * @dot
@@ -137,7 +180,6 @@
     disab [label="Disabled"];
     slock [label="S-Locked"];
     ilock [label="I-Locked"];
-    slock [label="S-Locked"];
     sleep [label="Sleep"];
     sri [label="SRI"];
     init -> norm [label="chSysInit()"];
@@ -151,9 +193,9 @@
     disab -> susp [label="chSysSuspend()"];
     slock -> ilock [label="Context Switch", dir="both"];
     norm -> sri [label="Regular IRQ", style="dotted"];
-    sri -> norm [label="Regular IRQ return", fontname=Helvetica, fontsize=8];
-    sri -> ilock [label="chSysLockFromIsr()", constraint=false];
-    ilock -> sri [label="chSysUnlockFromIsr()", fontsize=8];
+    sri -> norm [label="Regular IRQ return"];
+    sri -> ilock [label="chSysLockFromISR()", constraint=false];
+    ilock -> sri [label="chSysUnlockFromISR()"];
     norm -> sleep [label="Idle Thread"];
     sleep -> sri [label="Regular IRQ", style="dotted"];
   }
@@ -170,7 +212,6 @@
     disab [label="Disabled"];
     slock [label="S-Locked"];
     ilock [label="I-Locked"];
-    slock [label="S-Locked"];
     sleep [label="Sleep"];
     sri [label="SRI"];
     init -> norm [label="chSysInit()"];
@@ -184,16 +225,16 @@
     disab -> susp [label="chSysSuspend()"];
     slock -> ilock [label="Context Switch", dir="both"];
     norm -> sri [label="Regular IRQ", style="dotted"];
-    sri -> norm [label="Regular IRQ return", fontname=Helvetica, fontsize=8];
-    sri -> ilock [label="chSysLockFromIsr()", constraint=false];
-    ilock -> sri [label="chSysUnlockFromIsr()", fontsize=8];
+    sri -> norm [label="Regular IRQ return"];
+    sri -> ilock [label="chSysLockFromISR()", constraint=false];
+    ilock -> sri [label="chSysUnlockFromISR()"];
     norm -> sleep [label="Idle Thread"];
     sleep -> sri [label="Regular IRQ", style="dotted"];
   }
  * @enddot
  * @endif
- * Note, the <b>SFI</b>, <b>Halted</b> and <b>SNMI</b> states were not shown
- * because those are reachable from most states:
+ * The <b>SFI</b>, <b>Halted</b> and <b>SNMI</b> states are not shown above
+ * because they are reachable from most states:
  *
  * @dot
   digraph example {
@@ -215,203 +256,480 @@
     edge [fontname=Helvetica, fontsize=8];
     any2 [label="Any State"];
     halt [label="Halted"];
-    SNMI [label="SNMI"];
+    snmi [label="SNMI"];
     any2 -> halt [label="chSysHalt()"];
-    any2 -> SNMI [label="Synchronous NMI"];
-    any2 -> SNMI [label="Asynchronous NMI", style="dotted"];
-    SNMI -> any2 [label="NMI return"];
-    halt -> SNMI [label="Asynchronous NMI", style="dotted"];
-    SNMI -> halt [label="NMI return"];
+    any2 -> snmi [label="Synchronous NMI"];
+    any2 -> snmi [label="Asynchronous NMI", style="dotted"];
+    snmi -> any2 [label="NMI return"];
+    halt -> snmi [label="Asynchronous NMI", style="dotted"];
+    snmi -> halt [label="NMI return"];
   }
  * @enddot
- * @attention * except: <b>Init</b>, <b>Halt</b>, <b>SNMI</b>, <b>Disabled</b>.
+ * @attention * except: <b>Init</b>, <b>Halted</b>, <b>SNMI</b>, <b>Disabled</b>.
  *
- * @section scheduling Scheduling
- * The strategy is very simple the currently ready thread with the highest
- * priority is executed. If more than one thread with equal priority are
- * eligible for execution then they are executed in a round-robin way, the
- * CPU time slice constant is configurable. The ready list is a double linked
- * list of threads ordered by priority.<br><br>
+ * @section interrupt_classes Interrupt Classes
+ * There are three logical interrupt classes:
+ * - <b>Regular Interrupts</b>. Maskable interrupt sources that cannot
+ *   preempt the kernel lock zones and can therefore invoke I-Class APIs
+ *   from within their handlers, after entering the I-Locked state.
+ * - <b>Fast Interrupts</b>. Maskable interrupt sources able to preempt the
+ *   kernel lock zones, they have a lower latency and are less subject to
+ *   jitter. Fast interrupt handlers can only invoke X-Class APIs, they can
+ *   however trigger a lower priority regular interrupt where the rest of the
+ *   work can be done. Fast interrupts are not supported on all the
+ *   architectures.
+ * - <b>Non-Maskable Interrupts</b>. Interrupt sources out of the operating
+ *   system control, with the lowest latency. Their handlers cannot invoke
+ *   any API, X-Class included. Not supported on all the architectures.
+ * .
+ * The mapping of the logical classes on the physical interrupt priorities is
+ * port-dependent, see the documentation of the port in use.
+ *
+ * @subsection irq_handlers Interrupt Handlers
+ * Regular interrupt handlers are declared with @p CH_IRQ_HANDLER() and
+ * bracketed by @p CH_IRQ_PROLOGUE() and @p CH_IRQ_EPILOGUE(), which also
+ * give the kernel a chance to reschedule on exit. I-Class APIs are invoked
+ * within a lock zone:
+ * @code{.c}
+CH_IRQ_HANDLER(myIRQHandler) {
+
+  CH_IRQ_PROLOGUE();
+
+  /* Interrupt handling code, it can be preempted on architectures
+     supporting nested interrupts.*/
+
+  chSysLockFromISR();
+  /* Invocation of I-Class APIs, this zone is never preempted by regular
+     interrupts.*/
+  chSemSignalI(&mysem);
+  chSysUnlockFromISR();
+
+  /* More interrupt handling code.*/
+
+  CH_IRQ_EPILOGUE();
+}
+ * @endcode
+ * Fast interrupt handlers are declared with @p CH_FAST_IRQ_HANDLER(), they
+ * have no prologue or epilogue and only X-Class APIs can be invoked:
+ * @code{.c}
+CH_FAST_IRQ_HANDLER(myFastIRQHandler) {
+
+  /* Fast interrupt handling code, no lock zones and no APIs except X-Class
+     ones.*/
+}
+ * @endcode
+ * Callbacks invoked by the kernel from interrupt context, for example the
+ * virtual timers callbacks, and the HAL driver callbacks follow the same
+ * rule: they run outside the lock zone and must use chSysLockFromISR() and
+ * chSysUnlockFromISR() around I-Class APIs, unless their documentation
+ * states otherwise.
+ *
+ * @section thread_concepts Threads
+ * A thread is an independent flow of execution: a function with its own
+ * stack, processor context and state. Threads are represented by
+ * @p thread_t structures and exist in the following forms:
+ * - <b>Created</b> threads, the @p thread_t structure is allocated inside
+ *   the thread working area, see @ref warea. Functions: chThdCreateStatic(),
+ *   chThdCreate(), chThdCreateSuspended(), chThdCreateFromHeap(),
+ *   chThdCreateFromMemoryPool().
+ * - <b>Spawned</b> threads, the @p thread_t structure is provided
+ *   separately from the stack. Functions: chThdSpawnRunning(),
+ *   chThdSpawnSuspended(), chThdSpawnFromHeap(),
+ *   chThdSpawnFromMemoryPool().
+ * .
+ * A thread terminates by returning from its function or by invoking
+ * chThdExit(), another thread can wait for its termination and retrieve its
+ * exit code using chThdWait(). The spawn functions and the dynamic threads
+ * are RT only, NIL threads are declared in a static threads table or created
+ * with chThdCreate().
+ *
+ * @subsection thread_states Thread States
+ * The following diagram shows the main thread state transitions in RT:
+ *
  * @if LATEX_PDF
  * @dot
   digraph example {
     size="5, 7";
     rankdir="LR";
-
-    node [shape=square, fontname=Helvetica, fontsize=8,
-          fixedsize="true", width="0.6", height="0.5"];
+    node [shape=circle, fontname=Helvetica, fontsize=8, fixedsize="true", width="0.9", height="0.9"];
     edge [fontname=Helvetica, fontsize=8];
-
-    subgraph cluster_running {
-      node [shape=square, fontname=Helvetica, fontsize=8,
-            fixedsize="true", width="0.6", height="0.5"];
-      currp [label="'currp'\npointer", style="bold"];
-      T4 [label="Tuser(4)\nprio=100"];
-      label = "Currently Running Thread";
-      penwidth = 0;
-    }
-
-    subgraph cluster_rlist {
-      node [shape=square, fontname=Helvetica, fontsize=8,
-            fixedsize="true", width="0.6", height="0.5"];
-      rh [label="ready list\nheader\nprio=0", style="bold"];
-      Ti [label="Tidle\nprio=1"];
-      Tm [label="Tmain\nprio=64"];
-      T1 [label="Tuser(1)\nprio=32"];
-      T2 [label="Tuser(2)\nprio=32"];
-      T3 [label="Tuser(3)\nprio=80"];
-      label = "Threads Ready for Execution";
-      penwidth = 0;
-    }
-
-    currp -> T4
-    rh -> Ti -> T1 -> T2 -> Tm -> T3 -> rh [label="p_next"];
-    rh -> T3 -> Tm -> T2 -> T1 -> Ti -> rh [label="p_prev"];
+    start [label="Start", style="bold"];
+    wtstart [label="WTSTART"];
+    ready [label="READY"];
+    current [label="CURRENT"];
+    suspended [label="SUSPENDED"];
+    sleeping [label="SLEEPING"];
+    waiting [label="Waiting\non object"];
+    final [label="FINAL", style="bold"];
+    start -> wtstart [label="create or spawn\nsuspended"];
+    start -> ready [label="create or spawn"];
+    wtstart -> ready [label="chThdStart()"];
+    ready -> current [label="dispatch"];
+    current -> ready [label="preemption\nor yield"];
+    current -> sleeping [label="chThdSleep()"];
+    sleeping -> ready [label="time elapsed"];
+    current -> suspended [label="chThdSuspendS()"];
+    suspended -> ready [label="chThdResumeI()"];
+    current -> waiting [label="wait"];
+    waiting -> ready [label="signal, reset\nor timeout"];
+    current -> final [label="chThdExit()"];
   }
  * @enddot
  * @else
  * @dot
   digraph example {
     rankdir="LR";
-
-    node [shape=square, fontname=Helvetica, fontsize=8,
-          fixedsize="true", width="0.6", height="0.5"];
+    node [shape=circle, fontname=Helvetica, fontsize=8, fixedsize="true", width="0.9", height="0.9"];
     edge [fontname=Helvetica, fontsize=8];
-
-    subgraph cluster_running {
-      node [shape=square, fontname=Helvetica, fontsize=8,
-            fixedsize="true", width="0.6", height="0.5"];
-      currp [label="'currp'\npointer", style="bold"];
-      T4 [label="Tuser(4)\nprio=100"];
-      label = "Currently Running Thread";
-      penwidth = 0;
-    }
-
-    subgraph cluster_rlist {
-      node [shape=square, fontname=Helvetica, fontsize=8,
-            fixedsize="true", width="0.6", height="0.5"];
-      rh [label="ready list\nheader\nprio=0", style="bold"];
-      Ti [label="Tidle\nprio=1"];
-      Tm [label="Tmain\nprio=64"];
-      T1 [label="Tuser(1)\nprio=32"];
-      T2 [label="Tuser(2)\nprio=32"];
-      T3 [label="Tuser(3)\nprio=80"];
-      label = "Threads Ready for Execution";
-      penwidth = 0;
-    }
-
-    currp -> T4
-    rh -> Ti -> T1 -> T2 -> Tm -> T3 -> rh [label="p_next"];
-    rh -> T3 -> Tm -> T2 -> T1 -> Ti -> rh [label="p_prev"];
+    start [label="Start", style="bold"];
+    wtstart [label="WTSTART"];
+    ready [label="READY"];
+    current [label="CURRENT"];
+    suspended [label="SUSPENDED"];
+    sleeping [label="SLEEPING"];
+    waiting [label="Waiting\non object"];
+    final [label="FINAL", style="bold"];
+    start -> wtstart [label="create or spawn\nsuspended"];
+    start -> ready [label="create or spawn"];
+    wtstart -> ready [label="chThdStart()"];
+    ready -> current [label="dispatch"];
+    current -> ready [label="preemption\nor yield"];
+    current -> sleeping [label="chThdSleep()"];
+    sleeping -> ready [label="time elapsed"];
+    current -> suspended [label="chThdSuspendS()"];
+    suspended -> ready [label="chThdResumeI()"];
+    current -> waiting [label="wait"];
+    waiting -> ready [label="signal, reset\nor timeout"];
+    current -> final [label="chThdExit()"];
   }
  * @enddot
  * @endif
- * <br>
- * Note that the currently running thread is not in the ready list, the list
- * only contains the threads ready to be executed but still actually waiting.
  *
- * @section thread_states Thread States
- * The image shows how threads can change their state in ChibiOS/RT.<br>
+ * The states are defined in @p chschd.h as @p CH_STATE_xxx:
+ * | State     | Meaning                                                     |
+ * |-----------|-------------------------------------------------------------|
+ * | READY     | Ready to run, in the ready list.                            |
+ * | CURRENT   | Running.                                                    |
+ * | WTSTART   | Created or spawned in suspended state, waiting for chThdStart(). |
+ * | SUSPENDED | Suspended on a thread reference, see @ref object_concepts.  |
+ * | QUEUED    | Waiting on a threads queue.                                 |
+ * | WTSEM     | Waiting on a semaphore.                                     |
+ * | WTMTX     | Waiting on a mutex.                                         |
+ * | WTCOND    | Waiting on a condition variable.                            |
+ * | SLEEPING  | Sleeping for a time interval or until an absolute time.     |
+ * | WTEXIT    | Waiting for the termination of another thread.              |
+ * | WTOREVT   | Waiting for any of a set of events.                         |
+ * | WTANDEVT  | Waiting for all the events of a set.                        |
+ * | SNDMSGQ   | Sending a message, queued on the receiver.                  |
+ * | SNDMSG    | Legacy state, currently unused.                             |
+ * | WTMSG     | Waiting for a message.                                      |
+ * | FINAL     | Terminated.                                                 |
+ *
+ * NIL threads have a subset of these states, defined in @p ch.h as
+ * @p NIL_STATE_xxx.
+ *
+ * @subsection warea Thread Working Area
+ * Each thread has a working area holding its stack. The working area layout
+ * depends on the thread creation function:
+ * - The <b>create</b> functions take a working area declared with
+ *   @p THD_WORKING_AREA(), whose size @p THD_WORKING_AREA_SIZE() includes the
+ *   @p thread_t structure. The structure is placed at the top of the working
+ *   area and the stack grows downward below it.
+ * - The <b>spawn</b> functions take a stack area declared with
+ *   @p THD_STACK(), whose size @p THD_STACK_SIZE() does not include the
+ *   @p thread_t structure. The caller provides the structure, which can be
+ *   in a different memory, for example a coherent memory on multi-core
+ *   systems with non-coherent caches. The chThdSpawnFromHeap() and
+ *   chThdSpawnFromMemoryPool() functions allocate it from a memory pool.
+ * .
+ *
  * @if LATEX_PDF
  * @dot
   digraph example {
-    rankdir="LR";
-    node [shape=circle, fontname=Helvetica, fontsize=8, fixedsize="true", width="0.75", height="0.75"];
     size="5, 7";
-
+    rankdir="LR";
+    node [shape=plaintext, fontname=Helvetica, fontsize=8];
     edge [fontname=Helvetica, fontsize=8];
-    start [label="Start", style="bold"];
-
-    run [label="Running"];
-    ready [label="Ready"];
-    suspend [label="Suspended"];
-    sleep [label="Sleeping"];
-    stop [label="Stop", style="bold"];
-
-    start -> suspend [label="\n chThdCreateI()", constraint=false, dir=back];
-    start -> run [label="chThdCreate()"];
-    start -> ready [label="chThdCreate()"];
-    run -> ready [label="Reschedule", dir="both"];
-    suspend -> run [label="chThdResume()"];
-    suspend -> ready [label="chThdResume()"];
-    run -> sleep [label="chSchGoSleepS()"];
-    sleep -> run [label="chSchWakepuS()"];
-    sleep -> ready [label="chSchWakepuS()"];
-    run -> stop [label="chThdExit()"];
+    subgraph cluster_create {
+      label="Created thread";
+      fontname=Helvetica;
+      fontsize=9;
+      style="rounded,dashed";
+      color="#999999";
+      wacreate [label=<
+        <table border="0" cellborder="1" cellspacing="0" cellpadding="6">
+          <tr><td border="0" align="right">working area end</td><td port="tp" bgcolor="#e8e8e8">thread_t</td></tr>
+          <tr><td border="0"></td><td>stack in use<br/>(grows downward)</td></tr>
+          <tr><td border="0"></td><td port="ctx">saved context<br/>(while not running)</td></tr>
+          <tr><td border="0"></td><td height="48">free stack</td></tr>
+          <tr><td border="0" align="right">working area base</td><td>guard area<br/>(port option)</td></tr>
+        </table>>];
+      wacreate:tp:e -> wacreate:ctx:e [xlabel="stack\npointer"];
+      spacer [label="", width=0.6, style=invis];
+      wacreate -> spacer [style=invis];
+    }
+    subgraph cluster_spawn {
+      label="Spawned thread";
+      fontname=Helvetica;
+      fontsize=9;
+      style="rounded,dashed";
+      color="#999999";
+      tdspawn [label=<
+        <table border="0" cellborder="1" cellspacing="0" cellpadding="6">
+          <tr><td bgcolor="#e8e8e8">thread_t</td></tr>
+        </table>>];
+      waspawn [label=<
+        <table border="0" cellborder="1" cellspacing="0" cellpadding="6">
+          <tr><td>stack in use<br/>(grows downward)</td><td border="0" align="left">stack end</td></tr>
+          <tr><td port="ctx">saved context<br/>(while not running)</td><td border="0"></td></tr>
+          <tr><td height="48">free stack</td><td border="0"></td></tr>
+          <tr><td>guard area<br/>(port option)</td><td border="0" align="left">stack base</td></tr>
+        </table>>];
+      tdspawn -> waspawn:ctx:w [label="stack\npointer"];
+    }
+    spacer -> tdspawn [style=invis];
   }
  * @enddot
  * @else
  * @dot
   digraph example {
     rankdir="LR";
-    node [shape=circle, fontname=Helvetica, fontsize=8, fixedsize="true", width="0.75", height="0.75"];
-
+    node [shape=plaintext, fontname=Helvetica, fontsize=8];
     edge [fontname=Helvetica, fontsize=8];
-    start [label="Start", style="bold"];
-
-    run [label="Running"];
-    ready [label="Ready"];
-    suspend [label="Suspended"];
-    sleep [label="Sleeping"];
-    stop [label="Stop", style="bold"];
-
-    start -> suspend [label="\n chThdCreateI()", constraint=false, dir=back];
-    start -> run [label="chThdCreate()"];
-    start -> ready [label="chThdCreate()"];
-    run -> ready [label="Reschedule", dir="both"];
-    suspend -> run [label="chThdResume()"];
-    suspend -> ready [label="chThdResume()"];
-    run -> sleep [label="chSchGoSleepS()"];
-    sleep -> run [label="chSchWakepuS()"];
-    sleep -> ready [label="chSchWakepuS()"];
-    run -> stop [label="chThdExit()"];
+    subgraph cluster_create {
+      label="Created thread";
+      fontname=Helvetica;
+      fontsize=9;
+      style="rounded,dashed";
+      color="#999999";
+      wacreate [label=<
+        <table border="0" cellborder="1" cellspacing="0" cellpadding="6">
+          <tr><td border="0" align="right">working area end</td><td port="tp" bgcolor="#e8e8e8">thread_t</td></tr>
+          <tr><td border="0"></td><td>stack in use<br/>(grows downward)</td></tr>
+          <tr><td border="0"></td><td port="ctx">saved context<br/>(while not running)</td></tr>
+          <tr><td border="0"></td><td height="48">free stack</td></tr>
+          <tr><td border="0" align="right">working area base</td><td>guard area<br/>(port option)</td></tr>
+        </table>>];
+      wacreate:tp:e -> wacreate:ctx:e [xlabel="stack\npointer"];
+      spacer [label="", width=0.6, style=invis];
+      wacreate -> spacer [style=invis];
+    }
+    subgraph cluster_spawn {
+      label="Spawned thread";
+      fontname=Helvetica;
+      fontsize=9;
+      style="rounded,dashed";
+      color="#999999";
+      tdspawn [label=<
+        <table border="0" cellborder="1" cellspacing="0" cellpadding="6">
+          <tr><td bgcolor="#e8e8e8">thread_t</td></tr>
+        </table>>];
+      waspawn [label=<
+        <table border="0" cellborder="1" cellspacing="0" cellpadding="6">
+          <tr><td>stack in use<br/>(grows downward)</td><td border="0" align="left">stack end</td></tr>
+          <tr><td port="ctx">saved context<br/>(while not running)</td><td border="0"></td></tr>
+          <tr><td height="48">free stack</td><td border="0"></td></tr>
+          <tr><td>guard area<br/>(port option)</td><td border="0" align="left">stack base</td></tr>
+        </table>>];
+      tdspawn -> waspawn:ctx:w [label="stack\npointer"];
+    }
+    spacer -> tdspawn [style=invis];
   }
  * @enddot
  * @endif
  *
- * @section priority Priority Levels
- * Priorities in ChibiOS/RT are a contiguous numerical range but the initial
- * and final values are not enforced.<br>
- * The following table describes the various priority boundaries (from lowest
- *   to highest):
- * - @p IDLEPRIO, this is the lowest priority level and is reserved for the
- *   idle thread, no other threads should share this priority level. This is
- *   the lowest numerical value of the priorities space.
- * - @p LOWPRIO, the lowest priority level that can be assigned to an user
- *   thread.
- * - @p NORMALPRIO, this is the central priority level for user threads. It is
- *   advisable to assign priorities to threads as values relative to
- *   @p NORMALPRIO, as example NORMALPRIO-1 or NORMALPRIO+4, this ensures the
- *   portability of code should the numerical range change in future
- *   implementations.
- * - @p HIGHPRIO, the highest priority level that can be assigned to an user
- *   thread.
- * - @p ABSPRO, absolute maximum software priority level, it can be higher than
- *   @p HIGHPRIO but the numerical values above @p HIGHPRIO up to @p ABSPRIO
- *   (inclusive) are reserved. This is the highest numerical value of the
- *   priorities space.
- * .
- * @section warea Thread Working Area
- * Each thread has its own stack, a Thread structure and some preemption
- * areas. All the structures are allocated into a "Thread Working Area",
- * a thread private heap, usually statically declared in your code.
- * Threads do not use any memory outside the allocated working area
- * except when accessing static shared data.<br><br>
+ * The parameter @p n of the size macros is the stack space required by the
+ * thread code. The port adds the space for the saved context, the stack
+ * frames of interrupts served while the thread is running and, on some
+ * ports, a guard area at the stack base used to detect stack overflows.
+ * The context is saved on the thread stack when the thread is switched
+ * out.<br>
+ * The option @p CH_DBG_FILL_THREADS fills the stack with a known pattern
+ * at creation, in order to measure the stack usage, the option
+ * @p CH_DBG_ENABLE_STACK_CHECK enables a port-dependent stack overflow
+ * check.
+ *
+ * @subsection priority Priority Levels
+ * In RT priorities are numerical values of type @p tprio_t, higher values
+ * mean higher priorities:
+ * | Constant     | Value | Meaning                                          |
+ * |--------------|-------|--------------------------------------------------|
+ * | @p IDLEPRIO  | 1     | Reserved to the idle thread.                     |
+ * | @p LOWPRIO   | 2     | Lowest priority of user threads.                 |
+ * | @p NORMALPRIO | 128  | Central priority of user threads, the main thread runs at this priority after chSysInit(). |
+ * | @p HIGHPRIO  | 255   | Highest priority of user threads.                |
+ *
+ * It is advisable to assign priorities relative to @p NORMALPRIO, for
+ * example <tt>NORMALPRIO + 4</tt>. Several threads can share the same
+ * priority. A thread changes its own priority with chThdSetPriority(),
+ * mutexes implement the priority inheritance and can raise the priority of
+ * the owner thread temporarily.<br>
+ * In NIL each thread has its own priority, specified in its descriptor: the
+ * priorities range from 0, the highest, to <tt>CH_CFG_MAX_THREADS - 1</tt>
+ * and two threads cannot have the same priority. The idle thread is
+ * implicitly the lowest priority one.
+ *
+ * @subsection scheduling Scheduling
+ * The scheduler always executes the ready thread with the highest
+ * priority, the kernel is fully preemptive. In RT the ready threads wait in
+ * a ready list ordered by priority, the running thread is not in the list.
+ * Threads with the same priority are executed in a cooperative way unless
+ * @p CH_CFG_TIME_QUANTUM is greater than zero, in which case the threads
+ * with the same priority are executed in round-robin. The round-robin
+ * requires the periodic tick mode, see @ref time_concepts.<br>
+ * On multi-core systems each core runs its own scheduler with its own ready
+ * list, see @ref instance_concepts.
+ *
  * @if LATEX_PDF
- * @image latex workspace.eps
+ * @dot
+  digraph example {
+    size="5, 7";
+    rankdir="LR";
+    fontname=Helvetica;
+    fontsize=9;
+    node [shape=square, fontname=Helvetica, fontsize=8, fixedsize="true", width="0.6", height="0.5"];
+    edge [fontname=Helvetica, fontsize=8];
+    subgraph cluster_running {
+      label="Running Thread";
+      penwidth=0;
+      current [label="current\npointer", style="bold"];
+      T4 [label="Tuser(4)\nprio=200"];
+    }
+    subgraph cluster_rlist {
+      label="Threads Ready for Execution";
+      penwidth=0;
+      rh [label="ready list\nheader", style="bold"];
+      Ti [label="Tidle\nprio=1"];
+      T1 [label="Tuser(1)\nprio=64"];
+      T2 [label="Tuser(2)\nprio=64"];
+      Tm [label="Tmain\nprio=128"];
+      T3 [label="Tuser(3)\nprio=160"];
+    }
+    current -> T4;
+    rh -> T3 -> Tm -> T2 -> T1 -> Ti -> rh [label="next"];
+    rh -> Ti -> T1 -> T2 -> Tm -> T3 -> rh [label="prev"];
+  }
+ * @enddot
  * @else
- * @image html workspace.png
+ * @dot
+  digraph example {
+    rankdir="LR";
+    fontname=Helvetica;
+    fontsize=9;
+    node [shape=square, fontname=Helvetica, fontsize=8, fixedsize="true", width="0.6", height="0.5"];
+    edge [fontname=Helvetica, fontsize=8];
+    subgraph cluster_running {
+      label="Running Thread";
+      penwidth=0;
+      current [label="current\npointer", style="bold"];
+      T4 [label="Tuser(4)\nprio=200"];
+    }
+    subgraph cluster_rlist {
+      label="Threads Ready for Execution";
+      penwidth=0;
+      rh [label="ready list\nheader", style="bold"];
+      Ti [label="Tidle\nprio=1"];
+      T1 [label="Tuser(1)\nprio=64"];
+      T2 [label="Tuser(2)\nprio=64"];
+      Tm [label="Tmain\nprio=128"];
+      T3 [label="Tuser(3)\nprio=160"];
+    }
+    current -> T4;
+    rh -> T3 -> Tm -> T2 -> T1 -> Ti -> rh [label="next"];
+    rh -> Ti -> T1 -> T2 -> Tm -> T3 -> rh [label="prev"];
+  }
+ * @enddot
  * @endif
- * <br>
- * Note that the preemption area is only present when the thread is not
- * running (switched out), the context switching is done by pushing the
- * registers on the stack of the switched-out thread and popping the registers
- * of the switched-in thread from its stack.
- * The preemption area can be divided in up to three structures:
- * - External Context.
- * - Interrupt Stack.
- * - Internal Context.
+ *
+ * In NIL the scheduler executes the ready thread with the lowest priority
+ * number, there is no round-robin because priorities are unique.
+ *
+ * @section time_concepts System Time
+ * The system time is a counter of type @p systime_t incremented at the
+ * frequency @p CH_CFG_ST_FREQUENCY, its width is selected by
+ * @p CH_CFG_ST_RESOLUTION. The counter wraps around, time values are
+ * compared using chTimeDiffX() and chTimeIsInRangeX() rather than directly.
+ * Time intervals are of type @p sysinterval_t and are specified using the
+ * conversion macros, for example <tt>TIME_MS2I(100)</tt>.<br>
+ * The system time is implemented in one of two modes:
+ * - <b>Periodic tick</b>, when @p CH_CFG_ST_TIMEDELTA is zero. A periodic
+ *   interrupt increments the counter.
+ * - <b>Tick-less</b>, when @p CH_CFG_ST_TIMEDELTA is greater than zero. The
+ *   counter is a free-running hardware timer and an alarm is programmed only
+ *   for the next timed event, @p CH_CFG_ST_TIMEDELTA is the minimum interval
+ *   that can be programmed. This mode reduces the interrupts and the power
+ *   consumption, the round-robin is not supported.
  * .
- * See the port documentation for details, the area may change on
- * the various ports and some structures may not be present (or be zero-sized).
+ * Functions waiting with a timeout take a @p sysinterval_t parameter with
+ * two special values: @p TIME_IMMEDIATE, the function does not wait and
+ * returns immediately, and @p TIME_INFINITE, the function waits without a
+ * timeout. A wait that times out returns @p MSG_TIMEOUT.<br>
+ * RT also provides 64-bit monotonic time stamps of type @p systimestamp_t,
+ * enabled by @p CH_CFG_USE_TIMESTAMP, and the virtual timers, one-shot or
+ * continuous timers whose callbacks are invoked from the system timer
+ * interrupt, see @ref irq_handlers.
+ *
+ * @section object_concepts Kernel Objects
+ * Kernel objects, for example semaphores, mutexes and virtual timers, are
+ * structures provided by the application, the kernel does not allocate
+ * memory for them. The OS library provides memory allocators and an
+ * objects factory for dynamic objects.
+ * - Objects are initialized at runtime using their constructor, for example
+ *   chSemObjectInit(), or statically using their initializer macro, for
+ *   example @p SEMAPHORE_DECL().
+ * - Objects that are no longer used can be disposed using their finalizer,
+ *   for example chSemObjectDispose(). Disposing an object does not release
+ *   memory, it checks that the object is in a state compatible with
+ *   stopping its use. With @p CH_CFG_HARDENING_LEVEL greater than zero the
+ *   object is also cleared, so that further uses fail early.
+ * - Most wait functions return a message of type @p msg_t, @p MSG_OK on a
+ *   normal wakeup, @p MSG_TIMEOUT when the timeout expired and
+ *   @p MSG_RESET when the object was reset while waiting, other values are
+ *   object-specific.
+ * - A thread reference, of type @p thread_reference_t, allows a thread to
+ *   suspend itself waiting for an event, chThdSuspendS() or
+ *   chThdSuspendTimeoutS(), and another thread or an interrupt handler to
+ *   resume it with a message, chThdResumeI(). It is a lightweight way to
+ *   synchronize a thread with an interrupt handler.
+ * .
+ *
+ * @section instance_concepts OS Instances and Multi-Core
+ * In RT the kernel state of each core is an OS instance, of type
+ * @p os_instance_t, with its own ready list, virtual timers list and idle
+ * thread. A single-core system has one instance. Each thread belongs to the
+ * instance specified when it is created and is executed only by the core
+ * of that instance.<br>
+ * The option @p CH_CFG_SMP_MODE selects how the instances interact:
+ * - <b>Disabled</b>, decoupled multi-core: each instance is a separate
+ *   system, threads of different instances do not share kernel objects.
+ * - <b>Enabled</b>, SMP: threads of all the instances can interact using
+ *   the same kernel objects. The kernel lock zone also excludes the other
+ *   cores. On systems with non-coherent caches the shared objects must be
+ *   in coherent memory.
+ * .
+ * Variables can be placed in specific memories using the memory classes
+ * defined in @p chmem.h, for example in memory private to a core or in
+ * coherent memory. On multi-core systems with non-coherent caches the
+ * @p thread_t structures must be in coherent memory while each stack can be
+ * in the cacheable memory of its core, the spawn functions allow this
+ * placement, see @ref warea.
+ *
+ * @section error_detection Error Detection
+ * The kernel provides several layers of error detection, selected in
+ * @p chconf.h:
+ * | Option                        | Detection                               |
+ * |-------------------------------|-----------------------------------------|
+ * | @p CH_DBG_ENABLE_CHECKS       | Checks on the API parameters, chDbgCheck(). |
+ * | @p CH_DBG_ENABLE_ASSERTS      | Kernel internal consistency checks, chDbgAssert(). |
+ * | @p CH_DBG_SYSTEM_STATE_CHECK  | API classes call protocol, see @ref state_checker. |
+ * | @p CH_DBG_ENABLE_STACK_CHECK  | Port-dependent stack overflow checks.   |
+ * | @p CH_CFG_HARDENING_LEVEL     | RT only, functional safety checks detecting corruption caused by hardware faults or other software, chSftAssert(). |
+ * | @p CH_CFG_USE_RFCU            | RT only, runtime faults collection: faults that do not stop the system are recorded as flags, read with chRFCUGetAndClearFaultsI(). |
+ *
+ * The debug options detect programming errors, the safety checks detect
+ * faults that can also happen in a correct application. A failed check
+ * halts the system using chSysHalt(): the interrupts are disabled, the
+ * reason string is recorded for the debugger, the hook
+ * @p CH_CFG_SYSTEM_HALT_HOOK is invoked and the system stops. The reaction
+ * to the safety checks can be changed with @p CH_CFG_SAFETY_CHECK_HOOK.
  */

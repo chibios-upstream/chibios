@@ -68,6 +68,11 @@
  */
 
 /**
+ * @defgroup memory Memory Classes
+ * @ingroup os
+ */
+
+/**
  * @defgroup rfcu Runtime Faults Collection Unit
  * @ingroup os
  */
@@ -155,6 +160,11 @@
 
 /**
  * @defgroup registry Registry
+ * @ingroup kernel
+ */
+
+/**
+ * @defgroup rt_safety Functional Safety
  * @ingroup kernel
  */
 

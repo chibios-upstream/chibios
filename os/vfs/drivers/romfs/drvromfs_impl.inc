@@ -1461,5 +1461,3 @@ const struct vfs_rom_driver_vmt __vfs_rom_driver_vmt = {
 };
 
 /** @} */
-
-/** @} */

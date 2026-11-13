@@ -41,4 +41,7 @@
  * - API compatible with ChibiOS/RT of which, ChibiOS/NIL, is functionally
  *   a subset.
  * .
+ * <h2>Related pages</h2>
+ * - @subpage concepts
+ * .
  */

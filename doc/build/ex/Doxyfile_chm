@@ -291,19 +291,19 @@ TAB_SIZE               = 2
 # @} or use a double escape (\\{ and \\})
 
 ALIASES                = "iclass=@par Function Class:^^This is an \
-                          <b>I-Class</b> API, this function can be \
+                          @ref I-Class API, this function can be \
                           invoked from within a system lock zone by both \
                           threads and interrupt handlers." \
                          "sclass=@par Function Class:^^This is an \
-                          <b>S-Class</b> API, this function can be \
+                          @ref S-Class API, this function can be \
                           invoked from within a system lock zone by threads \
                           only." \
                          "xclass=@par Function Class:^^This is an \
-                          <b>X-Class</b> API, this function can be \
-                          invoked from any context." \
+                          @ref X-Class API, this function can be \
+                          invoked from any context except non-maskable interrupt handlers." \
                          "api=@par Function Class:^^Normal API, this \
                           function can be invoked by regular system threads \
-                          but not from within a lock zone." \
+                          but not from within a lock zone, see @ref api_suffixes." \
                          "notapi=@par Function Class:^^Not an API, this \
                           function is for internal use only." \
                          "isr=@par Function Class:^^Interrupt handler, \
@@ -1018,6 +1018,7 @@ WARN_LOGFILE           =
 # Note: If this tag is empty the current directory is searched.
 
 INPUT                  = ./src \
+                         ../common/src \
                          ../../../os/ex/dox \
                          ../../../os/ex/devices/ADI \
                          ../../../os/ex/devices/Bosch \
@@ -1155,8 +1156,7 @@ EXAMPLE_RECURSIVE      = NO
 # that contain images that are to be included in the documentation (see the
 # \image command).
 
-IMAGE_PATH             = ../common/rsc \
-                         ./rsc
+IMAGE_PATH             = ../common/rsc
 
 # The INPUT_FILTER tag can be used to specify a program that Doxygen should
 # invoke to filter for each input file. Doxygen will invoke the filter program

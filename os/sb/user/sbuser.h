@@ -15,7 +15,7 @@
 */
 
 /**
- * @file    sb/user/sbapi.h
+ * @file    sb/user/sbuser.h
  * @brief   ARM SandBox user API macros and structures.
  *
  * @addtogroup ARM_SANDBOX_USER_API
@@ -768,13 +768,12 @@ static inline void sbSleep(sysinterval_t interval) {
 /**
  * @brief   Suspends the invoking thread until the system time arrives to the
  *          specified value.
- * @note    The system time is assumed to be between @p start and @p next
+ * @note    The system time is assumed to be between @p prev and @p next
  *          else the call is assumed to have been called outside the
  *          allowed time interval, in this case no sleep is performed.
  *
  * @param[in] prev      absolute system time of the previous deadline
  * @param[in] next      absolute system time of the next deadline
- * @return              the @p next parameter
  *
  * @api
  */

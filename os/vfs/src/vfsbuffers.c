@@ -104,7 +104,7 @@ vfs_shared_buffer_t *vfs_buffer_take_immediate(void) {
 /**
  * @brief   Releases a path buffer into the fixed pool.
  *
- * @param[in] buf               Buffer to be released.
+ * @param[in] shbuf             Buffer to be released.
  */
 void vfs_buffer_release(vfs_shared_buffer_t *shbuf) {
 

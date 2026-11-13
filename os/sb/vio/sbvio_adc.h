@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    sb/vhal/sbvio_adc.h
+ * @file    sb/vio/sbvio_adc.h
  * @brief   ARM SandBox host Virtual ADC macros and structures.
  *
  * @addtogroup ARM_SANDBOX_HOST_VIO_ADC

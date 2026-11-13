@@ -2,7 +2,6 @@
 <!DOCTYPE doc [
   <!ENTITY oop_base_object SYSTEM "oop_base_object.xml">
   <!ENTITY oop_base_interface SYSTEM "oop_base_interface.xml">
-  <!ENTITY oop_block_io_interface SYSTEM "oop_block_io_interface.xml">
   <!ENTITY oop_referenced_object SYSTEM "oop_referenced_object.xml">
   <!ENTITY oop_sequential_stream SYSTEM "oop_sequential_stream.xml">
   <!ENTITY oop_random_stream SYSTEM "oop_random_stream.xml">
@@ -17,7 +16,6 @@
   <modules>
     &oop_base_interface;
     &oop_base_object;
-    &oop_block_io_interface;
     &oop_referenced_object;
     &oop_sequential_stream;
     &oop_random_stream;

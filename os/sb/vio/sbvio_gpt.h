@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    sb/vhal/sbvio_gpt.h
+ * @file    sb/vio/sbvio_gpt.h
  * @brief   ARM SandBox host Virtual GPT macros and structures.
  *
  * @addtogroup ARM_SANDBOX_HOST_VIO_GPT
