@@ -34,6 +34,7 @@
  *   an high level API.
  * .
  * <h2>Related pages</h2>
+ * - @subpage xhal_concepts
  * - @subpage concepts
  * .
  */

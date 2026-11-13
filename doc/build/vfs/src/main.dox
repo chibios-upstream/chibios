@@ -25,12 +25,12 @@
  *   single tree of directories and files.
  * - Root driver with a current directory, overlay drivers mounting file
  *   systems under path prefixes.
- * - File system drivers for ROMFS images, FatFS, LittleFS, ChibiFS and
- *   streams.
+ * - File system drivers for ROMFS images, FatFS, LittleFS and streams.
  * - Object-oriented design, drivers and nodes are classes generated from XML
  *   descriptions.
  * .
  * <h2>Related pages</h2>
+ * - @subpage vfs_concepts
  * - @subpage vfs_architecture
  * - @subpage concepts
  * .

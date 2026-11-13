@@ -22,7 +22,8 @@
  *          high level driver interfaces and common code are generated from
  *          XML descriptions, configuration is selected at runtime among a
  *          set of configurations and drivers can be enumerated through a
- *          registry.
+ *          registry. See @ref xhal_concepts for an overview of the driver
+ *          model.
  */
 
 /**

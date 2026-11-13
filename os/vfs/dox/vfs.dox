@@ -23,7 +23,8 @@
  *          tree of directories and files. A root driver holds the current
  *          directory, overlay drivers mount other file systems under path
  *          prefixes and file system drivers implement the nodes for each
- *          storage kind. See @ref vfs_architecture for the object model and
+ *          storage kind. See @ref vfs_concepts for an overview of the
+ *          subsystem and @ref vfs_architecture for the object model and
  *          the path contracts.
  */
 
