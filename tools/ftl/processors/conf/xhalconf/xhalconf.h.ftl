@@ -48,7 +48,7 @@
 /*===========================================================================*/
 
 #define HAL_USE_MUTUAL_EXCLUSION            ${doc.HAL_USE_MUTUAL_EXCLUSION!"TRUE"}
-#define HAL_USE_REGISTRY                    ${doc.HAL_USE_REGISTRY!"TRUE"}
+#define HAL_USE_REGISTRY                    ${doc.HAL_USE_REGISTRY!"FALSE"}
 
 /*===========================================================================*/
 /* HAL enabled drivers.                                                      */

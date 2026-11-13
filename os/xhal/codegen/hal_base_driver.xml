@@ -25,8 +25,10 @@
         <note>Disabling this option saves both code and data space.</note>
         <assert invalid="($N != FALSE) &amp;&amp; ($N != TRUE)" />
       </config>
-      <config name="HAL_USE_REGISTRY" default="TRUE">
+      <config name="HAL_USE_REGISTRY" default="FALSE">
         <brief>Enables the HAL registry for drivers.</brief>
+        <note>Drivers are added to the registry explicitly, using
+          @p drvRegister().</note>
         <note>Disabling this option saves both code and data space.</note>
         <assert invalid="($N != FALSE) &amp;&amp; ($N != TRUE)" />
       </config>
@@ -93,11 +95,8 @@ typedef unsigned driver_mutex_t;
             </field>
           </condition>
           <condition check="HAL_USE_REGISTRY == TRUE">
-            <field name="id" ctype="unsigned int">
-              <brief>Driver identifier.</brief>
-            </field>
             <field name="name" ctype="const char$I*">
-              <brief>Driver name.</brief>
+              <brief>Driver name, @p NULL if not registered.</brief>
             </field>
             <field name="regent" ctype="hal_regent_t">
               <brief>Registry link structure.</brief>
@@ -118,15 +117,15 @@ chSemObjectInit(&self->mutex, (cnt_t)1);
 #endif
 #endif
 #if HAL_USE_REGISTRY == TRUE
-self->id     = 0U;
-self->name   = "unk";
-drv_reg_insert(self);
+self->name   = NULL;
 #endif]]></implementation>
           </objinit>
           <dispose>
             <implementation><![CDATA[
 #if HAL_USE_REGISTRY == TRUE
-drv_reg_remove(self);
+if (self->name != NULL) {
+  drvUnregister(self);
+}
 #endif]]></implementation>
           </dispose>
           <virtual>
@@ -394,6 +393,69 @@ if (self->state == HAL_DRV_STATE_READY) {
 
 return config;</implementation>
             </method>
+            <condition check="HAL_USE_REGISTRY == TRUE">
+              <method name="drvRegister" ctype="msg_t">
+                <brief>Adds the driver to the HAL registry.</brief>
+                <details><![CDATA[The driver is registered under the
+                  specified name, it can then be found by name and
+                  enumerated. Names are unique.]]></details>
+                <note><![CDATA[The name string is not copied, it must remain
+                  valid while the driver is registered.]]></note>
+                <note><![CDATA[This function must be called after
+                  @p chSysInit().]]></note>
+                <param ctype="const char *" name="name" dir="in">Driver
+                  name.</param>
+                <return>The operation status.</return>
+                <retval value="HAL_RET_SUCCESS">Operation successful.</retval>
+                <retval value="HAL_RET_NO_RESOURCE"><![CDATA[If another
+                  driver is registered with the same name.]]></retval>
+                <api />
+                <implementation><![CDATA[
+msg_t msg = HAL_RET_SUCCESS;
+hal_base_driver_c *drvp;
+
+chDbgCheck((self != NULL) && (name != NULL));
+
+chSysLock();
+
+chDbgAssert(self->name == NULL, "already registered");
+
+/* Names are unique.*/
+drvp = drvRegGetFirstI();
+while (drvp != NULL) {
+  if (strcmp(drvp->name, name) == 0) {
+    msg = HAL_RET_NO_RESOURCE;
+    break;
+  }
+  drvp = drvRegGetNextI(drvp);
+}
+
+if (msg == HAL_RET_SUCCESS) {
+  self->name = name;
+  drv_reg_insert(self);
+}
+
+chSysUnlock();
+
+return msg;]]></implementation>
+              </method>
+              <method name="drvUnregister" ctype="void">
+                <brief>Removes the driver from the HAL registry.</brief>
+                <note><![CDATA[Does nothing if the driver is not
+                  registered.]]></note>
+                <api />
+                <implementation><![CDATA[
+
+chDbgCheck(self != NULL);
+
+chSysLock();
+if (self->name != NULL) {
+  drv_reg_remove(self);
+  self->name = NULL;
+}
+chSysUnlock();]]></implementation>
+              </method>
+            </condition>
           </regular>
           <inline>
             <method name="drvGetStateX" ctype="driver_state_t">
@@ -431,34 +493,17 @@ return self->arg;]]></implementation>
 
 self->arg = arg;]]></implementation>
             </method>
-            <method name="drvGetNameX" ctype="const char *">
-              <brief>Driver name get.</brief>
-              <note>Returns "unk" if registry is disabled.</note>
-              <return>The driver name.</return>
-              <api />
-              <implementation><![CDATA[
+            <condition check="HAL_USE_REGISTRY == TRUE">
+              <method name="drvGetNameX" ctype="const char *">
+                <brief>Driver name get.</brief>
+                <return>The driver name.</return>
+                <retval value="NULL">If the driver is not registered.</retval>
+                <api />
+                <implementation><![CDATA[
 
-#if HAL_USE_REGISTRY == TRUE
-return self->name;
-#else
-return "unk";
-#endif]]></implementation>
-            </method>
-            <method name="drvSetNameX" ctype="void">
-              <brief>Driver name set.</brief>
-              <note>Does nothing if registry is disabled.</note>
-              <param ctype="const char *" name="name" dir="in">
-                New driver name.
-              </param>
-              <api />
-              <implementation><![CDATA[
-
-#if HAL_USE_REGISTRY == TRUE
-self->name = name;
-#else
-(void)name;
-#endif]]></implementation>
-            </method>
+return self->name;]]></implementation>
+              </method>
+            </condition>
             <condition check="HAL_USE_MUTUAL_EXCLUSION == TRUE">
               <method name="drvLock" ctype="void">
                 <brief>Driver lock.</brief>
@@ -513,13 +558,17 @@ hal_registry.prev = &hal_registry;
 ]]></implementation>
       </function>
       <condition check="HAL_USE_REGISTRY == TRUE">
-        <function name="drvRegGetFirstX" ctype="hal_base_driver_c *">
+        <function name="drvRegGetFirstI" ctype="hal_base_driver_c *">
           <brief>Return the first driver in the HAL registry.</brief>
+          <note><![CDATA[The registry is enumerated with the system lock
+            held, drivers can be registered and unregistered otherwise.]]></note>
           <return>A pointer to the first driver object.</return>
           <retval value="NULL">If the registry is empty.</retval>
-          <api />
+          <iclass />
           <implementation><![CDATA[
 hal_regent_t *rep;
+
+chDbgCheckClassI();
 
 rep = hal_registry.next;
 if (rep == &hal_registry) {
@@ -528,20 +577,21 @@ if (rep == &hal_registry) {
 
 return oopGetOwner(hal_base_driver_c, regent, rep);]]></implementation>
         </function>
-        <function name="drvRegGetNextX" ctype="hal_base_driver_c *">
+        <function name="drvRegGetNextI" ctype="hal_base_driver_c *">
           <brief>Return the next driver in the HAL registry.</brief>
-          <note>
-            This function is only available when HAL registry is enabled.
-          </note>
+          <note><![CDATA[The registry is enumerated with the system lock
+            held, drivers can be registered and unregistered otherwise.]]></note>
           <param name="drvp" ctype="hal_base_driver_c *" dir="in">
             Previously
             found driver.
           </param>
           <return>A pointer to the next driver object.</return>
           <retval value="NULL">If there is no next driver.</retval>
-          <api />
+          <iclass />
           <implementation><![CDATA[
 hal_regent_t *rep;
+
+chDbgCheckClassI();
 
 rep = drvp->regent.next;
 if (rep == &hal_registry) {
@@ -557,9 +607,8 @@ return oopGetOwner(hal_base_driver_c, regent, rep);]]></implementation>
                 implementation-dependent default configuration is used
                 for initialization.]]>
           </details>
-          <note>
-            This function is only available when HAL registry is enabled.
-          </note>
+          <note><![CDATA[Only the drivers added with @p drvRegister() can
+            be found.]]></note>
           <param name="name" ctype="const char *" dir="in">Driver name.</param>
           <param name="msgp" ctype="msg_t *" dir="out">
             Pointer to store the
@@ -577,12 +626,12 @@ hal_base_driver_c *drvp;
 /* The driver is searched under the lock, then started out of it because
    drvStart() takes the lock itself.*/
 chSysLock();
-drvp = drvRegGetFirstX();
+drvp = drvRegGetFirstI();
 while (drvp != NULL) {
   if (strcmp(drvGetNameX(drvp), name) == 0) {
     break;
   }
-  drvp = drvRegGetNextX(drvp);
+  drvp = drvRegGetNextI(drvp);
 }
 chSysUnlock();
 
@@ -629,7 +678,7 @@ hal_registry.prev       = &drvp->regent;]]></implementation>
           <brief>Driver removal from the HAL registry.</brief>
           <param name="drvp" ctype="hal_base_driver_c *" dir="both">
             Pointer to
-            the @p hal_base_driver_c instance to be inserted.
+            the @p hal_base_driver_c instance to be removed.
           </param>
           <implementation><![CDATA[
 
