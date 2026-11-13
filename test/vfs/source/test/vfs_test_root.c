@@ -27,6 +27,8 @@
  * - @subpage vfs_test_sequence_004
  * - @subpage vfs_test_sequence_005
  * - @subpage vfs_test_sequence_006
+ * - @subpage vfs_test_sequence_007
+ * - @subpage vfs_test_sequence_008
  * .
  */
 
@@ -61,6 +63,10 @@ const testsequence_t * const vfs_test_suite_array[] = {
 #endif
 #if (VFS_CFG_ENABLE_DRV_FATFS == TRUE) || defined(__DOXYGEN__)
   &vfs_test_sequence_006,
+#endif
+  &vfs_test_sequence_007,
+#if ((VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_ENABLE_DRV_ROMFS == TRUE)) || defined(__DOXYGEN__)
+  &vfs_test_sequence_008,
 #endif
   NULL
 };

@@ -195,7 +195,7 @@ int main(void) {
       chThdSleepMilliseconds(500);
 
       /* Associating standard input, output and error to sandbox 1.*/
-      ret = vfsFSOpen((vfs_fs_c *)sbGetRoot(&sbx1),
+      ret = vfsRootOpen(sbGetRoot(&sbx1),
                       "/dev/VSD1", VO_RDWR, &np);
       if (CH_RET_IS_ERROR(ret)) {
         chprintf((BaseSequentialStream *)&SD2, "Opening /dev/VSD1 failed (%08lx)\r\n", ret);

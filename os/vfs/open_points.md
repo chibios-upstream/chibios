@@ -19,11 +19,6 @@ remaining technical points across the VFS subsystems.
 
 ## Overlay Driver
 
-- The `drv_overlaid_path_call()` pattern extracts a function pointer from
-  `overlaid_drv->vmt` and passes it as a callback. The null guard works but
-  the indirection is awkward (the original TODO comments call it a "dirty
-  trick"). Consider inlining the null check + prefix prepend + call at each
-  site, or having the helper take an operation enum.
 - Several `strcpy` calls operate on buffers that are guaranteed to fit under
   current invariants (for example `__ovldir_next_impl`) but
   have no explicit bounds checks. Not current bugs but could become issues if
