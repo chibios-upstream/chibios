@@ -193,8 +193,8 @@ SIODriver SIOD3;
  * @brief   Driver default configuration.
  */
 static const SIOConfig default_config = {
-  .baud  = SIO_DEFAULT_BITRATE,
-  .ucsrc = AVR_SIO_8N1
+  .baud   = SIO_DEFAULT_BITRATE,
+  .format = AVR_SIO_8N1
 };
 
 /*===========================================================================*/
@@ -337,7 +337,7 @@ static msg_t usart_init(SIODriver *siop) {
   /* Rejecting an invalid rate before using it as divisor, the 9 bits
      frames are not supported.*/
   if ((config->baud == 0U) ||
-      ((config->ucsrc & ~AVR_SIO_FRAME_MASK) != 0U)) {
+      ((config->format & ~AVR_SIO_FRAME_MASK) != 0U)) {
     return HAL_RET_CONFIG_ERROR;
   }
 
@@ -363,11 +363,11 @@ static msg_t usart_init(SIODriver *siop) {
   AVR_SIO_REG(siop, ubrrh) = (uint8_t)(ubrr >> 8);
   AVR_SIO_REG(siop, ubrrl) = (uint8_t)ubrr;
   AVR_SIO_REG(siop, ucsrc) = (uint8_t)(AVR_USART_UCSRC_URSEL |
-                                       config->ucsrc);
+                                       config->format);
 #else
   AVR_SIO_REG(siop, ubrrh) = (uint8_t)(ubrr >> 8);
   AVR_SIO_REG(siop, ubrrl) = (uint8_t)ubrr;
-  AVR_SIO_REG(siop, ucsrc) = config->ucsrc;
+  AVR_SIO_REG(siop, ucsrc) = config->format;
 #endif
   AVR_SIO_REG(siop, ucsra) = UCSRA_CLEAR_TXC;
   AVR_SIO_REG(siop, ucsrb) = AVR_USART_UCSRB_RXEN | AVR_USART_UCSRB_TXEN;
