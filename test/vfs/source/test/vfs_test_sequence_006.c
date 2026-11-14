@@ -38,6 +38,7 @@
  * <h2>Test Cases</h2>
  * - @subpage vfs_test_006_001
  * - @subpage vfs_test_006_002
+ * - @subpage vfs_test_006_003
  * .
  */
 
@@ -60,6 +61,28 @@ static uint8_t vfs_test_fat_disk[VFS_TEST_FAT_SECTOR_SIZE *
                                  VFS_TEST_FAT_SECTORS];
 static DSTATUS vfs_test_fat_status = STA_NOINIT;
 static vfs_fatfs_driver_c vfs_test_fat_driver;
+
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+static THD_WORKING_AREA(vfs_test_fat_io_wa, 4096);
+static THD_WORKING_AREA(vfs_test_fat_other_wa, 4096);
+static thread_reference_t vfs_test_fat_waiter;
+static bool vfs_test_fat_pause, vfs_test_fat_done;
+static ssize_t vfs_test_fat_read_result;
+static msg_t vfs_test_fat_stat_result;
+
+static THD_FUNCTION(vfs_test_fat_reader, arg) {
+  uint8_t buffer[VFS_TEST_FAT_SECTOR_SIZE];
+
+  vfs_test_fat_read_result = vfsFileRead(arg, buffer, sizeof buffer);
+}
+
+static THD_FUNCTION(vfs_test_fat_other, arg) {
+  vfs_stat_t stat;
+
+  vfs_test_fat_stat_result = vfsNodeStat(arg, &stat);
+  vfs_test_fat_done = true;
+}
+#endif
 
 DSTATUS disk_initialize(BYTE pdrv) {
 
@@ -90,6 +113,15 @@ DRESULT disk_read(BYTE pdrv, BYTE *buf, LBA_t sector, UINT count) {
     return RES_PARERR;
   }
 
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  if (vfs_test_fat_pause) {
+    vfs_test_fat_pause = false;
+    chDbgAssert(chMtxGetNextMutexX() != NULL, "unprotected FatFS I/O");
+    chSysLock();
+    (void)chThdSuspendS(&vfs_test_fat_waiter);
+    chSysUnlock();
+  }
+#endif
   memcpy(buf, &vfs_test_fat_disk[(size_t)sector *
                                  VFS_TEST_FAT_SECTOR_SIZE],
          (size_t)count * VFS_TEST_FAT_SECTOR_SIZE);
@@ -424,6 +456,150 @@ static const testcase_t vfs_test_006_002 = {
   vfs_test_006_002_execute
 };
 
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page vfs_test_006_003 [6.3] Singleton wrapper exclusion during I/O
+ *
+ * <h2>Description</h2>
+ * A suspended disk read keeps another node on the singleton filesystem
+ * out of native state; ordinary errors and directory iteration release
+ * the lock.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [6.3.1] Hold a native read at disk I/O and attempt metadata access
+ *   through another open node.
+ * - [6.3.2] Exercise error exits and rewind/read without recursive
+ *   mutex acquisition.
+ * - [6.3.3] A failed immediate mount unregisters its native object
+ *   before returning it to the pool.
+ * .
+ */
+
+static void vfs_test_006_003_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_003_teardown(void) {
+  test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS, "unmount failed");
+  test_assert(ffdrvUnmount("0:") == CH_RET_EINVAL, "second unmount error");
+  test_assert(ffdrvMount("0:", true) == CH_RET_SUCCESS, "remount failed");
+  test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS, "final unmount failed");
+}
+
+static void vfs_test_006_003_execute(void) {
+  static const uint8_t contents[VFS_TEST_FAT_SECTOR_SIZE] = {42};
+  vfs_file_node_c *first, *second;
+  vfs_directory_node_c *dir;
+  vfs_direntry_info_t entry;
+  thread_t *reader, *other;
+  bool blocked;
+  uint8_t boot[VFS_TEST_FAT_SECTOR_SIZE];
+  unsigned i;
+  msg_t ret;
+
+  /* [6.3.1] Hold a native read at disk I/O and attempt metadata access
+     through another open node.*/
+  test_set_step(1);
+  {
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin",
+                        VO_CREAT | VO_WRONLY, &first);
+    test_assert(ret == CH_RET_SUCCESS, "create failed");
+    test_assert(vfsFileWrite(first, contents, sizeof contents) == sizeof contents,
+                "seed write failed");
+    (void)roRelease(first);
+    test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin",
+                              VO_RDONLY, &first) == CH_RET_SUCCESS, "open failed");
+    test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin",
+                              VO_RDONLY, &second) == CH_RET_SUCCESS, "reopen failed");
+    vfs_test_fat_pause = true;
+    vfs_test_fat_done = false;
+    reader = chThdCreateStatic(vfs_test_fat_io_wa, sizeof vfs_test_fat_io_wa,
+                              chThdGetPriorityX() + 2, vfs_test_fat_reader, first);
+    other = chThdCreateStatic(vfs_test_fat_other_wa, sizeof vfs_test_fat_other_wa,
+                             chThdGetPriorityX() + 1, vfs_test_fat_other, second);
+    blocked = (vfs_test_fat_waiter != NULL) && !vfs_test_fat_done;
+    chThdResume(&vfs_test_fat_waiter, MSG_OK);
+    (void)chThdWait(reader);
+    (void)chThdWait(other);
+    (void)roRelease(first);
+    (void)roRelease(second);
+    test_assert(blocked, "another node entered the active native filesystem");
+    test_assert(vfs_test_fat_read_result == sizeof contents, "read failed");
+    test_assert(vfs_test_fat_stat_result == CH_RET_SUCCESS, "stat failed");
+  }
+  test_end_step(1);
+
+  /* [6.3.2] Exercise error exits and rewind/read without recursive
+     mutex acquisition.*/
+  test_set_step(2);
+  {
+    test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/absent.bin", VO_RDONLY,
+                              &first) == CH_RET_ENOENT, "missing file error");
+    test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin", VO_RDONLY,
+                              &first) == CH_RET_SUCCESS, "reopen after error failed");
+    test_assert(vfsFileSetPosition(first, -1, VFS_SEEK_SET) == CH_RET_EOVERFLOW,
+                "negative seek error");
+    test_assert(vfsFileGetPosition(first) == 0, "position after error changed");
+    (void)roRelease(first);
+    test_assert(vfsFSOpenDirectory(&vfs_test_fat_driver, "/", &dir) ==
+                CH_RET_SUCCESS, "directory open failed");
+    test_assert(vfsDirReadFirst(dir, &entry) == 1, "first failed");
+    test_assert(vfsDirReadNext(dir, &entry) == 0, "end failed");
+    test_assert(vfsDirReadFirst(dir, &entry) == 1, "rewind failed");
+    (void)roRelease(dir);
+  }
+  test_end_step(2);
+
+  /* [6.3.3] A failed immediate mount unregisters its native object
+     before returning it to the pool.*/
+  test_set_step(3);
+  {
+    test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS, "unmount failed");
+    memcpy(boot, vfs_test_fat_disk, sizeof boot);
+    memset(vfs_test_fat_disk, 0, sizeof boot);
+    for (i = 0U; i <= DRV_CFG_FATFS_FS_NUM; i++) {
+      test_assert(ffdrvMount("0:", true) == CH_RET_EIO, "bad volume error");
+      test_assert(ffdrvUnmount("0:") == CH_RET_EINVAL,
+                  "failed mount left a registered object");
+    }
+    memcpy(vfs_test_fat_disk, boot, sizeof boot);
+    test_assert(ffdrvMount("0:", true) == CH_RET_SUCCESS,
+                "failed mount leaked native storage or mutex");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t vfs_test_006_003 = {
+  "Singleton wrapper exclusion during I/O",
+  vfs_test_006_003_setup,
+  vfs_test_006_003_teardown,
+  vfs_test_006_003_execute
+};
+#endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -434,6 +610,9 @@ static const testcase_t vfs_test_006_002 = {
 const testcase_t * const vfs_test_sequence_006_array[] = {
   &vfs_test_006_001,
   &vfs_test_006_002,
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_006_003,
+#endif
   NULL
 };
 

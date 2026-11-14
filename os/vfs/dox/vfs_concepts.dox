@@ -202,9 +202,10 @@
  * concurrently. Changing the current directory or the mounted file systems
  * at the same time requires @p VFS_CFG_USE_MUTUAL_EXCLUSION, which protects
  * them with a mutex in each overlay and root, otherwise the callers
- * serialize those changes. A node is used by one thread at a time. Leaf file
- * systems have their own limits: FatFS requires @p FF_FS_REENTRANT,
- * LittleFS its thread-safe build. See @ref vfs_arch_concurrency.
+ * serialize those changes. The same option makes the FatFS and LittleFS
+ * drivers serialize their native calls, without it FatFS requires
+ * @p FF_FS_REENTRANT and LittleFS its thread-safe build. A node is used by
+ * one thread at a time. See @ref vfs_arch_concurrency.
  *
  * @section vfs_config Configuration
  * The file @p vfsconf.h contains the VFS settings:
@@ -213,7 +214,7 @@
  * | @p VFS_CFG_NAMELEN_MAX          | Maximum length of a name.             |
  * | @p VFS_CFG_PATHLEN_MAX          | Maximum length of a path.             |
  * | @p VFS_CFG_PATHBUFS_NUM         | Number of shared path buffer pairs, each root operation takes one for its duration. |
- * | @p VFS_CFG_USE_MUTUAL_EXCLUSION | Mutexes protecting the current directory and the mounted file systems of roots and overlays. |
+ * | @p VFS_CFG_USE_MUTUAL_EXCLUSION | Mutexes protecting the current directory and the mounted file systems of roots and overlays, and the FatFS and LittleFS native calls. |
  * | @p VFS_CFG_ENABLE_DRV_XXX       | Enables a driver.                     |
  * | @p DRV_CFG_XXX                  | Settings of a driver, for example the sizes of its node pools. |
  *

@@ -162,9 +162,50 @@
  * - distinct nodes can be used concurrently only as far as the leaf file
  *   system and its backend allow.
  * .
- * A leaf file system is reentrant only as far as its implementation is:
- * FatFS requires @p FF_FS_REENTRANT, LittleFS requires its thread-safe build
- * with the lock callbacks.
+ * @subsection vfs_arch_leaf_locking Leaf file systems
+ *
+ * With @p VFS_CFG_USE_MUTUAL_EXCLUSION enabled, the FatFS and LittleFS
+ * drivers serialize the calls to their native library:
+ * - FatFS uses one module mutex for all its volumes, node operations and
+ *   mount and unmount, because FatFS keeps global state;
+ * - LittleFS uses one mutex per driver instance for its native state, node
+ *   operations and mount, unmount and format, instances on independent
+ *   storage progress concurrently.
+ * .
+ * A leaf mutex is held across the native calls, the storage callbacks and the
+ * I/O waits, so @p FF_FS_REENTRANT and the LittleFS thread-safe build are not
+ * required. The LittleFS bindings still enable the thread-safe build by
+ * default, the native locks then nest inside the driver mutex. Storage
+ * callbacks must not reenter the VFS and direct native calls must not overlap
+ * driver operations. Shared storage hardware still needs its own
+ * synchronization, the LittleFS HAL binding provides it with its optional lock
+ * hooks and the HAL exclusive access. The mutexes do not lift the native file
+ * sharing restrictions and do not make multi-call sequences atomic.
+ *
+ * With the option disabled, a leaf file system is reentrant only as far as
+ * its implementation is: FatFS requires @p FF_FS_REENTRANT, LittleFS its
+ * thread-safe build with the lock callbacks.
+ *
+ * ROMFS data is immutable and needs no mutex. Stream drivers and ROMFS
+ * dynamic callbacks follow the synchronization of their backend. ChibiFS is
+ * not implemented and is not covered.
+ *
+ * @subsection vfs_arch_descriptors Descriptors
+ *
+ * Each descriptor of the Newlib bindings owns a node reference. Table
+ * insertion, lookup and detachment use short critical sections, read, write
+ * and fstat keep their node referenced while running outside them. Close
+ * detaches the descriptor before releasing the node, so its number can be
+ * reused while an earlier operation still finishes on the original node.
+ * Open rejects nodes overriding the reference methods with @c ENOTSUP and the
+ * bindings require synchronized OOP reference counters, @p OOP_USE_NOTHING is
+ * rejected. This protection does not depend on
+ * @p VFS_CFG_USE_MUTUAL_EXCLUSION and does not serialize the operations on
+ * the same descriptor.
+ *
+ * The descriptor table of a sandbox is owned by its host thread. The host
+ * registers descriptors only while the sandbox is stopped. Close, cleanup and
+ * @p dup2() detach a descriptor before releasing its node.
  */
 
 /*

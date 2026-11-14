@@ -52,6 +52,12 @@
 
 /**
  * @brief   Binding object between LFS and HAL.
+ * @note    Without native LFS_THREADSAFE hooks, the flash device must be
+ *          exclusively owned or access must be serialized by the caller.
+ *          A VFS instance mutex protects its filesystem, not other users of
+ *          the same flash device. For shared devices, configure native lock
+ *          hooks and working HAL exclusive access, or use synchronized
+ *          storage callbacks. Separate instances must use disjoint areas.
  */
 typedef struct hal_lfs_binding {
   /**

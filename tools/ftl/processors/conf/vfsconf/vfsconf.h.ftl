@@ -46,10 +46,12 @@
 /*===========================================================================*/
 
 /**
- * @brief   Enables local VFS metadata mutexes.
- * @details Protects root CWD and overlay mount metadata. Mutexes are released
- *          before driver calls; leaf/backend synchronization is independent.
- *          When disabled, callers serialize shared metadata access.
+ * @brief   Enables local VFS mutual exclusion.
+ * @details Protects root/overlay metadata, singleton FatFS state and each
+ *          LittleFS instance. Metadata locks are released before delegation;
+ *          leaf wrapper locks cover native library calls and storage I/O.
+ *          When disabled, callers serialize shared state. Shared hardware
+ *          and other backends retain their own synchronization requirements.
  */
 #if !defined(VFS_CFG_USE_MUTUAL_EXCLUSION) || defined(__DOXYGEN__)
 #define VFS_CFG_USE_MUTUAL_EXCLUSION        ${doc.VFS_CFG_USE_MUTUAL_EXCLUSION!"FALSE"}

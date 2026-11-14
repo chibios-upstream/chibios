@@ -32,7 +32,20 @@
     <types>
       <class type="regular" name="vfs_littlefs_driver" namespace="lfsdrv"
         ancestorname="vfs_fs" descr="VFS LittleFS driver">
+        <brief>LittleFS wrapper with per-instance synchronization.</brief>
+        <details>Optional mutual exclusion controlled by
+          VFS_CFG_USE_MUTUAL_EXCLUSION protects this instance and all its node
+          operations. LFS_THREADSAFE is optional. Mount/unmount/format require
+          no affected live nodes or active operations. Direct native calls must
+          not overlap VFS operations. Storage callbacks execute under the leaf
+          mutex and must not reenter VFS. Shared storage devices need their own
+          synchronization; distinct instances must not mount the same storage.</details>
         <fields>
+          <condition check="VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE">
+            <field name="mutex" ctype="mutex_t">
+              <brief>LittleFS instance operation mutex.</brief>
+            </field>
+          </condition>
           <field name="mounted" ctype="bool">
             <brief>LittleFS driver mounted flag.</brief>
           </field>
@@ -49,14 +62,22 @@
             <implementation><![CDATA[
 self->mounted = false;
 self->cfgp    = cfgp;
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+chMtxObjectInit(&self->mutex);
+#endif
 ]]></implementation>
           </objinit>
           <dispose>
-            <implementation><![CDATA[]]></implementation>
+            <implementation><![CDATA[
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+chMtxObjectDispose(&self->mutex);
+#endif]]></implementation>
           </dispose>
           <regular>
             <method name="lfsdrvMount" ctype="msg_t">
               <brief>Mounts a LittleFS volume.</brief>
+              <note>The caller must ensure no affected live nodes or active
+                operations. The instance mutex protects native state.</note>
               <return>The operation result.</return>
               <api />
               <implementation><![CDATA[
@@ -64,6 +85,8 @@ self->cfgp    = cfgp;
             </method>
             <method name="lfsdrvUnmount" ctype="msg_t">
               <brief>Unmounts a LittleFS volume.</brief>
+              <note>The caller must ensure no affected live nodes or active
+                operations. The instance mutex protects native state.</note>
               <return>The operation result.</return>
               <api />
               <implementation><![CDATA[
@@ -71,6 +94,8 @@ self->cfgp    = cfgp;
             </method>
             <method name="lfsdrvFormat" ctype="msg_t">
               <brief>Formats a LittleFS volume.</brief>
+              <note>The caller must ensure no affected live nodes or active
+                operations. The instance mutex protects native state.</note>
               <return>The operation result.</return>
               <api />
               <implementation><![CDATA[

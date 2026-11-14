@@ -29,6 +29,7 @@
  * - @subpage vfs_test_sequence_006
  * - @subpage vfs_test_sequence_007
  * - @subpage vfs_test_sequence_008
+ * - @subpage vfs_test_sequence_009
  * .
  */
 
@@ -67,6 +68,9 @@ const testsequence_t * const vfs_test_suite_array[] = {
   &vfs_test_sequence_007,
 #if ((VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_ENABLE_DRV_ROMFS == TRUE)) || defined(__DOXYGEN__)
   &vfs_test_sequence_008,
+#endif
+#if (defined(VFS_TEST_NEWLIB) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)) || defined(__DOXYGEN__)
+  &vfs_test_sequence_009,
 #endif
   NULL
 };
