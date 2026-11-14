@@ -204,7 +204,7 @@ static void start_sb2(void) {
 
   /*
    * Associating standard input, output and error to sandbox 2.*/
-  ret = vfsOpen("/dev/null", 0, &np);
+  ret = vfsOpen("/dev/null", VO_RDWR, &np);
   if (CH_RET_IS_ERROR(ret)) {
     chSysHalt("VFS");
   }

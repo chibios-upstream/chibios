@@ -55,7 +55,10 @@ self->path_prefix = path_prefix;]]></implementation>
             <method name="vfsRootOpen" ctype="msg_t">
               <brief>Opens a file or directory relative to this root.</brief>
               <details>The logical absolute path is resolved once and retained
-                across the file-to-directory fallback, including driver waits.</details>
+                across the file-to-directory fallback, including driver waits.
+                VO_DIRECTORY and trailing separators select directory lookup
+                before file creation or truncation. Invalid flags and empty
+                paths fail before scratch allocation.</details>
               <param name="path" ctype="const char *" dir="in">Absolute or
                 relative path of the node to open.</param>
               <param name="flags" ctype="int" dir="in">Open flags.</param>

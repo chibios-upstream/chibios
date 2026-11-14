@@ -188,7 +188,8 @@ static msg_t vfs_test_fd_open(void *ip, const char *path, int flags,
     }
     vmt = &vfs_test_fd_custom_vmt;
   }
-  (void)__vfsfile_objinit_impl(&np->node, vmt, ip, VFS_MODE_S_IFREG);
+  (void)__vfsfile_objinit_impl(&np->node, vmt, ip,
+                               VFS_MODE_S_IFREG, VO_RDWR);
   np->value = (uint8_t)path[1];
   *npp = &np->node;
   return CH_RET_SUCCESS;

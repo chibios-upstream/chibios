@@ -811,7 +811,7 @@ static void vfs_test_008_002_execute(void) {
                 strcmp(vfs_test_routing_root.path_cwd, "/home/user/target") == 0,
                 "failed chdir changed CWD");
     ret = vfsRootOpen(&vfs_test_routing_root, "/home", VO_WRONLY, &np);
-    test_assert(ret == CH_RET_EROFS, "ROMFS write-open error changed");
+    test_assert(ret == CH_RET_EISDIR, "writable directory open accepted");
     test_assert(vfs_test_routing_reserve(0U), "root operation leaked a pair");
   }
   test_end_step(3);

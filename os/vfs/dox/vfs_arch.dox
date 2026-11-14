@@ -126,6 +126,62 @@
  * share mounted file systems without sharing their current directories.
  * Directory nodes remain per-open handles and are not file-system objects.
  *
+ * @section vfs_arch_open Open and file handle contract
+ *
+ * Open arguments are validated before any allocation or delegation:
+ * - the supported flags are the access mode, @p VO_APPEND, @p VO_CREAT,
+ *   @p VO_TRUNC, @p VO_EXCL, @p VO_DIRECTORY and @p VO_CLOEXEC. Other flags,
+ *   an invalid access mode, @p VO_EXCL without @p VO_CREAT, @p VO_TRUNC with
+ *   read-only access and @p VO_DIRECTORY with @p VO_CREAT or @p VO_TRUNC
+ *   return @p CH_RET_EINVAL;
+ * - an empty path returns @p CH_RET_ENOENT, a path longer than
+ *   @p VFS_CFG_PATHLEN_MAX or a name longer than @p VFS_CFG_NAMELEN_MAX
+ *   returns @p CH_RET_ENAMETOOLONG.
+ * .
+ * @p VO_DIRECTORY and a trailing separator select the directory lookup before
+ * any file open, so a file named with a trailing separator returns
+ * @p CH_RET_ENOTDIR and is never created or truncated. A root stat applies the
+ * same trailing separator rule. Opening a directory requires read-only access
+ * without @p VO_CREAT and @p VO_TRUNC, otherwise it returns @p CH_RET_EISDIR,
+ * or @p CH_RET_EEXIST with @p VO_CREAT and @p VO_EXCL. @p VO_CLOEXEC belongs
+ * to descriptors, it is accepted and removed before calling a driver.
+ *
+ * A file node records its access mode and @p VO_APPEND at open, they do not
+ * change for the node lifetime and are shared by all its references. Stat
+ * permission bits do not grant access to an opened file:
+ * - vfsFileRead() and vfsFileWrite() return @p CH_RET_EBADF when the access
+ *   mode does not allow the transfer, also for zero bytes. A zero byte
+ *   transfer accepts a @p NULL buffer and does not call the driver, counts
+ *   exceeding @p SSIZE_MAX return @p CH_RET_EINVAL;
+ * - the initial position is zero, also with @p VO_APPEND. Each append write
+ *   is positioned at the end of file within the same driver operation, also
+ *   after a seek and, on LittleFS, after a seek beyond the end of file.
+ * .
+ * Seek targets are computed with overflow checks, a negative target returns
+ * @p CH_RET_EINVAL and a target outside the @p vfs_offset_t range returns
+ * @p CH_RET_EOVERFLOW, these rejections leave the position unchanged. ROMFS and
+ * read-only FatFS files reject positions past the end of file with
+ * @c ENOTSUP. A seek past the end extends a writable FatFS file,
+ * @p CH_RET_ENOSPC when the volume is full, LittleFS allows positions past the
+ * end. A random stream that cannot reach the target returns @c ENOTSUP and is
+ * moved back to its previous position when the backend allows it.
+ *
+ * Read-only file systems return @p CH_RET_EROFS for write access and for the
+ * creation of a missing file, a read-only open of an existing file with
+ * @p VO_CREAT and without @p VO_EXCL succeeds. Streams check the element
+ * permission bits at open, @p CH_RET_EACCES, and reject @p VO_TRUNC and
+ * writable @p VO_APPEND on random streams with @c ENOTSUP. FatFS and
+ * LittleFS unlink and rmdir check the node type, @p CH_RET_EISDIR and
+ * @p CH_RET_ENOTDIR, in the same driver operation that removes it. A rename
+ * onto the same path checks that the source exists. Native differences
+ * remain: a FatFS rename does
+ * not replace an existing target and returns @p CH_RET_EEXIST, and removing
+ * a non-empty FatFS directory returns @p CH_RET_EACCES.
+ *
+ * Drivers return nodes using the standard OOP reference methods. FatFS and
+ * LittleFS do not share the state of independent opens of the same file,
+ * callers avoid writable opens concurrent with other opens of that file.
+ *
  * @section vfs_arch_concurrency Concurrency contract
  *
  * The VFS does not serialize operations. Path working storage is not part of

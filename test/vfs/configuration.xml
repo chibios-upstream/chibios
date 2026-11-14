@@ -80,6 +80,8 @@ bool vfs_test_stat_equal(const vfs_stat_t *actual,
                          const vfs_stat_t *expected);
 bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
 void vfs_test_fs_reset(void);
+void vfs_test_open_matrix(vfs_fs_c *fsp);
+void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs);
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);
 #endif]]></value>
@@ -284,7 +286,291 @@ void vfs_test_root_reset(void) {
   (void)vfsrootObjectInit(&vfs_test_root, (vfs_fs_c *)&vfs_test_fs, NULL);
   vfs_test_root.path_cwd = vfs_test_cwd;
 }
-#endif]]></value>
+#endif
+
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+static THD_WORKING_AREA(vfs_open_race_wa1, 4096);
+static THD_WORKING_AREA(vfs_open_race_wa2, 4096);
+static semaphore_t vfs_open_race_gate;
+static vfs_fs_c *vfs_open_race_fs;
+
+static THD_FUNCTION(vfs_open_racer, arg) {
+  msg_t *result = arg;
+  vfs_file_node_c *fnp;
+
+  (void)chSemWait(&vfs_open_race_gate);
+  *result = vfsFSOpenFile(vfs_open_race_fs, "/race",
+                          VO_RDWR | VO_CREAT | VO_EXCL | VO_TRUNC, &fnp);
+  if (!CH_RET_IS_ERROR(*result)) {
+    (void)roRelease(fnp);
+  }
+}
+#endif
+
+void vfs_test_open_matrix(vfs_fs_c *fsp) {
+  static const struct {
+    int flags;
+    msg_t existing, missing, directory;
+  } cases[] = {
+    {VO_RDONLY, 0, CH_RET_ENOENT, 0},
+    {VO_WRONLY, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDWR, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDONLY | VO_DIRECTORY, CH_RET_ENOTDIR, CH_RET_ENOENT, 0},
+    {VO_WRONLY | VO_DIRECTORY, CH_RET_ENOTDIR, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDONLY | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_WRONLY | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDWR | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDONLY | VO_CREAT | VO_EXCL, CH_RET_EEXIST, 0, CH_RET_EEXIST},
+    {VO_WRONLY | VO_CREAT | VO_EXCL, CH_RET_EEXIST, 0, CH_RET_EEXIST},
+    {VO_RDWR | VO_CREAT | VO_EXCL | VO_TRUNC | VO_CLOEXEC,
+      CH_RET_EEXIST, 0, CH_RET_EEXIST},
+    {VO_WRONLY | VO_TRUNC, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDWR | VO_CREAT | VO_TRUNC, 0, 0, CH_RET_EISDIR},
+    {VO_RDONLY | VO_APPEND, 0, CH_RET_ENOENT, 0},
+    {VO_WRONLY | VO_APPEND, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_RDWR | VO_APPEND, 0, CH_RET_ENOENT, CH_RET_EISDIR},
+    {VO_WRONLY | VO_APPEND | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDWR | VO_APPEND | VO_CREAT, 0, 0, CH_RET_EISDIR},
+    {VO_RDWR | VO_APPEND | VO_TRUNC | VO_CREAT, 0, 0, CH_RET_EISDIR}
+  };
+  static const char *paths[] = {"/flags", "/new", "/dir"};
+  vfs_file_node_c *fnp;
+  vfs_node_c *np;
+  vfs_stat_t st;
+  msg_t ret, expected;
+  unsigned i, j;
+  uint8_t byte;
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+  vfs_root_c root;
+  vfs_stat_t after;
+#endif
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  thread_t *threads[2];
+  msg_t results[2];
+#endif
+
+  test_assert(vfsFSMkdir(fsp, "/dir", 0) == CH_RET_SUCCESS,
+              "matrix mkdir failed");
+  for (i = 0U; i < sizeof cases / sizeof cases[0]; i++) {
+    test_emit_token((char)('a' + i));
+    ret = vfsFSOpenFile(fsp, "/flags", VO_RDWR | VO_CREAT | VO_TRUNC, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "matrix seed open failed");
+    test_assert(vfsFileWrite(fnp, (const uint8_t *)"seed", 4) == 4,
+                "matrix seed write failed");
+    (void)roRelease(fnp);
+    for (j = 0U; j < 3U; j++) {
+      expected = j == 0U ? cases[i].existing :
+                 j == 1U ? cases[i].missing : cases[i].directory;
+      np = NULL;
+      ret = vfsFSOpen(fsp, paths[j], cases[i].flags, &np);
+      test_assert(ret == expected, "matrix open result mismatch");
+      if (!CH_RET_IS_ERROR(ret)) {
+        test_assert(np != NULL, "open did not publish a node");
+        test_assert(VFS_MODE_S_ISDIR(np->mode) == (j == 2U),
+                    "matrix open type mismatch");
+        if (j != 2U) {
+          vfs_offset_t size = (j == 1U || (cases[i].flags & VO_TRUNC) != 0) ?
+                              0 : 4;
+
+          test_assert(vfsNodeStat(np, &st) == CH_RET_SUCCESS && st.size == size,
+                      "matrix open changed contents");
+          fnp = (vfs_file_node_c *)np;
+          test_assert(vfsFileGetPosition(fnp) == 0, "open offset is not zero");
+          test_assert(fnp->flags == (cases[i].flags & (VO_ACCMODE | VO_APPEND)),
+                      "open status includes descriptor or creation flags");
+          if ((cases[i].flags & VO_ACCMODE) == VO_RDONLY) {
+            test_assert(vfsFileWrite(fnp, &byte, 1) == CH_RET_EBADF &&
+                        vfsFileWrite(fnp, NULL, 0) == CH_RET_EBADF,
+                        "readonly open permits writes");
+          }
+          if ((cases[i].flags & VO_ACCMODE) == VO_WRONLY) {
+            test_assert(vfsFileRead(fnp, &byte, 1) == CH_RET_EBADF &&
+                        vfsFileRead(fnp, NULL, 0) == CH_RET_EBADF,
+                        "writeonly open permits reads");
+          }
+          if (((cases[i].flags & VO_APPEND) != 0) &&
+              ((cases[i].flags & VO_ACCMODE) != VO_RDONLY)) {
+            if (((cases[i].flags & VO_ACCMODE) == VO_RDWR) && (size != 0)) {
+              test_assert(vfsFileRead(fnp, &byte, 1) == 1 && byte == 's',
+                          "append-open read did not start at zero");
+            }
+            test_assert(vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+                        vfsFileWrite(fnp, (const uint8_t *)"x", 1) == 1 &&
+                        vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+                        vfsFileWrite(fnp, (const uint8_t *)"y", 1) == 1,
+                        "append after seek failed");
+            test_assert(vfsNodeStat(np, &st) == 0 && st.size == size + 2,
+                        "append overwrote contents");
+          }
+        }
+        (void)roRelease(np);
+        if (j == 1U) {
+          test_assert(vfsFSUnlink(fsp, "/new") == 0, "matrix cleanup failed");
+        }
+      }
+      else {
+        test_assert(np == NULL, "failed open published a node");
+      }
+    }
+  }
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+  (void)vfsrootObjectInit(&root, fsp, NULL);
+  test_assert(vfsFSStat(fsp, "/flags", &st) == 0, "file disappeared");
+  ret = vfsRootOpen(&root, "/flags/", VO_WRONLY | VO_CREAT | VO_TRUNC, &np);
+  test_assert(ret == CH_RET_ENOTDIR, "trailing slash allowed truncation");
+  ret = vfsRootOpen(&root, "/trailing/", VO_WRONLY | VO_CREAT, &np);
+  test_assert(ret == CH_RET_ENOENT, "trailing slash created a file");
+  ret = vfsFSOpenFile(&root, "/flags/", VO_WRONLY | VO_TRUNC, &fnp);
+  test_assert(ret == CH_RET_ENOTDIR, "typed open bypassed trailing slash");
+  ret = vfsFSOpenFile(fsp, "/flags", VO_RDONLY, &fnp);
+  test_assert(ret == 0 && vfsNodeStat(fnp, &after) == 0 &&
+              after.size == st.size,
+              "rejected trailing slash modified the file");
+  (void)roRelease(fnp);
+  test_assert(vfsFSStat(&root, "/flags/", &st) == CH_RET_ENOTDIR,
+              "stat discarded trailing slash");
+  __vfsroot_dispose_impl(&root);
+#endif
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  vfs_open_race_fs = fsp;
+  chSemObjectInit(&vfs_open_race_gate, 0);
+  threads[0] = chThdCreateStatic(vfs_open_race_wa1, sizeof vfs_open_race_wa1,
+                                 chThdGetPriorityX() + 1, vfs_open_racer,
+                                 &results[0]);
+  threads[1] = chThdCreateStatic(vfs_open_race_wa2, sizeof vfs_open_race_wa2,
+                                 chThdGetPriorityX() + 1, vfs_open_racer,
+                                 &results[1]);
+  chSysLock();
+  chSemSignalI(&vfs_open_race_gate);
+  chSemSignalI(&vfs_open_race_gate);
+  chSchRescheduleS();
+  chSysUnlock();
+  (void)chThdWait(threads[0]);
+  (void)chThdWait(threads[1]);
+  test_assert(((results[0] == 0) && (results[1] == CH_RET_EEXIST)) ||
+              ((results[1] == 0) && (results[0] == CH_RET_EEXIST)),
+              "exclusive creators both succeeded or both failed");
+#endif
+}
+
+void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
+  vfs_file_node_c *fnp;
+  vfs_stat_t st;
+  uint8_t bytes[8];
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+  vfs_root_c root;
+  vfs_node_c *np;
+#endif
+
+  test_assert(vfsFSOpenFile(fsp, "/handle", VO_CREAT | VO_RDWR, &fnp) == 0,
+              "handle creation failed");
+  test_assert(vfsFileWrite(fnp, (const uint8_t *)"abcd", 4) == 4,
+              "handle seed failed");
+  (void)roRelease(fnp);
+  test_assert(vfsFSOpenFile(fsp, "/handle", VO_RDONLY, &fnp) == 0,
+              "handle read open failed");
+  test_assert(vfsFileRead(fnp, bytes, sizeof bytes) == 4 &&
+              memcmp(bytes, "abcd", 4) == 0 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 0,
+              "short read or EOF lost");
+  test_assert(vfsFileRead(fnp, bytes, SIZE_MAX) == CH_RET_EINVAL,
+              "excessive read count reached native code");
+#if SIZE_MAX > UINT32_MAX
+  test_assert(vfsFileRead(fnp, bytes, (size_t)UINT32_MAX + 1U) ==
+                CH_RET_EINVAL,
+              "native read count narrowed");
+#endif
+  test_assert(vfsFileSetPosition(fnp, 2, VFS_SEEK_SET) == 0 &&
+              vfsFileSetPosition(fnp, -1, VFS_SEEK_CUR) == 0 &&
+              vfsFileGetPosition(fnp) == 1 &&
+              vfsFileSetPosition(fnp, -1, VFS_SEEK_END) == 0 &&
+              vfsFileGetPosition(fnp) == 3, "signed native seek failed");
+  test_assert(vfsFileSetPosition(fnp, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
+              vfsFileSetPosition(fnp, INT32_MAX, VFS_SEEK_CUR) ==
+                CH_RET_EOVERFLOW &&
+              vfsFileSetPosition(fnp, 0, 123) == CH_RET_EINVAL &&
+              vfsFileGetPosition(fnp) == 3, "invalid seek changed position");
+  test_assert(vfsFileSetPosition(fnp, 8, VFS_SEEK_SET) ==
+                (fatfs ? CH_ENCODE_ERROR(ENOTSUP) : 0) &&
+              vfsFileGetPosition(fnp) == (fatfs ? 3 : 8),
+              "beyond EOF seek silently clamped");
+  (void)roRelease(fnp);
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+  (void)vfsrootObjectInit(&root, fsp, NULL);
+  test_assert(vfsRootOpen(&root, "/handle", VO_RDWR | VO_APPEND | VO_CLOEXEC,
+                          &np) == 0, "append open failed");
+  fnp = (vfs_file_node_c *)np;
+  test_assert(fnp->flags == (VO_RDWR | VO_APPEND),
+              "open status includes descriptor flags");
+  test_assert(vfsFileRead(fnp, bytes, 1) == 1 && bytes[0] == 'a' &&
+              vfsFileGetPosition(fnp) == 1, "append open read position");
+  test_assert(vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+              vfsFileWrite(fnp, (const uint8_t *)"x", 1) == 1 &&
+              vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+              vfsFileWrite(fnp, (const uint8_t *)"y", 1) == 1 &&
+              vfsNodeStat(np, &st) == 0 && st.size == 6,
+              "append overwrote contents");
+  test_assert(vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 6 &&
+              memcmp(bytes, "abcdxy", 6) == 0,
+              "append data or short transfer incorrect");
+  if (!fatfs) {
+    test_assert(vfsFileSetPosition(fnp, 12, VFS_SEEK_SET) == 0 &&
+                vfsFileWrite(fnp, (const uint8_t *)"z", 1) == 1 &&
+                vfsNodeStat(np, &st) == 0 && st.size == 7,
+                "append after beyond EOF seek created a hole");
+  }
+  (void)roRelease(np);
+  vfs_test_fs_reset();
+  test_assert(ovldrvRegisterDriver(&root, (vfs_fs_c *)&vfs_test_fs,
+                                   "other") == 0 &&
+              vfsFSRename(&root, "/handle", "/other/target") == CH_RET_EXDEV &&
+              vfs_test_fs.calls == 0U &&
+              vfsFSStat(&root, "/handle", &st) == 0,
+              "cross-filesystem rename reached a leaf or removed the source");
+  boDispose(&root);
+#endif
+  test_assert(vfsFSUnlink(fsp, "/dir") == CH_RET_EISDIR &&
+              vfsFSRmdir(fsp, "/handle") == CH_RET_ENOTDIR &&
+              vfsFSStat(fsp, "/dir", &st) == 0 &&
+              VFS_MODE_S_ISDIR(st.mode) &&
+              vfsFSStat(fsp, "/handle", &st) == 0 &&
+              VFS_MODE_S_ISREG(st.mode), "remove erased the wrong type");
+  test_assert(vfsFSRename(fsp, "/handle", "/handle") == 0 &&
+              vfsFSRename(fsp, "/absent", "/absent") == CH_RET_ENOENT,
+              "identical rename did not check existence");
+  test_assert(vfsFSRename(fsp, "/handle", "/moved") == 0 &&
+              vfsFSStat(fsp, "/handle", &st) == CH_RET_ENOENT &&
+              vfsFSRename(fsp, "/moved", "/handle") == 0,
+              "rename to a new name failed");
+  test_assert(vfsFSOpenFile(fsp, "/target", VO_CREAT | VO_WRONLY, &fnp) == 0 &&
+              vfsFileWrite(fnp, (const uint8_t *)"q", 1) == 1,
+              "rename target creation failed");
+  test_assert(vfsFileWrite(fnp, bytes, SIZE_MAX) == CH_RET_EINVAL,
+              "excessive write count reached native code");
+#if SIZE_MAX > UINT32_MAX
+  test_assert(vfsFileWrite(fnp, bytes, (size_t)UINT32_MAX + 1U) ==
+                CH_RET_EINVAL,
+              "native write count narrowed");
+#endif
+  (void)roRelease(fnp);
+  test_assert(vfsFSRename(fsp, "/handle", "/target") ==
+                (fatfs ? CH_RET_EEXIST : 0), "rename replacement contract");
+  test_assert(vfsFSOpenFile(fsp, "/target", VO_RDONLY, &fnp) == 0 &&
+              vfsFileRead(fnp, bytes, 1) == 1 &&
+              bytes[0] == (fatfs ? 'q' : 'a'), "rename lost file contents");
+  (void)roRelease(fnp);
+  test_assert(vfsFSOpenFile(fsp, "/dir/child", VO_CREAT | VO_WRONLY, &fnp) == 0,
+              "child creation failed");
+  (void)roRelease(fnp);
+  test_assert(vfsFSRmdir(fsp, "/dir") ==
+                (fatfs ? CH_RET_EACCES : CH_ENCODE_ERROR(ENOTEMPTY)) &&
+              vfsFSStat(fsp, "/dir/child", &st) == 0,
+              "nonempty directory was removed");
+  test_assert(vfsFSUnlink(fsp, "/dir/child") == 0 &&
+              vfsFSRmdir(fsp, "/dir") == 0, "typed cleanup failed");
+}
+]]></value>
     </global_code>
   </global_data_and_code>
   <sequences>
@@ -1033,16 +1319,21 @@ static size_t vfs_test_stream_read(void *ip, uint8_t *bp, size_t n) {
 }
 
 static uint32_t vfs_test_stream_position;
+static uint32_t vfs_test_stream_limit = UINT32_MAX;
 
 static uint32_t vfs_test_stream_seek(void *ip, uint32_t offset, int whence) {
 
   (void)ip;
 
   if (whence == RSTM_SEEK_SET) {
-    vfs_test_stream_position = offset;
+    vfs_test_stream_position = offset > vfs_test_stream_limit ?
+                               vfs_test_stream_limit : offset;
   }
   else if (whence == RSTM_SEEK_CUR) {
     vfs_test_stream_position += offset;
+  }
+  else if (whence == RSTM_SEEK_END) {
+    vfs_test_stream_position = vfs_test_stream_limit;
   }
 
   return vfs_test_stream_position;
@@ -1539,6 +1830,22 @@ ret = vfsSetFilePosition(fnp, 7, VFS_SEEK_SET);
 test_assert(ret == CH_RET_SUCCESS, "random stream seek failed");
 test_assert(vfsGetFilePosition(fnp) == (vfs_offset_t)7,
             "random stream position changed");
+vfs_test_stream_limit = 16U;
+test_assert(vfsFileSetPosition(fnp, -2, VFS_SEEK_CUR) == 0 &&
+            vfsFileGetPosition(fnp) == 5 &&
+            vfsFileSetPosition(fnp, -2, VFS_SEEK_END) == 0 &&
+            vfsFileGetPosition(fnp) == 14, "stream signed seek failed");
+test_assert(vfsFileSetPosition(fnp, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
+            vfsFileSetPosition(fnp, INT32_MAX, VFS_SEEK_CUR) ==
+              CH_RET_EOVERFLOW &&
+            vfsFileSetPosition(fnp, 17, VFS_SEEK_SET) ==
+              CH_ENCODE_ERROR(ENOTSUP) &&
+            vfsFileGetPosition(fnp) == 14, "stream seek clamped silently");
+vfs_test_stream_position = UINT32_MAX;
+test_assert(vfsFileGetPosition(fnp) == CH_RET_EOVERFLOW,
+            "stream tell narrowed overflowing position");
+vfs_test_stream_position = 0U;
+vfs_test_stream_limit = UINT32_MAX;
 (void)roRelease(fnp);
 
 vfs_test_tty_drains = 0U;
@@ -1561,6 +1868,54 @@ test_assert(ret == CH_RET_ESPIPE, "TTY seek accepted");
             </step>
           </steps>
         </case>
+        <case>
+          <brief><value><![CDATA[Stream open capabilities and directory rejection.]]></value></brief>
+          <description><value><![CDATA[Stream open capabilities and directory rejection.]]></value></description>
+          <condition><value><![CDATA[VFS_CFG_ENABLE_DRV_STREAMS == TRUE]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[]]></value></setup_code>
+            <teardown_code><value><![CDATA[]]></value></teardown_code>
+            <local_variables><value><![CDATA[static const drv_streams_element_t writable[] = {
+  DRV_STREAMS_ELEMENT_REGULAR("file", VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                              &vfs_test_random_stream),
+  DRV_STREAMS_ELEMENT_END()
+};
+vfs_streams_driver_c driver;
+vfs_node_c *np;
+msg_t ret;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value><![CDATA[Stream open capabilities and directory rejection.]]></value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[(void)stmdrvObjectInit(&driver, vfs_test_streams);
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/console", VO_DIRECTORY, &np);
+test_assert(ret == CH_RET_ENOTDIR, "directory open accepted stream");
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/absent", VO_CREAT | VO_WRONLY, &np);
+test_assert(ret == CH_RET_EROFS, "stream namespace accepted creation");
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_CREAT | VO_EXCL | VO_WRONLY,
+                &np);
+test_assert(ret == CH_RET_EEXIST, "exclusive stream open accepted");
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_WRONLY, &np);
+test_assert(ret == CH_RET_EACCES, "read-only stream opened for writing");
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty",
+                VO_CREAT | VO_TRUNC | VO_WRONLY | VO_CLOEXEC, &np);
+test_assert(ret == CH_RET_SUCCESS, "terminal redirection flags rejected");
+(void)roRelease(np);
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_APPEND | VO_WRONLY, &np);
+test_assert(ret == CH_RET_SUCCESS, "terminal append flags rejected");
+(void)roRelease(np);
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_TRUNC | VO_RDONLY, &np);
+test_assert(ret == CH_RET_EINVAL, "invalid stream flags accepted");
+(void)stmdrvObjectInit(&driver, writable);
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_TRUNC | VO_WRONLY, &np);
+test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream truncated");
+ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_APPEND | VO_WRONLY, &np);
+test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream appended");]]></value></code>
+            </step>
+          </steps>
+        </case>
+
         <case>
           <brief>
             <value>TTY return-code translation.</value>
@@ -2122,6 +2477,36 @@ test_assert(vfsFSOpenDirectory(&vfs_test_lfs_instances[0], "/", &dir) ==
             CH_RET_EIO, "unmounted open error");
 test_assert(lfsdrvMount(&vfs_test_lfs_instances[0]) == CH_RET_SUCCESS,
             "remount failed");]]></value></code>
+            </step>
+          </steps>
+        </case>
+
+        <case>
+          <brief><value><![CDATA[POSIX open flag matrix.]]></value></brief>
+          <description><value><![CDATA[POSIX open flag matrix.]]></value></description>
+          <condition><value><![CDATA[]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[msg_t ret;
+
+eflStart(&EFLD1, NULL);
+(void)lfsdrvObjectInit(&vfs_test_lfs_driver, &vfs_test_lfs_config);
+ret = lfsdrvFormat(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS format failed");
+ret = lfsdrvMount(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS mount failed");]]></value></setup_code>
+            <teardown_code><value><![CDATA[msg_t ret;
+
+ret = lfsdrvUnmount(&vfs_test_lfs_driver);
+test_assert(ret == CH_RET_SUCCESS, "LittleFS unmount failed");
+eflStop(&EFLD1);]]></value></teardown_code>
+            <local_variables><value><![CDATA[]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value><![CDATA[POSIX open flag matrix.]]></value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[vfs_test_open_matrix((vfs_fs_c *)&vfs_test_lfs_driver);
+vfs_test_handle_contract((vfs_fs_c *)&vfs_test_lfs_driver, false);]]></value></code>
             </step>
           </steps>
         </case>
@@ -2869,7 +3254,7 @@ test_assert(vfs_test_fat_stat_result == CH_RET_SUCCESS, "stat failed");]]></valu
                           &first) == CH_RET_ENOENT, "missing file error");
 test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin", VO_RDONLY,
                           &first) == CH_RET_SUCCESS, "reopen after error failed");
-test_assert(vfsFileSetPosition(first, -1, VFS_SEEK_SET) == CH_RET_EOVERFLOW,
+test_assert(vfsFileSetPosition(first, -1, VFS_SEEK_SET) == CH_RET_EINVAL,
             "negative seek error");
 test_assert(vfsFileGetPosition(first) == 0, "position after error changed");
 (void)roRelease(first);
@@ -2894,6 +3279,45 @@ for (i = 0U; i <= DRV_CFG_FATFS_FS_NUM; i++) {
 memcpy(vfs_test_fat_disk, boot, sizeof boot);
 test_assert(ffdrvMount("0:", true) == CH_RET_SUCCESS,
             "failed mount leaked native storage or mutex");]]></value></code>
+            </step>
+          </steps>
+        </case>
+
+        <case>
+          <brief><value><![CDATA[POSIX open flag matrix.]]></value></brief>
+          <description><value><![CDATA[POSIX open flag matrix.]]></value></description>
+          <condition><value><![CDATA[]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[MKFS_PARM options = {
+  .fmt     = FM_ANY,
+  .n_fat   = 1U,
+  .align   = 0U,
+  .n_root  = 0U,
+  .au_size = VFS_TEST_FAT_SECTOR_SIZE
+};
+uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+FRESULT fres;
+msg_t ret;
+
+memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+vfs_test_fat_status = STA_NOINIT;
+(void)ffdrvObjectInit(&vfs_test_fat_driver);
+fres = f_mkfs("0:", &options, work, sizeof work);
+test_assert(fres == FR_OK, "FatFS format failed");
+ret = ffdrvMount("0:", true);
+test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");]]></value></setup_code>
+            <teardown_code><value><![CDATA[msg_t ret;
+
+ret = ffdrvUnmount("0:");
+test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");]]></value></teardown_code>
+            <local_variables><value><![CDATA[]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value><![CDATA[POSIX open flag matrix.]]></value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[vfs_test_open_matrix((vfs_fs_c *)&vfs_test_fat_driver);
+vfs_test_handle_contract((vfs_fs_c *)&vfs_test_fat_driver, true);]]></value></code>
             </step>
           </steps>
         </case>
@@ -3707,7 +4131,7 @@ test_assert(ret == CH_RET_ENOENT &&
             strcmp(vfs_test_routing_root.path_cwd, "/home/user/target") == 0,
             "failed chdir changed CWD");
 ret = vfsRootOpen(&vfs_test_routing_root, "/home", VO_WRONLY, &np);
-test_assert(ret == CH_RET_EROFS, "ROMFS write-open error changed");
+test_assert(ret == CH_RET_EISDIR, "writable directory open accepted");
 test_assert(vfs_test_routing_reserve(0U), "root operation leaked a pair");]]></value></code>
             </step>
           </steps>
@@ -4437,7 +4861,8 @@ static msg_t vfs_test_fd_open(void *ip, const char *path, int flags,
     }
     vmt = &vfs_test_fd_custom_vmt;
   }
-  (void)__vfsfile_objinit_impl(&np->node, vmt, ip, VFS_MODE_S_IFREG);
+  (void)__vfsfile_objinit_impl(&np->node, vmt, ip,
+                               VFS_MODE_S_IFREG, VO_RDWR);
   np->value = (uint8_t)path[1];
   *npp = &np->node;
   return CH_RET_SUCCESS;
@@ -4673,6 +5098,196 @@ test_assert(fd == 0, "errors consumed descriptor slots");
 test_assert(vfs_test_close_r(&r, fd) == 0, "final close failed");]]></value></code>
             </step>
           </steps>
+        </case>
+      </cases>
+    </sequence>
+    <sequence>
+      <type><value>Internal Tests</value></type>
+      <brief><value>POSIX Open Routing</value></brief>
+      <description><value>Directory selection and flag validation before mutation.</value></description>
+      <condition><value><![CDATA[(VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_ENABLE_DRV_ROMFS == TRUE)]]></value></condition>
+      <shared_code><value><![CDATA[#include <string.h>
+
+#include "vfs.h"
+
+static const vfs_romfs_file_desc_t open_files[] = {
+  {
+    .name = "data",
+    .mode = VFS_MODE_S_IRUSR,
+    .flags = VFS_ROMFS_FILE_TYPE_RAW,
+    .size = 4,
+    .content = {.data = (const uint8_t *)"seed"}
+  }
+};
+
+static const vfs_romfs_dir_desc_t open_dirs[] = {
+  {.path = "/", .files = open_files, .files_num = 1},
+  {.path = "/dir", .files = NULL, .files_num = 0},
+  {.path = "/base", .files = open_files, .files_num = 1},
+  {.path = "/base/dir", .files = NULL, .files_num = 0}
+};
+
+static const vfs_romfs_tree_t open_tree = {
+  .dirs = open_dirs,
+  .dirs_num = sizeof open_dirs / sizeof open_dirs[0]
+};
+
+static vfs_rom_driver_c open_rom;
+static vfs_overlay_driver_c open_overlay;
+static vfs_root_c open_root;
+
+static void open_setup(void) {
+
+  (void)romdrvObjectInit(&open_rom, &open_tree);
+  (void)ovldrvObjectInit(&open_overlay, (vfs_fs_c *)&open_rom);
+  (void)vfsrootObjectInit(&open_root, (vfs_fs_c *)&open_overlay, "/base");
+  (void)ovldrvRegisterDriver(&open_root, (vfs_fs_c *)&open_overlay, "mount");
+}
+
+static void open_teardown(void) {
+
+  __vfsroot_dispose_impl(&open_root);
+  __ovldrv_dispose_impl(&open_overlay);
+  __romdrv_dispose_impl(&open_rom);
+}]]></value></shared_code>
+      <cases>
+        <case>
+          <brief><value>ROM transfer and seek boundaries.</value></brief>
+          <description><value>ROM transfer and seek boundaries.</value></description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value>open_setup();</value></setup_code>
+            <teardown_code><value>open_teardown();</value></teardown_code>
+            <local_variables><value><![CDATA[vfs_node_c *np;
+vfs_file_node_c *fnp;
+uint8_t bytes[8];]]></value></local_variables>
+          </various_code>
+          <steps><step>
+            <description><value>ROM transfer and seek boundaries.</value></description>
+            <tags><value /></tags>
+            <code><value><![CDATA[test_assert(vfsRootOpen(&open_root, "data", VO_RDONLY | VO_APPEND,
+                        &np) == 0, "ROM open failed");
+fnp = (vfs_file_node_c *)np;
+test_assert(fnp->flags == (VO_RDONLY | VO_APPEND) &&
+            vfsFileWrite(fnp, NULL, 0) == CH_RET_EBADF,
+            "ROM opened access lost");
+test_assert(vfsFileRead(fnp, bytes, sizeof bytes) == 4 &&
+            memcmp(bytes, "seed", 4) == 0 &&
+            vfsFileRead(fnp, bytes, sizeof bytes) == 0,
+            "ROM short read or EOF lost");
+test_assert(vfsFileSetPosition(fnp, -1, VFS_SEEK_END) == 0 &&
+            vfsFileGetPosition(fnp) == 3 &&
+            vfsFileSetPosition(fnp, -1, VFS_SEEK_CUR) == 0 &&
+            vfsFileGetPosition(fnp) == 2 &&
+            vfsFileSetPosition(fnp, INT32_MAX, VFS_SEEK_CUR) ==
+              CH_RET_EOVERFLOW &&
+            vfsFileSetPosition(fnp, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
+            vfsFileSetPosition(fnp, 5, VFS_SEEK_SET) ==
+              CH_ENCODE_ERROR(ENOTSUP) &&
+            vfsFileGetPosition(fnp) == 2,
+            "ROM seek bounds or failure position");
+(void)roRelease(np);]]></value></code>
+          </step></steps>
+        </case>
+        <case>
+          <brief><value><![CDATA[Root and read-only open matrix.]]></value></brief>
+          <description><value><![CDATA[Root and read-only open matrix.]]></value></description>
+          <condition><value><![CDATA[]]></value></condition>
+          <various_code>
+            <setup_code><value><![CDATA[open_setup();]]></value></setup_code>
+            <teardown_code><value><![CDATA[open_teardown();]]></value></teardown_code>
+            <local_variables><value><![CDATA[static const struct {
+  const char *path;
+  int flags;
+  msg_t result;
+  bool directory;
+} cases[] = {
+  {"data", VO_RDONLY, 0, false},
+  {"/mount/data", VO_RDONLY | VO_CLOEXEC, 0, false},
+  {"dir", VO_RDONLY, 0, true},
+  {"/dir", VO_DIRECTORY | VO_CLOEXEC, 0, true},
+  {"/mount/dir", VO_DIRECTORY, 0, true},
+  {"/", VO_RDONLY | VO_DIRECTORY, 0, true},
+  {"data", VO_DIRECTORY, CH_RET_ENOTDIR, false},
+  {"data", VO_DIRECTORY | VO_WRONLY, CH_RET_ENOTDIR, false},
+  {"data/", VO_RDONLY, CH_RET_ENOTDIR, false},
+  {"data///", VO_CREAT | VO_TRUNC | VO_WRONLY, CH_RET_ENOTDIR, false},
+  {"dir/", VO_RDONLY, 0, true},
+  {"dir", VO_WRONLY, CH_RET_EISDIR, false},
+  {"dir", VO_DIRECTORY | VO_RDWR, CH_RET_EISDIR, false},
+  {"dir", VO_CREAT, CH_RET_EISDIR, false},
+  {"dir", VO_CREAT | VO_EXCL, CH_RET_EEXIST, false},
+  {"/", VO_CREAT | VO_EXCL | VO_RDWR, CH_RET_EEXIST, false},
+  {"data", VO_RDONLY | VO_CREAT, 0, false},
+  {"data", VO_RDONLY | VO_APPEND, 0, false},
+  {"data", VO_CREAT | VO_EXCL, CH_RET_EEXIST, false},
+  {"data", VO_WRONLY, CH_RET_EROFS, false},
+  {"missing", VO_CREAT, CH_RET_EROFS, false},
+  {"missing", VO_RDONLY, CH_RET_ENOENT, false},
+  {"missing", VO_DIRECTORY, CH_RET_ENOENT, false},
+  {"missing/", VO_CREAT | VO_WRONLY, CH_RET_ENOENT, false},
+  {"", VO_RDONLY, CH_RET_ENOENT, false},
+  {"data", VO_TRUNC, CH_RET_EINVAL, false},
+  {"data", VO_EXCL, CH_RET_EINVAL, false},
+  {"data", VO_DIRECTORY | VO_CREAT, CH_RET_EINVAL, false},
+  {"data", VO_DIRECTORY | VO_TRUNC | VO_WRONLY, CH_RET_EINVAL, false},
+  {"data", VO_ACCMODE, CH_RET_EINVAL, false},
+  {"data", -1, CH_RET_EINVAL, false}
+};
+unsigned i;
+vfs_node_c *np;
+vfs_stat_t st;
+msg_t ret;
+]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value><![CDATA[Root and read-only open matrix.]]></value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[for (i = 0U; i < sizeof cases / sizeof cases[0]; i++) {
+  test_emit_token((char)('A' + i));
+  ret = vfsRootOpen(&open_root, cases[i].path, cases[i].flags, &np);
+  test_assert(ret == cases[i].result, "root open matrix mismatch");
+  if (!CH_RET_IS_ERROR(ret)) {
+    test_assert(VFS_MODE_S_ISDIR(np->mode) == cases[i].directory,
+                "root open type mismatch");
+    test_assert(cases[i].directory ||
+                (((vfs_file_node_c *)np)->flags ==
+                 (cases[i].flags & (VO_ACCMODE | VO_APPEND))),
+                "open status includes descriptor or creation flags");
+    (void)roRelease(np);
+  }
+}
+test_assert(vfsFSStat(&open_root, "data", &st) == 0 && st.size == 4,
+            "rejected open changed read-only file");]]></value></code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief><value>Native offset arithmetic.</value></brief>
+          <description><value>Seek targets are nonnegative and representable.</value></description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value><![CDATA[vfs_offset_t target;]]></value></local_variables>
+          </various_code>
+          <steps><step>
+            <description><value>Seek targets are nonnegative and representable.</value></description>
+            <tags><value /></tags>
+            <code><value><![CDATA[test_assert(__vfs_seek_target(INT32_MAX, VFS_SEEK_SET, 0, 0,
+                              &target) == 0 && target == INT32_MAX &&
+            __vfs_seek_target(1, VFS_SEEK_CUR, INT32_MAX, 0, &target) ==
+              CH_RET_EOVERFLOW &&
+            __vfs_seek_target(INT32_MIN, VFS_SEEK_END, 0, UINT32_MAX,
+                              &target) == 0 && target == INT32_MAX &&
+            __vfs_seek_target(0, VFS_SEEK_END, 0, UINT64_MAX, &target) ==
+              CH_RET_EOVERFLOW &&
+            __vfs_seek_target(-1, VFS_SEEK_CUR, 0, 0, &target) ==
+              CH_RET_EINVAL &&
+            __vfs_seek_target(0, (vfs_seekmode_t)123, 0, 0, &target) ==
+              CH_RET_EINVAL, "native offset arithmetic");]]></value></code>
+          </step></steps>
         </case>
       </cases>
     </sequence>
