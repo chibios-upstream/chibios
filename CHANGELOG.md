@@ -8,6 +8,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [VFS] Optional local mutual exclusion, `VFS_CFG_USE_MUTUAL_EXCLUSION`,
+  disabled by default: a mutex in each overlay and root protects its mount
+  table and current directory without serializing the operations, the FatFS
+  driver serializes its native calls with one module mutex and the LittleFS
+  driver with one mutex per instance, so `FF_FS_REENTRANT` and the LittleFS
+  thread-safe build are no longer required for concurrent use
+  ([#613](https://github.com/chibios-upstream/chibios/pull/613)).
 - [HAL] AVR ATmega SIO driver on the USARTv1: `SIOD0`–`SIOD3` on
   USART0–USART3, allocated with the `AVR_SIO_USE_USARTx` switches, and a
   `testhal/AVR/MEGA/SIO` echo test for the Arduino Uno
@@ -698,6 +705,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [VFS] Newlib bindings: closing a descriptor while another thread was using
+  it could release the node during that operation, and descriptor numbers
+  were looked up without protection; descriptors now own their node
+  reference, the table is updated in critical sections and operations keep
+  their node referenced
+  ([#613](https://github.com/chibios-upstream/chibios/pull/613)).
 - [VFS] Two threads using the same root or overlay, or roots sharing an
   overlay, could overwrite each other's paths: roots and overlays kept their
   path buffers in the object (issue #597)

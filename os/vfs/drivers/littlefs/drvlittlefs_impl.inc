@@ -21,6 +21,21 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+static inline void lfsdrv_lock(vfs_littlefs_driver_c *self) {
+
+  chMtxLock(&self->mutex);
+}
+
+static inline void lfsdrv_unlock(vfs_littlefs_driver_c *self) {
+
+  chMtxUnlock(&self->mutex);
+}
+#else
+#define lfsdrv_lock(self)
+#define lfsdrv_unlock(self)
+#endif
+
 static msg_t validate_absolute_path(const char *path) {
 
   if (!vfs_path_is_separator(*path)) {
@@ -151,6 +166,50 @@ static void stat_set_block_size(const vfs_littlefs_driver_c *drvp,
   sp->blksize  = (vfs_blksize_t)drvp->cfgp->block_size;
 }
 
+static msg_t read_directory(vfs_littlefs_dir_node_c *self,
+                            vfs_direntry_info_t *dip, bool rewind) {
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
+  struct lfs_info *info;
+  int res;
+  msg_t ret;
+
+  info = chPoolAlloc(&vfs_littlefs_driver_static.info_nodes_pool);
+  if (info == NULL) {
+    return CH_RET_ENOMEM;
+  }
+  lfsdrv_lock(drvp);
+  if (!drvp->mounted) {
+    res = LFS_ERR_IO;
+  }
+  else {
+    res = rewind ? lfs_dir_rewind(&drvp->lfs, &self->dir) : LFS_ERR_OK;
+    if (res == LFS_ERR_OK) {
+      do {
+        res = lfs_dir_read(&drvp->lfs, &self->dir, info);
+      } while ((res > 0) && (info->type == LFS_TYPE_DIR) &&
+               ((strcmp(info->name, ".") == 0) ||
+                (strcmp(info->name, "..") == 0)));
+    }
+  }
+  lfsdrv_unlock(drvp);
+  if (res < 0) {
+    ret = translate_error(res);
+  }
+  else if (res == 0) {
+    ret = (msg_t)0;
+  }
+  else {
+    dip->mode = info->type == LFS_TYPE_REG ? VFS_MODE_S_IFREG : VFS_MODE_S_IFDIR;
+    dip->size = (vfs_offset_t)info->size;
+    strncpy(dip->name, info->name, VFS_CFG_NAMELEN_MAX);
+    dip->name[VFS_CFG_NAMELEN_MAX] = '\0';
+    ret = (msg_t)1;
+  }
+  chPoolFree(&vfs_littlefs_driver_static.info_nodes_pool, info);
+
+  return ret;
+}
+
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
@@ -229,7 +288,9 @@ static void __lfsdir_dispose_impl(void *ip) {
   vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
 
   /* Closing directory.*/
+  lfsdrv_lock(drvp);
   (void) lfs_dir_close(&drvp->lfs, &self->dir);
+  lfsdrv_unlock(drvp);
 
   /* Finalization of the ancestors-defined parts.*/
   __vfsdir_dispose_impl(self);
@@ -252,16 +313,17 @@ static void __lfsdir_dispose_impl(void *ip) {
 static msg_t __lfsdir_stat_impl(void *ip, vfs_stat_t *sp) {
   vfs_littlefs_dir_node_c *self = (vfs_littlefs_dir_node_c *)ip;
   vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
+  msg_t ret = CH_RET_EIO;
 
-  /* FS mount check.*/
-  if (!drvp->mounted) {
-    return CH_RET_EIO;
+  lfsdrv_lock(drvp);
+  if (drvp->mounted) {
+    (void)__vfsnode_stat_impl(ip, sp);
+    stat_set_block_size(drvp, sp);
+    ret = CH_RET_SUCCESS;
   }
+  lfsdrv_unlock(drvp);
 
-  (void)__vfsnode_stat_impl(ip, sp);
-  stat_set_block_size(drvp, sp);
-
-  return CH_RET_SUCCESS;
+  return ret;
 }
 
 /**
@@ -276,59 +338,8 @@ static msg_t __lfsdir_stat_impl(void *ip, vfs_stat_t *sp) {
  * @return                      The operation result.
  */
 static msg_t __lfsdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
-  vfs_littlefs_dir_node_c *self = (vfs_littlefs_dir_node_c *)ip;
-  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
-  msg_t ret;
 
-  /* FS mount check.*/
-  if (!drvp->mounted) {
-    return CH_RET_EIO;
-  }
-
-  do {
-    int res;
-    struct lfs_info *lfsip;
-
-    lfsip = (struct lfs_info *)chPoolAlloc(&vfs_littlefs_driver_static.info_nodes_pool);
-    if (lfsip != NULL) {
-      do {
-        res = lfs_dir_read(&drvp->lfs, &self->dir, lfsip);
-        if (res == 0) {
-
-          /* End of directory.*/
-          ret = (msg_t)0;
-          break;
-        }
-        else if (res > 0) {
-
-          /* Skip over self and parent entries.*/
-          if (lfsip->type == LFS_TYPE_DIR &&
-                      (strcmp(lfsip->name, ".") == 0 ||
-                       strcmp(lfsip->name, "..") == 0)) {
-            continue;
-          }
-          dip->mode = lfsip->type == LFS_TYPE_REG ? VFS_MODE_S_IFREG : VFS_MODE_S_IFDIR;
-          dip->size = (vfs_offset_t)lfsip->size;
-          strncpy(dip->name, lfsip->name, VFS_CFG_NAMELEN_MAX);
-          dip->name[VFS_CFG_NAMELEN_MAX] = '\0';
-          ret = (msg_t)1;
-          break;
-        }
-        else {
-          ret = translate_error(res);
-          break;
-        }
-      } while (true);
-      chPoolFree(&vfs_littlefs_driver_static.info_nodes_pool, (void *)lfsip);
-    }
-    else {
-      ret = CH_RET_ENOMEM;
-      break;
-    }
-  }
-  while (false);
-
-  return ret;
+  return read_directory((vfs_littlefs_dir_node_c *)ip, dip, false);
 }
 
 /**
@@ -343,28 +354,8 @@ static msg_t __lfsdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
  * @return                      The operation result.
  */
 static msg_t __lfsdir_first_impl(void *ip, vfs_direntry_info_t *dip) {
-  vfs_littlefs_dir_node_c *self = (vfs_littlefs_dir_node_c *)ip;
-  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
-  msg_t ret;
-  int res;
 
-  /* FS mount check.*/
-  if (!drvp->mounted) {
-    return CH_RET_EIO;
-  }
-
-  do {
-    res = lfs_dir_rewind(&drvp->lfs, &self->dir);
-    if (res == LFS_ERR_OK) {
-      ret = __lfsdir_next_impl(ip, dip);
-      break;
-    }
-
-    ret = translate_error(res);
-  }
-  while (false);
-
-  return ret;
+  return read_directory((vfs_littlefs_dir_node_c *)ip, dip, true);
 }
 /** @} */
 
@@ -454,7 +445,9 @@ static void __lfsfile_dispose_impl(void *ip) {
   vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
 
   /* Closing file.*/
+  lfsdrv_lock(drvp);
   (void) lfs_file_close(&drvp->lfs, &self->file);
+  lfsdrv_unlock(drvp);
 
   /* Finalization of the ancestors-defined parts.*/
   __vfsfile_dispose_impl(self);
@@ -479,21 +472,16 @@ static msg_t __lfsfile_stat_impl(void *ip, vfs_stat_t *sp) {
   vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
   lfs_soff_t size;
 
-  /* FS mount check.*/
-  if (!drvp->mounted) {
-    return CH_RET_EIO;
+  lfsdrv_lock(drvp);
+  size = drvp->mounted ? lfs_file_size(&drvp->lfs, &self->file) : LFS_ERR_IO;
+  if (size >= 0) {
+    sp->mode = self->mode;
+    sp->size = (vfs_offset_t)size;
+    stat_set_block_size(drvp, sp);
   }
+  lfsdrv_unlock(drvp);
 
-  size = lfs_file_size(&drvp->lfs, &self->file);
-  if (size < 0) {
-    return translate_error(size);
-  }
-
-  sp->mode = self->mode;
-  sp->size = (vfs_offset_t)size;
-  stat_set_block_size(drvp, sp);
-
-  return CH_RET_SUCCESS;
+  return size < 0 ? translate_error(size) : CH_RET_SUCCESS;
 }
 
 /**
@@ -513,18 +501,12 @@ static ssize_t __lfsfile_read_impl(void *ip, uint8_t *buf, size_t n) {
   vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
   lfs_ssize_t br;
 
-  /* FS mount check.*/
-  if (!drvp->mounted) {
-    return CH_RET_EIO;
-  }
+  lfsdrv_lock(drvp);
+  br = drvp->mounted ?
+    lfs_file_read(&drvp->lfs, &self->file, buf, (lfs_size_t)n) : LFS_ERR_IO;
+  lfsdrv_unlock(drvp);
 
-  br = lfs_file_read(&drvp->lfs, &self->file, (void *)buf, (lfs_ssize_t)n);
-  if (br < 0) {
-
-    return translate_error(br);
-  }
-
-  return (ssize_t)br;
+  return br < 0 ? (ssize_t)translate_error(br) : (ssize_t)br;
 }
 
 /**
@@ -544,18 +526,12 @@ static ssize_t __lfsfile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
   lfs_ssize_t bw;
 
-  /* FS mount check.*/
-  if (!drvp->mounted) {
-    return CH_RET_EIO;
-  }
+  lfsdrv_lock(drvp);
+  bw = drvp->mounted ?
+    lfs_file_write(&drvp->lfs, &self->file, buf, (lfs_size_t)n) : LFS_ERR_IO;
+  lfsdrv_unlock(drvp);
 
-  bw = lfs_file_write(&drvp->lfs, &self->file, (const void *)buf, (lfs_ssize_t)n);
-  if (bw < 0) {
-
-    return (ssize_t)translate_error(bw);
-  }
-
-  return (ssize_t)bw;
+  return bw < 0 ? (ssize_t)translate_error(bw) : (ssize_t)bw;
 }
 
 /**
@@ -581,19 +557,13 @@ static msg_t __lfsfile_setpos_impl(void *ip, vfs_offset_t offset,
       (whence != VFS_SEEK_END)) {
     return CH_RET_EINVAL;
   }
+  lfsdrv_lock(drvp);
+  finaloff = drvp->mounted ?
+    lfs_file_seek(&drvp->lfs, &self->file, (lfs_soff_t)offset, (int)whence) :
+    LFS_ERR_IO;
+  lfsdrv_unlock(drvp);
 
-  /* FS mount check.*/
-  if (!drvp->mounted) {
-    return CH_RET_EIO;
-  }
-
-  finaloff = lfs_file_seek(&drvp->lfs, &self->file, (lfs_soff_t)offset, (int)whence);
-
-  if (finaloff < 0) {
-    return translate_error(finaloff);
-  }
-
-  return CH_RET_SUCCESS;
+  return finaloff < 0 ? translate_error(finaloff) : CH_RET_SUCCESS;
 }
 
 /**
@@ -611,17 +581,11 @@ static vfs_offset_t __lfsfile_getpos_impl(void *ip) {
   vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
   lfs_soff_t offset;
 
-  /* FS mount check.*/
-  if (!drvp->mounted) {
-    return CH_RET_EIO;
-  }
+  lfsdrv_lock(drvp);
+  offset = drvp->mounted ? lfs_file_tell(&drvp->lfs, &self->file) : LFS_ERR_IO;
+  lfsdrv_unlock(drvp);
 
-  offset = lfs_file_tell(&drvp->lfs, &self->file);
-  if (offset < 0) {
-    return translate_error(offset);
-  }
-
-  return (vfs_offset_t)offset;
+  return offset < 0 ? (vfs_offset_t)translate_error(offset) : (vfs_offset_t)offset;
 }
 
 /** @} */
@@ -699,6 +663,9 @@ void *__lfsdrv_objinit_impl(void *ip, const void *vmt,
   /* Initialization code.*/
   self->mounted = false;
   self->cfgp    = cfgp;
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  chMtxObjectInit(&self->mutex);
+#endif
 
   return self;
 }
@@ -716,8 +683,9 @@ void *__lfsdrv_objinit_impl(void *ip, const void *vmt,
 void __lfsdrv_dispose_impl(void *ip) {
   vfs_littlefs_driver_c *self = (vfs_littlefs_driver_c *)ip;
 
-  /* No finalization code.*/
-  (void)self;
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  chMtxObjectDispose(&self->mutex);
+#endif
 
   /* Finalization of the ancestors-defined parts.*/
   __vfsfs_dispose_impl(self);
@@ -736,47 +704,27 @@ void __lfsdrv_dispose_impl(void *ip) {
  */
 msg_t __lfsdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_littlefs_driver_c *self = (vfs_littlefs_driver_c *)ip;
+  struct lfs_info *info;
+  int res;
   msg_t ret;
-
-  /* FS mount check.*/
-  if (!self->mounted) {
-    return CH_RET_EIO;
-  }
 
   ret = validate_absolute_path(path);
   CH_RETURN_ON_ERROR(ret);
-
-  do {
-    int res;
-    struct lfs_info *lfsip;
-
-    lfsip = (struct lfs_info *)chPoolAlloc(&vfs_littlefs_driver_static.info_nodes_pool);
-    if (lfsip != NULL) {
-
-      res = lfs_stat(&self->lfs, path, lfsip);
-      if (res == LFS_ERR_OK) {
-
-        sp->size = (vfs_offset_t)lfsip->size;
-        if (lfsip->type == LFS_TYPE_REG) {
-          sp->mode = VFS_MODE_S_IFREG;
-        }
-        else {
-          sp->mode = VFS_MODE_S_IFDIR;
-        }
-        stat_set_block_size(self, sp);
-        ret = CH_RET_SUCCESS;
-      }
-      else {
-        ret = translate_error(res);
-      }
-      chPoolFree(&vfs_littlefs_driver_static.info_nodes_pool, (void *)lfsip);
-      break;
-    }
-    ret = CH_RET_ENOMEM;
+  info = chPoolAlloc(&vfs_littlefs_driver_static.info_nodes_pool);
+  if (info == NULL) {
+    return CH_RET_ENOMEM;
   }
-  while (false);
+  lfsdrv_lock(self);
+  res = self->mounted ? lfs_stat(&self->lfs, path, info) : LFS_ERR_IO;
+  if (res == LFS_ERR_OK) {
+    sp->size = (vfs_offset_t)info->size;
+    sp->mode = info->type == LFS_TYPE_REG ? VFS_MODE_S_IFREG : VFS_MODE_S_IFDIR;
+    stat_set_block_size(self, sp);
+  }
+  lfsdrv_unlock(self);
+  chPoolFree(&vfs_littlefs_driver_static.info_nodes_pool, info);
 
-  return ret;
+  return translate_error(res);
 }
 
 /**
@@ -794,42 +742,28 @@ msg_t __lfsdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
 msg_t __lfsdrv_opendir_impl(void *ip, const char *path,
                             vfs_directory_node_c **vdnpp) {
   vfs_littlefs_driver_c *self = (vfs_littlefs_driver_c *)ip;
+  vfs_littlefs_dir_node_c *node;
+  int res;
   msg_t ret;
-
-  /* FS mount check.*/
-  if (!self->mounted) {
-    return CH_RET_EIO;
-  }
 
   ret = validate_absolute_path(path);
   CH_RETURN_ON_ERROR(ret);
+  node = chPoolAlloc(&vfs_littlefs_driver_static.dir_nodes_pool);
+  if (node == NULL) {
+    return CH_RET_ENOMEM;
+  }
+  (void)lfsdirObjectInit(node, (vfs_fs_c *)self,
+                        VFS_MODE_S_IRWXU | VFS_MODE_S_IFDIR);
+  lfsdrv_lock(self);
+  res = self->mounted ? lfs_dir_open(&self->lfs, &node->dir, path) : LFS_ERR_IO;
+  lfsdrv_unlock(self);
+  if (res != LFS_ERR_OK) {
+    chPoolFree(&vfs_littlefs_driver_static.dir_nodes_pool, node);
+    return translate_error(res);
+  }
+  *vdnpp = (vfs_directory_node_c *)node;
 
-  do {
-    vfs_littlefs_dir_node_c *lfsdnp;
-    int res;
-
-    lfsdnp = chPoolAlloc(&vfs_littlefs_driver_static.dir_nodes_pool);
-    if (lfsdnp != NULL) {
-
-      /* Node object initialization.*/
-      (void) lfsdirObjectInit(lfsdnp, (vfs_fs_c *)self,
-          (VFS_MODE_S_IRWXU | VFS_MODE_S_IFDIR));
-
-      /* Open the directory.*/
-      res = lfs_dir_open(&self->lfs, &lfsdnp->dir, path);
-      if (res == LFS_ERR_OK) {
-
-        *vdnpp = (vfs_directory_node_c *)lfsdnp;
-        return CH_RET_SUCCESS;
-      }
-      ret = translate_error(res);
-      chPoolFree(&vfs_littlefs_driver_static.dir_nodes_pool, (void *)lfsdnp);
-      break;
-    }
-    ret = CH_RET_ENOMEM;
-  } while (false);
-
-  return ret;
+  return CH_RET_SUCCESS;
 }
 
 /**
@@ -848,49 +782,33 @@ msg_t __lfsdrv_opendir_impl(void *ip, const char *path,
 msg_t __lfsdrv_openfile_impl(void *ip, const char *path, int flags,
                              vfs_file_node_c **vfnpp) {
   vfs_littlefs_driver_c *self = (vfs_littlefs_driver_c *)ip;
+  vfs_littlefs_file_node_c *node;
+  enum lfs_open_flags mode;
+  int res;
   msg_t ret;
-
-  /* FS mount check.*/
-  if (!self->mounted) {
-    return CH_RET_EIO;
-  }
 
   ret = validate_absolute_path(path);
   CH_RETURN_ON_ERROR(ret);
-
-  do {
-    vfs_littlefs_file_node_c *lfsfnp;
-    int res;
-    enum lfs_open_flags mode;
-
-    mode = translate_oflag(flags);
-    if (mode == 0) {
-      ret = CH_RET_EINVAL;
-      break;
-    }
-
-    lfsfnp = chPoolAlloc(&vfs_littlefs_driver_static.file_nodes_pool);
-    if (lfsfnp != NULL) {
-
-      /* Node object initialization. Note: reference to lfs is set in object.*/
-      (void) lfsfileObjectInit(lfsfnp,
-                              (vfs_fs_c *)self,
-                              translate_mode(mode));
-
-      res = lfs_file_open(&self->lfs, &lfsfnp->file, path, mode);
-      if (res == LFS_ERR_OK) {
-        *vfnpp = (vfs_file_node_c *)lfsfnp;
-        return CH_RET_SUCCESS;
-      }
-      ret = translate_error(res);
-      chPoolFree(&vfs_littlefs_driver_static.file_nodes_pool, (void *)lfsfnp);
-      break;
-    }
-    ret = CH_RET_ENOMEM;
+  mode = translate_oflag(flags);
+  if (mode == 0) {
+    return CH_RET_EINVAL;
   }
-  while (false);
+  node = chPoolAlloc(&vfs_littlefs_driver_static.file_nodes_pool);
+  if (node == NULL) {
+    return CH_RET_ENOMEM;
+  }
+  (void)lfsfileObjectInit(node, (vfs_fs_c *)self, translate_mode(mode));
+  lfsdrv_lock(self);
+  res = self->mounted ? lfs_file_open(&self->lfs, &node->file, path, mode) :
+                       LFS_ERR_IO;
+  lfsdrv_unlock(self);
+  if (res != LFS_ERR_OK) {
+    chPoolFree(&vfs_littlefs_driver_static.file_nodes_pool, node);
+    return translate_error(res);
+  }
+  *vfnpp = (vfs_file_node_c *)node;
 
-  return ret;
+  return CH_RET_SUCCESS;
 }
 
 /**
@@ -908,25 +826,16 @@ msg_t __lfsdrv_unlink_impl(void *ip, const char *path) {
   int res;
   msg_t ret;
 
-  /* FS mount check.*/
-  if (!self->mounted) {
-    return CH_RET_EIO;
-  }
-
   ret = validate_absolute_path(path);
   CH_RETURN_ON_ERROR(ret);
-
-  /* Check if it is the root.*/
   if (path[1] == '\0') {
     return CH_RET_EISDIR;
   }
+  lfsdrv_lock(self);
+  res = self->mounted ? lfs_remove(&self->lfs, path) : LFS_ERR_IO;
+  lfsdrv_unlock(self);
 
-  res = lfs_remove(&self->lfs, path);
-  if (res != LFS_ERR_OK) {
-    return translate_error(res);
-  }
-
-  return CH_RET_SUCCESS;
+  return translate_error(res);
 }
 
 /**
@@ -945,22 +854,15 @@ msg_t __lfsdrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
   int res;
   msg_t ret;
 
-  /* FS mount check.*/
-  if (!self->mounted) {
-    return CH_RET_EIO;
-  }
-
   ret = validate_absolute_path(oldpath);
   CH_RETURN_ON_ERROR(ret);
   ret = validate_absolute_path(newpath);
   CH_RETURN_ON_ERROR(ret);
+  lfsdrv_lock(self);
+  res = self->mounted ? lfs_rename(&self->lfs, oldpath, newpath) : LFS_ERR_IO;
+  lfsdrv_unlock(self);
 
-  res = lfs_rename(&self->lfs, oldpath, newpath);
-  if (res != LFS_ERR_OK) {
-    return translate_error(res);
-  }
-
-  return CH_RET_SUCCESS;
+  return translate_error(res);
 }
 
 /**
@@ -979,24 +881,14 @@ msg_t __lfsdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
   int res;
   msg_t ret;
 
-  (void)mode; /* Not handled by LittleFS.*/
-
-  /* FS mount check.*/
-  if (!self->mounted) {
-    return CH_RET_EIO;
-  }
-
+  (void)mode;
   ret = validate_absolute_path(path);
-  if (ret != CH_RET_SUCCESS) {
-    return ret;
-  }
+  CH_RETURN_ON_ERROR(ret);
+  lfsdrv_lock(self);
+  res = self->mounted ? lfs_mkdir(&self->lfs, path) : LFS_ERR_IO;
+  lfsdrv_unlock(self);
 
-  res = lfs_mkdir(&self->lfs, path);
-  if (res != LFS_ERR_OK) {
-    return translate_error(res);
-  }
-
-  return CH_RET_SUCCESS;
+  return translate_error(res);
 }
 
 /**
@@ -1014,27 +906,16 @@ msg_t __lfsdrv_rmdir_impl(void *ip, const char *path) {
   int res;
   msg_t ret;
 
-  /* FS mount check.*/
-  if (!self->mounted) {
-    return CH_RET_EIO;
-  }
-
   ret = validate_absolute_path(path);
-  if (ret != CH_RET_SUCCESS) {
-    return ret;
-  }
-
-  if (strcmp(path, "/") == 0) {
-    /* Can't remove root.*/
+  CH_RETURN_ON_ERROR(ret);
+  if (path[1] == '\0') {
     return CH_RET_EACCES;
   }
+  lfsdrv_lock(self);
+  res = self->mounted ? lfs_remove(&self->lfs, path) : LFS_ERR_IO;
+  lfsdrv_unlock(self);
 
-  res = lfs_remove(&self->lfs, path);
-  if (res != LFS_ERR_OK) {
-    return translate_error(res);
-  }
-
-  return CH_RET_SUCCESS;
+  return translate_error(res);
 }
 /** @} */
 
@@ -1072,21 +953,18 @@ msg_t lfsdrvMount(void *ip) {
   vfs_littlefs_driver_c *self = (vfs_littlefs_driver_c *)ip;
   int res;
 
-  /* FS mount check.*/
+  lfsdrv_lock(self);
   if (self->mounted) {
+    lfsdrv_unlock(self);
     return CH_RET_EBUSY;
   }
-
-  /* Mount the drive using the supplied configuration.*/
   res = lfs_mount(&self->lfs, self->cfgp);
-  if (res != LFS_ERR_OK) {
-    return translate_error(res);
+  if (res == LFS_ERR_OK) {
+    self->mounted = true;
   }
+  lfsdrv_unlock(self);
 
-  /* Mounted state.*/
-  self->mounted = true;
-
-  return CH_RET_SUCCESS;
+  return translate_error(res);
 }
 
 /**
@@ -1104,20 +982,18 @@ msg_t lfsdrvUnmount(void *ip) {
   vfs_littlefs_driver_c *self = (vfs_littlefs_driver_c *)ip;
   int res;
 
-  /* FS mount check.*/
+  lfsdrv_lock(self);
   if (!self->mounted) {
+    lfsdrv_unlock(self);
     return CH_RET_EIO;
   }
-
-  /* Unmounted state, ignoring errors from LFS but reporting them.*/
-  self->mounted = false;
-
   res = lfs_unmount(&self->lfs);
-  if (res != LFS_ERR_OK) {
-    return translate_error(res);
+  if (res == LFS_ERR_OK) {
+    self->mounted = false;
   }
+  lfsdrv_unlock(self);
 
-  return CH_RET_SUCCESS;
+  return translate_error(res);
 }
 
 /**
@@ -1135,16 +1011,14 @@ msg_t lfsdrvFormat(void *ip) {
   vfs_littlefs_driver_c *self = (vfs_littlefs_driver_c *)ip;
   int res;
 
-  /* FS mount check.*/
+  lfsdrv_lock(self);
   if (self->mounted) {
+    lfsdrv_unlock(self);
     return CH_RET_EBUSY;
   }
-
   res = lfs_format(&self->lfs, self->cfgp);
-  if (res != LFS_ERR_OK) {
-    return translate_error(res);
-  }
+  lfsdrv_unlock(self);
 
-  return CH_RET_SUCCESS;
+  return translate_error(res);
 }
 /** @} */

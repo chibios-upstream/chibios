@@ -187,7 +187,12 @@ union drv_streams_interface {
  *              DRV_STREAMS_ELEMENT_FIFO, @p DRV_STREAMS_ELEMENT_REGULAR, @p
  *              DRV_STREAMS_ELEMENT_TTY, and @p DRV_STREAMS_ELEMENT_END macros
  *              so that the node type and active interface member cannot
- *              diverge.
+ *              diverge. Tables, names and interface pointers are immutable
+ *              after publication and must outlive the driver and all its
+ *              nodes. Backend objects must also remain alive. Separate opens
+ *              can alias the same stream, cursor or terminal: shared state and
+ *              blocking I/O synchronization belong to the backend,
+ *              independently of VFS_CFG_USE_MUTUAL_EXCLUSION.
  */
 struct drv_streams_element {
   /**
@@ -327,6 +332,13 @@ struct vfs_streams_file_node {
  * @class       vfs_streams_driver_c
  * @extends     vfs_fs_c
  *
+ * @brief       File system exposing borrowed stream interfaces.
+ * @details     Delegated stream calls run in thread context without an upper
+ *              VFS metadata mutex. They borrow data and control arguments for
+ *              the duration of the call. The caller may hold a VFS scratch
+ *              pair, so a backend must not wait for another pair or reenter an
+ *              allocating root operation. See @p drv_streams_element_t for
+ *              backend lifetime and synchronization requirements.
  *
  * @name        Class @p vfs_streams_driver_c structures
  * @{

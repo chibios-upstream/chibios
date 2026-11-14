@@ -49,6 +49,17 @@ static msg_t make_absolute_path(char *buf, const char *path, const char *cwd) {
   return CH_RET_SUCCESS;
 }
 
+static msg_t make_current_path(vfs_root_c *self, char *buf,
+                               const char *path) {
+  msg_t ret;
+
+  __ovldrv_lock(self);
+  ret = make_absolute_path(buf, path, current_directory(self));
+  __ovldrv_unlock(self);
+
+  return ret;
+}
+
 static msg_t prepend_prefix(vfs_root_c *self, char *path) {
 
   if (self->path_prefix != NULL) {
@@ -74,7 +85,9 @@ static msg_t resolve_path(vfs_root_c *self, char *path,
   msg_t ret;
 
   *delegated = path + 1;
+  __ovldrv_lock(self);
   ret = __ovldrv_match((vfs_overlay_driver_c *)self, delegated, fsp);
+  __ovldrv_unlock(self);
   if (!CH_RET_IS_ERROR(ret)) {
     if (**delegated == '\0') {
       *delegated = "/";
@@ -135,8 +148,10 @@ static msg_t rename_absolute(vfs_root_c *self, char *oldpath, char *newpath) {
   vfs_fs_c *oldfs, *newfs;
   msg_t ret, oldret, newret;
 
+  __ovldrv_lock(self);
   oldret = __ovldrv_match((vfs_overlay_driver_c *)self, &op, &oldfs);
   newret = __ovldrv_match((vfs_overlay_driver_c *)self, &np, &newfs);
+  __ovldrv_unlock(self);
   if (!CH_RET_IS_ERROR(oldret) && !CH_RET_IS_ERROR(newret)) {
     if (oldfs != newfs) {
       return CH_RET_EXDEV;
@@ -211,8 +226,7 @@ void *__vfsroot_objinit_impl(void *ip, const void *vmt, vfs_fs_c *overlaid_fs,
 void __vfsroot_dispose_impl(void *ip) {
   vfs_root_c *self = (vfs_root_c *)ip;
 
-  /* No finalization code.*/
-  (void)self;
+  /* CWD storage comes from the permanent core allocator.*/
 
   /* Finalization of the ancestors-defined parts.*/
   __ovldrv_dispose_impl(self);
@@ -236,7 +250,7 @@ msg_t __vfsroot_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
   }
-  ret = make_absolute_path(buffer->paths.path1, path, current_directory(self));
+  ret = make_current_path(self, buffer->paths.path1, path);
   if (!CH_RET_IS_ERROR(ret)) {
     if (buffer->paths.path1[1] == '\0') {
       sp->mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR;
@@ -278,7 +292,7 @@ msg_t __vfsroot_opendir_impl(void *ip, const char *path,
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
   }
-  ret = make_absolute_path(buffer->paths.path1, path, current_directory(self));
+  ret = make_current_path(self, buffer->paths.path1, path);
   if (!CH_RET_IS_ERROR(ret)) {
     ret = open_absolute_dir(self, buffer->paths.path1, vdnpp);
   }
@@ -308,7 +322,7 @@ msg_t __vfsroot_openfile_impl(void *ip, const char *path, int flags,
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
   }
-  ret = make_absolute_path(buffer->paths.path1, path, current_directory(self));
+  ret = make_current_path(self, buffer->paths.path1, path);
   if (!CH_RET_IS_ERROR(ret)) {
     ret = open_absolute_file(self, buffer->paths.path1, flags, vfnpp);
   }
@@ -334,7 +348,7 @@ msg_t __vfsroot_unlink_impl(void *ip, const char *path) {
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
   }
-  ret = make_absolute_path(buffer->paths.path1, path, current_directory(self));
+  ret = make_current_path(self, buffer->paths.path1, path);
   if (!CH_RET_IS_ERROR(ret)) {
     if (buffer->paths.path1[1] == '\0') {
       ret = CH_RET_EISDIR;
@@ -373,13 +387,15 @@ msg_t __vfsroot_rename_impl(void *ip, const char *oldpath, const char *newpath) 
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
   }
+  __ovldrv_lock(self);
   cwd = current_directory(self);
   ret = make_absolute_path(buffer->paths.path1, oldpath, cwd);
   if (!CH_RET_IS_ERROR(ret)) {
     ret = make_absolute_path(buffer->paths.path2, newpath, cwd);
-    if (!CH_RET_IS_ERROR(ret)) {
-      ret = rename_absolute(self, buffer->paths.path1, buffer->paths.path2);
-    }
+  }
+  __ovldrv_unlock(self);
+  if (!CH_RET_IS_ERROR(ret)) {
+    ret = rename_absolute(self, buffer->paths.path1, buffer->paths.path2);
   }
   vfs_buffer_release(buffer);
 
@@ -404,7 +420,7 @@ msg_t __vfsroot_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
   }
-  ret = make_absolute_path(buffer->paths.path1, path, current_directory(self));
+  ret = make_current_path(self, buffer->paths.path1, path);
   if (!CH_RET_IS_ERROR(ret)) {
     if (buffer->paths.path1[1] == '\0') {
       ret = CH_RET_EEXIST;
@@ -441,7 +457,7 @@ msg_t __vfsroot_rmdir_impl(void *ip, const char *path) {
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
   }
-  ret = make_absolute_path(buffer->paths.path1, path, current_directory(self));
+  ret = make_current_path(self, buffer->paths.path1, path);
   if (!CH_RET_IS_ERROR(ret)) {
     if (buffer->paths.path1[1] == '\0') {
       ret = CH_RET_EACCES;
@@ -504,7 +520,7 @@ msg_t vfsRootOpen(void *ip, const char *path, int flags, vfs_node_c **vnpp) {
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
   }
-  ret = make_absolute_path(buffer->paths.path2, path, current_directory(self));
+  ret = make_current_path(self, buffer->paths.path2, path);
   if (!CH_RET_IS_ERROR(ret)) {
     strcpy(buffer->paths.path1, buffer->paths.path2);
     ret = open_absolute_file(self, buffer->paths.path1, flags,
@@ -541,7 +557,7 @@ msg_t vfsRootChangeCurrentDirectory(void *ip, const char *path) {
     return CH_RET_ENOMEM;
   }
   do {
-    ret = make_absolute_path(buffer->paths.path2, path, current_directory(self));
+    ret = make_current_path(self, buffer->paths.path2, path);
     CH_BREAK_ON_ERROR(ret);
     strcpy(buffer->paths.path1, buffer->paths.path2);
     ret = open_absolute_dir(self, buffer->paths.path1, &vdnp);
@@ -549,14 +565,19 @@ msg_t vfsRootChangeCurrentDirectory(void *ip, const char *path) {
     (void)roRelease(vdnp);
 
     /* The logical candidate survives both validation and node cleanup.*/
+    __ovldrv_lock(self);
     if (self->path_cwd == NULL) {
+      /* Core allocation is bounded and nonblocking. Keeping the metadata
+         mutex prevents competing first-chdir allocations.*/
       self->path_cwd = chCoreAlloc(VFS_CFG_PATHLEN_MAX + 1U);
       if (self->path_cwd == NULL) {
+        __ovldrv_unlock(self);
         ret = CH_RET_ENOMEM;
         break;
       }
     }
     strcpy(self->path_cwd, buffer->paths.path2);
+    __ovldrv_unlock(self);
   } while (false);
   vfs_buffer_release(buffer);
 
@@ -575,15 +596,23 @@ msg_t vfsRootChangeCurrentDirectory(void *ip, const char *path) {
  */
 msg_t vfsRootGetCurrentDirectory(void *ip, char *buf, size_t size) {
   vfs_root_c *self = (vfs_root_c *)ip;
-  const char *cwd = current_directory(self);
-  size_t n = strlen(cwd);
+  const char *cwd;
+  size_t n;
+  msg_t ret;
 
+  __ovldrv_lock(self);
+  cwd = current_directory(self);
+  n = strlen(cwd);
   if (n >= size) {
-    return CH_RET_ERANGE;
+    ret = CH_RET_ERANGE;
   }
-  memcpy(buf, cwd, n + 1U);
+  else {
+    memcpy(buf, cwd, n + 1U);
+    ret = CH_RET_SUCCESS;
+  }
+  __ovldrv_unlock(self);
 
-  return CH_RET_SUCCESS;
+  return ret;
 }
 /** @} */
 

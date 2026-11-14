@@ -36,6 +36,21 @@
 /*===========================================================================*/
 
 /**
+ * @brief   Enables local VFS mutual exclusion.
+ * @details Protects root/overlay metadata, singleton FatFS state and each
+ *          LittleFS instance. Metadata locks are released before delegation;
+ *          leaf wrapper locks cover native library calls and storage I/O.
+ *          When disabled, callers serialize shared state. Shared hardware
+ *          and other backends retain their own synchronization requirements.
+ *          Direct and convenience APIs follow the same rules; this option
+ *          does not make multi-call sequences atomic or order same-node use.
+ *          Pool, reference and descriptor protection remain independent.
+ */
+#if !defined(VFS_CFG_USE_MUTUAL_EXCLUSION) || defined(__DOXYGEN__)
+#define VFS_CFG_USE_MUTUAL_EXCLUSION        FALSE
+#endif
+
+/**
  * @brief   Maximum filename length.
  */
 #if !defined(VFS_CFG_NAMELEN_MAX) || defined(__DOXYGEN__)

@@ -104,10 +104,12 @@ int fs_open_custom(struct fs_file *file, const char *name) {
 }
 
 void fs_close_custom(struct fs_file *file) {
+  vfs_node_c *vnp;
 
   if ((file != NULL) && (file->pextension != NULL)) {
-    vfsClose((vfs_node_c *)file->pextension);
+    vnp = (vfs_node_c *)file->pextension;
     file->pextension = NULL;
+    vfsClose(vnp);
   }
 }
 

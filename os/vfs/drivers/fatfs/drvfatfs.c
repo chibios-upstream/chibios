@@ -178,6 +178,12 @@ struct vfs_fatfs_file_node {
  * @brief       Global state of @p vfs_fatfs_driver_c.
  */
 struct vfs_fatfs_driver_static_struct {
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
+  /**
+   * @brief       Singleton FatFS operation mutex.
+   */
+  mutex_t                   mutex;
+#endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
   /**
    * @brief       Pool of file system objects.
    */

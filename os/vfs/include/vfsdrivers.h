@@ -70,7 +70,17 @@
  *
  * @brief       Common ancestor class of all VFS file system classes.
  * @details     Base class for objects that implement a Posix-like file system
- *              interface using normalized absolute paths.
+ *              interface using normalized absolute paths. Root objects also
+ *              accept relative paths and normalize them against their CWD.
+ *              Direct methods and convenience APIs use the same internal local
+ *              synchronization, controlled by VFS_CFG_USE_MUTUAL_EXCLUSION;
+ *              they do not provide atomic multi-call transactions. The caller
+ *              must keep the file system alive through all operations and node
+ *              disposal. Successful opens transfer one node reference to the
+ *              caller. Input paths and other borrowed arguments must remain
+ *              valid and unchanged until the call returns. Native filesystem
+ *              mount, unmount, format and object disposal require externally
+ *              quiesced users of the affected filesystem.
  *
  * @name        Class @p vfs_fs_c structures
  * @{

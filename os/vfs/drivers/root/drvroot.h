@@ -58,9 +58,16 @@
  *              process context. Relative inputs are resolved against its
  *              current directory; all inputs are normalized before delegation.
  *              Root is an outer entry point and must not be stacked below
- *              another root. Path operations reserve a buffer pair locally.
- *              Callers remain responsible for serializing access to shared
- *              root state.
+ *              another root. Path operations reserve a buffer pair before
+ *              locking metadata. Optional local locking protects CWD copying
+ *              and commit, and is released before delegated operations and
+ *              node disposal. When disabled, callers must serialize shared
+ *              metadata. Each root allocates one CWD buffer on its first
+ *              successful chdir using the permanent core allocator. The
+ *              allocation is protected by the metadata mutex and reused for
+ *              subsequent changes; callers must not replace its pointer.
+ *              Disposal does not reclaim CWD storage and requires no live
+ *              nodes or active operations.
  *
  * @name        Class @p vfs_root_c structures
  * @{
@@ -97,12 +104,18 @@ struct vfs_root {
    * @brief       Virtual Methods Table.
    */
   const struct vfs_root_vmt *vmt;
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
+  /**
+   * @brief       Local metadata mutex, also used by derived roots.
+   */
+  mutex_t                   mutex;
+#endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
   vfs_fs_c                  *overlaid_drv;
   unsigned                  next_driver;
   const char                *names[DRV_CFG_OVERLAY_DRV_MAX];
   vfs_fs_c                  *drivers[DRV_CFG_OVERLAY_DRV_MAX];
   /**
-   * @brief       Current working directory path or @p NULL for root.
+   * @brief       Owned CWD storage or @p NULL for root; internal use only.
    */
   char                      *path_cwd;
   /**
