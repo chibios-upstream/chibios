@@ -90,6 +90,10 @@ static msg_t vfs_read(void *cookie, size_t offset, void *buf, size_t n) {
  *          sections named @p SB_ELF_SECTION_NOCACHE, if present, are placed
  *          into the non-cacheable area, all other loadable sections go into
  *          the main area.
+ * @pre     The caller holds a reference to the file node and serializes the
+ *          use of its file position for the whole call.
+ * @pre     The destination areas are exclusively owned until the call
+ *          returns.
  * @note    Sandbox images policy, the image must be linked at virtual
  *          address zero, images linked at other addresses are rejected.
  * @note    The coherent data section is BSS-like, initialized data is not
@@ -190,7 +194,10 @@ msg_t sbElfLoad(vfs_file_node_c *fnp, const memory_area_t *map,
 /**
  * @brief   Loads an ELF image file into memory areas.
  * @details Convenience wrapper over @p sbElfLoad() taking a file path
- *          instead of an open file node.
+ *          instead of an open file node, the node is opened and owned by
+ *          the function for the whole call.
+ * @pre     The root stays valid and the destination areas are exclusively
+ *          owned until the call returns.
  *
  * @param[in] rootp     pointer to the VFS root used to access the file
  * @param[in] path      path of the image file
@@ -228,6 +235,8 @@ msg_t sbElfLoadFile(vfs_root_c *rootp,
  *          are returned, no memory is written. The extent of the sections
  *          named @p SB_ELF_SECTION_NOCACHE is returned separately, zero if
  *          the image has none.
+ * @pre     The caller holds a reference to the file node and serializes the
+ *          use of its file position for the whole call.
  * @note    Sandbox images policy, the image must be linked at virtual
  *          address zero, the returned main size is also the whole image
  *          extent from address zero.

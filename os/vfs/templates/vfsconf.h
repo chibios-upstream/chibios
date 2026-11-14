@@ -42,6 +42,9 @@
  *          leaf wrapper locks cover native library calls and storage I/O.
  *          When disabled, callers serialize shared state. Shared hardware
  *          and other backends retain their own synchronization requirements.
+ *          Direct and convenience APIs follow the same rules; this option
+ *          does not make multi-call sequences atomic or order same-node use.
+ *          Pool, reference and descriptor protection remain independent.
  */
 #if !defined(VFS_CFG_USE_MUTUAL_EXCLUSION) || defined(__DOXYGEN__)
 #define VFS_CFG_USE_MUTUAL_EXCLUSION        FALSE

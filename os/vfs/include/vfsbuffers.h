@@ -54,6 +54,12 @@
  * @details Each allocation reserves both paths. The pointer member ensures
  *          pool and typed scratch alignment, including the array stride for
  *          path lengths that do not give a naturally aligned buffer size.
+ *          Both views belong exclusively to the reserving operation until
+ *          release. Do not access either view after release. Waiting for a
+ *          second pair while retaining one is forbidden, including through
+ *          delegated driver calls and callbacks. Release metadata mutexes
+ *          before allocating; allocation does not acquire or release a VFS
+ *          operation lock.
  */
 typedef union vfs_shared_buffer {
   struct {

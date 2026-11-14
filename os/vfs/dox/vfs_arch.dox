@@ -84,6 +84,9 @@
  * also remove every mapping or backing relationship that could access it.
  * Unregistering a mapping does not close nodes previously opened through it
  * and does not wait for the operations already routed through it.
+ * Mounting, unmounting or formatting a native file system, and reconfiguring
+ * a backend, require that no operation is active on it and that none of its
+ * nodes is open.
  *
  * @section vfs_arch_fs_paths File-system path contract
  *
@@ -156,12 +159,18 @@
  *
  * Nodes are not protected by the VFS:
  * - a reference keeps a node alive, it does not serialize its operations;
+ * - reference counters are protected by the OOP layer, concurrent use needs
+ *   a synchronized OOP configuration, @p OOP_USE_NOTHING does not provide
+ *   it;
  * - operations on the same open node, including duplicated descriptors
  *   sharing it, are serialized by the callers unless its driver states
  *   otherwise, multi-call sequences need caller ordering too;
  * - distinct nodes can be used concurrently only as far as the leaf file
  *   system and its backend allow.
  * .
+ * Direct driver methods and the convenience API follow the same rules, the
+ * convenience functions check their pointer arguments without reading the
+ * reference counters.
  * @subsection vfs_arch_leaf_locking Leaf file systems
  *
  * With @p VFS_CFG_USE_MUTUAL_EXCLUSION enabled, the FatFS and LittleFS
@@ -188,7 +197,9 @@
  *
  * ROMFS data is immutable and needs no mutex. Stream drivers and ROMFS
  * dynamic callbacks follow the synchronization of their backend. ChibiFS is
- * not implemented and is not covered.
+ * not implemented and is not covered. Custom drivers and callbacks follow
+ * the same rules, the option does not synchronize the shared backend state
+ * they own.
  *
  * @subsection vfs_arch_descriptors Descriptors
  *
@@ -206,6 +217,26 @@
  * The descriptor table of a sandbox is owned by its host thread. The host
  * registers descriptors only while the sandbox is stopped. Close, cleanup and
  * @p dup2() detach a descriptor before releasing its node.
+ *
+ * @subsection vfs_arch_callers Callers
+ *
+ * - The default root, @p vfs_root, is set by the application before any user
+ *   starts and stays valid while they run. The top-level path API uses its
+ *   current directory, shared by all its users: a directory change followed
+ *   by another call is not an atomic sequence, and shell commands running
+ *   concurrently share it too.
+ * - The ELF loader functions taking a file node borrow the caller reference
+ *   and use the file position for the whole call. @p sbElfLoadFile() and the
+ *   sandbox dynamic startup open and own their node instead.
+ * - The HTTP bindings keep their file system pointer stable until all files
+ *   are closed. Each HTTP file owns a node reference and is serialized by the
+ *   HTTP server, close detaches the node from the file before releasing it.
+ * - ROMFS descriptions and callback tables are immutable. Dynamic and
+ *   compression callbacks synchronize their own shared state, can be called
+ *   while a buffer pair is reserved and must not wait for another one,
+ *   including through an allocating root operation. Native file system
+ *   storage callbacks must not reenter the VFS.
+ * .
  */
 
 /*
