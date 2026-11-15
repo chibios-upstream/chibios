@@ -49,8 +49,30 @@
 
 #if (OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC) || defined(__DOXYGEN__)
 
+/* Periodic mode uses Timer 0, or Timer 2 where Timer 0 has no compare unit
+   (ATmega8). */
+#if defined(OCR0A) || defined(OCR0)
+  #define AVR_TIMER_USE_TIM2 FALSE
+#elif defined(OCR2)
+  #define AVR_TIMER_USE_TIM2 TRUE
+#else
+  #error "Cannot find an 8 bit timer with a compare unit"
+#endif
+
+/* Asynchronous timers (Timer 0 on ATmega64/128, Timer 2 on ATmega8) have
+   extra CLK/32 and CLK/128 steps, which move the clock select codes from
+   CLK/64 upward. */
+#if (AVR_TIMER_USE_TIM2 && defined(AS2)) || \
+    (!AVR_TIMER_USE_TIM2 && defined(AS0))
+  #define AVR_TIMER_ASYNC TRUE
+#else
+  #define AVR_TIMER_ASYNC FALSE
+#endif
+
 /* Work out what the timer interrupt is called on this MCU. */
-#ifdef TIMER0_COMPA_vect
+#if AVR_TIMER_USE_TIM2
+  #define AVR_TIMER_VECT TIMER2_COMP_vect
+#elif defined(TIMER0_COMPA_vect)
   #define AVR_TIMER_VECT TIMER0_COMPA_vect
 #elif defined(TIMER_COMPA_vect)
   #define AVR_TIMER_VECT TIMER_COMPA_vect
@@ -60,45 +82,47 @@
   #error "Cannot find interrupt vector name for timer"
 #endif
 
-/* Find the most suitable prescaler setting for the desired OSAL_ST_FREQUENCY*/
+/* Find the most suitable prescaler setting for the desired OSAL_ST_FREQUENCY.
+   The clock select field is bits 2:0 of the control register on every timer
+   used here. */
 #if ((F_CPU / OSAL_ST_FREQUENCY) <= AVR_TIMER_COUNTER_MAX)
 
   #define AVR_TIMER_PRESCALER 1
-  #define AVR_TIMER_PRESCALER_BITS ((0<<CS02)|(0<<CS01)|(1<<CS00)) /* CLK  */
+  #define AVR_TIMER_PRESCALER_BITS 1                        /* CLK      */
 
 #elif ((F_CPU / OSAL_ST_FREQUENCY / 8) <= AVR_TIMER_COUNTER_MAX)
 
   #define AVR_TIMER_PRESCALER 8
-  #define AVR_TIMER_PRESCALER_BITS ((0<<CS02)|(1<<CS01)|(0<<CS00)) /* CLK/8 */
+  #define AVR_TIMER_PRESCALER_BITS 2                        /* CLK/8    */
 
 #elif ((F_CPU / OSAL_ST_FREQUENCY / 64) <= AVR_TIMER_COUNTER_MAX)
 
   #define AVR_TIMER_PRESCALER 64
 
-  #ifdef __AVR_ATmega128__
-    #define AVR_TIMER_PRESCALER_BITS ((1<<CS02)|(0<<CS01)|(0<<CS00)) /* CLK/64   */
+  #if AVR_TIMER_ASYNC
+    #define AVR_TIMER_PRESCALER_BITS 4                      /* CLK/64   */
   #else
-    #define AVR_TIMER_PRESCALER_BITS ((0<<CS02)|(1<<CS01)|(1<<CS00)) /* CLK/64   */
+    #define AVR_TIMER_PRESCALER_BITS 3                      /* CLK/64   */
   #endif
 
 #elif ((F_CPU / OSAL_ST_FREQUENCY / 256) <= AVR_TIMER_COUNTER_MAX)
 
   #define AVR_TIMER_PRESCALER 256
 
-  #ifdef __AVR_ATmega128__
-    #define AVR_TIMER_PRESCALER_BITS ((1<<CS02)|(1<<CS01)|(0<<CS00)) /* CLK/256  */
+  #if AVR_TIMER_ASYNC
+    #define AVR_TIMER_PRESCALER_BITS 6                      /* CLK/256  */
   #else
-    #define AVR_TIMER_PRESCALER_BITS ((1<<CS02)|(0<<CS01)|(0<<CS00)) /* CLK/256  */
+    #define AVR_TIMER_PRESCALER_BITS 4                      /* CLK/256  */
   #endif
 
 #elif ((F_CPU / OSAL_ST_FREQUENCY / 1024) <= AVR_TIMER_COUNTER_MAX)
 
   #define AVR_TIMER_PRESCALER 1024
 
-  #ifdef __AVR_ATmega128__
-    #define AVR_TIMER_PRESCALER_BITS (1<<CS02)|(1<<CS01)|(1<<CS00); /* CLK/1024 */
+  #if AVR_TIMER_ASYNC
+    #define AVR_TIMER_PRESCALER_BITS 7                      /* CLK/1024 */
   #else
-    #define AVR_TIMER_PRESCALER_BITS (1<<CS02)|(0<<CS01)|(1<<CS00); /* CLK/1024 */
+    #define AVR_TIMER_PRESCALER_BITS 5                      /* CLK/1024 */
   #endif
 
 #else
@@ -186,7 +210,7 @@ void st_lld_init(void) {
 #if (OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING) || defined(__DOXYGEN__)
 
   /*
-   * Periodic mode uses Timer 1 (16 bit).
+   * Free running mode uses Timer 1 (16 bit).
    */
 
   /* CTC mode, no clock source. */
@@ -194,11 +218,13 @@ void st_lld_init(void) {
   TCCR1B     = _BV(WGM12);
 
   /* Start disabled. */
+#if defined(TCCR1C)
   TCCR1C     = 0;
+#endif
   OCR1A      = 0;
   TCNT1      = 0;
   TIFR_REG   = _BV(OCF1A);                              /* Reset pending.   */
-  TIMSK_REG  = 0;
+  TIMSK_REG &= (uint8_t)~_BV(OCIE1A);
   TCCR1B     = PRESCALER;
 
 #endif /* OSAL_ST_MODE == OSAL_ST_MODE_FREERUNNING */
@@ -206,9 +232,18 @@ void st_lld_init(void) {
 #if (OSAL_ST_MODE == OSAL_ST_MODE_PERIODIC) || defined(__DOXYGEN__)
 
   /*
-   * Periodic mode uses Timer 0 (8 bit).
+   * Periodic mode uses Timer 0 (8 bit), or Timer 2 (8 bit) on the ATmega8.
    */
-#if defined(TCCR0B) /* Timer has multiple output comparators.               */
+#if AVR_TIMER_USE_TIM2 /* Timer 0 has no output comparator.                 */
+  TCCR2   = (1 << WGM21) | (0 << WGM20) |                /* CTC mode.       */
+            (0 << COM21) | (0 << COM20) |                /* OC2 disabled.   */
+            AVR_TIMER_PRESCALER_BITS;
+  OCR2    = AVR_TIMER_COUNTER - 1;
+  TCNT2   = 0;                                           /* Reset counter.  */
+  TIFR    = (1 << OCF2);                                 /* Reset pending.  */
+  TIMSK  |= (1 << OCIE2);                                /* IRQ on compare. */
+
+#elif defined(TCCR0B) /* Timer has multiple output comparators.             */
   TCCR0A  = (1 << WGM01) | (0 << WGM00) |                /* CTC mode.       */
             (0 << COM0A1) | (0 << COM0A0) |              /* OC0A disabled.  */
             (0 << COM0B1) | (0 << COM0B0);               /* OC0B disabled.  */
@@ -234,7 +269,7 @@ void st_lld_init(void) {
   OCR0    = AVR_TIMER_COUNTER - 1;
   TCNT0   = 0;                                           /* Reset counter.  */
   TIFR    = (1 << OCF0);                                 /* Reset pending.  */
-  TIMSK   = (1 << OCIE0);                                /* IRQ on compare. */
+  TIMSK  |= (1 << OCIE0);                                /* IRQ on compare. */
 #else
   #error "Neither TCCR0A nor TCCR0 registers are defined"
 #endif
