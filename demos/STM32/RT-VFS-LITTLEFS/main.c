@@ -19,6 +19,7 @@
 #include "ch.h"
 #include "hal.h"
 #include "vfs.h"
+#include "newlib_vfs.h"
 
 #include "chprintf.h"
 #include "nullstreams.h"
@@ -252,6 +253,10 @@ int main(void) {
   if (CH_RET_IS_ERROR(msg)) {
     chSysHalt("VFS");
   }
+
+  /* Newlib system calls on the VFS root, used by the shell file
+     commands.*/
+  newlibVfsInit(&root_driver);
 
   /* Shell manager initialization.*/
   xshellObjectInit(&sm1, &cfg1);

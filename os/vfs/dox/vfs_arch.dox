@@ -188,13 +188,13 @@
  * @section vfs_arch_io I/O context
  *
  * A @p vfs_io_c object provides POSIX-like descriptors over the node API, it
- * is the common part of the C library and sandbox adapters, currently used
- * by the sandboxes. The caller provides the descriptor array,
- * @p vfs_descriptor_t, and its capacity, the object allocates no memory and
- * uses no mutex. It requires synchronized OOP references and is not
- * available with @p OOP_USE_NOTHING. Its operations return the VFS error
- * codes, the translation to @p errno and to the C library types is left to
- * the adapters.
+ * is the common part of the C library and sandbox adapters, used by the
+ * Newlib bindings and by the sandboxes. The caller provides the descriptor
+ * array, @p vfs_descriptor_t, and its capacity, the object allocates no
+ * memory and uses no mutex. It requires synchronized OOP references and is
+ * not available with @p OOP_USE_NOTHING. Its operations return the VFS
+ * error codes, the translation to @p errno and to the C library types is
+ * left to the adapters.
  *
  * Each occupied descriptor owns one node reference:
  * - vfsIOInsert() takes the lowest free descriptor, vfsIOInstall() an empty
@@ -314,16 +314,14 @@
  * critical section, so the capacity should stay small. Initialization, root
  * association, clear and disposal require exclusive access to the context.
  *
- * Each descriptor of the Newlib bindings owns a node reference. Table
- * insertion, lookup and detachment use short critical sections, read, write
- * and fstat keep their node referenced while running outside them. Close
- * detaches the descriptor before releasing the node, so its number can be
- * reused while an earlier operation still finishes on the original node.
- * Open rejects nodes overriding the reference methods with @c ENOTSUP and the
- * bindings require synchronized OOP reference counters, @p OOP_USE_NOTHING is
- * rejected. This protection does not depend on
- * @p VFS_CFG_USE_MUTUAL_EXCLUSION and does not serialize the operations on
- * the same descriptor.
+ * The Newlib bindings, with @p SYSCALL_USE_VFS, own an I/O context with
+ * @p SYSCALL_MAX_FDS descriptors. newlibVfsInit() initializes it and
+ * associates the root used by @p open(), @p stat(), @p unlink(),
+ * @p rename() and @p mkdir(), it is called once before any C library I/O.
+ * No descriptor is installed automatically: the application installs the
+ * standard descriptors 0, 1 and 2 with vfsIOInstall() on newlibVfsGetIO()
+ * before opening files. The C library @p FILE objects are not protected, a
+ * stream is not used concurrently by several threads.
  *
  * Each sandbox embeds an I/O context and its descriptor array. The host
  * registers descriptors and changes the root only while the sandbox is

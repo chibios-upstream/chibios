@@ -53,7 +53,7 @@ ASMSRC = $(ALLASMSRC)
 ASMXSRC = $(ALLXASMSRC)
 INCDIR = . $(CONFDIR) sb_stubs $(CHIBIOS)/os/sb/common \
          $(CHIBIOS)/os/sb/user $(CHIBIOS)/os/sb/apps/common/elfexec \
-         $(ALLINC) $(TESTINC)
+         $(CHIBIOS)/os/various/newlib_bindings $(ALLINC) $(TESTINC)
 
 UDEFS = -DSIMULATOR -DVFS_TEST_NEWLIB -DVFS_TEST_SB \
         -DTEST_CFG_DELAY_BETWEEN_TESTS=0 \

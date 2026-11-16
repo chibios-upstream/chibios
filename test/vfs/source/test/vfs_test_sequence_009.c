@@ -21,13 +21,14 @@
  * @file    vfs_test_sequence_009.c
  * @brief   Test Sequence 009 code.
  *
- * @page vfs_test_sequence_009 [9] Newlib Descriptor Ownership
+ * @page vfs_test_sequence_009 [9] Newlib Bindings
  *
  * File: @ref vfs_test_sequence_009.c
  *
  * <h2>Description</h2>
- * Production newlib bindings retain nodes across close/reuse and
- * release outside descriptor protection.
+ * Production newlib bindings on their I/O context: nodes retained
+ * across close/reuse and released outside descriptor protection,
+ * initialization, standard descriptors and POSIX calls.
  *
  * <h2>Conditions</h2>
  * This sequence is only executed if the following preprocessor condition
@@ -39,6 +40,7 @@
  * - @subpage vfs_test_009_001
  * - @subpage vfs_test_009_002
  * - @subpage vfs_test_009_003
+ * - @subpage vfs_test_009_004
  * .
  */
 
@@ -69,7 +71,6 @@ static unsigned vfs_test_fd_dir_disposals;
 static struct vfs_file_node_vmt vfs_test_fd_custom_vmt;
 static struct vfs_fs_vmt vfs_test_fd_fs_vmt;
 static vfs_root_c vfs_test_fd_root;
-static vfs_root_c *vfs_test_fd_saved_root;
 static THD_WORKING_AREA(vfs_test_fd_wa, 4096);
 static thread_reference_t vfs_test_fd_io_waiter, vfs_test_fd_dispose_waiter;
 static int vfs_test_fd_number, vfs_test_fd_operation, vfs_test_fd_result;
@@ -247,23 +248,92 @@ static void vfs_test_fd_setup(void) {
   vfs_test_fd_fs_vmt.opendir = vfs_test_fd_opendir;
   vfs_test_fs.vmt = &vfs_test_fd_fs_vmt;
   (void)vfsrootObjectInit(&vfs_test_fd_root, (vfs_fs_c *)&vfs_test_fs, NULL);
-  vfs_test_fd_saved_root = vfs_root;
-  vfs_root = &vfs_test_fd_root;
+  newlibVfsInit(&vfs_test_fd_root);
   vfs_test_fd_count = 0U;
   vfs_test_fd_custom_calls = 0U;
   vfs_test_fd_dir_disposals = 0U;
 }
 
 static void vfs_test_fd_teardown(void) {
-  vfs_test_reent_t r;
-  unsigned i;
 
-  for (i = 0U; i < VFS_TEST_NEWLIB_FDS; i++) {
-    (void)vfs_test_close_r(&r, (int)i);
-  }
-  vfs_root = vfs_test_fd_saved_root;
+  vfsIOClear(newlibVfsGetIO());
   boDispose(&vfs_test_fd_root);
 }
+
+#if VFS_CFG_ENABLE_DRV_ROMFS == TRUE
+static const vfs_romfs_file_desc_t vfs_test_nl_files[] = {
+  {
+    .name = "data",
+    .mode = VFS_MODE_S_IRUSR,
+    .flags = VFS_ROMFS_FILE_TYPE_RAW,
+    .size = 4,
+    .content = {.data = (const uint8_t *)"seed"}
+  }
+};
+
+static const vfs_romfs_dir_desc_t vfs_test_nl_dirs[] = {
+  {.path = "/", .files = vfs_test_nl_files, .files_num = 1},
+  {.path = "/dir", .files = NULL, .files_num = 0}
+};
+
+static const vfs_romfs_tree_t vfs_test_nl_tree = {
+  .dirs = vfs_test_nl_dirs,
+  .dirs_num = sizeof vfs_test_nl_dirs / sizeof vfs_test_nl_dirs[0]
+};
+
+static vfs_rom_driver_c vfs_test_nl_rom;
+static vfs_root_c vfs_test_nl_root;
+static vfs_file_node_c vfs_test_nl_tty;
+
+static msg_t vfs_test_nl_tty_control(void *ip, vfs_control_op_t operation,
+                                     void *arg) {
+
+  (void)ip;
+  (void)arg;
+  if (operation == VFS_CTL_TTY_ISATTY) {
+    return CH_RET_SUCCESS;
+  }
+
+  return CH_RET_ENOTTY;
+}
+
+static ssize_t vfs_test_nl_tty_write(void *ip, const uint8_t *buf,
+                                     size_t n) {
+
+  (void)ip;
+  (void)buf;
+
+  return (ssize_t)n;
+}
+
+static const struct vfs_file_node_vmt vfs_test_nl_tty_vmt = {
+  .dispose = __vfsfile_dispose_impl,
+  .addref = __ro_addref_impl,
+  .release = __ro_release_impl,
+  .stat = __vfsnode_stat_impl,
+  .read = __vfsfile_read_impl,
+  .write = vfs_test_nl_tty_write,
+  .setpos = __vfsfile_setpos_impl,
+  .getpos = __vfsfile_getpos_impl,
+  .control = vfs_test_nl_tty_control
+};
+
+static void vfs_test_nl_setup(void) {
+
+  (void)romdrvObjectInit(&vfs_test_nl_rom, &vfs_test_nl_tree);
+  (void)vfsrootObjectInit(&vfs_test_nl_root, (vfs_fs_c *)&vfs_test_nl_rom,
+                          NULL);
+  (void)__vfsfile_objinit_impl(&vfs_test_nl_tty, &vfs_test_nl_tty_vmt, NULL,
+                               VFS_MODE_S_IFCHR, VO_RDWR);
+}
+
+static void vfs_test_nl_teardown(void) {
+
+  vfsIOClear(newlibVfsGetIO());
+  __vfsroot_dispose_impl(&vfs_test_nl_root);
+  __romdrv_dispose_impl(&vfs_test_nl_rom);
+}
+#endif
 
 /*===========================================================================*/
 /* Test cases.                                                               */
@@ -461,8 +531,8 @@ static void vfs_test_009_003_execute(void) {
                 "directory read error lost");
     test_assert(vfs_test_write_r(&r, fd, "x", 1) == -1 && r.error == EISDIR,
                 "directory write error lost");
-    test_assert(vfs_test_fstat_r(&r, fd, &st) == -1 && r.error == EISDIR,
-                "directory stat behavior changed");
+    test_assert(vfs_test_fstat_r(&r, fd, &st) == 0 && S_ISDIR(st.st_mode),
+                "directory stat failed");
     test_assert(vfs_test_close_r(&r, fd) == 0 && vfs_test_fd_dir_disposals == 1U,
                 "directory error leaked a pin");
     for (i = 0; i < VFS_TEST_NEWLIB_FDS; i++) {
@@ -471,7 +541,8 @@ static void vfs_test_009_003_execute(void) {
     node = vfs_test_fd_count;
     test_assert(vfs_test_open_r(&r, "/new", VO_RDWR, 0) == -1 && r.error == EMFILE,
                 "full table error lost");
-    test_assert(vfs_test_fd_nodes[node].disposals == 1U, "full table leaked node");
+    test_assert(vfs_test_fd_count == node,
+                "full table open reached the driver");
     for (i = 0; i < VFS_TEST_NEWLIB_FDS; i++) {
       test_assert(vfs_test_close_r(&r, i) == 0, "close failed");
     }
@@ -499,6 +570,149 @@ static const testcase_t vfs_test_009_003 = {
   vfs_test_009_003_execute
 };
 
+#if (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page vfs_test_009_004 [9.4] Standard descriptors and POSIX calls
+ *
+ * <h2>Description</h2>
+ * Calls before initialization, standard descriptors installed by the
+ * application, terminal detection, seek, stat, full table and
+ * read-only paths, on ROMFS.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - VFS_CFG_ENABLE_DRV_ROMFS == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [9.4.1] Calls before initialization.
+ * - [9.4.2] Standard descriptors and terminal.
+ * - [9.4.3] Files and directories.
+ * - [9.4.4] Full table and paths.
+ * .
+ */
+
+static void vfs_test_009_004_setup(void) {
+  vfs_test_nl_setup();
+}
+
+static void vfs_test_009_004_teardown(void) {
+  vfs_test_nl_teardown();
+}
+
+static void vfs_test_009_004_execute(void) {
+  vfs_test_reent_t r;
+  struct stat st;
+  int fd, dfd;
+  char c;
+
+  /* [9.4.1] Calls before initialization.*/
+  test_set_step(1);
+  {
+    /* Context without descriptors and root, as before newlibVfsInit().*/
+    (void)vfsioObjectInit(newlibVfsGetIO(), NULL, 0U);
+    test_assert(vfs_test_open_r(&r, "/data", VO_RDONLY, 0) == -1 &&
+                r.error == ENOSYS, "open without a root");
+    test_assert(vfs_test_unlink_r(&r, "/data") == -1 && r.error == ENOSYS,
+                "unlink without a root");
+    errno = 0;
+    test_assert(vfs_test_stat("/data", &st) == -1 && errno == ENOSYS,
+                "stat without a root");
+    test_assert(vfs_test_read_r(&r, 0, &c, 1) == -1 && r.error == EBADF,
+                "read without descriptors");
+    test_assert(vfs_test_isatty_r(&r, 0) == 0 && r.error == EBADF,
+                "isatty without descriptors");
+  }
+  test_end_step(1);
+
+  /* [9.4.2] Standard descriptors and terminal.*/
+  test_set_step(2);
+  {
+    newlibVfsInit(&vfs_test_nl_root);
+    for (fd = 0; fd < 3; fd++) {
+      test_assert(vfsIOInstall(newlibVfsGetIO(), fd,
+                               (vfs_node_c *)roAddRef(&vfs_test_nl_tty)) ==
+                  CH_RET_SUCCESS, "standard descriptor not installed");
+    }
+    test_assert(vfs_test_isatty_r(&r, 1) == 1 &&
+                vfs_test_write_r(&r, 1, "x", 1) == 1, "terminal output lost");
+    test_assert(vfs_test_fstat_r(&r, 2, &st) == 0 && S_ISCHR(st.st_mode),
+                "terminal fstat failed");
+    test_assert(vfs_test_lseek_r(&r, 0, 0, SEEK_CUR) == -1 && r.error == ESPIPE,
+                "terminal seek accepted");
+  }
+  test_end_step(2);
+
+  /* [9.4.3] Files and directories.*/
+  test_set_step(3);
+  {
+    fd = vfs_test_open_r(&r, "/data", VO_RDONLY, 0);
+    test_assert(fd == 3, "file did not take the lowest free descriptor");
+    test_assert(vfs_test_isatty_r(&r, fd) == 0 && r.error == ENOTTY,
+                "file reported as a terminal");
+    test_assert(vfs_test_isatty(1) == 1 && vfs_test_isatty(fd) == 0 &&
+                vfs_test_global_reent.error == ENOTTY,
+                "isatty() wrapper failed");
+    test_assert(vfs_test_fstat_r(&r, fd, &st) == 0 && S_ISREG(st.st_mode) &&
+                st.st_size == 4, "file fstat failed");
+    test_assert(vfs_test_lseek_r(&r, fd, -1, SEEK_END) == 3 &&
+                vfs_test_read_r(&r, fd, &c, 1) == 1 && c == 'd' &&
+                vfs_test_lseek_r(&r, fd, 0, SEEK_CUR) == 4,
+                "seek and read failed");
+    test_assert(vfs_test_lseek_r(&r, fd, 5, SEEK_SET) == -1 &&
+                r.error == ENOTSUP, "ROM seek beyond the end accepted");
+    test_assert(vfs_test_lseek_r(&r, fd, -5, SEEK_CUR) == -1 &&
+                r.error == EINVAL, "negative position accepted");
+    test_assert(vfs_test_read_r(&r, fd, &c, -1) == -1 && r.error == EINVAL,
+                "negative count accepted");
+    test_assert(vfs_test_write_r(&r, fd, "x", 1) == -1 && r.error == EBADF,
+                "write on a read-only descriptor accepted");
+    dfd = vfs_test_open_r(&r, "/dir", VO_RDONLY, 0);
+    test_assert(dfd == 4 && vfs_test_fstat_r(&r, dfd, &st) == 0 &&
+                S_ISDIR(st.st_mode), "directory fstat failed");
+    test_assert(vfs_test_isatty_r(&r, dfd) == 0 && r.error == ENOTTY,
+                "directory reported as a terminal");
+    test_assert(vfs_test_lseek_r(&r, dfd, 0, SEEK_SET) == -1 &&
+                r.error == EISDIR, "directory seek accepted");
+  }
+  test_end_step(3);
+
+  /* [9.4.4] Full table and paths.*/
+  test_set_step(4);
+  {
+    test_assert(vfs_test_open_r(&r, "/data", VO_RDONLY, 0) == -1 &&
+                r.error == EMFILE, "full table open accepted");
+    test_assert(vfs_test_close_r(&r, fd) == 0 &&
+                vfs_test_close_r(&r, dfd) == 0, "close failed");
+    test_assert(vfs_test_close_r(&r, fd) == -1 && r.error == EBADF,
+                "double close accepted");
+    test_assert(vfs_test_stat("/data", &st) == 0 && S_ISREG(st.st_mode) &&
+                st.st_size == 4, "stat failed");
+    errno = 0;
+    test_assert(vfs_test_stat("/missing", &st) == -1 && errno == ENOENT,
+                "stat error lost");
+    test_assert(vfs_test_unlink_r(&r, "/data") == -1 && r.error == EROFS,
+                "unlink on ROMFS");
+    test_assert(vfs_test_rename_r(&r, "/data", "/other") == -1 &&
+                r.error == EROFS, "rename on ROMFS");
+    test_assert(vfs_test_mkdir_r(&r, "/new", 0777) == -1 && r.error == EROFS,
+                "mkdir on ROMFS");
+    vfsIOClear(newlibVfsGetIO());
+    test_assert(vfs_test_nl_tty.references == 1U,
+                "standard descriptors leaked");
+  }
+  test_end_step(4);
+}
+
+static const testcase_t vfs_test_009_004 = {
+  "Standard descriptors and POSIX calls",
+  vfs_test_009_004_setup,
+  vfs_test_009_004_teardown,
+  vfs_test_009_004_execute
+};
+#endif /* VFS_CFG_ENABLE_DRV_ROMFS == TRUE */
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -510,14 +724,17 @@ const testcase_t * const vfs_test_sequence_009_array[] = {
   &vfs_test_009_001,
   &vfs_test_009_002,
   &vfs_test_009_003,
+#if (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_009_004,
+#endif
   NULL
 };
 
 /**
- * @brief   Newlib Descriptor Ownership.
+ * @brief   Newlib Bindings.
  */
 const testsequence_t vfs_test_sequence_009 = {
-  "Newlib Descriptor Ownership",
+  "Newlib Bindings",
   vfs_test_sequence_009_array
 };
 

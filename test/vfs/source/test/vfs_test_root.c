@@ -626,4 +626,97 @@ void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
               vfsFSRmdir(fsp, "/dir") == 0, "typed cleanup failed");
 }
 
+#if defined(VFS_TEST_NEWLIB) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)
+void vfs_test_newlib_native(vfs_fs_c *fsp) {
+  vfs_test_reent_t r;
+  vfs_root_c root;
+  struct stat st;
+  char buf[8];
+  int fd, i;
+
+  (void)vfsrootObjectInit(&root, fsp, NULL);
+  newlibVfsInit(&root);
+
+  /* Creation, transfers, seek and size through the bindings.*/
+  fd = vfs_test_open_r(&r, "/nl", VO_CREAT | VO_TRUNC | VO_RDWR, 0);
+  test_assert(fd == 0, "newlib create failed");
+  test_assert(vfs_test_write_r(&r, fd, "abcdef", 6) == 6,
+              "newlib write failed");
+  test_assert(vfs_test_lseek_r(&r, fd, 0, SEEK_CUR) == 6 &&
+              vfs_test_lseek_r(&r, fd, -2, SEEK_END) == 4 &&
+              vfs_test_read_r(&r, fd, buf, (int)sizeof buf) == 2 &&
+              memcmp(buf, "ef", 2) == 0, "newlib seek or read failed");
+  test_assert(vfs_test_lseek_r(&r, fd, -1, SEEK_SET) == -1 &&
+              r.error == EINVAL, "negative position accepted");
+  test_assert(vfs_test_lseek_r(&r, fd, 0, 7) == -1 && r.error == EINVAL,
+              "invalid origin accepted");
+  test_assert(vfs_test_fstat_r(&r, fd, &st) == 0 && S_ISREG(st.st_mode) &&
+              st.st_size == 6, "newlib fstat failed");
+  test_assert(vfs_test_isatty_r(&r, fd) == 0 && r.error == ENOTTY,
+              "file reported as a terminal");
+  test_assert(vfs_test_read_r(&r, fd, buf, -1) == -1 && r.error == EINVAL,
+              "negative read count accepted");
+  test_assert(vfs_test_write_r(&r, fd, buf, -1) == -1 && r.error == EINVAL,
+              "negative write count accepted");
+  test_assert(vfs_test_close_r(&r, fd) == 0, "newlib close failed");
+
+  /* Append after a seek.*/
+  fd = vfs_test_open_r(&r, "/nl", VO_WRONLY | VO_APPEND, 0);
+  test_assert(fd == 0 && vfs_test_lseek_r(&r, fd, 0, SEEK_SET) == 0 &&
+              vfs_test_write_r(&r, fd, "gh", 2) == 2 &&
+              vfs_test_close_r(&r, fd) == 0, "newlib append failed");
+  test_assert(vfs_test_stat("/nl", &st) == 0 && st.st_size == 8,
+              "append not at the end of file");
+
+  /* Directories.*/
+  test_assert(vfs_test_mkdir_r(&r, "/nldir", 0777) == 0, "mkdir failed");
+  test_assert(vfs_test_mkdir_r(&r, "/nldir", 0777) == -1 &&
+              r.error == EEXIST, "existing directory created");
+  test_assert(vfs_test_mkdir("/nldir2", 0777) == 0 &&
+              vfsIORmdir(newlibVfsGetIO(), "/nldir2") == CH_RET_SUCCESS,
+              "mkdir() wrapper failed");
+  fd = vfs_test_open_r(&r, "/nldir", VO_RDONLY | VO_DIRECTORY, 0);
+  test_assert(fd == 0 && vfs_test_fstat_r(&r, fd, &st) == 0 &&
+              S_ISDIR(st.st_mode), "directory fstat failed");
+  test_assert(vfs_test_read_r(&r, fd, buf, 1) == -1 && r.error == EISDIR,
+              "directory read accepted");
+  test_assert(vfs_test_lseek_r(&r, fd, 0, SEEK_SET) == -1 &&
+              r.error == EISDIR, "directory seek accepted");
+  test_assert(vfs_test_isatty_r(&r, fd) == 0 && r.error == ENOTTY,
+              "directory reported as a terminal");
+  test_assert(vfs_test_close_r(&r, fd) == 0, "directory close failed");
+
+  /* A full table rejects an open before creating the file.*/
+  for (i = 0; i < VFS_TEST_NEWLIB_FDS; i++) {
+    test_assert(vfs_test_open_r(&r, "/nl", VO_RDONLY, 0) == i,
+                "descriptor fill failed");
+  }
+  test_assert(vfs_test_open_r(&r, "/nlnew", VO_CREAT | VO_WRONLY, 0) == -1 &&
+              r.error == EMFILE, "full table open accepted");
+  errno = 0;
+  test_assert(vfs_test_stat("/nlnew", &st) == -1 && errno == ENOENT,
+              "full table open created the file");
+  for (i = 0; i < VFS_TEST_NEWLIB_FDS; i++) {
+    test_assert(vfs_test_close_r(&r, i) == 0, "descriptor close failed");
+  }
+
+  /* Rename and unlink.*/
+  test_assert(vfs_test_rename_r(&r, "/nl", "/nl2") == 0, "rename failed");
+  errno = 0;
+  test_assert(vfs_test_stat("/nl", &st) == -1 && errno == ENOENT &&
+              vfs_test_stat("/nl2", &st) == 0 && st.st_size == 8,
+              "rename result");
+  test_assert(vfs_test_unlink_r(&r, "/nl2") == 0, "unlink failed");
+  test_assert(vfs_test_unlink_r(&r, "/nl2") == -1 && r.error == ENOENT,
+              "unlink of a missing file");
+
+  /* Calls without a Newlib system call use the context directly.*/
+  test_assert(vfsIORmdir(newlibVfsGetIO(), "/nldir") == CH_RET_SUCCESS,
+              "rmdir through the context failed");
+
+  vfsIOClear(newlibVfsGetIO());
+  boDispose(&root);
+}
+#endif
+
 #endif /* !defined(__DOXYGEN__) */
