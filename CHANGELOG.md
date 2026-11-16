@@ -709,7 +709,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   in the same interrupt in which the transmission completed, the end of
   transmission was missed, `CHN_TRANSMISSION_END` was not raised and
   `TCIE` stayed set with no further interrupt to clear it
-  ([#622](https://github.com/chibios-upstream/chibios/pull/622)).
+  ([#622](https://github.com/chibios-upstream/chibios/pull/622))
+  *(backported to 21.11.6)*.
 - [VFS] Newlib bindings: closing a descriptor while another thread was using
   it could release the node during that operation, and descriptor numbers
   were looked up without protection; descriptors now own their node
