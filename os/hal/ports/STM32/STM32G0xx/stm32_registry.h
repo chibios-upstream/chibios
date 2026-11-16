@@ -811,12 +811,8 @@
 #define STM32_EXTI_IMR1_MASK                0xFFD00000U
 #define STM32_EXTI_IMR2_MASK                0xFFFFFFFFU
 
-/* Flash attributes.*/
-#if defined(STM32G0B1xx)
+/* Flash attributes, a single EFL descriptor covers both banks.*/
 #define STM32_FLASH_NUMBER_OF_BANKS         1
-#else
-#define STM32_FLASH_NUMBER_OF_BANKS         2
-#endif
 
 /* GPIO attributes.*/
 #define STM32_HAS_GPIOA                     TRUE
@@ -1053,8 +1049,8 @@
 #define STM32_EXTI_IMR1_MASK                0xFFFF0000U
 #define STM32_EXTI_IMR2_MASK                0xFFFFFFFFU
 
-/* Flash attributes.*/
-#define STM32_FLASH_NUMBER_OF_BANKS         2
+/* Flash attributes, a single EFL descriptor covers both banks.*/
+#define STM32_FLASH_NUMBER_OF_BANKS         1
 
 /* GPIO attributes.*/
 #define STM32_HAS_GPIOA                     TRUE
