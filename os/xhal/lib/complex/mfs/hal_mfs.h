@@ -123,7 +123,9 @@
  * @details Mutual exclusion on flash is required when multiple threads are
  *          accessing different flash areas through multiple MFS instances
  *          or different modules.
- * @note    Requires exclusive access support in the associated flash driver.
+ * @note    Requires exclusive access support in the associated flash driver,
+ *          XHAL flash drivers provide it with @p HAL_USE_MUTUAL_EXCLUSION
+ *          enabled.
  */
 #if !defined(MFS_USE_FLASH_MUTUAL_EXCLUSION) || defined(__DOXYGEN__)
 #define MFS_USE_FLASH_MUTUAL_EXCLUSION      FALSE

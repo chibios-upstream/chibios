@@ -330,9 +330,11 @@ flash_error_t efl_lld_verify_erase(hal_efl_driver_c *self,
  *          @p flsAcquireExclusive() / @p flsReleaseExclusive()
  *          convention, mutual exclusion is the caller's responsibility
  *          there.  This extension is not reachable through that
- *          interface so it self-locks instead: the driver mutex is held
+ *          interface so it self-locks instead: with
+ *          @p HAL_USE_MUTUAL_EXCLUSION enabled the driver mutex is held
  *          for the whole operation, including the state validation and
- *          the XIP-off window.  Do not call it with the driver already
+ *          the XIP-off window, otherwise the caller serializes the
+ *          driver accesses.  Do not call it with the driver already
  *          acquired through @p flsAcquireExclusive().
  *
  * @param[in,out] self    pointer to an EFL driver instance
@@ -431,9 +433,11 @@ flash_error_t rpEflStartEraseBlock(hal_efl_driver_c *self,
  *          @p flsAcquireExclusive() / @p flsReleaseExclusive()
  *          convention, mutual exclusion is the caller's responsibility
  *          there.  This extension is not reachable through that
- *          interface so it self-locks instead: the driver mutex is held
+ *          interface so it self-locks instead: with
+ *          @p HAL_USE_MUTUAL_EXCLUSION enabled the driver mutex is held
  *          for the whole operation, including the state validation and
- *          the XIP-off window.  Do not call it with the driver already
+ *          the XIP-off window, otherwise the caller serializes the
+ *          driver accesses.  Do not call it with the driver already
  *          acquired through @p flsAcquireExclusive().
  *
  * @param[in,out] self  pointer to an EFL driver instance
