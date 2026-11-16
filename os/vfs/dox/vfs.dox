@@ -66,6 +66,13 @@
  */
 
 /**
+ * @defgroup VFSIO I/O Context
+ * @brief   Descriptor table and root association for POSIX-like adapters.
+ *
+ * @ingroup VFS_CORE
+ */
+
+/**
  * @defgroup VFS_BUFFERS Path Buffers
  * @brief   Shared path buffers.
  *

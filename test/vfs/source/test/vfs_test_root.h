@@ -34,6 +34,8 @@
 #include "vfs_test_sequence_008.h"
 #include "vfs_test_sequence_009.h"
 #include "vfs_test_sequence_010.h"
+#include "vfs_test_sequence_011.h"
+#include "vfs_test_sequence_012.h"
 
 #if !defined(__DOXYGEN__)
 

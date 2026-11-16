@@ -76,6 +76,8 @@ static const vfs_romfs_tree_t open_tree = {
 static vfs_rom_driver_c open_rom;
 static vfs_overlay_driver_c open_overlay;
 static vfs_root_c open_root;
+static vfs_io_c open_io;
+static vfs_descriptor_t open_slots[3];
 
 static void open_setup(void) {
 
@@ -83,10 +85,13 @@ static void open_setup(void) {
   (void)ovldrvObjectInit(&open_overlay, (vfs_fs_c *)&open_rom);
   (void)vfsrootObjectInit(&open_root, (vfs_fs_c *)&open_overlay, "/base");
   (void)ovldrvRegisterDriver(&open_root, (vfs_fs_c *)&open_overlay, "mount");
+  (void)vfsioObjectInit(&open_io, open_slots, 3);
+  vfsIOSetRoot(&open_io, &open_root);
 }
 
 static void open_teardown(void) {
 
+  vfsIOClear(&open_io);
   __vfsroot_dispose_impl(&open_root);
   __ovldrv_dispose_impl(&open_overlay);
   __romdrv_dispose_impl(&open_rom);
@@ -104,6 +109,7 @@ static void open_teardown(void) {
  *
  * <h2>Test Steps</h2>
  * - [10.1.1] ROM transfer and seek boundaries.
+ * - [10.1.2] Descriptor transfer and seek positions.
  * .
  */
 
@@ -119,6 +125,7 @@ static void vfs_test_010_001_execute(void) {
   vfs_node_c *np;
   vfs_file_node_c *fnp;
   uint8_t bytes[8];
+  int fd;
 
   /* [10.1.1] ROM transfer and seek boundaries.*/
   test_set_step(1);
@@ -147,6 +154,29 @@ static void vfs_test_010_001_execute(void) {
     (void)roRelease(np);
   }
   test_end_step(1);
+
+  /* [10.1.2] Descriptor transfer and seek positions.*/
+  test_set_step(2);
+  {
+    fd = vfsIOOpen(&open_io, "data", VO_RDONLY | VO_APPEND);
+    test_assert(fd == 0 && vfsIOWrite(&open_io, fd, NULL, 0) == CH_RET_EBADF,
+                "ROM descriptor access lost");
+    test_assert(vfsIORead(&open_io, fd, bytes, sizeof bytes) == 4 &&
+                memcmp(bytes, "seed", 4) == 0 &&
+                vfsIORead(&open_io, fd, bytes, sizeof bytes) == 0,
+                "ROM descriptor short read or EOF lost");
+    test_assert(vfsIOSeek(&open_io, fd, -1, VFS_SEEK_END) == 3 &&
+                vfsIOSeek(&open_io, fd, -1, VFS_SEEK_CUR) == 2 &&
+                vfsIOSeek(&open_io, fd, INT32_MAX, VFS_SEEK_CUR) ==
+                  CH_RET_EOVERFLOW &&
+                vfsIOSeek(&open_io, fd, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
+                vfsIOSeek(&open_io, fd, 5, VFS_SEEK_SET) ==
+                  CH_ENCODE_ERROR(ENOTSUP) &&
+                vfsIOTell(&open_io, fd) == 2,
+                "ROM descriptor seek bounds or failure position");
+    test_assert(vfsIOClose(&open_io, fd) == 0, "ROM descriptor close failed");
+  }
+  test_end_step(2);
 }
 
 static const testcase_t vfs_test_010_001 = {
@@ -164,6 +194,7 @@ static const testcase_t vfs_test_010_001 = {
  *
  * <h2>Test Steps</h2>
  * - [10.2.1] Root and read-only open matrix.
+ * - [10.2.2] Descriptor open matrix.
  * .
  */
 
@@ -218,6 +249,7 @@ static void vfs_test_010_002_execute(void) {
   vfs_node_c *np;
   vfs_stat_t st;
   msg_t ret;
+  int fd;
 
   /* [10.2.1] Root and read-only open matrix.*/
   test_set_step(1);
@@ -240,6 +272,28 @@ static void vfs_test_010_002_execute(void) {
                 "rejected open changed read-only file");
   }
   test_end_step(1);
+
+  /* [10.2.2] Descriptor open matrix.*/
+  test_set_step(2);
+  {
+    for (i = 0U; i < sizeof cases / sizeof cases[0]; i++) {
+      test_emit_token((char)('A' + i));
+      fd = vfsIOOpen(&open_io, cases[i].path, cases[i].flags);
+      test_assert(fd == cases[i].result, "descriptor open matrix mismatch");
+      if (fd >= 0) {
+        test_assert(vfsIOFstat(&open_io, fd, &st) == 0 &&
+                    VFS_MODE_S_ISDIR(st.mode) == cases[i].directory,
+                    "descriptor open type mismatch");
+        test_assert(vfsIOGetDescriptorFlags(&open_io, fd) ==
+                      ((cases[i].flags & VO_CLOEXEC) != 0 ? VFD_CLOEXEC : 0),
+                    "open descriptor flags not published");
+        test_assert(vfsIOClose(&open_io, fd) == 0, "descriptor close failed");
+      }
+    }
+    test_assert(vfsIOStat(&open_io, "data", &st) == 0 && st.size == 4,
+                "rejected descriptor open changed read-only file");
+  }
+  test_end_step(2);
 }
 
 static const testcase_t vfs_test_010_002 = {

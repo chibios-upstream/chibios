@@ -35,6 +35,8 @@
  * - @p vfs_node_c, the abstract node, with @p vfs_directory_node_c and
  *   @p vfs_file_node_c derived from it. Each node refers to the file system
  *   that owns it.
+ * - @p vfs_io_c, the I/O context, a descriptor table with an optional root,
+ *   see @ref vfs_arch_io.
  * .
  * File-system implementations, including non-root overlays, derive from
  * @p vfs_fs_c. A @p vfs_root_c is an overlay specialized as the entry point
@@ -144,7 +146,8 @@
  * same trailing separator rule. Opening a directory requires read-only access
  * without @p VO_CREAT and @p VO_TRUNC, otherwise it returns @p CH_RET_EISDIR,
  * or @p CH_RET_EEXIST with @p VO_CREAT and @p VO_EXCL. @p VO_CLOEXEC belongs
- * to descriptors, it is accepted and removed before calling a driver.
+ * to descriptors, it is accepted and removed before calling a driver, an I/O
+ * context records it in the descriptor.
  *
  * A file node records its access mode and @p VO_APPEND at open, they do not
  * change for the node lifetime and are shared by all its references. Stat
@@ -181,6 +184,51 @@
  * Drivers return nodes using the standard OOP reference methods. FatFS and
  * LittleFS do not share the state of independent opens of the same file,
  * callers avoid writable opens concurrent with other opens of that file.
+ *
+ * @section vfs_arch_io I/O context
+ *
+ * A @p vfs_io_c object provides POSIX-like descriptors over the node API, it
+ * is meant as the common part of the C library and sandbox adapters. The
+ * caller provides the descriptor array, @p vfs_descriptor_t, and its
+ * capacity, the object allocates no memory and uses no mutex. It requires
+ * synchronized OOP references and is not available with
+ * @p OOP_USE_NOTHING. Its operations return the VFS error codes, the
+ * translation to @p errno and to the C library types is left to the
+ * adapters.
+ *
+ * Each occupied descriptor owns one node reference:
+ * - vfsIOInsert() takes the lowest free descriptor, vfsIOInstall() an empty
+ *   given one, otherwise @p CH_RET_EMFILE and @p CH_RET_EBUSY. Both take
+ *   over the caller reference only on success and accept only nodes using
+ *   the standard OOP reference methods, @c ENOTSUP otherwise;
+ * - vfsIOGet() returns a new node reference, released by the caller;
+ * - vfsIOClose(), vfsIODup2() and vfsIOClear() detach a descriptor before
+ *   releasing its node, so its number can be reused while an earlier
+ *   operation still finishes on the original node;
+ * - vfsIODup() takes the lowest free descriptor, vfsIODup2() replaces the
+ *   destination in one step and returns it unchanged when equal to the
+ *   source;
+ * - read, write, fstat, seek, tell, directory reads and control keep the
+ *   node referenced for the whole call. A wrong node type returns
+ *   @p CH_RET_EISDIR or @p CH_RET_ENOTDIR, seek and tell on a non-regular
+ *   file @p CH_RET_ESPIPE. vfsIOSeek() returns the new position.
+ * .
+ * The only descriptor flag is @p VFD_CLOEXEC, set by vfsIOOpen() from
+ * @p VO_CLOEXEC and by vfsIOSetDescriptorFlags(). Insert, install and new
+ * duplicates clear it, vfsIODup2() onto the same descriptor keeps it. No VFS
+ * caller consumes it yet.
+ *
+ * With root support, vfsIOSetRoot() associates a root that the context
+ * borrows, it is never retained or disposed, and it stays valid while nodes
+ * obtained through it exist. Open, stat, unlink, rename, mkdir, rmdir, chdir
+ * and getcwd use its current directory and mounts, contexts sharing a root
+ * share them. Without a root these functions return @p CH_RET_ENOSYS, the
+ * descriptor functions remain available. vfsIOOpen() validates its
+ * arguments, then reserves the lowest free descriptor before calling the
+ * root, so a full table returns @p CH_RET_EMFILE before any creation or
+ * truncation. The reserved descriptor receives the node, or is freed on
+ * error. A pending open cannot be looked up, closed or duplicated, and
+ * vfsIOInstall() and vfsIODup2() return @p CH_RET_EBUSY for its descriptor.
  *
  * @section vfs_arch_concurrency Concurrency contract
  *
@@ -258,6 +306,13 @@
  * they own.
  *
  * @subsection vfs_arch_descriptors Descriptors
+ *
+ * An I/O context protects its descriptors and the node reference acquisition
+ * with short critical sections, also with
+ * @p VFS_CFG_USE_MUTUAL_EXCLUSION disabled. No driver call, wait or node
+ * release runs inside them. The descriptor search scans the array inside a
+ * critical section, so the capacity should stay small. Initialization, root
+ * association, clear and disposal require exclusive access to the context.
  *
  * Each descriptor of the Newlib bindings owns a node reference. Table
  * insertion, lookup and detachment use short critical sections, read, write

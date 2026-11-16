@@ -31,6 +31,8 @@
  * - @subpage vfs_test_sequence_008
  * - @subpage vfs_test_sequence_009
  * - @subpage vfs_test_sequence_010
+ * - @subpage vfs_test_sequence_011
+ * - @subpage vfs_test_sequence_012
  * .
  */
 
@@ -75,6 +77,12 @@ const testsequence_t * const vfs_test_suite_array[] = {
 #endif
 #if ((VFS_CFG_ENABLE_DRV_ROOT == TRUE) && (VFS_CFG_ENABLE_DRV_ROMFS == TRUE)) || defined(__DOXYGEN__)
   &vfs_test_sequence_010,
+#endif
+#if (!defined(OOP_USE_NOTHING)) || defined(__DOXYGEN__)
+  &vfs_test_sequence_011,
+#endif
+#if (!defined(OOP_USE_NOTHING)) || defined(__DOXYGEN__)
+  &vfs_test_sequence_012,
 #endif
   NULL
 };
@@ -464,6 +472,11 @@ void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
   vfs_root_c root;
   vfs_node_c *np;
+#if !defined(OOP_USE_NOTHING)
+  vfs_io_c io;
+  vfs_descriptor_t slots[3];
+  int fd, duplicate;
+#endif
 #endif
 
   test_assert(vfsFSOpenFile(fsp, "/handle", VO_CREAT | VO_RDWR, &fnp) == 0,
@@ -525,6 +538,40 @@ void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
                 "append after beyond EOF seek created a hole");
   }
   (void)roRelease(np);
+#if !defined(OOP_USE_NOTHING)
+  test_assert(vfsRootOpen(&root, "/handle", VO_WRONLY | VO_TRUNC, &np) == 0,
+              "handle reopen failed");
+  test_assert(vfsFileWrite((vfs_file_node_c *)np, (const uint8_t *)"abcd",
+                           4) == 4, "handle reseed failed");
+  (void)roRelease(np);
+  (void)vfsioObjectInit(&io, slots, 3);
+  vfsIOSetRoot(&io, &root);
+  fd = vfsIOOpen(&io, "/handle", VO_RDWR | VO_APPEND | VO_CLOEXEC);
+  test_assert(fd == 0 && vfsIOGetDescriptorFlags(&io, fd) == VFD_CLOEXEC,
+              "append descriptor flags lost");
+  duplicate = vfsIODup(&io, fd);
+  test_assert(duplicate == 1 && vfsIOGetDescriptorFlags(&io, duplicate) == 0,
+              "dup inherited close-on-exec");
+  test_assert(vfsIORead(&io, fd, bytes, 1) == 1 && bytes[0] == 'a' &&
+              vfsIOTell(&io, duplicate) == 1, "dup did not share cursor");
+  test_assert(vfsIOSeek(&io, duplicate, 0, VFS_SEEK_SET) == 0 &&
+              vfsIOWrite(&io, fd, (const uint8_t *)"x", 1) == 1 &&
+              vfsIOSeek(&io, fd, 0, VFS_SEEK_SET) == 0 &&
+              vfsIOWrite(&io, duplicate, (const uint8_t *)"y", 1) == 1 &&
+              vfsIOFstat(&io, fd, &st) == 0 && st.size == 6,
+              "duplicated append overwrote contents");
+  test_assert(vfsIOSeek(&io, fd, 0, VFS_SEEK_SET) == 0 &&
+              vfsIORead(&io, duplicate, bytes, sizeof bytes) == 6 &&
+              memcmp(bytes, "abcdxy", 6) == 0,
+              "shared append data or short transfer incorrect");
+  if (!fatfs) {
+    test_assert(vfsIOSeek(&io, duplicate, 12, VFS_SEEK_SET) == 12 &&
+                vfsIOWrite(&io, fd, (const uint8_t *)"z", 1) == 1 &&
+                vfsIOFstat(&io, fd, &st) == 0 && st.size == 7,
+                "descriptor append after beyond EOF seek created a hole");
+  }
+  boDispose(&io);
+#endif
   vfs_test_fs_reset();
   test_assert(ovldrvRegisterDriver(&root, (vfs_fs_c *)&vfs_test_fs,
                                    "other") == 0 &&
