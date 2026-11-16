@@ -24,8 +24,8 @@
  *          directory, overlay drivers mount other file systems under path
  *          prefixes and file system drivers implement the nodes for each
  *          storage kind. See @ref vfs_concepts for an overview of the
- *          subsystem and @ref vfs_architecture for the object model and
- *          the path contracts.
+ *          subsystem, @ref vfs_architecture for the object model and
+ *          the path contracts, @ref vfs_limitations for the known limits.
  */
 
 /**

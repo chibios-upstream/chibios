@@ -32,6 +32,7 @@
  * <h2>Related pages</h2>
  * - @subpage vfs_concepts
  * - @subpage vfs_architecture
+ * - @subpage vfs_limitations
  * - @subpage concepts
  * .
  */
