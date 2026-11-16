@@ -709,7 +709,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   from an interrupt with a higher priority than the USART's while the USART
   interrupt was being served could stay in the output queue until a later
   write, the `CR1` bits set by its notification were overwritten
-  ([#626](https://github.com/chibios-upstream/chibios/pull/626)).
+  ([#626](https://github.com/chibios-upstream/chibios/pull/626))
+  *(backported to 21.11.6)*.
 - [HAL] STM32 USARTv2 and USARTv3 serial drivers: when a byte was received
   in the same interrupt in which the transmission completed, the end of
   transmission was missed, `CHN_TRANSMISSION_END` was not raised and
