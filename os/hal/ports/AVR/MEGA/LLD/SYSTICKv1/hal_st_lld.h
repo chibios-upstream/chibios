@@ -65,12 +65,14 @@ extern "C" {
 }
 #endif
 
-#if defined(__AVR_ATmega128__) || defined(__AVR_ATmega162__)
-#define TIFR_REG TIFR
-#define TIMSK_REG TIMSK
-#else
+/* Timer 1 interrupt registers. Older devices share TIFR/TIMSK between all
+   the timers, so only the Timer 1 bits used here may be modified. */
+#if defined(TIMSK1)
 #define TIFR_REG TIFR1
 #define TIMSK_REG TIMSK1
+#else
+#define TIFR_REG TIFR
+#define TIMSK_REG TIMSK
 #endif
 
 /*==========================================================================*/
@@ -106,7 +108,7 @@ static inline void st_lld_start_alarm(systime_t time) {
   TIFR_REG = _BV(OCF1A);
 
   /* Enable interrupt. */
-  TIMSK_REG = _BV(OCIE1A);
+  TIMSK_REG |= _BV(OCIE1A);
 }
 
 /**
@@ -116,7 +118,7 @@ static inline void st_lld_start_alarm(systime_t time) {
  */
 static inline void st_lld_stop_alarm(void) {
 
-  TIMSK_REG = 0;
+  TIMSK_REG &= (uint8_t)~_BV(OCIE1A);
 }
 
 /**
