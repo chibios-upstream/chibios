@@ -160,21 +160,31 @@ return err;]]></implementation>
               <implementation><![CDATA[
 
 chDbgCheck(self != NULL);
+
 #if HAL_USE_MUTUAL_EXCLUSION == TRUE
 drvLock(self);
-#endif
 
-return FLASH_NO_ERROR;]]></implementation>
+return FLASH_NO_ERROR;
+#else
+chDbgAssert(false, "mutual exclusion not enabled");
+
+return FLASH_ERROR_UNIMPLEMENTED;
+#endif]]></implementation>
             </method>
             <method shortname="release_exclusive">
               <implementation><![CDATA[
 
 chDbgCheck(self != NULL);
+
 #if HAL_USE_MUTUAL_EXCLUSION == TRUE
 drvUnlock(self);
-#endif
 
-return FLASH_NO_ERROR;]]></implementation>
+return FLASH_NO_ERROR;
+#else
+chDbgAssert(false, "mutual exclusion not enabled");
+
+return FLASH_ERROR_UNIMPLEMENTED;
+#endif]]></implementation>
             </method>
           </if>
         </implements>
