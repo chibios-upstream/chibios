@@ -8,6 +8,15 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [VFS] `VO_DIRECTORY` and `VO_CLOEXEC` open flags; open arguments are
+  validated before any allocation or driver call, and a trailing separator
+  or `VO_DIRECTORY` selects the directory lookup first
+  ([#631](https://github.com/chibios-upstream/chibios/pull/631)).
+- [VFS] `vfs_io_c` I/O context: a caller-provided descriptor table owning
+  node references, with `dup`/`dup2`, the `VFD_CLOEXEC` descriptor flag and
+  an optional borrowed root for the path operations; open reserves its
+  descriptor before calling the file system
+  ([#631](https://github.com/chibios-upstream/chibios/pull/631)).
 - [VFS] Optional local mutual exclusion, `VFS_CFG_USE_MUTUAL_EXCLUSION`,
   disabled by default: a mutex in each overlay and root protects its mount
   table and current directory without serializing the operations, the FatFS
@@ -475,6 +484,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [VFS] File nodes enforce the access mode of their open: writing to a node
+  opened read-only, or reading from one opened write-only, returns
+  `EBADF`; the file node constructor takes the open flags
+  ([#631](https://github.com/chibios-upstream/chibios/pull/631)).
 - [VFS] Root and overlay operations take their path buffers from the shared
   pool: each root operation takes a buffer pair for its whole duration and
   roots and overlays no longer contain path buffers. `VFS_CFG_PATHBUFS_NUM`
@@ -705,6 +718,14 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [VFS] POSIX open and file semantics across drivers: FatFS append without
+  `O_CREAT` was rejected and append writes after a seek did not go to the
+  end of file, invalid flag combinations were accepted or ignored, seeks
+  could produce negative or overflowing positions, unlink and rmdir did not
+  check the node type, LittleFS reported `EBADF` as `ENOENT` and its
+  not-empty, invalid, no-space, too-big and corruption errors as a generic
+  inner error
+  ([#631](https://github.com/chibios-upstream/chibios/pull/631)).
 - [HAL] STM32 USARTv1, USARTv2 and USARTv3 serial drivers: data written
   from an interrupt with a higher priority than the USART's while the USART
   interrupt was being served could stay in the output queue until a later

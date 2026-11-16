@@ -126,6 +126,8 @@
 #include "drvtmplfs.h"
 #endif
 
+#include "vfsio.h"
+
 /**
  * @brief   Application-provided default root for the top-level path API.
  * @details Initialize before publishing VFS users and keep the pointer stable

@@ -30,10 +30,20 @@
 
 #include <dirent.h>
 #include <termios.h>
+#include <limits.h>
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
 /*===========================================================================*/
+
+/* A guest directory buffer must hold a record with a name of maximum length,
+   record lengths must fit d_reclen, getdents() uses a scratch buffer for the
+   VFS directory entry.*/
+__CH_STATIC_ASSERT(sb_dirent_max_record_fits,
+                   SB_DIRENT_RECLEN(VFS_CFG_NAMELEN_MAX) <= DIR_BUF_SIZE);
+__CH_STATIC_ASSERT(sb_dirent_reclen_fits, DIR_BUF_SIZE <= USHRT_MAX);
+__CH_STATIC_ASSERT(sb_direntry_info_fits,
+                   sizeof (vfs_direntry_info_t) <= VFS_BUFFER_SIZE);
 
 /*===========================================================================*/
 /* Module exported variables.                                                */
@@ -51,23 +61,34 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
-/* The sandbox thread owns its active descriptor table. Host registration
-   is restricted to STOPPED; cleanup runs in the exclusive lifecycle phase.
-   Slot references therefore retain nodes across syscall waits without pins.
-   Detach/replace slots before any release that can invoke driver disposal.*/
-static msg_t create_descriptor(sb_ioblock_t *iop,
-                               vfs_node_c *np) {
-  unsigned fd;
+/* Note, descriptors are accessed through the I/O context, its critical
+   zones never include sandbox memory accesses, buffer waits or driver
+   calls.*/
 
-  for (fd = 0U; fd < SB_CFG_FD_NUM; fd++) {
-    if (iop->vfs_nodes[fd] == NULL) {
-      iop->vfs_nodes[fd]  = np;
+/* Terminal control, directories are not terminals.*/
+static msg_t sb_io_tty_control(sb_class_t *sbp, int fd,
+                               vfs_control_op_t operation, void *arg) {
+  msg_t ret;
 
-      return (msg_t)fd;
-    }
+  ret = vfsIOControl(&sbp->io.context, fd, operation, arg);
+  if (ret == CH_RET_EISDIR) {
+    ret = CH_RET_ENOTTY;
   }
 
-  return CH_RET_EMFILE;
+  return ret;
+}
+
+/* The structure is composed locally, the sandbox buffer could be unaligned,
+   padding bytes are cleared.*/
+static void sb_io_copy_stat(struct stat *dst, const vfs_stat_t *src) {
+  struct stat st;
+
+  memset(&st, 0, sizeof st);
+  st.st_mode  = (mode_t)src->mode;
+  st.st_size  = (off_t)src->size;
+  st.st_nlink = 1;
+  /* TODO st_blocks, st_blksize, st_ino, timespecs.*/
+  memcpy(dst, &st, sizeof st);
 }
 
 static uint32_t sb_io_stat(sb_class_t *sbp,
@@ -89,21 +110,15 @@ static uint32_t sb_io_stat(sb_class_t *sbp,
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  ret = vfsFSStat(sbGetRoot(sbp), path, &vstat);
+  ret = vfsIOStat(&sbp->io.context, path, &vstat);
   if (!CH_RET_IS_ERROR(ret)) {
-    memset((void *)statbuf, 0, sizeof (struct stat));
-    statbuf->st_mode  = (mode_t)vstat.mode;
-    statbuf->st_size  = (off_t)vstat.size;
-    statbuf->st_nlink = 1;
-    /* TODO st_blocks, st_blksize, st_ino, timespecs.*/
+    sb_io_copy_stat(statbuf, &vstat);
   }
 
   return (uint32_t)ret;
 }
 
 static uint32_t sb_io_open(sb_class_t *sbp, const char *path, int flags) {
-  vfs_node_c *np = NULL;
-  msg_t ret;
 
   if (sbGetRoot(sbp) == NULL) {
     return (uint32_t)CH_RET_ENOSYS;
@@ -114,82 +129,22 @@ static uint32_t sb_io_open(sb_class_t *sbp, const char *path, int flags) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  do {
-    ret = vfsRootOpen(sbGetRoot(sbp), path, (unsigned)flags, &np);
-    CH_BREAK_ON_ERROR(ret);
-
-    ret = create_descriptor(&sbp->io, np);
-    CH_BREAK_ON_ERROR(ret);
-
-    return (uint32_t)ret;
-  } while (false);
-
-  if (np != NULL) {
-    vfsClose(np);
-  }
-
-  return (uint32_t)ret;
+  return (uint32_t)vfsIOOpen(&sbp->io.context, path, flags);
 }
 
 static uint32_t sb_io_close(sb_class_t *sbp, int fd) {
-  vfs_node_c *np;
 
-  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
-    return (uint32_t)CH_RET_EBADF;
-  }
-
-  np = sbp->io.vfs_nodes[fd];
-  sbp->io.vfs_nodes[fd] = NULL;
-  vfsClose(np);
-
-  return (uint32_t)CH_RET_SUCCESS;
+  return (uint32_t)vfsIOClose(&sbp->io.context, fd);
 }
 
 static uint32_t sb_io_dup(sb_class_t *sbp, int fd) {
-  vfs_node_c *np;
-  msg_t ret;
 
-  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
-    return (uint32_t)CH_RET_EBADF;
-  }
-
-  /* Node associated to the existing file descriptor.*/
-  np = sbp->io.vfs_nodes[fd];
-
-  /* Adding the same node to the new descriptor with increased reference
-     counter.*/
-  ret = create_descriptor(&sbp->io, (vfs_node_c *)roAddRef(np));
-  if (CH_RET_IS_ERROR(ret)) {
-    /* In case of error removing the added reference.*/
-    vfsClose(np);
-  }
-
-  return (uint32_t)ret;
+  return (uint32_t)vfsIODup(&sbp->io.context, fd);
 }
 
 static uint32_t sb_io_dup2(sb_class_t *sbp, int oldfd, int newfd) {
-  vfs_node_c *oldnp, *newnp;
 
-  if (!sb_is_existing_descriptor(&sbp->io, oldfd)) {
-    return (uint32_t)CH_RET_EBADF;
-  }
-
-  if (!sb_is_valid_descriptor(newfd)) {
-    return (uint32_t)CH_RET_EBADF;
-  }
-
-  if (oldfd == newfd) {
-    return (uint32_t)newfd;
-  }
-
-  newnp = (vfs_node_c *)roAddRef(sbp->io.vfs_nodes[oldfd]);
-  oldnp = sbp->io.vfs_nodes[newfd];
-  sbp->io.vfs_nodes[newfd] = newnp;
-  if (oldnp != NULL) {
-    vfsClose(oldnp);
-  }
-
-  return (uint32_t)newfd;
+  return (uint32_t)vfsIODup2(&sbp->io.context, oldfd, newfd);
 }
 
 static uint32_t sb_io_fstat(sb_class_t *sbp, int fd, struct stat *statbuf) {
@@ -200,16 +155,9 @@ static uint32_t sb_io_fstat(sb_class_t *sbp, int fd, struct stat *statbuf) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
-    return (uint32_t)CH_RET_EBADF;
-  }
-
-  ret = vfsGetNodeStat(sbp->io.vfs_nodes[fd], &vstat);
+  ret = vfsIOFstat(&sbp->io.context, fd, &vstat);
   if (!CH_RET_IS_ERROR(ret)) {
-    memset((void *)statbuf, 0, sizeof (struct stat));
-    statbuf->st_mode  = (mode_t)vstat.mode;
-    statbuf->st_size  = (off_t)vstat.size;
-    statbuf->st_nlink = 1;
+    sb_io_copy_stat(statbuf, &vstat);
   }
 
   return (uint32_t)ret;
@@ -220,23 +168,17 @@ static uint32_t sb_io_tcgetattr(sb_class_t *sbp, int fd,
   struct termios attr;
   msg_t ret;
 
-  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
-    return (uint32_t)CH_RET_EBADF;
-  }
-  if (!VFS_MODE_S_ISCHR(sbp->io.vfs_nodes[fd]->mode)) {
-    return (uint32_t)CH_RET_ENOTTY;
-  }
   if (!sb_is_valid_write_range(sbp, attrp, sizeof attr)) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
   /* Keep driver arguments aligned and do not expose host stack padding.*/
   memset(&attr, 0, sizeof attr);
-  ret = vfsFileControl((vfs_file_node_c *)sbp->io.vfs_nodes[fd],
-                        VFS_CTL_TTY_GETATTR, &attr);
+  ret = sb_io_tty_control(sbp, fd, VFS_CTL_TTY_GETATTR, &attr);
   if (!CH_RET_IS_ERROR(ret)) {
     memcpy(attrp, &attr, sizeof attr);
   }
+
   return (uint32_t)ret;
 }
 
@@ -245,12 +187,6 @@ static uint32_t sb_io_tcsetattr(sb_class_t *sbp, int fd, int action,
   struct termios attr;
   vfs_tty_setattr_args_t args;
 
-  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
-    return (uint32_t)CH_RET_EBADF;
-  }
-  if (!VFS_MODE_S_ISCHR(sbp->io.vfs_nodes[fd]->mode)) {
-    return (uint32_t)CH_RET_ENOTTY;
-  }
   if ((action != TCSANOW) && (action != TCSADRAIN) && (action != TCSAFLUSH)) {
     return (uint32_t)CH_RET_EINVAL;
   }
@@ -262,31 +198,22 @@ static uint32_t sb_io_tcsetattr(sb_class_t *sbp, int fd, int action,
   memcpy(&attr, attrp, sizeof attr);
   args.action = action;
   args.attrp = &attr;
-  return (uint32_t)vfsFileControl((vfs_file_node_c *)sbp->io.vfs_nodes[fd],
-                                   VFS_CTL_TTY_SETATTR, &args);
+
+  return (uint32_t)sb_io_tty_control(sbp, fd, VFS_CTL_TTY_SETATTR, &args);
 }
 
 static uint32_t sb_io_read(sb_class_t *sbp, int fd, void *buf, size_t count) {
 
-  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
-    return (uint32_t)CH_RET_EBADF;
+  /* The transferred size is returned as a non-negative 32 bits value.*/
+  if (count > (size_t)INT32_MAX) {
+    return (uint32_t)CH_RET_EINVAL;
   }
 
-  if (VFS_MODE_S_ISDIR(sbp->io.vfs_nodes[fd]->mode)) {
-    return (uint32_t)CH_RET_EISDIR;
-  }
-
-  if (count == (size_t)0) {
-    return (uint32_t)0;
-  }
-
-  if (!sb_is_valid_write_range(sbp, buf, count)) {
+  if ((count != 0U) && !sb_is_valid_write_range(sbp, buf, count)) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsReadFile((vfs_file_node_c *)sbp->io.vfs_nodes[fd],
-                               buf,
-                               count);
+  return (uint32_t)vfsIORead(&sbp->io.context, fd, buf, count);
 }
 
 static uint32_t sb_io_write(sb_class_t *sbp,
@@ -294,68 +221,36 @@ static uint32_t sb_io_write(sb_class_t *sbp,
                             const void *buf,
                             size_t count) {
 
-  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
-    return (uint32_t)CH_RET_EBADF;
-  }
-
-  if (VFS_MODE_S_ISDIR(sbp->io.vfs_nodes[fd]->mode)) {
-    return (uint32_t)CH_RET_EISDIR;
-  }
-
-  if (count == (size_t)0) {
-    return (uint32_t)0;
-  }
-
-  if (!sb_is_valid_read_range(sbp, buf, count)) {
-    return (uint32_t)CH_RET_EFAULT;
-  }
-
-  return (uint32_t)vfsWriteFile((vfs_file_node_c *)sbp->io.vfs_nodes[fd],
-                                buf,
-                                count);
-}
-
-static uint32_t sb_io_lseek(sb_class_t *sbp, int fd, off_t offset,
-                            int whence) {
-  vfs_offset_t pos;
-
-  if ((whence != SEEK_SET) && (whence != SEEK_CUR) && (whence != SEEK_END)) {
+  if (count > (size_t)INT32_MAX) {
     return (uint32_t)CH_RET_EINVAL;
   }
 
-  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
-    return (uint32_t)CH_RET_EBADF;
+  if ((count != 0U) && !sb_is_valid_read_range(sbp, buf, count)) {
+    return (uint32_t)CH_RET_EFAULT;
   }
 
-  if (VFS_MODE_S_ISDIR(sbp->io.vfs_nodes[fd]->mode)) {
-    return (uint32_t)CH_RET_EISDIR;
-  }
+  return (uint32_t)vfsIOWrite(&sbp->io.context, fd, buf, count);
+}
 
-  if (!VFS_MODE_S_ISREG(sbp->io.vfs_nodes[fd]->mode)) {
-    return (uint32_t)CH_RET_ESPIPE;
-  }
+static uint32_t sb_io_lseek(sb_class_t *sbp, int fd, int32_t offset,
+                            int whence) {
 
-  pos = vfsSetFilePosition((struct vfs_file_node *)sbp->io.vfs_nodes[fd],
-                           offset,
-                           whence);
-  if (CH_RET_IS_ERROR(pos)) {
-    return (uint32_t)pos;
-  }
-
-  return (uint32_t)vfsGetFilePosition((struct vfs_file_node *)
-                                      sbp->io.vfs_nodes[fd]);
+  return (uint32_t)vfsIOSeek(&sbp->io.context, fd,
+                             (vfs_offset_t)offset, (vfs_seekmode_t)whence);
 }
 
 static uint32_t sb_io_getdents(sb_class_t *sbp, int fd, void *buf,
                                size_t count) {
-  vfs_directory_node_c *dnp;
+  vfs_node_c *np;
   vfs_shared_buffer_t *shbuf;
   vfs_direntry_info_t *dip;
-  msg_t ret;
-  size_t min_entry;
-  size_t max_entry;
+  const size_t max_entry = SB_DIRENT_RECLEN(VFS_CFG_NAMELEN_MAX);
+  size_t total = 0U;
+  msg_t ret = CH_RET_SUCCESS;
 
-  if (count == (size_t)0) {
+  /* An entry is consumed only if a record of maximum size would fit, the
+     buffer must be able to hold at least one.*/
+  if ((count < max_entry) || (count > (size_t)INT32_MAX)) {
     return (uint32_t)CH_RET_EINVAL;
   }
 
@@ -363,81 +258,63 @@ static uint32_t sb_io_getdents(sb_class_t *sbp, int fd, void *buf,
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  min_entry = sizeof (struct dirent) + (size_t)1;
-  if (count < min_entry) {
-    return (uint32_t)CH_RET_EINVAL;
-  }
-
-  if (!sb_is_existing_descriptor(&sbp->io, fd)) {
+  /* The directory node is retained across the buffer wait and the whole
+     batch, a concurrent close of the descriptor cannot dispose it.*/
+  np = vfsIOGet(&sbp->io.context, fd);
+  if (np == NULL) {
     return (uint32_t)CH_RET_EBADF;
   }
 
-  if (!VFS_MODE_S_ISDIR(sbp->io.vfs_nodes[fd]->mode)) {
+  if (!VFS_MODE_S_ISDIR(np->mode)) {
+    (void)roRelease(np);
     return (uint32_t)CH_RET_ENOTDIR;
   }
 
-  max_entry = sizeof (struct dirent) + (size_t)VFS_CFG_NAMELEN_MAX + (size_t)1;
-
-  if (sizeof (vfs_direntry_info_t) > VFS_BUFFER_SIZE) {
-    return (uint32_t)CH_RET_ENOMEM;
-  }
-
-  /* The active table's reference remains owned throughout this wait.*/
-  dnp = (vfs_directory_node_c *)sbp->io.vfs_nodes[fd];
   shbuf = vfs_buffer_take_wait();
   if (shbuf == NULL) {
+    (void)roRelease(np);
     return (uint32_t)CH_RET_ENOMEM;
   }
+
   dip = (vfs_direntry_info_t *)(void *)shbuf->buf;
+  while ((count - total) >= max_entry) {
+    struct dirent entry;
+    size_t len, n;
+    uint8_t *p = (uint8_t *)buf + total;
 
-  do {
-    size_t total;
-    size_t remaining;
-    char *p;
-
-    total = 0U;
-    remaining = count;
-    p = (char *)buf;
-
-    while (remaining >= min_entry) {
-      size_t n;
-      struct dirent *dep = (struct dirent *)(void *)p;
-
-      /* Avoid consuming entries we cannot guarantee to fit.*/
-      if ((total > 0U) && (remaining < max_entry)) {
-        break;
-      }
-
-      ret = vfsReadDirectoryNext(dnp, dip);
-      if (ret <= 0) {
-        /* Note, zero means no more directory entries available.*/
-        break;
-      }
-
-      n = sizeof (struct dirent) + strlen(dip->name) + (size_t)1;
-      if (remaining < n) {
-        ret = CH_RET_EINVAL;
-        break;
-      }
-
-      /* Copying data from VFS structure to the Posix one.*/
-      dep->d_ino    = (ino_t)1; /* TODO */
-      dep->d_reclen = n;
-      dep->d_type   = IFTODT(dip->mode);
-      strcpy(dep->d_name, dip->name);
-
-      p += n;
-      remaining -= n;
-      total += n;
+    /* Note, zero means no more directory entries available.*/
+    ret = vfsDirReadNext((vfs_directory_node_c *)np, dip);
+    if (ret <= 0) {
+      break;
     }
 
-    if (total > 0U) {
-      ret = (msg_t)total;
+    len = strnlen(dip->name, VFS_CFG_NAMELEN_MAX + 1U);
+    if (len > VFS_CFG_NAMELEN_MAX) {
+      ret = CH_RET_EIO;
+      break;
     }
 
-  } while (false);
-
+    /* Copying data from the VFS structure to the Posix one, the record is
+       composed with byte copies because the sandbox buffer could be
+       unaligned, padding bytes are cleared.*/
+    n = SB_DIRENT_RECLEN(len);
+    memset(&entry, 0, sizeof entry);
+    entry.d_ino    = (ino_t)1; /* TODO */
+    entry.d_reclen = (unsigned short)n;
+    entry.d_type   = IFTODT(dip->mode);
+    memset(p, 0, n);
+    memcpy(p, &entry, offsetof(struct dirent, d_name));
+    memcpy(p + offsetof(struct dirent, d_name), dip->name, len + 1U);
+    total += n;
+  }
   vfs_buffer_release(shbuf);
+  (void)roRelease(np);
+
+  /* A partial batch takes precedence over an error found after its
+     entries.*/
+  if (total > 0U) {
+    return (uint32_t)total;
+  }
 
   return (uint32_t)ret;
 }
@@ -453,7 +330,7 @@ static uint32_t sb_io_chdir(sb_class_t *sbp, const char *path) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsRootChangeCurrentDirectory(sbGetRoot(sbp), path);
+  return (uint32_t)vfsIOChdir(&sbp->io.context, path);
 }
 
 static uint32_t sb_io_getcwd(sb_class_t *sbp, char *buf, size_t size) {
@@ -468,7 +345,7 @@ static uint32_t sb_io_getcwd(sb_class_t *sbp, char *buf, size_t size) {
 
   /* Note, it does not return a pointer to the buffer as required by Posix,
      this has to be handled on the user-side library.*/
-  return (uint32_t)vfsRootGetCurrentDirectory(sbGetRoot(sbp), buf, size);
+  return (uint32_t)vfsIOGetcwd(&sbp->io.context, buf, size);
 }
 
 static uint32_t sb_io_unlink(sb_class_t *sbp, const char *path) {
@@ -482,7 +359,7 @@ static uint32_t sb_io_unlink(sb_class_t *sbp, const char *path) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSUnlink(sbGetRoot(sbp), path);
+  return (uint32_t)vfsIOUnlink(&sbp->io.context, path);
 }
 
 static uint32_t sb_io_rename(sb_class_t *sbp,
@@ -503,7 +380,7 @@ static uint32_t sb_io_rename(sb_class_t *sbp,
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSRename(sbGetRoot(sbp), oldpath, newpath);
+  return (uint32_t)vfsIORename(&sbp->io.context, oldpath, newpath);
 }
 
 static uint32_t sb_io_mkdir(sb_class_t *sbp, const char *path, mode_t mode) {
@@ -517,7 +394,7 @@ static uint32_t sb_io_mkdir(sb_class_t *sbp, const char *path, mode_t mode) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSMkdir(sbGetRoot(sbp), path, (vfs_mode_t)mode);
+  return (uint32_t)vfsIOMkdir(&sbp->io.context, path, (vfs_mode_t)mode);
 }
 
 static uint32_t sb_io_rmdir(sb_class_t *sbp, const char *path) {
@@ -531,7 +408,7 @@ static uint32_t sb_io_rmdir(sb_class_t *sbp, const char *path) {
     return (uint32_t)CH_RET_EFAULT;
   }
 
-  return (uint32_t)vfsFSRmdir(sbGetRoot(sbp), path);
+  return (uint32_t)vfsIORmdir(&sbp->io.context, path);
 }
 
 /*===========================================================================*/
@@ -539,17 +416,10 @@ static uint32_t sb_io_rmdir(sb_class_t *sbp, const char *path) {
 /*===========================================================================*/
 
 void __sb_io_cleanup(sb_class_t *sbp) {
-  unsigned fd;
 
-  /* Closing all file descriptors.*/
-  for (fd = 0U; fd < SB_CFG_FD_NUM; fd++) {
-    vfs_node_c *np = sbp->io.vfs_nodes[fd];
-
-    sbp->io.vfs_nodes[fd] = NULL;
-    if (np != NULL) {
-      vfsClose(np);
-    }
-  }
+  /* Closing all file descriptors, the root is owned by the host and stays
+     associated.*/
+  vfsIOClear(&sbp->io.context);
 }
 
 void sb_sysc_stdio(sb_class_t *sbp, struct port_extctx *ectxp) {
@@ -569,6 +439,10 @@ void sb_sysc_stdio(sb_class_t *sbp, struct port_extctx *ectxp) {
     break;
   case SB_POSIX_FSTAT:
     ectxp->r0 = sb_io_fstat(sbp, (int)ectxp->r1, (struct stat *)ectxp->r2);
+    break;
+  case SB_POSIX_ISATTY:
+    ectxp->r0 = (uint32_t)sb_io_tty_control(sbp, (int)ectxp->r1,
+                                            VFS_CTL_TTY_ISATTY, NULL);
     break;
   case SB_POSIX_TCGETATTR:
     ectxp->r0 = sb_io_tcgetattr(sbp, (int)ectxp->r1,
@@ -593,7 +467,7 @@ void sb_sysc_stdio(sb_class_t *sbp, struct port_extctx *ectxp) {
   case SB_POSIX_LSEEK:
     ectxp->r0 = sb_io_lseek(sbp,
                             (int)ectxp->r1,
-                            (off_t)ectxp->r2,
+                            (int32_t)ectxp->r2,
                             (int)ectxp->r3);
     break;
   case SB_POSIX_GETDENTS:

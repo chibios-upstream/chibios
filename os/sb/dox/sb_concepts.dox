@@ -285,13 +285,19 @@
  * - The sandbox file system is a VFS root assigned with sbSetRoot(), a
  *   root private to the sandbox gives it its own current directory and
  *   mounts. Without a root the path-based calls return @p CH_RET_ENOSYS.
- * - Each sandbox has @p SB_CFG_FD_NUM file descriptors. The host installs
- *   VFS nodes on chosen descriptors with sbRegisterDescriptor(), the
- *   standard descriptors 0, 1 and 2 are not created automatically.
+ * - Each sandbox has @p SB_CFG_FD_NUM file descriptors, held by a VFS I/O
+ *   context. The host installs VFS nodes on chosen descriptors with
+ *   sbRegisterDescriptor(), which takes over the node reference only on
+ *   success, the standard descriptors 0, 1 and 2 are not created
+ *   automatically.
  * - The guest library provides the calls, for example sbOpen(), sbRead()
  *   and sbWrite(), and the newlib bindings, so the C library I/O functions
- *   work in the guest. Terminal attributes are handled by sbTcgetattr() and
- *   sbTcsetattr() on character devices.
+ *   work in the guest. sbIsatty() checks whether a descriptor is a
+ *   terminal, terminal attributes are handled by sbTcgetattr() and
+ *   sbTcsetattr().
+ * - The directory records returned by sbGetdents() are defined in the
+ *   shared @p dirent.h, host and guest must be built with the same
+ *   definitions.
  * - The calls are syscalls: a blocking call suspends the whole sandbox,
  *   including all the threads of a guest kernel. Signals, @p EINTR and
  *   non-blocking descriptors are not supported.

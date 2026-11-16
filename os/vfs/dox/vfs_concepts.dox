@@ -157,10 +157,11 @@
  * An entry contains the mode, the size and the name, up to
  * @p VFS_CFG_NAMELEN_MAX characters.<br>
  * Files are opened with the POSIX open flags: access mode, @p O_APPEND,
- * @p O_CREAT, @p O_TRUNC and @p O_EXCL. A file is accessed with
- * vfsReadFile(), vfsWriteFile(), vfsSetFilePosition() and
- * vfsGetFilePosition(). Sizes and positions are of type @p vfs_offset_t, a
- * signed 32-bit integer.<br>
+ * @p O_CREAT, @p O_TRUNC, @p O_EXCL, @p O_DIRECTORY and @p O_CLOEXEC, see
+ * @ref vfs_arch_open. A file is accessed with vfsReadFile(), vfsWriteFile(),
+ * vfsSetFilePosition() and vfsGetFilePosition(), reads and writes are
+ * checked against the access mode of the open. Sizes and positions are of
+ * type @p vfs_offset_t, a signed 32-bit integer.<br>
  * vfsControlFile() performs control operations, the files representing
  * terminals accept the @p VFS_CTL_TTY_XXX operations, the other files
  * return @p CH_RET_ENOTTY.<br>

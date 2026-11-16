@@ -177,13 +177,22 @@ static void start_sb2(void) {
 
   /*
    * Associating standard input, output and error to sandbox 2.*/
-  ret = vfsOpen("/dev/null", 0, &np);
+  ret = vfsOpen("/dev/null", VO_RDWR, &np);
   if (CH_RET_IS_ERROR(ret)) {
     chSysHalt("VFS");
   }
-  sbRegisterDescriptor(&sbx2, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
-  sbRegisterDescriptor(&sbx2, STDOUT_FILENO, (vfs_node_c *)roAddRef(np));
-  sbRegisterDescriptor(&sbx2, STDERR_FILENO, (vfs_node_c *)roAddRef(np));
+  ret = sbRegisterDescriptor(&sbx2, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
+  if (CH_RET_IS_ERROR(ret)) {
+    chSysHalt("sbx2 descriptor");
+  }
+  ret = sbRegisterDescriptor(&sbx2, STDOUT_FILENO, (vfs_node_c *)roAddRef(np));
+  if (CH_RET_IS_ERROR(ret)) {
+    chSysHalt("sbx2 descriptor");
+  }
+  ret = sbRegisterDescriptor(&sbx2, STDERR_FILENO, (vfs_node_c *)roAddRef(np));
+  if (CH_RET_IS_ERROR(ret)) {
+    chSysHalt("sbx2 descriptor");
+  }
   vfsClose(np);
 
   /* Starting sandboxed thread 2.*/
