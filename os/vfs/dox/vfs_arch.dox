@@ -106,13 +106,12 @@
  *
  * @section vfs_arch_root_paths Root path contract
  *
- * Root methods and the top-level path API accept both absolute and relative
- * paths. A root resolves relative inputs against its own current directory
- * and normalizes all input paths before calling the selected file system.
- * The top-level API uses the default root. A rename resolves both paths from
- * the same current-directory snapshot. Changing the current directory
- * preserves its logical candidate through validation and node cleanup before
- * committing it.
+ * Root methods accept both absolute and relative paths. A root resolves
+ * relative inputs against its own current directory and normalizes all
+ * input paths before calling the selected file system. A rename resolves
+ * both paths from the same current-directory snapshot. Changing the current
+ * directory preserves its logical candidate through validation and node
+ * cleanup before committing it.
  * @p vfsRootOpen() keeps one resolved logical path across file-to-directory
  * fallback even if CWD changes while a driver sleeps. Use it for combined
  * opens through a root; @p vfsFSOpen() borrows a normalized absolute path.
@@ -272,9 +271,7 @@
  * - distinct nodes can be used concurrently only as far as the leaf file
  *   system and its backend allow.
  * .
- * Direct driver methods and the convenience API follow the same rules, the
- * convenience functions check their pointer arguments without reading the
- * reference counters.
+ *
  * @subsection vfs_arch_leaf_locking Leaf file systems
  *
  * With @p VFS_CFG_USE_MUTUAL_EXCLUSION enabled, the FatFS and LittleFS
@@ -334,11 +331,11 @@
  *
  * @subsection vfs_arch_callers Callers
  *
- * - The default root, @p vfs_root, is set by the application before any user
- *   starts and stays valid while they run. The top-level path API uses its
- *   current directory, shared by all its users: a directory change followed
- *   by another call is not an atomic sequence, and shell commands running
- *   concurrently share it too.
+ * - A root, and so its current directory, is shared by all the users it is
+ *   passed to, for example the shells of an xshell manager, the Newlib
+ *   bindings and I/O contexts: a directory change followed by another call
+ *   is not an atomic sequence, and shell commands running concurrently share
+ *   it too. The root stays valid while its users run.
  * - The ELF loader functions taking a file node borrow the caller reference
  *   and use the file position for the whole call. @p sbElfLoadFile() and the
  *   sandbox dynamic startup open and own their node instead.

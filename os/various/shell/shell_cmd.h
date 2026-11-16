@@ -89,6 +89,10 @@
 #error "SHELL_CMD_FILES_ENABLED requires CH_CFG_USE_HEAP"
 #endif
 
+#if (SHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
+#include "vfs.h"
+#endif
+
 /*===========================================================================*/
 /* Module data structures and types.                                         */
 /*===========================================================================*/
@@ -108,7 +112,9 @@ extern const ShellCommand shell_local_commands[];
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#if (SHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
+  void shellSetFileSystemRoot(vfs_root_c *rootp);
+#endif
 #ifdef __cplusplus
 }
 #endif

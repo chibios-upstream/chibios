@@ -134,35 +134,35 @@
  * which verifies that the directory can be opened, and read with
  * vfsRootGetCurrentDirectory(). The storage for the current directory is
  * allocated from the core allocator on the first change.<br>
- * When the root driver is enabled the application defines a variable named
- * @p vfs_root pointing to its root. The functions vfsOpen(), vfsOpenFile(),
- * vfsOpenDirectory(), vfsStat(), vfsUnlink(), vfsRename(), vfsMkdir(),
- * vfsRmdir(), vfsChangeCurrentDirectory() and vfsGetCurrentDirectory()
- * operate on that root. Other roots and file systems are used through
- * their methods, for example vfsFSOpenFile().
+ * Roots and file systems are used through their methods: vfsRootOpen(),
+ * vfsFSOpenFile(), vfsFSOpenDirectory(), vfsFSStat(), vfsFSUnlink(),
+ * vfsFSRename(), vfsFSMkdir() and vfsFSRmdir(). There is no default root,
+ * the application passes its root to its users, for example the shell
+ * configuration, the Newlib bindings or a VFS I/O context, see
+ * @ref vfs_arch_io.
  *
  * @section vfs_nodes Directories and Files
  * Opening a directory or a file returns a node:
- * - Nodes are reference counted, vfsClose() releases a reference. The node
- *   is destroyed when its last reference is released.
+ * - Nodes are reference counted, roRelease() releases a reference. The
+ *   node is destroyed when its last reference is released.
  * - Each file system driver allocates its nodes from static pools shared by
  *   all its objects, sized by its @p DRV_CFG_XXX_NODES_NUM settings. When a
  *   pool is empty the open returns @p CH_RET_ENOMEM.
- * - vfsGetNodeStat() returns the information on a node: the mode, the size
+ * - vfsNodeStat() returns the information on a node: the mode, the size
  *   and, when the @p valid flags say so, the preferred I/O block size, the
  *   allocated blocks and the modification time as an UTC timestamp.
  * .
- * The entries of a directory are read with vfsReadDirectoryFirst() and
- * vfsReadDirectoryNext(), which return 1 for each entry and 0 at the end.
+ * The entries of a directory are read with vfsDirReadFirst() and
+ * vfsDirReadNext(), which return 1 for each entry and 0 at the end.
  * An entry contains the mode, the size and the name, up to
  * @p VFS_CFG_NAMELEN_MAX characters.<br>
  * Files are opened with the POSIX open flags: access mode, @p O_APPEND,
  * @p O_CREAT, @p O_TRUNC, @p O_EXCL, @p O_DIRECTORY and @p O_CLOEXEC, see
- * @ref vfs_arch_open. A file is accessed with vfsReadFile(), vfsWriteFile(),
- * vfsSetFilePosition() and vfsGetFilePosition(), reads and writes are
+ * @ref vfs_arch_open. A file is accessed with vfsFileRead(), vfsFileWrite(),
+ * vfsFileSetPosition() and vfsFileGetPosition(), reads and writes are
  * checked against the access mode of the open. Sizes and positions are of
  * type @p vfs_offset_t, a signed 32-bit integer.<br>
- * vfsControlFile() performs control operations, the files representing
+ * vfsFileControl() performs control operations, the files representing
  * terminals accept the @p VFS_CTL_TTY_XXX operations, the other files
  * return @p CH_RET_ENOTTY.<br>
  * The mode contains the node type, @p VFS_MODE_S_IFREG,

@@ -112,9 +112,6 @@ static vfs_streams_driver_c dev_driver;
 /* VFS root object.*/
 static vfs_root_c root_driver;
 
-/* Global pointer to the root VFS driver.*/
-vfs_root_c *vfs_root = &root_driver;
-
 /* A null stream object.*/
 static NullStream nullstream;
 
@@ -145,7 +142,8 @@ static const xshell_manager_config_t cfg1 = {
   .prompt           = XSHELL_DEFAULT_PROMPT_STR,
   .commands         = commands,
   .use_heap         = true,
-  .stack.size       = SHELL_WA_SIZE
+  .stack.size       = SHELL_WA_SIZE,
+  .root             = &root_driver
 };
 
 static xshell_manager_t sm1;
@@ -302,8 +300,7 @@ int main(void) {
     chSysHalt("VFS");
   }
 
-  /* Newlib system calls on the VFS root, used by the shell file
-     commands.*/
+  /* C library file I/O on the VFS root.*/
   newlibVfsInit(&root_driver);
 
   /* Shell manager initialization.*/

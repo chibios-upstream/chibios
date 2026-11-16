@@ -35,18 +35,11 @@
 static vfs_fatfs_driver_c fatfs_driver;
 #endif
 
-/* VFS root object.*/
-static vfs_root_c root_driver;
-
 /* Private root for sandbox 1.*/
 static vfs_root_c sb1_root_driver;
 
 /* VFS streams driver representing the private /dev directory.*/
 static vfs_streams_driver_c sb1_dev_driver;
-
-/* VFS API will use this object as implicit root, defining this
-   symbol is expected.*/
-vfs_root_c *vfs_root = &root_driver;
 
 /* POSIX TTY layered over the ST-LINK USART.*/
 static hal_posix_tty_sio_c ttyS0;
@@ -167,10 +160,8 @@ int main(void) {
                                NORMALPRIO + 10, thd1_func, NULL, NULL);
   chThdSpawnRunning(&thd1, &thd1_desc);
 
-  /* Initializing the VFS root on top of a FatFS driver. This is accessible
-     from kernel space and covers the whole file system.*/
+  /* Initializing the FatFS driver.*/
   ffdrvObjectInit(&fatfs_driver);
-  vfsrootObjectInit(&root_driver, (vfs_fs_c *)&fatfs_driver, NULL);
 
   /* Initializing the private sandbox root. It uses the FatFS driver but is
      restricted to the "/sb1" directory.*/
@@ -230,7 +221,7 @@ int main(void) {
       if (CH_RET_IS_ERROR(ret)) {
         chSysHalt("SBX1 descriptor");
       }
-      vfsClose(np);
+      (void)roRelease(np);
 
       /* Running the sandbox with 56kB of extra heap space.*/
       ret = sbExecDynamic(&sbx1, NORMALPRIO-10, 56*1024,
