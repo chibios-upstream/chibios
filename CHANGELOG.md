@@ -8,6 +8,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [VFS] Newlib bindings: `unlink()`, `rename()` and `mkdir()` through the
+  VFS root, and `newlibVfsGetIO()` for the operations without a Newlib
+  system call
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
 - [VFS] `VO_DIRECTORY` and `VO_CLOEXEC` open flags; open arguments are
   validated before any allocation or driver call, and a trailing separator
   or `VO_DIRECTORY` selects the directory lookup first
@@ -484,6 +488,29 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [VFS] Newlib bindings: with `SYSCALL_USE_VFS` the bindings use their own
+  VFS I/O context, `newlibVfsInit()` must be called with the root before
+  any C library I/O, and the standard descriptors are installed by the
+  application; the bindings no longer use `vfs_root`
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] Removed the default root `vfs_root` and the functions using it or
+  aliasing node methods: `vfsOpen()`, `vfsOpenFile()`,
+  `vfsOpenDirectory()`, `vfsStat()`, `vfsUnlink()`, `vfsRename()`,
+  `vfsMkdir()`, `vfsRmdir()`, `vfsChangeCurrentDirectory()`,
+  `vfsGetCurrentDirectory()`, `vfsClose()`, `vfsGetNodeStat()`,
+  `vfsReadDirectoryFirst()`, `vfsReadDirectoryNext()`, `vfsReadFile()`,
+  `vfsWriteFile()`, `vfsSetFilePosition()`, `vfsGetFilePosition()` and
+  `vfsControlFile()`; use the root, file system and node methods
+  (`vfsRootOpen()`, `vfsFSOpenFile()`, `vfsFSStat()`, `roRelease()`,
+  `vfsFileRead()`...) or an I/O context
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] Removed the xshell `XSHELL_CMD_FILES_USE_VFS` option, the file
+  commands always use the VFS directly
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] xshell file commands use the root set in the new `root` field of
+  `xshell_manager_config_t`; the old shell file commands use the root set
+  with `shellSetFileSystemRoot()`
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
 - [VFS] File nodes enforce the access mode of their open: writing to a node
   opened read-only, or reading from one opened write-only, returns
   `EBADF`; the file node constructor takes the open flags
@@ -718,6 +745,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [VFS] Newlib bindings: `lseek()` did nothing and returned 0, `isatty()`
+  reported every descriptor as a terminal, `fstat()` rejected directories
+  and reported no size, and a full descriptor table was detected only
+  after opening the file
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] Old shell `cat` read `sizeof (int)` bytes per call
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
 - [VFS] POSIX open and file semantics across drivers: FatFS append without
   `O_CREAT` was rejected and append writes after a seek did not go to the
   end of file, invalid flag combinations were accepted or ignored, seeks
