@@ -201,9 +201,21 @@ int main(void) {
         chprintf((BaseSequentialStream *)&SD2, "Opening /dev/VSD1 failed (%08lx)\r\n", ret);
         continue;
       }
-      sbRegisterDescriptor(&sbx1, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
-      sbRegisterDescriptor(&sbx1, STDOUT_FILENO, (vfs_node_c *)roAddRef(np));
-      sbRegisterDescriptor(&sbx1, STDERR_FILENO, (vfs_node_c *)roAddRef(np));
+      ret = sbRegisterDescriptor(&sbx1, STDIN_FILENO,
+                                 (vfs_node_c *)roAddRef(np));
+      if (CH_RET_IS_ERROR(ret)) {
+        chSysHalt("SBX1 descriptor");
+      }
+      ret = sbRegisterDescriptor(&sbx1, STDOUT_FILENO,
+                                 (vfs_node_c *)roAddRef(np));
+      if (CH_RET_IS_ERROR(ret)) {
+        chSysHalt("SBX1 descriptor");
+      }
+      ret = sbRegisterDescriptor(&sbx1, STDERR_FILENO,
+                                 (vfs_node_c *)roAddRef(np));
+      if (CH_RET_IS_ERROR(ret)) {
+        chSysHalt("SBX1 descriptor");
+      }
       vfsClose(np);
 
       /*

@@ -33,6 +33,7 @@
  * - @subpage vfs_test_sequence_010
  * - @subpage vfs_test_sequence_011
  * - @subpage vfs_test_sequence_012
+ * - @subpage vfs_test_sequence_013
  * .
  */
 
@@ -83,6 +84,9 @@ const testsequence_t * const vfs_test_suite_array[] = {
 #endif
 #if (!defined(OOP_USE_NOTHING)) || defined(__DOXYGEN__)
   &vfs_test_sequence_012,
+#endif
+#if (defined(VFS_TEST_SB) && VFS_CFG_ENABLE_DRV_ROOT == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_sequence_013,
 #endif
   NULL
 };

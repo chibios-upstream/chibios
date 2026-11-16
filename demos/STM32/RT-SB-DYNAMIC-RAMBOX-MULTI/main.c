@@ -163,9 +163,20 @@ int main(void) {
       chprintf(console, "Opening /dev/ttyS0 failed (%08lx)\n", ret);
       continue;
     }
-    sbRegisterDescriptor(&sbx1, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
-    sbRegisterDescriptor(&sbx1, STDOUT_FILENO, (vfs_node_c *)roAddRef(np));
-    sbRegisterDescriptor(&sbx1, STDERR_FILENO, (vfs_node_c *)roAddRef(np));
+    ret = sbRegisterDescriptor(&sbx1, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
+    if (CH_RET_IS_ERROR(ret)) {
+      chSysHalt("SBX1 descriptor");
+    }
+    ret = sbRegisterDescriptor(&sbx1, STDOUT_FILENO,
+                               (vfs_node_c *)roAddRef(np));
+    if (CH_RET_IS_ERROR(ret)) {
+      chSysHalt("SBX1 descriptor");
+    }
+    ret = sbRegisterDescriptor(&sbx1, STDERR_FILENO,
+                               (vfs_node_c *)roAddRef(np));
+    if (CH_RET_IS_ERROR(ret)) {
+      chSysHalt("SBX1 descriptor");
+    }
     vfsClose(np);
 
     ret = sbExecDynamic(&sbx1, NORMALPRIO - 10, PORTAB_SHELL_HEAP_SIZE,

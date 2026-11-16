@@ -514,6 +514,20 @@ static inline msg_t sbFstat(int fd, struct stat *statbuf) {
 }
 
 /**
+ * @brief   Posix-style terminal check.
+ * @note    The terminal state is not changed.
+ *
+ * @param[in] fd        file descriptor
+ * @return              Operation result, success if the file descriptor
+ *                      refers to a terminal.
+ */
+static inline msg_t sbIsatty(int fd) {
+
+  __syscall2r(SB_SYSC_POSIX, SB_POSIX_ISATTY, fd);
+  return (msg_t)r0;
+}
+
+/**
  * @brief   Retrieves terminal attributes.
  *
  * @param[in] fd        file descriptor

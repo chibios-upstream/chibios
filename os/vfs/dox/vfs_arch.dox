@@ -188,13 +188,13 @@
  * @section vfs_arch_io I/O context
  *
  * A @p vfs_io_c object provides POSIX-like descriptors over the node API, it
- * is meant as the common part of the C library and sandbox adapters. The
- * caller provides the descriptor array, @p vfs_descriptor_t, and its
- * capacity, the object allocates no memory and uses no mutex. It requires
- * synchronized OOP references and is not available with
- * @p OOP_USE_NOTHING. Its operations return the VFS error codes, the
- * translation to @p errno and to the C library types is left to the
- * adapters.
+ * is the common part of the C library and sandbox adapters, currently used
+ * by the sandboxes. The caller provides the descriptor array,
+ * @p vfs_descriptor_t, and its capacity, the object allocates no memory and
+ * uses no mutex. It requires synchronized OOP references and is not
+ * available with @p OOP_USE_NOTHING. Its operations return the VFS error
+ * codes, the translation to @p errno and to the C library types is left to
+ * the adapters.
  *
  * Each occupied descriptor owns one node reference:
  * - vfsIOInsert() takes the lowest free descriptor, vfsIOInstall() an empty
@@ -325,9 +325,14 @@
  * @p VFS_CFG_USE_MUTUAL_EXCLUSION and does not serialize the operations on
  * the same descriptor.
  *
- * The descriptor table of a sandbox is owned by its host thread. The host
- * registers descriptors only while the sandbox is stopped. Close, cleanup and
- * @p dup2() detach a descriptor before releasing its node.
+ * Each sandbox embeds an I/O context and its descriptor array. The host
+ * registers descriptors and changes the root only while the sandbox is
+ * stopped, sbRegisterDescriptor() takes over the node reference only on
+ * success. The sandbox calls keep their node referenced for the whole call,
+ * @p getdents() keeps the directory referenced across its buffer wait and
+ * the whole batch. The termination cleanup closes all the descriptors and
+ * keeps the root. The host does not change the descriptors of a running
+ * sandbox.
  *
  * @subsection vfs_arch_callers Callers
  *

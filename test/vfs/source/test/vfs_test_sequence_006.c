@@ -647,6 +647,9 @@ static void vfs_test_006_004_execute(void) {
   {
     vfs_test_open_matrix((vfs_fs_c *)&vfs_test_fat_driver);
     vfs_test_handle_contract((vfs_fs_c *)&vfs_test_fat_driver, true);
+#if defined(VFS_TEST_SB) && VFS_CFG_ENABLE_DRV_ROOT == TRUE
+    vfs_test_sb_native((vfs_fs_c *)&vfs_test_fat_driver);
+#endif
   }
   test_end_step(1);
 }

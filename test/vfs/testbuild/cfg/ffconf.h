@@ -38,7 +38,7 @@
 #define FF_STRF_ENCODE                     0
 
 #define FF_CODE_PAGE                       437
-#define FF_USE_LFN                         0
+#define FF_USE_LFN                         2
 #define FF_MAX_LFN                         255
 #define FF_LFN_UNICODE                     0
 #define FF_LFN_BUF                         255
@@ -62,7 +62,7 @@
 #define FF_NORTC_MDAY                      1
 #define FF_NORTC_YEAR                      2020
 #define FF_FS_NOFSINFO                     0
-#define FF_FS_LOCK                         0
+#define FF_FS_LOCK                         4
 #define FF_FS_REENTRANT                    0
 #define FF_FS_TIMEOUT                      TIME_MS2I(1000)
 #define FF_SYNC_t                          semaphore_t *

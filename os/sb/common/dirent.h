@@ -25,6 +25,7 @@
 #ifndef DIRENT_H
 #define DIRENT_H
 
+#include <stddef.h>
 #include <sys/types.h>
 
 /*===========================================================================*/
@@ -78,12 +79,33 @@ typedef struct {
   int               fd;
   ssize_t           next;
   ssize_t           size;
-  char              buf[DIR_BUF_SIZE];
+  union {
+    ino_t           alignment;
+    char            buf[DIR_BUF_SIZE];
+  };
 } DIR;
 
 /*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/
+
+/**
+ * @brief   Alignment of directory records.
+ */
+#define SB_DIRENT_ALIGNMENT sizeof (ino_t)
+
+/**
+ * @brief   Size of a directory record.
+ * @note    Records keep the field offsets of @p struct @p dirent, their size
+ *          is rounded to @p SB_DIRENT_ALIGNMENT. The name is terminated
+ *          within the record and the padding bytes are zero.
+ * @note    Host and sandboxes must be built with the same record format.
+ *
+ * @param[in] n         name length, terminator excluded
+ */
+#define SB_DIRENT_RECLEN(n)                                                 \
+  ((offsetof(struct dirent, d_name) + (size_t)(n) + 1U +                    \
+    SB_DIRENT_ALIGNMENT - 1U) & ~(SB_DIRENT_ALIGNMENT - 1U))
 
 #define IFTODT(mode)        (((mode) & 0170000) >> 12)
 #define DTTOIF(dirtype)     ((dirtype) << 12)
