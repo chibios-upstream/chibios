@@ -976,7 +976,10 @@ void sd_lld_serve_interrupt(SerialDriver *sdp) {
     rxisr = u->ISR;
   }
 
-  /* Caching CR1.*/
+  /* CR1 is read once to select the sources to serve. It is only changed
+     with read-modify-write operations inside the critical zones, because
+     the output notification sets TXEIE and TCIE from any OS-aware context,
+     including interrupts preempting this one.*/
   cr1 = u->CR1;
 
   /* Transmission buffer empty, note it is a while in order to handle two
@@ -993,7 +996,7 @@ void sd_lld_serve_interrupt(SerialDriver *sdp) {
       b = oqGetI(&sdp->oqueue);
       if (b < MSG_OK) {
         chnAddFlagsI(sdp, CHN_OUTPUT_EMPTY);
-        cr1 &= ~USART_CR1_TXEIE;
+        u->CR1 &= ~USART_CR1_TXEIE;
         osalSysUnlockFromISR();
         break;
       }
@@ -1009,13 +1012,10 @@ void sd_lld_serve_interrupt(SerialDriver *sdp) {
     osalSysLockFromISR();
     if (oqIsEmptyI(&sdp->oqueue)) {
       chnAddFlagsI(sdp, CHN_TRANSMISSION_END);
-      cr1 &= ~USART_CR1_TCIE;
+      u->CR1 &= ~USART_CR1_TCIE;
     }
     osalSysUnlockFromISR();
   }
-
-  /* Writing CR1 once.*/
-  u->CR1 = cr1;
 }
 
 #endif /* HAL_USE_SERIAL */
