@@ -30,11 +30,6 @@
 #include "shell_cmd.h"
 #include "chprintf.h"
 
-#if (SHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
-#include <fcntl.h>
-#include "vfs.h"
-#endif
-
 #if (SHELL_CMD_TEST_ENABLED == TRUE) || defined(__DOXYGEN__)
 #include "rt_test_root.h"
 #include "oslib_test_root.h"
@@ -55,6 +50,11 @@
 /*===========================================================================*/
 /* Module local variables.                                                   */
 /*===========================================================================*/
+
+#if (SHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
+/* VFS root of the file commands.*/
+static vfs_root_c *shell_root;
+#endif
 
 /*===========================================================================*/
 /* Module local functions.                                                   */
@@ -232,6 +232,16 @@ static void cmd_test(BaseSequentialStream *chp, int argc, char *argv[]) {
 #endif
 
 #if (SHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
+static bool no_root(BaseSequentialStream *chp) {
+
+  if (shell_root == NULL) {
+    chprintf(chp, "No file system" SHELL_NEWLINE_STR);
+    return true;
+  }
+
+  return false;
+}
+
 static void scan_nodes(BaseSequentialStream *chp,
                        char *path,
                        vfs_direntry_info_t *dip) {
@@ -239,13 +249,13 @@ static void scan_nodes(BaseSequentialStream *chp,
   vfs_directory_node_c *dirp;
 
   chprintf(chp, "%s" SHELL_NEWLINE_STR, path);
-  res = vfsOpenDirectory(path, &dirp);
+  res = vfsFSOpenDirectory(shell_root, path, &dirp);
   if (res == CH_RET_SUCCESS) {
     size_t i = strlen(path);
 
     while (true) {
       char *fn = dip->name;
-      res = vfsReadDirectoryNext(dirp, dip);
+      res = vfsDirReadNext(dirp, dip);
       if (res < (msg_t)1) {
         break;
       }
@@ -263,7 +273,7 @@ static void scan_nodes(BaseSequentialStream *chp,
       }
     }
 
-    vfsClose((vfs_node_c *)dirp);
+    (void)roRelease(dirp);
   }
 }
 
@@ -275,6 +285,10 @@ static void cmd_tree(BaseSequentialStream *chp, int argc, char *argv[]) {
 
   if (argc > 0) {
     chprintf(chp, "Usage: tree" SHELL_NEWLINE_STR);
+    return;
+  }
+
+  if (no_root(chp)) {
     return;
   }
 
@@ -308,8 +322,14 @@ static void cmd_cat(BaseSequentialStream *chp, int argc, char *argv[]) {
     return;
   }
 
+  if (no_root(chp)) {
+    return;
+  }
+
   do {
-    int fd, n;
+    vfs_file_node_c *fnp;
+    ssize_t n;
+    msg_t ret;
 
     buf = (char *)chHeapAlloc(NULL, 2048);
     if (buf == NULL) {
@@ -317,18 +337,18 @@ static void cmd_cat(BaseSequentialStream *chp, int argc, char *argv[]) {
      break;
     }
 
-    fd = open(argv[0], O_RDONLY);
-    if (fd == -1) {
+    ret = vfsFSOpenFile(shell_root, argv[0], VO_RDONLY, &fnp);
+    if (CH_RET_IS_ERROR(ret)) {
       chprintf(chp, "Cannot open file" SHELL_NEWLINE_STR);
       break;
     }
 
-    while ((n = read(fd, buf, sizeof (2048))) > 0) {
-      streamWrite(chp, (const uint8_t *)buf, n);
+    while ((n = vfsFileRead(fnp, (uint8_t *)buf, 2048)) > 0) {
+      streamWrite(chp, (const uint8_t *)buf, (size_t)n);
     }
     chprintf(chp, SHELL_NEWLINE_STR);
 
-    (void) close(fd);
+    (void)roRelease(fnp);
   }
   while (false);
 
@@ -344,10 +364,14 @@ static void cmd_cd(BaseSequentialStream *chp, int argc, char *argv[]) {
     return;
   }
 
+  if (no_root(chp)) {
+    return;
+  }
+
   do {
     msg_t ret;
 
-    ret = vfsChangeCurrentDirectory(argv[0]);
+    ret = vfsRootChangeCurrentDirectory(shell_root, argv[0]);
     if (CH_RET_IS_ERROR(ret)) {
       chprintf(chp, "failed (%d)" SHELL_NEWLINE_STR, ret);
     }
@@ -363,6 +387,10 @@ static void cmd_ls(BaseSequentialStream *chp, int argc, char *argv[]) {
     return;
   }
 
+  if (no_root(chp)) {
+    return;
+  }
+
   do {
     msg_t ret;
     vfs_directory_node_c *dirp;
@@ -374,14 +402,15 @@ static void cmd_ls(BaseSequentialStream *chp, int argc, char *argv[]) {
     }
 
     /* Opening the (un)specified directory.*/
-    ret = vfsOpenDirectory(argc == 1 ? argv[0] : ".", &dirp);
+    ret = vfsFSOpenDirectory(shell_root, argc == 1 ? argv[0] : ".",
+                             &dirp);
     if (!CH_RET_IS_ERROR(ret)) {
 
-      while (vfsReadDirectoryNext(dirp, dip) > (msg_t)0) {
+      while (vfsDirReadNext(dirp, dip) > (msg_t)0) {
         chprintf(chp, "%s" SHELL_NEWLINE_STR, dip->name);
       }
 
-      vfsClose((vfs_node_c *)dirp);
+      (void)roRelease(dirp);
     }
     else {
       chprintf(chp, "Failed (%d)" SHELL_NEWLINE_STR, ret);
@@ -402,7 +431,11 @@ static void cmd_mkdir(BaseSequentialStream *chp, int argc, char *argv[]) {
     return;
   }
 
-  ret = vfsMkdir(argv[0], 0777U);
+  if (no_root(chp)) {
+    return;
+  }
+
+  ret = vfsFSMkdir(shell_root, argv[0], 0777U);
   if (CH_RET_IS_ERROR(ret)) {
     chprintf(chp, "Failed (%d)" SHELL_NEWLINE_STR, ret);
   }
@@ -416,7 +449,11 @@ static void cmd_mv(BaseSequentialStream *chp, int argc, char *argv[]) {
     return;
   }
 
-  ret = vfsRename(argv[0], argv[1]);
+  if (no_root(chp)) {
+    return;
+  }
+
+  ret = vfsFSRename(shell_root, argv[0], argv[1]);
   if (CH_RET_IS_ERROR(ret)) {
     chprintf(chp, "Failed (%d)" SHELL_NEWLINE_STR, ret);
   }
@@ -432,6 +469,10 @@ static void cmd_pwd(BaseSequentialStream *chp, int argc, char *argv[]) {
     return;
   }
 
+  if (no_root(chp)) {
+    return;
+  }
+
   do {
     msg_t ret;
 
@@ -441,7 +482,8 @@ static void cmd_pwd(BaseSequentialStream *chp, int argc, char *argv[]) {
      break;
     }
 
-    ret = vfsGetCurrentDirectory(buf, VFS_CFG_PATHLEN_MAX + 1);
+    ret = vfsRootGetCurrentDirectory(shell_root, buf,
+                                     VFS_CFG_PATHLEN_MAX + 1);
     if (CH_RET_IS_ERROR(ret)) {
       chprintf(chp, "Failed (%d)" SHELL_NEWLINE_STR, ret);
     }
@@ -464,7 +506,11 @@ static void cmd_rm(BaseSequentialStream *chp, int argc, char *argv[]) {
     return;
   }
 
-  ret = vfsUnlink(argv[0]);
+  if (no_root(chp)) {
+    return;
+  }
+
+  ret = vfsFSUnlink(shell_root, argv[0]);
   if (CH_RET_IS_ERROR(ret)) {
     chprintf(chp, "Failed (%d)" SHELL_NEWLINE_STR, ret);
   }
@@ -478,7 +524,11 @@ static void cmd_rmdir(BaseSequentialStream *chp, int argc, char *argv[]) {
     return;
   }
 
-  ret = vfsRmdir(argv[0]);
+  if (no_root(chp)) {
+    return;
+  }
+
+  ret = vfsFSRmdir(shell_root, argv[0]);
   if (CH_RET_IS_ERROR(ret)) {
     chprintf(chp, "Failed (%d)" SHELL_NEWLINE_STR, ret);
   }
@@ -493,7 +543,11 @@ static void cmd_stat(BaseSequentialStream *chp, int argc, char *argv[]) {
     return;
   }
 
-  ret = vfsStat(argv[0], &statbuf);
+  if (no_root(chp)) {
+    return;
+  }
+
+  ret = vfsFSStat(shell_root, argv[0], &statbuf);
   if (CH_RET_IS_ERROR(ret)) {
     chprintf(chp, "Failed (%d)" SHELL_NEWLINE_STR, ret);
   }
@@ -505,6 +559,24 @@ static void cmd_stat(BaseSequentialStream *chp, int argc, char *argv[]) {
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
+
+#if (SHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Sets the VFS root of the file commands.
+ * @note    The root and its current directory are shared by all the
+ *          shells, the root must remain valid while they run.
+ *
+ * @param[in] rootp     pointer to a @p vfs_root_c object
+ *
+ * @api
+ */
+void shellSetFileSystemRoot(vfs_root_c *rootp) {
+
+  chDbgCheck(rootp != NULL);
+
+  shell_root = rootp;
+}
+#endif
 
 /**
  * @brief   Array of the default commands.

@@ -20,7 +20,12 @@
 
 #include <sys/stat.h>
 
-#define VFS_TEST_NEWLIB_FDS 3
+#define VFS_TEST_NEWLIB_FDS 5
+
+#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
+#define SYSCALL_MAX_FDS VFS_TEST_NEWLIB_FDS
+#include "newlib_vfs.h"
+#endif
 
 typedef struct vfs_test_reent {
   int error;
@@ -31,5 +36,15 @@ int vfs_test_close_r(vfs_test_reent_t *r, int fd);
 int vfs_test_read_r(vfs_test_reent_t *r, int fd, char *buf, int n);
 int vfs_test_write_r(vfs_test_reent_t *r, int fd, const char *buf, int n);
 int vfs_test_fstat_r(vfs_test_reent_t *r, int fd, struct stat *st);
+off_t vfs_test_lseek_r(vfs_test_reent_t *r, int fd, off_t ptr, int dir);
+int vfs_test_isatty_r(vfs_test_reent_t *r, int fd);
+int vfs_test_stat(const char *path, struct stat *st);
+int vfs_test_unlink_r(vfs_test_reent_t *r, const char *path);
+int vfs_test_rename_r(vfs_test_reent_t *r, const char *oldpath,
+                      const char *newpath);
+int vfs_test_mkdir_r(vfs_test_reent_t *r, const char *path, int mode);
+int vfs_test_mkdir(const char *path, mode_t mode);
+int vfs_test_isatty(int fd);
+extern vfs_test_reent_t vfs_test_global_reent;
 
 #endif

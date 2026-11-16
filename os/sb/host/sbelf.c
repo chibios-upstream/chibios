@@ -65,10 +65,10 @@ static msg_t vfs_read(void *cookie, size_t offset, void *buf, size_t n) {
   ssize_t nread;
   msg_t ret;
 
-  ret = vfsSetFilePosition(fnp, (vfs_offset_t)offset, VFS_SEEK_SET);
+  ret = vfsFileSetPosition(fnp, (vfs_offset_t)offset, VFS_SEEK_SET);
   CH_RETURN_ON_ERROR(ret);
 
-  nread = vfsReadFile(fnp, (uint8_t *)buf, n);
+  nread = vfsFileRead(fnp, (uint8_t *)buf, n);
   if (CH_RET_IS_ERROR(nread)) {
     return (msg_t)nread;
   }
@@ -224,7 +224,7 @@ msg_t sbElfLoadFile(vfs_root_c *rootp,
 
   } while (false);
 
-  vfsClose((vfs_node_c *)fnp);
+  (void)roRelease(fnp);
 
   return ret;
 }

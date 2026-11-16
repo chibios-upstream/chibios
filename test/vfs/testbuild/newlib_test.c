@@ -27,9 +27,9 @@
 
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 /* Compile the actual bindings, with only the libc ABI and symbol names
-   adapted. Do not replace the table, reference handling or VFS calls.*/
+   adapted. Do not replace the context, reference handling or VFS calls.
+   SYSCALL_MAX_FDS comes from newlib_test.h.*/
 #define SYSCALL_USE_VFS
-#define SYSCALL_MAX_FDS VFS_TEST_NEWLIB_FDS
 #define _reent         vfs_test_reent
 #define __errno_r(r)   ((r)->error)
 #define _open_r        vfs_test_open_r
@@ -40,9 +40,16 @@
 #define _fstat_r       vfs_test_fstat_r
 #define _stat          vfs_test_stat
 #define _isatty_r      vfs_test_isatty_r
+#define _unlink_r      vfs_test_unlink_r
+#define _rename_r      vfs_test_rename_r
+#define _mkdir_r       vfs_test_mkdir_r
+#define mkdir          vfs_test_mkdir
+#define _isatty        vfs_test_isatty
+#define _REENT         (&vfs_test_global_reent)
 #define _sbrk_r        vfs_test_sbrk_r
 #define _exit          vfs_test_exit
 #define _kill          vfs_test_kill
 #define _getpid        vfs_test_getpid
+vfs_test_reent_t vfs_test_global_reent;
 #include "../../../os/various/newlib_bindings/syscalls.c"
 #endif

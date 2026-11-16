@@ -108,6 +108,10 @@ void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs);
 #if defined(VFS_TEST_SB)
 #include "sb_test.h"
 #endif
+#if defined(VFS_TEST_NEWLIB) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)
+#include "newlib_test.h"
+void vfs_test_newlib_native(vfs_fs_c *fsp);
+#endif
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);
 #endif

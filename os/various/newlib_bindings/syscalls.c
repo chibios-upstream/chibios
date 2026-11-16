@@ -23,56 +23,14 @@
 #include "ch.h"
 
 #if defined(SYSCALL_USE_VFS)
-#include "vfs.h"
+#include "newlib_vfs.h"
 
-#if !defined(SYSCALL_MAX_FDS)
-#define SYSCALL_MAX_FDS                     10
-#endif
-
-#if defined(OOP_USE_NOTHING)
-#error "VFS newlib bindings require synchronized OOP references"
-#endif
-
-/* Each occupied slot owns one reference. Lookup pins standard OOP nodes
-   before leaving the system lock. Custom reference methods are rejected at
-   insertion because invoking or bypassing them under that lock is unsafe.
-   I/O, virtual methods and final release always run outside table protection.*/
-static vfs_node_c *fds[SYSCALL_MAX_FDS];
-
-/* Non-dispatching I-class pin, for nodes admitted by _open_r() only.*/
-static vfs_node_c *pin_descriptor_i(int file) {
-  vfs_node_c *np;
-
-  chDbgCheckClassI();
-
-  if ((file < 0) || (file >= SYSCALL_MAX_FDS)) {
-    return NULL;
-  }
-
-  np = fds[file];
-  chDbgAssert((np == NULL) ||
-              ((np->vmt->addref == __ro_addref_impl) &&
-               (np->vmt->release == __ro_release_impl)), "reference model");
-  chDbgAssert((np == NULL) ||
-              ((np->references > 0U) &&
-               (np->references != (object_references_t)-1)), "references");
-
-  if (np != NULL) {
-    np->references++;
-  }
-
-  return np;
-}
-
-static vfs_node_c *pin_descriptor(int file) {
-  vfs_node_c *np;
-
-  chSysLock();
-  np = pin_descriptor_i(file);
-  chSysUnlock();
-
-  return np;
-}
+/* I/O context of the bindings, zero until newlibVfsInit(): no descriptors
+   and no root, the calls fail with EBADF or ENOSYS. Descriptors own their
+   node references, the context keeps the nodes referenced during the
+   operations and never runs I/O or releases inside its critical zones.*/
+static vfs_io_c newlib_io;
+static vfs_descriptor_t newlib_descriptors[SYSCALL_MAX_FDS];
 
 static mode_t mode_to_stat_mode(vfs_mode_t mode) {
   mode_t stat_mode = 0U;
@@ -92,6 +50,40 @@ static mode_t mode_to_stat_mode(vfs_mode_t mode) {
 
   return stat_mode;
 }
+
+static void copy_stat(struct stat *st, const vfs_stat_t *vstp) {
+
+  memset(st, 0, sizeof (*st));
+  st->st_mode = mode_to_stat_mode(vstp->mode);
+  st->st_size = (off_t)vstp->size;
+}
+
+/**
+ * @brief   Initializes the VFS I/O context of the bindings.
+ * @note    It is called once, before any C library I/O, no descriptor is
+ *          installed.
+ *
+ * @param[in] rootp     root used by the path calls or @p NULL
+ *
+ * @init
+ */
+void newlibVfsInit(vfs_root_c *rootp) {
+
+  (void)vfsioObjectInit(&newlib_io, newlib_descriptors, SYSCALL_MAX_FDS);
+  vfsIOSetRoot(&newlib_io, rootp);
+}
+
+/**
+ * @brief   Returns the VFS I/O context of the bindings.
+ *
+ * @return              Pointer to the @p vfs_io_c object.
+ *
+ * @xclass
+ */
+vfs_io_c *newlibVfsGetIO(void) {
+
+  return &newlib_io;
+}
 #endif
 
 /***************************************************************************/
@@ -99,41 +91,17 @@ static mode_t mode_to_stat_mode(vfs_mode_t mode) {
 __attribute__((used))
 int _open_r(struct _reent *r, const char *p, int oflag, int mode) {
 #if defined(SYSCALL_USE_VFS)
-  msg_t err;
-  vfs_node_c *vnp;
   int file;
 
   (void)mode;
 
-  err = vfsOpen(p, oflag, &vnp);
-  if (err < CH_RET_SUCCESS) {
-    __errno_r(r) = CH_DECODE_ERROR(err);
+  file = vfsIOOpen(&newlib_io, p, oflag);
+  if (CH_RET_IS_ERROR(file)) {
+    __errno_r(r) = CH_DECODE_ERROR(file);
     return -1;
   }
 
-  /* The I-class pin must preserve the node's reference semantics.*/
-  if ((vnp->vmt->addref != __ro_addref_impl) ||
-      (vnp->vmt->release != __ro_release_impl)) {
-    vfsClose(vnp);
-    __errno_r(r) = ENOTSUP;
-    return -1;
-  }
-
-  /* Transferring the open reference into a free descriptor slot.*/
-  chSysLock();
-  for (file = 0; file < SYSCALL_MAX_FDS; file++) {
-    if (fds[file] == NULL) {
-      fds[file] = vnp;
-      chSysUnlock();
-      return file;
-    }
-  }
-  chSysUnlock();
-
-  vfsClose(vnp);
-
-  __errno_r(r) = EMFILE;
-  return -1;
+  return file;
 #else
   (void)r;
   (void)p;
@@ -149,21 +117,13 @@ int _open_r(struct _reent *r, const char *p, int oflag, int mode) {
 __attribute__((used))
 int _close_r(struct _reent *r, int file) {
 #if defined(SYSCALL_USE_VFS)
-  vfs_node_c *np = NULL;
+  msg_t ret;
 
-  chSysLock();
-  if ((file >= 0) && (file < SYSCALL_MAX_FDS)) {
-    np = fds[file];
-    fds[file] = NULL;
-  }
-  chSysUnlock();
-  if (np == NULL) {
-    __errno_r(r) = EBADF;
+  ret = vfsIOClose(&newlib_io, file);
+  if (CH_RET_IS_ERROR(ret)) {
+    __errno_r(r) = CH_DECODE_ERROR(ret);
     return -1;
   }
-
-  /* The detached reference is ours; another open can already reuse file.*/
-  vfsClose(np);
 
   return 0;
 #else
@@ -179,23 +139,14 @@ int _close_r(struct _reent *r, int file) {
 __attribute__((used))
 int _read_r(struct _reent *r, int file, char *ptr, int len) {
 #if defined(SYSCALL_USE_VFS)
-  vfs_node_c *np;
   ssize_t nr;
 
-  np = pin_descriptor(file);
-  if (np == NULL) {
-    __errno_r(r) = EBADF;
+  if (len < 0) {
+    __errno_r(r) = EINVAL;
     return -1;
   }
 
-  if (VFS_MODE_S_ISDIR(np->mode)) {
-    vfsClose(np);
-    __errno_r(r) = EISDIR;
-    return -1;
-  }
-
-  nr = vfsReadFile((vfs_file_node_c *)np, (uint8_t *)ptr, (size_t)len);
-  vfsClose(np);
+  nr = vfsIORead(&newlib_io, file, (uint8_t *)ptr, (size_t)len);
   if (CH_RET_IS_ERROR(nr)) {
     __errno_r(r) = CH_DECODE_ERROR(nr);
     return -1;
@@ -216,23 +167,14 @@ int _read_r(struct _reent *r, int file, char *ptr, int len) {
 __attribute__((used))
 int _write_r(struct _reent *r, int file, const char *ptr, int len) {
 #if defined(SYSCALL_USE_VFS)
-  vfs_node_c *np;
   ssize_t nw;
 
-  np = pin_descriptor(file);
-  if (np == NULL) {
-    __errno_r(r) = EBADF;
+  if (len < 0) {
+    __errno_r(r) = EINVAL;
     return -1;
   }
 
-  if (VFS_MODE_S_ISDIR(np->mode)) {
-    vfsClose(np);
-    __errno_r(r) = EISDIR;
-    return -1;
-  }
-
-  nw = vfsWriteFile((vfs_file_node_c *)np, (const uint8_t *)ptr, (size_t)len);
-  vfsClose(np);
+  nw = vfsIOWrite(&newlib_io, file, (const uint8_t *)ptr, (size_t)len);
   if (CH_RET_IS_ERROR(nw)) {
     __errno_r(r) = CH_DECODE_ERROR(nw);
     return -1;
@@ -251,43 +193,42 @@ int _write_r(struct _reent *r, int file, const char *ptr, int len) {
 /***************************************************************************/
 
 __attribute__((used))
-int _lseek_r(struct _reent *r, int file, int ptr, int dir) {
+off_t _lseek_r(struct _reent *r, int file, off_t ptr, int dir) {
+#if defined(SYSCALL_USE_VFS)
+  vfs_offset_t pos;
+
+  pos = vfsIOSeek(&newlib_io, file, (vfs_offset_t)ptr, (vfs_seekmode_t)dir);
+  if (CH_RET_IS_ERROR(pos)) {
+    __errno_r(r) = CH_DECODE_ERROR(pos);
+    return (off_t)-1;
+  }
+
+  return (off_t)pos;
+#else
   (void)r;
   (void)file;
   (void)ptr;
   (void)dir;
 
   return 0;
+#endif
 }
 
 /***************************************************************************/
 
 __attribute__((used))
-int _fstat_r(struct _reent *r, int file, struct stat * st) {
+int _fstat_r(struct _reent *r, int file, struct stat *st) {
 #if defined(SYSCALL_USE_VFS)
-  vfs_node_c *np;
-  vfs_mode_t mode;
+  vfs_stat_t vst;
+  msg_t ret;
 
-  np = pin_descriptor(file);
-  if (np == NULL) {
-    __errno_r(r) = EBADF;
+  ret = vfsIOFstat(&newlib_io, file, &vst);
+  if (CH_RET_IS_ERROR(ret)) {
+    __errno_r(r) = CH_DECODE_ERROR(ret);
     return -1;
   }
 
-  mode = np->mode;
-  vfsClose(np);
-  if (VFS_MODE_S_ISDIR(mode)) {
-    __errno_r(r) = EISDIR;
-    return -1;
-  }
-
-  memset(st, 0, sizeof(*st));
-
-  st->st_mode = mode_to_stat_mode(mode);
-  if (st->st_mode == 0U) {
-    __errno_r(r) = ENOENT;
-    return -1;
-  }
+  copy_stat(st, &vst);
 
   return 0;
 #else
@@ -305,18 +246,16 @@ int _fstat_r(struct _reent *r, int file, struct stat * st) {
 __attribute__((used))
 int _stat(const char *path, struct stat *st) {
 #if defined(SYSCALL_USE_VFS)
-  vfs_stat_t statbuf;
+  vfs_stat_t vst;
   msg_t ret;
 
-  ret = vfsStat(path, &statbuf);
+  ret = vfsIOStat(&newlib_io, path, &vst);
   if (CH_RET_IS_ERROR(ret)) {
     errno = CH_DECODE_ERROR(ret);
     return -1;
   }
 
-  memset(st, 0, sizeof(*st));
-  st->st_mode = mode_to_stat_mode(statbuf.mode);
-  st->st_size = (off_t)statbuf.size;
+  copy_stat(st, &vst);
 
   return 0;
 #else
@@ -328,15 +267,88 @@ int _stat(const char *path, struct stat *st) {
 #endif
 }
 
+#if defined(SYSCALL_USE_VFS)
+__attribute__((used))
+int _unlink_r(struct _reent *r, const char *path) {
+  msg_t ret;
+
+  ret = vfsIOUnlink(&newlib_io, path);
+  if (CH_RET_IS_ERROR(ret)) {
+    __errno_r(r) = CH_DECODE_ERROR(ret);
+    return -1;
+  }
+
+  return 0;
+}
+
+__attribute__((used))
+int _rename_r(struct _reent *r, const char *oldpath, const char *newpath) {
+  msg_t ret;
+
+  ret = vfsIORename(&newlib_io, oldpath, newpath);
+  if (CH_RET_IS_ERROR(ret)) {
+    __errno_r(r) = CH_DECODE_ERROR(ret);
+    return -1;
+  }
+
+  return 0;
+}
+
+__attribute__((used))
+int _mkdir_r(struct _reent *r, const char *path, int mode) {
+  msg_t ret;
+
+  ret = vfsIOMkdir(&newlib_io, path, (vfs_mode_t)mode);
+  if (CH_RET_IS_ERROR(ret)) {
+    __errno_r(r) = CH_DECODE_ERROR(ret);
+    return -1;
+  }
+
+  return 0;
+}
+
+/* Newlib nano has no mkdir() wrapper.*/
+__attribute__((used))
+int mkdir(const char *path, mode_t mode) {
+
+  return _mkdir_r(_REENT, path, (int)mode);
+}
+#endif
+
 /***************************************************************************/
 
 __attribute__((used))
 int _isatty_r(struct _reent *r, int fd) {
+#if defined(SYSCALL_USE_VFS)
+  msg_t ret;
+
+  ret = vfsIOControl(&newlib_io, fd, VFS_CTL_TTY_ISATTY, NULL);
+  if (CH_RET_IS_ERROR(ret)) {
+    /* Directories are not terminals.*/
+    if (ret == CH_RET_EISDIR) {
+      ret = CH_RET_ENOTTY;
+    }
+    __errno_r(r) = CH_DECODE_ERROR(ret);
+    return 0;
+  }
+
+  return 1;
+#else
   (void)r;
   (void)fd;
 
   return 1;
+#endif
 }
+
+#if defined(SYSCALL_USE_VFS)
+/* The Newlib isatty() wrapper calls the non-reentrant function.*/
+__attribute__((used))
+int _isatty(int fd) {
+
+  return _isatty_r(_REENT, fd);
+}
+#endif
 
 /***************************************************************************/
 

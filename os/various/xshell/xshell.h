@@ -44,6 +44,15 @@
 /*===========================================================================*/
 
 /**
+ * @brief   Enables the file system commands.
+ * @note    The commands use the VFS root of the shell manager
+ *          configuration.
+ */
+#if !defined(XSHELL_CMD_FILES_ENABLED) || defined(__DOXYGEN__)
+#define XSHELL_CMD_FILES_ENABLED            FALSE
+#endif
+
+/**
  * @brief   Shell maximum input line length inclusive or final zero.
  */
 #if !defined(XSHELL_LINE_LENGTH) || defined(__DOXYGEN__)
@@ -138,6 +147,10 @@
 #define shell_stream_i                      sequential_stream_i
 #endif
 
+#if (XSHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
+#include "vfs.h"
+#endif
+
 /*===========================================================================*/
 /* Module data structures and types.                                         */
 /*===========================================================================*/
@@ -208,6 +221,14 @@ typedef struct xshell_manager_config {
     size_t                      size;
 #endif
   } stack;
+#if (XSHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
+  /**
+   * @brief   VFS root of the file commands.
+   * @note    The root and its current directory are shared by the shells
+   *          of the manager, the root must remain valid while they run.
+   */
+  vfs_root_c                    *root;
+#endif
 #if defined(XSHELL_CONFIG_EXTRA_FIELDS)
   /* Extra fields defined in xshellconf.h.*/
   XSHELL_CONFIG_EXTRA_FIELDS
@@ -285,6 +306,12 @@ typedef struct xshell {
    * @brief   Insert mode flag.
    */
   bool                          insert_mode;
+#if (XSHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
+  /**
+   * @brief   VFS root of the file commands, from the manager configuration.
+   */
+  vfs_root_c                    *root;
+#endif
 #if defined(XSHELL_EXTRA_FIELDS)
   /* Extra fields defined in xshellconf.h.*/
   XSHELL_EXTRA_FIELDS

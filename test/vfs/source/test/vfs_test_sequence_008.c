@@ -231,21 +231,6 @@ static void vfs_test_routing_assert_unlocked(void) {
   chSysUnlock();
 }
 
-static vfs_root_c *vfs_test_api_saved_root;
-
-static void vfs_test_api_root_setup(void) {
-
-  vfs_test_routing_setup();
-  vfs_test_api_saved_root = vfs_root;
-  vfs_root = &vfs_test_routing_root;
-}
-
-static void vfs_test_api_root_teardown(void) {
-
-  vfs_root = vfs_test_api_saved_root;
-  vfs_test_routing_teardown();
-}
-
 /* Check the entire pool between operations, including error returns.*/
 static bool vfs_test_routing_pool_full(void) {
   vfs_shared_buffer_t *buffers[VFS_CFG_PATHBUFS_NUM];
@@ -273,29 +258,31 @@ static msg_t vfs_test_routing_call(unsigned op, const char *path,
 
   switch (op) {
   case 0U:
-    return vfsStat(path, &stat);
+    return vfsFSStat(&vfs_test_routing_root, path, &stat);
   case 1U:
-    ret = vfsOpenFile(path, VO_RDONLY, (vfs_file_node_c **)&np);
+    ret = vfsFSOpenFile(&vfs_test_routing_root, path, VO_RDONLY,
+                        (vfs_file_node_c **)&np);
     break;
   case 2U:
-    ret = vfsOpenDirectory(path, (vfs_directory_node_c **)&np);
+    ret = vfsFSOpenDirectory(&vfs_test_routing_root, path,
+                             (vfs_directory_node_c **)&np);
     break;
   case 3U:
-    ret = vfsOpen(path, VO_RDONLY, &np);
+    ret = vfsRootOpen(&vfs_test_routing_root, path, VO_RDONLY, &np);
     break;
   case 4U:
-    return vfsChangeCurrentDirectory(path);
+    return vfsRootChangeCurrentDirectory(&vfs_test_routing_root, path);
   case 5U:
-    return vfsUnlink(path);
+    return vfsFSUnlink(&vfs_test_routing_root, path);
   case 6U:
-    return vfsRename(path, newpath);
+    return vfsFSRename(&vfs_test_routing_root, path, newpath);
   case 7U:
-    return vfsMkdir(path, VFS_MODE_S_IRUSR);
+    return vfsFSMkdir(&vfs_test_routing_root, path, VFS_MODE_S_IRUSR);
   default:
-    return vfsRmdir(path);
+    return vfsFSRmdir(&vfs_test_routing_root, path);
   }
   if (!CH_RET_IS_ERROR(ret)) {
-    vfsClose(np);
+    (void)roRelease(np);
   }
   return ret;
 }
@@ -468,13 +455,13 @@ static THD_FUNCTION(vfs_test_routing_job, arg) {
     /* ELF-style scratch: retain a pair through the node call.*/
     buffer = vfs_buffer_take_wait();
     chDbgAssert(buffer != NULL, "scratch allocation failed");
-    job->result = (msg_t)vfsReadFile((vfs_file_node_c *)job->node,
+    job->result = (msg_t)vfsFileRead((vfs_file_node_c *)job->node,
                                      (uint8_t *)buffer->buf, VFS_BUFFER_SIZE);
     for (i = 0U; i < VFS_BUFFER_SIZE; i++) {
       job->preserved &= (uint8_t)buffer->buf[i] == (uint8_t)i;
     }
     vfs_buffer_release(buffer);
-    vfsClose(job->node);
+    (void)roRelease(job->node);
     job->node = NULL;
   }
   else {
@@ -551,7 +538,7 @@ static void vfs_test_routing_finish(size_t i) {
 
 static void vfs_test_routing_stress_setup(void) {
 
-  vfs_test_api_root_setup();
+  vfs_test_routing_setup();
   (void)vfsrootObjectInit(&vfs_test_routing_other_root,
                           (vfs_fs_c *)&vfs_test_routing_rom, "/base");
   memset(vfs_test_routing_jobs, 0, sizeof vfs_test_routing_jobs);
@@ -582,12 +569,12 @@ static void vfs_test_routing_stress_teardown(void) {
       (void)chThdWait(vfs_test_routing_jobs[i].thread);
     }
     if (vfs_test_routing_jobs[i].node != NULL) {
-      vfsClose(vfs_test_routing_jobs[i].node);
+      (void)roRelease(vfs_test_routing_jobs[i].node);
       vfs_test_routing_jobs[i].node = NULL;
     }
   }
   boDispose(&vfs_test_routing_other_root);
-  vfs_test_api_root_teardown();
+  vfs_test_routing_teardown();
 }
 
 /*===========================================================================*/
@@ -1162,11 +1149,11 @@ static const testcase_t vfs_test_008_005 = {
  */
 
 static void vfs_test_008_006_setup(void) {
-  vfs_test_api_root_setup();
+  vfs_test_routing_setup();
 }
 
 static void vfs_test_008_006_teardown(void) {
-  vfs_test_api_root_teardown();
+  vfs_test_routing_teardown();
 }
 
 static void vfs_test_008_006_execute(void) {
@@ -1195,11 +1182,11 @@ static void vfs_test_008_006_execute(void) {
       test_assert(vfs_test_routing_pool_full(), "prefix overflow leaked a pair");
       vfs_test_routing_root.path_prefix = "/base";
     }
-    ret = vfsRename("/data", path);
+    ret = vfsFSRename(&vfs_test_routing_root, "/data", path);
     test_assert(ret == CH_RET_ENAMETOOLONG, "rename destination overflow lost");
     test_assert(vfs_test_routing_pool_full(), "rename destination leaked a pair");
     path[VFS_CFG_PATHLEN_MAX] = '\0';
-    ret = vfsRename("/data", path);
+    ret = vfsFSRename(&vfs_test_routing_root, "/data", path);
     test_assert(ret == CH_RET_ENAMETOOLONG, "rename destination prefix overflow lost");
     test_assert(vfs_test_routing_pool_full(), "destination prefix leaked a pair");
   }
@@ -1283,7 +1270,8 @@ static void vfs_test_008_007_execute(void) {
       test_assert(vfs_test_routing_entered(0U), "owner did not suspend");
       vfs_test_routing_start(1U, 6U, false);
       test_assert(!vfs_test_routing_entered(1U), "waiter reused the owner's pair");
-      ret = vfsGetCurrentDirectory(cwd, sizeof cwd);
+      ret = vfsRootGetCurrentDirectory(&vfs_test_routing_root, cwd,
+                                       sizeof cwd);
       test_assert(ret == CH_RET_SUCCESS && strcmp(cwd, "/home/user") == 0,
                   "pool waiter blocked CWD access");
       buffer = vfs_buffer_take_immediate();
@@ -1332,7 +1320,8 @@ static void vfs_test_008_007_execute(void) {
     test_assert(vfs_test_routing_jobs[0].preserved &&
                 vfs_test_routing_jobs[1].preserved,
                 "rename resolved CWD before obtaining its pair");
-    ret = vfsGetCurrentDirectory(cwd, sizeof cwd);
+    ret = vfsRootGetCurrentDirectory(&vfs_test_routing_root, cwd,
+                                     sizeof cwd);
     test_assert(ret == CH_RET_SUCCESS && strcmp(cwd, "/other") == 0,
                 "sleeping chdir did not commit CWD");
     while (vfs_test_routing_held_num > 0U) {
@@ -1560,11 +1549,12 @@ static void vfs_test_008_010_execute(void) {
     ret = ovldrvRegisterDriver(&vfs_test_routing_root,
                                  (vfs_fs_c *)&vfs_test_fs, "mnt");
     test_assert(ret == CH_RET_SUCCESS, "sleeping route blocked replacement");
-    ret = vfsGetCurrentDirectory(cwd, sizeof cwd);
+    ret = vfsRootGetCurrentDirectory(&vfs_test_routing_root, cwd,
+                                     sizeof cwd);
     test_assert(ret == CH_RET_SUCCESS && strcmp(cwd, "/home/user") == 0,
                 "sleeping route blocked metadata access");
 #if VFS_CFG_PATHBUFS_NUM > 1
-    ret = vfsStat("/mnt/base/data", &stat);
+    ret = vfsFSStat(&vfs_test_routing_root, "/mnt/base/data", &stat);
     test_assert(ret == CH_RET_SUCCESS && stat.size == 7,
                 "new call did not use replacement while old route slept");
 #endif
@@ -1573,7 +1563,7 @@ static void vfs_test_008_010_execute(void) {
                 vfs_test_routing_jobs[0].observed_size == 3 &&
                 vfs_test_routing_jobs[0].preserved,
                 "in-flight call changed driver or path");
-    ret = vfsStat("/mnt/base/data", &stat);
+    ret = vfsFSStat(&vfs_test_routing_root, "/mnt/base/data", &stat);
     test_assert(ret == CH_RET_SUCCESS && stat.size == 7 &&
                 strcmp(vfs_test_fs.path, "/base/data") == 0,
                 "replacement routing or mount bypass changed");
@@ -1632,7 +1622,7 @@ static void vfs_test_008_011_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "first directory open failed");
     ret = vfsFSOpenDirectory(&vfs_test_routing_root, "/", &second);
     if (CH_RET_IS_ERROR(ret)) {
-      vfsClose((vfs_node_c *)first);
+      (void)roRelease(first);
     }
     test_assert(ret == CH_RET_SUCCESS, "second directory open failed");
     ret = vfsDirReadFirst(first, &entry);
@@ -1654,8 +1644,8 @@ static void vfs_test_008_011_execute(void) {
     ret = vfsDirReadNext(second, &entry);
     test_assert(ret == 1 && strcmp(entry.name, "home") == 0,
                 "mount removal restarted backing phase");
-    vfsClose((vfs_node_c *)first);
-    vfsClose((vfs_node_c *)second);
+    (void)roRelease(first);
+    (void)roRelease(second);
     test_assert(vfs_test_routing_pool_full(), "directory handles leaked a pair");
   }
   test_end_step(1);

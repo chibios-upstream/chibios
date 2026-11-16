@@ -89,9 +89,9 @@ int fs_open_custom(struct fs_file *file, const char *name) {
     return 0;
   }
 
-  ret = vfsGetNodeStat((vfs_node_c *)vfnp, &statbuf);
+  ret = vfsNodeStat(vfnp, &statbuf);
   if (CH_RET_IS_ERROR(ret)) {
-    vfsClose((vfs_node_c *)vfnp);
+    (void)roRelease(vfnp);
     return 0;
   }
 
@@ -109,7 +109,7 @@ void fs_close_custom(struct fs_file *file) {
   if ((file != NULL) && (file->pextension != NULL)) {
     vnp = (vfs_node_c *)file->pextension;
     file->pextension = NULL;
-    vfsClose(vnp);
+    (void)roRelease(vnp);
   }
 }
 
@@ -120,7 +120,7 @@ int fs_read_custom(struct fs_file *file, char *buffer, int count) {
     return FS_READ_EOF;
   }
 
-  ret = vfsReadFile((vfs_file_node_c *)file->pextension, (uint8_t *)buffer,
+  ret = vfsFileRead((vfs_file_node_c *)file->pextension, (uint8_t *)buffer,
                     (size_t)count);
   if (CH_RET_IS_ERROR(ret)) {
     return 0;

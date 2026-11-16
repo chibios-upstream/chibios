@@ -7,7 +7,7 @@ regions:
   It owns the console UART through VIO UART unit 0, VRQ 8.
 - SB2 runs the Eclipse ThreadX client (`demos/various/SB-CLIENT-THREADX`).
   It owns the board LED through VIO GPIO unit 0. Its standard input, output
-  and error are connected to `/dev/null`.
+  and error are connected to a null stream, it has no file system.
 
 The host restarts a sandbox when it terminates and reports the exit code on
 its serial port. The host port can be shared with the SB1 console, the host

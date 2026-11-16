@@ -19,6 +19,7 @@
 #include "ch.h"
 #include "hal.h"
 #include "vfs.h"
+#include "newlib_vfs.h"
 
 #include "chprintf.h"
 #include "nullstreams.h"
@@ -123,9 +124,6 @@ static vfs_streams_driver_c dev_driver;
 /* VFS root object.*/
 static vfs_root_c root_driver;
 
-/* Global pointer to the root VFS driver.*/
-vfs_root_c *vfs_root = &root_driver;
-
 /* A null stream object.*/
 static NullStream nullstream;
 
@@ -156,7 +154,8 @@ static const xshell_manager_config_t cfg1 = {
   .prompt           = XSHELL_DEFAULT_PROMPT_STR,
   .commands         = commands,
   .use_heap         = true,
-  .stack.size       = SHELL_WA_SIZE
+  .stack.size       = SHELL_WA_SIZE,
+  .root             = &root_driver
 };
 
 /*===========================================================================*/
@@ -252,6 +251,9 @@ int main(void) {
   if (CH_RET_IS_ERROR(msg)) {
     chSysHalt("VFS");
   }
+
+  /* C library file I/O on the VFS root.*/
+  newlibVfsInit(&root_driver);
 
   /* Shell manager initialization.*/
   xshellObjectInit(&sm1, &cfg1);

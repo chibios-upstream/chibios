@@ -544,7 +544,7 @@ static void vfs_test_003_003_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "stream node stat failed");
     test_assert(vfs_test_stat_equal(&stat, &expected),
                 "stream node metadata changed");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_ISATTY, NULL);
     test_assert(ret == CH_RET_ENOTTY, "unsupported stream control accepted");
     (void)roRelease(fnp);
   }
@@ -559,20 +559,20 @@ static void vfs_test_003_003_execute(void) {
     ret = vfsFSOpenFile(&streams, "/console", VO_RDWR, &fnp);
     test_assert(ret == CH_RET_SUCCESS, "FIFO open failed");
     byte = 0x5AU;
-    n = vfsWriteFile(fnp, &byte, sizeof byte);
+    n = vfsFileWrite(fnp, &byte, sizeof byte);
     test_assert(n == (ssize_t)sizeof byte, "FIFO write not dispatched");
-    ret = vfsSetFilePosition(fnp, 0, VFS_SEEK_SET);
+    ret = vfsFileSetPosition(fnp, 0, VFS_SEEK_SET);
     test_assert(ret == CH_RET_ESPIPE, "FIFO seek accepted");
-    test_assert(vfsGetFilePosition(fnp) == CH_RET_ESPIPE,
+    test_assert(vfsFileGetPosition(fnp) == CH_RET_ESPIPE,
                 "FIFO position reported");
     (void)roRelease(fnp);
 
     vfs_test_stream_position = 0U;
     ret = vfsFSOpenFile(&streams, "/file", VO_RDONLY, &fnp);
     test_assert(ret == CH_RET_SUCCESS, "random stream open failed");
-    ret = vfsSetFilePosition(fnp, 7, VFS_SEEK_SET);
+    ret = vfsFileSetPosition(fnp, 7, VFS_SEEK_SET);
     test_assert(ret == CH_RET_SUCCESS, "random stream seek failed");
-    test_assert(vfsGetFilePosition(fnp) == (vfs_offset_t)7,
+    test_assert(vfsFileGetPosition(fnp) == (vfs_offset_t)7,
                 "random stream position changed");
     vfs_test_stream_limit = 16U;
     test_assert(vfsFileSetPosition(fnp, -2, VFS_SEEK_CUR) == 0 &&
@@ -596,16 +596,16 @@ static void vfs_test_003_003_execute(void) {
     vfs_test_tty_status = HAL_RET_SUCCESS;
     ret = vfsFSOpenFile(&streams, "/tty", VO_RDWR, &fnp);
     test_assert(ret == CH_RET_SUCCESS, "TTY open failed");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_ISATTY, NULL);
     test_assert(ret == CH_RET_SUCCESS, "TTY not recognized");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_DRAIN, NULL);
     test_assert(ret == CH_RET_SUCCESS, "TTY drain failed");
     test_assert(vfs_test_tty_drains == 1U, "TTY drain not dispatched");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, &ret);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_ISATTY, &ret);
     test_assert(ret == CH_RET_EINVAL, "TTY accepted invalid control argument");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_BASE + 99U, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_BASE + 99U, NULL);
     test_assert(ret == CH_RET_ENOTTY, "TTY accepted unknown control");
-    ret = vfsSetFilePosition(fnp, 0, VFS_SEEK_SET);
+    ret = vfsFileSetPosition(fnp, 0, VFS_SEEK_SET);
     test_assert(ret == CH_RET_ESPIPE, "TTY seek accepted");
     (void)roRelease(fnp);
   }
@@ -751,12 +751,12 @@ static void vfs_test_003_005_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "TTY open failed");
     action = -1;
     vfs_test_tty_status = HAL_RET_CONFIG_ERROR;
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_FLUSH, &action);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_FLUSH, &action);
     test_assert(ret == CH_RET_EINVAL, "flush configuration error lost");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_FLOW, &action);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_FLOW, &action);
     test_assert(ret == CH_RET_EINVAL, "flow configuration error lost");
     vfs_test_tty_status = HAL_RET_SUCCESS;
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_DRAIN, NULL);
     test_assert(ret == CH_RET_SUCCESS, "successful drain changed");
     (void)roRelease(fnp);
   }
@@ -770,13 +770,13 @@ static void vfs_test_003_005_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "TTY reopen failed");
     for (i = 0U; i < sizeof failures / sizeof failures[0]; i++) {
       vfs_test_tty_status = failures[i];
-      ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+      ret = vfsFileControl(fnp, VFS_CTL_TTY_DRAIN, NULL);
       test_assert(ret == CH_RET_EIO, "non-configuration failure misclassified");
     }
     (void)roRelease(fnp);
     ret = vfsFSOpenFile(&streams, "/console", VO_RDWR, &fnp);
     test_assert(ret == CH_RET_SUCCESS, "FIFO open failed");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_DRAIN, NULL);
     test_assert(ret == CH_RET_ENOTTY, "FIFO accepted terminal control");
     (void)roRelease(fnp);
   }

@@ -29,16 +29,12 @@
 /* VFS-related.                                                              */
 /*===========================================================================*/
 
-/* A read-only /bin shared by the host and the sandbox.*/
+/* A read-only /bin, the sandbox shell is loaded from it.*/
 static vfs_rom_driver_c bin_driver;
 
-/* Host and private sandbox roots, each with its own current directory.*/
-static vfs_root_c root_driver;
+/* Private sandbox root, with its own current directory.*/
 static vfs_root_c sb1_root_driver;
 static vfs_streams_driver_c dev_driver;
-
-/* Implicit root used by the host VFS API.*/
-vfs_root_c *vfs_root = &root_driver;
 
 /* POSIX TTY over the target's console SIO, and /dev/null.*/
 static hal_posix_tty_sio_c ttyS0;
@@ -135,7 +131,6 @@ int main(void) {
   /* No block device or removable storage is required.*/
   romdrvObjectInit(&bin_driver, &bin_romfs);
   stmdrvObjectInit(&dev_driver, streams);
-  init_root(&root_driver);
   init_root(&sb1_root_driver);
 
   sbObjectInit(&sbx1);
@@ -177,7 +172,7 @@ int main(void) {
     if (CH_RET_IS_ERROR(ret)) {
       chSysHalt("SBX1 descriptor");
     }
-    vfsClose(np);
+    (void)roRelease(np);
 
     ret = sbExecDynamic(&sbx1, NORMALPRIO - 10, PORTAB_SHELL_HEAP_SIZE,
                         "/bin/msh.elf", sbx1_argv, sbx1_envp);
