@@ -268,8 +268,6 @@ int _stat(const char *path, struct stat *st) {
 }
 
 #if defined(SYSCALL_USE_VFS)
-/***************************************************************************/
-
 __attribute__((used))
 int _unlink_r(struct _reent *r, const char *path) {
   msg_t ret;
@@ -282,8 +280,6 @@ int _unlink_r(struct _reent *r, const char *path) {
 
   return 0;
 }
-
-/***************************************************************************/
 
 __attribute__((used))
 int _rename_r(struct _reent *r, const char *oldpath, const char *newpath) {
@@ -298,8 +294,6 @@ int _rename_r(struct _reent *r, const char *oldpath, const char *newpath) {
   return 0;
 }
 
-/***************************************************************************/
-
 __attribute__((used))
 int _mkdir_r(struct _reent *r, const char *path, int mode) {
   msg_t ret;
@@ -312,8 +306,6 @@ int _mkdir_r(struct _reent *r, const char *path, int mode) {
 
   return 0;
 }
-
-/***************************************************************************/
 
 /* Newlib nano has no mkdir() wrapper.*/
 __attribute__((used))
@@ -350,8 +342,6 @@ int _isatty_r(struct _reent *r, int fd) {
 }
 
 #if defined(SYSCALL_USE_VFS)
-/***************************************************************************/
-
 /* The Newlib isatty() wrapper calls the non-reentrant function.*/
 __attribute__((used))
 int _isatty(int fd) {
