@@ -287,8 +287,8 @@ struct hal_usb_cdc_service {
    */
   USBEndpointConfig         int_in_epc;
   /**
-   * @brief       CDC service ownership metadata, built at object
-   *              initialization and never changed.
+   * @brief       CDC service ownership metadata.
+   * @details     Built at object initialization and never changed.
    */
   hal_usb_service_info_t    svcinfo;
 };
