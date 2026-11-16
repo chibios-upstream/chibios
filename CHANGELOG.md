@@ -727,6 +727,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   `USE_THUMB=yes` the link failed with multiple definitions. No change for
   the current projects, which build in ARM mode without C++
   ([#587](https://github.com/chibios-upstream/chibios/pull/587)).
+- [HAL] AVR ATmega SYSTICKv1: the driver did not build on the ATmega8, 16,
+  32, 64, 162 and 8515, periodic mode now uses Timer 2 on the ATmega8. The
+  ATmega64 Timer 0 ticked 2, 4 or 8 times too fast at CLK/64, CLK/256 and
+  CLK/1024, and on the devices sharing `TIMSK` between the timers, such as
+  the ATmega128, both tick modes cleared the interrupt enables of the other
+  timers
+  ([#615](https://github.com/chibios-upstream/chibios/pull/615)).
 - [HAL] AVR ATmega GPIOv2: a stray character in the PCINT4 pin-state
   declaration broke the build of configurations with `AVR_GPIO_USE_PCINT4`
   enabled (ATmega324PB)
