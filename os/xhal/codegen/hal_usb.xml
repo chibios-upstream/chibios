@@ -1079,11 +1079,13 @@ return self->arg;]]></implementation>
             <brief>Active endpoints configurations.</brief>
           </field>
           <field name="in_params" ctype="void$I*$N[USB_MAX_ENDPOINTS]">
-            <brief>Fields available to the user, an application-defined handler can be associated to an IN endpoint.</brief>
+            <brief>Fields available to the user, one per IN endpoint.</brief>
+            <details>An application-defined handler can be associated to each IN endpoint.</details>
             <note>The base index is one, endpoint zero has no element in this array.</note>
           </field>
           <field name="out_params" ctype="void$I*$N[USB_MAX_ENDPOINTS]">
-            <brief>Fields available to the user, an application-defined handler can be associated to an OUT endpoint.</brief>
+            <brief>Fields available to the user, one per OUT endpoint.</brief>
+            <details>An application-defined handler can be associated to each OUT endpoint.</details>
             <note>The base index is one, endpoint zero has no element in this array.</note>
           </field>
           <field name="ep0state" ctype="usbep0state_t">
