@@ -733,7 +733,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   CLK/1024, and on the devices sharing `TIMSK` between the timers, such as
   the ATmega128, both tick modes cleared the interrupt enables of the other
   timers
-  ([#615](https://github.com/chibios-upstream/chibios/pull/615)).
+  ([#615](https://github.com/chibios-upstream/chibios/pull/615))
+  *(backported to 21.11.6)*.
 - [HAL] AVR ATmega GPIOv2: a stray character in the PCINT4 pin-state
   declaration broke the build of configurations with `AVR_GPIO_USE_PCINT4`
   enabled (ATmega324PB)
@@ -741,7 +742,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 - [AVR] RT and NIL did not assemble on the devices without `CALL` (avr2,
   avr25 and avr4 cores, such as the ATmega8, ATmega88 and ATmega8515): the
   thread start now calls `chThdExit()` with `RCALL` there
-  ([#614](https://github.com/chibios-upstream/chibios/pull/614)).
+  ([#614](https://github.com/chibios-upstream/chibios/pull/614))
+  *(backported to 21.11.6)*.
 - [ARM] THUMB mode (`USE_THUMB = yes`) of the ARM7 port did not link since
   18.2.0: the port lost its THUMB entry points and, since 19.1.1, the
   startup its pure THUMB calls, while `chcore.h` still used them. Both are
