@@ -816,6 +816,7 @@ void sd_lld_serve_interrupt(SerialDriver *sdp) {
   USART_TypeDef *u = sdp->usart;
   uint32_t cr1;
   uint32_t isr;
+  uint32_t rxisr;
 
   /* Reading and clearing status.*/
   isr = u->ISR;
@@ -836,13 +837,17 @@ void sd_lld_serve_interrupt(SerialDriver *sdp) {
      1) Another byte arrived after removing the previous one, this would cause
         an extra interrupt to serve.
      2) FIFO mode is enabled on devices that support it, we need to empty
-        the FIFO.*/
-  while (isr & USART_ISR_RXNE) {
+        the FIFO.
+     The status is read again into a separate variable because TC has
+     already been cleared, the transmission end check uses its value on
+     entry.*/
+  rxisr = isr;
+  while (rxisr & USART_ISR_RXNE) {
     osalSysLockFromISR();
     sdIncomingDataI(sdp, (uint8_t)u->RDR & sdp->rxmask);
     osalSysUnlockFromISR();
 
-    isr = u->ISR;
+    rxisr = u->ISR;
   }
 
   /* Caching CR1.*/
