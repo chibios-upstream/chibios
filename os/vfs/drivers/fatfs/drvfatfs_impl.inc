@@ -144,6 +144,20 @@ static msg_t translate_error(FRESULT res) {
   return msg;
 }
 
+/* Checks for directory entries, the dot entries are not reported by
+   f_readdir(). Called with the FatFS lock held.*/
+static bool dir_has_entries(const char *path, FILINFO *info) {
+  DIR dir;
+  bool found = false;
+
+  if (f_opendir(&dir, (const TCHAR *)path) == FR_OK) {
+    found = (f_readdir(&dir, info) == FR_OK) && (info->fname[0] != '\0');
+    (void)f_closedir(&dir);
+  }
+
+  return found;
+}
+
 static bool is_leap_year(unsigned year) {
 
   return ((((year % 4U) == 0U) && ((year % 100U) != 0U)) ||
@@ -685,6 +699,12 @@ static ssize_t __fffile_write_impl(void *ip, const uint8_t *buf, size_t n) {
     return translate_error(res);
   }
 
+  /* A full volume is reported with a short count and then with no bytes
+     written.*/
+  if ((bw == 0U) && (n > 0U)) {
+    return CH_RET_ENOSPC;
+  }
+
   return (ssize_t)bw;
 }
 
@@ -1122,6 +1142,11 @@ msg_t __ffdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
   res = f_mkdir((const TCHAR *)path);
   ff_unlock();
 
+  /* No cluster or directory entry available for the new directory.*/
+  if (res == FR_DENIED) {
+    return CH_RET_ENOSPC;
+  }
+
   return translate_error(res);
 }
 
@@ -1138,6 +1163,7 @@ msg_t __ffdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
 msg_t __ffdrv_rmdir_impl(void *ip, const char *path) {
   FILINFO *info;
   FRESULT res;
+  bool not_empty = false;
 
   (void)ip;
   if (strcmp(path, "/") == 0) {
@@ -1155,10 +1181,20 @@ msg_t __ffdrv_rmdir_impl(void *ip, const char *path) {
     }
     else {
       res = f_unlink((const TCHAR *)path);
+
+      /* FatFS denies the removal of read-only and non-empty directories,
+         the second case is checked under the same lock.*/
+      if ((res == FR_DENIED) && ((info->fattrib & AM_RDO) == 0U)) {
+        not_empty = dir_has_entries(path, info);
+      }
     }
   }
   ff_unlock();
   chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, info);
+
+  if (not_empty) {
+    return CH_ENCODE_ERROR(ENOTEMPTY);
+  }
 
   return translate_error(res);
 }

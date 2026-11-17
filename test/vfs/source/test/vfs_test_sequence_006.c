@@ -40,6 +40,7 @@
  * - @subpage vfs_test_006_002
  * - @subpage vfs_test_006_003
  * - @subpage vfs_test_006_004
+ * - @subpage vfs_test_006_005
  * .
  */
 
@@ -664,6 +665,111 @@ static const testcase_t vfs_test_006_004 = {
   vfs_test_006_004_execute
 };
 
+/**
+ * @page vfs_test_006_005 [6.5] Space exhaustion and directory removal errors
+ *
+ * <h2>Description</h2>
+ * A full volume reports ENOSPC after any partial write and on mkdir, a
+ * non-empty directory ENOTEMPTY.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.5.1] Directory removal errors.
+ * - [6.5.2] Space exhaustion.
+ * .
+ */
+
+static void vfs_test_006_005_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_005_teardown(void) {
+  msg_t ret;
+
+  ret = ffdrvUnmount("0:");
+  test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
+}
+
+static void vfs_test_006_005_execute(void) {
+  static uint8_t block[1024];
+  vfs_fs_c *fsp = (vfs_fs_c *)&vfs_test_fat_driver;
+  vfs_file_node_c *fnp;
+  ssize_t n;
+  msg_t ret;
+  unsigned i;
+
+  /* [6.5.1] Directory removal errors.*/
+  test_set_step(1);
+  {
+    ret = vfsFSMkdir(fsp, "/dir", VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR);
+    test_assert(ret == CH_RET_SUCCESS, "mkdir failed");
+    ret = vfsFSOpenFile(fsp, "/dir/file", VO_CREAT | VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "file creation failed");
+    vfsNodeClose(fnp);
+    ret = vfsFSRmdir(fsp, "/dir");
+    test_assert(ret == CH_ENCODE_ERROR(ENOTEMPTY),
+                "non-empty directory removal error");
+    ret = vfsFSUnlink(fsp, "/dir/file");
+    test_assert(ret == CH_RET_SUCCESS, "file removal failed");
+    ret = vfsFSRmdir(fsp, "/dir");
+    test_assert(ret == CH_RET_SUCCESS, "empty directory removal failed");
+  }
+  test_end_step(1);
+
+  /* [6.5.2] Space exhaustion.*/
+  test_set_step(2);
+  {
+    memset(block, 0x5A, sizeof block);
+    ret = vfsFSOpenFile(fsp, "/fill", VO_CREAT | VO_TRUNC | VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "fill file creation failed");
+    n = 0;
+    for (i = 0U; i < 256U; i++) {
+      n = vfsFileWrite(fnp, block, sizeof block);
+      if (n != (ssize_t)sizeof block) {
+        break;
+      }
+    }
+    test_assert((n == CH_RET_ENOSPC) ||
+                ((n > 0) && (n < (ssize_t)sizeof block)),
+                "the volume did not fill");
+    n = vfsFileWrite(fnp, block, sizeof block);
+    test_assert(n == CH_RET_ENOSPC, "full volume write error");
+    n = vfsFileWrite(fnp, block, 0U);
+    test_assert(n == 0, "zero-length write on a full volume");
+    ret = vfsFSMkdir(fsp, "/newdir", VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR);
+    test_assert(ret == CH_RET_ENOSPC, "full volume mkdir error");
+    vfsNodeClose(fnp);
+    ret = vfsFSUnlink(fsp, "/fill");
+    test_assert(ret == CH_RET_SUCCESS, "fill file removal failed");
+    ret = vfsFSMkdir(fsp, "/newdir", VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR);
+    test_assert(ret == CH_RET_SUCCESS, "mkdir after freeing space failed");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_006_005 = {
+  "Space exhaustion and directory removal errors",
+  vfs_test_006_005_setup,
+  vfs_test_006_005_teardown,
+  vfs_test_006_005_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -678,6 +784,7 @@ const testcase_t * const vfs_test_sequence_006_array[] = {
   &vfs_test_006_003,
 #endif
   &vfs_test_006_004,
+  &vfs_test_006_005,
   NULL
 };
 
