@@ -750,7 +750,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 - [VFS] FatFS driver: a write on a full volume returned 0 instead of
   `ENOSPC`, `mkdir()` on a full volume and `rmdir()` of a non-empty
   directory returned `EACCES` instead of `ENOSPC` and `ENOTEMPTY`
-  ([#643](https://github.com/chibios-upstream/chibios/pull/643)).
+  ([#643](https://github.com/chibios-upstream/chibios/pull/643))
+  *(backported to 21.11.6)*.
 - [VFS] Newlib bindings: `lseek()` did nothing and returned 0, `isatty()`
   reported every descriptor as a terminal, `fstat()` rejected directories
   and reported no size, and a full descriptor table was detected only
