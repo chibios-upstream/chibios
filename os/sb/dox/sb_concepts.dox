@@ -285,6 +285,11 @@
  * - The sandbox file system is a VFS root assigned with sbSetRoot(), a
  *   root private to the sandbox gives it its own current directory and
  *   mounts. Without a root the path-based calls return @p CH_RET_ENOSYS.
+ * - Sandboxes sharing a file system are isolated only by disjoint name
+ *   spaces: each root has its own path prefix, paths cannot leave it, and
+ *   shared content is mounted read-only. The host does not rename or
+ *   remove the prefix directory of a running sandbox, see the VFS
+ *   limitations page.
  * - Each sandbox has @p SB_CFG_FD_NUM file descriptors, held by a VFS I/O
  *   context. The host installs VFS nodes on chosen descriptors with
  *   sbRegisterDescriptor(), which takes over the node reference only on

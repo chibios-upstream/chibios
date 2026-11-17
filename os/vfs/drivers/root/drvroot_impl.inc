@@ -39,6 +39,15 @@ static const char *current_directory(vfs_root_c *rootp) {
   return rootp->path_cwd;
 }
 
+/* Checks if an absolute normalized path is the current directory or one
+   of its ancestors, the root itself excluded.*/
+static bool is_cwd_or_ancestor(const char *path, const char *cwd) {
+  size_t n = strlen(path);
+
+  return (n > 1U) && (strncmp(cwd, path, n) == 0) &&
+         ((cwd[n] == '\0') || (cwd[n] == '/'));
+}
+
 static msg_t make_absolute_path(char *buf, const char *path, const char *cwd) {
 
   if (*path == '\0') {
@@ -394,6 +403,8 @@ msg_t __vfsroot_unlink_impl(void *ip, const char *path) {
 
 /**
  * @brief       Override of method @p vfsFSRename().
+ * @note        The current directory of the root and its ancestors are not
+ *              renamed, @p CH_RET_EBUSY is returned.
  *
  * @param[in,out] ip            Pointer to a @p vfs_root_c instance.
  * @param[in]     oldpath       Absolute or relative path of the node to be
@@ -416,6 +427,12 @@ msg_t __vfsroot_rename_impl(void *ip, const char *oldpath, const char *newpath) 
   ret = make_absolute_path(buffer->paths.path1, oldpath, cwd);
   if (!CH_RET_IS_ERROR(ret)) {
     ret = make_absolute_path(buffer->paths.path2, newpath, cwd);
+  }
+
+  /* The current directory and its ancestors are not renamed through the
+     root, it would leave a stale current directory.*/
+  if (!CH_RET_IS_ERROR(ret) && is_cwd_or_ancestor(buffer->paths.path1, cwd)) {
+    ret = CH_RET_EBUSY;
   }
   __ovldrv_unlock(self);
   if (!CH_RET_IS_ERROR(ret)) {
@@ -466,6 +483,8 @@ msg_t __vfsroot_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
 
 /**
  * @brief       Override of method @p vfsFSRmdir().
+ * @note        The current directory of the root is not removed,
+ *              @p CH_RET_EBUSY is returned.
  *
  * @param[in,out] ip            Pointer to a @p vfs_root_c instance.
  * @param[in]     path          Absolute or relative path of the directory to be
@@ -475,13 +494,24 @@ msg_t __vfsroot_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
 msg_t __vfsroot_rmdir_impl(void *ip, const char *path) {
   vfs_root_c *self = (vfs_root_c *)ip;
   vfs_shared_buffer_t *buffer;
+  const char *cwd;
   msg_t ret;
 
   buffer = vfs_buffer_take_wait();
   if (buffer == NULL) {
     return CH_RET_ENOMEM;
   }
-  ret = make_current_path(self, buffer->paths.path1, path);
+  __ovldrv_lock(self);
+  cwd = current_directory(self);
+  ret = make_absolute_path(buffer->paths.path1, path, cwd);
+
+  /* The current directory is not removed through the root, it would leave
+     a stale current directory. Its ancestors are not empty.*/
+  if (!CH_RET_IS_ERROR(ret) && (buffer->paths.path1[1] != '\0') &&
+      (strcmp(buffer->paths.path1, cwd) == 0)) {
+    ret = CH_RET_EBUSY;
+  }
+  __ovldrv_unlock(self);
   if (!CH_RET_IS_ERROR(ret)) {
     if (buffer->paths.path1[1] == '\0') {
       ret = CH_RET_EACCES;

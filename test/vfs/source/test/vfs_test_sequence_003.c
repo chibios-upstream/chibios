@@ -201,7 +201,9 @@ static const drv_streams_element_t vfs_test_streams[] = {
  *   destination is rejected.
  * - [3.1.6] A failed directory validation does not change the current
  *   directory.
- * - [3.1.7] A root with no backing file system validates and selects
+ * - [3.1.7] The current directory and its ancestors are not renamed or
+ *   removed through their root.
+ * - [3.1.8] A root with no backing file system validates and selects
  *   its synthetic root directory.
  * .
  */
@@ -213,6 +215,7 @@ static void vfs_test_003_001_execute(void) {
   char cwd[VFS_CFG_PATHLEN_MAX + 1];
   char other_cwd[] = "/tmp";
   char small[2];
+  unsigned calls;
   msg_t ret;
 
   /* [3.1.1] A relative path is resolved against the root current
@@ -306,9 +309,45 @@ static void vfs_test_003_001_execute(void) {
   }
   test_end_step(6);
 
-  /* [3.1.7] A root with no backing file system validates and selects
-     its synthetic root directory.*/
+  /* [3.1.7] The current directory and its ancestors are not renamed or
+     removed through their root.*/
   test_set_step(7);
+  {
+    vfs_test_root_reset();
+    calls = vfs_test_fs.calls;
+    ret = vfsFSRename(&vfs_test_root, "/home/user", "/home/other");
+    test_assert(ret == CH_RET_EBUSY, "current directory renamed");
+    ret = vfsFSRename(&vfs_test_root, "/home", "/house");
+    test_assert(ret == CH_RET_EBUSY, "current directory ancestor renamed");
+    ret = vfsFSRename(&vfs_test_root, ".", "/elsewhere");
+    test_assert(ret == CH_RET_EBUSY, "relative current directory renamed");
+    ret = vfsFSRmdir(&vfs_test_root, "/home/user");
+    test_assert(ret == CH_RET_EBUSY, "current directory removed");
+    ret = vfsFSRmdir(&vfs_test_root, ".");
+    test_assert(ret == CH_RET_EBUSY, "relative current directory removed");
+    test_assert(vfs_test_fs.calls == calls,
+                "busy operation reached the file system");
+    ret = vfsFSRename(&vfs_test_root, "/home/use", "/home/other");
+    test_assert(ret == CH_RET_SUCCESS &&
+                strcmp(vfs_test_fs.path, "/home/use") == 0,
+                "name prefix of the current directory refused");
+    ret = vfsFSRename(&vfs_test_root, "/home/user2", "/home/other");
+    test_assert(ret == CH_RET_SUCCESS &&
+                strcmp(vfs_test_fs.path, "/home/user2") == 0,
+                "sibling of the current directory refused");
+    ret = vfsFSRename(&vfs_test_root, "/home/user/file", "/home/other");
+    test_assert(ret == CH_RET_SUCCESS &&
+                strcmp(vfs_test_fs.path, "/home/user/file") == 0,
+                "content of the current directory refused");
+    ret = vfsFSRmdir(&vfs_test_root, "/home");
+    test_assert(ret == CH_RET_SUCCESS && strcmp(vfs_test_fs.path, "/home") == 0,
+                "ancestor removal not delegated");
+  }
+  test_end_step(7);
+
+  /* [3.1.8] A root with no backing file system validates and selects
+     its synthetic root directory.*/
+  test_set_step(8);
   {
     (void)vfsrootObjectInit(&empty_root, NULL, NULL);
     ret = vfsRootChangeCurrentDirectory(&empty_root, "/");
@@ -318,7 +357,7 @@ static void vfs_test_003_001_execute(void) {
     test_assert(strcmp(cwd, "/") == 0, "synthetic root cwd changed");
     boDispose(&empty_root);
   }
-  test_end_step(7);
+  test_end_step(8);
 }
 
 static const testcase_t vfs_test_003_001 = {
