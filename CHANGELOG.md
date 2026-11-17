@@ -753,7 +753,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 - [VFS] LittleFS driver: independent writable opens of the same file were
   accepted and the data of one writer was lost; an open conflicting with a
   writer, or a writable open of an open file, now returns `EBUSY`
-  ([#648](https://github.com/chibios-upstream/chibios/pull/648)).
+  ([#648](https://github.com/chibios-upstream/chibios/pull/648))
+  *(backported to 21.11.6)*.
 - [VFS] Root: renaming the current directory or one of its ancestors, or
   removing the current directory, left a stale current directory; through
   the root these operations now return `EBUSY`
