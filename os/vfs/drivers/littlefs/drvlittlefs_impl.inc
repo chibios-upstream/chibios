@@ -181,6 +181,34 @@ static msg_t translate_error(enum lfs_error res) {
   return msg;
 }
 
+/*
+ * Checks a newly opened file against the other files open on the same
+ * instance, a file can be open by any number of readers or by a single
+ * writer. LittleFS keeps the metadata pair and the identifier of each open
+ * file updated, removed and renamed entries get a null pair and never match.
+ */
+static bool is_open_conflict(const vfs_littlefs_driver_c *drvp,
+                             const lfs_file_t *fp) {
+  const struct lfs_mlist *mp;
+  bool writer = (fp->flags & (uint32_t)LFS_O_WRONLY) != 0U;
+
+  for (mp = drvp->lfs.mlist; mp != NULL; mp = mp->next) {
+    const lfs_file_t *op = (const lfs_file_t *)mp;
+
+    if ((op != fp) && (mp->type == (uint8_t)LFS_TYPE_REG) &&
+        (mp->id == fp->id) &&
+        ((mp->m.pair[0] == fp->m.pair[0]) ||
+         (mp->m.pair[0] == fp->m.pair[1]) ||
+         (mp->m.pair[1] == fp->m.pair[0]) ||
+         (mp->m.pair[1] == fp->m.pair[1])) &&
+        (writer || ((op->flags & (uint32_t)LFS_O_WRONLY) != 0U))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
@@ -976,12 +1004,27 @@ msg_t __lfsdrv_openfile_impl(void *ip, const char *path, int flags,
       /* Build the path for the directory.*/
       ret = build_absolute_path(self, self->scratch1, path);
       if (ret == CH_RET_SUCCESS) {
-        res = lfs_file_open(&self->lfs, &lfsfnp->file, self->scratch1, mode);
+        /* Truncation is applied after the conflict check, a rejected
+           handle is closed without changes to the file.*/
+        res = lfs_file_open(&self->lfs, &lfsfnp->file, self->scratch1,
+                            (int)mode & ~(int)LFS_O_TRUNC);
         if (res == LFS_ERR_OK) {
-          *vfnpp = (vfs_file_node_c *)lfsfnp;
-          return CH_RET_SUCCESS;
+          if (is_open_conflict(self, &lfsfnp->file)) {
+            ret = CH_RET_EBUSY;
+          }
+          else if ((mode & LFS_O_TRUNC) != 0) {
+            ret = translate_error(lfs_file_truncate(&self->lfs,
+                                                    &lfsfnp->file, 0));
+          }
+          if (ret == CH_RET_SUCCESS) {
+            *vfnpp = (vfs_file_node_c *)lfsfnp;
+            return CH_RET_SUCCESS;
+          }
+          (void) lfs_file_close(&self->lfs, &lfsfnp->file);
         }
-        ret = translate_error(res);
+        else {
+          ret = translate_error(res);
+        }
       }
       chPoolFree(&vfs_littlefs_driver_static.file_nodes_pool, (void *)lfsfnp);
       break;
