@@ -1574,6 +1574,7 @@ vfs_root_c other_root;
 char cwd[VFS_CFG_PATHLEN_MAX + 1];
 char other_cwd[] = "/tmp";
 char small[2];
+unsigned calls;
 msg_t ret;]]></value>
             </local_variables>
           </various_code>
@@ -1691,6 +1692,46 @@ ret = vfsRootGetCurrentDirectory(&vfs_test_root, cwd, sizeof cwd);
 test_assert(ret == CH_RET_SUCCESS, "getcwd after failed chdir failed");
 test_assert(strcmp(cwd, "/home/user") == 0,
             "failed chdir changed current directory");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>The current directory and its ancestors are not
+                  renamed or removed through their root.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_root_reset();
+calls = vfs_test_fs.calls;
+ret = vfsFSRename(&vfs_test_root, "/home/user", "/home/other");
+test_assert(ret == CH_RET_EBUSY, "current directory renamed");
+ret = vfsFSRename(&vfs_test_root, "/home", "/house");
+test_assert(ret == CH_RET_EBUSY, "current directory ancestor renamed");
+ret = vfsFSRename(&vfs_test_root, ".", "/elsewhere");
+test_assert(ret == CH_RET_EBUSY, "relative current directory renamed");
+ret = vfsFSRmdir(&vfs_test_root, "/home/user");
+test_assert(ret == CH_RET_EBUSY, "current directory removed");
+ret = vfsFSRmdir(&vfs_test_root, ".");
+test_assert(ret == CH_RET_EBUSY, "relative current directory removed");
+test_assert(vfs_test_fs.calls == calls,
+            "busy operation reached the file system");
+ret = vfsFSRename(&vfs_test_root, "/home/use", "/home/other");
+test_assert(ret == CH_RET_SUCCESS &&
+            strcmp(vfs_test_fs.path, "/home/use") == 0,
+            "name prefix of the current directory refused");
+ret = vfsFSRename(&vfs_test_root, "/home/user2", "/home/other");
+test_assert(ret == CH_RET_SUCCESS &&
+            strcmp(vfs_test_fs.path, "/home/user2") == 0,
+            "sibling of the current directory refused");
+ret = vfsFSRename(&vfs_test_root, "/home/user/file", "/home/other");
+test_assert(ret == CH_RET_SUCCESS &&
+            strcmp(vfs_test_fs.path, "/home/user/file") == 0,
+            "content of the current directory refused");
+ret = vfsFSRmdir(&vfs_test_root, "/home");
+test_assert(ret == CH_RET_SUCCESS && strcmp(vfs_test_fs.path, "/home") == 0,
+            "ancestor removal not delegated");]]></value>
               </code>
             </step>
             <step>

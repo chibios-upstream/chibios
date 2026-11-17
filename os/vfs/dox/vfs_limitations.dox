@@ -115,8 +115,11 @@
  * - @c "." and @c ".." are resolved lexically, without checking the
  *   intermediate elements: @c "missing/../file" is @c "file" even if
  *   @c "missing" does not exist.
- * - The current directory is stored as a path, renaming or removing it
- *   leaves a stale current directory.
+ * - The current directory is stored as a path. Through its root, the
+ *   current directory and its ancestors are not renamed and the current
+ *   directory is not removed, @p CH_RET_EBUSY is returned. Other roots over
+ *   the same file system and direct file system calls are not checked,
+ *   they can leave a stale current directory.
  * - Each root has one current directory, shared by all the users of the
  *   root. Users needing their own current directory use separate roots.
  * - The overlay driver routes paths to the mounted file systems and lists
@@ -149,15 +152,16 @@
  * - The sandbox directory records have a fixed layout shared by host and
  *   guest, both are built from the same tree. A directory read needs room
  *   for a record with a name of maximum length.
+ * - Sandboxes are isolated from each other only by disjoint name spaces:
+ *   each sandbox root has its own path prefix, shared content is mounted
+ *   read-only. Sandboxes sharing writable directories can remove, change
+ *   or rename each other's files. The host does not rename or remove the
+ *   prefix directory of a running sandbox, or a directory holding the
+ *   current directory of another root.
  * .
  *
  * @section vfs_lim_issues Open issues
  *
- * - FatFS returns 0 instead of @c ENOSPC on a full volume and @c EACCES
- *   instead of @c ENOTEMPTY for a non-empty directory:
- *   https://github.com/chibios-upstream/chibios/issues/633
- * - Renaming the current directory leaves a stale current directory:
- *   https://github.com/chibios-upstream/chibios/issues/634
  * - Positions past the end of file on FatFS and ROMFS:
  *   https://github.com/chibios-upstream/chibios/issues/635
  * - LittleFS does not reject conflicting writable opens:
