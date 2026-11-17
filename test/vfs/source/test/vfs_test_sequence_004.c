@@ -444,6 +444,7 @@ static const testcase_t vfs_test_004_002 = {
  *
  * <h2>Test Steps</h2>
  * - [4.3.1] POSIX open flag matrix.
+ * - [4.3.2] Conflicting opens.
  * .
  */
 
@@ -481,6 +482,13 @@ static void vfs_test_004_003_execute(void) {
 #endif
   }
   test_end_step(1);
+
+  /* [4.3.2] Conflicting opens.*/
+  test_set_step(2);
+  {
+    vfs_test_open_conflicts((vfs_fs_c *)&vfs_test_lfs_driver, false);
+  }
+  test_end_step(2);
 }
 
 static const testcase_t vfs_test_004_003 = {

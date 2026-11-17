@@ -669,9 +669,9 @@ void vfs_test_sb_native(vfs_fs_c *fsp) {
     test_assert(vfsFSOpenFile(fsp, "/guest", VO_RDONLY, &file) == 0,
                 "lock fixture read open failed");
     test_assert(vfsFSOpenFile(fsp, "/guest", VO_WRONLY, &readers[0]) ==
-                CH_RET_EACCES &&
-                vfsFSUnlink(fsp, "/guest") == CH_RET_EACCES &&
-                vfsFSRename(fsp, "/guest", "/denied") == CH_RET_EACCES,
+                CH_RET_EBUSY &&
+                vfsFSUnlink(fsp, "/guest") == CH_RET_EBUSY &&
+                vfsFSRename(fsp, "/guest", "/denied") == CH_RET_EBUSY,
                 "FatFS did not reject conflicting native access");
     test_assert(vfsFSOpenFile(fsp, "/guest", VO_RDONLY, &readers[0]) == 0,
                 "FatFS rejected independent readonly handle");

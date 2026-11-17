@@ -131,7 +131,7 @@ static msg_t translate_error(FRESULT res) {
     msg = CH_RET_EIO;
     break;
   case FR_LOCKED:
-    msg = CH_RET_EACCES;
+    msg = CH_RET_EBUSY;
     break;
   case FR_INVALID_PARAMETER:
     msg = CH_RET_EINVAL;

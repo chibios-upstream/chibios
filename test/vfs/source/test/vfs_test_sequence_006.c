@@ -610,6 +610,7 @@ static const testcase_t vfs_test_006_003 = {
  *
  * <h2>Test Steps</h2>
  * - [6.4.1] POSIX open flag matrix.
+ * - [6.4.2] Conflicting opens.
  * .
  */
 
@@ -656,6 +657,15 @@ static void vfs_test_006_004_execute(void) {
 #endif
   }
   test_end_step(1);
+
+  /* [6.4.2] Conflicting opens.*/
+  test_set_step(2);
+  {
+#if FF_FS_LOCK != 0
+    vfs_test_open_conflicts((vfs_fs_c *)&vfs_test_fat_driver, true);
+#endif
+  }
+  test_end_step(2);
 }
 
 static const testcase_t vfs_test_006_004 = {

@@ -625,6 +625,71 @@ void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
               vfsFSRmdir(fsp, "/dir") == 0, "typed cleanup failed");
 }
 
+void vfs_test_open_conflicts(vfs_fs_c *fsp, bool fatfs) {
+  vfs_file_node_c *a, *b, *c;
+  vfs_stat_t st;
+  uint8_t bytes[8];
+
+  /* A file is open by any number of readers or by a single writer.*/
+  test_assert(vfsFSOpenFile(fsp, "/two", VO_CREAT | VO_TRUNC | VO_WRONLY |
+                            VO_APPEND, &a) == 0, "writer open failed");
+  test_assert(vfsFSOpenFile(fsp, "/two", VO_WRONLY | VO_APPEND, &b) ==
+                CH_RET_EBUSY &&
+              vfsFSOpenFile(fsp, "/two", VO_RDONLY, &b) == CH_RET_EBUSY,
+              "open accepted while open for writing");
+  test_assert(vfsFileWrite(a, (const uint8_t *)"AAAA", 4) == 4,
+              "writer data failed");
+  vfsNodeClose(a);
+  test_assert(vfsFSOpenFile(fsp, "/two", VO_RDONLY, &a) == 0 &&
+              vfsFSOpenFile(fsp, "/two", VO_RDONLY, &b) == 0,
+              "independent readers rejected");
+  test_assert(vfsFSOpenFile(fsp, "/two", VO_RDWR, &c) == CH_RET_EBUSY &&
+              vfsFSOpenFile(fsp, "/two", VO_CREAT | VO_WRONLY, &c) ==
+                CH_RET_EBUSY &&
+              vfsFSOpenFile(fsp, "/two", VO_WRONLY | VO_TRUNC, &c) ==
+                CH_RET_EBUSY,
+              "writer accepted while open for reading");
+  test_assert(vfsFSOpenFile(fsp, "/other", VO_CREAT | VO_WRONLY, &c) == 0,
+              "unrelated file rejected");
+  vfsNodeClose(c);
+  test_assert(vfsFileRead(a, bytes, sizeof bytes) == 4 &&
+              memcmp(bytes, "AAAA", 4) == 0 &&
+              vfsFileRead(b, bytes, sizeof bytes) == 4 &&
+              memcmp(bytes, "AAAA", 4) == 0,
+              "rejected open changed the file");
+  vfsNodeClose(b);
+  vfsNodeClose(a);
+  test_assert(vfsFSStat(fsp, "/two", &st) == 0 && st.size == 4,
+              "rejected truncation committed");
+
+  /* Closing releases the file, truncation applies to an accepted open.*/
+  test_assert(vfsFSOpenFile(fsp, "/two", VO_WRONLY | VO_TRUNC, &a) == 0,
+              "writer open after close failed");
+  vfsNodeClose(a);
+  test_assert(vfsFSStat(fsp, "/two", &st) == 0 && st.size == 0,
+              "truncation lost");
+
+  /* Removal and rename of an open file.*/
+  test_assert(vfsFSOpenFile(fsp, "/two", VO_WRONLY, &a) == 0,
+              "writer reopen failed");
+  if (fatfs) {
+    test_assert(vfsFSUnlink(fsp, "/two") == CH_RET_EBUSY &&
+                vfsFSRename(fsp, "/two", "/moved") == CH_RET_EBUSY,
+                "open file removed or renamed");
+  }
+  else {
+    /* A removed file is detached, a new file with the same name is
+       independent of it.*/
+    test_assert(vfsFSUnlink(fsp, "/two") == 0 &&
+                vfsFSOpenFile(fsp, "/two", VO_CREAT | VO_WRONLY, &b) == 0,
+                "removed file still conflicts");
+    vfsNodeClose(b);
+  }
+  vfsNodeClose(a);
+  test_assert(vfsFSUnlink(fsp, "/two") == 0 &&
+              vfsFSUnlink(fsp, "/other") == 0, "conflict cleanup failed");
+}
+
 #if defined(VFS_TEST_NEWLIB) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)
 void vfs_test_newlib_native(vfs_fs_c *fsp) {
   vfs_test_reent_t r;

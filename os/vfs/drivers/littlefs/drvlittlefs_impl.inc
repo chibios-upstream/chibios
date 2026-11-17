@@ -163,6 +163,34 @@ static msg_t translate_error(enum lfs_error res) {
   return msg;
 }
 
+/*
+ * Checks a newly opened file against the other files open on the same
+ * instance, a file can be open by any number of readers or by a single
+ * writer. LittleFS keeps the metadata pair and the identifier of each open
+ * file updated, removed and renamed entries get a null pair and never match.
+ */
+static bool is_open_conflict(const vfs_littlefs_driver_c *drvp,
+                             const lfs_file_t *fp) {
+  const struct lfs_mlist *mp;
+  bool writer = (fp->flags & (uint32_t)LFS_O_WRONLY) != 0U;
+
+  for (mp = drvp->lfs.mlist; mp != NULL; mp = mp->next) {
+    const lfs_file_t *op = (const lfs_file_t *)mp;
+
+    if ((op != fp) && (mp->type == (uint8_t)LFS_TYPE_REG) &&
+        (mp->id == fp->id) &&
+        ((mp->m.pair[0] == fp->m.pair[0]) ||
+         (mp->m.pair[0] == fp->m.pair[1]) ||
+         (mp->m.pair[1] == fp->m.pair[0]) ||
+         (mp->m.pair[1] == fp->m.pair[1])) &&
+        (writer || ((op->flags & (uint32_t)LFS_O_WRONLY) != 0U))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 static void stat_set_block_size(const vfs_littlefs_driver_c *drvp,
                                 vfs_stat_t *sp) {
 
@@ -836,12 +864,27 @@ msg_t __lfsdrv_openfile_impl(void *ip, const char *path, int flags,
   }
   (void)lfsfileObjectInit(node, (vfs_fs_c *)self, translate_mode(mode), flags);
   lfsdrv_lock(self);
-  res = self->mounted ? lfs_file_open(&self->lfs, &node->file, path, mode) :
-                       LFS_ERR_IO;
+  /* Truncation is applied after the conflict check, a rejected handle is
+     closed without changes to the file.*/
+  res = self->mounted ? lfs_file_open(&self->lfs, &node->file, path,
+                                      (int)mode & ~(int)LFS_O_TRUNC) :
+                        LFS_ERR_IO;
+  ret = translate_error(res);
+  if (res == LFS_ERR_OK) {
+    if (is_open_conflict(self, &node->file)) {
+      ret = CH_RET_EBUSY;
+    }
+    else if ((flags & VO_TRUNC) != 0) {
+      ret = translate_error(lfs_file_truncate(&self->lfs, &node->file, 0));
+    }
+    if (CH_RET_IS_ERROR(ret)) {
+      (void)lfs_file_close(&self->lfs, &node->file);
+    }
+  }
   lfsdrv_unlock(self);
-  if (res != LFS_ERR_OK) {
+  if (CH_RET_IS_ERROR(ret)) {
     chPoolFree(&vfs_littlefs_driver_static.file_nodes_pool, node);
-    return translate_error(res);
+    return ret;
   }
   *vfnpp = (vfs_file_node_c *)node;
 
