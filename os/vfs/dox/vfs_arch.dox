@@ -175,14 +175,16 @@
  * writable @p VO_APPEND on random streams with @c ENOTSUP. FatFS and
  * LittleFS unlink and rmdir check the node type, @p CH_RET_EISDIR and
  * @p CH_RET_ENOTDIR, in the same driver operation that removes it. A rename
- * onto the same path checks that the source exists. Native differences
- * remain: a FatFS rename does
- * not replace an existing target and returns @p CH_RET_EEXIST, and removing
- * a non-empty FatFS directory returns @p CH_RET_EACCES.
+ * onto the same path checks that the source exists and removing a
+ * non-empty directory returns @c ENOTEMPTY. A native difference remains: a
+ * FatFS rename does not replace an existing target and returns
+ * @p CH_RET_EEXIST.
  *
  * Drivers return nodes using the standard OOP reference methods. FatFS and
- * LittleFS do not share the state of independent opens of the same file,
- * callers avoid writable opens concurrent with other opens of that file.
+ * LittleFS do not share the state of independent opens of the same file, a
+ * file is open by any number of readers or by a single writer and
+ * conflicting opens return @p CH_RET_EBUSY, on FatFS when @p FF_FS_LOCK is
+ * enabled. Duplicated descriptors share one node and are not affected.
  *
  * @section vfs_arch_io I/O context
  *

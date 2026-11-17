@@ -490,6 +490,9 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [VFS] FatFS driver: opens, removals and renames rejected by `FF_FS_LOCK`
+  return `EBUSY` instead of `EACCES`
+  ([#648](https://github.com/chibios-upstream/chibios/pull/648)).
 - [VFS] Newlib bindings: with `SYSCALL_USE_VFS` the bindings use their own
   VFS I/O context, `newlibVfsInit()` must be called with the root before
   any C library I/O, and the standard descriptors are installed by the
@@ -747,6 +750,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [VFS] LittleFS driver: independent writable opens of the same file were
+  accepted and the data of one writer was lost; an open conflicting with a
+  writer, or a writable open of an open file, now returns `EBUSY`
+  ([#648](https://github.com/chibios-upstream/chibios/pull/648)).
 - [VFS] Root: renaming the current directory or one of its ancestors, or
   removing the current directory, left a stale current directory; through
   the root these operations now return `EBUSY`

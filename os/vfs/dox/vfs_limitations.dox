@@ -39,7 +39,7 @@
  *   read-only, a writer invalidates the state cached by the other handles.
  *   Applications opening a file more than once enable @p FF_FS_LOCK, sized
  *   for the simultaneously open files and directories, conflicting opens,
- *   removals and renames are then rejected with @p CH_RET_EACCES.
+ *   removals and renames are then rejected with @p CH_RET_EBUSY.
  *   Duplicated descriptors share one native handle and are not affected.
  * - Rename does not replace an existing destination, it returns
  *   @p CH_RET_EEXIST. Open files and directories must not be removed or
@@ -52,9 +52,11 @@
  *   is not cleared.
  * .
  * <b>LittleFS</b>
- * - Independent writable opens of the same file are not coherent and are
- *   not rejected, the data of one writer is lost. Duplicated descriptors
- *   and independent read-only opens are safe.
+ * - Independent opens of the same file do not share their state, opens
+ *   conflicting with a writer are rejected with @p CH_RET_EBUSY.
+ *   Duplicated descriptors and independent read-only opens are safe.
+ * - Open files can be removed and renamed, their handles are detached and
+ *   data written through them afterwards is lost.
  * - There are no timestamps, owner or permission information, custom
  *   attributes are not exposed.
  * - Separate instances work on disjoint storage areas, a shared storage
@@ -164,8 +166,6 @@
  *
  * - Positions past the end of file on FatFS and ROMFS:
  *   https://github.com/chibios-upstream/chibios/issues/635
- * - LittleFS does not reject conflicting writable opens:
- *   https://github.com/chibios-upstream/chibios/issues/636
  * - Streams driver positions and seek errors:
  *   https://github.com/chibios-upstream/chibios/issues/637
  * - File sizes narrowed to 32 bits without checks:
