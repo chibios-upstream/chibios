@@ -273,7 +273,7 @@ static void scan_nodes(BaseSequentialStream *chp,
       }
     }
 
-    (void)roRelease(dirp);
+    vfsNodeClose(dirp);
   }
 }
 
@@ -348,7 +348,7 @@ static void cmd_cat(BaseSequentialStream *chp, int argc, char *argv[]) {
     }
     chprintf(chp, SHELL_NEWLINE_STR);
 
-    (void)roRelease(fnp);
+    vfsNodeClose(fnp);
   }
   while (false);
 
@@ -410,7 +410,7 @@ static void cmd_ls(BaseSequentialStream *chp, int argc, char *argv[]) {
         chprintf(chp, "%s" SHELL_NEWLINE_STR, dip->name);
       }
 
-      (void)roRelease(dirp);
+      vfsNodeClose(dirp);
     }
     else {
       chprintf(chp, "Failed (%d)" SHELL_NEWLINE_STR, ret);

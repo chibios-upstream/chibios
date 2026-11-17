@@ -91,7 +91,7 @@ int fs_open_custom(struct fs_file *file, const char *name) {
 
   ret = vfsNodeStat(vfnp, &statbuf);
   if (CH_RET_IS_ERROR(ret)) {
-    (void)roRelease(vfnp);
+    vfsNodeClose(vfnp);
     return 0;
   }
 
@@ -109,7 +109,7 @@ void fs_close_custom(struct fs_file *file) {
   if ((file != NULL) && (file->pextension != NULL)) {
     vnp = (vfs_node_c *)file->pextension;
     file->pextension = NULL;
-    (void)roRelease(vnp);
+    vfsNodeClose(vnp);
   }
 }
 

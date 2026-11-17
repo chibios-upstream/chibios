@@ -315,7 +315,7 @@ static void scan_nodes(xshell_t *xshp, char *path, size_t path_capacity,
       }
     }
 
-    (void)roRelease(dirp);
+    vfsNodeClose(dirp);
   }
 }
 
@@ -416,7 +416,7 @@ static void cmd_cat(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   while (false);
 
   if (fnp != NULL) {
-    (void)roRelease(fnp);
+    vfsNodeClose(fnp);
   }
   if (buf != NULL) {
     chHeapFree((void *)buf);
@@ -515,10 +515,10 @@ static void cmd_cp(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   while (false);
 
   if (dst != NULL) {
-    (void)roRelease(dst);
+    vfsNodeClose(dst);
   }
   if (src != NULL) {
-    (void)roRelease(src);
+    vfsNodeClose(src);
   }
   if (buf != NULL) {
     chHeapFree((void *)buf);
@@ -571,7 +571,7 @@ static void cmd_ls(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
         chprintf(xshp->stream, "%s" XSHELL_NEWLINE_STR, dip->name);
       }
 
-      (void)roRelease(dirp);
+      vfsNodeClose(dirp);
     }
     else {
       chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR,

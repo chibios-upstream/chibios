@@ -624,6 +624,24 @@ static inline msg_t vfsNodeStat(void *ip, vfs_stat_t *sp) {
 
   return __vfsnode_stat(self, sp);
 }
+
+/**
+ * @brief       Closes a node.
+ * @details     Releases the caller reference, the node is disposed when its
+ *              last reference is released. Other references, for example
+ *              duplicated descriptors, keep the node open.
+ * @note        The reference cannot be used after the call.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_node_c instance.
+ *
+ * @api
+ */
+CC_FORCE_INLINE
+static inline void vfsNodeClose(void *ip) {
+  vfs_node_c *self = (vfs_node_c *)ip;
+
+  (void)roRelease(self);
+}
 /** @} */
 
 /**
