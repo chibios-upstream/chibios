@@ -42,8 +42,8 @@
  *   removals and renames are then rejected with @p CH_RET_EACCES.
  *   Duplicated descriptors share one native handle and are not affected.
  * - Rename does not replace an existing destination, it returns
- *   @p CH_RET_EEXIST. Open files must not be removed or renamed, with
- *   @p FF_FS_LOCK enabled this is rejected.
+ *   @p CH_RET_EEXIST. Open files and directories must not be removed or
+ *   renamed, @p FF_FS_LOCK rejects it for files only.
  * - Names follow the FAT rules, long names depend on the FatFS
  *   configuration. FAT has no owner, permission or link information and
  *   stores times with two seconds of resolution, without a time zone.

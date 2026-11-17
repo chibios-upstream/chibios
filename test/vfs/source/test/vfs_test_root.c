@@ -618,8 +618,7 @@ void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
   test_assert(vfsFSOpenFile(fsp, "/dir/child", VO_CREAT | VO_WRONLY, &fnp) == 0,
               "child creation failed");
   (void)roRelease(fnp);
-  test_assert(vfsFSRmdir(fsp, "/dir") ==
-                (fatfs ? CH_RET_EACCES : CH_ENCODE_ERROR(ENOTEMPTY)) &&
+  test_assert(vfsFSRmdir(fsp, "/dir") == CH_ENCODE_ERROR(ENOTEMPTY) &&
               vfsFSStat(fsp, "/dir/child", &st) == 0,
               "nonempty directory was removed");
   test_assert(vfsFSUnlink(fsp, "/dir/child") == 0 &&
