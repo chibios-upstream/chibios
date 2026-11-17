@@ -54,6 +54,27 @@ static const char *get_current_directory(vfs_overlay_driver_c *drvp) {
   return cwd;
 }
 
+/* Checks if an absolute normalized path is the current directory, or one
+   of its ancestors, the root itself excluded. The current directory is
+   stored with a trailing separator.*/
+static bool is_cwd_or_ancestor(vfs_overlay_driver_c *drvp, const char *path,
+                               bool ancestors) {
+  const char *cwd = get_current_directory(drvp);
+  size_t n = strlen(path);
+
+  if ((n <= 1U) || (strncmp(cwd, path, n) != 0)) {
+    return false;
+  }
+  if (cwd[n] == '\0') {
+    return true;
+  }
+  if (cwd[n] != '/') {
+    return false;
+  }
+
+  return ancestors || (cwd[n + 1U] == '\0');
+}
+
 static msg_t build_absolute_path(vfs_overlay_driver_c *drvp,
                                  char *buf,
                                  const char *path) {
@@ -766,6 +787,8 @@ msg_t __ovldrv_unlink_impl(void *ip, const char *path) {
  * @protected
  *
  * @brief       Override of method @p vfsDrvRename().
+ * @note        The current directory and its ancestors are not renamed,
+ *              @p CH_RET_EBUSY is returned.
  *
  * @param[in,out] ip            Pointer to a @p vfs_overlay_driver_c instance.
  * @param[in]     oldpath       Path of the node to be renamed.
@@ -793,6 +816,13 @@ msg_t __ovldrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
     CH_BREAK_ON_ERROR(ret);
     ret = build_absolute_path(self, shbuf->buf, newpath);
     CH_BREAK_ON_ERROR(ret);
+
+    /* The current directory and its ancestors are not renamed, it would
+       leave a stale current directory.*/
+    if (is_cwd_or_ancestor(self, self->buf, true)) {
+      ret = CH_RET_EBUSY;
+      break;
+    }
 
     /* Skipping root separators.*/
     op = self->buf + 1;
@@ -928,6 +958,8 @@ msg_t __ovldrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
  * @protected
  *
  * @brief       Override of method @p vfsDrvRmdir().
+ * @note        The current directory is not removed, @p CH_RET_EBUSY is
+ *              returned.
  *
  * @param[in,out] ip            Pointer to a @p vfs_overlay_driver_c instance.
  * @param[in]     path          Path of the directory to be removed.
@@ -943,6 +975,13 @@ msg_t __ovldrv_rmdir_impl(void *ip, const char *path) {
     /* Building the absolute path based on current directory.*/
     ret = build_absolute_path(self, self->buf, path);
     CH_BREAK_ON_ERROR(ret);
+
+    /* The current directory is not removed, it would leave a stale current
+       directory. Its ancestors are not empty.*/
+    if (is_cwd_or_ancestor(self, self->buf, false)) {
+      ret = CH_RET_EBUSY;
+      break;
+    }
 
     /* Skipping the root separator.*/
     scanpath = self->buf + 1;
