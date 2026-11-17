@@ -126,6 +126,29 @@ static msg_t translate_error(FRESULT res) {
   return msg;
 }
 
+/* Checks for the entries of a directory that is not read-only, the dot
+   entries are not reported by f_readdir().*/
+static bool dir_not_empty(const char *path) {
+  FILINFO *fip;
+  bool found = false;
+
+  fip = (FILINFO *)chPoolAlloc(&vfs_fatfs_driver_static.info_nodes_pool);
+  if (fip != NULL) {
+    if ((f_stat((const TCHAR *)path, fip) == FR_OK) &&
+        ((fip->fattrib & (AM_DIR | AM_RDO)) == AM_DIR)) {
+      DIR dir;
+
+      if (f_opendir(&dir, (const TCHAR *)path) == FR_OK) {
+        found = (f_readdir(&dir, fip) == FR_OK) && (fip->fname[0] != '\0');
+        (void)f_closedir(&dir);
+      }
+    }
+    chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, (void *)fip);
+  }
+
+  return found;
+}
+
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
@@ -533,6 +556,12 @@ static ssize_t __fffile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   if (res != FR_OK) {
 
     return translate_error(res);
+  }
+
+  /* A full volume is reported with a short count and then with no bytes
+     written.*/
+  if ((bw == 0U) && (n > 0U)) {
+    return CH_RET_ENOSPC;
   }
 
   return (ssize_t)bw;
@@ -952,11 +981,19 @@ msg_t __ffdrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
  * @return                      The operation result.
  */
 msg_t __ffdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
+  FRESULT res;
 
   (void)ip;
   (void)mode; /* Not handled by FatFS.*/
 
-  return translate_error(f_mkdir((const TCHAR *)path));
+  res = f_mkdir((const TCHAR *)path);
+
+  /* No cluster or directory entry available for the new directory.*/
+  if (res == FR_DENIED) {
+    return CH_RET_ENOSPC;
+  }
+
+  return translate_error(res);
 }
 
 /**
@@ -970,10 +1007,18 @@ msg_t __ffdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
  * @return                      The operation result.
  */
 msg_t __ffdrv_rmdir_impl(void *ip, const char *path) {
+  FRESULT res;
 
   (void)ip;
 
-  return translate_error(f_rmdir((const TCHAR *)path));
+  res = f_rmdir((const TCHAR *)path);
+
+  /* FatFS denies the removal of read-only and non-empty directories.*/
+  if ((res == FR_DENIED) && dir_not_empty(path)) {
+    return CH_ENCODE_ERROR(ENOTEMPTY);
+  }
+
+  return translate_error(res);
 }
 /** @} */
 
