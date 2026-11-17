@@ -747,6 +747,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [VFS] Root: renaming the current directory or one of its ancestors, or
+  removing the current directory, left a stale current directory; through
+  the root these operations now return `EBUSY`
+  ([#646](https://github.com/chibios-upstream/chibios/pull/646)).
 - [VFS] FatFS driver: a write on a full volume returned 0 instead of
   `ENOSPC`, `mkdir()` on a full volume and `rmdir()` of a non-empty
   directory returned `EACCES` instead of `ENOSPC` and `ENOTEMPTY`
