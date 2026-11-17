@@ -183,7 +183,7 @@ static void start_sb2(void) {
   if (CH_RET_IS_ERROR(ret)) {
     chSysHalt("sbx2 descriptor");
   }
-  (void)roRelease(np);
+  vfsNodeClose(np);
 
   /* Starting sandboxed thread 2.*/
   utp = sbStart(&sbx2, NORMALPRIO-20, sbx2stk, sbx2_argv, sbx2_envp);

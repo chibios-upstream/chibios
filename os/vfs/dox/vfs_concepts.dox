@@ -143,8 +143,8 @@
  *
  * @section vfs_nodes Directories and Files
  * Opening a directory or a file returns a node:
- * - Nodes are reference counted, roRelease() releases a reference. The
- *   node is destroyed when its last reference is released.
+ * - Nodes are reference counted, vfsNodeClose() releases the caller
+ *   reference. The node is destroyed when its last reference is released.
  * - Each file system driver allocates its nodes from static pools shared by
  *   all its objects, sized by its @p DRV_CFG_XXX_NODES_NUM settings. When a
  *   pool is empty the open returns @p CH_RET_ENOMEM.

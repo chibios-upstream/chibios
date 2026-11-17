@@ -172,7 +172,7 @@ int main(void) {
     if (CH_RET_IS_ERROR(ret)) {
       chSysHalt("SBX1 descriptor");
     }
-    (void)roRelease(np);
+    vfsNodeClose(np);
 
     ret = sbExecDynamic(&sbx1, NORMALPRIO - 10, PORTAB_SHELL_HEAP_SIZE,
                         "/bin/msh.elf", sbx1_argv, sbx1_envp);

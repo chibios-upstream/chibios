@@ -207,7 +207,7 @@ int main(void) {
       if (CH_RET_IS_ERROR(ret)) {
         chSysHalt("SBX1 descriptor");
       }
-      (void)roRelease(np);
+      vfsNodeClose(np);
 
       /*
        * Running the sandbox.

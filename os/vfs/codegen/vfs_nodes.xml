@@ -314,6 +314,17 @@ return self->fs;]]></implementation>
 
 return __vfsnode_stat(self, sp);]]></implementation>
             </method>
+            <method name="vfsNodeClose" ctype="void">
+              <brief>Closes a node.</brief>
+              <details>Releases the caller reference, the node is disposed
+                when its last reference is released. Other references, for
+                example duplicated descriptors, keep the node open.</details>
+              <note>The reference cannot be used after the call.</note>
+              <api />
+              <implementation><![CDATA[
+
+(void)roRelease(self);]]></implementation>
+            </method>
           </inline>
         </methods>
       </class>

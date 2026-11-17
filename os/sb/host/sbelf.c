@@ -224,7 +224,7 @@ msg_t sbElfLoadFile(vfs_root_c *rootp,
 
   } while (false);
 
-  (void)roRelease(fnp);
+  vfsNodeClose(fnp);
 
   return ret;
 }

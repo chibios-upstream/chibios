@@ -1067,7 +1067,7 @@ msg_t sbExecDynamic(sb_class_t *sbp, tprio_t prio, size_t heapsize,
   }
 
   /* File closed.*/
-  (void)roRelease(fnp);
+  vfsNodeClose(fnp);
 
   return CH_RET_SUCCESS;
 
@@ -1077,7 +1077,7 @@ skip3:
 skip2:
   chHeapFree(umap->base);
 skip1:
-  (void)roRelease(fnp);
+  vfsNodeClose(fnp);
 failed:
   sb_start_failed(sbp);
   return ret;

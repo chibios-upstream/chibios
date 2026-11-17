@@ -8,6 +8,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [VFS] `vfsNodeClose()`, closes a node by releasing the caller reference
+  ([#642](https://github.com/chibios-upstream/chibios/pull/642)).
 - [VFS] Newlib bindings: `unlink()`, `rename()` and `mkdir()` through the
   VFS root, and `newlibVfsGetIO()` for the operations without a Newlib
   system call
@@ -501,7 +503,7 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   `vfsReadDirectoryFirst()`, `vfsReadDirectoryNext()`, `vfsReadFile()`,
   `vfsWriteFile()`, `vfsSetFilePosition()`, `vfsGetFilePosition()` and
   `vfsControlFile()`; use the root, file system and node methods
-  (`vfsRootOpen()`, `vfsFSOpenFile()`, `vfsFSStat()`, `roRelease()`,
+  (`vfsRootOpen()`, `vfsFSOpenFile()`, `vfsFSStat()`, `vfsNodeClose()`,
   `vfsFileRead()`...) or an I/O context
   ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
 - [VFS] Removed the xshell `XSHELL_CMD_FILES_USE_VFS` option, the file
