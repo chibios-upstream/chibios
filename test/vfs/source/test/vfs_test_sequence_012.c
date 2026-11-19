@@ -264,7 +264,9 @@ static const struct vfs_file_node_vmt vfs_test_api_file_vmt = {
   .write = vfs_test_api_write,
   .setpos = vfs_test_api_setpos,
   .getpos = vfs_test_api_getpos,
-  .control = vfs_test_api_control
+  .control = vfs_test_api_control,
+  .sync = __vfsfile_sync_impl,
+  .truncate = __vfsfile_truncate_impl
 };
 
 static const struct vfs_directory_node_vmt vfs_test_api_dir_vmt = {

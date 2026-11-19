@@ -29,6 +29,10 @@
  *            allocated starting from the lowest free one. The standard
  *            descriptors 0, 1 and 2 are installed by the application with
  *            vfsIOInstall() on newlibVfsGetIO(), before opening files.
+ *          - @p fsync() and @p ftruncate() are defined by the bindings,
+ *            Newlib has no system calls for them. @p close() returns the
+ *            error of the flush of a regular file, the descriptor is closed
+ *            anyway.
  *          - The context is also available for the operations without a
  *            Newlib system call, for example vfsIODup(), vfsIOChdir() and
  *            vfsIOGetcwd().

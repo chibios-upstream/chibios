@@ -496,7 +496,9 @@ static const struct vfs_file_node_vmt terminal_vmt = {
   .write = terminal_write,
   .setpos = __vfsfile_setpos_impl,
   .getpos = __vfsfile_getpos_impl,
-  .control = terminal_control
+  .control = terminal_control,
+  .sync = __vfsfile_sync_impl,
+  .truncate = __vfsfile_truncate_impl
 };
 
 void vfs_test_sb_native(vfs_fs_c *fsp) {

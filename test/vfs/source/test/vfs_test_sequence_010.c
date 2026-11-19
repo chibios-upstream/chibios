@@ -156,6 +156,9 @@ static void vfs_test_010_001_execute(void) {
                 vfsFileRead(fnp, bytes, sizeof bytes) == 2 &&
                 memcmp(bytes, "ed", 2) == 0,
                 "ROM position past the end");
+    test_assert(vfsFileSync(fnp) == 0 &&
+                vfsFileTruncate(fnp, 0) == CH_RET_EBADF,
+                "ROM sync or truncate");
     (void)roRelease(np);
   }
   test_end_step(1);
@@ -183,6 +186,9 @@ static void vfs_test_010_001_execute(void) {
                 vfsIORead(&open_io, fd, bytes, sizeof bytes) == 2 &&
                 memcmp(bytes, "ed", 2) == 0,
                 "ROM descriptor position past the end");
+    test_assert(vfsIOSync(&open_io, fd) == 0 &&
+                vfsIOTruncate(&open_io, fd, 0) == CH_RET_EBADF,
+                "ROM descriptor sync or truncate");
     test_assert(vfsIOClose(&open_io, fd) == 0, "ROM descriptor close failed");
   }
   test_end_step(2);

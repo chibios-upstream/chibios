@@ -178,6 +178,32 @@ static FRESULT sync_seekpos(vfs_fatfs_file_node_c *self) {
   return res;
 }
 
+/* Returns the file position, also when set past the end of file. Called
+   with the FatFS lock held.*/
+static FSIZE_t get_position(vfs_fatfs_file_node_c *self) {
+
+  return self->seekpos > (vfs_offset_t)0 ? (FSIZE_t)self->seekpos :
+         f_tell(&self->file);
+}
+
+/* Sets the file position, a position past the end of file is kept by the
+   node and the file is extended by the next write. Called with the FatFS
+   lock held.*/
+static FRESULT set_position(vfs_fatfs_file_node_c *self, FSIZE_t position) {
+  FRESULT res;
+
+  if (position > f_size(&self->file)) {
+    self->seekpos = (vfs_offset_t)position;
+    return FR_OK;
+  }
+  res = f_lseek(&self->file, position);
+  if (res == FR_OK) {
+    self->seekpos = (vfs_offset_t)0;
+  }
+
+  return res;
+}
+
 /* Extends the file with zeros up to a position set past the end of file
    and moves the native position there. Called with the FatFS lock held.*/
 static msg_t fill_to_seekpos(vfs_fatfs_file_node_c *self) {
@@ -754,11 +780,8 @@ static ssize_t __fffile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   if ((self->flags & VO_APPEND) != 0) {
     start = f_size(&self->file);
   }
-  else if (self->seekpos > (vfs_offset_t)0) {
-    start = (FSIZE_t)self->seekpos;
-  }
   else {
-    start = f_tell(&self->file);
+    start = get_position(self);
   }
   if (start >= (FSIZE_t)INT32_MAX) {
     ff_unlock();
@@ -816,27 +839,12 @@ static msg_t __fffile_setpos_impl(void *ip, vfs_offset_t offset,
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
   vfs_offset_t target;
   msg_t ret;
-  FRESULT res;
 
   ff_lock();
-  ret = __vfs_seek_target(offset, whence,
-                          self->seekpos > (vfs_offset_t)0 ?
-                          (uint64_t)self->seekpos :
-                          (uint64_t)f_tell(&self->file),
+  ret = __vfs_seek_target(offset, whence, (uint64_t)get_position(self),
                           f_size(&self->file), &target);
   if (!CH_RET_IS_ERROR(ret)) {
-    if ((FSIZE_t)target > f_size(&self->file)) {
-      /* Positions past the end of file are kept by the node, the file is
-         extended by the next write.*/
-      self->seekpos = target;
-    }
-    else {
-      res = f_lseek(&self->file, (FSIZE_t)target);
-      ret = translate_error(res);
-      if (res == FR_OK) {
-        self->seekpos = (vfs_offset_t)0;
-      }
-    }
+    ret = translate_error(set_position(self, (FSIZE_t)target));
   }
   ff_unlock();
 
@@ -869,6 +877,68 @@ static vfs_offset_t __fffile_getpos_impl(void *ip) {
   return offset;
 }
 
+/**
+ * @memberof    vfs_fatfs_file_node_c
+ * @protected
+ *
+ * @brief       Override of method @p vfsFileSync().
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_fatfs_file_node_c instance.
+ * @return                      The operation result.
+ */
+static msg_t __fffile_sync_impl(void *ip) {
+  vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
+  FRESULT res;
+
+  ff_lock();
+  res = f_sync(&self->file);
+  ff_unlock();
+
+  return translate_error(res);
+}
+
+/**
+ * @memberof    vfs_fatfs_file_node_c
+ * @protected
+ *
+ * @brief       Override of method @p __vfsfile_truncate().
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_fatfs_file_node_c instance.
+ * @param[in]     length        New file size.
+ * @return                      The operation result.
+ */
+static msg_t __fffile_truncate_impl(void *ip, vfs_offset_t length) {
+  vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
+  FSIZE_t position;
+  msg_t ret = CH_RET_SUCCESS;
+  FRESULT res = FR_OK;
+
+  ff_lock();
+  position = get_position(self);
+  if ((FSIZE_t)length < f_size(&self->file)) {
+    res = f_lseek(&self->file, (FSIZE_t)length);
+    if (res == FR_OK) {
+      res = f_truncate(&self->file);
+    }
+  }
+  else if ((FSIZE_t)length > f_size(&self->file)) {
+    /* Extension with zeros from the end of file.*/
+    self->seekpos = length;
+    ret = fill_to_seekpos(self);
+  }
+
+  /* The file position is not changed, it can be past the new end.*/
+  if (res == FR_OK) {
+    res = set_position(self, position);
+  }
+  ff_unlock();
+  if (!CH_RET_IS_ERROR(ret)) {
+    ret = translate_error(res);
+  }
+
+  return ret;
+}
+
 /** @} */
 
 /**
@@ -884,7 +954,9 @@ static const struct vfs_fatfs_file_node_vmt __vfs_fatfs_file_node_vmt = {
   .write                    = __fffile_write_impl,
   .setpos                   = __fffile_setpos_impl,
   .getpos                   = __fffile_getpos_impl,
-  .control                  = __vfsfile_control_impl
+  .control                  = __vfsfile_control_impl,
+  .sync                     = __fffile_sync_impl,
+  .truncate                 = __fffile_truncate_impl
 };
 
 /**

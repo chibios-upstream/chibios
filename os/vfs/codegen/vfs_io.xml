@@ -181,13 +181,19 @@ return np;]]></implementation>
             </method>
             <method name="vfsIOClose" ctype="msg_t">
               <brief>Detaches a descriptor and releases its reference.</brief>
-              <details>The slot is reusable before release or final disposal
-                runs. These callbacks may block or reenter the table.</details>
+              <details>The slot is reusable before synchronization, release or
+                final disposal runs. These callbacks may block or reenter the
+                table. A regular file is synchronized before the release, its
+                error is returned and the descriptor is closed anyway; nodes
+                without storage to synchronize are closed with success. Other
+                references may keep the node open after the close.</details>
               <param name="fd" ctype="int" dir="in">Descriptor to close.</param>
-              <return>CH_RET_SUCCESS, or EBADF for an invalid, empty or reserved slot.</return>
+              <return>CH_RET_SUCCESS, EBADF for an invalid, empty or reserved
+                slot, or the synchronization error.</return>
               <api />
               <implementation><![CDATA[
 vfs_node_c *np;
+msg_t ret = CH_RET_SUCCESS;
 
 if ((fd < 0) || ((size_t)fd >= self->size)) {
   return CH_RET_EBADF;
@@ -202,9 +208,15 @@ if (!is_node(np)) {
 self->slots[fd].node = NULL;
 self->slots[fd].flags = 0;
 chSysUnlock();
+if (VFS_MODE_S_ISREG(np->mode)) {
+  ret = vfsFileSync((vfs_file_node_c *)np);
+  if (ret == CH_RET_EINVAL) {
+    ret = CH_RET_SUCCESS;
+  }
+}
 (void)roRelease(np);
 
-return CH_RET_SUCCESS;]]></implementation>
+return ret;]]></implementation>
             </method>
             <method name="vfsIODup" ctype="int">
               <brief>Duplicates a descriptor into the lowest free slot.</brief>
@@ -427,6 +439,58 @@ if (CH_RET_IS_ERROR(ret)) {
   return ret;
 }
 ret = vfsNodeStat(np, sp);
+(void)roRelease(np);
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOSync" ctype="msg_t">
+              <brief>Writes the buffered data of a descriptor to its
+                storage.</brief>
+              <details>Directories are already synchronized by the operations
+                changing them and return success. Nodes without storage to
+                synchronize return EINVAL.</details>
+              <param name="fd" ctype="int" dir="in">Descriptor.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+msg_t ret;
+
+ret = pin_descriptor(self, fd, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+if (!VFS_MODE_S_ISDIR(np->mode)) {
+  ret = vfsFileSync((vfs_file_node_c *)np);
+}
+(void)roRelease(np);
+
+return ret;]]></implementation>
+            </method>
+            <method name="vfsIOTruncate" ctype="msg_t">
+              <brief>Changes the size of the file of a descriptor.</brief>
+              <details>The descriptor must be open for writing, the file
+                position is not changed. Directories and nodes that cannot be
+                resized return EINVAL.</details>
+              <param name="fd" ctype="int" dir="in">Descriptor.</param>
+              <param name="length" ctype="vfs_offset_t" dir="in">New file
+                size.</param>
+              <return>The operation result or an encoded error.</return>
+              <api />
+              <implementation><![CDATA[
+vfs_node_c *np;
+msg_t ret;
+
+ret = pin_descriptor(self, fd, &np);
+if (CH_RET_IS_ERROR(ret)) {
+  return ret;
+}
+if (VFS_MODE_S_ISDIR(np->mode)) {
+  ret = CH_RET_EINVAL;
+}
+else {
+  ret = vfsFileTruncate((vfs_file_node_c *)np, length);
+}
 (void)roRelease(np);
 
 return ret;]]></implementation>

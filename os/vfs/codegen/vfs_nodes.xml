@@ -489,6 +489,33 @@ return CH_RET_ENOSYS;<![CDATA[]]></implementation>
 
 return CH_RET_ENOTTY;<![CDATA[]]></implementation>
             </method>
+            <method name="vfsFileSync" shortname="sync" ctype="msg_t">
+              <brief>Writes the buffered data and metadata of the file to its
+                storage.</brief>
+              <details>Allowed for any access mode. Nodes without storage to
+                synchronize return @p CH_RET_EINVAL.</details>
+              <return>The operation result.</return>
+              <api />
+              <implementation>
+
+(void)self;
+
+return CH_RET_EINVAL;<![CDATA[]]></implementation>
+            </method>
+            <method name="__vfsfile_truncate" shortname="truncate"
+              ctype="msg_t">
+              <brief>File node size change.</brief>
+              <param name="length" ctype="vfs_offset_t" dir="in">New file
+                size, not negative.</param>
+              <return>The operation result.</return>
+              <notapi />
+              <implementation>
+
+(void)self;
+(void)length;
+
+return CH_RET_EINVAL;<![CDATA[]]></implementation>
+            </method>
           </virtual>
           <regular>
             <method name="vfsFileRead" ctype="ssize_t">
@@ -538,6 +565,30 @@ if (n == 0U) {
 }
 
 return __vfsfile_write(self, buf, n);]]></implementation>
+            </method>
+            <method name="vfsFileTruncate" ctype="msg_t">
+              <brief>Changes the size of a file opened for writing.</brief>
+              <details>A shorter size discards the data past it, a longer size
+                extends the file with zeros. The file position is not changed.
+                Nodes that cannot be resized return @p CH_RET_EINVAL.</details>
+              <param name="length" ctype="vfs_offset_t" dir="in">New file
+                size.</param>
+              <return>The operation result.</return>
+              <retval value="CH_RET_EBADF">The file is not open for
+                writing.</retval>
+              <retval value="CH_RET_EINVAL">Negative size or node not
+                resizable.</retval>
+              <api />
+              <implementation><![CDATA[
+
+if ((self->flags & VO_ACCMODE) == VO_RDONLY) {
+  return CH_RET_EBADF;
+}
+if (length < (vfs_offset_t)0) {
+  return CH_RET_EINVAL;
+}
+
+return __vfsfile_truncate(self, length);]]></implementation>
             </method>
           </regular>
         </methods>

@@ -44,6 +44,8 @@
 #define _rename_r      vfs_test_rename_r
 #define _mkdir_r       vfs_test_mkdir_r
 #define mkdir          vfs_test_mkdir
+#define fsync          vfs_test_fsync
+#define ftruncate      vfs_test_ftruncate
 #define _isatty        vfs_test_isatty
 #define _REENT         (&vfs_test_global_reent)
 #define _sbrk_r        vfs_test_sbrk_r

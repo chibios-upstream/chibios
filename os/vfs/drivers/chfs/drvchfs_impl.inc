@@ -396,7 +396,9 @@ static const struct vfs_chfs_file_node_vmt __vfs_chfs_file_node_vmt = {
   .write                    = __chfsfile_write_impl,
   .setpos                   = __chfsfile_setpos_impl,
   .getpos                   = __chfsfile_getpos_impl,
-  .control                  = __vfsfile_control_impl
+  .control                  = __vfsfile_control_impl,
+  .sync                     = __vfsfile_sync_impl,
+  .truncate                 = __vfsfile_truncate_impl
 };
 
 /**

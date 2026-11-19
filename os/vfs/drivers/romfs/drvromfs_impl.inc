@@ -1049,6 +1049,20 @@ static vfs_offset_t __romfile_getpos_impl(void *ip) {
   return self->position;
 }
 
+/**
+ * @brief       Override of method @p vfsFileSync().
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_rom_file_node_c instance.
+ * @return                      The operation result.
+ */
+static msg_t __romfile_sync_impl(void *ip) {
+
+  /* Read-only content, nothing to write.*/
+  (void)ip;
+
+  return CH_RET_SUCCESS;
+}
+
 /** @} */
 
 /**
@@ -1064,7 +1078,9 @@ static const struct vfs_rom_file_node_vmt __vfs_rom_file_node_vmt = {
   .write                    = __romfile_write_impl,
   .setpos                   = __romfile_setpos_impl,
   .getpos                   = __romfile_getpos_impl,
-  .control                  = __vfsfile_control_impl
+  .control                  = __vfsfile_control_impl,
+  .sync                     = __romfile_sync_impl,
+  .truncate                 = __vfsfile_truncate_impl
 };
 
 /**
