@@ -495,6 +495,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [VFS] Newlib and sandbox `stat()`/`fstat()` report the permission bits, a
+  link count of 1 and, when the file system provides them, the block size,
+  the allocated blocks and the modification time; opened FatFS files report
+  the modification time read at open until changed through the node
+  ([#658](https://github.com/chibios-upstream/chibios/pull/658)).
 - [VFS] `vfsIOClose()` and the Newlib `close()` synchronize a regular file
   before releasing it and return the flush error, the descriptor is closed
   anyway
