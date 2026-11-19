@@ -158,6 +158,49 @@ static bool dir_has_entries(const char *path, FILINFO *info) {
   return found;
 }
 
+/* Source of the zeros filling the gap between the end of file and a
+   position set past it, one sector.*/
+static const uint8_t zero_block[512] = {0U};
+
+/* Moves the native position to a position set past the end of file when
+   the file has reached it. Called with the FatFS lock held.*/
+static FRESULT sync_seekpos(vfs_fatfs_file_node_c *self) {
+  FRESULT res = FR_OK;
+
+  if ((self->seekpos > (vfs_offset_t)0) &&
+      ((FSIZE_t)self->seekpos <= f_size(&self->file))) {
+    res = f_lseek(&self->file, (FSIZE_t)self->seekpos);
+    if (res == FR_OK) {
+      self->seekpos = (vfs_offset_t)0;
+    }
+  }
+
+  return res;
+}
+
+/* Extends the file with zeros up to a position set past the end of file
+   and moves the native position there. Called with the FatFS lock held.*/
+static msg_t fill_to_seekpos(vfs_fatfs_file_node_c *self) {
+  FSIZE_t target = (FSIZE_t)self->seekpos;
+  FRESULT res;
+  UINT n, bw;
+
+  res = f_lseek(&self->file, f_size(&self->file));
+  while ((res == FR_OK) && (f_tell(&self->file) < target)) {
+    n = (target - f_tell(&self->file)) > (FSIZE_t)sizeof zero_block ?
+        (UINT)sizeof zero_block : (UINT)(target - f_tell(&self->file));
+    res = f_write(&self->file, (const void *)zero_block, n, &bw);
+    if ((res == FR_OK) && (bw < n)) {
+      return CH_RET_ENOSPC;
+    }
+  }
+  if (res == FR_OK) {
+    self->seekpos = (vfs_offset_t)0;
+  }
+
+  return translate_error(res);
+}
+
 static bool is_leap_year(unsigned year) {
 
   return ((((year % 4U) == 0U) && ((year % 100U) != 0U)) ||
@@ -586,6 +629,7 @@ static void *__fffile_objinit_impl(void *ip, const void *vmt,
 
   /* Initialization code.*/
   self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode, flags);
+  self->seekpos = (vfs_offset_t)0;
 
   return self;
 }
@@ -657,13 +701,18 @@ static ssize_t __fffile_read_impl(void *ip, uint8_t *buf, size_t n) {
     return CH_RET_EINVAL;
   }
   ff_lock();
-  res = f_read(&self->file, (void *)buf, (UINT)n, &br);
+  res = sync_seekpos(self);
+  br = 0U;
+  if ((res == FR_OK) && (self->seekpos == (vfs_offset_t)0)) {
+    res = f_read(&self->file, (void *)buf, (UINT)n, &br);
+  }
   ff_unlock();
   if (res != FR_OK) {
 
     return translate_error(res);
   }
 
+  /* A position past the end of file reads as end of file.*/
   return (ssize_t)br;
 }
 
@@ -680,28 +729,42 @@ static ssize_t __fffile_read_impl(void *ip, uint8_t *buf, size_t n) {
  */
 static ssize_t __fffile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
+  msg_t ret = CH_RET_SUCCESS;
   FRESULT res;
-  UINT bw;
+  UINT bw = 0U;
 
   if (n > UINT_MAX) {
     return CH_RET_EINVAL;
   }
+  if (n == 0U) {
+    return (ssize_t)0;
+  }
   ff_lock();
-  /* Append and write are one native operation, also after a seek.*/
-  res = (self->flags & VO_APPEND) != 0 ?
-        f_lseek(&self->file, f_size(&self->file)) : FR_OK;
-  if (res == FR_OK) {
+  if ((self->flags & VO_APPEND) != 0) {
+    /* Append and write are one native operation, also after a seek.*/
+    ret = translate_error(f_lseek(&self->file, f_size(&self->file)));
+  }
+  else {
+    /* A gap left by a position past the end of file is filled with zeros
+       before writing.*/
+    ret = translate_error(sync_seekpos(self));
+    if (!CH_RET_IS_ERROR(ret) && (self->seekpos > (vfs_offset_t)0)) {
+      ret = fill_to_seekpos(self);
+    }
+  }
+  if (!CH_RET_IS_ERROR(ret)) {
     res = f_write(&self->file, (const void *)buf, (UINT)n, &bw);
+    ret = translate_error(res);
+    if (res == FR_OK) {
+      self->seekpos = (vfs_offset_t)0;
+    }
   }
   ff_unlock();
-  if (res != FR_OK) {
-
-    return translate_error(res);
-  }
+  CH_RETURN_ON_ERROR(ret);
 
   /* A full volume is reported with a short count and then with no bytes
      written.*/
-  if ((bw == 0U) && (n > 0U)) {
+  if (bw == 0U) {
     return CH_RET_ENOSPC;
   }
 
@@ -727,18 +790,22 @@ static msg_t __fffile_setpos_impl(void *ip, vfs_offset_t offset,
   FRESULT res;
 
   ff_lock();
-  ret = __vfs_seek_target(offset, whence, f_tell(&self->file),
+  ret = __vfs_seek_target(offset, whence,
+                          self->seekpos > (vfs_offset_t)0 ?
+                          (uint64_t)self->seekpos :
+                          (uint64_t)f_tell(&self->file),
                           f_size(&self->file), &target);
   if (!CH_RET_IS_ERROR(ret)) {
-    if (((self->flags & VO_ACCMODE) == VO_RDONLY) &&
-        ((FSIZE_t)target > f_size(&self->file))) {
-      ret = CH_ENCODE_ERROR(ENOTSUP);
+    if ((FSIZE_t)target > f_size(&self->file)) {
+      /* Positions past the end of file are kept by the node, the file is
+         extended by the next write.*/
+      self->seekpos = target;
     }
     else {
       res = f_lseek(&self->file, (FSIZE_t)target);
       ret = translate_error(res);
-      if ((res == FR_OK) && (f_tell(&self->file) != (FSIZE_t)target)) {
-        ret = CH_RET_ENOSPC;
+      if (res == FR_OK) {
+        self->seekpos = (vfs_offset_t)0;
       }
     }
   }
@@ -761,8 +828,13 @@ static vfs_offset_t __fffile_getpos_impl(void *ip) {
   vfs_offset_t offset;
 
   ff_lock();
-  offset = f_tell(&self->file) > INT32_MAX ? CH_RET_EOVERFLOW :
-           (vfs_offset_t)f_tell(&self->file);
+  if (self->seekpos > (vfs_offset_t)0) {
+    offset = self->seekpos;
+  }
+  else {
+    offset = f_tell(&self->file) > INT32_MAX ? CH_RET_EOVERFLOW :
+             (vfs_offset_t)f_tell(&self->file);
+  }
   ff_unlock();
 
   return offset;

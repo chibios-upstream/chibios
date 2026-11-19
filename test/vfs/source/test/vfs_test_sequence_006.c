@@ -41,6 +41,7 @@
  * - @subpage vfs_test_006_003
  * - @subpage vfs_test_006_004
  * - @subpage vfs_test_006_005
+ * - @subpage vfs_test_006_006
  * .
  */
 
@@ -780,6 +781,64 @@ static const testcase_t vfs_test_006_005 = {
   vfs_test_006_005_execute
 };
 
+/**
+ * @page vfs_test_006_006 [6.6] Positions past the end of file
+ *
+ * <h2>Description</h2>
+ * Positions past the end of file leave the file unchanged until a
+ * write, the gap is filled with zeros over stale storage content.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.6.1] Positions past the end of file.
+ * .
+ */
+
+static void vfs_test_006_006_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  /* Stale content in the data area, a gap must not expose it.*/
+  memset(vfs_test_fat_disk, 0x5A, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_006_teardown(void) {
+  msg_t ret;
+
+  ret = ffdrvUnmount("0:");
+  test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
+}
+
+static void vfs_test_006_006_execute(void) {
+
+  /* [6.6.1] Positions past the end of file.*/
+  test_set_step(1);
+  {
+    vfs_test_seek_past_end((vfs_fs_c *)&vfs_test_fat_driver);
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_006_006 = {
+  "Positions past the end of file",
+  vfs_test_006_006_setup,
+  vfs_test_006_006_teardown,
+  vfs_test_006_006_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -795,6 +854,7 @@ const testcase_t * const vfs_test_sequence_006_array[] = {
 #endif
   &vfs_test_006_004,
   &vfs_test_006_005,
+  &vfs_test_006_006,
   NULL
 };
 

@@ -47,9 +47,8 @@
  * - Names follow the FAT rules, long names depend on the FatFS
  *   configuration. FAT has no owner, permission or link information and
  *   stores times with two seconds of resolution, without a time zone.
- * - A file opened read-only cannot be positioned past its end, a writable
- *   file is extended as soon as it is positioned past its end and the gap
- *   is not cleared.
+ * - FAT has no sparse files, a write after a position past the end of file
+ *   writes the zeros filling the gap, in a time proportional to its size.
  * .
  * <b>LittleFS</b>
  * - Independent opens of the same file do not share their state, opens
@@ -66,7 +65,6 @@
  * - Contents and names are read-only, opening for writing, creating,
  *   removing and renaming return @p CH_RET_EROFS.
  * - There are no timestamps or file identities.
- * - Positions past the end of a file are rejected with @c ENOTSUP.
  * - Dynamic and compressed content callbacks synchronize their own state,
  *   the VFS does not serialize them.
  * .
@@ -164,8 +162,6 @@
  *
  * @section vfs_lim_issues Open issues
  *
- * - Positions past the end of file on FatFS and ROMFS:
- *   https://github.com/chibios-upstream/chibios/issues/635
  * - Streams driver positions and seek errors:
  *   https://github.com/chibios-upstream/chibios/issues/637
  * - File sizes narrowed to 32 bits without checks:
@@ -174,5 +170,7 @@
  *   https://github.com/chibios-upstream/chibios/issues/639
  * - Incomplete stat metadata:
  *   https://github.com/chibios-upstream/chibios/issues/640
+ * - LittleFS open files detached by removal and rename:
+ *   https://github.com/chibios-upstream/chibios/issues/651
  * .
  */

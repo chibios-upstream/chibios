@@ -230,6 +230,10 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementat
           <field name="file" ctype="FIL">
             <brief>FatFS inner @p FIL structure.</brief>
           </field>
+          <field name="seekpos" ctype="vfs_offset_t">
+            <brief>Position set past the end of file, zero when the native
+              position applies.</brief>
+          </field>
         </fields>
         <methods>
           <objinit callsuper="false">

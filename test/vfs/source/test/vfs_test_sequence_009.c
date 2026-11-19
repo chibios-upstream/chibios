@@ -660,9 +660,10 @@ static void vfs_test_009_004_execute(void) {
                 vfs_test_read_r(&r, fd, &c, 1) == 1 && c == 'd' &&
                 vfs_test_lseek_r(&r, fd, 0, SEEK_CUR) == 4,
                 "seek and read failed");
-    test_assert(vfs_test_lseek_r(&r, fd, 5, SEEK_SET) == -1 &&
-                r.error == ENOTSUP, "ROM seek beyond the end accepted");
-    test_assert(vfs_test_lseek_r(&r, fd, -5, SEEK_CUR) == -1 &&
+    test_assert(vfs_test_lseek_r(&r, fd, 5, SEEK_SET) == 5 &&
+                vfs_test_read_r(&r, fd, &c, 1) == 0,
+                "ROM seek beyond the end rejected");
+    test_assert(vfs_test_lseek_r(&r, fd, -6, SEEK_CUR) == -1 &&
                 r.error == EINVAL, "negative position accepted");
     test_assert(vfs_test_read_r(&r, fd, &c, -1) == -1 && r.error == EINVAL,
                 "negative count accepted");

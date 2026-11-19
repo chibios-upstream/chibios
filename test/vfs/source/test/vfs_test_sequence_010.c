@@ -147,10 +147,15 @@ static void vfs_test_010_001_execute(void) {
                 vfsFileSetPosition(fnp, INT32_MAX, VFS_SEEK_CUR) ==
                   CH_RET_EOVERFLOW &&
                 vfsFileSetPosition(fnp, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
-                vfsFileSetPosition(fnp, 5, VFS_SEEK_SET) ==
-                  CH_ENCODE_ERROR(ENOTSUP) &&
                 vfsFileGetPosition(fnp) == 2,
                 "ROM seek bounds or failure position");
+    test_assert(vfsFileSetPosition(fnp, 5, VFS_SEEK_SET) == 0 &&
+                vfsFileGetPosition(fnp) == 5 &&
+                vfsFileRead(fnp, bytes, sizeof bytes) == 0 &&
+                vfsFileSetPosition(fnp, -3, VFS_SEEK_CUR) == 0 &&
+                vfsFileRead(fnp, bytes, sizeof bytes) == 2 &&
+                memcmp(bytes, "ed", 2) == 0,
+                "ROM position past the end");
     (void)roRelease(np);
   }
   test_end_step(1);
@@ -170,10 +175,14 @@ static void vfs_test_010_001_execute(void) {
                 vfsIOSeek(&open_io, fd, INT32_MAX, VFS_SEEK_CUR) ==
                   CH_RET_EOVERFLOW &&
                 vfsIOSeek(&open_io, fd, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
-                vfsIOSeek(&open_io, fd, 5, VFS_SEEK_SET) ==
-                  CH_ENCODE_ERROR(ENOTSUP) &&
                 vfsIOTell(&open_io, fd) == 2,
                 "ROM descriptor seek bounds or failure position");
+    test_assert(vfsIOSeek(&open_io, fd, 5, VFS_SEEK_SET) == 5 &&
+                vfsIORead(&open_io, fd, bytes, sizeof bytes) == 0 &&
+                vfsIOSeek(&open_io, fd, -3, VFS_SEEK_CUR) == 2 &&
+                vfsIORead(&open_io, fd, bytes, sizeof bytes) == 2 &&
+                memcmp(bytes, "ed", 2) == 0,
+                "ROM descriptor position past the end");
     test_assert(vfsIOClose(&open_io, fd) == 0, "ROM descriptor close failed");
   }
   test_end_step(2);
