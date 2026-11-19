@@ -79,15 +79,28 @@ static msg_t sb_io_tty_control(sb_class_t *sbp, int fd,
 }
 
 /* The structure is composed locally, the sandbox buffer could be unaligned,
-   padding bytes are cleared.*/
+   padding bytes are cleared. The VFS modes are the C library values. Nodes
+   have one link, the optional fields are zero when not provided, the only
+   stored time is also reported as access and status change time.*/
 static void sb_io_copy_stat(struct stat *dst, const vfs_stat_t *src) {
   struct stat st;
 
   memset(&st, 0, sizeof st);
   st.st_mode  = (mode_t)src->mode;
-  st.st_size  = (off_t)src->size;
   st.st_nlink = 1;
-  /* TODO st_blocks, st_blksize, st_ino, timespecs.*/
+  st.st_size  = (off_t)src->size;
+  if ((src->valid & VFS_STAT_VALID_BLKSIZE) != 0U) {
+    st.st_blksize = (blksize_t)src->blksize;
+  }
+  if ((src->valid & VFS_STAT_VALID_BLOCKS) != 0U) {
+    st.st_blocks = (blkcnt_t)src->blocks;
+  }
+  if ((src->valid & VFS_STAT_VALID_MTIME) != 0U) {
+    st.st_mtim.tv_sec  = (time_t)src->mtime.tv_sec;
+    st.st_mtim.tv_nsec = (long)src->mtime.tv_nsec;
+    st.st_atim = st.st_mtim;
+    st.st_ctim = st.st_mtim;
+  }
   memcpy(dst, &st, sizeof st);
 }
 

@@ -19,5 +19,6 @@
 #define VFS_SB_TEST_H
 void vfs_test_sb_directories(void);
 void vfs_test_sb_directory_wait(void);
+void vfs_test_sb_stat_conversion(void);
 void vfs_test_sb_native(vfs_fs_c *fsp);
 #endif

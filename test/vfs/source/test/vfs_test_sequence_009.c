@@ -42,6 +42,7 @@
  * - @subpage vfs_test_009_003
  * - @subpage vfs_test_009_004
  * - @subpage vfs_test_009_005
+ * - @subpage vfs_test_009_006
  * .
  */
 
@@ -638,9 +639,81 @@ static const testcase_t vfs_test_009_004 = {
   vfs_test_009_004_execute
 };
 
+/**
+ * @page vfs_test_009_005 [9.5] Stat conversion
+ *
+ * <h2>Description</h2>
+ * The VFS information is converted with the mode, one link, the
+ * optional fields when valid and the modification time as access and
+ * status change time.
+ *
+ * <h2>Test Steps</h2>
+ * - [9.5.1] All the optional fields valid.
+ * - [9.5.2] No optional field valid.
+ * .
+ */
+
+static void vfs_test_009_005_setup(void) {
+  vfs_test_fd_setup();
+}
+
+static void vfs_test_009_005_teardown(void) {
+  vfs_test_fd_teardown();
+}
+
+static void vfs_test_009_005_execute(void) {
+  struct stat st;
+
+  /* [9.5.1] All the optional fields valid.*/
+  test_set_step(1);
+  {
+    vfs_test_fs.stat = vfs_test_full_stat;
+    memset(&st, 0xA5, sizeof st);
+    test_assert(vfs_test_stat("/full", &st) == 0 &&
+                st.st_mode == (S_IFREG | S_IRUSR) && st.st_nlink == 1 &&
+                st.st_size == 1234 && st.st_blksize == 4096 &&
+                st.st_blocks == 17 && st.st_mtim.tv_sec == 1700000000 &&
+                st.st_mtim.tv_nsec == 123456789 &&
+                st.st_atim.tv_sec == 1700000000 &&
+                st.st_atim.tv_nsec == 123456789 &&
+                st.st_ctim.tv_sec == 1700000000 &&
+                st.st_ctim.tv_nsec == 123456789 &&
+                st.st_ino == 0 && st.st_dev == 0 && st.st_uid == 0 &&
+                st.st_gid == 0, "full stat conversion failed");
+    test_assert(vfs_test_posix_stat_equal(&st, &vfs_test_full_stat),
+                "full stat comparison failed");
+  }
+  test_end_step(1);
+
+  /* [9.5.2] No optional field valid.*/
+  test_set_step(2);
+  {
+    vfs_test_fs.stat = (vfs_stat_t) {
+      .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRWXU,
+      .size = (vfs_offset_t)0
+    };
+    memset(&st, 0xA5, sizeof st);
+    test_assert(vfs_test_stat("/bare", &st) == 0 &&
+                st.st_mode == (S_IFDIR | S_IRWXU) && st.st_nlink == 1 &&
+                st.st_size == 0 && st.st_blksize == 0 && st.st_blocks == 0 &&
+                st.st_mtim.tv_sec == 0 && st.st_mtim.tv_nsec == 0 &&
+                st.st_atim.tv_sec == 0 && st.st_atim.tv_nsec == 0 &&
+                st.st_ctim.tv_sec == 0 && st.st_ctim.tv_nsec == 0 &&
+                st.st_ino == 0, "bare stat conversion failed");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_009_005 = {
+  "Stat conversion",
+  vfs_test_009_005_setup,
+  vfs_test_009_005_teardown,
+  vfs_test_009_005_execute
+};
+
 #if (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_009_005 [9.5] Standard descriptors and POSIX calls
+ * @page vfs_test_009_006 [9.6] Standard descriptors and POSIX calls
  *
  * <h2>Description</h2>
  * Calls before initialization, standard descriptors installed by the
@@ -654,28 +727,28 @@ static const testcase_t vfs_test_009_004 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [9.5.1] Calls before initialization.
- * - [9.5.2] Standard descriptors and terminal.
- * - [9.5.3] Files and directories.
- * - [9.5.4] Full table and paths.
+ * - [9.6.1] Calls before initialization.
+ * - [9.6.2] Standard descriptors and terminal.
+ * - [9.6.3] Files and directories.
+ * - [9.6.4] Full table and paths.
  * .
  */
 
-static void vfs_test_009_005_setup(void) {
+static void vfs_test_009_006_setup(void) {
   vfs_test_nl_setup();
 }
 
-static void vfs_test_009_005_teardown(void) {
+static void vfs_test_009_006_teardown(void) {
   vfs_test_nl_teardown();
 }
 
-static void vfs_test_009_005_execute(void) {
+static void vfs_test_009_006_execute(void) {
   vfs_test_reent_t r;
   struct stat st;
   int fd, dfd;
   char c;
 
-  /* [9.5.1] Calls before initialization.*/
+  /* [9.6.1] Calls before initialization.*/
   test_set_step(1);
   {
     /* Context without descriptors and root, as before newlibVfsInit().*/
@@ -694,7 +767,7 @@ static void vfs_test_009_005_execute(void) {
   }
   test_end_step(1);
 
-  /* [9.5.2] Standard descriptors and terminal.*/
+  /* [9.6.2] Standard descriptors and terminal.*/
   test_set_step(2);
   {
     newlibVfsInit(&vfs_test_nl_root);
@@ -712,7 +785,7 @@ static void vfs_test_009_005_execute(void) {
   }
   test_end_step(2);
 
-  /* [9.5.3] Files and directories.*/
+  /* [9.6.3] Files and directories.*/
   test_set_step(3);
   {
     fd = vfs_test_open_r(&r, "/data", VO_RDONLY, 0);
@@ -747,7 +820,7 @@ static void vfs_test_009_005_execute(void) {
   }
   test_end_step(3);
 
-  /* [9.5.4] Full table and paths.*/
+  /* [9.6.4] Full table and paths.*/
   test_set_step(4);
   {
     test_assert(vfs_test_open_r(&r, "/data", VO_RDONLY, 0) == -1 &&
@@ -774,11 +847,11 @@ static void vfs_test_009_005_execute(void) {
   test_end_step(4);
 }
 
-static const testcase_t vfs_test_009_005 = {
+static const testcase_t vfs_test_009_006 = {
   "Standard descriptors and POSIX calls",
-  vfs_test_009_005_setup,
-  vfs_test_009_005_teardown,
-  vfs_test_009_005_execute
+  vfs_test_009_006_setup,
+  vfs_test_009_006_teardown,
+  vfs_test_009_006_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_ROMFS == TRUE */
 
@@ -794,8 +867,9 @@ const testcase_t * const vfs_test_sequence_009_array[] = {
   &vfs_test_009_002,
   &vfs_test_009_003,
   &vfs_test_009_004,
-#if (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) || defined(__DOXYGEN__)
   &vfs_test_009_005,
+#if (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_009_006,
 #endif
   NULL
 };

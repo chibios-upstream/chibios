@@ -162,6 +162,37 @@ bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp) {
   return vfs_test_stat_equal(&optional, &empty);
 }
 
+/* Checks a C library stat against the VFS information it comes from: one
+   link, optional fields zero when not valid, the modification time also as
+   access and status change time, no identities.*/
+bool vfs_test_posix_stat_equal(const struct stat *st, const vfs_stat_t *vst) {
+  int64_t sec = 0;
+  long nsec = 0;
+
+  if ((vst->valid & VFS_STAT_VALID_MTIME) != 0U) {
+    sec = vst->mtime.tv_sec;
+    nsec = (long)vst->mtime.tv_nsec;
+  }
+
+  return (st->st_mode == (mode_t)vst->mode) &&
+         (st->st_nlink == 1) &&
+         (st->st_size == (off_t)vst->size) &&
+         (st->st_blksize ==
+          (((vst->valid & VFS_STAT_VALID_BLKSIZE) != 0U) ?
+           (blksize_t)vst->blksize : 0)) &&
+         (st->st_blocks ==
+          (((vst->valid & VFS_STAT_VALID_BLOCKS) != 0U) ?
+           (blkcnt_t)vst->blocks : 0)) &&
+         ((int64_t)st->st_mtim.tv_sec == sec) &&
+         (st->st_mtim.tv_nsec == nsec) &&
+         ((int64_t)st->st_atim.tv_sec == sec) &&
+         (st->st_atim.tv_nsec == nsec) &&
+         ((int64_t)st->st_ctim.tv_sec == sec) &&
+         (st->st_ctim.tv_nsec == nsec) &&
+         (st->st_ino == 0) && (st->st_dev == 0) && (st->st_rdev == 0) &&
+         (st->st_uid == 0) && (st->st_gid == 0);
+}
+
 static void vfs_test_fs_dispose(void *ip) {
   vfs_test_fs_c *self = (vfs_test_fs_c *)ip;
 
@@ -816,6 +847,7 @@ void vfs_test_newlib_native(vfs_fs_c *fsp) {
   vfs_test_reent_t r;
   vfs_root_c root;
   struct stat st;
+  vfs_stat_t vst;
   char buf[8];
   int fd, i;
 
@@ -837,6 +869,9 @@ void vfs_test_newlib_native(vfs_fs_c *fsp) {
               "invalid origin accepted");
   test_assert(vfs_test_fstat_r(&r, fd, &st) == 0 && S_ISREG(st.st_mode) &&
               st.st_size == 6, "newlib fstat failed");
+  test_assert(vfsIOFstat(newlibVfsGetIO(), fd, &vst) == CH_RET_SUCCESS &&
+              vfs_test_posix_stat_equal(&st, &vst),
+              "newlib fstat conversion failed");
   test_assert(vfs_test_isatty_r(&r, fd) == 0 && r.error == ENOTTY,
               "file reported as a terminal");
   test_assert(vfs_test_read_r(&r, fd, buf, -1) == -1 && r.error == EINVAL,
@@ -865,6 +900,15 @@ void vfs_test_newlib_native(vfs_fs_c *fsp) {
               vfs_test_close_r(&r, fd) == 0, "newlib append failed");
   test_assert(vfs_test_stat("/nl", &st) == 0 && st.st_size == 8,
               "append not at the end of file");
+  test_assert(vfsFSStat(fsp, "/nl", &vst) == CH_RET_SUCCESS &&
+              vfs_test_posix_stat_equal(&st, &vst),
+              "newlib stat conversion failed");
+  fd = vfs_test_open_r(&r, "/nl", VO_RDONLY, 0);
+  test_assert(fd == 0 && vfs_test_fstat_r(&r, fd, &st) == 0 &&
+              vfsIOFstat(newlibVfsGetIO(), fd, &vst) == CH_RET_SUCCESS &&
+              vfs_test_posix_stat_equal(&st, &vst) &&
+              vfs_test_close_r(&r, fd) == 0,
+              "newlib unchanged file fstat conversion failed");
 
   /* Directories.*/
   test_assert(vfs_test_mkdir_r(&r, "/nldir", 0777) == 0, "mkdir failed");

@@ -37,6 +37,7 @@
  * <h2>Test Cases</h2>
  * - @subpage vfs_test_013_001
  * - @subpage vfs_test_013_002
+ * - @subpage vfs_test_013_003
  * .
  */
 
@@ -82,19 +83,47 @@ static const testcase_t vfs_test_013_001 = {
 };
 
 /**
- * @page vfs_test_013_002 [13.2] Directory retention across scratch waits
+ * @page vfs_test_013_002 [13.2] Stat conversion
  *
  * <h2>Description</h2>
- * Directory retention across scratch waits.
+ * Stat conversion.
  *
  * <h2>Test Steps</h2>
- * - [13.2.1] Directory retention across scratch waits.
+ * - [13.2.1] Stat conversion.
  * .
  */
 
 static void vfs_test_013_002_execute(void) {
 
-  /* [13.2.1] Directory retention across scratch waits.*/
+  /* [13.2.1] Stat conversion.*/
+  test_set_step(1);
+  {
+    vfs_test_sb_stat_conversion();
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_013_002 = {
+  "Stat conversion",
+  NULL,
+  NULL,
+  vfs_test_013_002_execute
+};
+
+/**
+ * @page vfs_test_013_003 [13.3] Directory retention across scratch waits
+ *
+ * <h2>Description</h2>
+ * Directory retention across scratch waits.
+ *
+ * <h2>Test Steps</h2>
+ * - [13.3.1] Directory retention across scratch waits.
+ * .
+ */
+
+static void vfs_test_013_003_execute(void) {
+
+  /* [13.3.1] Directory retention across scratch waits.*/
   test_set_step(1);
   {
     vfs_test_sb_directory_wait();
@@ -102,11 +131,11 @@ static void vfs_test_013_002_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_013_002 = {
+static const testcase_t vfs_test_013_003 = {
   "Directory retention across scratch waits",
   NULL,
   NULL,
-  vfs_test_013_002_execute
+  vfs_test_013_003_execute
 };
 
 /*===========================================================================*/
@@ -119,6 +148,7 @@ static const testcase_t vfs_test_013_002 = {
 const testcase_t * const vfs_test_sequence_013_array[] = {
   &vfs_test_013_001,
   &vfs_test_013_002,
+  &vfs_test_013_003,
   NULL
 };
 

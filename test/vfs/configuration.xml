@@ -79,6 +79,7 @@ bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
 bool vfs_test_stat_equal(const vfs_stat_t *actual,
                          const vfs_stat_t *expected);
 bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
+bool vfs_test_posix_stat_equal(const struct stat *st, const vfs_stat_t *vst);
 void vfs_test_fs_reset(void);
 void vfs_test_open_matrix(vfs_fs_c *fsp);
 void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs);
@@ -154,6 +155,37 @@ bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp) {
   optional.size = (vfs_offset_t)0;
 
   return vfs_test_stat_equal(&optional, &empty);
+}
+
+/* Checks a C library stat against the VFS information it comes from: one
+   link, optional fields zero when not valid, the modification time also as
+   access and status change time, no identities.*/
+bool vfs_test_posix_stat_equal(const struct stat *st, const vfs_stat_t *vst) {
+  int64_t sec = 0;
+  long nsec = 0;
+
+  if ((vst->valid & VFS_STAT_VALID_MTIME) != 0U) {
+    sec = vst->mtime.tv_sec;
+    nsec = (long)vst->mtime.tv_nsec;
+  }
+
+  return (st->st_mode == (mode_t)vst->mode) &&
+         (st->st_nlink == 1) &&
+         (st->st_size == (off_t)vst->size) &&
+         (st->st_blksize ==
+          (((vst->valid & VFS_STAT_VALID_BLKSIZE) != 0U) ?
+           (blksize_t)vst->blksize : 0)) &&
+         (st->st_blocks ==
+          (((vst->valid & VFS_STAT_VALID_BLOCKS) != 0U) ?
+           (blkcnt_t)vst->blocks : 0)) &&
+         ((int64_t)st->st_mtim.tv_sec == sec) &&
+         (st->st_mtim.tv_nsec == nsec) &&
+         ((int64_t)st->st_atim.tv_sec == sec) &&
+         (st->st_atim.tv_nsec == nsec) &&
+         ((int64_t)st->st_ctim.tv_sec == sec) &&
+         (st->st_ctim.tv_nsec == nsec) &&
+         (st->st_ino == 0) && (st->st_dev == 0) && (st->st_rdev == 0) &&
+         (st->st_uid == 0) && (st->st_gid == 0);
 }
 
 static void vfs_test_fs_dispose(void *ip) {
@@ -810,6 +842,7 @@ void vfs_test_newlib_native(vfs_fs_c *fsp) {
   vfs_test_reent_t r;
   vfs_root_c root;
   struct stat st;
+  vfs_stat_t vst;
   char buf[8];
   int fd, i;
 
@@ -831,6 +864,9 @@ void vfs_test_newlib_native(vfs_fs_c *fsp) {
               "invalid origin accepted");
   test_assert(vfs_test_fstat_r(&r, fd, &st) == 0 && S_ISREG(st.st_mode) &&
               st.st_size == 6, "newlib fstat failed");
+  test_assert(vfsIOFstat(newlibVfsGetIO(), fd, &vst) == CH_RET_SUCCESS &&
+              vfs_test_posix_stat_equal(&st, &vst),
+              "newlib fstat conversion failed");
   test_assert(vfs_test_isatty_r(&r, fd) == 0 && r.error == ENOTTY,
               "file reported as a terminal");
   test_assert(vfs_test_read_r(&r, fd, buf, -1) == -1 && r.error == EINVAL,
@@ -859,6 +895,15 @@ void vfs_test_newlib_native(vfs_fs_c *fsp) {
               vfs_test_close_r(&r, fd) == 0, "newlib append failed");
   test_assert(vfs_test_stat("/nl", &st) == 0 && st.st_size == 8,
               "append not at the end of file");
+  test_assert(vfsFSStat(fsp, "/nl", &vst) == CH_RET_SUCCESS &&
+              vfs_test_posix_stat_equal(&st, &vst),
+              "newlib stat conversion failed");
+  fd = vfs_test_open_r(&r, "/nl", VO_RDONLY, 0);
+  test_assert(fd == 0 && vfs_test_fstat_r(&r, fd, &st) == 0 &&
+              vfsIOFstat(newlibVfsGetIO(), fd, &vst) == CH_RET_SUCCESS &&
+              vfs_test_posix_stat_equal(&st, &vst) &&
+              vfs_test_close_r(&r, fd) == 0,
+              "newlib unchanged file fstat conversion failed");
 
   /* Directories.*/
   test_assert(vfs_test_mkdir_r(&r, "/nldir", 0777) == 0, "mkdir failed");
@@ -3343,14 +3388,36 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buf) {
   }
 }
 
+#define VFS_TEST_FAT_TIME(y, mo, d, h, mi, s)                               \
+  (((DWORD)((y) - 1980U) << 25) | ((DWORD)(mo) << 21) |                     \
+   ((DWORD)(d) << 16) | ((DWORD)(h) << 11) | ((DWORD)(mi) << 5) |           \
+   ((DWORD)(s) / 2U))
+
+#define VFS_TEST_FAT_DEFAULT_TIME                                           \
+  VFS_TEST_FAT_TIME(2024U, 2U, 29U, 12U, 34U, 56U)
+
+/* Clock used by FatFS for the new timestamps.*/
+static DWORD vfs_test_fat_time = VFS_TEST_FAT_DEFAULT_TIME;
+
 DWORD get_fattime(void) {
 
-  return ((DWORD)(2024U - 1980U) << 25) |
-         ((DWORD)2U << 21) |
-         ((DWORD)29U << 16) |
-         ((DWORD)12U << 11) |
-         ((DWORD)34U << 5) |
-         ((DWORD)56U / 2U);
+  return vfs_test_fat_time;
+}
+
+/* Checks the modification time reported by a stat, zero for none.*/
+static bool vfs_test_fat_mtime(msg_t ret, const vfs_stat_t *sp,
+                               int64_t expected) {
+
+  if (ret != CH_RET_SUCCESS) {
+    return false;
+  }
+  if (expected == 0) {
+    return ((sp->valid & VFS_STAT_VALID_MTIME) == 0U) &&
+           (sp->mtime.tv_sec == 0) && (sp->mtime.tv_nsec == 0U);
+  }
+
+  return ((sp->valid & VFS_STAT_VALID_MTIME) != 0U) &&
+         (sp->mtime.tv_sec == expected) && (sp->mtime.tv_nsec == 0U);
 }
 
 /* Sets the size of a short directory entry in the RAM disk image, the
@@ -3528,6 +3595,196 @@ expected.mtime = (vfs_timestamp_t) {0};
 test_assert(vfs_test_stat_equal(&stat, &expected),
             "FatFS directory node metadata changed");
 (void)roRelease(dnp);]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Open file modification time.</value>
+          </brief>
+          <description>
+            <value>An opened file reports the time read at open until it is
+              created, written or resized through the node, the time of a
+              change is stored by the synchronization.</value>
+          </description>
+          <condition>
+            <value />
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[MKFS_PARM options = {
+  .fmt     = FM_ANY,
+  .n_fat   = 1U,
+  .align   = 0U,
+  .n_root  = 0U,
+  .au_size = VFS_TEST_FAT_SECTOR_SIZE
+};
+uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+FRESULT fres;
+msg_t ret;
+
+memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+vfs_test_fat_status = STA_NOINIT;
+vfs_test_fat_time = VFS_TEST_FAT_DEFAULT_TIME;
+(void)ffdrvObjectInit(&vfs_test_fat_driver);
+fres = f_mkfs("0:", &options, work, sizeof work);
+test_assert(fres == FR_OK, "FatFS format failed");
+ret = ffdrvMount("0:", true);
+test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[msg_t ret;
+
+vfs_test_fat_time = VFS_TEST_FAT_DEFAULT_TIME;
+ret = ffdrvUnmount("0:");
+test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[uint8_t buf[4];
+vfs_file_node_c *fnp;
+vfs_stat_t stat;
+msg_t ret;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>A created file reports no time, its close stores the
+                  time of the synchronization.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fat_time = VFS_TEST_FAT_TIME(2025U, 7U, 14U, 10U, 20U, 30U);
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin",
+                    VO_CREAT | VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file create failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, 0),
+            "created file reported a time");
+test_assert(vfsFileWrite(fnp, (const uint8_t *)"data", 4U) == 4,
+            "FatFS file write failed");
+vfs_test_fat_time = VFS_TEST_FAT_TIME(2025U, 7U, 14U, 10U, 21U, 0U);
+(void)roRelease(fnp);
+ret = vfsFSStat(&vfs_test_fat_driver, "/time.bin", &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752488460),
+            "close time not stored");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>An unchanged file reports its stored time, also after
+                  reads, synchronizations and resizes to the same
+                  size.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fat_time = VFS_TEST_FAT_TIME(2025U, 7U, 15U, 8U, 0U, 0U);
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin", VO_RDONLY, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752488460),
+            "stored time not reported");
+test_assert((vfsFileRead(fnp, buf, sizeof buf) == 4) &&
+            (vfsFileSync(fnp) == CH_RET_SUCCESS),
+            "FatFS read or sync failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752488460),
+            "time lost by read or sync");
+(void)roRelease(fnp);
+
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin",
+                    VO_CREAT | VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+test_assert((vfsFileTruncate(fnp, 4) == CH_RET_SUCCESS) &&
+            (vfsFileSync(fnp) == CH_RET_SUCCESS),
+            "FatFS truncate or sync failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752488460),
+            "time lost by an unchanged size");
+(void)roRelease(fnp);
+ret = vfsFSStat(&vfs_test_fat_driver, "/time.bin", &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752488460),
+            "unchanged file time rewritten");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Writes and resizes drop the time, the synchronization
+                  stores the new one.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin", VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+test_assert(vfsFileWrite(fnp, (const uint8_t *)"x", 1U) == 1,
+            "FatFS file write failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, 0), "time kept by a write");
+test_assert(vfsFileSync(fnp) == CH_RET_SUCCESS, "FatFS sync failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, 0), "time back after a sync");
+ret = vfsFSStat(&vfs_test_fat_driver, "/time.bin", &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752566400),
+            "sync time not stored");
+(void)roRelease(fnp);
+
+vfs_test_fat_time = VFS_TEST_FAT_TIME(2025U, 12U, 31U, 23U, 59U, 58U);
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin", VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+test_assert(vfsFileTruncate(fnp, 2) == CH_RET_SUCCESS,
+            "FatFS truncate failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, 0), "time kept by a resize");
+(void)roRelease(fnp);
+ret = vfsFSStat(&vfs_test_fat_driver, "/time.bin", &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1767225598),
+            "resize time not stored");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Opens truncating or overwriting the file report no
+                  time, an open creating nothing reports the stored
+                  time.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[vfs_test_fat_time = VFS_TEST_FAT_TIME(2026U, 1U, 1U, 0U, 0U, 2U);
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin",
+                    VO_CREAT | VO_RDWR, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1767225598),
+            "existing file time not reported");
+(void)roRelease(fnp);
+
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin",
+                    VO_RDWR | VO_TRUNC, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, 0),
+            "truncating open reported a time");
+(void)roRelease(fnp);
+
+ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin",
+                    VO_CREAT | VO_RDWR | VO_TRUNC, &fnp);
+test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+ret = vfsNodeStat(fnp, &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, 0),
+            "overwriting open reported a time");
+(void)roRelease(fnp);
+ret = vfsFSStat(&vfs_test_fat_driver, "/time.bin", &stat);
+test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1767225602),
+            "overwrite time not stored");]]></value>
               </code>
             </step>
           </steps>
@@ -5903,6 +6160,53 @@ test_assert(vfs_test_close_r(&r, fd) == 0, "final close failed");]]></value></co
           </steps>
         </case>
         <case>
+          <brief><value>Stat conversion.</value></brief>
+          <description><value>The VFS information is converted with the mode, one link, the optional fields when valid and the modification time as access and status change time.</value></description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value>vfs_test_fd_setup();</value></setup_code>
+            <teardown_code><value>vfs_test_fd_teardown();</value></teardown_code>
+            <local_variables><value><![CDATA[struct stat st;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>All the optional fields valid.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[vfs_test_fs.stat = vfs_test_full_stat;
+memset(&st, 0xA5, sizeof st);
+test_assert(vfs_test_stat("/full", &st) == 0 &&
+            st.st_mode == (S_IFREG | S_IRUSR) && st.st_nlink == 1 &&
+            st.st_size == 1234 && st.st_blksize == 4096 &&
+            st.st_blocks == 17 && st.st_mtim.tv_sec == 1700000000 &&
+            st.st_mtim.tv_nsec == 123456789 &&
+            st.st_atim.tv_sec == 1700000000 &&
+            st.st_atim.tv_nsec == 123456789 &&
+            st.st_ctim.tv_sec == 1700000000 &&
+            st.st_ctim.tv_nsec == 123456789 &&
+            st.st_ino == 0 && st.st_dev == 0 && st.st_uid == 0 &&
+            st.st_gid == 0, "full stat conversion failed");
+test_assert(vfs_test_posix_stat_equal(&st, &vfs_test_full_stat),
+            "full stat comparison failed");]]></value></code>
+            </step>
+            <step>
+              <description><value>No optional field valid.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[vfs_test_fs.stat = (vfs_stat_t) {
+  .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRWXU,
+  .size = (vfs_offset_t)0
+};
+memset(&st, 0xA5, sizeof st);
+test_assert(vfs_test_stat("/bare", &st) == 0 &&
+            st.st_mode == (S_IFDIR | S_IRWXU) && st.st_nlink == 1 &&
+            st.st_size == 0 && st.st_blksize == 0 && st.st_blocks == 0 &&
+            st.st_mtim.tv_sec == 0 && st.st_mtim.tv_nsec == 0 &&
+            st.st_atim.tv_sec == 0 && st.st_atim.tv_nsec == 0 &&
+            st.st_ctim.tv_sec == 0 && st.st_ctim.tv_nsec == 0 &&
+            st.st_ino == 0, "bare stat conversion failed");]]></value></code>
+            </step>
+          </steps>
+        </case>
+        <case>
           <brief><value>Standard descriptors and POSIX calls.</value></brief>
           <description><value>Calls before initialization, standard descriptors installed by the application, terminal detection, seek, stat, full table and read-only paths, on ROMFS.</value></description>
           <condition><value><![CDATA[VFS_CFG_ENABLE_DRV_ROMFS == TRUE]]></value></condition>
@@ -7796,6 +8100,21 @@ test_assert(vfs_test_api_files[0].disposals == 1U &&
             <description><value>Directory records and stream ownership</value></description>
             <tags><value /></tags>
             <code><value>vfs_test_sb_directories();</value></code>
+          </step></steps>
+        </case>
+        <case>
+          <brief><value>Stat conversion</value></brief>
+          <description><value>Stat conversion</value></description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value /></setup_code>
+            <teardown_code><value /></teardown_code>
+            <local_variables><value /></local_variables>
+          </various_code>
+          <steps><step>
+            <description><value>Stat conversion</value></description>
+            <tags><value /></tags>
+            <code><value>vfs_test_sb_stat_conversion();</value></code>
           </step></steps>
         </case>
         <case>
