@@ -42,6 +42,7 @@
  * - @subpage vfs_test_006_004
  * - @subpage vfs_test_006_005
  * - @subpage vfs_test_006_006
+ * - @subpage vfs_test_006_007
  * .
  */
 
@@ -177,6 +178,26 @@ DWORD get_fattime(void) {
          ((DWORD)12U << 11) |
          ((DWORD)34U << 5) |
          ((DWORD)56U / 2U);
+}
+
+/* Sets the size of a short directory entry in the RAM disk image, the
+   volume is unmounted.*/
+static bool vfs_test_fat_set_size(const char *sfn, uint32_t size) {
+  size_t i;
+
+  for (i = 0U; (i + 32U) <= sizeof vfs_test_fat_disk; i += 32U) {
+    uint8_t *ep = &vfs_test_fat_disk[i];
+
+    if ((memcmp(ep, sfn, 11U) == 0) && (ep[11] != 0x0FU)) {
+      ep[28] = (uint8_t)size;
+      ep[29] = (uint8_t)(size >> 8);
+      ep[30] = (uint8_t)(size >> 16);
+      ep[31] = (uint8_t)(size >> 24);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /*===========================================================================*/
@@ -839,6 +860,121 @@ static const testcase_t vfs_test_006_006 = {
   vfs_test_006_006_execute
 };
 
+/**
+ * @page vfs_test_006_007 [6.7] File sizes beyond the offset range
+ *
+ * <h2>Description</h2>
+ * Files of 2 GiB or more are rejected by open and stat with EOVERFLOW,
+ * directory entries saturate their size, a file does not grow beyond
+ * INT32_MAX.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.7.1] A 2 GiB file.
+ * - [6.7.2] A file at the end of the offset range.
+ * .
+ */
+
+static void vfs_test_006_007_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_007_teardown(void) {
+  msg_t ret;
+
+  ret = ffdrvUnmount("0:");
+  test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
+}
+
+static void vfs_test_006_007_execute(void) {
+  vfs_fs_c *fsp = (vfs_fs_c *)&vfs_test_fat_driver;
+  vfs_directory_node_c *dnp;
+  vfs_file_node_c *fnp;
+  vfs_direntry_info_t entry;
+  vfs_stat_t st;
+  bool found;
+
+  /* [6.7.1] A 2 GiB file.*/
+  test_set_step(1);
+  {
+    test_assert(vfsFSOpenFile(fsp, "/BIG", VO_CREAT | VO_WRONLY, &fnp) == 0 &&
+                vfsFileWrite(fnp, (const uint8_t *)"x", 1) == 1,
+                "file creation failed");
+    vfsNodeClose(fnp);
+    test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS &&
+                vfs_test_fat_set_size("BIG        ", 0x80000000U) &&
+                ffdrvMount("0:", true) == CH_RET_SUCCESS,
+                "directory entry not changed");
+    test_assert(vfsFSStat(fsp, "/BIG", &st) == CH_RET_EOVERFLOW,
+                "stat size narrowed");
+    test_assert(vfsFSOpenFile(fsp, "/BIG", VO_RDONLY, &fnp) ==
+                  CH_RET_EOVERFLOW &&
+                vfsFSOpenFile(fsp, "/BIG", VO_RDWR, &fnp) == CH_RET_EOVERFLOW &&
+                vfsFSOpenFile(fsp, "/BIG", VO_WRONLY | VO_TRUNC, &fnp) ==
+                  CH_RET_EOVERFLOW &&
+                vfsFSOpenFile(fsp, "/BIG", VO_CREAT | VO_WRONLY | VO_TRUNC,
+                              &fnp) == CH_RET_EOVERFLOW,
+                "file beyond the offset range opened");
+    test_assert(vfsFSStat(fsp, "/BIG", &st) == CH_RET_EOVERFLOW,
+                "rejected truncating open changed the file");
+    test_assert(vfsFSOpenDirectory(fsp, "/", &dnp) == 0,
+                "directory open failed");
+    found = false;
+    while (vfsDirReadNext(dnp, &entry) == (msg_t)1) {
+      if (strcmp(entry.name, "BIG") == 0) {
+        found = entry.size == (vfs_offset_t)INT32_MAX;
+      }
+    }
+    vfsNodeClose(dnp);
+    test_assert(found, "directory entry size not saturated");
+  }
+  test_end_step(1);
+
+  /* [6.7.2] A file at the end of the offset range.*/
+  test_set_step(2);
+  {
+    test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS &&
+                vfs_test_fat_set_size("BIG        ", 0x7FFFFFFEU) &&
+                ffdrvMount("0:", true) == CH_RET_SUCCESS,
+                "directory entry not changed");
+    test_assert(vfsFSStat(fsp, "/BIG", &st) == 0 &&
+                st.size == (vfs_offset_t)0x7FFFFFFE, "stat size changed");
+    test_assert(vfsFSOpenFile(fsp, "/BIG", VO_RDWR, &fnp) == 0,
+                "file within the offset range rejected");
+    test_assert(vfsFileSetPosition(fnp, 1, VFS_SEEK_END) == 0 &&
+                vfsFileGetPosition(fnp) == (vfs_offset_t)INT32_MAX &&
+                vfsFileWrite(fnp, (const uint8_t *)"y", 1) == CH_RET_EFBIG &&
+                vfsNodeStat(fnp, &st) == 0 &&
+                st.size == (vfs_offset_t)0x7FFFFFFE,
+                "file grew beyond the offset range");
+    vfsNodeClose(fnp);
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_006_007 = {
+  "File sizes beyond the offset range",
+  vfs_test_006_007_setup,
+  vfs_test_006_007_teardown,
+  vfs_test_006_007_execute
+};
+
 /*===========================================================================*/
 /* Exported data.                                                            */
 /*===========================================================================*/
@@ -855,6 +991,7 @@ const testcase_t * const vfs_test_sequence_006_array[] = {
   &vfs_test_006_004,
   &vfs_test_006_005,
   &vfs_test_006_006,
+  &vfs_test_006_007,
   NULL
 };
 

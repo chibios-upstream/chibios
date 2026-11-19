@@ -334,7 +334,9 @@ static msg_t read_directory(vfs_fatfs_dir_node_c *self,
   }
   else {
     dip->mode = translate_mode(fip->fattrib);
-    dip->size = (vfs_offset_t)fip->fsize;
+    /* Sizes beyond the offset range are saturated.*/
+    dip->size = fip->fsize > (FSIZE_t)INT32_MAX ? (vfs_offset_t)INT32_MAX :
+                (vfs_offset_t)fip->fsize;
     strncpy(dip->name, fip->fname, VFS_CFG_NAMELEN_MAX);
     dip->name[VFS_CFG_NAMELEN_MAX] = '\0';
     ret = (msg_t)1;
@@ -673,6 +675,11 @@ static msg_t __fffile_stat_impl(void *ip, vfs_stat_t *sp) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
 
   ff_lock();
+  if (self->file.obj.objsize > (FSIZE_t)INT32_MAX) {
+    ff_unlock();
+
+    return CH_RET_EOVERFLOW;
+  }
   sp->mode = self->mode;
   sp->size = (vfs_offset_t)self->file.obj.objsize;
   set_storage_stat(self->file.obj.fs, self->file.obj.objsize, sp);
@@ -730,6 +737,7 @@ static ssize_t __fffile_read_impl(void *ip, uint8_t *buf, size_t n) {
 static ssize_t __fffile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
   msg_t ret = CH_RET_SUCCESS;
+  FSIZE_t start;
   FRESULT res;
   UINT bw = 0U;
 
@@ -740,6 +748,27 @@ static ssize_t __fffile_write_impl(void *ip, const uint8_t *buf, size_t n) {
     return (ssize_t)0;
   }
   ff_lock();
+
+  /* Files do not grow beyond the offset range, a write crossing it is
+     shortened.*/
+  if ((self->flags & VO_APPEND) != 0) {
+    start = f_size(&self->file);
+  }
+  else if (self->seekpos > (vfs_offset_t)0) {
+    start = (FSIZE_t)self->seekpos;
+  }
+  else {
+    start = f_tell(&self->file);
+  }
+  if (start >= (FSIZE_t)INT32_MAX) {
+    ff_unlock();
+
+    return CH_RET_EFBIG;
+  }
+  if ((FSIZE_t)n > ((FSIZE_t)INT32_MAX - start)) {
+    n = (size_t)((FSIZE_t)INT32_MAX - start);
+  }
+
   if ((self->flags & VO_APPEND) != 0) {
     /* Append and write are one native operation, also after a seek.*/
     ret = translate_error(f_lseek(&self->file, f_size(&self->file)));
@@ -961,7 +990,10 @@ msg_t __ffdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
 
       ff_lock();
       res = f_stat((const TCHAR *)path, fip);
-      if (res == FR_OK) {
+      if ((res == FR_OK) && (fip->fsize > (FSIZE_t)INT32_MAX)) {
+        ret = CH_RET_EOVERFLOW;
+      }
+      else if (res == FR_OK) {
         FATFS *fsp;
 
         sp->mode = translate_mode(fip->fattrib);
@@ -1084,6 +1116,10 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
       else if ((info->fattrib & AM_DIR) != 0) {
         res = FR_IS_DIRECTORY;
       }
+      else if (info->fsize > (FSIZE_t)INT32_MAX) {
+        /* Rejected before a native truncation.*/
+        ret = CH_RET_EOVERFLOW;
+      }
       else if ((flags & VO_TRUNC) == 0) {
         mode &= (BYTE)~FA_OPEN_ALWAYS;
       }
@@ -1092,18 +1128,22 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
       res = FR_OK;
     }
   }
-  if (res == FR_OK) {
+  if ((res == FR_OK) && !CH_RET_IS_ERROR(ret)) {
     res = f_open(&node->file, (const TCHAR *)path, mode);
-  }
-  if (res == FR_OK) {
-    if (((flags & VO_TRUNC) != 0) && ((flags & VO_CREAT) == 0)) {
-      res = f_truncate(&node->file);
-    }
     if (res == FR_OK) {
-      node_mode = translate_mode(node->file.obj.attr);
-    }
-    else {
-      (void)f_close(&node->file);
+      /* Files beyond the offset range cannot be opened.*/
+      if (f_size(&node->file) > (FSIZE_t)INT32_MAX) {
+        ret = CH_RET_EOVERFLOW;
+      }
+      else if (((flags & VO_TRUNC) != 0) && ((flags & VO_CREAT) == 0)) {
+        res = f_truncate(&node->file);
+      }
+      if ((res == FR_OK) && !CH_RET_IS_ERROR(ret)) {
+        node_mode = translate_mode(node->file.obj.attr);
+      }
+      else {
+        (void)f_close(&node->file);
+      }
     }
   }
   ff_unlock();
@@ -1111,8 +1151,11 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
     chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, info);
   }
   if (res != FR_OK) {
+    ret = translate_error(res);
+  }
+  if (CH_RET_IS_ERROR(ret)) {
     chPoolFree(&vfs_fatfs_driver_static.file_nodes_pool, node);
-    return translate_error(res);
+    return ret;
   }
   (void)fffileObjectInit(node, (vfs_fs_c *)self, node_mode, flags);
   *vfnpp = (vfs_file_node_c *)node;

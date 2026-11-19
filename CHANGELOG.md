@@ -490,6 +490,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [VFS] FatFS driver: files of 2 GiB or more are rejected by open and
+  stat with `EOVERFLOW` instead of reporting negative sizes, directory
+  entries saturate the size to `INT32_MAX`, writes stop at `INT32_MAX`
+  with `EFBIG`
+  ([#655](https://github.com/chibios-upstream/chibios/pull/655)).
 - [OOP] `random_stream_i`: `rstmSeek()` takes a signed offset and returns
   the new position or a negative error code, leaving the position unchanged
   on error; new `rstmGetSize()` returns the stream size
