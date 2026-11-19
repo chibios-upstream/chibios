@@ -72,10 +72,10 @@
  * - The names are registered statically, creating returns
  *   @p CH_RET_EROFS, removing, renaming and directory changes return
  *   @p CH_RET_ENOSYS.
- * - Sequential devices have no position and no size. Separate opens of a
- *   random access element share the position of the backend stream.
- *   Writable append and truncation are rejected, the size is reported as
- *   zero.
+ * - Sequential devices have no position and no size. A random access
+ *   element is a device with one position, separate opens share it, its
+ *   size comes from the backend. Writable append and truncation are
+ *   rejected.
  * - Read and write ordering, terminal state and nonblocking behavior are
  *   properties of the device behind the element.
  * .
@@ -162,8 +162,6 @@
  *
  * @section vfs_lim_issues Open issues
  *
- * - Streams driver positions and seek errors:
- *   https://github.com/chibios-upstream/chibios/issues/637
  * - File sizes narrowed to 32 bits without checks:
  *   https://github.com/chibios-upstream/chibios/issues/638
  * - No sync or truncate, close errors discarded:

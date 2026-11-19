@@ -105,7 +105,8 @@ struct random_stream_vmt {
   int (*get)(void *ip);
   int (*unget)(void *ip, int b);
   /* From random_stream_i.*/
-  uint32_t (*seek)(void *ip, uint32_t offset, int whence);
+  int32_t (*seek)(void *ip, int32_t offset, int whence);
+  int32_t (*getsize)(void *ip);
 };
 
 /**
@@ -140,20 +141,36 @@ extern "C" {
  */
 /**
  * @brief       Random Stream seek.
- * @details     This function changes the function read/write offset.
+ * @details     This function changes the stream read/write offset. On failure
+ *              the offset is not changed.
  *
  * @param[in,out] ip            Pointer to a @p random_stream_i instance.
- * @param[in]     offset        The file offset.
+ * @param[in]     offset        The stream offset, relative to the position
+ *                              selected by @p whence.
  * @param[in]     whence        Seek mode.
- * @return                      Upon successful completion, lseek() returns the
- *                              resulting offset location as measured in bytes
- *                              from the beginning of the file.
+ * @return                      The resulting offset, in bytes from the
+ *                              beginning of the stream, or a negative error
+ *                              code.
  */
 CC_FORCE_INLINE
-static inline uint32_t rstmSeek(void *ip, uint32_t offset, int whence) {
+static inline int32_t rstmSeek(void *ip, int32_t offset, int whence) {
   random_stream_i *self = (random_stream_i *)ip;
 
   return self->vmt->seek(ip, offset, whence);
+}
+
+/**
+ * @brief       Random Stream size.
+ *
+ * @param[in,out] ip            Pointer to a @p random_stream_i instance.
+ * @return                      The stream size in bytes or a negative error
+ *                              code.
+ */
+CC_FORCE_INLINE
+static inline int32_t rstmGetSize(void *ip) {
+  random_stream_i *self = (random_stream_i *)ip;
+
+  return self->vmt->getsize(ip);
 }
 /** @} */
 
