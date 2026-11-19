@@ -490,6 +490,14 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [OOP] `random_stream_i`: `rstmSeek()` takes a signed offset and returns
+  the new position or a negative error code, leaving the position unchanged
+  on error; new `rstmGetSize()` returns the stream size
+  ([#654](https://github.com/chibios-upstream/chibios/pull/654)).
+- [VFS] Streams driver: backend seek errors are returned instead of a
+  guessed `ENOTSUP`, stat and directory entries report the size of regular
+  elements
+  ([#654](https://github.com/chibios-upstream/chibios/pull/654)).
 - [VFS] FatFS and ROMFS: positions past the end of file are accepted without
   changing the file, reads there return end of file and the next FatFS
   write fills the gap with zeros; a seek past the end no longer extends a
