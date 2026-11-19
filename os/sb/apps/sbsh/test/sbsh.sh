@@ -38,6 +38,19 @@ sbtest_equals "$output" "$expected" "quote-aware glob expansion"
 output=$("$sbsh_exe" -c "cd $work_dir; echo \"*\"?.mix")
 sbtest_equals "$output" "*a.mix" "mixed quoted glob expansion"
 
+mkdir "$work_dir/sorted"
+for name in zeta.s alpha.s mid.s beta.s; do
+  : >"$work_dir/sorted/$name"
+done
+output=$("$sbsh_exe" -c "cd $work_dir; echo first sorted/*.s last; echo sorted/zz*")
+expected=$(printf 'first sorted/alpha.s sorted/beta.s sorted/mid.s sorted/zeta.s last\nsorted/zz*')
+sbtest_equals "$output" "$expected" "sorted glob expansion"
+
+status=0
+output=$("$sbsh_exe" -c 2>&1) || status=$?
+sbtest_equals "$status" "2" "-c without a command string exit status"
+sbtest_contains "$output" "usage" "-c without a command string usage"
+
 output=$("$sbsh_exe" -c "cd $work_dir; echo first > output; echo second >> output; /bin/cat < output")
 expected=$(printf 'first\nsecond')
 sbtest_equals "$output" "$expected" "file redirection"

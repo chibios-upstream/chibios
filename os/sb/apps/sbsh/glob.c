@@ -73,6 +73,21 @@ static bool wildcard_match(const sbsh_plan_t *plan,
   return (bool)(*pattern == '\0');
 }
 
+/* Sorts the matches of a pattern in place, an insertion sort uses no memory
+   and a pattern matches a few names.*/
+static void sort_matches(char **argv, int n) {
+  int i, j;
+
+  for (i = 1; i < n; i++) {
+    char *p = argv[i];
+
+    for (j = i; (j > 0) && (strcmp(argv[j - 1], p) > 0); j--) {
+      argv[j] = argv[j - 1];
+    }
+    argv[j] = p;
+  }
+}
+
 static void arena_init(sbsh_state_t *state) {
 
 #if defined(SBAPP_NATIVE)
@@ -349,6 +364,9 @@ int sbsh_expand_command(sbsh_state_t *state,
       if (add_argument(state, &argc, word->text) != 0) {
         return -1;
       }
+    }
+    else {
+      sort_matches(&state->expanded_argv[argc - matches], matches);
     }
   }
   state->expanded_argv[argc] = NULL;

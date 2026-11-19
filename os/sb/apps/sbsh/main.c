@@ -464,10 +464,12 @@ int main(int argc, char *argv[]) {
   if (argc == 1) {
     return run_interactive(&state);
   }
-  if ((argc == 3) && (strcmp(argv[1], "-c") == 0)) {
-    return execute_command_string(&state, argv[2]);
+  if ((argc >= 2) && (strcmp(argv[1], "-c") == 0)) {
+    if (argc == 3) {
+      return execute_command_string(&state, argv[2]);
+    }
   }
-  if (argc == 2) {
+  else if (argc == 2) {
     return execute_script(&state, argv[1]);
   }
 
