@@ -299,7 +299,9 @@
  *   and sbWrite(), and the newlib bindings, so the C library I/O functions
  *   work in the guest. sbIsatty() checks whether a descriptor is a
  *   terminal, terminal attributes are handled by sbTcgetattr() and
- *   sbTcsetattr().
+ *   sbTcsetattr(). sbFsync() and sbFtruncate(), @p fsync() and
+ *   @p ftruncate() in the guest library, synchronize and resize files,
+ *   sbClose() returns the error of the flush of a regular file.
  * - The directory records returned by sbGetdents() are defined in the
  *   shared @p dirent.h, host and guest must be built with the same
  *   definitions.

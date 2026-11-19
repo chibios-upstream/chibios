@@ -99,6 +99,8 @@ static msg_t sb_test_call(unsigned op, uintptr_t a, uintptr_t b, uintptr_t c) {
   sb_test_call(SB_POSIX_RENAME, (uintptr_t)(p), (uintptr_t)(q), 0)
 #define sbMkdir(p, m) sb_test_call(SB_POSIX_MKDIR, (uintptr_t)(p), (m), 0)
 #define sbRmdir(p) sb_test_call(SB_POSIX_RMDIR, (uintptr_t)(p), 0, 0)
+#define sbFsync(f) sb_test_call(SB_POSIX_FSYNC, (f), 0, 0)
+#define sbFtruncate(f, n) sb_test_call(SB_POSIX_FTRUNCATE, (f), (uint32_t)(n), 0)
 #define sbGetPid() 1
 #define _open_r sb_test_open_r
 #define _close_r sb_test_close_r
@@ -119,6 +121,8 @@ static msg_t sb_test_call(unsigned op, uintptr_t a, uintptr_t b, uintptr_t c) {
 #define _rename_r sb_test_rename_r
 #define _mkdir_r sb_test_mkdir_r
 #define _rmdir_r sb_test_rmdir_r
+#define _fsync_r sb_test_fsync_r
+#define _ftruncate_r sb_test_ftruncate_r
 #define tcgetattr sb_test_tcgetattr
 #define tcsetattr sb_test_tcsetattr
 #define __heap_base__ sb_test_heap_base
@@ -187,6 +191,8 @@ static int sb_test_close(int fd) {
 #define rename sb_test_rename
 #define mkdir sb_test_mkdir
 #define rmdir sb_test_rmdir
+#define fsync sb_test_fsync
+#define ftruncate sb_test_ftruncate
 #include "../../../os/sb/user/lib/libdir.c"
 #undef malloc
 #undef free
@@ -534,6 +540,19 @@ void vfs_test_sb_native(vfs_fs_c *fsp) {
               _lseek_r(_REENT, fd, 0, SEEK_SET) == 0 &&
               _read_r(_REENT, fd, (char *)bytes, sizeof bytes) == 4 &&
               memcmp(bytes, "seed", 4) == 0, "guest read/write/seek failed");
+  test_assert(ftruncate(fd, 2) == 0 && fsync(fd) == 0 &&
+              _fstat_r(_REENT, fd, &st) == 0 && st.st_size == 2 &&
+              ftruncate(fd, 4) == 0 &&
+              _lseek_r(_REENT, fd, 0, SEEK_CUR) == 4 &&
+              _lseek_r(_REENT, fd, 0, SEEK_SET) == 0 &&
+              _read_r(_REENT, fd, (char *)bytes, sizeof bytes) == 4 &&
+              memcmp(bytes, "se\0\0", 4) == 0 &&
+              _lseek_r(_REENT, fd, 2, SEEK_SET) == 2 &&
+              _write_r(_REENT, fd, "ed", 2) == 2,
+              "guest ftruncate or fsync failed");
+  test_assert(ftruncate(fd, -1) == -1 && errno == EINVAL &&
+              fsync(SB_CFG_FD_NUM) == -1 && errno == EBADF,
+              "guest ftruncate or fsync errors");
   memset(stat_bytes, 0xA5, sizeof stat_bytes);
   test_assert(sbFstat(fd, (void *)(stat_bytes + 1U)) == 0 &&
               stat_bytes[0] == 0xA5, "unaligned guest stat failed");
@@ -574,6 +593,8 @@ void vfs_test_sb_native(vfs_fs_c *fsp) {
   fd = open("/guest", O_RDONLY);
   test_assert(fd == 3 && _write_r(_REENT, fd, NULL, 0) == -1 && errno == EBADF,
               "zero-length write bypassed open access");
+  test_assert(sbFsync(fd) == 0 && sbFtruncate(fd, 0) == CH_RET_EBADF,
+              "read-only descriptor resized");
   test_assert(close(fd) == 0, "readonly close failed");
 
   test_assert(mkdir("/guestdir", 0700) == 0, "guest mkdir failed");

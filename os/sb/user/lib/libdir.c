@@ -149,4 +149,16 @@ int rmdir(const char *path) {
   return _rmdir_r(_REENT, path);
 }
 
+int fsync(int fd) {
+  extern int _fsync_r(struct _reent *r, int fd);
+
+  return _fsync_r(_REENT, fd);
+}
+
+int ftruncate(int fd, off_t length) {
+  extern int _ftruncate_r(struct _reent *r, int fd, off_t length);
+
+  return _ftruncate_r(_REENT, fd, length);
+}
+
 /*** EOF ***/
