@@ -163,11 +163,41 @@ static msg_t translate_error(enum lfs_error res) {
   return msg;
 }
 
+/* Metadata pairs sharing a block, the blocks of a pair swap roles.*/
+static bool is_same_pair(const lfs_block_t a[2], const lfs_block_t b[2]) {
+
+  return (a[0] == b[0]) || (a[0] == b[1]) ||
+         (a[1] == b[0]) || (a[1] == b[1]);
+}
+
+/*
+ * LittleFS keeps the metadata pair and the identifier of each open file
+ * updated, they identify its entry.
+ */
+static bool is_same_file(const struct lfs_mlist *mp, const lfs_file_t *fp) {
+
+  return ((const lfs_file_t *)mp != fp) &&
+         (mp->type == (uint8_t)LFS_TYPE_REG) && (mp->id == fp->id) &&
+         is_same_pair(mp->m.pair, fp->m.pair);
+}
+
+static bool has_open_handles(const vfs_littlefs_driver_c *drvp,
+                             enum lfs_type type) {
+  const struct lfs_mlist *mp;
+
+  for (mp = drvp->lfs.mlist; mp != NULL; mp = mp->next) {
+    if (mp->type == (uint8_t)type) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /*
  * Checks a newly opened file against the other files open on the same
  * instance, a file can be open by any number of readers or by a single
- * writer. LittleFS keeps the metadata pair and the identifier of each open
- * file updated, removed and renamed entries get a null pair and never match.
+ * writer.
  */
 static bool is_open_conflict(const vfs_littlefs_driver_c *drvp,
                              const lfs_file_t *fp) {
@@ -175,20 +205,90 @@ static bool is_open_conflict(const vfs_littlefs_driver_c *drvp,
   bool writer = (fp->flags & (uint32_t)LFS_O_WRONLY) != 0U;
 
   for (mp = drvp->lfs.mlist; mp != NULL; mp = mp->next) {
-    const lfs_file_t *op = (const lfs_file_t *)mp;
-
-    if ((op != fp) && (mp->type == (uint8_t)LFS_TYPE_REG) &&
-        (mp->id == fp->id) &&
-        ((mp->m.pair[0] == fp->m.pair[0]) ||
-         (mp->m.pair[0] == fp->m.pair[1]) ||
-         (mp->m.pair[1] == fp->m.pair[0]) ||
-         (mp->m.pair[1] == fp->m.pair[1])) &&
-        (writer || ((op->flags & (uint32_t)LFS_O_WRONLY) != 0U))) {
+    if (is_same_file(mp, fp) &&
+        (writer ||
+         ((((const lfs_file_t *)mp)->flags & (uint32_t)LFS_O_WRONLY) != 0U))) {
       return true;
     }
   }
 
   return false;
+}
+
+/*
+ * Removing or replacing an open file would detach its handles, data
+ * written through them would be lost and its blocks reused. LittleFS has
+ * no public lookup of an entry, a temporary read-only handle finds it, it
+ * writes nothing and allocates a cache buffer. Paths that are not files
+ * are accepted, the native operation reports them.
+ */
+static msg_t check_file_not_open(vfs_littlefs_driver_c *self,
+                                 const char *path) {
+  const struct lfs_mlist *mp;
+  lfs_file_t file;
+  bool open = false;
+  int res;
+
+  if (!has_open_handles(self, LFS_TYPE_REG)) {
+    return CH_RET_SUCCESS;
+  }
+  res = lfs_file_open(&self->lfs, &file, path, LFS_O_RDONLY);
+  if (res == LFS_ERR_OK) {
+    for (mp = self->lfs.mlist; mp != NULL; mp = mp->next) {
+      if (is_same_file(mp, &file)) {
+        open = true;
+        break;
+      }
+    }
+    res = lfs_file_close(&self->lfs, &file);
+  }
+  else if ((res == LFS_ERR_NOENT) || (res == LFS_ERR_ISDIR)) {
+    res = LFS_ERR_OK;
+  }
+  if ((res == LFS_ERR_OK) && open) {
+    return CH_RET_EBUSY;
+  }
+
+  return translate_error(res);
+}
+
+/*
+ * Removing or replacing an open directory would leave its handles reading
+ * released metadata blocks, renaming it keeps them valid. Directory handles
+ * are identified by the first pair of the directory. Paths that are not
+ * directories and the root are accepted, the native operation reports
+ * them.
+ */
+static msg_t check_dir_not_open(vfs_littlefs_driver_c *self,
+                                const char *path) {
+  const struct lfs_mlist *mp;
+  lfs_dir_t dir;
+  bool open = false;
+  int res;
+
+  if ((path[1] == '\0') || !has_open_handles(self, LFS_TYPE_DIR)) {
+    return CH_RET_SUCCESS;
+  }
+  res = lfs_dir_open(&self->lfs, &dir, path);
+  if (res == LFS_ERR_OK) {
+    for (mp = self->lfs.mlist; mp != NULL; mp = mp->next) {
+      if (((const lfs_dir_t *)mp != &dir) &&
+          (mp->type == (uint8_t)LFS_TYPE_DIR) &&
+          is_same_pair(((const lfs_dir_t *)mp)->head, dir.head)) {
+        open = true;
+        break;
+      }
+    }
+    res = lfs_dir_close(&self->lfs, &dir);
+  }
+  else if ((res == LFS_ERR_NOENT) || (res == LFS_ERR_NOTDIR)) {
+    res = LFS_ERR_OK;
+  }
+  if ((res == LFS_ERR_OK) && open) {
+    return CH_RET_EBUSY;
+  }
+
+  return translate_error(res);
 }
 
 static void stat_set_block_size(const vfs_littlefs_driver_c *drvp,
@@ -968,14 +1068,20 @@ msg_t __lfsdrv_unlink_impl(void *ip, const char *path) {
   }
   lfsdrv_lock(self);
   res = self->mounted ? lfs_stat(&self->lfs, path, info) : LFS_ERR_IO;
-  if (res == LFS_ERR_OK) {
-    res = info->type == LFS_TYPE_DIR ? LFS_ERR_ISDIR :
-          lfs_remove(&self->lfs, path);
+  if ((res == LFS_ERR_OK) && (info->type == LFS_TYPE_DIR)) {
+    res = LFS_ERR_ISDIR;
+  }
+  ret = translate_error(res);
+  if (!CH_RET_IS_ERROR(ret)) {
+    ret = check_file_not_open(self, path);
+  }
+  if (!CH_RET_IS_ERROR(ret)) {
+    ret = translate_error(lfs_remove(&self->lfs, path));
   }
   lfsdrv_unlock(self);
   chPoolFree(&vfs_littlefs_driver_static.info_nodes_pool, info);
 
-  return translate_error(res);
+  return ret;
 }
 
 /**
@@ -991,7 +1097,6 @@ msg_t __lfsdrv_unlink_impl(void *ip, const char *path) {
  */
 msg_t __lfsdrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
   vfs_littlefs_driver_c *self = (vfs_littlefs_driver_c *)ip;
-  int res;
   msg_t ret;
 
   ret = validate_absolute_path(oldpath);
@@ -999,10 +1104,26 @@ msg_t __lfsdrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
   ret = validate_absolute_path(newpath);
   CH_RETURN_ON_ERROR(ret);
   lfsdrv_lock(self);
-  res = self->mounted ? lfs_rename(&self->lfs, oldpath, newpath) : LFS_ERR_IO;
+  if (!self->mounted) {
+    ret = translate_error(LFS_ERR_IO);
+  }
+  else if (strcmp(oldpath, newpath) != 0) {
+    /* An open file is not renamed, an open file or directory is not
+       replaced. A renamed directory keeps its open handles valid.*/
+    ret = check_file_not_open(self, oldpath);
+    if (!CH_RET_IS_ERROR(ret)) {
+      ret = check_file_not_open(self, newpath);
+    }
+    if (!CH_RET_IS_ERROR(ret)) {
+      ret = check_dir_not_open(self, newpath);
+    }
+  }
+  if (!CH_RET_IS_ERROR(ret)) {
+    ret = translate_error(lfs_rename(&self->lfs, oldpath, newpath));
+  }
   lfsdrv_unlock(self);
 
-  return translate_error(res);
+  return ret;
 }
 
 /**
@@ -1058,14 +1179,20 @@ msg_t __lfsdrv_rmdir_impl(void *ip, const char *path) {
   }
   lfsdrv_lock(self);
   res = self->mounted ? lfs_stat(&self->lfs, path, info) : LFS_ERR_IO;
-  if (res == LFS_ERR_OK) {
-    res = info->type != LFS_TYPE_DIR ? LFS_ERR_NOTDIR :
-          lfs_remove(&self->lfs, path);
+  if ((res == LFS_ERR_OK) && (info->type != LFS_TYPE_DIR)) {
+    res = LFS_ERR_NOTDIR;
+  }
+  ret = translate_error(res);
+  if (!CH_RET_IS_ERROR(ret)) {
+    ret = check_dir_not_open(self, path);
+  }
+  if (!CH_RET_IS_ERROR(ret)) {
+    ret = translate_error(lfs_remove(&self->lfs, path));
   }
   lfsdrv_unlock(self);
   chPoolFree(&vfs_littlefs_driver_static.info_nodes_pool, info);
 
-  return translate_error(res);
+  return ret;
 }
 /** @} */
 
