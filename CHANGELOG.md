@@ -498,7 +498,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 - [VFS] LittleFS driver: removing, renaming or replacing by a rename an
   open file, and removing or replacing an open directory, return `EBUSY`
   instead of detaching the open handles and losing their writes
-  ([#660](https://github.com/chibios-upstream/chibios/pull/660)).
+  ([#660](https://github.com/chibios-upstream/chibios/pull/660))
+  *(backported to 21.11.6)*.
 - [VFS] Newlib and sandbox `stat()`/`fstat()` report the permission bits, a
   link count of 1 and, when the file system provides them, the block size,
   the allocated blocks and the modification time; opened FatFS files report
