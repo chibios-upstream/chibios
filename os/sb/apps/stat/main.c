@@ -51,7 +51,10 @@ static const char *file_type(mode_t mode) {
   return "unknown";
 }
 
+/* Fields the file system does not provide are zero, a zero time is
+   printed as "-".*/
 static int show_path(const char *path) {
+  char modebuf[CMD_MODE_SIZE], timebuf[CMD_TIME_SIZE];
   struct stat st;
 
   if (stat(path, &st) < 0) {
@@ -59,12 +62,28 @@ static int show_path(const char *path) {
     return 1;
   }
 
-  printf("%s %04lo %ld %s%s",
-         file_type(st.st_mode),
-         (unsigned long)st.st_mode & 07777UL,
-         (long)st.st_size,
-         path,
-         CMD_NEWLINE_STR);
+  cmdFormatMode(st.st_mode, modebuf);
+  if (st.st_mtime != (time_t)0) {
+    cmdFormatTime(st.st_mtime, true, timebuf);
+    strcat(timebuf, " UTC");
+  }
+  else {
+    strcpy(timebuf, "-");
+  }
+
+  printf("  File: %s%s", path, CMD_NEWLINE_STR);
+  printf("  Type: %s%s", file_type(st.st_mode), CMD_NEWLINE_STR);
+  printf("  Mode: %04lo (%s)  Links: %lu%s",
+         (unsigned long)st.st_mode & 07777UL, modebuf,
+         (unsigned long)st.st_nlink, CMD_NEWLINE_STR);
+#if defined(__MINGW32__)
+  printf("  Size: %ld%s", (long)st.st_size, CMD_NEWLINE_STR);
+#else
+  printf("  Size: %ld  Blocks: %lu  IO Block: %lu%s",
+         (long)st.st_size, (unsigned long)st.st_blocks,
+         (unsigned long)st.st_blksize, CMD_NEWLINE_STR);
+#endif
+  printf("Modify: %s%s", timebuf, CMD_NEWLINE_STR);
 
   return 0;
 }
