@@ -106,6 +106,7 @@ void vfs_test_fs_reset(void);
 void vfs_test_open_matrix(vfs_fs_c *fsp);
 void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs);
 void vfs_test_open_conflicts(vfs_fs_c *fsp, bool fatfs);
+void vfs_test_seek_past_end(vfs_fs_c *fsp);
 #if defined(VFS_TEST_SB)
 #include "sb_test.h"
 #endif

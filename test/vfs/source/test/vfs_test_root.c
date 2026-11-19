@@ -511,10 +511,11 @@ void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
                 CH_RET_EOVERFLOW &&
               vfsFileSetPosition(fnp, 0, 123) == CH_RET_EINVAL &&
               vfsFileGetPosition(fnp) == 3, "invalid seek changed position");
-  test_assert(vfsFileSetPosition(fnp, 8, VFS_SEEK_SET) ==
-                (fatfs ? CH_ENCODE_ERROR(ENOTSUP) : 0) &&
-              vfsFileGetPosition(fnp) == (fatfs ? 3 : 8),
-              "beyond EOF seek silently clamped");
+  test_assert(vfsFileSetPosition(fnp, 8, VFS_SEEK_SET) == 0 &&
+              vfsFileGetPosition(fnp) == 8 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 0 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 4,
+              "beyond EOF seek clamped or changed the file");
   (void)roRelease(fnp);
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
   (void)vfsrootObjectInit(&root, fsp, NULL);
@@ -535,12 +536,10 @@ void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
               vfsFileRead(fnp, bytes, sizeof bytes) == 6 &&
               memcmp(bytes, "abcdxy", 6) == 0,
               "append data or short transfer incorrect");
-  if (!fatfs) {
-    test_assert(vfsFileSetPosition(fnp, 12, VFS_SEEK_SET) == 0 &&
-                vfsFileWrite(fnp, (const uint8_t *)"z", 1) == 1 &&
-                vfsNodeStat(np, &st) == 0 && st.size == 7,
-                "append after beyond EOF seek created a hole");
-  }
+  test_assert(vfsFileSetPosition(fnp, 12, VFS_SEEK_SET) == 0 &&
+              vfsFileWrite(fnp, (const uint8_t *)"z", 1) == 1 &&
+              vfsNodeStat(np, &st) == 0 && st.size == 7,
+              "append after beyond EOF seek created a hole");
   (void)roRelease(np);
 #if !defined(OOP_USE_NOTHING)
   test_assert(vfsRootOpen(&root, "/handle", VO_WRONLY | VO_TRUNC, &np) == 0,
@@ -568,12 +567,11 @@ void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
               vfsIORead(&io, duplicate, bytes, sizeof bytes) == 6 &&
               memcmp(bytes, "abcdxy", 6) == 0,
               "shared append data or short transfer incorrect");
-  if (!fatfs) {
-    test_assert(vfsIOSeek(&io, duplicate, 12, VFS_SEEK_SET) == 12 &&
-                vfsIOWrite(&io, fd, (const uint8_t *)"z", 1) == 1 &&
-                vfsIOFstat(&io, fd, &st) == 0 && st.size == 7,
-                "descriptor append after beyond EOF seek created a hole");
-  }
+  test_assert(vfsIOSeek(&io, duplicate, 12, VFS_SEEK_SET) == 12 &&
+              vfsIOTell(&io, fd) == 12 &&
+              vfsIOWrite(&io, fd, (const uint8_t *)"z", 1) == 1 &&
+              vfsIOFstat(&io, fd, &st) == 0 && st.size == 7,
+              "descriptor append after beyond EOF seek created a hole");
   boDispose(&io);
 #endif
   vfs_test_fs_reset();
@@ -688,6 +686,66 @@ void vfs_test_open_conflicts(vfs_fs_c *fsp, bool fatfs) {
   vfsNodeClose(a);
   test_assert(vfsFSUnlink(fsp, "/two") == 0 &&
               vfsFSUnlink(fsp, "/other") == 0, "conflict cleanup failed");
+}
+
+void vfs_test_seek_past_end(vfs_fs_c *fsp) {
+  vfs_file_node_c *fnp;
+  vfs_stat_t st;
+  uint8_t bytes[16];
+  unsigned i;
+
+  /* A position past the end changes neither the size nor the content.*/
+  test_assert(vfsFSOpenFile(fsp, "/gap", VO_CREAT | VO_TRUNC | VO_RDWR,
+                            &fnp) == 0 &&
+              vfsFileWrite(fnp, (const uint8_t *)"ab", 2) == 2,
+              "gap file creation failed");
+  test_assert(vfsFileSetPosition(fnp, 4, VFS_SEEK_CUR) == 0 &&
+              vfsFileGetPosition(fnp) == 6 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 2 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 0 &&
+              vfsFileGetPosition(fnp) == 6 &&
+              vfsFileWrite(fnp, bytes, 0U) == 0 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 2,
+              "position past the end changed the file");
+  test_assert(vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 2 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 2,
+              "moving back changed the file");
+
+  /* A write fills the gap with zeros.*/
+  test_assert(vfsFileSetPosition(fnp, 6, VFS_SEEK_SET) == 0 &&
+              vfsFileSetPosition(fnp, 0, VFS_SEEK_CUR) == 0 &&
+              vfsFileGetPosition(fnp) == 6 &&
+              vfsFileWrite(fnp, (const uint8_t *)"z", 1) == 1 &&
+              vfsFileGetPosition(fnp) == 7 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 7,
+              "write past the end failed");
+  test_assert(vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 7 &&
+              memcmp(bytes, "ab\0\0\0\0z", 7) == 0,
+              "gap not filled with zeros");
+
+  /* A gap spanning several sectors.*/
+  test_assert(vfsFileSetPosition(fnp, 1200, VFS_SEEK_END) == 0 &&
+              vfsFileWrite(fnp, (const uint8_t *)"e", 1) == 1 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 1208,
+              "large gap write failed");
+  for (i = 7U; i < 1207U; i += (unsigned)sizeof bytes) {
+    size_t n = (1207U - i) < sizeof bytes ? (1207U - i) : sizeof bytes;
+    size_t j;
+
+    test_assert(vfsFileSetPosition(fnp, (vfs_offset_t)i,
+                                   VFS_SEEK_SET) == 0 &&
+                vfsFileRead(fnp, bytes, n) == (ssize_t)n,
+                "large gap read failed");
+    for (j = 0U; j < n; j++) {
+      test_assert(bytes[j] == 0U, "large gap not filled with zeros");
+    }
+  }
+  test_assert(vfsFileRead(fnp, bytes, sizeof bytes) == 1 &&
+              bytes[0] == 'e', "data after the gap lost");
+  vfsNodeClose(fnp);
+  test_assert(vfsFSUnlink(fsp, "/gap") == 0, "gap cleanup failed");
 }
 
 #if defined(VFS_TEST_NEWLIB) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)

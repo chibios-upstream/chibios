@@ -445,6 +445,7 @@ static const testcase_t vfs_test_004_002 = {
  * <h2>Test Steps</h2>
  * - [4.3.1] POSIX open flag matrix.
  * - [4.3.2] Conflicting opens.
+ * - [4.3.3] Positions past the end of file.
  * .
  */
 
@@ -489,6 +490,13 @@ static void vfs_test_004_003_execute(void) {
     vfs_test_open_conflicts((vfs_fs_c *)&vfs_test_lfs_driver, false);
   }
   test_end_step(2);
+
+  /* [4.3.3] Positions past the end of file.*/
+  test_set_step(3);
+  {
+    vfs_test_seek_past_end((vfs_fs_c *)&vfs_test_lfs_driver);
+  }
+  test_end_step(3);
 }
 
 static const testcase_t vfs_test_004_003 = {

@@ -157,16 +157,16 @@
  *   exceeding @p SSIZE_MAX return @p CH_RET_EINVAL;
  * - the initial position is zero, also with @p VO_APPEND. Each append write
  *   is positioned at the end of file within the same driver operation, also
- *   after a seek and, on LittleFS, after a seek beyond the end of file.
+ *   after a seek beyond the end of file.
  * .
  * Seek targets are computed with overflow checks, a negative target returns
  * @p CH_RET_EINVAL and a target outside the @p vfs_offset_t range returns
- * @p CH_RET_EOVERFLOW, these rejections leave the position unchanged. ROMFS and
- * read-only FatFS files reject positions past the end of file with
- * @c ENOTSUP. A seek past the end extends a writable FatFS file,
- * @p CH_RET_ENOSPC when the volume is full, LittleFS allows positions past the
- * end. A random stream that cannot reach the target returns @c ENOTSUP and is
- * moved back to its previous position when the backend allows it.
+ * @p CH_RET_EOVERFLOW, these rejections leave the position unchanged. FatFS,
+ * LittleFS and ROMFS files accept positions past the end of file without
+ * changing the file: reads there return end of file and the next write fills
+ * the gap with zeros, @p CH_RET_ENOSPC when the volume is full. A random
+ * stream that cannot reach the target returns @c ENOTSUP and is moved back to
+ * its previous position when the backend allows it.
  *
  * Read-only file systems return @p CH_RET_EROFS for write access and for the
  * creation of a missing file, a read-only open of an existing file with

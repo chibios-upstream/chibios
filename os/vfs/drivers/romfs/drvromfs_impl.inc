@@ -1031,9 +1031,7 @@ static msg_t __romfile_setpos_impl(void *ip, vfs_offset_t offset,
   ret = __vfs_seek_target(offset, whence, (uint64_t)self->position,
                           (uint64_t)self->size, &target);
   CH_RETURN_ON_ERROR(ret);
-  if (target > self->size) {
-    return CH_ENCODE_ERROR(ENOTSUP);
-  }
+  /* Positions past the end of file read as end of file.*/
   self->position = target;
 
   return CH_RET_SUCCESS;

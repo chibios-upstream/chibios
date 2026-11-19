@@ -176,6 +176,11 @@ struct vfs_fatfs_file_node {
    * @brief       FatFS inner @p FIL structure.
    */
   FIL                       file;
+  /**
+   * @brief       Position set past the end of file, zero when the native
+   *              position applies.
+   */
+  vfs_offset_t              seekpos;
 };
 /** @} */
 
