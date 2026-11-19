@@ -278,6 +278,30 @@ int _rename_r(struct _reent *r,
   return 0;
 }
 
+int _fsync_r(struct _reent *r, int fd) {
+  msg_t err;
+
+  err = sbFsync(fd);
+  if (CH_RET_IS_ERROR(err)) {
+    __errno_r(r) = CH_DECODE_ERROR(err);
+    return -1;
+  }
+
+  return 0;
+}
+
+int _ftruncate_r(struct _reent *r, int fd, off_t length) {
+  msg_t err;
+
+  err = sbFtruncate(fd, length);
+  if (CH_RET_IS_ERROR(err)) {
+    __errno_r(r) = CH_DECODE_ERROR(err);
+    return -1;
+  }
+
+  return 0;
+}
+
 int _mkdir_r(struct _reent *r, const char *path, mode_t mode) {
   msg_t err;
 

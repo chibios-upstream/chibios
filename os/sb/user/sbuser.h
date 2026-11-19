@@ -598,6 +598,33 @@ static inline msg_t sbSeek(int fd, off_t offset, int whence) {
 }
 
 /**
+ * @brief   Posix-style file synchronization.
+ *
+ * @param[in] fd        file descriptor
+ * @return              Operation result.
+ */
+static inline msg_t sbFsync(int fd) {
+
+  __syscall2r(SB_SYSC_POSIX, SB_POSIX_FSYNC, fd);
+  return (msg_t)r0;
+}
+
+/**
+ * @brief   Posix-style file size change.
+ * @note    The file position is not changed, a longer size extends the
+ *          file with zeros.
+ *
+ * @param[in] fd        file descriptor open for writing
+ * @param[in] length    new file size
+ * @return              Operation result.
+ */
+static inline msg_t sbFtruncate(int fd, off_t length) {
+
+  __syscall3r(SB_SYSC_POSIX, SB_POSIX_FTRUNCATE, fd, length);
+  return (msg_t)r0;
+}
+
+/**
  * @brief   Posix-style directory read.
  * @param[in] fd        file descriptor
  * @param[in] buf       buffer pointer

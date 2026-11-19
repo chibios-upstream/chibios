@@ -239,6 +239,17 @@ static uint32_t sb_io_lseek(sb_class_t *sbp, int fd, int32_t offset,
                              (vfs_offset_t)offset, (vfs_seekmode_t)whence);
 }
 
+static uint32_t sb_io_fsync(sb_class_t *sbp, int fd) {
+
+  return (uint32_t)vfsIOSync(&sbp->io.context, fd);
+}
+
+static uint32_t sb_io_ftruncate(sb_class_t *sbp, int fd, int32_t length) {
+
+  return (uint32_t)vfsIOTruncate(&sbp->io.context, fd,
+                                 (vfs_offset_t)length);
+}
+
 static uint32_t sb_io_getdents(sb_class_t *sbp, int fd, void *buf,
                                size_t count) {
   vfs_node_c *np;
@@ -469,6 +480,12 @@ void sb_sysc_stdio(sb_class_t *sbp, struct port_extctx *ectxp) {
                             (int)ectxp->r1,
                             (int32_t)ectxp->r2,
                             (int)ectxp->r3);
+    break;
+  case SB_POSIX_FSYNC:
+    ectxp->r0 = sb_io_fsync(sbp, (int)ectxp->r1);
+    break;
+  case SB_POSIX_FTRUNCATE:
+    ectxp->r0 = sb_io_ftruncate(sbp, (int)ectxp->r1, (int32_t)ectxp->r2);
     break;
   case SB_POSIX_GETDENTS:
     ectxp->r0 = sb_io_getdents(sbp,
