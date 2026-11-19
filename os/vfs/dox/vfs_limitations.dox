@@ -21,15 +21,13 @@
  *
  * The VFS offers POSIX-like semantics, it does not claim POSIX
  * conformance. This page lists the known limits: those of the file systems
- * and devices below the VFS, the scope of the VFS interfaces, and the open
- * issues.
+ * and devices below the VFS and the scope of the VFS interfaces.
  *
  * - @ref vfs_lim_backends
  * - @ref vfs_lim_api
  * - @ref vfs_lim_paths
  * - @ref vfs_lim_concurrency
  * - @ref vfs_lim_adapters
- * - @ref vfs_lim_issues
  * .
  *
  * @section vfs_lim_backends File systems and devices
@@ -59,8 +57,11 @@
  * - Independent opens of the same file do not share their state, opens
  *   conflicting with a writer are rejected with @p CH_RET_EBUSY.
  *   Duplicated descriptors and independent read-only opens are safe.
- * - Open files can be removed and renamed, their handles are detached and
- *   data written through them afterwards is lost.
+ * - An open file is not removed, renamed or replaced by a rename, an open
+ *   directory is not removed or replaced, @p CH_RET_EBUSY is returned. An
+ *   open directory can be renamed. While files are open, the check opens
+ *   the path on a temporary read-only handle, the allocation of its cache
+ *   buffer can fail with @p CH_RET_ENOMEM.
  * - There are no timestamps, owner or permission information, custom
  *   attributes are not exposed.
  * - Separate instances work on disjoint storage areas, a shared storage
@@ -173,11 +174,5 @@
  *   or rename each other's files. The host does not rename or remove the
  *   prefix directory of a running sandbox, or a directory holding the
  *   current directory of another root.
- * .
- *
- * @section vfs_lim_issues Open issues
- *
- * - LittleFS open files detached by removal and rename:
- *   https://github.com/chibios-upstream/chibios/issues/651
  * .
  */

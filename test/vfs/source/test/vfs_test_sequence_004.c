@@ -445,8 +445,10 @@ static const testcase_t vfs_test_004_002 = {
  * <h2>Test Steps</h2>
  * - [4.3.1] POSIX open flag matrix.
  * - [4.3.2] Conflicting opens.
- * - [4.3.3] Positions past the end of file.
- * - [4.3.4] Synchronization and size changes.
+ * - [4.3.3] Open directories are not removed or replaced, a renamed
+ *   directory keeps its handles.
+ * - [4.3.4] Positions past the end of file.
+ * - [4.3.5] Synchronization and size changes.
  * .
  */
 
@@ -492,19 +494,57 @@ static void vfs_test_004_003_execute(void) {
   }
   test_end_step(2);
 
-  /* [4.3.3] Positions past the end of file.*/
+  /* [4.3.3] Open directories are not removed or replaced, a renamed
+     directory keeps its handles.*/
   test_set_step(3);
   {
-    vfs_test_seek_past_end((vfs_fs_c *)&vfs_test_lfs_driver);
+    static vfs_direntry_info_t entry;
+    vfs_fs_c *fsp = (vfs_fs_c *)&vfs_test_lfs_driver;
+    vfs_directory_node_c *dnp, *other;
+    vfs_file_node_c *fnp;
+
+    test_assert(vfsFSMkdir(fsp, "/empty", VFS_MODE_S_IRWXU) == 0 &&
+                vfsFSMkdir(fsp, "/spare", VFS_MODE_S_IRWXU) == 0 &&
+                vfsFSMkdir(fsp, "/full", VFS_MODE_S_IRWXU) == 0 &&
+                vfsFSOpenFile(fsp, "/full/f", VO_CREAT | VO_WRONLY, &fnp) == 0,
+                "directory fixture failed");
+    vfsNodeClose(fnp);
+    test_assert(vfsFSOpenDirectory(fsp, "/empty", &dnp) == 0,
+                "directory open failed");
+    test_assert(vfsFSRmdir(fsp, "/empty") == CH_RET_EBUSY &&
+                vfsFSRename(fsp, "/spare", "/empty") == CH_RET_EBUSY,
+                "open directory removed or replaced");
+    test_assert(vfsFSOpenDirectory(fsp, "/full", &other) == 0,
+                "second directory open failed");
+    test_assert(vfsFSRename(fsp, "/full", "/moved") == 0 &&
+                vfsDirReadFirst(other, &entry) == 1 &&
+                strcmp(entry.name, "f") == 0 &&
+                vfsDirReadNext(other, &entry) == 0,
+                "renamed directory handle lost");
+    test_assert(vfsFSRmdir(fsp, "/spare") == 0,
+                "closed directory rejected");
+    vfsNodeClose(other);
+    vfsNodeClose(dnp);
+    test_assert(vfsFSRmdir(fsp, "/empty") == 0 &&
+                vfsFSUnlink(fsp, "/moved/f") == 0 &&
+                vfsFSRmdir(fsp, "/moved") == 0,
+                "closed directories rejected");
   }
   test_end_step(3);
 
-  /* [4.3.4] Synchronization and size changes.*/
+  /* [4.3.4] Positions past the end of file.*/
   test_set_step(4);
+  {
+    vfs_test_seek_past_end((vfs_fs_c *)&vfs_test_lfs_driver);
+  }
+  test_end_step(4);
+
+  /* [4.3.5] Synchronization and size changes.*/
+  test_set_step(5);
   {
     vfs_test_sync_truncate((vfs_fs_c *)&vfs_test_lfs_driver);
   }
-  test_end_step(4);
+  test_end_step(5);
 }
 
 static const testcase_t vfs_test_004_003 = {

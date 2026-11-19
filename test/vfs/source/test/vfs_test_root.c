@@ -698,24 +698,38 @@ void vfs_test_open_conflicts(vfs_fs_c *fsp, bool fatfs) {
   test_assert(vfsFSStat(fsp, "/two", &st) == 0 && st.size == 0,
               "truncation lost");
 
-  /* Removal and rename of an open file.*/
+  /* An open file is not removed, renamed or replaced, other files are.
+     FatFS does not replace an existing destination, LittleFS renames a
+     file onto itself without changes.*/
   test_assert(vfsFSOpenFile(fsp, "/two", VO_WRONLY, &a) == 0,
               "writer reopen failed");
-  if (fatfs) {
-    test_assert(vfsFSUnlink(fsp, "/two") == CH_RET_EBUSY &&
-                vfsFSRename(fsp, "/two", "/moved") == CH_RET_EBUSY,
-                "open file removed or renamed");
-  }
-  else {
-    /* A removed file is detached, a new file with the same name is
-       independent of it.*/
-    test_assert(vfsFSUnlink(fsp, "/two") == 0 &&
-                vfsFSOpenFile(fsp, "/two", VO_CREAT | VO_WRONLY, &b) == 0,
-                "removed file still conflicts");
-    vfsNodeClose(b);
-  }
+  test_assert(vfsFileWrite(a, (const uint8_t *)"BB", 2) == 2,
+              "writer data failed");
+  test_assert(vfsFSUnlink(fsp, "/two") == CH_RET_EBUSY &&
+              vfsFSRename(fsp, "/two", "/moved") == CH_RET_EBUSY &&
+              vfsFSRename(fsp, "/other", "/two") ==
+                (fatfs ? CH_RET_EEXIST : CH_RET_EBUSY) &&
+              (fatfs || (vfsFSRename(fsp, "/two", "/two") == 0)),
+              "file open for writing removed, renamed or replaced");
+  test_assert(vfsFSOpenFile(fsp, "/third", VO_CREAT | VO_WRONLY, &c) == 0,
+              "unrelated file create failed");
+  vfsNodeClose(c);
+  test_assert(vfsFSRename(fsp, "/third", "/fourth") == 0 &&
+              vfsFSUnlink(fsp, "/fourth") == 0,
+              "unrelated file rejected");
   vfsNodeClose(a);
-  test_assert(vfsFSUnlink(fsp, "/two") == 0 &&
+  test_assert(vfsFSOpenFile(fsp, "/two", VO_RDONLY, &a) == 0,
+              "reader reopen failed");
+  test_assert(vfsFSUnlink(fsp, "/two") == CH_RET_EBUSY &&
+              vfsFSRename(fsp, "/two", "/moved") == CH_RET_EBUSY,
+              "file open for reading removed or renamed");
+  vfsNodeClose(a);
+
+  /* A closed file is renamed with its data.*/
+  test_assert(vfsFSRename(fsp, "/two", "/moved") == 0 &&
+              vfsFSStat(fsp, "/moved", &st) == 0 && st.size == 2,
+              "data lost by rename");
+  test_assert(vfsFSUnlink(fsp, "/moved") == 0 &&
               vfsFSUnlink(fsp, "/other") == 0, "conflict cleanup failed");
 }
 
