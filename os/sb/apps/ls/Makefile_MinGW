@@ -5,4 +5,7 @@ CONFDIR  := ./cfg/mingw
 BUILDDIR := ./build/mingw
 DEPDIR   := ./.dep/mingw
 
+SBAPP_CSRC := main.c
+
+include ../common/make/cmdutil.mk
 include ../common/make/app-posix-x86.mk
