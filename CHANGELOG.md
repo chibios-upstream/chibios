@@ -8,6 +8,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [VFS] `vfsFileSync()` and `vfsFileTruncate()` file node methods,
+  implemented by the FatFS and LittleFS drivers, `vfsIOSync()` and
+  `vfsIOTruncate()` for descriptors, and `fsync()` and `ftruncate()` in the
+  Newlib bindings
+  ([#656](https://github.com/chibios-upstream/chibios/pull/656)).
 - [VFS] `vfsNodeClose()`, closes a node by releasing the caller reference
   ([#642](https://github.com/chibios-upstream/chibios/pull/642)).
 - [VFS] Newlib bindings: `unlink()`, `rename()` and `mkdir()` through the
@@ -490,6 +495,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [VFS] `vfsIOClose()` and the Newlib `close()` synchronize a regular file
+  before releasing it and return the flush error, the descriptor is closed
+  anyway
+  ([#656](https://github.com/chibios-upstream/chibios/pull/656)).
 - [VFS] FatFS driver: files of 2 GiB or more are rejected by open and
   stat with `EOVERFLOW` instead of reporting negative sizes, directory
   entries saturate the size to `INT32_MAX`, writes stop at `INT32_MAX`
