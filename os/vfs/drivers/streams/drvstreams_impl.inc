@@ -31,6 +31,26 @@ static vfs_mode_t streams_file_mode(const drv_streams_element_t *dsep) {
   return dsep->mode;
 }
 
+/* Size of an element, regular elements report the size of their random
+   stream, the other elements have no size.*/
+static msg_t streams_file_size(const drv_streams_element_t *dsep,
+                               vfs_offset_t *sizep) {
+  int32_t size = 0;
+
+  if (VFS_MODE_S_ISREG(dsep->mode)) {
+    if (dsep->interface.rstream == NULL) {
+      return CH_RET_EIO;
+    }
+    size = rstmGetSize(dsep->interface.rstream);
+    if (size < 0) {
+      return (msg_t)size;
+    }
+  }
+  *sizep = (vfs_offset_t)size;
+
+  return CH_RET_SUCCESS;
+}
+
 static sequential_stream_i *
 streams_file_stream(const drv_streams_element_t *dsep) {
 
@@ -191,7 +211,10 @@ msg_t __stmdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
   if (vsdp->streams[self->index].name != NULL) {
 
     dip->mode = streams_file_mode(&vsdp->streams[self->index]);
-    dip->size = (vfs_offset_t)0;
+    if (CH_RET_IS_ERROR(streams_file_size(&vsdp->streams[self->index],
+                                          &dip->size))) {
+      dip->size = (vfs_offset_t)0;
+    }
     strcpy(dip->name, vsdp->streams[self->index].name);
 
     self->index++;
@@ -283,8 +306,13 @@ void __stmfile_dispose_impl(void *ip) {
  * @return                      The operation result.
  */
 msg_t __stmfile_stat_impl(void *ip, vfs_stat_t *sp) {
+  vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
+  msg_t ret;
 
-  return __vfsnode_stat_impl(ip, sp);
+  ret = __vfsnode_stat_impl(ip, sp);
+  CH_RETURN_ON_ERROR(ret);
+
+  return streams_file_size(self->element, &sp->size);
 }
 
 /**
@@ -349,7 +377,7 @@ msg_t __stmfile_setpos_impl(void *ip, vfs_offset_t offset,
                             vfs_seekmode_t whence) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
   random_stream_i *rstream;
-  uint32_t current, size, result;
+  int32_t current, size, result;
   vfs_offset_t target;
   msg_t ret;
 
@@ -364,18 +392,25 @@ msg_t __stmfile_setpos_impl(void *ip, vfs_offset_t offset,
   if (rstream == NULL) {
     return CH_RET_EIO;
   }
-  current = rstmSeek(rstream, 0U, RSTM_SEEK_CUR);
-  size = 0U;
-  if (whence == VFS_SEEK_END) {
-    size = rstmSeek(rstream, 0U, RSTM_SEEK_END);
-    (void)rstmSeek(rstream, current, RSTM_SEEK_SET);
+  current = rstmSeek(rstream, 0, RSTM_SEEK_CUR);
+  if (current < 0) {
+    return (msg_t)current;
   }
-  ret = __vfs_seek_target(offset, whence, current, size, &target);
+  size = 0;
+  if (whence == VFS_SEEK_END) {
+    size = rstmGetSize(rstream);
+    if (size < 0) {
+      return (msg_t)size;
+    }
+  }
+  ret = __vfs_seek_target(offset, whence, (uint64_t)current, (uint64_t)size,
+                          &target);
   CH_RETURN_ON_ERROR(ret);
-  result = rstmSeek(rstream, (uint32_t)target, RSTM_SEEK_SET);
-  if (result != (uint32_t)target) {
-    (void)rstmSeek(rstream, current, RSTM_SEEK_SET);
-    return CH_ENCODE_ERROR(ENOTSUP);
+
+  /* The backend reports a target it cannot reach and keeps its position.*/
+  result = rstmSeek(rstream, (int32_t)target, RSTM_SEEK_SET);
+  if (result < 0) {
+    return (msg_t)result;
   }
 
   return CH_RET_SUCCESS;
@@ -394,7 +429,6 @@ msg_t __stmfile_setpos_impl(void *ip, vfs_offset_t offset,
 vfs_offset_t __stmfile_getpos_impl(void *ip) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
   random_stream_i *rstream;
-  uint32_t position;
 
   if ((self->element->mode & VFS_MODE_S_IFMT) != VFS_MODE_S_IFREG) {
     return CH_RET_ESPIPE;
@@ -405,9 +439,8 @@ vfs_offset_t __stmfile_getpos_impl(void *ip) {
     return CH_RET_EIO;
   }
 
-  position = rstmSeek(rstream, 0U, RSTM_SEEK_CUR);
-
-  return position > INT32_MAX ? CH_RET_EOVERFLOW : (vfs_offset_t)position;
+  /* Position or backend error.*/
+  return (vfs_offset_t)rstmSeek(rstream, 0, RSTM_SEEK_CUR);
 }
 
 /**
@@ -612,7 +645,7 @@ msg_t __stmdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
       if (strncmp(fname, dsep->name, VFS_CFG_NAMELEN_MAX) == 0) {
 
         sp->mode = streams_file_mode(dsep);
-        return CH_RET_SUCCESS;
+        return streams_file_size(dsep, &sp->size);
       }
 
       dsep++;

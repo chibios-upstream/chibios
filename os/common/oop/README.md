@@ -606,9 +606,9 @@ Every interface method in the flattened interface method list must have a
 matching `<method shortname="...">` inside the `<if>` block. Missing entries
 generate `NULL /* Missing implementation.*/` in the interface VMT.
 
-VFS file nodes are a practical example: `vfs_file_node` implements
-`random_stream` by adapting stream methods to file-node methods such as
-`vfsFileRead()`, `vfsFileWrite()`, and `vfsFileSetPosition()`.
+The example adapts stream methods to VFS file-node methods such as
+`vfsFileRead()`, `vfsFileWrite()` and `vfsFileSetPosition()`, as the
+21.11.x VFS file nodes did.
 
 Conditional interface implementation is supported:
 

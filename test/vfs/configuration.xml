@@ -1580,25 +1580,52 @@ static size_t vfs_test_stream_read(void *ip, uint8_t *bp, size_t n) {
   return 0U;
 }
 
-static uint32_t vfs_test_stream_position;
-static uint32_t vfs_test_stream_limit = UINT32_MAX;
+static int32_t vfs_test_stream_position;
+static int32_t vfs_test_stream_limit = 64;
+static msg_t vfs_test_stream_seek_error = CH_RET_SUCCESS;
+static msg_t vfs_test_stream_size_error = CH_RET_SUCCESS;
 
-static uint32_t vfs_test_stream_seek(void *ip, uint32_t offset, int whence) {
+/* Backend with a fixed size, it rejects positions past the end.*/
+static int32_t vfs_test_stream_seek(void *ip, int32_t offset, int whence) {
+  int64_t target;
 
   (void)ip;
 
+  if (CH_RET_IS_ERROR(vfs_test_stream_seek_error)) {
+    return (int32_t)vfs_test_stream_seek_error;
+  }
   if (whence == RSTM_SEEK_SET) {
-    vfs_test_stream_position = offset > vfs_test_stream_limit ?
-                               vfs_test_stream_limit : offset;
+    target = (int64_t)offset;
   }
   else if (whence == RSTM_SEEK_CUR) {
-    vfs_test_stream_position += offset;
+    target = (int64_t)vfs_test_stream_position + (int64_t)offset;
   }
   else if (whence == RSTM_SEEK_END) {
-    vfs_test_stream_position = vfs_test_stream_limit;
+    target = (int64_t)vfs_test_stream_limit + (int64_t)offset;
   }
+  else {
+    return (int32_t)CH_RET_EINVAL;
+  }
+  if (target < 0) {
+    return (int32_t)CH_RET_EINVAL;
+  }
+  if (target > (int64_t)vfs_test_stream_limit) {
+    return (int32_t)CH_ENCODE_ERROR(ENOTSUP);
+  }
+  vfs_test_stream_position = (int32_t)target;
 
   return vfs_test_stream_position;
+}
+
+static int32_t vfs_test_stream_getsize(void *ip) {
+
+  (void)ip;
+
+  if (CH_RET_IS_ERROR(vfs_test_stream_size_error)) {
+    return (int32_t)vfs_test_stream_size_error;
+  }
+
+  return vfs_test_stream_limit;
 }
 
 static unsigned vfs_test_tty_drains;
@@ -1630,7 +1657,8 @@ static const struct random_stream_vmt vfs_test_random_stream_vmt = {
   .instance_offset = 0U,
   .write = vfs_test_stream_write,
   .read = vfs_test_stream_read,
-  .seek = vfs_test_stream_seek
+  .seek = vfs_test_stream_seek,
+  .getsize = vfs_test_stream_getsize
 };
 
 static const struct tty_vmt vfs_test_tty_vmt = {
@@ -2047,6 +2075,11 @@ ret = vfsFSStat(&streams, "/file", &stat);
 test_assert(ret == CH_RET_SUCCESS, "random stream stat failed");
 test_assert(stat.mode == (VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR),
             "random stream mode changed");
+test_assert(stat.size == (vfs_offset_t)64, "random stream size lost");
+vfs_test_stream_size_error = CH_RET_EIO;
+ret = vfsFSStat(&streams, "/file", &stat);
+vfs_test_stream_size_error = CH_RET_SUCCESS;
+test_assert(ret == CH_RET_EIO, "random stream size error lost");
 ret = vfsFSStat(&streams, "/tty", &stat);
 test_assert(ret == CH_RET_SUCCESS, "TTY stat failed");
 test_assert(stat.mode ==
@@ -2126,29 +2159,42 @@ test_assert(vfsFileGetPosition(fnp) == CH_RET_ESPIPE,
             "FIFO position reported");
 (void)roRelease(fnp);
 
-vfs_test_stream_position = 0U;
+vfs_test_stream_position = 0;
 ret = vfsFSOpenFile(&streams, "/file", VO_RDONLY, &fnp);
 test_assert(ret == CH_RET_SUCCESS, "random stream open failed");
 ret = vfsFileSetPosition(fnp, 7, VFS_SEEK_SET);
 test_assert(ret == CH_RET_SUCCESS, "random stream seek failed");
 test_assert(vfsFileGetPosition(fnp) == (vfs_offset_t)7,
             "random stream position changed");
-vfs_test_stream_limit = 16U;
+vfs_test_stream_limit = 16;
 test_assert(vfsFileSetPosition(fnp, -2, VFS_SEEK_CUR) == 0 &&
             vfsFileGetPosition(fnp) == 5 &&
             vfsFileSetPosition(fnp, -2, VFS_SEEK_END) == 0 &&
             vfsFileGetPosition(fnp) == 14, "stream signed seek failed");
+test_assert(vfsNodeStat(fnp, &stat) == CH_RET_SUCCESS &&
+            stat.size == (vfs_offset_t)16, "random stream node size lost");
 test_assert(vfsFileSetPosition(fnp, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
             vfsFileSetPosition(fnp, INT32_MAX, VFS_SEEK_CUR) ==
               CH_RET_EOVERFLOW &&
             vfsFileSetPosition(fnp, 17, VFS_SEEK_SET) ==
               CH_ENCODE_ERROR(ENOTSUP) &&
-            vfsFileGetPosition(fnp) == 14, "stream seek clamped silently");
-vfs_test_stream_position = UINT32_MAX;
-test_assert(vfsFileGetPosition(fnp) == CH_RET_EOVERFLOW,
-            "stream tell narrowed overflowing position");
-vfs_test_stream_position = 0U;
-vfs_test_stream_limit = UINT32_MAX;
+            vfsFileGetPosition(fnp) == 14, "stream seek error lost");
+
+/* Backend errors are reported, the position is unchanged.*/
+vfs_test_stream_seek_error = CH_RET_EIO;
+test_assert(vfsFileGetPosition(fnp) == CH_RET_EIO &&
+            vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == CH_RET_EIO,
+            "stream seek backend error lost");
+vfs_test_stream_seek_error = CH_RET_SUCCESS;
+vfs_test_stream_size_error = CH_RET_EIO;
+test_assert(vfsFileSetPosition(fnp, -1, VFS_SEEK_END) == CH_RET_EIO &&
+            vfsNodeStat(fnp, &stat) == CH_RET_EIO,
+            "stream size backend error lost");
+vfs_test_stream_size_error = CH_RET_SUCCESS;
+test_assert(vfsFileGetPosition(fnp) == 14,
+            "stream position changed by a failed seek");
+vfs_test_stream_position = 0;
+vfs_test_stream_limit = 64;
 (void)roRelease(fnp);
 
 vfs_test_tty_drains = 0U;

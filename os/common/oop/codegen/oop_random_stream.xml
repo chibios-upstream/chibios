@@ -40,15 +40,21 @@
         </consts>
         <methods>
           <method name="rstmSeek" shortname="seek"
-            ctype="uint32_t">
+            ctype="int32_t">
             <brief>Random Stream seek.</brief>
-            <details>This function changes the function read/write offset.
-            </details>
-            <param name="offset" ctype="uint32_t" dir="in">The file offset.</param>
+            <details>This function changes the stream read/write offset. On
+              failure the offset is not changed.</details>
+            <param name="offset" ctype="int32_t" dir="in">The stream offset,
+              relative to the position selected by @p whence.</param>
             <param name="whence" ctype="int" dir="in">Seek mode.</param>
-            <return><![CDATA[Upon successful completion, lseek() returns the
-              resulting offset location as measured in bytes from the beginning
-              of the file.]]></return>
+            <return>The resulting offset, in bytes from the beginning of the
+              stream, or a negative error code.</return>
+          </method>
+          <method name="rstmGetSize" shortname="getsize"
+            ctype="int32_t">
+            <brief>Random Stream size.</brief>
+            <return>The stream size in bytes or a negative error
+              code.</return>
           </method>
         </methods>
       </interface>
