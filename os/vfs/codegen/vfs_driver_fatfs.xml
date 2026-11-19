@@ -190,6 +190,9 @@ return translate_error(res);]]></implementation>
       <include style="regular">ff.h</include>
       <include style="angular">limits.h</include>
     </includes>
+    <definitions>
+      <define name="FAT_DIR_MODTIME" value="22U" />
+    </definitions>
     <types>
       <class type="regular" name="vfs_fatfs_dir_node" namespace="ffdir"
         ancestorname="vfs_directory_node" descr="VFS fatfs directory node">
@@ -233,6 +236,10 @@ self = __vfsdir_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);]]></implementat
           <field name="seekpos" ctype="vfs_offset_t">
             <brief>Position set past the end of file, zero when the native
               position applies.</brief>
+          </field>
+          <field name="mtime" ctype="DWORD">
+            <brief>Modification time read at open, zero if unknown or
+              changed.</brief>
           </field>
         </fields>
         <methods>

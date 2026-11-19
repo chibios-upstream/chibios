@@ -34,6 +34,8 @@
 /* Module local definitions.                                                 */
 /*===========================================================================*/
 
+#define FAT_DIR_MODTIME                     22U
+
 /*===========================================================================*/
 /* Module local macros.                                                      */
 /*===========================================================================*/
@@ -183,6 +185,10 @@ struct vfs_fatfs_file_node {
    *              position applies.
    */
   vfs_offset_t              seekpos;
+  /**
+   * @brief       Modification time read at open, zero if unknown or changed.
+   */
+  DWORD                     mtime;
 };
 /** @} */
 

@@ -475,6 +475,33 @@ void vfs_test_sb_directory_wait(void) {
   sandbox_cleanup();
 }
 
+void vfs_test_sb_stat_conversion(void) {
+  struct stat st;
+
+  vfs_test_fs_reset();
+  sandbox_setup((vfs_fs_c *)&vfs_test_fs);
+  vfs_test_fs.stat = vfs_test_full_stat;
+  memset(&st, 0xA5, sizeof st);
+  test_assert(_stat_r(_REENT, "/full", &st) == 0 &&
+              st.st_mode == (S_IFREG | S_IRUSR) && st.st_nlink == 1 &&
+              st.st_size == 1234 && st.st_blksize == 4096 &&
+              st.st_blocks == 17 && st.st_mtim.tv_sec == 1700000000 &&
+              st.st_mtim.tv_nsec == 123456789 &&
+              vfs_test_posix_stat_equal(&st, &vfs_test_full_stat),
+              "full stat conversion failed");
+  vfs_test_fs.stat = (vfs_stat_t) {
+    .mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRWXU,
+    .size = (vfs_offset_t)0
+  };
+  memset(&st, 0xA5, sizeof st);
+  test_assert(_stat_r(_REENT, "/bare", &st) == 0 &&
+              st.st_mode == (S_IFDIR | S_IRWXU) && st.st_blksize == 0 &&
+              st.st_blocks == 0 && st.st_mtim.tv_sec == 0 &&
+              vfs_test_posix_stat_equal(&st, &vfs_test_fs.stat),
+              "bare stat conversion failed");
+  sandbox_cleanup();
+}
+
 static vfs_file_node_c terminal_node;
 static bool terminal_capable;
 
@@ -559,6 +586,9 @@ void vfs_test_sb_native(vfs_fs_c *fsp) {
   memcpy(&st, stat_bytes + 1U, sizeof st);
   test_assert(S_ISREG(st.st_mode) && st.st_size == 4,
               "unaligned stat data corrupted");
+  test_assert(vfsIOFstat(&sandbox.io.context, fd, &vst) == CH_RET_SUCCESS &&
+              vfs_test_posix_stat_equal(&st, &vst),
+              "guest fstat conversion failed");
   test_assert(fdopendir(fd) == NULL && errno == ENOTDIR &&
               _fstat_r(_REENT, fd, &st) == 0,
               "fdopendir consumed regular file");
@@ -595,7 +625,15 @@ void vfs_test_sb_native(vfs_fs_c *fsp) {
               "zero-length write bypassed open access");
   test_assert(sbFsync(fd) == 0 && sbFtruncate(fd, 0) == CH_RET_EBADF,
               "read-only descriptor resized");
+  test_assert(_fstat_r(_REENT, fd, &st) == 0 &&
+              vfsIOFstat(&sandbox.io.context, fd, &vst) == CH_RET_SUCCESS &&
+              vfs_test_posix_stat_equal(&st, &vst),
+              "unchanged guest file fstat conversion failed");
   test_assert(close(fd) == 0, "readonly close failed");
+  test_assert(_stat_r(_REENT, "/guest", &st) == 0 &&
+              vfsFSStat(fsp, "/guest", &vst) == CH_RET_SUCCESS &&
+              vfs_test_posix_stat_equal(&st, &vst),
+              "guest stat conversion failed");
 
   test_assert(mkdir("/guestdir", 0700) == 0, "guest mkdir failed");
   fd = open("/guestdir/a", O_CREAT | O_WRONLY, 0600);

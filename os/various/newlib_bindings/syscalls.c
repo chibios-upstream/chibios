@@ -32,30 +32,27 @@
 static vfs_io_c newlib_io;
 static vfs_descriptor_t newlib_descriptors[SYSCALL_MAX_FDS];
 
-static mode_t mode_to_stat_mode(vfs_mode_t mode) {
-  mode_t stat_mode = 0U;
-
-  if (VFS_MODE_S_ISREG(mode)) {
-    stat_mode |= S_IFREG;
-  }
-  if (VFS_MODE_S_ISDIR(mode)) {
-    stat_mode |= S_IFDIR;
-  }
-  if (VFS_MODE_S_ISCHR(mode)) {
-    stat_mode |= S_IFCHR;
-  }
-  if (VFS_MODE_S_ISFIFO(mode)) {
-    stat_mode |= S_IFIFO;
-  }
-
-  return stat_mode;
-}
-
+/* The VFS modes are the C library values. Nodes have one link, the
+   optional fields are zero when not provided, the only stored time is
+   also reported as access and status change time.*/
 static void copy_stat(struct stat *st, const vfs_stat_t *vstp) {
 
   memset(st, 0, sizeof (*st));
-  st->st_mode = mode_to_stat_mode(vstp->mode);
-  st->st_size = (off_t)vstp->size;
+  st->st_mode  = (mode_t)vstp->mode;
+  st->st_nlink = 1;
+  st->st_size  = (off_t)vstp->size;
+  if ((vstp->valid & VFS_STAT_VALID_BLKSIZE) != 0U) {
+    st->st_blksize = (blksize_t)vstp->blksize;
+  }
+  if ((vstp->valid & VFS_STAT_VALID_BLOCKS) != 0U) {
+    st->st_blocks = (blkcnt_t)vstp->blocks;
+  }
+  if ((vstp->valid & VFS_STAT_VALID_MTIME) != 0U) {
+    st->st_mtim.tv_sec  = (time_t)vstp->mtime.tv_sec;
+    st->st_mtim.tv_nsec = (long)vstp->mtime.tv_nsec;
+    st->st_atim = st->st_mtim;
+    st->st_ctim = st->st_mtim;
+  }
 }
 
 /**

@@ -49,6 +49,11 @@
  *   stores times with two seconds of resolution, without a time zone.
  * - FAT has no sparse files, a write after a position past the end of file
  *   writes the zeros filling the gap, in a time proportional to its size.
+ * - FatFS stores the modification time when a changed file is
+ *   synchronized. An open file reports the time read at open until it is
+ *   created, written or resized through the node, then only the path stat
+ *   reports the time, after the synchronization. Open exFAT files and open
+ *   directories report no time.
  * .
  * <b>LittleFS</b>
  * - Independent opens of the same file do not share their state, opens
@@ -154,8 +159,11 @@
  * - The Newlib bindings install no descriptor, the application installs
  *   the standard descriptors. C library @p FILE objects are not protected,
  *   a stream is not used by several threads at the same time.
- * - @p stat() and @p fstat() report the type and the size, the sandbox
- *   also a link count of 1. Sandbox directory records report inode 1.
+ * - @p stat() and @p fstat() report the mode, the size, a link count of 1
+ *   and, when the file system provides them, the block size, the allocated
+ *   blocks and the modification time, also reported as access and status
+ *   change time. The other fields are zero. There are no file identities,
+ *   sandbox directory records report inode 1.
  * - The sandbox directory records have a fixed layout shared by host and
  *   guest, both are built from the same tree. A directory read needs room
  *   for a record with a name of maximum length.
@@ -169,8 +177,6 @@
  *
  * @section vfs_lim_issues Open issues
  *
- * - Incomplete stat metadata:
- *   https://github.com/chibios-upstream/chibios/issues/640
  * - LittleFS open files detached by removal and rename:
  *   https://github.com/chibios-upstream/chibios/issues/651
  * .

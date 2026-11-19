@@ -268,10 +268,8 @@ Detailed designs are in
 
 ### POSIX and examples
 
-- Complete the missing `stat` metadata in `host/sbposix.c`
-  (`st_blocks`, `st_blksize`, `st_ino`, and timestamps).
-- Replace the placeholder directory-entry inode value when the VFS can
-  provide one.
+- Replace the placeholder inode values (`st_ino` zero, directory records
+  one) when the VFS can provide file identities.
 - Add concise host and user documentation for the required flashing and
   debugging order of multi-image systems.
 - Classify applications under `apps/` as maintained regressions/demos or

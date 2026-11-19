@@ -288,6 +288,21 @@ static void set_timestamp_stat(WORD fdate, WORD ftime, vfs_stat_t *sp) {
   sp->valid |= VFS_STAT_VALID_MTIME;
 }
 
+/* After an open, the window holds the directory entry of a FAT file, the
+   entry pointer is not used for exFAT files.*/
+static DWORD get_open_mtime(const FIL *fp) {
+  const FATFS *fsp = fp->obj.fs;
+  const BYTE *ep;
+
+  if ((fsp->fs_type == FS_EXFAT) || (fsp->winsect != fp->dir_sect)) {
+    return 0U;
+  }
+
+  ep = fp->dir_ptr + FAT_DIR_MODTIME;
+  return (DWORD)ep[0] | ((DWORD)ep[1] << 8) |
+         ((DWORD)ep[2] << 16) | ((DWORD)ep[3] << 24);
+}
+
 static bool get_cluster_size(const FATFS *fsp, uint64_t *sizep) {
   uint64_t sector_size;
   uint64_t cluster_size;
@@ -658,6 +673,7 @@ static void *__fffile_objinit_impl(void *ip, const void *vmt,
   /* Initialization code.*/
   self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode, flags);
   self->seekpos = (vfs_offset_t)0;
+  self->mtime = 0U;
 
   return self;
 }
@@ -709,6 +725,9 @@ static msg_t __fffile_stat_impl(void *ip, vfs_stat_t *sp) {
   sp->mode = self->mode;
   sp->size = (vfs_offset_t)self->file.obj.objsize;
   set_storage_stat(self->file.obj.fs, self->file.obj.objsize, sp);
+  if (self->mtime != 0U) {
+    set_timestamp_stat((WORD)(self->mtime >> 16), (WORD)self->mtime, sp);
+  }
   ff_unlock();
 
   return CH_RET_SUCCESS;
@@ -791,6 +810,9 @@ static ssize_t __fffile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   if ((FSIZE_t)n > ((FSIZE_t)INT32_MAX - start)) {
     n = (size_t)((FSIZE_t)INT32_MAX - start);
   }
+
+  /* FatFS stores the modification time when synchronizing.*/
+  self->mtime = 0U;
 
   if ((self->flags & VO_APPEND) != 0) {
     /* Append and write are one native operation, also after a seek.*/
@@ -915,6 +937,9 @@ static msg_t __fffile_truncate_impl(void *ip, vfs_offset_t length) {
 
   ff_lock();
   position = get_position(self);
+  if ((FSIZE_t)length != f_size(&self->file)) {
+    self->mtime = 0U;
+  }
   if ((FSIZE_t)length < f_size(&self->file)) {
     res = f_lseek(&self->file, (FSIZE_t)length);
     if (res == FR_OK) {
@@ -1153,6 +1178,7 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
   BYTE mode;
   FRESULT res;
   FILINFO *info = NULL;
+  DWORD mtime = 0U;
   msg_t ret;
 
   ret = __vfs_check_open(path, flags);
@@ -1210,6 +1236,12 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
       else if (((flags & VO_TRUNC) != 0) && ((flags & VO_CREAT) == 0)) {
         res = f_truncate(&node->file);
       }
+      else if ((mode & (FA_CREATE_NEW | FA_CREATE_ALWAYS |
+                        FA_OPEN_ALWAYS)) == 0U) {
+        /* An existing file opened without changes, a created, overwritten
+           or truncated file gets its time when synchronized.*/
+        mtime = get_open_mtime(&node->file);
+      }
       if ((res == FR_OK) && !CH_RET_IS_ERROR(ret)) {
         node_mode = translate_mode(node->file.obj.attr);
       }
@@ -1230,6 +1262,7 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
     return ret;
   }
   (void)fffileObjectInit(node, (vfs_fs_c *)self, node_mode, flags);
+  node->mtime = mtime;
   *vfnpp = (vfs_file_node_c *)node;
 
   return CH_RET_SUCCESS;

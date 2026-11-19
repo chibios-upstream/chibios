@@ -102,6 +102,7 @@ bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
 bool vfs_test_stat_equal(const vfs_stat_t *actual,
                          const vfs_stat_t *expected);
 bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
+bool vfs_test_posix_stat_equal(const struct stat *st, const vfs_stat_t *vst);
 void vfs_test_fs_reset(void);
 void vfs_test_open_matrix(vfs_fs_c *fsp);
 void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs);
