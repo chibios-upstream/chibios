@@ -58,6 +58,16 @@ are copied into a bounded scratch arena directly below the loaded command,
 without advancing the shell heap break. This avoids accumulating heap
 fragmentation or permanently reducing the space available to later commands.
 
+## `msh` arguments
+
+`msh` splits a command line at spaces and tabs; an argument starting with a
+double quote extends to the next double quote, which is removed. Unquoted
+arguments not starting with `-` are expanded when the last element of their
+path contains `*` or `?`: the matches are sorted bytewise and a pattern
+without matches is passed unchanged. Quoted arguments are never expanded.
+`msh` has no single quotes, escapes, redirections or pipelines, `sbsh`
+provides them.
+
 ## `sbsh` syntax
 
 `sbsh` can run interactively, execute one command list, or read a script:

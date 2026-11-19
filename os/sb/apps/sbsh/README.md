@@ -79,7 +79,8 @@ allowed on the last stage.
 
 Unquoted `*` and `?` are expanded against directory entries in the final path
 component. A pattern that has no matches is passed to the command unchanged.
-Expansion order is the directory enumeration order and is not sorted.
+The matches of each pattern are sorted bytewise in place, the other arguments
+keep their positions.
 
 The initial implementation does not recursively expand wildcard directory
 components. For example, `dir/*.txt` is supported, while `dir*/file.txt` is

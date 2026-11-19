@@ -73,15 +73,42 @@ static bool isdots(const char *p) {
   return false;
 }
 
-static char *lsalloc(sglob_t *psglob, size_t len) {
+/* Allocates a string node, not yet linked.*/
+static lstring_t *lsnew(size_t len) {
   lstring_t *lsp;
 
   lsp = malloc(len + sizeof (lstring_t));
+  if (lsp != NULL) {
+    lsp->next = NULL;
+  }
+
+  return lsp;
+}
+
+/* Links a node in ascending order among the nodes following another node,
+   the nodes before it do not move.*/
+static void lsinsert(sglob_t *psglob, lstring_t *firstp, lstring_t *lsp) {
+  lstring_t *prevp = firstp;
+
+  while ((prevp->next != NULL) &&
+         (strcmp(prevp->next->string, lsp->string) <= 0)) {
+    prevp = prevp->next;
+  }
+  lsp->next = prevp->next;
+  prevp->next = lsp;
+  if (lsp->next == NULL) {
+    psglob->sgl_last = lsp;
+  }
+}
+
+static char *lsalloc(sglob_t *psglob, size_t len) {
+  lstring_t *lsp;
+
+  lsp = lsnew(len);
   if (lsp == NULL) {
     return NULL;
   }
 
-  lsp->next = NULL;
   if (psglob->sgl_hdr.next == NULL) {
     psglob->sgl_hdr.next = psglob->sgl_last = lsp;
   }
@@ -147,10 +174,12 @@ int sglob_match(sglob_t *psglob, const char *pattern) {
   dbp = NULL;
   ret = SGLOB_NOSPACE;
   do {
-    char *lastp, *dirp;
+    char *lastp;
+    const char *dirp;
     size_t plen, dirlen;
     bool no_spec, found;
     struct dirent *dp;
+    lstring_t *firstp;
 
     /* Checking the path length.*/
     plen = strnlen(pattern, PATH_MAX);
@@ -177,10 +206,16 @@ int sglob_match(sglob_t *psglob, const char *pattern) {
       dirp     = NULL;
       dirlen   = (size_t)0;
     }
+    else if (lastp == psglob->sgl_buf) {
+      /* Pattern in the root directory.*/
+      lastp++;
+      dirp     = "/";
+      dirlen   = (size_t)1;
+    }
     else {
       *lastp++ = '\0';
       dirp     = psglob->sgl_buf;
-      dirlen   = strlen(dirp);
+      dirlen   = strlen(dirp) + (size_t)1;
     }
 
     /* Case with no wildcards, adding with no processing.*/
@@ -199,10 +234,14 @@ int sglob_match(sglob_t *psglob, const char *pattern) {
       break;
     }
 
-    /* Scanning the directory for matches.*/
+    /* Scanning the directory for matches, the matches of the pattern are
+       sorted after the arguments already in the list. The directory
+       prefix length includes its separator.*/
+    firstp = psglob->sgl_last != NULL ? psglob->sgl_last : &psglob->sgl_hdr;
     found = false;
     while ((dp = readdir(dbp)) != NULL) {
-      char *p;
+      lstring_t *lsp;
+      size_t nlen;
 
       if (isdots(dp->d_name) || !match(lastp, dp->d_name)) {
         continue;
@@ -210,16 +249,20 @@ int sglob_match(sglob_t *psglob, const char *pattern) {
 
       /* Inserting the new found match into the list.*/
       found = true;
-      p = lsalloc(psglob, dirlen + strlen(dp->d_name) + 1);
-      if (p == NULL) {
+      nlen = strlen(dp->d_name);
+      lsp = lsnew(dirlen + nlen + (size_t)1);
+      if (lsp == NULL) {
         goto skiperr;
       }
-      *p = '\0';
-      if (dirlen > 0) {
-        strcat(p, dirp); /* TODO Optimize strcat */
-        strcat(p, "/");
+      if (dirlen > (size_t)1) {
+        memcpy(lsp->string, dirp, dirlen - (size_t)1);
+        lsp->string[dirlen - (size_t)1] = '/';
       }
-      strcat(p, dp->d_name);
+      else if (dirlen == (size_t)1) {
+        lsp->string[0] = '/';
+      }
+      memcpy(&lsp->string[dirlen], dp->d_name, nlen + (size_t)1);
+      lsinsert(psglob, firstp, lsp);
       psglob->sgl_pathc++;
     }
 

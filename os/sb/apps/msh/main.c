@@ -257,7 +257,7 @@ static bool shell_getline(char *line, size_t size) {
   return eof;
 }
 
-static char *fetch_argument(char **pp) {
+static char *fetch_argument(char **pp, bool *quotedp) {
   char *p, *ap;
 
   /* Skipping white space.*/
@@ -268,7 +268,8 @@ static char *fetch_argument(char **pp) {
     return  NULL;
   }
 
-  if (*ap == '"') {
+  *quotedp = *ap == '"';
+  if (*quotedp) {
     /* If an argument starts with a double quote then its delimiter is another
        quote.*/
     ap++;
@@ -631,7 +632,9 @@ int main(int argc, char *argv[], char *envp[]) {
     int i, n, ret;
     char line[SHELL_MAX_LINE_LENGTH];
     char *args[SHELL_MAX_ARGUMENTS + 1];
+    bool quoted[SHELL_MAX_ARGUMENTS];
     char *ap, *tokp;
+    bool q;
     sglob_t sglob;
 
     /* Reading input line.*/
@@ -643,8 +646,9 @@ int main(int argc, char *argv[], char *envp[]) {
     /* Fetching arguments.*/
     tokp = line;
     n = 0;
-    while ((ap = fetch_argument(&tokp)) != NULL) {
+    while ((ap = fetch_argument(&tokp, &q)) != NULL) {
       if (n < SHELL_MAX_ARGUMENTS) {
+        quoted[n] = q;
         args[n++] = ap;
       }
       else {
@@ -667,15 +671,18 @@ int main(int argc, char *argv[], char *envp[]) {
       goto outofmem;
     }
 
-    /* Arguments processing except those starting with a "-" which are
-       options, those are added without processing.*/
+    /* Arguments expansion into the "glob", the matches of a pattern are
+       sorted. Quoted arguments, options starting with a "-" and patterns
+       without matches are added unchanged.*/
     for (i = 1; i < n; i++) {
-      /* Accumulating arguments expansion into the "glob".*/
-      if (*args[i] != '-') {
-        ret = sglob_match(&sglob, args[i]);
+      if (quoted[i] || (*args[i] == '-')) {
+        ret = sglob_add(&sglob, args[i]);
       }
       else {
-        ret = sglob_add(&sglob, args[i]);
+        ret = sglob_match(&sglob, args[i]);
+        if (ret == SGLOB_NOMATCH) {
+          ret = sglob_add(&sglob, args[i]);
+        }
       }
       if (ret == SGLOB_NOSPACE) {
         goto outofmem;
