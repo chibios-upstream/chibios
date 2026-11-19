@@ -84,6 +84,7 @@ void vfs_test_open_matrix(vfs_fs_c *fsp);
 void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs);
 void vfs_test_open_conflicts(vfs_fs_c *fsp, bool fatfs);
 void vfs_test_seek_past_end(vfs_fs_c *fsp);
+void vfs_test_sync_truncate(vfs_fs_c *fsp);
 #if defined(VFS_TEST_SB)
 #include "sb_test.h"
 #endif
@@ -741,6 +742,69 @@ void vfs_test_seek_past_end(vfs_fs_c *fsp) {
   test_assert(vfsFSUnlink(fsp, "/gap") == 0, "gap cleanup failed");
 }
 
+void vfs_test_sync_truncate(vfs_fs_c *fsp) {
+  vfs_file_node_c *fnp, *rnp;
+  vfs_stat_t st;
+  uint8_t bytes[16];
+  unsigned i;
+
+  test_assert(vfsFSOpenFile(fsp, "/tr", VO_CREAT | VO_TRUNC | VO_RDWR,
+                            &fnp) == 0 &&
+              vfsFileWrite(fnp, (const uint8_t *)"abcdefgh", 8) == 8 &&
+              vfsFileSync(fnp) == 0, "truncate file creation failed");
+
+  /* Shrinking keeps the position, here past the new end.*/
+  test_assert(vfsFileSetPosition(fnp, 6, VFS_SEEK_SET) == 0 &&
+              vfsFileTruncate(fnp, 4) == 0 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 4 &&
+              vfsFileGetPosition(fnp) == 6 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 0,
+              "shrink changed the position");
+  test_assert(vfsFileWrite(fnp, (const uint8_t *)"Z", 1) == 1 &&
+              vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 7 &&
+              memcmp(bytes, "abcd\0\0Z", 7) == 0,
+              "data past the new end not discarded");
+
+  /* Extending fills with zeros and keeps the position.*/
+  test_assert(vfsFileSetPosition(fnp, 2, VFS_SEEK_SET) == 0 &&
+              vfsFileTruncate(fnp, 600) == 0 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 600 &&
+              vfsFileGetPosition(fnp) == 2 &&
+              vfsFileRead(fnp, bytes, 5) == 5 &&
+              memcmp(bytes, "cd\0\0Z", 5) == 0,
+              "extension changed the position or the data");
+  for (i = 7U; i < 600U; i += (unsigned)sizeof bytes) {
+    size_t n = (600U - i) < sizeof bytes ? (600U - i) : sizeof bytes;
+    size_t j;
+
+    test_assert(vfsFileRead(fnp, bytes, n) == (ssize_t)n,
+                "extension read failed");
+    for (j = 0U; j < n; j++) {
+      test_assert(bytes[j] == 0U, "extension not filled with zeros");
+    }
+  }
+
+  /* A position past the end survives a size change.*/
+  test_assert(vfsFileSetPosition(fnp, 700, VFS_SEEK_SET) == 0 &&
+              vfsFileTruncate(fnp, 10) == 0 &&
+              vfsFileGetPosition(fnp) == 700 &&
+              vfsFileTruncate(fnp, 10) == 0 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 10 &&
+              vfsFileTruncate(fnp, -1) == CH_RET_EINVAL &&
+              vfsFileSync(fnp) == 0, "size change errors");
+  vfsNodeClose(fnp);
+
+  /* Read-only opens are synchronized but not resized.*/
+  test_assert(vfsFSOpenFile(fsp, "/tr", VO_RDONLY, &rnp) == 0 &&
+              vfsFileSync(rnp) == 0 &&
+              vfsFileTruncate(rnp, 0) == CH_RET_EBADF &&
+              vfsNodeStat(rnp, &st) == 0 && st.size == 10,
+              "read-only open resized");
+  vfsNodeClose(rnp);
+  test_assert(vfsFSUnlink(fsp, "/tr") == 0, "truncate cleanup failed");
+}
+
 #if defined(VFS_TEST_NEWLIB) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)
 void vfs_test_newlib_native(vfs_fs_c *fsp) {
   vfs_test_reent_t r;
@@ -773,6 +837,19 @@ void vfs_test_newlib_native(vfs_fs_c *fsp) {
               "negative read count accepted");
   test_assert(vfs_test_write_r(&r, fd, buf, -1) == -1 && r.error == EINVAL,
               "negative write count accepted");
+  test_assert(vfs_test_ftruncate(fd, 3) == 0 && vfs_test_fsync(fd) == 0 &&
+              vfs_test_fstat_r(&r, fd, &st) == 0 && st.st_size == 3 &&
+              vfs_test_ftruncate(fd, 6) == 0 &&
+              vfs_test_lseek_r(&r, fd, 0, SEEK_CUR) == 6,
+              "newlib ftruncate or fsync failed");
+  test_assert(vfs_test_ftruncate(fd, -1) == -1 &&
+              vfs_test_global_reent.error == EINVAL &&
+              vfs_test_fsync(VFS_TEST_NEWLIB_FDS) == -1 &&
+              vfs_test_global_reent.error == EBADF,
+              "newlib ftruncate or fsync errors");
+  test_assert(vfs_test_lseek_r(&r, fd, 3, SEEK_SET) == 3 &&
+              vfs_test_write_r(&r, fd, "def", 3) == 3,
+              "newlib rewrite failed");
   test_assert(vfs_test_close_r(&r, fd) == 0, "newlib close failed");
 
   /* Append after a seek.*/
@@ -799,6 +876,9 @@ void vfs_test_newlib_native(vfs_fs_c *fsp) {
               r.error == EISDIR, "directory seek accepted");
   test_assert(vfs_test_isatty_r(&r, fd) == 0 && r.error == ENOTTY,
               "directory reported as a terminal");
+  test_assert(vfs_test_fsync(fd) == 0 && vfs_test_ftruncate(fd, 0) == -1 &&
+              vfs_test_global_reent.error == EINVAL,
+              "directory fsync or ftruncate");
   test_assert(vfs_test_close_r(&r, fd) == 0, "directory close failed");
 
   /* A full table rejects an open before creating the file.*/
@@ -2155,6 +2235,9 @@ n = vfsFileWrite(fnp, &byte, sizeof byte);
 test_assert(n == (ssize_t)sizeof byte, "FIFO write not dispatched");
 ret = vfsFileSetPosition(fnp, 0, VFS_SEEK_SET);
 test_assert(ret == CH_RET_ESPIPE, "FIFO seek accepted");
+test_assert(vfsFileSync(fnp) == CH_RET_EINVAL &&
+            vfsFileTruncate(fnp, 0) == CH_RET_EINVAL,
+            "FIFO sync or truncate accepted");
 test_assert(vfsFileGetPosition(fnp) == CH_RET_ESPIPE,
             "FIFO position reported");
 (void)roRelease(fnp);
@@ -2872,6 +2955,11 @@ vfs_test_newlib_native((vfs_fs_c *)&vfs_test_lfs_driver);
               <description><value><![CDATA[Positions past the end of file.]]></value></description>
               <tags><value /></tags>
               <code><value><![CDATA[vfs_test_seek_past_end((vfs_fs_c *)&vfs_test_lfs_driver);]]></value></code>
+            </step>
+            <step>
+              <description><value><![CDATA[Synchronization and size changes.]]></value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[vfs_test_sync_truncate((vfs_fs_c *)&vfs_test_lfs_driver);]]></value></code>
             </step>
           </steps>
         </case>
@@ -3835,6 +3923,11 @@ test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");]]></value></teardown
               <description><value><![CDATA[Positions past the end of file.]]></value></description>
               <tags><value /></tags>
               <code><value><![CDATA[vfs_test_seek_past_end((vfs_fs_c *)&vfs_test_fat_driver);]]></value></code>
+            </step>
+            <step>
+              <description><value><![CDATA[Synchronization and size changes.]]></value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[vfs_test_sync_truncate((vfs_fs_c *)&vfs_test_fat_driver);]]></value></code>
             </step>
           </steps>
         </case>
@@ -5329,7 +5422,7 @@ typedef struct {
   vfs_file_node_c node;
   unsigned disposals;
   uint8_t value;
-  bool pause_io, pause_dispose, fail_io;
+  bool pause_io, pause_dispose, fail_io, fail_sync;
 } vfs_test_fd_node_t;
 
 static vfs_test_fd_node_t vfs_test_fd_nodes[24];
@@ -5408,6 +5501,12 @@ static ssize_t vfs_test_fd_write(void *ip, const uint8_t *buf, size_t n) {
   return 0;
 }
 
+static msg_t vfs_test_fd_sync(void *ip) {
+  vfs_test_fd_node_t *np = ip;
+
+  return np->fail_sync ? CH_RET_EIO : CH_RET_SUCCESS;
+}
+
 static const struct vfs_file_node_vmt vfs_test_fd_vmt = {
   .dispose = vfs_test_fd_dispose,
   .addref = __ro_addref_impl,
@@ -5415,7 +5514,9 @@ static const struct vfs_file_node_vmt vfs_test_fd_vmt = {
   .stat = __vfsnode_stat_impl,
   .read = vfs_test_fd_read,
   .write = vfs_test_fd_write,
-  .control = __vfsfile_control_impl
+  .control = __vfsfile_control_impl,
+  .sync = vfs_test_fd_sync,
+  .truncate = __vfsfile_truncate_impl
 };
 
 static void *vfs_test_fd_custom_addref(void *ip) {
@@ -5583,7 +5684,9 @@ static const struct vfs_file_node_vmt vfs_test_nl_tty_vmt = {
   .write = vfs_test_nl_tty_write,
   .setpos = __vfsfile_setpos_impl,
   .getpos = __vfsfile_getpos_impl,
-  .control = vfs_test_nl_tty_control
+  .control = vfs_test_nl_tty_control,
+  .sync = __vfsfile_sync_impl,
+  .truncate = __vfsfile_truncate_impl
 };
 
 static void vfs_test_nl_setup(void) {
@@ -5700,6 +5803,40 @@ test_assert(original->disposals == 1U && vfs_test_fd_result == 0,
 test_assert(vfs_test_read_r(&r, replacement, &value, 1) == 1 && value == 'n',
             "old close cleared the reused slot");
 test_assert(vfs_test_close_r(&r, replacement) == 0, "replacement close failed");]]></value></code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief><value>Close reports flush errors.</value></brief>
+          <description><value>A synchronization error is returned by fsync() and close(), the descriptor is closed and the node released anyway.</value></description>
+          <condition><value /></condition>
+          <various_code>
+            <setup_code><value>vfs_test_fd_setup();</value></setup_code>
+            <teardown_code><value>vfs_test_fd_teardown();</value></teardown_code>
+            <local_variables><value><![CDATA[vfs_test_reent_t r;
+vfs_test_fd_node_t *original;
+int fd, replacement;]]></value></local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description><value>A synchronization error is returned by fsync() and close(), the descriptor is closed and the node released anyway.</value></description>
+              <tags><value /></tags>
+              <code><value><![CDATA[fd = vfs_test_open_r(&r, "/old", VO_RDWR, 0);
+test_assert(fd == 0, "open failed");
+original = &vfs_test_fd_nodes[vfs_test_fd_count - 1U];
+test_assert(vfs_test_fsync(fd) == 0, "fsync failed");
+test_assert(vfs_test_ftruncate(fd, 0) == -1 &&
+            vfs_test_global_reent.error == EINVAL,
+            "node without resize accepted ftruncate");
+original->fail_sync = true;
+test_assert(vfs_test_fsync(fd) == -1 && vfs_test_global_reent.error == EIO,
+            "fsync error lost");
+test_assert(vfs_test_close_r(&r, fd) == -1 && r.error == EIO,
+            "close flush error lost");
+test_assert(original->disposals == 1U, "failed close kept the node");
+replacement = vfs_test_open_r(&r, "/new", VO_RDWR, 0);
+test_assert(replacement == fd, "failed close kept the descriptor");
+test_assert(vfs_test_close_r(&r, replacement) == 0, "close failed");]]></value></code>
             </step>
           </steps>
         </case>
@@ -5968,6 +6105,9 @@ test_assert(vfsFileSetPosition(fnp, 5, VFS_SEEK_SET) == 0 &&
             vfsFileRead(fnp, bytes, sizeof bytes) == 2 &&
             memcmp(bytes, "ed", 2) == 0,
             "ROM position past the end");
+test_assert(vfsFileSync(fnp) == 0 &&
+            vfsFileTruncate(fnp, 0) == CH_RET_EBADF,
+            "ROM sync or truncate");
 (void)roRelease(np);]]></value></code>
           </step><step>
             <description><value>Descriptor transfer and seek positions.</value></description>
@@ -5992,6 +6132,9 @@ test_assert(vfsIOSeek(&open_io, fd, 5, VFS_SEEK_SET) == 5 &&
             vfsIORead(&open_io, fd, bytes, sizeof bytes) == 2 &&
             memcmp(bytes, "ed", 2) == 0,
             "ROM descriptor position past the end");
+test_assert(vfsIOSync(&open_io, fd) == 0 &&
+            vfsIOTruncate(&open_io, fd, 0) == CH_RET_EBADF,
+            "ROM descriptor sync or truncate");
 test_assert(vfsIOClose(&open_io, fd) == 0, "ROM descriptor close failed");]]></value></code>
           </step></steps>
         </case>
@@ -6882,7 +7025,9 @@ static const struct vfs_file_node_vmt vfs_test_api_file_vmt = {
   .write = vfs_test_api_write,
   .setpos = vfs_test_api_setpos,
   .getpos = vfs_test_api_getpos,
-  .control = vfs_test_api_control
+  .control = vfs_test_api_control,
+  .sync = __vfsfile_sync_impl,
+  .truncate = __vfsfile_truncate_impl
 };
 
 static const struct vfs_directory_node_vmt vfs_test_api_dir_vmt = {

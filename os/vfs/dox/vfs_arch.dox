@@ -157,7 +157,15 @@
  *   exceeding @p SSIZE_MAX return @p CH_RET_EINVAL;
  * - the initial position is zero, also with @p VO_APPEND. Each append write
  *   is positioned at the end of file within the same driver operation, also
- *   after a seek beyond the end of file.
+ *   after a seek beyond the end of file;
+ * - vfsFileSync() writes the buffered data and metadata, for any access
+ *   mode. vfsFileTruncate() requires write access, @p CH_RET_EBADF
+ *   otherwise, discards the data past the new size or extends the file
+ *   with zeros, and keeps the position. Nodes without storage return
+ *   @p CH_RET_EINVAL for both, directories are synchronized by the
+ *   operations changing them;
+ * - the final release of a node cannot report errors, users of the node
+ *   API call vfsFileSync() before vfsNodeClose().
  * .
  * Seek targets are computed with overflow checks, a negative target returns
  * @p CH_RET_EINVAL and a target outside the @p vfs_offset_t range returns
@@ -206,11 +214,15 @@
  * - vfsIOClose(), vfsIODup2() and vfsIOClear() detach a descriptor before
  *   releasing its node, so its number can be reused while an earlier
  *   operation still finishes on the original node;
+ * - vfsIOClose() synchronizes a regular file before releasing it and
+ *   returns the synchronization error, the descriptor is closed anyway.
+ *   Nodes without storage to synchronize close with success, vfsIODup2()
+ *   and vfsIOClear() do not report errors of the nodes they release;
  * - vfsIODup() takes the lowest free descriptor, vfsIODup2() replaces the
  *   destination in one step and returns it unchanged when equal to the
  *   source;
- * - read, write, fstat, seek, tell, directory reads and control keep the
- *   node referenced for the whole call. A wrong node type returns
+ * - read, write, fstat, seek, tell, sync, truncate, directory reads and
+ *   control keep the node referenced for the whole call. A wrong node type returns
  *   @p CH_RET_EISDIR or @p CH_RET_ENOTDIR, seek and tell on a non-regular
  *   file @p CH_RET_ESPIPE. vfsIOSeek() returns the new position.
  * .

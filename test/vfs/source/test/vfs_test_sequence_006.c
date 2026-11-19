@@ -811,6 +811,7 @@ static const testcase_t vfs_test_006_005 = {
  *
  * <h2>Test Steps</h2>
  * - [6.6.1] Positions past the end of file.
+ * - [6.6.2] Synchronization and size changes.
  * .
  */
 
@@ -851,6 +852,13 @@ static void vfs_test_006_006_execute(void) {
     vfs_test_seek_past_end((vfs_fs_c *)&vfs_test_fat_driver);
   }
   test_end_step(1);
+
+  /* [6.6.2] Synchronization and size changes.*/
+  test_set_step(2);
+  {
+    vfs_test_sync_truncate((vfs_fs_c *)&vfs_test_fat_driver);
+  }
+  test_end_step(2);
 }
 
 static const testcase_t vfs_test_006_006 = {

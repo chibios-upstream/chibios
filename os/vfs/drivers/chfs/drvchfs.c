@@ -140,6 +140,8 @@ struct vfs_chfs_file_node_vmt {
   msg_t (*setpos)(void *ip, vfs_offset_t offset, vfs_seekmode_t whence);
   vfs_offset_t (*getpos)(void *ip);
   msg_t (*control)(void *ip, vfs_control_op_t operation, void *arg);
+  msg_t (*sync)(void *ip);
+  msg_t (*truncate)(void *ip, vfs_offset_t length);
   /* From vfs_chfs_file_node_c.*/
 };
 

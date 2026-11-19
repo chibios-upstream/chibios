@@ -635,6 +635,9 @@ static void vfs_test_003_003_execute(void) {
     test_assert(n == (ssize_t)sizeof byte, "FIFO write not dispatched");
     ret = vfsFileSetPosition(fnp, 0, VFS_SEEK_SET);
     test_assert(ret == CH_RET_ESPIPE, "FIFO seek accepted");
+    test_assert(vfsFileSync(fnp) == CH_RET_EINVAL &&
+                vfsFileTruncate(fnp, 0) == CH_RET_EINVAL,
+                "FIFO sync or truncate accepted");
     test_assert(vfsFileGetPosition(fnp) == CH_RET_ESPIPE,
                 "FIFO position reported");
     (void)roRelease(fnp);

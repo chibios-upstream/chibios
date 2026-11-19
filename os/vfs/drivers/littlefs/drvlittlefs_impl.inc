@@ -650,6 +650,54 @@ static vfs_offset_t __lfsfile_getpos_impl(void *ip) {
   return offset < 0 ? (vfs_offset_t)translate_error(offset) : (vfs_offset_t)offset;
 }
 
+/**
+ * @memberof    vfs_littlefs_file_node_c
+ * @protected
+ *
+ * @brief       Override of method @p vfsFileSync().
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_littlefs_file_node_c
+ *                              instance.
+ * @return                      The operation result.
+ */
+static msg_t __lfsfile_sync_impl(void *ip) {
+  vfs_littlefs_file_node_c *self = (vfs_littlefs_file_node_c *)ip;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
+  int res;
+
+  lfsdrv_lock(drvp);
+  res = drvp->mounted ? lfs_file_sync(&drvp->lfs, &self->file) : LFS_ERR_IO;
+  lfsdrv_unlock(drvp);
+
+  return translate_error(res);
+}
+
+/**
+ * @memberof    vfs_littlefs_file_node_c
+ * @protected
+ *
+ * @brief       Override of method @p __vfsfile_truncate().
+ * @note        LittleFS extends with zeros and keeps the file position.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_littlefs_file_node_c
+ *                              instance.
+ * @param[in]     length        New file size.
+ * @return                      The operation result.
+ */
+static msg_t __lfsfile_truncate_impl(void *ip, vfs_offset_t length) {
+  vfs_littlefs_file_node_c *self = (vfs_littlefs_file_node_c *)ip;
+  vfs_littlefs_driver_c *drvp = (vfs_littlefs_driver_c *)self->fs;
+  int res;
+
+  lfsdrv_lock(drvp);
+  res = drvp->mounted ? lfs_file_truncate(&drvp->lfs, &self->file,
+                                          (lfs_off_t)length) :
+                        LFS_ERR_IO;
+  lfsdrv_unlock(drvp);
+
+  return translate_error(res);
+}
+
 /** @} */
 
 /**
@@ -665,7 +713,9 @@ static const struct vfs_littlefs_file_node_vmt __vfs_littlefs_file_node_vmt = {
   .write                    = __lfsfile_write_impl,
   .setpos                   = __lfsfile_setpos_impl,
   .getpos                   = __lfsfile_getpos_impl,
-  .control                  = __vfsfile_control_impl
+  .control                  = __vfsfile_control_impl,
+  .sync                     = __lfsfile_sync_impl,
+  .truncate                 = __lfsfile_truncate_impl
 };
 
 /**

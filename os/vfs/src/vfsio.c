@@ -331,19 +331,24 @@ vfs_node_c *vfsIOGet(void *ip, int fd) {
 
 /**
  * @brief       Detaches a descriptor and releases its reference.
- * @details     The slot is reusable before release or final disposal runs.
- *              These callbacks may block or reenter the table.
+ * @details     The slot is reusable before synchronization, release or final
+ *              disposal runs. These callbacks may block or reenter the table.
+ *              A regular file is synchronized before the release, its error is
+ *              returned and the descriptor is closed anyway; nodes without
+ *              storage to synchronize are closed with success. Other
+ *              references may keep the node open after the close.
  *
  * @param[in,out] ip            Pointer to a @p vfs_io_c instance.
  * @param[in]     fd            Descriptor to close.
- * @return                      CH_RET_SUCCESS, or EBADF for an invalid, empty
- *                              or reserved slot.
+ * @return                      CH_RET_SUCCESS, EBADF for an invalid, empty or
+ *                              reserved slot, or the synchronization error.
  *
  * @api
  */
 msg_t vfsIOClose(void *ip, int fd) {
   vfs_io_c *self = (vfs_io_c *)ip;
   vfs_node_c *np;
+  msg_t ret = CH_RET_SUCCESS;
 
   if ((fd < 0) || ((size_t)fd >= self->size)) {
     return CH_RET_EBADF;
@@ -358,9 +363,15 @@ msg_t vfsIOClose(void *ip, int fd) {
   self->slots[fd].node = NULL;
   self->slots[fd].flags = 0;
   chSysUnlock();
+  if (VFS_MODE_S_ISREG(np->mode)) {
+    ret = vfsFileSync((vfs_file_node_c *)np);
+    if (ret == CH_RET_EINVAL) {
+      ret = CH_RET_SUCCESS;
+    }
+  }
   (void)roRelease(np);
 
-  return CH_RET_SUCCESS;
+  return ret;
 }
 
 /**
@@ -639,6 +650,68 @@ msg_t vfsIOFstat(void *ip, int fd, vfs_stat_t *sp) {
     return ret;
   }
   ret = vfsNodeStat(np, sp);
+  (void)roRelease(np);
+
+  return ret;
+}
+
+/**
+ * @brief       Writes the buffered data of a descriptor to its storage.
+ * @details     Directories are already synchronized by the operations changing
+ *              them and return success. Nodes without storage to synchronize
+ *              return EINVAL.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_io_c instance.
+ * @param[in]     fd            Descriptor.
+ * @return                      The operation result or an encoded error.
+ *
+ * @api
+ */
+msg_t vfsIOSync(void *ip, int fd) {
+  vfs_io_c *self = (vfs_io_c *)ip;
+  vfs_node_c *np;
+  msg_t ret;
+
+  ret = pin_descriptor(self, fd, &np);
+  if (CH_RET_IS_ERROR(ret)) {
+    return ret;
+  }
+  if (!VFS_MODE_S_ISDIR(np->mode)) {
+    ret = vfsFileSync((vfs_file_node_c *)np);
+  }
+  (void)roRelease(np);
+
+  return ret;
+}
+
+/**
+ * @brief       Changes the size of the file of a descriptor.
+ * @details     The descriptor must be open for writing, the file position is
+ *              not changed. Directories and nodes that cannot be resized
+ *              return EINVAL.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_io_c instance.
+ * @param[in]     fd            Descriptor.
+ * @param[in]     length        New file size.
+ * @return                      The operation result or an encoded error.
+ *
+ * @api
+ */
+msg_t vfsIOTruncate(void *ip, int fd, vfs_offset_t length) {
+  vfs_io_c *self = (vfs_io_c *)ip;
+  vfs_node_c *np;
+  msg_t ret;
+
+  ret = pin_descriptor(self, fd, &np);
+  if (CH_RET_IS_ERROR(ret)) {
+    return ret;
+  }
+  if (VFS_MODE_S_ISDIR(np->mode)) {
+    ret = CH_RET_EINVAL;
+  }
+  else {
+    ret = vfsFileTruncate((vfs_file_node_c *)np, length);
+  }
   (void)roRelease(np);
 
   return ret;

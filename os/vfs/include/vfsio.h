@@ -183,6 +183,8 @@ extern "C" {
   ssize_t vfsIORead(void *ip, int fd, uint8_t *buf, size_t n);
   ssize_t vfsIOWrite(void *ip, int fd, const uint8_t *buf, size_t n);
   msg_t vfsIOFstat(void *ip, int fd, vfs_stat_t *sp);
+  msg_t vfsIOSync(void *ip, int fd);
+  msg_t vfsIOTruncate(void *ip, int fd, vfs_offset_t length);
   vfs_offset_t vfsIOSeek(void *ip, int fd, vfs_offset_t offset,
                          vfs_seekmode_t whence);
   vfs_offset_t vfsIOTell(void *ip, int fd);

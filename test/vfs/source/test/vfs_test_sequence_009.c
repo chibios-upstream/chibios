@@ -41,6 +41,7 @@
  * - @subpage vfs_test_009_002
  * - @subpage vfs_test_009_003
  * - @subpage vfs_test_009_004
+ * - @subpage vfs_test_009_005
  * .
  */
 
@@ -61,7 +62,7 @@ typedef struct {
   vfs_file_node_c node;
   unsigned disposals;
   uint8_t value;
-  bool pause_io, pause_dispose, fail_io;
+  bool pause_io, pause_dispose, fail_io, fail_sync;
 } vfs_test_fd_node_t;
 
 static vfs_test_fd_node_t vfs_test_fd_nodes[24];
@@ -140,6 +141,12 @@ static ssize_t vfs_test_fd_write(void *ip, const uint8_t *buf, size_t n) {
   return 0;
 }
 
+static msg_t vfs_test_fd_sync(void *ip) {
+  vfs_test_fd_node_t *np = ip;
+
+  return np->fail_sync ? CH_RET_EIO : CH_RET_SUCCESS;
+}
+
 static const struct vfs_file_node_vmt vfs_test_fd_vmt = {
   .dispose = vfs_test_fd_dispose,
   .addref = __ro_addref_impl,
@@ -147,7 +154,9 @@ static const struct vfs_file_node_vmt vfs_test_fd_vmt = {
   .stat = __vfsnode_stat_impl,
   .read = vfs_test_fd_read,
   .write = vfs_test_fd_write,
-  .control = __vfsfile_control_impl
+  .control = __vfsfile_control_impl,
+  .sync = vfs_test_fd_sync,
+  .truncate = __vfsfile_truncate_impl
 };
 
 static void *vfs_test_fd_custom_addref(void *ip) {
@@ -315,7 +324,9 @@ static const struct vfs_file_node_vmt vfs_test_nl_tty_vmt = {
   .write = vfs_test_nl_tty_write,
   .setpos = __vfsfile_setpos_impl,
   .getpos = __vfsfile_getpos_impl,
-  .control = vfs_test_nl_tty_control
+  .control = vfs_test_nl_tty_control,
+  .sync = __vfsfile_sync_impl,
+  .truncate = __vfsfile_truncate_impl
 };
 
 static void vfs_test_nl_setup(void) {
@@ -486,15 +497,15 @@ static const testcase_t vfs_test_009_002 = {
 };
 
 /**
- * @page vfs_test_009_003 [9.3] Admission, table exhaustion and error cleanup
+ * @page vfs_test_009_003 [9.3] Close reports flush errors
  *
  * <h2>Description</h2>
- * Invalid descriptors, directories, full tables and custom reference
- * methods preserve ownership and report errors.
+ * A synchronization error is returned by fsync() and close(), the
+ * descriptor is closed and the node released anyway.
  *
  * <h2>Test Steps</h2>
- * - [9.3.1] Invalid descriptors, directories, full tables and custom
- *   reference methods preserve ownership and report errors.
+ * - [9.3.1] A synchronization error is returned by fsync() and
+ *   close(), the descriptor is closed and the node released anyway.
  * .
  */
 
@@ -508,12 +519,69 @@ static void vfs_test_009_003_teardown(void) {
 
 static void vfs_test_009_003_execute(void) {
   vfs_test_reent_t r;
+  vfs_test_fd_node_t *original;
+  int fd, replacement;
+
+  /* [9.3.1] A synchronization error is returned by fsync() and
+     close(), the descriptor is closed and the node released anyway.*/
+  test_set_step(1);
+  {
+    fd = vfs_test_open_r(&r, "/old", VO_RDWR, 0);
+    test_assert(fd == 0, "open failed");
+    original = &vfs_test_fd_nodes[vfs_test_fd_count - 1U];
+    test_assert(vfs_test_fsync(fd) == 0, "fsync failed");
+    test_assert(vfs_test_ftruncate(fd, 0) == -1 &&
+                vfs_test_global_reent.error == EINVAL,
+                "node without resize accepted ftruncate");
+    original->fail_sync = true;
+    test_assert(vfs_test_fsync(fd) == -1 && vfs_test_global_reent.error == EIO,
+                "fsync error lost");
+    test_assert(vfs_test_close_r(&r, fd) == -1 && r.error == EIO,
+                "close flush error lost");
+    test_assert(original->disposals == 1U, "failed close kept the node");
+    replacement = vfs_test_open_r(&r, "/new", VO_RDWR, 0);
+    test_assert(replacement == fd, "failed close kept the descriptor");
+    test_assert(vfs_test_close_r(&r, replacement) == 0, "close failed");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_009_003 = {
+  "Close reports flush errors",
+  vfs_test_009_003_setup,
+  vfs_test_009_003_teardown,
+  vfs_test_009_003_execute
+};
+
+/**
+ * @page vfs_test_009_004 [9.4] Admission, table exhaustion and error cleanup
+ *
+ * <h2>Description</h2>
+ * Invalid descriptors, directories, full tables and custom reference
+ * methods preserve ownership and report errors.
+ *
+ * <h2>Test Steps</h2>
+ * - [9.4.1] Invalid descriptors, directories, full tables and custom
+ *   reference methods preserve ownership and report errors.
+ * .
+ */
+
+static void vfs_test_009_004_setup(void) {
+  vfs_test_fd_setup();
+}
+
+static void vfs_test_009_004_teardown(void) {
+  vfs_test_fd_teardown();
+}
+
+static void vfs_test_009_004_execute(void) {
+  vfs_test_reent_t r;
   int fd, i;
   char value;
   struct stat st;
   unsigned node;
 
-  /* [9.3.1] Invalid descriptors, directories, full tables and custom
+  /* [9.4.1] Invalid descriptors, directories, full tables and custom
      reference methods preserve ownership and report errors.*/
   test_set_step(1);
   {
@@ -563,16 +631,16 @@ static void vfs_test_009_003_execute(void) {
   test_end_step(1);
 }
 
-static const testcase_t vfs_test_009_003 = {
+static const testcase_t vfs_test_009_004 = {
   "Admission, table exhaustion and error cleanup",
-  vfs_test_009_003_setup,
-  vfs_test_009_003_teardown,
-  vfs_test_009_003_execute
+  vfs_test_009_004_setup,
+  vfs_test_009_004_teardown,
+  vfs_test_009_004_execute
 };
 
 #if (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_009_004 [9.4] Standard descriptors and POSIX calls
+ * @page vfs_test_009_005 [9.5] Standard descriptors and POSIX calls
  *
  * <h2>Description</h2>
  * Calls before initialization, standard descriptors installed by the
@@ -586,28 +654,28 @@ static const testcase_t vfs_test_009_003 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [9.4.1] Calls before initialization.
- * - [9.4.2] Standard descriptors and terminal.
- * - [9.4.3] Files and directories.
- * - [9.4.4] Full table and paths.
+ * - [9.5.1] Calls before initialization.
+ * - [9.5.2] Standard descriptors and terminal.
+ * - [9.5.3] Files and directories.
+ * - [9.5.4] Full table and paths.
  * .
  */
 
-static void vfs_test_009_004_setup(void) {
+static void vfs_test_009_005_setup(void) {
   vfs_test_nl_setup();
 }
 
-static void vfs_test_009_004_teardown(void) {
+static void vfs_test_009_005_teardown(void) {
   vfs_test_nl_teardown();
 }
 
-static void vfs_test_009_004_execute(void) {
+static void vfs_test_009_005_execute(void) {
   vfs_test_reent_t r;
   struct stat st;
   int fd, dfd;
   char c;
 
-  /* [9.4.1] Calls before initialization.*/
+  /* [9.5.1] Calls before initialization.*/
   test_set_step(1);
   {
     /* Context without descriptors and root, as before newlibVfsInit().*/
@@ -626,7 +694,7 @@ static void vfs_test_009_004_execute(void) {
   }
   test_end_step(1);
 
-  /* [9.4.2] Standard descriptors and terminal.*/
+  /* [9.5.2] Standard descriptors and terminal.*/
   test_set_step(2);
   {
     newlibVfsInit(&vfs_test_nl_root);
@@ -644,7 +712,7 @@ static void vfs_test_009_004_execute(void) {
   }
   test_end_step(2);
 
-  /* [9.4.3] Files and directories.*/
+  /* [9.5.3] Files and directories.*/
   test_set_step(3);
   {
     fd = vfs_test_open_r(&r, "/data", VO_RDONLY, 0);
@@ -679,7 +747,7 @@ static void vfs_test_009_004_execute(void) {
   }
   test_end_step(3);
 
-  /* [9.4.4] Full table and paths.*/
+  /* [9.5.4] Full table and paths.*/
   test_set_step(4);
   {
     test_assert(vfs_test_open_r(&r, "/data", VO_RDONLY, 0) == -1 &&
@@ -706,11 +774,11 @@ static void vfs_test_009_004_execute(void) {
   test_end_step(4);
 }
 
-static const testcase_t vfs_test_009_004 = {
+static const testcase_t vfs_test_009_005 = {
   "Standard descriptors and POSIX calls",
-  vfs_test_009_004_setup,
-  vfs_test_009_004_teardown,
-  vfs_test_009_004_execute
+  vfs_test_009_005_setup,
+  vfs_test_009_005_teardown,
+  vfs_test_009_005_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_ROMFS == TRUE */
 
@@ -725,8 +793,9 @@ const testcase_t * const vfs_test_sequence_009_array[] = {
   &vfs_test_009_001,
   &vfs_test_009_002,
   &vfs_test_009_003,
-#if (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) || defined(__DOXYGEN__)
   &vfs_test_009_004,
+#if (VFS_CFG_ENABLE_DRV_ROMFS == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_009_005,
 #endif
   NULL
 };

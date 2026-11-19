@@ -366,7 +366,9 @@ static const struct vfs_tmpl_file_node_vmt __vfs_tmpl_file_node_vmt = {
   .write                    = __tmplfile_write_impl,
   .setpos                   = __tmplfile_setpos_impl,
   .getpos                   = __tmplfile_getpos_impl,
-  .control                  = __vfsfile_control_impl
+  .control                  = __vfsfile_control_impl,
+  .sync                     = __vfsfile_sync_impl,
+  .truncate                 = __vfsfile_truncate_impl
 };
 
 /**

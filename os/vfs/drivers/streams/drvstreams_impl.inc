@@ -543,7 +543,9 @@ const struct vfs_streams_file_node_vmt __vfs_streams_file_node_vmt = {
   .write                    = __stmfile_write_impl,
   .setpos                   = __stmfile_setpos_impl,
   .getpos                   = __stmfile_getpos_impl,
-  .control                  = __stmfile_control_impl
+  .control                  = __stmfile_control_impl,
+  .sync                     = __vfsfile_sync_impl,
+  .truncate                 = __vfsfile_truncate_impl
 };
 
 /*===========================================================================*/

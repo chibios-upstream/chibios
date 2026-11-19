@@ -313,6 +313,37 @@ int mkdir(const char *path, mode_t mode) {
 
   return _mkdir_r(_REENT, path, (int)mode);
 }
+
+/* Newlib has no system calls for fsync() and ftruncate().*/
+__attribute__((used))
+int fsync(int fd) {
+  msg_t ret;
+
+  ret = vfsIOSync(&newlib_io, fd);
+  if (CH_RET_IS_ERROR(ret)) {
+    __errno_r(_REENT) = CH_DECODE_ERROR(ret);
+    return -1;
+  }
+
+  return 0;
+}
+
+__attribute__((used))
+int ftruncate(int fd, off_t length) {
+  msg_t ret;
+
+  if (length > (off_t)INT32_MAX) {
+    __errno_r(_REENT) = EFBIG;
+    return -1;
+  }
+  ret = vfsIOTruncate(&newlib_io, fd, (vfs_offset_t)length);
+  if (CH_RET_IS_ERROR(ret)) {
+    __errno_r(_REENT) = CH_DECODE_ERROR(ret);
+    return -1;
+  }
+
+  return 0;
+}
 #endif
 
 /***************************************************************************/

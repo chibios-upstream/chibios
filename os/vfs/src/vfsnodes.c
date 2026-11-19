@@ -386,6 +386,38 @@ msg_t __vfsfile_control_impl(void *ip, vfs_control_op_t operation, void *arg) {
 
   return CH_RET_ENOTTY;
 }
+
+/**
+ * @brief       Implementation of method @p vfsFileSync().
+ * @note        This function is meant to be used by derived classes.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
+ * @return                      The operation result.
+ */
+msg_t __vfsfile_sync_impl(void *ip) {
+  vfs_file_node_c *self = (vfs_file_node_c *)ip;
+
+  (void)self;
+
+  return CH_RET_EINVAL;
+}
+
+/**
+ * @brief       Implementation of method @p __vfsfile_truncate().
+ * @note        This function is meant to be used by derived classes.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
+ * @param[in]     length        New file size, not negative.
+ * @return                      The operation result.
+ */
+msg_t __vfsfile_truncate_impl(void *ip, vfs_offset_t length) {
+  vfs_file_node_c *self = (vfs_file_node_c *)ip;
+
+  (void)self;
+  (void)length;
+
+  return CH_RET_EINVAL;
+}
 /** @} */
 
 /**
@@ -450,6 +482,33 @@ ssize_t vfsFileWrite(void *ip, const uint8_t *buf, size_t n) {
   }
 
   return __vfsfile_write(self, buf, n);
+}
+
+/**
+ * @brief       Changes the size of a file opened for writing.
+ * @details     A shorter size discards the data past it, a longer size extends
+ *              the file with zeros. The file position is not changed. Nodes
+ *              that cannot be resized return @p CH_RET_EINVAL.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
+ * @param[in]     length        New file size.
+ * @return                      The operation result.
+ * @retval CH_RET_EBADF         The file is not open for writing.
+ * @retval CH_RET_EINVAL        Negative size or node not resizable.
+ *
+ * @api
+ */
+msg_t vfsFileTruncate(void *ip, vfs_offset_t length) {
+  vfs_file_node_c *self = (vfs_file_node_c *)ip;
+
+  if ((self->flags & VO_ACCMODE) == VO_RDONLY) {
+    return CH_RET_EBADF;
+  }
+  if (length < (vfs_offset_t)0) {
+    return CH_RET_EINVAL;
+  }
+
+  return __vfsfile_truncate(self, length);
 }
 /** @} */
 

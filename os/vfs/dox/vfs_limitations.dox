@@ -98,9 +98,10 @@
  * - Open accepts the access mode, @p O_APPEND, @p O_CREAT, @p O_TRUNC,
  *   @p O_EXCL, @p O_DIRECTORY and @p O_CLOEXEC, other flags are rejected.
  *   Seeks support @p VFS_SEEK_SET, @p VFS_SEEK_CUR and @p VFS_SEEK_END.
- * - There are no sync or truncate operations, @p O_TRUNC at open excepted.
- *   Closing a file does not report flush errors, and the last release of a
- *   node can happen after the descriptor is closed.
+ * - There is no truncation by path, files are truncated by @p O_TRUNC at
+ *   open or through an open descriptor. The last release of a node, which
+ *   can happen after the descriptor is closed, does not report errors: the
+ *   descriptor close synchronizes the file first and returns the error.
  * - The opened access mode is enforced, there are no owners, permissions,
  *   umask or timestamp updates.
  * - There are no hard or symbolic links, @p openat() family,
@@ -168,8 +169,6 @@
  *
  * @section vfs_lim_issues Open issues
  *
- * - No sync or truncate, close errors discarded:
- *   https://github.com/chibios-upstream/chibios/issues/639
  * - Incomplete stat metadata:
  *   https://github.com/chibios-upstream/chibios/issues/640
  * - LittleFS open files detached by removal and rename:

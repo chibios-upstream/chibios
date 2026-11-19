@@ -490,6 +490,8 @@ struct vfs_file_node_vmt {
   msg_t (*setpos)(void *ip, vfs_offset_t offset, vfs_seekmode_t whence);
   vfs_offset_t (*getpos)(void *ip);
   msg_t (*control)(void *ip, vfs_control_op_t operation, void *arg);
+  msg_t (*sync)(void *ip);
+  msg_t (*truncate)(void *ip, vfs_offset_t length);
 };
 
 /**
@@ -547,8 +549,11 @@ extern "C" {
                               vfs_seekmode_t whence);
   vfs_offset_t __vfsfile_getpos_impl(void *ip);
   msg_t __vfsfile_control_impl(void *ip, vfs_control_op_t operation, void *arg);
+  msg_t __vfsfile_sync_impl(void *ip);
+  msg_t __vfsfile_truncate_impl(void *ip, vfs_offset_t length);
   ssize_t vfsFileRead(void *ip, uint8_t *buf, size_t n);
   ssize_t vfsFileWrite(void *ip, const uint8_t *buf, size_t n);
+  msg_t vfsFileTruncate(void *ip, vfs_offset_t length);
   /* Regular functions.*/
   msg_t __vfs_seek_target(vfs_offset_t offset, vfs_seekmode_t whence,
                           uint64_t current, uint64_t size,
@@ -770,6 +775,40 @@ static inline msg_t vfsFileControl(void *ip, vfs_control_op_t operation,
   vfs_file_node_c *self = (vfs_file_node_c *)ip;
 
   return self->vmt->control(ip, operation, arg);
+}
+
+/**
+ * @brief       Writes the buffered data and metadata of the file to its
+ *              storage.
+ * @details     Allowed for any access mode. Nodes without storage to
+ *              synchronize return @p CH_RET_EINVAL.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
+ * @return                      The operation result.
+ *
+ * @api
+ */
+CC_FORCE_INLINE
+static inline msg_t vfsFileSync(void *ip) {
+  vfs_file_node_c *self = (vfs_file_node_c *)ip;
+
+  return self->vmt->sync(ip);
+}
+
+/**
+ * @brief       File node size change.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
+ * @param[in]     length        New file size, not negative.
+ * @return                      The operation result.
+ *
+ * @notapi
+ */
+CC_FORCE_INLINE
+static inline msg_t __vfsfile_truncate(void *ip, vfs_offset_t length) {
+  vfs_file_node_c *self = (vfs_file_node_c *)ip;
+
+  return self->vmt->truncate(ip, length);
 }
 /** @} */
 

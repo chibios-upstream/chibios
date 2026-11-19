@@ -44,6 +44,8 @@ int vfs_test_rename_r(vfs_test_reent_t *r, const char *oldpath,
                       const char *newpath);
 int vfs_test_mkdir_r(vfs_test_reent_t *r, const char *path, int mode);
 int vfs_test_mkdir(const char *path, mode_t mode);
+int vfs_test_fsync(int fd);
+int vfs_test_ftruncate(int fd, off_t length);
 int vfs_test_isatty(int fd);
 extern vfs_test_reent_t vfs_test_global_reent;
 

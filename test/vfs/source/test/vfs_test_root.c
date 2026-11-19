@@ -748,6 +748,69 @@ void vfs_test_seek_past_end(vfs_fs_c *fsp) {
   test_assert(vfsFSUnlink(fsp, "/gap") == 0, "gap cleanup failed");
 }
 
+void vfs_test_sync_truncate(vfs_fs_c *fsp) {
+  vfs_file_node_c *fnp, *rnp;
+  vfs_stat_t st;
+  uint8_t bytes[16];
+  unsigned i;
+
+  test_assert(vfsFSOpenFile(fsp, "/tr", VO_CREAT | VO_TRUNC | VO_RDWR,
+                            &fnp) == 0 &&
+              vfsFileWrite(fnp, (const uint8_t *)"abcdefgh", 8) == 8 &&
+              vfsFileSync(fnp) == 0, "truncate file creation failed");
+
+  /* Shrinking keeps the position, here past the new end.*/
+  test_assert(vfsFileSetPosition(fnp, 6, VFS_SEEK_SET) == 0 &&
+              vfsFileTruncate(fnp, 4) == 0 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 4 &&
+              vfsFileGetPosition(fnp) == 6 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 0,
+              "shrink changed the position");
+  test_assert(vfsFileWrite(fnp, (const uint8_t *)"Z", 1) == 1 &&
+              vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == 0 &&
+              vfsFileRead(fnp, bytes, sizeof bytes) == 7 &&
+              memcmp(bytes, "abcd\0\0Z", 7) == 0,
+              "data past the new end not discarded");
+
+  /* Extending fills with zeros and keeps the position.*/
+  test_assert(vfsFileSetPosition(fnp, 2, VFS_SEEK_SET) == 0 &&
+              vfsFileTruncate(fnp, 600) == 0 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 600 &&
+              vfsFileGetPosition(fnp) == 2 &&
+              vfsFileRead(fnp, bytes, 5) == 5 &&
+              memcmp(bytes, "cd\0\0Z", 5) == 0,
+              "extension changed the position or the data");
+  for (i = 7U; i < 600U; i += (unsigned)sizeof bytes) {
+    size_t n = (600U - i) < sizeof bytes ? (600U - i) : sizeof bytes;
+    size_t j;
+
+    test_assert(vfsFileRead(fnp, bytes, n) == (ssize_t)n,
+                "extension read failed");
+    for (j = 0U; j < n; j++) {
+      test_assert(bytes[j] == 0U, "extension not filled with zeros");
+    }
+  }
+
+  /* A position past the end survives a size change.*/
+  test_assert(vfsFileSetPosition(fnp, 700, VFS_SEEK_SET) == 0 &&
+              vfsFileTruncate(fnp, 10) == 0 &&
+              vfsFileGetPosition(fnp) == 700 &&
+              vfsFileTruncate(fnp, 10) == 0 &&
+              vfsNodeStat(fnp, &st) == 0 && st.size == 10 &&
+              vfsFileTruncate(fnp, -1) == CH_RET_EINVAL &&
+              vfsFileSync(fnp) == 0, "size change errors");
+  vfsNodeClose(fnp);
+
+  /* Read-only opens are synchronized but not resized.*/
+  test_assert(vfsFSOpenFile(fsp, "/tr", VO_RDONLY, &rnp) == 0 &&
+              vfsFileSync(rnp) == 0 &&
+              vfsFileTruncate(rnp, 0) == CH_RET_EBADF &&
+              vfsNodeStat(rnp, &st) == 0 && st.size == 10,
+              "read-only open resized");
+  vfsNodeClose(rnp);
+  test_assert(vfsFSUnlink(fsp, "/tr") == 0, "truncate cleanup failed");
+}
+
 #if defined(VFS_TEST_NEWLIB) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)
 void vfs_test_newlib_native(vfs_fs_c *fsp) {
   vfs_test_reent_t r;
@@ -780,6 +843,19 @@ void vfs_test_newlib_native(vfs_fs_c *fsp) {
               "negative read count accepted");
   test_assert(vfs_test_write_r(&r, fd, buf, -1) == -1 && r.error == EINVAL,
               "negative write count accepted");
+  test_assert(vfs_test_ftruncate(fd, 3) == 0 && vfs_test_fsync(fd) == 0 &&
+              vfs_test_fstat_r(&r, fd, &st) == 0 && st.st_size == 3 &&
+              vfs_test_ftruncate(fd, 6) == 0 &&
+              vfs_test_lseek_r(&r, fd, 0, SEEK_CUR) == 6,
+              "newlib ftruncate or fsync failed");
+  test_assert(vfs_test_ftruncate(fd, -1) == -1 &&
+              vfs_test_global_reent.error == EINVAL &&
+              vfs_test_fsync(VFS_TEST_NEWLIB_FDS) == -1 &&
+              vfs_test_global_reent.error == EBADF,
+              "newlib ftruncate or fsync errors");
+  test_assert(vfs_test_lseek_r(&r, fd, 3, SEEK_SET) == 3 &&
+              vfs_test_write_r(&r, fd, "def", 3) == 3,
+              "newlib rewrite failed");
   test_assert(vfs_test_close_r(&r, fd) == 0, "newlib close failed");
 
   /* Append after a seek.*/
@@ -806,6 +882,9 @@ void vfs_test_newlib_native(vfs_fs_c *fsp) {
               r.error == EISDIR, "directory seek accepted");
   test_assert(vfs_test_isatty_r(&r, fd) == 0 && r.error == ENOTTY,
               "directory reported as a terminal");
+  test_assert(vfs_test_fsync(fd) == 0 && vfs_test_ftruncate(fd, 0) == -1 &&
+              vfs_test_global_reent.error == EINVAL,
+              "directory fsync or ftruncate");
   test_assert(vfs_test_close_r(&r, fd) == 0, "directory close failed");
 
   /* A full table rejects an open before creating the file.*/
