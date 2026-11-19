@@ -89,6 +89,12 @@
  *
  * - Sizes and positions are of type @p vfs_offset_t, a signed 32-bit
  *   integer, positions beyond @p INT32_MAX return @p CH_RET_EOVERFLOW.
+ *   Files are limited to @p INT32_MAX bytes: a FatFS file of 2 GiB or more,
+ *   written by another system, is rejected by open and stat with
+ *   @p CH_RET_EOVERFLOW and its directory entry reports @p INT32_MAX, a
+ *   write at the limit returns @p CH_RET_EFBIG and a write crossing it is
+ *   shortened. LittleFS limits files natively to @p LFS_FILE_MAX, at most
+ *   @p INT32_MAX, a write crossing it returns @p CH_RET_EFBIG.
  * - Open accepts the access mode, @p O_APPEND, @p O_CREAT, @p O_TRUNC,
  *   @p O_EXCL, @p O_DIRECTORY and @p O_CLOEXEC, other flags are rejected.
  *   Seeks support @p VFS_SEEK_SET, @p VFS_SEEK_CUR and @p VFS_SEEK_END.
@@ -162,8 +168,6 @@
  *
  * @section vfs_lim_issues Open issues
  *
- * - File sizes narrowed to 32 bits without checks:
- *   https://github.com/chibios-upstream/chibios/issues/638
  * - No sync or truncate, close errors discarded:
  *   https://github.com/chibios-upstream/chibios/issues/639
  * - Incomplete stat metadata:
