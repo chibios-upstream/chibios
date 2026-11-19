@@ -490,6 +490,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [VFS] FatFS and ROMFS: positions past the end of file are accepted without
+  changing the file, reads there return end of file and the next FatFS
+  write fills the gap with zeros; a seek past the end no longer extends a
+  writable FatFS file or returns `ENOTSUP`
+  ([#653](https://github.com/chibios-upstream/chibios/pull/653)).
 - [VFS] FatFS driver: opens, removals and renames rejected by `FF_FS_LOCK`
   return `EBUSY` instead of `EACCES`
   ([#648](https://github.com/chibios-upstream/chibios/pull/648)).
