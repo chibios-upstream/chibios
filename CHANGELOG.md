@@ -8,6 +8,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [STM32] UART driver on the GPDMA devices (STM32H5, U5, U3 and C5), where
+  `HAL_USE_UART` did not build: the USARTv3 driver gets a GPDMA path, with
+  the `STM32_UART_<port>_RX_DMA3_CHANNEL` and `_TX_DMA3_CHANNEL` settings
+  in `mcuconf.h`
+  ([#672](https://github.com/chibios-upstream/chibios/pull/672)).
 - [VFS] `vfsFileSync()` and `vfsFileTruncate()` file node methods,
   implemented by the FatFS and LittleFS drivers, `vfsIOSync()` and
   `vfsIOTruncate()` for descriptors, and `fsync()` and `ftruncate()` in the
