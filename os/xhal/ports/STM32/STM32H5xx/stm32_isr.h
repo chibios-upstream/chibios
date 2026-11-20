@@ -265,7 +265,7 @@
 #define STM32_TIM17_HANDLER                 Vector164
 
 #define STM32_TIM1_BRK_TERR_IERR_NUMBER     41
-#define STM32_TIM1_UP_TIM16_NUMBER          42
+#define STM32_TIM1_UP_NUMBER                42
 #define STM32_TIM1_TRGCO_DIR_IDX_NUMBER     43
 #define STM32_TIM1_CC_NUMBER                44
 #define STM32_TIM2_NUMBER                   45
