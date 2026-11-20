@@ -25,33 +25,16 @@ static const SIOConfig sio_config = {
   .format = AVR_SIO_8N1
 };
 
-static const uint8_t banner[] = "SIO echo test\r\n";
-
 /*
- * Echo thread, frames are read when available and written back.
+ * LED blinker thread, times are in milliseconds.
  */
-static THD_WORKING_AREA(waEcho, 128);
-static THD_FUNCTION(Echo, arg) {
-  uint8_t buf[16];
+static THD_WORKING_AREA(waThread1, 32);
+static THD_FUNCTION(Thread1, arg) {
 
   (void)arg;
-  chRegSetThreadName("echo");
-
   while (true) {
-    size_t n;
-    msg_t msg;
-
-    msg = sioSynchronizeRX(&SIOD0, TIME_INFINITE);
-    if (msg == SIO_MSG_ERRORS) {
-      /* Framing, parity or overrun errors, cleared and ignored.*/
-      (void) sioGetAndClearErrors(&SIOD0);
-    }
-
-    n = sioAsyncRead(&SIOD0, buf, sizeof buf);
-    if (n > 0U) {
-      (void) chnWrite((BaseChannel *)&SIOD0, buf, n);
-      palToggleLine(LINE_LED1);
-    }
+    palTogglePad(IOPORT2, PORTB_LED1);
+    chThdSleepMilliseconds(1000);
   }
 }
 
@@ -70,20 +53,19 @@ int main(void) {
   halInit();
   chSysInit();
 
-  palSetLineMode(LINE_LED1, PAL_MODE_OUTPUT_PUSHPULL);
-
   /*
-   * Activates the SIO driver 0, PD0(RX) and PD1(TX) are routed to USART0.
-   * The banner is sent and the transmission end is awaited before the
-   * echo starts.
+   * Activates the SIO driver 0, PD0(RX) and PD1(TX) are routed to the USART.
    */
   (void) sioStart(&SIOD0, &sio_config);
-  (void) chnWrite((BaseChannel *)&SIOD0, banner, sizeof banner - 1U);
-  (void) sioSynchronizeTXEnd(&SIOD0, TIME_INFINITE);
 
-  chThdCreateStatic(waEcho, sizeof(waEcho), NORMALPRIO + 1, Echo, NULL);
+  /*
+   * Starts the LED blinker thread.
+   */
+  chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1, NULL);
 
   while (true) {
-    chThdSleepMilliseconds(500);
+    (void) chnWrite((BaseChannel *)&SIOD0,
+                    (const uint8_t *)"Hello World!\r\n", 14);
+    chThdSleepMilliseconds(2000);
   }
 }

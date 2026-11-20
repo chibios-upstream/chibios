@@ -17,7 +17,7 @@
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -O2
+  USE_OPT = -Os
 endif
 
 # C specific options here (added to USE_OPT).
@@ -93,8 +93,8 @@ endif
 # Define project name here.
 PROJECT = ch
 
-# Imported source files and paths
-CHIBIOS = ../../../..
+# Imported source files and paths.
+CHIBIOS  := ../../..
 CONFDIR  := ./cfg
 BUILDDIR := ./build
 DEPDIR   := ./.dep
@@ -104,7 +104,7 @@ include $(CHIBIOS)/os/license/license.mk
 
 # HAL-OSAL files (optional).
 include $(CHIBIOS)/os/hal/hal.mk
-include $(CHIBIOS)/os/hal/boards/ARDUINO_UNO/board.mk
+include $(CHIBIOS)/os/hal/boards/ATMEGA8_MINIMAL/board.mk
 include $(CHIBIOS)/os/hal/ports/AVR/MEGA/ATMEGAxx/platform.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 
@@ -131,7 +131,7 @@ INCDIR = $(CONFDIR) $(ALLINC)
 #
 
 # Micro-Controller Unit.
-MCU  = atmega328p
+MCU  = atmega8
 
 # MCU frequency (Hz).
 F_CPU = 16000000
@@ -177,7 +177,7 @@ CPPWARN =
 #
 
 # List all user C define here, like -D_DEBUG=1.
-UDEFS =
+UDEFS = -DTEST_CFG_SIZE_REPORT=0
 
 # Define ASM defines here.
 UADEFS =
