@@ -421,6 +421,227 @@
 #error "Invalid IRQ priority assigned to USART10"
 #endif
 
+#if defined(STM32_DMA3_PRESENT)
+
+/* Check on DMA priorities.*/
+#if STM32_UART_USE_USART1 &&                                                \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_UART_USART1_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to USART1"
+#endif
+
+#if STM32_UART_USE_USART2 &&                                                \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_UART_USART2_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to USART2"
+#endif
+
+#if STM32_UART_USE_USART3 &&                                                \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_UART_USART3_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to USART3"
+#endif
+
+#if STM32_UART_USE_UART4 &&                                                 \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_UART_UART4_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to UART4"
+#endif
+
+#if STM32_UART_USE_UART5 &&                                                 \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_UART_UART5_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to UART5"
+#endif
+
+#if STM32_UART_USE_USART6 &&                                                \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_UART_USART6_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to USART6"
+#endif
+
+#if STM32_UART_USE_UART7 &&                                                 \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_UART_UART7_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to UART7"
+#endif
+
+#if STM32_UART_USE_UART8 &&                                                 \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_UART_UART8_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to UART8"
+#endif
+
+#if STM32_UART_USE_UART9 &&                                                 \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_UART_UART9_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to UART9"
+#endif
+
+#if STM32_UART_USE_USART10 &&                                               \
+    !STM32_DMA3_IS_VALID_PRIORITY(STM32_UART_USART10_DMA_PRIORITY)
+#error "Invalid DMA priority assigned to USART10"
+#endif
+
+/* Check on the presence of the GPDMA channels settings in mcuconf.h.*/
+#if STM32_UART_USE_USART1 &&                                                \
+    (!defined(STM32_UART_USART1_RX_DMA3_CHANNEL) ||                         \
+     !defined(STM32_UART_USART1_TX_DMA3_CHANNEL))
+#error "USART1 GPDMA channels not defined"
+#endif
+
+#if STM32_UART_USE_USART2 &&                                                \
+    (!defined(STM32_UART_USART2_RX_DMA3_CHANNEL) ||                         \
+     !defined(STM32_UART_USART2_TX_DMA3_CHANNEL))
+#error "USART2 GPDMA channels not defined"
+#endif
+
+#if STM32_UART_USE_USART3 &&                                                \
+    (!defined(STM32_UART_USART3_RX_DMA3_CHANNEL) ||                         \
+     !defined(STM32_UART_USART3_TX_DMA3_CHANNEL))
+#error "USART3 GPDMA channels not defined"
+#endif
+
+#if STM32_UART_USE_UART4 &&                                                 \
+    (!defined(STM32_UART_UART4_RX_DMA3_CHANNEL) ||                          \
+     !defined(STM32_UART_UART4_TX_DMA3_CHANNEL))
+#error "UART4 GPDMA channels not defined"
+#endif
+
+#if STM32_UART_USE_UART5 &&                                                 \
+    (!defined(STM32_UART_UART5_RX_DMA3_CHANNEL) ||                          \
+     !defined(STM32_UART_UART5_TX_DMA3_CHANNEL))
+#error "UART5 GPDMA channels not defined"
+#endif
+
+#if STM32_UART_USE_USART6 &&                                                \
+    (!defined(STM32_UART_USART6_RX_DMA3_CHANNEL) ||                         \
+     !defined(STM32_UART_USART6_TX_DMA3_CHANNEL))
+#error "USART6 GPDMA channels not defined"
+#endif
+
+#if STM32_UART_USE_UART7 &&                                                 \
+    (!defined(STM32_UART_UART7_RX_DMA3_CHANNEL) ||                          \
+     !defined(STM32_UART_UART7_TX_DMA3_CHANNEL))
+#error "UART7 GPDMA channels not defined"
+#endif
+
+#if STM32_UART_USE_UART8 &&                                                 \
+    (!defined(STM32_UART_UART8_RX_DMA3_CHANNEL) ||                          \
+     !defined(STM32_UART_UART8_TX_DMA3_CHANNEL))
+#error "UART8 GPDMA channels not defined"
+#endif
+
+#if STM32_UART_USE_UART9 &&                                                 \
+    (!defined(STM32_UART_UART9_RX_DMA3_CHANNEL) ||                          \
+     !defined(STM32_UART_UART9_TX_DMA3_CHANNEL))
+#error "UART9 GPDMA channels not defined"
+#endif
+
+#if STM32_UART_USE_USART10 &&                                               \
+    (!defined(STM32_UART_USART10_RX_DMA3_CHANNEL) ||                        \
+     !defined(STM32_UART_USART10_TX_DMA3_CHANNEL))
+#error "USART10 GPDMA channels not defined"
+#endif
+
+/* Check on the validity of the assigned GPDMA channels.*/
+#if STM32_UART_USE_USART1 &&                                                \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_USART1_RX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to USART1 RX"
+#endif
+
+#if STM32_UART_USE_USART1 &&                                                \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_USART1_TX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to USART1 TX"
+#endif
+
+#if STM32_UART_USE_USART2 &&                                                \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_USART2_RX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to USART2 RX"
+#endif
+
+#if STM32_UART_USE_USART2 &&                                                \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_USART2_TX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to USART2 TX"
+#endif
+
+#if STM32_UART_USE_USART3 &&                                                \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_USART3_RX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to USART3 RX"
+#endif
+
+#if STM32_UART_USE_USART3 &&                                                \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_USART3_TX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to USART3 TX"
+#endif
+
+#if STM32_UART_USE_UART4 &&                                                 \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_UART4_RX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to UART4 RX"
+#endif
+
+#if STM32_UART_USE_UART4 &&                                                 \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_UART4_TX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to UART4 TX"
+#endif
+
+#if STM32_UART_USE_UART5 &&                                                 \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_UART5_RX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to UART5 RX"
+#endif
+
+#if STM32_UART_USE_UART5 &&                                                 \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_UART5_TX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to UART5 TX"
+#endif
+
+#if STM32_UART_USE_USART6 &&                                                \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_USART6_RX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to USART6 RX"
+#endif
+
+#if STM32_UART_USE_USART6 &&                                                \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_USART6_TX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to USART6 TX"
+#endif
+
+#if STM32_UART_USE_UART7 &&                                                 \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_UART7_RX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to UART7 RX"
+#endif
+
+#if STM32_UART_USE_UART7 &&                                                 \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_UART7_TX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to UART7 TX"
+#endif
+
+#if STM32_UART_USE_UART8 &&                                                 \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_UART8_RX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to UART8 RX"
+#endif
+
+#if STM32_UART_USE_UART8 &&                                                 \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_UART8_TX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to UART8 TX"
+#endif
+
+#if STM32_UART_USE_UART9 &&                                                 \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_UART9_RX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to UART9 RX"
+#endif
+
+#if STM32_UART_USE_UART9 &&                                                 \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_UART9_TX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to UART9 TX"
+#endif
+
+#if STM32_UART_USE_USART10 &&                                               \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_USART10_RX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to USART10 RX"
+#endif
+
+#if STM32_UART_USE_USART10 &&                                               \
+    !STM32_DMA3_ARE_VALID_CHANNELS(STM32_UART_USART10_TX_DMA3_CHANNEL)
+#error "Invalid GPDMA channel assigned to USART10 TX"
+#endif
+
+#if !defined(STM32_DMA3_REQUIRED)
+#define STM32_DMA3_REQUIRED
+#endif
+
+#else /* !defined(STM32_DMA3_PRESENT) */
+
 /* Check on DMA priorities.*/
 #if STM32_UART_USE_USART1 &&                                                \
     !STM32_DMA_IS_VALID_PRIORITY(STM32_UART_USART1_DMA_PRIORITY)
@@ -744,6 +965,8 @@
 #define STM32_DMA_REQUIRED
 #endif
 
+#endif /* !defined(STM32_DMA3_PRESENT) */
+
 /* Checks on allocation of USARTx units.*/
 #if STM32_UART_USE_USART1
 #if defined(STM32_USART1_IS_USED)
@@ -918,6 +1141,20 @@ typedef struct hal_uart_config {
   uint32_t                  cr3;
 } UARTConfig;
 
+#if defined(STM32_DMA3_PRESENT) || defined(__DOXYGEN__)
+/**
+ * @brief   Type of a GPDMA link item for the receive idle loop.
+ * @note    The variables of this type are placed in the GPDMA links area
+ *          by their @p __dma3_ name prefix.
+ */
+typedef struct {
+  /**
+   * @brief   Destination address reloaded at the end of each block.
+   */
+  uint32_t                  cdar;
+} uart_dmabuf_t;
+#endif
+
 /**
  * @brief   Structure representing an UART driver.
  */
@@ -968,12 +1205,40 @@ struct hal_uart_driver {
   USART_TypeDef             *usart;
   /**
    * @brief   Receive DMA mode bit mask.
+   * @note    On GPDMA devices it holds the data width bits of CTR1.
    */
   uint32_t                  dmarxmode;
   /**
    * @brief   Send DMA mode bit mask.
+   * @note    On GPDMA devices it holds the data width bits of CTR1.
    */
   uint32_t                  dmatxmode;
+#if defined(STM32_DMA3_PRESENT) || defined(__DOXYGEN__)
+  /**
+   * @brief   Receive GPDMA channel.
+   */
+  const stm32_dma3_channel_t *dmarx;
+  /**
+   * @brief   Transmit GPDMA channel.
+   */
+  const stm32_dma3_channel_t *dmatx;
+  /**
+   * @brief   GPDMA channels priority.
+   */
+  uint8_t                   dprio;
+  /**
+   * @brief   GPDMA request line for RX.
+   */
+  uint8_t                   dreqrx;
+  /**
+   * @brief   GPDMA request line for TX.
+   */
+  uint8_t                   dreqtx;
+  /**
+   * @brief   GPDMA link item of the receive idle loop.
+   */
+  uart_dmabuf_t             *dbuf;
+#else
   /**
    * @brief   Receive DMA channel.
    */
@@ -982,6 +1247,7 @@ struct hal_uart_driver {
    * @brief   Transmit DMA channel.
    */
   const stm32_dma_stream_t  *dmatx;
+#endif
   /**
    * @brief   Default receive buffer while into @p UART_RX_IDLE state.
    */
