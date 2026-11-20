@@ -64,6 +64,7 @@
 /* DMA3 attributes.*/
 #define STM32_DMA3_MEMORY_PORT              0U
 #define STM32_DMA3_PERIPHERAL_PORT          1U
+#define STM32_DMA3_HAS_2D_REGISTERS         FALSE
 
 #define STM32_DMA3_REQ_ADC1                 0U
 #define STM32_DMA3_REQ_ADC2                 1U

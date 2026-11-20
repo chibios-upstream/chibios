@@ -35,17 +35,6 @@
 #define STM32_DMA3_PRESENT
 
 /**
- * @brief   Presence of the 2D addressing registers @p CTR3 and @p CBR2.
- * @note    The channels of the STM32C5 have no 2D capability and their
- *          register blocks have no @p CTR3 and @p CBR2 registers.
- */
-#if defined(DMA_CTR3_SAO) || defined(__DOXYGEN__)
-#define STM32_DMA3_HAS_2D_REGISTERS     TRUE
-#else
-#define STM32_DMA3_HAS_2D_REGISTERS     FALSE
-#endif
-
-/**
  * @name    DMA registers helpers
  * @{
  */
@@ -324,6 +313,10 @@
 
 #if !defined(STM32_DMA32_NUM_CHANNELS)
 #error "STM32_DMA32_NUM_CHANNELS not defined in registry"
+#endif
+
+#if !defined(STM32_DMA3_HAS_2D_REGISTERS)
+#error "STM32_DMA3_HAS_2D_REGISTERS not defined in registry"
 #endif
 
 #if (STM32_DMA31_NUM_CHANNELS < 0) || (STM32_DMA31_NUM_CHANNELS > 8)
