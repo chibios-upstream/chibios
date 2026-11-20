@@ -60,6 +60,7 @@
 /* DMA3 attributes.*/
 #define STM32_DMA3_MEMORY_PORT              0U
 #define STM32_DMA3_PERIPHERAL_PORT          1U
+#define STM32_DMA3_HAS_2D_REGISTERS         TRUE
 #define STM32_DMA31_NUM_CHANNELS            8U
 #define STM32_DMA31_MASK_FIFO2              0x0000000FU
 #define STM32_DMA31_MASK_FIFO4              0x00000030U
