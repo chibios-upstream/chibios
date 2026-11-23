@@ -30,11 +30,12 @@ ifeq ($(USE_CPPOPT),)
   USE_CPPOPT =
 endif
 
-# Linker extra options here. The core memory, so the heap, is the external
-# SRAM from the end of the internal SRAM (0x0500) to 0x7FFF.
+# Linker extra options here. The core memory, so the heap, is the whole
+# 32 KiB external SRAM: from the end of the internal SRAM (0x0500) to 0x84FF.
+# A15 is not connected, 0x8000-0x84FF reach the SRAM locations 0x0000-0x04FF.
 ifeq ($(USE_LDOPT),)
   USE_LDOPT = --defsym=__main_thread_stack_base__=0,--defsym=__main_thread_stack_end__=0
-  USE_LDOPT := $(USE_LDOPT),--defsym=__heap_base__=0x800500,--defsym=__heap_end__=0x808000
+  USE_LDOPT := $(USE_LDOPT),--defsym=__heap_base__=0x800500,--defsym=__heap_end__=0x808500
 endif
 
 # Enable this if you want to see the full log while compiling.

@@ -50,6 +50,17 @@ static BaseSequentialStream *const chp = (BaseSequentialStream *)&SIOD0;
  * starts after the internal SRAM, at 0x0500.
  */
 static void xmem_init(void) {
+  uint8_t mcucsr;
+
+  /* The JTAG interface takes PC7:4, so A14:12, while the JTAGEN fuse is
+     programmed, as shipped, and JTD is clear. JTD is set, it only changes
+     when written twice within four cycles, hence the two back to back
+     writes. The reset flags are written as read, writing ones keeps them.*/
+  mcucsr = (uint8_t)(MCUCSR | _BV(JTD));
+  asm volatile ("out %0, %1\n\t"
+                "out %0, %1"
+                :
+                : "I" (_SFR_IO_ADDR(MCUCSR)), "r" (mcucsr));
 
   /* A single sector (SRL2:0 = 000), its wait states are SRW11:SRW10 = 01,
      one cycle during the read and write strobes.*/

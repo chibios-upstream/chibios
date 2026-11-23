@@ -14,11 +14,14 @@ with a 32 KiB SRAM on the external memory interface:
 
 ** The Demo **
 
-The external memory interface is enabled at start, with one wait state. The
-external memory is mapped after the internal SRAM, the region from 0x0500 to
-0x7FFF is the kernel core memory (CH_CFG_MEMCORE_SIZE is zero, the region is
-set by the __heap_base__ and __heap_end__ symbols in the Makefile), so the
-heap allocates from the external SRAM.
+The external memory interface is enabled at start, with one wait state, and
+the JTAG interface is disabled (JTD) because it shares PC7:4. The external
+memory is mapped after the internal SRAM. A15 is not connected, so the
+addresses from 0x8000 to 0x84FF reach the first 1280 bytes of the SRAM and
+the region from 0x0500 to 0x84FF is the whole 32 KiB. It is the kernel core
+memory (CH_CFG_MEMCORE_SIZE is zero, the region is set by the __heap_base__
+and __heap_end__ symbols in the Makefile), so the heap allocates from the
+external SRAM.
 
 The region is tested first, a pattern derived from each address then its
 complement are written and read back. A failure is reported and the LED
@@ -44,5 +47,8 @@ the external memory timing in the ATmega162 datasheet. With a smaller
 SRAM, change __heap_end__ in the Makefile and the XMM2:0 setting.
 
 The demo runs natively, the fuses must select the external 16 MHz crystal
-(CKSEL and SUT, see the ATmega162 datasheet). The programmer settings are
-in the Makefile.
+(CKSEL and SUT, see the ATmega162 datasheet). The CKDIV8 fuse, programmed
+when shipped, must be unprogrammed: it divides the clock by 8 and the
+serial output is then unreadable. The JTAGEN fuse, also programmed when
+shipped, can stay: the demo disables the JTAG interface, which then cannot
+be used for debugging. The programmer settings are in the Makefile.
