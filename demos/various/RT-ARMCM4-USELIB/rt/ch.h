@@ -53,7 +53,7 @@
 #define CH_VERSION_YEAR 27
 #define CH_VERSION_MONTH 1
 #define CH_VERSION_PATCH 0
-#define CH_VERSION_NICKNAME "Lasagna"
+#define CH_VERSION_NICKNAME "Agerola"
 #define CH_VERSION_DATE (((CH_VERSION_YEAR + 2000) * 100) + CH_VERSION_MONTH)
 #define CHCUSTOMER_H 
 #define CH_CUSTOMER_ID_STRING "Santa, North Pole"

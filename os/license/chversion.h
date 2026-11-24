@@ -70,7 +70,7 @@
 /**
  * @brief   ChibiOS version nickname.
  */
-#define CH_VERSION_NICKNAME     "Lasagna"
+#define CH_VERSION_NICKNAME     "Agerola"
 /** @} */
 
 /*===========================================================================*/
