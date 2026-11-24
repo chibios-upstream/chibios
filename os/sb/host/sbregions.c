@@ -82,7 +82,7 @@ bool sb_is_valid_write_range(sb_class_t *sbp, void *start, size_t size) {
  * Variants for buffers accessed by DMA-capable host drivers, the range is
  * additionally required to reside in a non-cacheable (coherent) region.
  * Enforced on all hosts, including cache-less ones, so that applications
- * are portable by construction; see note_sb_coherent_regions.md.
+ * are portable by construction.
  */
 bool sb_is_valid_coherent_read_range(sb_class_t *sbp, const void *start,
                                      size_t size) {
