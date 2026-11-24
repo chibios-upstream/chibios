@@ -26,7 +26,9 @@
 
 #include "buzzer.h"
 
-EventSource BuzzerSilentEventSource;
+event_source_t BuzzerSilentEventSource;
+
+static virtual_timer_t bvt;
 
 #define StartCounter(t) ((t)->TC_EMR = 0xF1, (t)->TC_TCR = 1)
 #define StopCounter(t)  ((t)->TC_EMR = 0, (t)->TC_TCR = 2)
@@ -36,7 +38,8 @@ EventSource BuzzerSilentEventSource;
  */
 void buzzInit(void) {
 
-  chEvtInit(&BuzzerSilentEventSource);
+  chEvtObjectInit(&BuzzerSilentEventSource);
+  chVTObjectInit(&bvt);
 
   /*
    * Switches P0.12 and P0.13 to MAT1.0 and MAT1.1 functions.
@@ -59,14 +62,17 @@ void buzzInit(void) {
 /**
  * @brief Stops the sound.
  *
+ * @param[in] vtp pointer to the virtual timer
  * @param[in] p pointer to the timer
  */
-static void stop(void *p) {
+static void stop(virtual_timer_t *vtp, void *p) {
+
+  (void)vtp;
 
   StopCounter((TC *)p);
-  chSysLockFromIsr();
+  chSysLockFromISR();
   chEvtBroadcastI(&BuzzerSilentEventSource);
-  chSysUnlockFromIsr();
+  chSysUnlockFromISR();
 }
 
 /**
@@ -75,8 +81,7 @@ static void stop(void *p) {
  * @param[in] freq approximated tone frequency
  * @param[in] duration tone duration in systicks
  */
-void buzzPlay(uint32_t freq, systime_t duration) {
-  static VirtualTimer bvt;
+void buzzPlay(uint32_t freq, sysinterval_t duration) {
   TC *tc = T1Base;
 
   chSysLock();
@@ -99,7 +104,7 @@ void buzzPlay(uint32_t freq, systime_t duration) {
  * @param[in] freq approximated tone frequency
  * @param[in] duration tone duration in systicks
  */
-void buzzPlayWait(uint32_t freq, systime_t duration) {
+void buzzPlayWait(uint32_t freq, sysinterval_t duration) {
   TC *tc = T1Base;
 
   StopCounter(tc);

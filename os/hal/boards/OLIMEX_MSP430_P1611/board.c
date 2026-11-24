@@ -49,9 +49,9 @@ CH_IRQ_HANDLER(TIMERA0) {
 
   CH_IRQ_PROLOGUE();
 
-  chSysLockFromIsr();
+  chSysLockFromISR();
   chSysTimerHandlerI();
-  chSysUnlockFromIsr();
+  chSysUnlockFromISR();
 
   CH_IRQ_EPILOGUE();
 }

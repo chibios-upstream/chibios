@@ -21,7 +21,7 @@ Paths and commands below are relative to the directory containing this file, the
 
 ## API Context & Interrupt Handling
 
-- API context contracts must drive design decisions. Unless documented otherwise, no suffix means normal, unlocked thread context; `X` permits any context; `S` requires locked thread context (S-Locked); `I` requires I-Locked or S-Locked context. Being in an ISR alone does not satisfy the `I`-class contract. See `doc/build/common/src/concepts.dox` for the context definitions.
+- API context contracts must drive design decisions. Unless documented otherwise, no suffix means normal, unlocked thread context; `X` permits any context except non-maskable interrupt handlers; `S` requires locked thread context (S-Locked); `I` requires I-Locked or S-Locked context. Being in an ISR alone does not satisfy the `I`-class contract. See `doc/build/common/src/concepts.dox` for the context definitions.
 - Only place calls in fastcall/ISR paths when their documented context and locking requirements are satisfied.
 - Driver callbacks must follow their context contract. Generic XHAL driver callbacks are invoked from ISR context and out of system locks; do not call them from thread-context APIs, and do not invoke them while holding `osalSysLock*()`/`chSysLock*()`. If an ISR helper must wake waiters, lock only around the `I`-class wakeup/VRQ operations, unlock, then invoke the callback.
 - While debugging new code, prefer enabling assertions, parameter checks, and the state checker in `chconf.h`. In ChibiOS, contract violations often halt early with those options enabled, which is desirable for catching context and state misuse quickly.

@@ -147,9 +147,9 @@
  */
 #define _TIM2_UPDATE_ISR() {                                                \
   if (TIM2->SR1 & TIM_SR1_UIF) {                                            \
-    chSysLockFromIsr();                                                     \
+    chSysLockFromISR();                                                     \
     chSysTimerHandlerI();                                                   \
-    chSysUnlockFromIsr();                                                   \
+    chSysUnlockFromISR();                                                   \
     TIM2->SR1 = 0;                                                          \
   }                                                                         \
 }
