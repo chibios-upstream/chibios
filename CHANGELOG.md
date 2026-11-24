@@ -47,8 +47,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   ([#667](https://github.com/chibios-upstream/chibios/pull/667)).
 - [HAL] AVR ATmega SIO driver on the USARTv1: `SIOD0`–`SIOD3` on
   USART0–USART3, allocated with the `AVR_SIO_USE_USARTx` switches, and a
-  `testhal/AVR/MEGA/SIO` echo test for the Arduino Uno
-  ([#584](https://github.com/chibios-upstream/chibios/pull/584)).
+  `testhal/AVR/multi/SIO` echo test on every port of the Arduino Uno,
+  Arduino Mega, ATmega8 and ATmega162 targets
+  ([#584](https://github.com/chibios-upstream/chibios/pull/584),
+  [#668](https://github.com/chibios-upstream/chibios/pull/668)).
 - [HAL] Quadrature encoder abstract interface, `BaseEncoder` in
   `hal_encoder.h`, and a GPIO quadrature encoder complex driver
   implementing it in software on PAL pad events, usable on any port with
