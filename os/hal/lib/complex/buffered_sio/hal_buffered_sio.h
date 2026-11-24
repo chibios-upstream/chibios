@@ -46,6 +46,20 @@
 /*===========================================================================*/
 
 /**
+ * @brief   Receiver readiness output, invoked in I-class context.
+ * @note    Must be bounded, nonblocking, and must not acquire a system lock.
+ *          The owner configures the output before enabling reception and
+ *          keeps the argument valid until flow control is detached.
+ *          Calls can originate from a locked thread or a locked ISR and can
+ *          repeat the current level. The callback must not re-enter this
+ *          driver. The owner serializes configuration, start and stop calls.
+ *          Automatic hardware RTS must not also drive the readiness output.
+ * @param[in] arg       caller-owned output context
+ * @param[in] ready     true permits transmission, false requests a stop
+ */
+typedef void (*bsiorxreadycb_t)(void *arg, bool ready);
+
+/**
  * @brief   @p BufferedSIODriver specific methods.
  */
 #define __buffered_sio_driver_methods                                       \
@@ -65,12 +79,21 @@ struct BufferedSIODriverVMT {
  */
 #define __buffered_sio_driver_data                                          \
   __buffered_serial_data                                                    \
-  SIODriver             *siop;
+  SIODriver             *siop;                                              \
+  bsiorxreadycb_t        rxReadyCb;                                          \
+  void                  *rxReadyArg;                                        \
+  size_t                rxStopWatermark;                                    \
+  size_t                rxResumeWatermark;                                  \
+  bool                  rxStopped;
 
 /**
  * @extends BufferedSerial
  *
  * @brief   Buffered SIO driver class.
+ * @details Queue-aware receive flow control is optional and disabled after
+ *          object initialization. Existing users need no configuration change.
+ * @note    The readiness fields extend this public structure; rebuild users
+ *          when updating the library, binary layout compatibility is not kept.
  */
 typedef struct hal_buffered_siol_driver {
   /** @brief Virtual Methods Table.*/
@@ -248,6 +271,8 @@ extern "C" {
                       uint8_t *ib, size_t ibsize,
                       uint8_t *ob, size_t obsize);
   msg_t bsioStart(BufferedSIODriver *bsiop, const BufferedSIOConfig *config);
+  msg_t bsioSetRXFlowControl(BufferedSIODriver *bsiop, bsiorxreadycb_t cb,
+                            void *arg, size_t stop, size_t resume);
   void bsioStop(BufferedSIODriver *bsiop);
 #ifdef __cplusplus
 }
