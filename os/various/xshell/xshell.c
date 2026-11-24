@@ -504,8 +504,8 @@ xshell_t *xshellSpawn(xshell_manager_t *smp,
       chThdSetCallbackX(tp, xshell_free, (void *)smp);
 
 #if defined(XSHELL_INIT_HOOK)
-    	/* Instance initialisation hook.*/
-    	XSHELL_INIT_HOOK(xshp);
+      /* Instance initialisation hook.*/
+      XSHELL_INIT_HOOK(xshp);
 #endif
 
       tp = chThdStart(tp);
