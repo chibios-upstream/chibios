@@ -21,12 +21,12 @@
 extern "C" {
 #endif
   void buzzInit(void);
-  void buzzPlay(uint32_t freq, systime_t duration);
-  void buzzPlayWait(uint32_t freq, systime_t duration);
+  void buzzPlay(uint32_t freq, sysinterval_t duration);
+  void buzzPlayWait(uint32_t freq, sysinterval_t duration);
 #ifdef __cplusplus
 }
 #endif
 
-extern EventSource BuzzerSilentEventSource;
+extern event_source_t BuzzerSilentEventSource;
 
 #endif /* _BUZZER_H_ */

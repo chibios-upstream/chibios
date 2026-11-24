@@ -52,9 +52,9 @@ CH_IRQ_HANDLER(TIMER0_COMP_vect) {
 
   CH_IRQ_PROLOGUE();
 
-  chSysLockFromIsr();
+  chSysLockFromISR();
   chSysTimerHandlerI();
-  chSysUnlockFromIsr();
+  chSysUnlockFromISR();
 
   CH_IRQ_EPILOGUE();
 }
