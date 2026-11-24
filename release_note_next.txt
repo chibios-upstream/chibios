@@ -1,93 +1,192 @@
 ******************************************************************************
-*** ChibiOS next Release Notes.                                            ***
+*** ChibiOS 27.1.0 "Agerola" Release Notes.                                ***
 ******************************************************************************
 
-ChibiOS next is composed of several independent but inter-operable
-sub-projects: RT, NIL, SB, HAL, EX. Plus several external libraries
-integrated in our structure: WolfSSL, FatFS and lwIP.
+ChibiOS 27.1.0 is composed of several independent but inter-operable
+sub-projects: RT, NIL, OSLIB, HAL, XHAL, VFS, SB and EX. Plus several
+external libraries integrated in our structure: wolfSSL, FatFS, LittleFS
+and lwIP, with FreeRTOS, Eclipse ThreadX and Zephyr usable as sandbox
+guests.
 
-*** ChibiOS next highlights ****
+XHAL and SB are under development, their APIs are not yet frozen and can
+change in the next releases.
 
-- NEW RT 7.0.
-- Support for RP2040 and Raspberry Pico board.
-- Support for STM32L5xx, STM32WBxx and STM32WLxx families.
-- Dynamic clock support in HAL.
-- Improved STM32 HAL.
-- Added ARMv8-M port.
+*** ChibiOS 27.1.0 highlights ***
 
-*** ChibiOS next general improvements ***
+- NEW RT 8.0, with a thread spawning API separating the thread structure
+  from its stack, memory classes for multi-core devices with NUMA memories
+  or non-coherent caches, and a functional safety module.
+- NEW XHAL 10.0, an object-oriented HAL: drivers are classes sharing one
+  driver model, generated from XML descriptions, with no OS abstraction
+  layer.
+- NEW SB 3.0, sandboxes with full virtualization: virtual IRQs, virtual
+  I/O drivers, a POSIX-like API over the VFS and ELF loading. ChibiOS/RT,
+  ChibiOS/NIL, FreeRTOS, ThreadX and Zephyr can run inside a sandbox.
+- VFS 1.1, with I/O contexts, Newlib bindings and optional mutual
+  exclusion.
+- New ports: ARMv8-M Mainline, ARMv7-R with Cortex-R5, RISC-V Hazard3
+  (RP2350, dual-core SMP) and an x86-64 Linux simulator.
+- RP2350 support in HAL and XHAL, TI AM67 Cortex-R5F support in XHAL.
+- STM32C5xx support, plus many new STM32 devices and drivers.
+- New reference manuals for XHAL, VFS and SB, concept pages for all the
+  components and PDF manuals.
 
-- Added chscanf() and buffered streams.
-- Added option to LWIP bindings to use memory pools instead of heap allocator.
-- Added dynamic reconfiguration API to lwIP bindings.
-- Updated FatFS to version 0.14.
-- Updated CMSIS headers for STM32F7, G0, G4, H7, L0, L4, L4+.
-- Mail Queues test implementation in CMSIS RTOS wrapper.
-- Added latency measurement test application.
-- Simplified test XML schema.
+*** ChibiOS 27.1.0 general improvements ***
+
+- New XShell, with prompt customization, multiple commands per line, line
+  editing, hooks, and file commands over the VFS.
+- New mkromfs tool, it converts a directory tree into a ROMFS image for
+  the VFS.
+- The build rules stop with an error when two source files have the same
+  name, ASMXSRC_EXCLUDE and ADDITIONAL_OUTFILES allow included makefiles to
+  remove or add files.
+- New test suite for sandboxes, the test framework can omit assertion
+  messages for small devices.
+- Configuration updater scripts for XHAL, VFS, SB and VIO configuration
+  files.
+- Documentation consistency check, run by the continuous integration.
 
 *** What's new in RT/NIL ports ***
 
-- Addes SMP port for Cortex-M0 required by RP2040.
-- The old generic ARMCMx port has been split in ARMv6-M, ARMv7-M and ARMv8-M-ML
+- New ARMv8-M Mainline port aligned with the ARMv7-M features needed by
+  sandboxing, also usable with NIL.
+- New ARMv6-M-ALT port with a common IRQ dispatcher.
+- Faster context switch in the ARMv7-M and ARMv8-M ports, the FPU context
+  is not saved for threads not using the FPU.
+- Static MPU initialization in the ARMv7-M, ARMv7-M-ALT and ARMv8-M-ML-ALT
   ports.
-- Simplified interface between RT/NIL and port layer.
-- Removed duplicated files in port layers: chtypes.h, chcore_timer.h.
+- New ARMv7-R port with Cortex-R5 support.
+- New RISC-V Hazard3 port for the RP2350: dual-core SMP, periodic and
+  tick-less system time, PMP stack guards.
+- New ARMvx-M-SB port, running RT and NIL inside a sandbox.
+- New x86-64 simulator for Linux.
 
-*** What's new in OS Library 1.3.0 ***
+*** What's new in RT 8.0.0 ***
 
-- Internal rework to make it compatible with RT 7.0.0 and NIL 4.1.0.
+- New thread spawning API, the thread structure is separate from the
+  stack as required on NUMA multi-core devices. Spawned threads can also
+  take the stack from a heap or a memory pool. The old "create" API is
+  still supported.
+- Memory classes, global or private and coherent or not, for multi-core
+  devices with NUMA memories or non-coherent caches.
+- New functional safety module: integrity checks of the kernel structures
+  and three cumulative hardening levels validating the object links.
+- The Runtime Faults Collection Unit is optional and collects missed
+  deadlines of windowed sleeps.
+- Dispose functions for all the kernel objects and for threads.
+- Virtual timers: static initializers and runtime recalculation of the
+  minimum delta in tick-less mode.
+- Non-releasing thread synchronization.
+- Redesigned registry descriptor for debuggers: port identification, SMP
+  registries and saved contexts.
 
-*** What's new in SB 1.1.0 ***
+*** What's new in NIL 4.2.0 ***
 
-- Internal rework to make it compatible with RT 7.0.0.
-- Safer messages mechanism for sandboxes.
-  
-*** What's new in RT 7.0.0 ***
+- Message polling, chMsgPoll() and chMsgPollS(), as in RT.
+- Improved chThdSleepUntil(), using the RT logic.
+- Dispose functions for the kernel objects.
+- NIL can run inside a sandbox.
 
-- Support for full-SMP multi-core threading.
-- Support for decoupled multi-core threading.
-- Performance improvements thanks to code paths tuning using likely/unlikely
-  macros. This feature requires compiler support and is currently enabled
-  for GCC.
-- 64 bits monotonic time stamps with the same resolution of system time.
-- Much more efficient and accurate Virtual Timers in tick-less mode.
-- Automatic reload of Virtual Timers, now both one-shot and continuous timers
-  are supported.
-- Internal reorganization to better fit the general architectural design. For
-  example, lists/queues code has been centralized in a dedicated module.
-- New trace event for entering the "ready" state.
+*** What's new in OS Library 1.4.0 ***
 
-*** What's new in NIL 4.1.0 ***
+- Heap integrity check, chHeapIntegrityCheck().
+- Memory areas checker functions.
+- Release methods return the reference counter.
+- Shared allocators placed in coherent memory on multi-core devices with
+  non-coherent caches.
 
-- Internal rework to make it compatible with RT 7.0.0.
+*** What's new in HAL 9.2.0 ***
 
-*** What's new in HAL 7.2.0 ***
+- Safety counter API, used for bounded waits on hardware registers.
+- USB Mass Storage class driver and thread mode for the EP0 handling.
+- WSPI status polling, in hardware on STM32 OCTOSPIv2/v3.
+- Quadrature encoder interface and a GPIO quadrature encoder driver.
+- AVR ATmega SIO driver, ATmega8 and ATmega162 boards, external memory
+  as kernel core memory.
 
-- Clocks reconfiguration API.
-- Updated SIO driver model to support more use cases.
+*** What's new in XHAL 10.0.0 ***
 
-*** What's new in EX 1.2.0 ***
+- New object-oriented HAL. All the drivers share one model: states,
+  start and stop, configurations selectable at runtime by index, a single
+  callback, mutual exclusion and an optional registry. The common code is
+  generated from XML descriptions.
+- Drivers: ADC, CAN, Crypto, DAC, EFL, ETH, GPT, I2C, I2S, ICU, PAL, PWM,
+  RTC, SDC, SIO, SPI, ST, TRNG, USB, WDG and WSPI.
+- Complex drivers: buffered SIO, serial over USB, MMC over SPI, Managed
+  Flash Storage, serial NOR flash, sensors and POSIX TTY over SIO.
+- Crypto driver for hash, MAC, ciphers, AEAD and asymmetric operations,
+  with the STM32 CRYPv1 implementation.
+- Platforms: STM32C0, G0, G4, H5, H7, L4+, U0, U3, U5 and WL, RP2040 and
+  RP2350, TI AM67 Cortex-R5F.
+- VIO platform, XHAL applications run unchanged inside a sandbox.
+- Stub platform for targets without an XHAL platform.
+- Dual-core STM32H755 demos.
 
-- Added support for ADXL355 Low Noise, Low Drift, Low Power, 3-Axis
-  MEMS Accelerometers.
+*** What's new in VFS 1.1.0 ***
 
-*** What's new in AVR HAL support ***
+- I/O contexts: descriptor tables with dup(), dup2() and close-on-exec.
+- Newlib bindings: the C library file functions over the VFS, including
+  fsync(), ftruncate(), unlink(), rename() and mkdir().
+- Optional mutual exclusion, VFS_CFG_USE_MUTUAL_EXCLUSION.
+- Extended file information: block size, allocated blocks and
+  modification time.
+- LittleFS file systems at any position in flash.
+- ROMFS images with static, dynamic and compressed files.
+- Streams driver exposing streams, random access streams and terminals as
+  files.
 
-- None.
+*** What's new in SB 3.0.0 ***
+
+- Full virtualization: virtual IRQs with fast critical zones in the
+  guest, alarms and an explicit sandbox lifecycle with PIDs.
+- Virtual I/O: XHAL drivers exposed to the guests without exposing the
+  hardware: GPIO, UART, SPI, I2C, ADC, GPT and Ethernet.
+- Guest kernels: ChibiOS/RT, ChibiOS/NIL, FreeRTOS, Eclipse ThreadX and
+  Zephyr, with FPU support.
+- ELF loading into static or dynamic sandboxes, runnable apps and the
+  "msh" shell.
+- POSIX-like API over the VFS, each sandbox with its own root and file
+  descriptors, POSIX terminal over SIO.
+- Application-defined fastcalls and syscalls.
+- Versioned host-guest ABI, checked when an image is started.
+- The guest-side files are now under the Apache License 2.0.
+
+*** What's new in EX 1.3.0 ***
+
+- No functional changes. Sensors for XHAL are provided by the XHAL sensors
+  subsystem.
 
 *** What's new in STM32 HAL support ***
 
-- Dynamic clock support for L4+, G0 and G4 families.
-- Improved PWR settings for L4+, G0 and G4 families.
-- Support for more STM32 sub-families.
-- Added MACv2 driver for STM32H7xx.
-- Added support for UART9 and UART10 in STM32 USARTv1 drivers.
-- Updated STM32F4xx platform with new IRQ handling, enabled the missing timers.
-- SIO driver STM32 implementation for USARTv2 and USARTv3.
-- Support for 3 analog watchdogs in ADCv3 (STM32F3, L4, L4+, G4).
-- Support for 3 analog watchdogs in ADCv5 (STM32G0).
+- STM32C5xx support.
+- New devices: STM32H533, STM32H5F5, STM32U5F7, STM32U5F9 and STM32U5G.
+- Embedded flash drivers for STM32G0, STM32U0 and STM32U5F7.
+- SYSTICKv3, a tick-less system timer on an STM32U5 low power timer.
+- OCTOSPIv3 WSPI driver for STM32U5.
+- UART driver on the GPDMA devices: STM32H5, U5, U3 and C5.
+- Double-buffered USB bulk endpoints, USB audio test applications.
+- Configurable oscillator startup timeouts and STM32U5 Stop-mode clock
+  retention.
 
-*** What's new in tools ***
+*** What's new in RP HAL support ***
 
-- More configuration files updater scripts.
+- RP2350 support: runtime clock switching, RTC on the Always-On timer,
+  GPT driver and boot flash options.
+- PIO and DMA API extensions.
+- UART driver for the RP2040.
+
+*** Upgrade notes ***
+
+- Configuration files have new and renamed settings, update them with the
+  scripts in tools/updater.
+- The registry descriptor layout changed, debuggers must support RT 8.
+- The generic ARM port is limited to ARM7 and ARM9.
+- SB: hosts and guests must be rebuilt together, images built for another
+  ABI version are rejected.
+- VFS: the default root and the functions using it are removed, the
+  application owns its roots and I/O contexts.
+- STM32: XHAL interrupt priorities are set by the platform settings only,
+  BOARD_PHY_RESET_DELAY is replaced by BOARD_PHY_RESET_DELAY_US, the FDCAN
+  BPS frame field is renamed BRS, isochronous endpoints on OTG must be
+  enabled with STM32_USB_USE_ISOCHRONOUS, STM32WB and STM32WL use the
+  I2Cv4 driver with new DMA settings.
