@@ -228,7 +228,7 @@ sandboxes:
 	         $(call SB_DIRS,$(SB1_MAKE)) all
 	@if [ -z "$$ZEPHYR_BASE" ] && [ ! -f $(CHIBIOS)/ext/zephyr/VERSION ];  \
 	then                                                                    \
-	  echo "Zephyr tree not found, see ext/zephyr_readme.md";              \
+	  echo "Zephyr tree not found, see ext/zephyr_readme.md" >&2;          \
 	  exit 1;                                                               \
 	fi
 	$(ZEPHYR_ENV) cmake -GNinja -S $(SB2_PROJECT) -B $(SB2_BUILDDIR)       \
