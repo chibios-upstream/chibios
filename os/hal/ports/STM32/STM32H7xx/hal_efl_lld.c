@@ -649,6 +649,7 @@ flash_error_t efl_lld_program(void *instance, flash_offset_t offset,
     stm32_flash_clear_status(bank);
     control = (*bank.cr & ~STM32_FLASH_MODES) | FLASH_CR_PG;
     *bank.cr = control;
+    __DSB();
     primask = __get_PRIMASK();
     __disable_irq();
     for (i = 0U; i < STM32_FLASH_LINE_SIZE / sizeof(uint32_t); i++) {
