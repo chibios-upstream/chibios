@@ -21,7 +21,7 @@
 
 #define FATFS_CHIBIOS_EXTENSIONS
 
-#define FFCONF_DEF                         86631
+#define FFCONF_DEF                         80386
 
 #define FF_FS_READONLY                     0
 #define FF_FS_MINIMIZE                     0
@@ -44,6 +44,7 @@
 #define FF_LFN_BUF                         255
 #define FF_SFN_BUF                         12
 #define FF_FS_RPATH                        0
+#define FF_PATH_DEPTH                      10
 
 #define FF_VOLUMES                         1
 #define FF_STR_VOLUME_ID                   0
@@ -60,11 +61,11 @@
 #define FF_FS_NORTC                        0
 #define FF_NORTC_MON                       1
 #define FF_NORTC_MDAY                      1
-#define FF_NORTC_YEAR                      2020
+#define FF_NORTC_YEAR                      2025
+#define FF_FS_CRTIME                       0
 #define FF_FS_NOFSINFO                     0
 #define FF_FS_LOCK                         4
 #define FF_FS_REENTRANT                    0
 #define FF_FS_TIMEOUT                      TIME_MS2I(1000)
-#define FF_SYNC_t                          semaphore_t *
 
 #endif /* FFCONF_H */

@@ -538,6 +538,14 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   API; the `lfs_config.h` bindings get the upstream fix of the byte order
   helpers
   ([#698](https://github.com/chibios-upstream/chibios/pull/698)).
+- [EXT] FatFs updated from R0.14b to R0.16 with ChaN's patch-1 and patch-2,
+  which fix CVE-2026-6682, CVE-2026-6683 and CVE-2026-6687; the ChibiOS
+  extensions are carried over unchanged. The project `ffconf.h` files must
+  be updated: `FFCONF_DEF` is 80386, `FF_PATH_DEPTH` and `FF_FS_CRTIME` are
+  new and `FF_SYNC_t` is removed. With `FF_FS_REENTRANT` the bindings
+  implement `ff_mutex_create()`, `ff_mutex_delete()`, `ff_mutex_take()` and
+  `ff_mutex_give()`
+  ([#697](https://github.com/chibios-upstream/chibios/pull/697)).
 - [VFS] LittleFS driver: removing, renaming or replacing by a rename an
   open file, and removing or replacing an open directory, return `EBUSY`
   instead of detaching the open handles and losing their writes

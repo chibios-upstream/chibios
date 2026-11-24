@@ -5,7 +5,7 @@
 /  FatFs Functional Configurations
 /---------------------------------------------------------------------------*/
 
-#define FFCONF_DEF	86606	/* Revision ID */
+#define FFCONF_DEF 80386 /* Revision ID */
 
 /*---------------------------------------------------------------------------/
 / Function Configurations
@@ -161,6 +161,16 @@
 /   2: f_getcwd() function is available in addition to 1.
 */
 
+#define FF_PATH_DEPTH 10
+/*  This option defines maximum depth of directory in the exFAT volume. It is NOT
+/   relevant to FAT/FAT32 volume.
+/   For example, FF_PATH_DEPTH = 3 will able to follow a path "/dir1/dir2/dir3/file"
+/   but a sub-directory in the dir3 will not able to be followed and set current
+/   directory.
+/   The size of filesystem object (FATFS) increases FF_PATH_DEPTH * 24 bytes.
+/   When FF_FS_EXFAT == 0 or FF_FS_RPATH == 0, this option has no effect.
+*/
+
 
 /*---------------------------------------------------------------------------/
 / Drive/Volume Configurations
@@ -250,6 +260,10 @@
 /  FF_NORTC_MDAY and FF_NORTC_YEAR have no effect.
 /  These options have no effect in read-only configuration (FF_FS_READONLY = 1). */
 
+#define FF_FS_CRTIME 0
+/* This option enables(1)/disables(0) the timestamp of the file created. When
+/  set 1, the file created time is available in FILINFO structure. */
+
 
 #define FF_FS_NOFSINFO	0
 /* If you need to know correct free space on the FAT32 volume, set bit 0 of this
@@ -277,23 +291,19 @@
 
 #define FF_FS_REENTRANT   0
 #define FF_FS_TIMEOUT     TIME_MS2I(1000)
-#define FF_SYNC_t         semaphore_t*
 /* The option FF_FS_REENTRANT switches the re-entrancy (thread safe) of the FatFs
 /  module itself. Note that regardless of this option, file access to different
 /  volume is always re-entrant and volume control functions, f_mount(), f_mkfs()
-/  and f_fdisk() function, are always not re-entrant. Only file/directory access
-/  to the same volume is under control of this function.
+/  and f_fdisk(), are always not re-entrant. Only file/directory access to
+/  the same volume is under control of this featuer.
 /
-/   0: Disable re-entrancy. FF_FS_TIMEOUT and FF_SYNC_t have no effect.
+/   0: Disable re-entrancy. FF_FS_TIMEOUT have no effect.
 /   1: Enable re-entrancy. Also user provided synchronization handlers,
-/      ff_req_grant(), ff_rel_grant(), ff_del_syncobj() and ff_cre_syncobj()
-/      function, must be added to the project. Samples are available in
-/      option/syscall.c.
+/      ff_mutex_create(), ff_mutex_delete(), ff_mutex_take() and ff_mutex_give(),
+/      must be added to the project. Samples are available in ffsystem.c.
 /
-/  The FF_FS_TIMEOUT defines timeout period in unit of time tick.
-/  The FF_SYNC_t defines O/S dependent sync object type. e.g. HANDLE, ID, OS_EVENT*,
-/  SemaphoreHandle_t and etc. A header file for O/S definitions needs to be
-/  included somewhere in the scope of ff.h. */
+/  The FF_FS_TIMEOUT defines timeout period in unit of O/S time tick.
+*/
 
 
 
