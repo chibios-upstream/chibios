@@ -942,6 +942,7 @@ void sd_lld_serve_interrupt(SerialDriver *sdp) {
   USART_TypeDef *u = sdp->usart;
   uint32_t cr1;
   uint32_t isr;
+  uint32_t rxisr;
 
   /* Reading and clearing status.*/
   isr = u->ISR;
@@ -962,16 +963,23 @@ void sd_lld_serve_interrupt(SerialDriver *sdp) {
      1) Another byte arrived after removing the previous one, this would cause
         an extra interrupt to serve.
      2) FIFO mode is enabled on devices that support it, we need to empty
-        the FIFO.*/
-  while (isr & USART_ISR_RXNE) {
+        the FIFO.
+     The status is read again into a separate variable because TC has
+     already been cleared, the transmission end check uses its value on
+     entry.*/
+  rxisr = isr;
+  while (rxisr & USART_ISR_RXNE) {
     osalSysLockFromISR();
     sdIncomingDataI(sdp, (uint8_t)u->RDR & sdp->rxmask);
     osalSysUnlockFromISR();
 
-    isr = u->ISR;
+    rxisr = u->ISR;
   }
 
-  /* Caching CR1.*/
+  /* CR1 is read once to select the sources to serve. It is only changed
+     with read-modify-write operations inside the critical zones, because
+     the output notification sets TXEIE and TCIE from any OS-aware context,
+     including interrupts preempting this one.*/
   cr1 = u->CR1;
 
   /* Transmission buffer empty, note it is a while in order to handle two
@@ -988,7 +996,7 @@ void sd_lld_serve_interrupt(SerialDriver *sdp) {
       b = oqGetI(&sdp->oqueue);
       if (b < MSG_OK) {
         chnAddFlagsI(sdp, CHN_OUTPUT_EMPTY);
-        cr1 &= ~USART_CR1_TXEIE;
+        u->CR1 &= ~USART_CR1_TXEIE;
         osalSysUnlockFromISR();
         break;
       }
@@ -1004,13 +1012,10 @@ void sd_lld_serve_interrupt(SerialDriver *sdp) {
     osalSysLockFromISR();
     if (oqIsEmptyI(&sdp->oqueue)) {
       chnAddFlagsI(sdp, CHN_TRANSMISSION_END);
-      cr1 &= ~USART_CR1_TCIE;
+      u->CR1 &= ~USART_CR1_TCIE;
     }
     osalSysUnlockFromISR();
   }
-
-  /* Writing CR1 once.*/
-  u->CR1 = cr1;
 }
 
 #endif /* HAL_USE_SERIAL */

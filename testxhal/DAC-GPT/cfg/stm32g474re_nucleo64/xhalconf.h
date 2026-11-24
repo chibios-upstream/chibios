@@ -38,7 +38,7 @@
 /*===========================================================================*/
 
 #define HAL_USE_MUTUAL_EXCLUSION            TRUE
-#define HAL_USE_REGISTRY                    TRUE
+#define HAL_USE_REGISTRY                    FALSE
 
 /*===========================================================================*/
 /* HAL enabled drivers.                                                      */
@@ -48,13 +48,13 @@
 #define HAL_USE_ADC                         FALSE
 #define HAL_USE_DAC                         TRUE
 #define HAL_USE_CAN                         FALSE
+#define HAL_USE_CRY                         FALSE
 #define HAL_USE_EFL                         FALSE
 #define HAL_USE_ETH                         FALSE
 #define HAL_USE_GPT                         TRUE
 #define HAL_USE_I2C                         FALSE
 #define HAL_USE_I2S                         FALSE
 #define HAL_USE_ICU                         FALSE
-#define HAL_USE_MMC_SPI                     FALSE
 #define HAL_USE_PWM                         FALSE
 #define HAL_USE_RTC                         FALSE
 #define HAL_USE_SDC                         FALSE

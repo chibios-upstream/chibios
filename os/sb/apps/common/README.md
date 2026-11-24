@@ -58,6 +58,16 @@ are copied into a bounded scratch arena directly below the loaded command,
 without advancing the shell heap break. This avoids accumulating heap
 fragmentation or permanently reducing the space available to later commands.
 
+## `msh` arguments
+
+`msh` splits a command line at spaces and tabs; an argument starting with a
+double quote extends to the next double quote, which is removed. Unquoted
+arguments not starting with `-` are expanded when the last element of their
+path contains `*` or `?`: the matches are sorted bytewise and a pattern
+without matches is passed unchanged. Quoted arguments are never expanded.
+`msh` has no single quotes, escapes, redirections or pipelines, `sbsh`
+provides them.
+
 ## `sbsh` syntax
 
 `sbsh` can run interactively, execute one command list, or read a script:
@@ -83,6 +93,26 @@ and removed as each stage completes. Stateful builtins such as `cd` and
 Commands use the newlib adapters from `os/sb/user` for the supported POSIX
 operations. Host-side POSIX calls are currently synchronous, so a blocking
 VFS operation blocks the whole sandbox.
+
+## `ls` and `stat` output
+
+`ls [-adFlrsSt] [--] [path]...` sorts names bytewise; `-t` sorts newest
+first, `-S` largest first and `-r` reverses the order. File operands are
+listed first, then each directory, with headers when there are several
+operands. `-l` prints the type and permissions, the link count, the size,
+the modification time and the name; `-s` prints the allocated size in KiB;
+directory listings with `-l` or `-s` start with their `total`. `-F` marks
+directories with `/`, FIFOs with `|` and executable files with `*`. A failed
+operand or entry makes the exit status 1, an invalid option 2.
+
+`stat path...` prints the path, the type, the mode with its permission
+string, the link count, the size, the allocated 512-byte blocks, the
+preferred I/O block size and the modification time.
+
+Times are UTC, as stored by the VFS. The VFS has no owners or groups and
+reports zero for the information a file system does not provide: a zero
+modification time is printed as `-` (ROMFS, LittleFS and devices store no
+time).
 
 ## Shared make fragments
 

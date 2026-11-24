@@ -60,7 +60,7 @@ static THD_FUNCTION(registry_thread, p) {
 #endif
 
 #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
-static MUTEX_DECL(priority_mtx);
+static CH_MEM_GLOBAL_COHERENT_DATA MUTEX_DECL(priority_mtx);
 
 static THD_FUNCTION(priority_thread, p) {
 

@@ -50,12 +50,12 @@
 /**
  * @brief   ChibiOS version string.
  */
-#define CH_VERSION              "2012.1.0"
+#define CH_VERSION              "2027.1.0"
 
 /**
  * @brief   ChibiOS version release year.
  */
-#define CH_VERSION_YEAR         12
+#define CH_VERSION_YEAR         27
 
 /**
  * @brief   ChibiOS version release month.
@@ -70,7 +70,7 @@
 /**
  * @brief   ChibiOS version nickname.
  */
-#define CH_VERSION_NICKNAME     "Lasagna"
+#define CH_VERSION_NICKNAME     "Agerola"
 /** @} */
 
 /*===========================================================================*/

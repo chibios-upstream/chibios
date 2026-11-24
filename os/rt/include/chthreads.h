@@ -146,6 +146,9 @@ typedef struct {
  * @details This macro is used to allocate a thread stack area for those
  *          thread-creation functions that do not need to allocate a
  *          @p thread_t structure inside.
+ * @note    On SMP systems with non-coherent caches the stack can be in the
+ *          cacheable memory of the core running the thread, see
+ *          @ref threads.
  *
  * @param[in] s         the name to be assigned to the stack array
  * @param[in] n         the stack size to be assigned to the thread
@@ -197,6 +200,8 @@ typedef struct {
  *          structure inside.
  * @note    This macro allocates extra space to accommodate the @p thread_t
  *          structure internally.
+ * @note    On SMP systems with non-coherent caches the working area must be
+ *          in coherent memory, see @ref threads.
  *
  * @param[in] s         the name to be assigned to the stack array
  * @param[in] n         the stack size to be assigned to the thread

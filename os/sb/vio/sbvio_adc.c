@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    sb/vhal/sbvio_adc.c
+ * @file    sb/vio/sbvio_adc.c
  * @brief   ARM SandBox host Virtual ADC code.
  *
  * @addtogroup ARM_SANDBOX_HOST_VIO_ADC
@@ -270,7 +270,7 @@ void sb_fastc_vio_adc(sb_class_t *sbp, struct port_extctx *ectxp) {
           break;
         }
 
-        if (!sb_is_valid_write_range(sbp, samples, size)) {
+        if (!sb_is_valid_coherent_write_range(sbp, samples, size)) {
           ectxp->r0 = (uint32_t)CH_RET_EFAULT;
           break;
         }

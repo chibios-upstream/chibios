@@ -22,7 +22,350 @@
  * @section vfs_arch_object_model Object model
  *
  * The VFS object model separates file-system state from the path state of an
- * execution context. The target class hierarchy is:
+ * execution context. The class hierarchy is:
+ * - @p vfs_fs_c, the abstract file system. Its methods, stat, open
+ *   directory, open file, unlink, rename, mkdir and rmdir, take absolute
+ *   paths.
+ * - @p vfs_overlay_driver_c, derived from @p vfs_fs_c. It registers other
+ *   file systems under names and delegates the other paths to an optional
+ *   overlaid file system.
+ * - @p vfs_root_c, derived from @p vfs_overlay_driver_c. It adds the current
+ *   directory, accepts relative paths and can add a path prefix to the
+ *   paths delegated to its overlaid file system.
+ * - @p vfs_node_c, the abstract node, with @p vfs_directory_node_c and
+ *   @p vfs_file_node_c derived from it. Each node refers to the file system
+ *   that owns it.
+ * - @p vfs_io_c, the I/O context, a descriptor table with an optional root,
+ *   see @ref vfs_arch_io.
+ * .
+ * File-system implementations, including non-root overlays, derive from
+ * @p vfs_fs_c. A @p vfs_root_c is an overlay specialized as the entry point
+ * of an application or sandbox.
+ *
+ * The process-aware root and global path API are enabled by
+ * @p VFS_CFG_ENABLE_DRV_ROOT. Root support requires the overlay driver, but
+ * the core VFS API, concrete file systems and non-root overlays can be used
+ * with root support disabled.
+ *
+ * @section vfs_arch_buffers Shared buffer pairs
+ *
+ * Each shared pool element reserves two full path buffers atomically.
+ * @p paths.path1 and @p paths.path2 each hold @p VFS_CFG_PATHLEN_MAX characters
+ * plus the terminator; @p buf is a single scratch view of the same storage.
+ * @p VFS_BUFFER_SIZE is the combined scratch capacity. The element also has
+ * pointer alignment and may contain trailing alignment padding, which is not
+ * part of that capacity. @p VFS_CFG_PATHBUFS_NUM counts pairs.
+ *
+ * @p vfs_buffer_take_wait() waits on the guarded pool without holding an
+ * upper-layer VFS lock. It returns a whole pair, released with
+ * @p vfs_buffer_release(). A caller retaining a pair must not wait for a
+ * second pair from the same pool, including through delegated calls or
+ * callbacks. Do not hold a lock needed by a thread returning a pair.
+ *
+ * Each root path operation allocates, uses, and returns its pair locally.
+ * It reads CWD and routing state after allocation. Overlay and ROMFS consume
+ * borrowed read-only paths without reserving another pair. A driver may
+ * retain these paths throughout its call, including waits. Borrowed paths
+ * expire on return.
+ * Root is an outer entry point: do not stack a root below another root or
+ * reenter an allocating root operation while retaining a pair.
+ *
+ * @section vfs_arch_lifetime Object lifetime
+ *
+ * File-system objects derive from @p base_object_c and are not reference
+ * counted. Their lifetime is managed by the caller. Overlays and roots borrow
+ * their backing and registered file systems. Unregistering a file system only
+ * removes its mapping, and disposing an overlay or root does not dispose any
+ * backing or registered file systems. The same file system can therefore be
+ * shared by multiple overlays or roots.
+ *
+ * Nodes are reference counted, but their owner pointers do not retain a
+ * reference to the file system. Each file system, including an overlay or
+ * root, must remain alive until all its nodes have been released and all its
+ * operations have finished. Before disposing a file system, the caller must
+ * also remove every mapping or backing relationship that could access it.
+ * Unregistering a mapping does not close nodes previously opened through it
+ * and does not wait for the operations already routed through it.
+ * Mounting, unmounting or formatting a native file system, and reconfiguring
+ * a backend, require that no operation is active on it and that none of its
+ * nodes is open.
+ *
+ * @section vfs_arch_fs_paths File-system path contract
+ *
+ * Except for root entry points described below, every path passed to a
+ * @p vfs_fs_c virtual method shall be:
+ *
+ * - absolute, beginning with a slash;
+ * - normalized, with no repeated separators;
+ * - free of @c "." and @c ".." elements;
+ * - free of a trailing separator, except for the root path @c "/".
+ *
+ * Non-root file-system methods do not consult or modify a current directory.
+ * Mounted file systems and nodes refer to @p vfs_fs_c objects, so the same
+ * file system can be shared by multiple roots.
+ *
+ * @section vfs_arch_root_paths Root path contract
+ *
+ * Root methods accept both absolute and relative paths. A root resolves
+ * relative inputs against its own current directory and normalizes all
+ * input paths before calling the selected file system. A rename resolves
+ * both paths from the same current-directory snapshot. Changing the current
+ * directory preserves its logical candidate through validation and node
+ * cleanup before committing it.
+ * @p vfsRootOpen() keeps one resolved logical path across file-to-directory
+ * fallback even if CWD changes while a driver sleeps. Use it for combined
+ * opens through a root; @p vfsFSOpen() borrows a normalized absolute path.
+ *
+ * Root owns the optional backing prefix. Registered mounts bypass it; only
+ * backing paths receive the prefix. Opening logical @c "/" merges registered
+ * names with the backing directory at the prefix. CWD stays in the logical
+ * namespace and never includes that prefix. The prefix is an argument of
+ * @p vfsrootObjectInit(), @p ovldrvObjectInit() only takes the backing file
+ * system. The prefix must remain valid for the lifetime of the root.
+ *
+ * Root path state is private to the root instance. Two roots may therefore
+ * share mounted file systems without sharing their current directories.
+ * Directory nodes remain per-open handles and are not file-system objects.
+ *
+ * @section vfs_arch_open Open and file handle contract
+ *
+ * Open arguments are validated before any allocation or delegation:
+ * - the supported flags are the access mode, @p VO_APPEND, @p VO_CREAT,
+ *   @p VO_TRUNC, @p VO_EXCL, @p VO_DIRECTORY and @p VO_CLOEXEC. Other flags,
+ *   an invalid access mode, @p VO_EXCL without @p VO_CREAT, @p VO_TRUNC with
+ *   read-only access and @p VO_DIRECTORY with @p VO_CREAT or @p VO_TRUNC
+ *   return @p CH_RET_EINVAL;
+ * - an empty path returns @p CH_RET_ENOENT, a path longer than
+ *   @p VFS_CFG_PATHLEN_MAX or a name longer than @p VFS_CFG_NAMELEN_MAX
+ *   returns @p CH_RET_ENAMETOOLONG.
+ * .
+ * @p VO_DIRECTORY and a trailing separator select the directory lookup before
+ * any file open, so a file named with a trailing separator returns
+ * @p CH_RET_ENOTDIR and is never created or truncated. A root stat applies the
+ * same trailing separator rule. Opening a directory requires read-only access
+ * without @p VO_CREAT and @p VO_TRUNC, otherwise it returns @p CH_RET_EISDIR,
+ * or @p CH_RET_EEXIST with @p VO_CREAT and @p VO_EXCL. @p VO_CLOEXEC belongs
+ * to descriptors, it is accepted and removed before calling a driver, an I/O
+ * context records it in the descriptor.
+ *
+ * A file node records its access mode and @p VO_APPEND at open, they do not
+ * change for the node lifetime and are shared by all its references. Stat
+ * permission bits do not grant access to an opened file:
+ * - vfsFileRead() and vfsFileWrite() return @p CH_RET_EBADF when the access
+ *   mode does not allow the transfer, also for zero bytes. A zero byte
+ *   transfer accepts a @p NULL buffer and does not call the driver, counts
+ *   exceeding @p SSIZE_MAX return @p CH_RET_EINVAL;
+ * - the initial position is zero, also with @p VO_APPEND. Each append write
+ *   is positioned at the end of file within the same driver operation, also
+ *   after a seek beyond the end of file;
+ * - vfsFileSync() writes the buffered data and metadata, for any access
+ *   mode. vfsFileTruncate() requires write access, @p CH_RET_EBADF
+ *   otherwise, discards the data past the new size or extends the file
+ *   with zeros, and keeps the position. Nodes without storage return
+ *   @p CH_RET_EINVAL for both, directories are synchronized by the
+ *   operations changing them;
+ * - the final release of a node cannot report errors, users of the node
+ *   API call vfsFileSync() before vfsNodeClose().
+ * .
+ * Seek targets are computed with overflow checks, a negative target returns
+ * @p CH_RET_EINVAL and a target outside the @p vfs_offset_t range returns
+ * @p CH_RET_EOVERFLOW, these rejections leave the position unchanged. FatFS,
+ * LittleFS and ROMFS files accept positions past the end of file without
+ * changing the file: reads there return end of file and the next write fills
+ * the gap with zeros, @p CH_RET_ENOSPC when the volume is full. A random
+ * stream returns the error reported by its backend, the position is
+ * unchanged.
+ *
+ * Read-only file systems return @p CH_RET_EROFS for write access and for the
+ * creation of a missing file, a read-only open of an existing file with
+ * @p VO_CREAT and without @p VO_EXCL succeeds. Streams check the element
+ * permission bits at open, @p CH_RET_EACCES, and reject @p VO_TRUNC and
+ * writable @p VO_APPEND on random streams with @c ENOTSUP. FatFS and
+ * LittleFS unlink and rmdir check the node type, @p CH_RET_EISDIR and
+ * @p CH_RET_ENOTDIR, in the same driver operation that removes it. A rename
+ * onto the same path checks that the source exists and removing a
+ * non-empty directory returns @c ENOTEMPTY. A native difference remains: a
+ * FatFS rename does not replace an existing target and returns
+ * @p CH_RET_EEXIST.
+ *
+ * Drivers return nodes using the standard OOP reference methods. FatFS and
+ * LittleFS do not share the state of independent opens of the same file, a
+ * file is open by any number of readers or by a single writer and
+ * conflicting opens return @p CH_RET_EBUSY, on FatFS when @p FF_FS_LOCK is
+ * enabled. Duplicated descriptors share one node and are not affected.
+ *
+ * @section vfs_arch_io I/O context
+ *
+ * A @p vfs_io_c object provides POSIX-like descriptors over the node API, it
+ * is the common part of the C library and sandbox adapters, used by the
+ * Newlib bindings and by the sandboxes. The caller provides the descriptor
+ * array, @p vfs_descriptor_t, and its capacity, the object allocates no
+ * memory and uses no mutex. It requires synchronized OOP references and is
+ * not available with @p OOP_USE_NOTHING. Its operations return the VFS
+ * error codes, the translation to @p errno and to the C library types is
+ * left to the adapters.
+ *
+ * Each occupied descriptor owns one node reference:
+ * - vfsIOInsert() takes the lowest free descriptor, vfsIOInstall() an empty
+ *   given one, otherwise @p CH_RET_EMFILE and @p CH_RET_EBUSY. Both take
+ *   over the caller reference only on success and accept only nodes using
+ *   the standard OOP reference methods, @c ENOTSUP otherwise;
+ * - vfsIOGet() returns a new node reference, released by the caller;
+ * - vfsIOClose(), vfsIODup2() and vfsIOClear() detach a descriptor before
+ *   releasing its node, so its number can be reused while an earlier
+ *   operation still finishes on the original node;
+ * - vfsIOClose() synchronizes a regular file before releasing it and
+ *   returns the synchronization error, the descriptor is closed anyway.
+ *   Nodes without storage to synchronize close with success, vfsIODup2()
+ *   and vfsIOClear() do not report errors of the nodes they release;
+ * - vfsIODup() takes the lowest free descriptor, vfsIODup2() replaces the
+ *   destination in one step and returns it unchanged when equal to the
+ *   source;
+ * - read, write, fstat, seek, tell, sync, truncate, directory reads and
+ *   control keep the node referenced for the whole call. A wrong node type returns
+ *   @p CH_RET_EISDIR or @p CH_RET_ENOTDIR, seek and tell on a non-regular
+ *   file @p CH_RET_ESPIPE. vfsIOSeek() returns the new position.
+ * .
+ * The only descriptor flag is @p VFD_CLOEXEC, set by vfsIOOpen() from
+ * @p VO_CLOEXEC and by vfsIOSetDescriptorFlags(). Insert, install and new
+ * duplicates clear it, vfsIODup2() onto the same descriptor keeps it. No VFS
+ * caller consumes it yet.
+ *
+ * With root support, vfsIOSetRoot() associates a root that the context
+ * borrows, it is never retained or disposed, and it stays valid while nodes
+ * obtained through it exist. Open, stat, unlink, rename, mkdir, rmdir, chdir
+ * and getcwd use its current directory and mounts, contexts sharing a root
+ * share them. Without a root these functions return @p CH_RET_ENOSYS, the
+ * descriptor functions remain available. vfsIOOpen() validates its
+ * arguments, then reserves the lowest free descriptor before calling the
+ * root, so a full table returns @p CH_RET_EMFILE before any creation or
+ * truncation. The reserved descriptor receives the node, or is freed on
+ * error. A pending open cannot be looked up, closed or duplicated, and
+ * vfsIOInstall() and vfsIODup2() return @p CH_RET_EBUSY for its descriptor.
+ *
+ * @section vfs_arch_concurrency Concurrency contract
+ *
+ * The VFS does not serialize operations. Path working storage is not part of
+ * the objects: each root operation takes a buffer pair from the shared pool
+ * for its whole duration, see @ref vfs_arch_buffers, and overlays route the
+ * paths they receive without modifying their own state. Concurrent
+ * operations, through the same root or through roots sharing an overlay,
+ * therefore never share path storage.
+ *
+ * The mount table of an overlay or root and the current directory of a root
+ * are protected by an optional mutex in the overlay object, inherited by the
+ * root, enabled by @p VFS_CFG_USE_MUTUAL_EXCLUSION:
+ * - the mutex covers mount lookups and updates and the copy or commit of the
+ *   current directory, it is released before calling another file system, a
+ *   node or a callback and before any blocking allocation, so operations
+ *   through the same root are not serialized;
+ * - a rename selects both routes in one step at each layer, and a root
+ *   resolves both paths against the same current directory;
+ * - a directory change is validated without the mutex and committed after,
+ *   concurrent successful changes take effect in commit order. The current
+ *   directory buffer is allocated with @p chCoreAlloc() on the first
+ *   successful change and never released;
+ * - with the option disabled, the default, there is no mutex and changing
+ *   the current directory of a root, or registering and unregistering file
+ *   systems, must not run concurrently with other operations on the same
+ *   object.
+ * .
+ * Enumerating the top directory of an overlay or root is a live view of its
+ * mount table: mount changes during the enumeration can skip or repeat
+ * mounted entries, a new enumeration starts from the current table.
+ *
+ * Nodes are not protected by the VFS:
+ * - a reference keeps a node alive, it does not serialize its operations;
+ * - reference counters are protected by the OOP layer, concurrent use needs
+ *   a synchronized OOP configuration, @p OOP_USE_NOTHING does not provide
+ *   it;
+ * - operations on the same open node, including duplicated descriptors
+ *   sharing it, are serialized by the callers unless its driver states
+ *   otherwise, multi-call sequences need caller ordering too;
+ * - distinct nodes can be used concurrently only as far as the leaf file
+ *   system and its backend allow.
+ * .
+ *
+ * @subsection vfs_arch_leaf_locking Leaf file systems
+ *
+ * With @p VFS_CFG_USE_MUTUAL_EXCLUSION enabled, the FatFS and LittleFS
+ * drivers serialize the calls to their native library:
+ * - FatFS uses one module mutex for all its volumes, node operations and
+ *   mount and unmount, because FatFS keeps global state;
+ * - LittleFS uses one mutex per driver instance for its native state, node
+ *   operations and mount, unmount and format, instances on independent
+ *   storage progress concurrently.
+ * .
+ * A leaf mutex is held across the native calls, the storage callbacks and the
+ * I/O waits, so @p FF_FS_REENTRANT and the LittleFS thread-safe build are not
+ * required. The LittleFS bindings still enable the thread-safe build by
+ * default, the native locks then nest inside the driver mutex. Storage
+ * callbacks must not reenter the VFS and direct native calls must not overlap
+ * driver operations. Shared storage hardware still needs its own
+ * synchronization, the LittleFS HAL binding provides it with its optional lock
+ * hooks and the HAL exclusive access. The mutexes do not lift the native file
+ * sharing restrictions and do not make multi-call sequences atomic.
+ *
+ * With the option disabled, a leaf file system is reentrant only as far as
+ * its implementation is: FatFS requires @p FF_FS_REENTRANT, LittleFS its
+ * thread-safe build with the lock callbacks.
+ *
+ * ROMFS data is immutable and needs no mutex. Stream drivers and ROMFS
+ * dynamic callbacks follow the synchronization of their backend. ChibiFS is
+ * not implemented and is not covered. Custom drivers and callbacks follow
+ * the same rules, the option does not synchronize the shared backend state
+ * they own.
+ *
+ * @subsection vfs_arch_descriptors Descriptors
+ *
+ * An I/O context protects its descriptors and the node reference acquisition
+ * with short critical sections, also with
+ * @p VFS_CFG_USE_MUTUAL_EXCLUSION disabled. No driver call, wait or node
+ * release runs inside them. The descriptor search scans the array inside a
+ * critical section, so the capacity should stay small. Initialization, root
+ * association, clear and disposal require exclusive access to the context.
+ *
+ * The Newlib bindings, with @p SYSCALL_USE_VFS, own an I/O context with
+ * @p SYSCALL_MAX_FDS descriptors. newlibVfsInit() initializes it and
+ * associates the root used by @p open(), @p stat(), @p unlink(),
+ * @p rename() and @p mkdir(), it is called once before any C library I/O.
+ * No descriptor is installed automatically: the application installs the
+ * standard descriptors 0, 1 and 2 with vfsIOInstall() on newlibVfsGetIO()
+ * before opening files. The C library @p FILE objects are not protected, a
+ * stream is not used concurrently by several threads.
+ *
+ * Each sandbox embeds an I/O context and its descriptor array. The host
+ * registers descriptors and changes the root only while the sandbox is
+ * stopped, sbRegisterDescriptor() takes over the node reference only on
+ * success. The sandbox calls keep their node referenced for the whole call,
+ * @p getdents() keeps the directory referenced across its buffer wait and
+ * the whole batch. The termination cleanup closes all the descriptors and
+ * keeps the root. The host does not change the descriptors of a running
+ * sandbox.
+ *
+ * @subsection vfs_arch_callers Callers
+ *
+ * - A root, and so its current directory, is shared by all the users it is
+ *   passed to, for example the shells of an xshell manager, the Newlib
+ *   bindings and I/O contexts: a directory change followed by another call
+ *   is not an atomic sequence, and shell commands running concurrently share
+ *   it too. The root stays valid while its users run.
+ * - The ELF loader functions taking a file node borrow the caller reference
+ *   and use the file position for the whole call. @p sbElfLoadFile() and the
+ *   sandbox dynamic startup open and own their node instead.
+ * - The HTTP bindings keep their file system pointer stable until all files
+ *   are closed. Each HTTP file owns a node reference and is serialized by the
+ *   HTTP server, close detaches the node from the file before releasing it.
+ * - ROMFS descriptions and callback tables are immutable. Dynamic and
+ *   compression callbacks synchronize their own shared state, can be called
+ *   while a buffer pair is reserved and must not wait for another one,
+ *   including through an allocating root operation. Native file system
+ *   storage callbacks must not reenter the VFS.
+ * .
+ */
+
+/*
+ * VFS core class diagram, PlantUML source, not part of the documentation.
  *
  * @startuml {vfs_arch.png} "VFS Core"
  * abstract class vfs_fs_c {
@@ -37,10 +380,10 @@
  * class vfs_overlay_driver_c {
  *   - overlaid_fs: vfs_fs_c *
  *   - mounted_fs[]: vfs_fs_c *
- *   - path_prefix: const char *
  * }
  * class vfs_root_c {
  *   - current_directory
+ *   - path_prefix: const char *
  *   + change_current_directory(path)
  *   + get_current_directory()
  *   + open(path)
@@ -58,54 +401,4 @@
  * vfs_node_c "*" --> "1" vfs_fs_c : owner
  * vfs_overlay_driver_c "1" o-- "*" vfs_fs_c : mounts
  * @enduml
- *
- * File-system implementations, including non-root overlays, derive from
- * @p vfs_fs_c. A @p vfs_root_c is an overlay specialized as the entry point
- * of an application or sandbox.
- *
- * The process-aware root and global path API are enabled by
- * @p VFS_CFG_ENABLE_DRV_ROOT. Root support requires the overlay driver, but
- * the core VFS API, concrete file systems and non-root overlays can be used
- * with root support disabled.
- *
- * @section vfs_arch_lifetime Object lifetime
- *
- * File-system objects derive from @p base_object_c and are not reference
- * counted. Their lifetime is managed by the caller. Overlays and roots borrow
- * their backing and registered file systems. Unregistering a file system only
- * removes its mapping, and disposing an overlay or root does not dispose any
- * backing or registered file systems. The same file system can therefore be
- * shared by multiple overlays or roots.
- *
- * Nodes are reference counted, but their owner pointers do not retain a
- * reference to the file system. Each file system, including an overlay or
- * root, must remain alive until all its nodes have been released and all its
- * operations have finished. Before disposing a file system, the caller must
- * also remove every mapping or backing relationship that could access it.
- * Unregistering a mapping does not close nodes previously opened through it.
- *
- * @section vfs_arch_fs_paths File-system path contract
- *
- * Every path passed to a @p vfs_fs_c virtual method shall be:
- *
- * - absolute, beginning with a slash;
- * - normalized, with no repeated separators;
- * - free of @c "." and @c ".." elements;
- * - free of a trailing separator, except for the root path @c "/".
- *
- * File-system methods do not consult or modify a current directory. Mounted
- * file systems and nodes refer to @p vfs_fs_c objects, so the same file
- * system can be shared by multiple roots.
- *
- * @section vfs_arch_root_paths Root path contract
- *
- * Root methods accept both absolute and relative paths. A root resolves and
- * normalizes each input path against its own current directory before calling
- * the inherited file-system interface. A rename resolves both paths from the
- * same current-directory snapshot. Changing the current directory validates
- * the candidate directory before committing the new path.
- *
- * Root path state is private to the root instance. Two roots may therefore
- * share mounted file systems without sharing their current directories.
- * Directory nodes remain per-open handles and are not file-system objects.
  */

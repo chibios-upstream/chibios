@@ -92,7 +92,7 @@
 /**
  * @brief   Default heap descriptor.
  */
-static memory_heap_t default_heap;
+static CH_MEM_GLOBAL_COHERENT_BSS memory_heap_t default_heap;
 
 /*===========================================================================*/
 /* Module local functions.                                                   */

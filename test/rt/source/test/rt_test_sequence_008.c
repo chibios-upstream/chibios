@@ -58,10 +58,10 @@
 /* Shared code.                                                              */
 /*===========================================================================*/
 
-static MUTEX_DECL(m1);
-static MUTEX_DECL(m2);
+static CH_MEM_GLOBAL_COHERENT_DATA MUTEX_DECL(m1);
+static CH_MEM_GLOBAL_COHERENT_DATA MUTEX_DECL(m2);
 #if CH_CFG_USE_CONDVARS || defined(__DOXYGEN__)
-static CONDVAR_DECL(c1);
+static CH_MEM_GLOBAL_COHERENT_DATA CONDVAR_DECL(c1);
 #endif
 
 #if CH_DBG_THREADS_PROFILING || defined(__DOXYGEN__)
@@ -212,7 +212,7 @@ static THD_FUNCTION(thread11M, p) {
   test_emit_token(*(char *)p);
 }
 
-static thread_reference_t priority_chain_ref;
+static CH_MEM_GLOBAL_COHERENT_BSS thread_reference_t priority_chain_ref;
 
 static THD_FUNCTION(thread13L, p) {
 

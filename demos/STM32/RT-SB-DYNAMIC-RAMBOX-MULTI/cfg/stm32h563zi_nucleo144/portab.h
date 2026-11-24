@@ -32,9 +32,13 @@
 /* Extra heap for commands and editor buffers, excluding the shell image.*/
 #define PORTAB_SHELL_HEAP_SIZE              (128U * 1024U)
 
+/* Size of the coherent data region exported to loaded applications.*/
+#define PORTAB_NOCACHE_REGION_SIZE          1024U
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+  extern uint8_t portab_nocache_region[PORTAB_NOCACHE_REGION_SIZE];
   void portab_setup(void);
 #ifdef __cplusplus
 }

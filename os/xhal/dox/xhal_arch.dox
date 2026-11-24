@@ -16,108 +16,95 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/**
+/*
+ * XHAL architecture diagrams, PlantUML source, not part of the
+ * documentation.
+ *
  * @startuml {xhal_drvsm.png} "XHAL Drivers State Machine"
  * hide empty description
  *
  * state UNINIT
  * state STOP
- * state STOPPING
  * state STARTING
  * state READY
  * state ACTIVE
- * state ERROR
- * note left of STOPPING
- *   Optional state used when
- *   stopping a driver is a
- *   slow operation.
+ * state STOPPING
+ * note right of STARTING
+ *   Set while the low level
+ *   driver starts the peripheral.
  * end note
- * note left of STARTING
- *   Optional state used when
- *   starting a driver is a
- *   slow operation.
+ * note right of STOPPING
+ *   Set while the low level
+ *   driver stops the peripheral.
  * end note
- * note left of ERROR
- *   Optional state is used by drivers
- *   requiring a persistent error
- *   condition.
+ * note right of ACTIVE
+ *   Used by drivers implementing
+ *   asynchronous operations.
  * end note
  *
  * [*] --> UNINIT
  * UNINIT --> STOP : xxxObjectInit()
- * STOP --> READY : drvStart()
- * STOP --> STARTING : drvStart()\nslow start
- * STARTING -[dotted]-> READY : slow start\ncomplete
- * READY --> READY : drvStart()\nignored
- * READY --> READY : drvConfigure()
- * READY --> STOP : drvStop()
  * STOP --> STOP : drvStop()\nignored
- * READY --> ACTIVE : start operation
- * ACTIVE -[dotted]-> READY : asynchronous\nend operation\ncallback
- * ACTIVE --> STOP : drvStop()\nhard abort
- * ACTIVE -[dotted]-> ERROR : asynchronous\noperation error\ncallback
- * ACTIVE --> STOPPING : drvStop()\nslow stop
- * STOPPING -[dotted]-> STOP : slow stop\ncomplete
- * ERROR --> READY : drvStart()
- * ERROR --> STOP : drvStop()
- * ERROR --> READY : error cleared
+ * STOP --> STARTING : drvStart()
+ * STARTING --> READY : start\nsucceeded
+ * STARTING --> STOP : start\nfailed
+ * READY --> READY : drvStart(NULL) ignored\ndrvStart(config)\ndrvSetCfgX()\ndrvSelectCfgX()
+ * READY --> ACTIVE : operation\nstarted
+ * ACTIVE -[dotted]-> READY : operation\nended
+ * READY --> STOPPING : drvStop()
+ * ACTIVE --> STOPPING : drvStop()\noperation aborted
+ * STOPPING --> STOP : stop\ncompleted
  *
  * @enduml
  *
- * @startuml {xhal_drvsm.png} "XHAL Drivers State Machine"
+ * @startuml {xhal_cbsm.png} "XHAL Callback Drivers Transient States"
  * hide empty description
  *
- * state RCLOSE <<choice>>
- * state ACLOSE <<choice>>
- * state STOP : cnt == 0
- * state READY : cnt > 0
- * state ACTIVE : cnt > 0
- * state ERROR : cnt > 0
- * note left of ACTIVE
- *   This state is used by drivers
- *   implementing asynchronous
- *   operations.
- * end note
- * note left of ERROR
- *   This state is used by drivers
- *   requiring a persistent error
- *   condition.
+ * state ACTIVE
+ * state READY
+ * state "Callback executing" as CB {
+ *   state HALF
+ *   state FULL
+ *   state COMPLETE
+ *   state ERROR
+ * }
+ * note as N1
+ *   Transient states, the callback reads them with
+ *   drvStateIsHalfX(), drvStateIsCompleteX() and
+ *   drvStateIsErrorX(). A state change made by the
+ *   callback, for example starting a new operation,
+ *   is kept. Without a callback the driver goes
+ *   directly to the final state.
  * end note
  *
- * [*] --> UNINIT
- * UNINIT --> STOP : xxxObjectInit()
- * STOP --> READY : drvOpen()\ncall start()
- * READY --> READY : drvOpen() cnt++
- * READY -u-> RCLOSE : drvClose() cnt--
- * RCLOSE --> STOP : [cnt == 0]\ncall stop()
- * RCLOSE --> READY : [cnt > 0]
- * READY --> ACTIVE : start operation
- * ACTIVE --> ACTIVE : drvOpen() cnt++
- * ACTIVE -[dotted]-> READY : asynchronous\nend operation\ncallback
- * ACTIVE --> ACLOSE : drvClose() cnt--
- * ACLOSE --> STOP : [cnt == 0]\ncall stop()\noperation forcibly aborted
- * ACLOSE --> ACTIVE : [cnt > 0]
- * ACTIVE -[dotted]-> ERROR : asynchronous\noperation error\ncallback
- * ERROR --> ERROR : drvOpen() cnt++
- * ERROR --> READY : error cleared
- * ERROR --> RCLOSE : drvClose()
+ * ACTIVE -[dotted]-> HALF : first half of a\ncircular buffer
+ * HALF --> ACTIVE : callback\nreturned
+ * ACTIVE -[dotted]-> FULL : second half of a\ncircular buffer
+ * FULL --> ACTIVE : callback\nreturned
+ * ACTIVE -[dotted]-> COMPLETE : operation\ncompleted
+ * COMPLETE --> READY : callback\nreturned
+ * ACTIVE -[dotted]-> ERROR : operation\nfailed
+ * ERROR --> READY : callback\nreturned
  *
  * @enduml
  *
  * @startuml {xhal_arch.png} "XHAL Architecture"
+ * set separator none
+ *
  * package "Base OOP Package" {
  *   interface base_interface_i {
  *     + {static} oopIfGetOwner()
  *     + {static} oopIfObjectInit()
  *   }
- *   interface sequential_stream_i extends base_interface_i{
+ *   interface sequential_stream_i extends base_interface_i {
  *     + {abstract} stmWrite()
  *     + {abstract} stmRead()
  *     + {abstract} stmPut()
  *     + {abstract} stmGet()
+ *     + {abstract} stmUnget()
  *   }
  *   abstract class base_object_c {
- *     - vmt: void *
+ *     - vmt: const void *
  *     # __bo_objinit_impl()
  *     # {abstract} __bo_dispose_impl()
  *     + {static} oopGetOwner()
@@ -127,13 +114,13 @@
  *     + {static} oopUnlock()
  *   }
  *   abstract class referenced_object_c extends base_object_c {
- *     - cnt: object_references_t
+ *     - references: object_references_t
  *     # __ro_objinit_impl()
  *     # {abstract} __ro_dispose_impl()
  *     # __ro_addref_impl()
  *     # __ro_release_impl()
- *     + {abstract} roAddRef()
- *     + {abstract} roRelease()
+ *     + roAddRef()
+ *     + roRelease()
  *   }
  *   abstract class synchronized_object_c extends referenced_object_c {
  *     - mutex: mutex_t
@@ -153,81 +140,88 @@
  *     + {abstract} chnControl()
  *   }
  *   abstract class hal_base_driver_c extends base_object_c {
- *     - state: driver_state_t *
- *     - opencnt: unsigned int
- *     - owner: void *
- *     - mutex: mutex_t *
- *     - id: unsigned int
+ *     - state: driver_state_t
+ *     - config: const void *
+ *     - arg: void *
+ *     - mutex: driver_mutex_t
  *     - name: const char *
  *     - regent: hal_regent_t
- *     - {abstract} __drv_start()
- *     - {abstract} __drv_stop()
+ *     # {abstract} __drv_start()
+ *     # {abstract} __drv_stop()
+ *     # {abstract} __drv_set_cfg()
+ *     # {abstract} __drv_sel_cfg()
  *     # __drv_objinit_impl()
- *     # {abstract} __drv_dispose_impl()
- *     # __drv_get_state()
- *     # __drv_set_state()
+ *     # __drv_dispose_impl()
  *     + {static} drvInit()
- *     + {abstract} drvConfigure()
- *     + drvOpen()
- *     + drvClose()
- *     + drvGetOwnerX()
- *     + drvSetOwnerX()
+ *     + {static} drvRegGetFirstI()
+ *     + {static} drvRegGetNextI()
+ *     + {static} drvStartByName()
+ *     + drvStart()
+ *     + drvStop()
+ *     + drvSetCfgX()
+ *     + drvSelectCfgX()
+ *     + drvGetStateX()
+ *     + drvSetStateX()
+ *     + drvGetArgumentX()
+ *     + drvSetArgumentX()
+ *     + drvRegister()
+ *     + drvUnregister()
  *     + drvGetNameX()
- *     + drvSetNameX()
  *     + drvLock()
  *     + drvUnlock()
  *   }
- *   abstract class hal_events_driver_c extends hal_base_driver_c {
- *     - flags: driver_flags_t
- *     - event: event_source_t
- *     # __evd_objinit_impl()
- *     # {abstract} __evd_dispose_impl()
- *     # __evd_add_flags_i()
- *     + evdGetFlagsI()
- *     + evdGetAndClearFlagsI()
+ *   abstract class hal_cb_driver_c extends hal_base_driver_c {
+ *     - cb: drv_cb_t
+ *     # __cbdrv_on_cb_set()
+ *     + drvSetCallbackX()
+ *     + drvGetCallbackX()
+ *     + drvStateIsHalfX()
+ *     + drvStateIsCompleteX()
+ *     + drvStateIsErrorX()
  *   }
  * }
  * package "XHAL Drivers" {
- *   class hal_sio_driver_c extends hal_base_driver_c \
+ *   class hal_sio_driver_c extends hal_cb_driver_c \
  *                      implements asynchronous_channel_i {
- *     - enabled: driver_flags_t
- *     - cb: siocb_t
- *     - synch_rx: thread_reference_t
- *     - synch_rxidle: thread_reference_t
- *     - synch_tx: thread_reference_t
- *     - synch_txend: thread_reference_t
- *     # __sio_invoke_callback()
+ *     - enabled: sioevents_t
+ *     - sync_rx: thread_reference_t
+ *     - sync_rxidle: thread_reference_t
+ *     - sync_tx: thread_reference_t
+ *     - sync_txend: thread_reference_t
  *     ~ {static} sioInit()
  *     + sioObjectInit()
- *     + {abstract} sioDispose()
- *     + sioSetCallbackX()
- *     + sioWriteEnable()
- *     + sioSetEnable()
- *     + sioClearEnable()
- *     + sioGetAndClearErrorFlags()
- *     + sioGetAndClearFlags()
- *     + sioGetFlags()
+ *     + sioWriteEnableFlags()
+ *     + sioSetEnableFlags()
+ *     + sioClearEnableFlags()
+ *     + sioGetAndClearErrors()
+ *     + sioGetAndClearEvents()
+ *     + sioGetEvents()
  *     + sioSynchronizeRX()
  *     + sioSynchronizeRXIdle()
  *     + sioSynchronizeTX()
  *     + sioSynchronizeTXEnd()
  *   }
- *   class hal_pwm_driver_c extends hal_base_driver_c {
+ *   class hal_pwm_driver_c extends hal_cb_driver_c {
  *     ~ {static} pwmInit()
  *     + pwmObjectInit()
- *     + {abstract} pwmDispose()
+ *     + pwmChangePeriod()
+ *     + pwmEnableChannel()
+ *     + pwmDisableChannel()
+ *     + pwmEnablePeriodicNotification()
+ *     + pwmEnableChannelNotification()
  *   }
- * }
- * package "XHAL Complex Drivers" {
- *   class hal_buffered_sio_driver_c extends hal_base_driver_c \
- *                                   implements asynchronous_channel_i {
+ *   class hal_buffered_sio_c extends hal_base_driver_c \
+ *                            implements asynchronous_channel_i {
+ *     - siop: hal_sio_driver_c *
  *     - iqueue: input_queue_t
  *     - oqueue: output_queue_t
+ *     - event: event_source_t
  *     + bsioObjectInit()
  *     # bsIncomingDataI()
  *     # bsRequestDataI()
+ *     # bsAddFlagsI()
  *   }
- *   hal_buffered_sio_driver_c "1" o-- hal_sio_driver_c
+ *   hal_buffered_sio_c "1" o-- "1" hal_sio_driver_c
  * }
  * @enduml
  */

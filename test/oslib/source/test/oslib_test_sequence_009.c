@@ -107,7 +107,7 @@ static void oslib_test_009_001_execute(void) {
   /* [9.1.2] Registering an object, it must not exists, must succeed.*/
   test_set_step(2);
   {
-    static uint32_t myobj = 0x55aa;
+    static CH_MEM_GLOBAL_COHERENT_DATA uint32_t myobj = 0x55aa;
 
     rop = chFactoryRegisterObject("myobj", (void *)&myobj);
     test_assert(rop != NULL, "cannot register");
@@ -118,7 +118,7 @@ static void oslib_test_009_001_execute(void) {
   test_set_step(3);
   {
     registered_object_t *rop1;
-    static uint32_t myobj = 0x55aa;
+    static CH_MEM_GLOBAL_COHERENT_DATA uint32_t myobj = 0x55aa;
 
     rop1 = chFactoryRegisterObject("myobj", (void *)&myobj);
     test_assert(rop1 == NULL, "can register");

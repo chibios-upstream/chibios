@@ -63,10 +63,12 @@
 
 /**
  * @brief       Enables the HAL registry for drivers.
+ * @note        Drivers are added to the registry explicitly, using @p
+ *              drvRegister().
  * @note        Disabling this option saves both code and data space.
  */
 #if !defined(HAL_USE_REGISTRY) || defined(__DOXYGEN__)
-#define HAL_USE_REGISTRY                    TRUE
+#define HAL_USE_REGISTRY                    FALSE
 #endif
 /** @} */
 
@@ -191,11 +193,7 @@ struct hal_base_driver {
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver identifier.
-   */
-  unsigned int              id;
-  /**
-   * @brief       Driver name.
+   * @brief       Driver name, @p NULL if not registered.
    */
   const char                *name;
   /**
@@ -210,9 +208,11 @@ struct hal_base_driver {
 /* External declarations.                                                    */
 /*===========================================================================*/
 
-#if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
+#if !defined(__DOXYGEN__)
+#if HAL_USE_REGISTRY == TRUE
 extern hal_regent_t         hal_registry;
 #endif /* HAL_USE_REGISTRY == TRUE */
+#endif /* !defined(__DOXYGEN__) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -224,11 +224,15 @@ extern "C" {
   void drvStop(void *ip);
   msg_t drvSetCfgX(void *ip, const void *config);
   const void *drvSelectCfgX(void *ip, unsigned cfgnum);
+#if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
+  msg_t drvRegister(void *ip, const char *name);
+  void drvUnregister(void *ip);
+#endif /* HAL_USE_REGISTRY == TRUE */
   /* Regular functions.*/
   void drvInit(void);
 #if HAL_USE_REGISTRY == TRUE
-  hal_base_driver_c *drvRegGetFirstX(void);
-  hal_base_driver_c *drvRegGetNextX(hal_base_driver_c *drvp);
+  hal_base_driver_c *drvRegGetFirstI(void);
+  hal_base_driver_c *drvRegGetNextI(hal_base_driver_c *drvp);
   hal_base_driver_c *drvStartByName(const char *name, msg_t *msgp);
 #endif
 #ifdef __cplusplus
@@ -300,8 +304,13 @@ static inline const void *__drv_set_cfg(void *ip, const void *config) {
 /**
  * @brief       Reconfigures a ready driver with one of the pre-defined
  *              configurations.
- * @note        Only configuration zero is guaranteed to exist, it is the
- *              driver default configuration.
+ * @note        With the driver configurations table disabled (@p
+ *              XXX_USE_CONFIGURATIONS set to @p FALSE) only configuration zero
+ *              exists, it is the low level driver default configuration, the
+ *              same used by @p drvStart() with a @p NULL configuration. With
+ *              the table enabled the configurations are the entries of the
+ *              application table, configuration zero is its first entry and an
+ *              empty table has no configurations.
  * @note        The returned configuration pointer can be retained by the
  *              driver without copying and must remain valid for the whole time
  *              it is in use.
@@ -385,12 +394,13 @@ static inline void drvSetArgumentX(void *ip, void *arg) {
   self->arg = arg;
 }
 
+#if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
 /**
  * @brief       Driver name get.
- * @note        Returns "unk" if registry is disabled.
  *
  * @param[in,out] ip            Pointer to a @p hal_base_driver_c instance.
  * @return                      The driver name.
+ * @retval NULL                 If the driver is not registered.
  *
  * @api
  */
@@ -398,32 +408,9 @@ CC_FORCE_INLINE
 static inline const char *drvGetNameX(void *ip) {
   hal_base_driver_c *self = (hal_base_driver_c *)ip;
 
-#if HAL_USE_REGISTRY == TRUE
   return self->name;
-#else
-  return "unk";
-#endif
 }
-
-/**
- * @brief       Driver name set.
- * @note        Does nothing if registry is disabled.
- *
- * @param[in,out] ip            Pointer to a @p hal_base_driver_c instance.
- * @param[in]     name          New driver name.
- *
- * @api
- */
-CC_FORCE_INLINE
-static inline void drvSetNameX(void *ip, const char *name) {
-  hal_base_driver_c *self = (hal_base_driver_c *)ip;
-
-#if HAL_USE_REGISTRY == TRUE
-  self->name = name;
-#else
-  (void)name;
-#endif
-}
+#endif /* HAL_USE_REGISTRY == TRUE */
 
 #if (HAL_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
 /**

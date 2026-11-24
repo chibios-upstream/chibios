@@ -122,7 +122,7 @@ include $(CHIBIOS)/os/common/startup/ARMCRx/compilers/GCC/mk/startup_armcr8.mk
 #include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
-include $(CHIBIOS)/os/common/ports/ARMv7-R/compilers/GCC/mk/port_simulator.mk
+include $(CHIBIOS)/os/common/ports/ARMv7-R/compilers/GCC/mk/port_sim-r8.mk
 # Auto-build files in ./source recursively.
 include $(CHIBIOS)/tools/mk/autobuild.mk
 # Other files (optional).

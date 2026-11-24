@@ -48,9 +48,9 @@
 
 #define JOBS_QUEUE_SIZE 4
 
-static jobs_queue_t jq;
-static job_descriptor_t jobs[JOBS_QUEUE_SIZE];
-static msg_t msg_queue[JOBS_QUEUE_SIZE];
+static CH_MEM_GLOBAL_COHERENT_BSS jobs_queue_t jq;
+static CH_MEM_GLOBAL_COHERENT_BSS job_descriptor_t jobs[JOBS_QUEUE_SIZE];
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t msg_queue[JOBS_QUEUE_SIZE];
 
 static void job_slow(void *arg) {
 
@@ -58,8 +58,8 @@ static void job_slow(void *arg) {
   chThdSleepMilliseconds(10);
 }
 
-static THD_WORKING_AREA(wa1Thread1, 256);
-static THD_WORKING_AREA(wa2Thread1, 256);
+static CH_MEM_GLOBAL_COHERENT_BSS THD_WORKING_AREA(wa1Thread1, 256);
+static CH_MEM_GLOBAL_COHERENT_BSS THD_WORKING_AREA(wa2Thread1, 256);
 static THD_FUNCTION(Thread1, arg) {
   msg_t msg;
 

@@ -112,6 +112,16 @@ ASMXOBJS  := $(addprefix $(OBJDIR)/, $(notdir $(patsubst %.S,%.o,$(filter-out $(
 #OBJS      := $(ASMXOBJS) $(ASMOBJS) $(ACOBJS) $(TCOBJS) $(ACPPOBJS) $(TCPPOBJS)
 OBJS      := $(ASMXOBJS) $(ASMOBJS) $(ACOBJS) $(TCOBJS) $(ACPPOBJS) $(TCPPOBJS) $(TCCOBJS)
 
+# Different source files must have different names, the object files share
+# a flat directory.
+SRCFILES  := $(sort $(abspath $(TCSRC) $(TCPPSRC) $(ASMSRC) $(filter-out $(ASMXSRC_EXCLUDE),$(ASMXSRC))))
+SRCNAMES  := $(notdir $(basename $(SRCFILES)))
+SRCDUPS   := $(sort $(foreach n,$(SRCNAMES),$(if $(word 2,$(filter $(n),$(SRCNAMES))),$(n))))
+ifneq ($(SRCDUPS),)
+  SRCCLASH := $(strip $(foreach f,$(SRCFILES),$(if $(filter $(SRCDUPS),$(notdir $(basename $(f)))),$(f))))
+  $(error source files with the same name, their object files would clash: $(SRCCLASH))
+endif
+
 # Macros
 DEFS      := $(DDEFS) $(UDEFS)
 ADEFS     := $(DADEFS) $(UADEFS)
@@ -148,10 +158,16 @@ CPPFLAGS += -MD -MP -MF $(DEPDIR)/$(@F).d
 # Paths
 IINCDIR   := $(patsubst %,-I%,$(INCDIR) $(DINCDIR) $(UINCDIR))
 LLIBDIR   := $(patsubst %,-L%,$(DLIBDIR) $(ULIBDIR) $(ARM_CORTEXM_SYSROOT)/lib/$(ARM_CORTEXM_MULTI_DIR))
-LDFLAGS   = $(MCFLAGS) $(OPT) -nostartfiles $(LLIBDIR) $(ARM_CORTEXM_BUILTINS) -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--library-path=$(STARTUPLD),--script=$(LDSCRIPT)$(LDOPT)
+LDFLAGS   = $(MCFLAGS) $(OPT) -nostartfiles $(LLIBDIR) $(ARM_CORTEXM_BUILTINS) -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--library-path=$(STARTUPLD)$(LDOPT),--script=$(LDSCRIPT)
 
-# Paths where to search for sources
-VPATH     = $(SRCPATHS)
+# Paths where to search for sources. Only the source files are searched,
+# other files and directories are never resolved to same-named ones in
+# the source directories.
+vpath %.c   $(SRCPATHS)
+vpath %.cc  $(SRCPATHS)
+vpath %.cpp $(SRCPATHS)
+vpath %.s   $(SRCPATHS)
+vpath %.S   $(SRCPATHS)
 
 #
 # Makefile rules

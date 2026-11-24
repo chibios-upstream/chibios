@@ -35,6 +35,10 @@
  *          - <b>Receive</b>: An object is received from the mailbox,
  *            can be blocking.
  *          .
+ *          <h2>SMP with non-coherent caches</h2>
+ *          An objects FIFO used by more than one core must be in coherent
+ *          memory together with its objects buffer and its messages buffer,
+ *          the objects are filled by a core and used by another.
  *
  * @addtogroup oslib_objects_fifos
  * @{

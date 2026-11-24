@@ -95,6 +95,14 @@
  * @class       vfs_fatfs_driver_c
  * @extends     vfs_fs_c
  *
+ * @brief       Singleton FatFS wrapper.
+ * @details     All volumes and nodes share optional module-level mutual
+ *              exclusion controlled by VFS_CFG_USE_MUTUAL_EXCLUSION. Native
+ *              FatFS reentrancy is not required. Direct native calls must not
+ *              overlap VFS operations. Mount/unmount require no affected live
+ *              nodes or active operations. Storage callbacks execute under the
+ *              leaf mutex and must not reenter VFS; upper metadata locks are
+ *              not held.
  *
  * @name        Class @p vfs_fatfs_driver_c structures
  * @{
@@ -137,8 +145,10 @@ struct vfs_fatfs_driver {
 /* External declarations.                                                    */
 /*===========================================================================*/
 
+#if !defined(__DOXYGEN__)
 extern struct vfs_fatfs_driver_static_struct vfs_fatfs_driver_static;
 extern struct vfs_fatfs_driver_static_nc_struct __nocache_vfs_fatfs_driver_static;
+#endif /* !defined(__DOXYGEN__) */
 
 #ifdef __cplusplus
 extern "C" {

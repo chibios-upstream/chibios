@@ -93,18 +93,8 @@ static vio_conf_t vio_config2 = {
 static vfs_fatfs_driver_c fatfs_driver;
 #endif
 
-/* VFS root object.*/
-static vfs_root_c root_driver;
-
-/* Private root for sandbox 2.*/
-static vfs_root_c sb2_root_driver;
-
-/* VFS streams driver object representing the /dev directory.*/
+/* VFS streams driver providing the null stream node.*/
 static vfs_streams_driver_c dev_driver;
-
-/* VFS API will use this object as implicit root, defining this
-   symbol is expected.*/
-vfs_root_c *vfs_root = &root_driver;
 
 static null_stream_c nullstream;
 
@@ -166,14 +156,23 @@ static void start_sb2(void) {
 
   /*
    * Associating standard input, output and error to sandbox 2.*/
-  ret = vfsOpen("/dev/null", 0, &np);
+  ret = vfsFSOpen((vfs_fs_c *)&dev_driver, "/null", VO_RDWR, &np);
   if (CH_RET_IS_ERROR(ret)) {
     chSysHalt("VFS");
   }
-  sbRegisterDescriptor(&sbx2, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
-  sbRegisterDescriptor(&sbx2, STDOUT_FILENO, (vfs_node_c *)roAddRef(np));
-  sbRegisterDescriptor(&sbx2, STDERR_FILENO, (vfs_node_c *)roAddRef(np));
-  vfsClose(np);
+  ret = sbRegisterDescriptor(&sbx2, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
+  if (CH_RET_IS_ERROR(ret)) {
+    chSysHalt("sbx2 descriptor");
+  }
+  ret = sbRegisterDescriptor(&sbx2, STDOUT_FILENO, (vfs_node_c *)roAddRef(np));
+  if (CH_RET_IS_ERROR(ret)) {
+    chSysHalt("sbx2 descriptor");
+  }
+  ret = sbRegisterDescriptor(&sbx2, STDERR_FILENO, (vfs_node_c *)roAddRef(np));
+  if (CH_RET_IS_ERROR(ret)) {
+    chSysHalt("sbx2 descriptor");
+  }
+  vfsNodeClose(np);
 
   /* Starting sandboxed thread 2.*/
   utp = sbStart(&sbx2, NORMALPRIO-20, sbx2stk, sbx2_argv, sbx2_envp);
@@ -222,7 +221,6 @@ static void stop_messenger(void) {
  */
 int main(void) {
   event_listener_t el1;
-  msg_t ret;
 
   /*
    * System initializations.
@@ -248,28 +246,9 @@ int main(void) {
   drvStart(&SIOD1, NULL);
   nullstmObjectInit(&nullstream);
 
-  /*
-   * Initializing the VFS root without a base file system, then registering a
-   * streams VFS driver as "/dev".
-   */
-  vfsrootObjectInit(&root_driver, NULL, NULL);
-  ret = ovldrvRegisterDriver(&root_driver,
-                             (vfs_fs_c *)stmdrvObjectInit(&dev_driver,
-                                                         &streams[0]),
-                             "dev");
-  if (CH_RET_IS_ERROR(ret)) {
-    chSysHalt("VFS");
-  }
-
-  /* Initializing sandbox 2's private mount-only root, then mounting the
-     shared streams file system as "/dev".*/
-  vfsrootObjectInit(&sb2_root_driver, NULL, NULL);
-  ret = ovldrvRegisterDriver(&sb2_root_driver,
-                             (vfs_fs_c *)&dev_driver,
-                             "dev");
-  if (CH_RET_IS_ERROR(ret)) {
-    chSysHalt("VFS");
-  }
+  /* Streams file system with the null stream, the host uses its node for
+     the standard descriptors of sandbox 2.*/
+  stmdrvObjectInit(&dev_driver, &streams[0]);
 
   /*
    * Sandbox objects initialization, regions are assigned explicitly.
@@ -283,7 +262,6 @@ int main(void) {
   sbSetRegion(&sbx2, 0, STARTUP_FLASH2_BASE, STARTUP_FLASH2_SIZE, SB_REG_IS_CODE);
   sbSetRegion(&sbx2, 1, STARTUP_RAM2_BASE,   STARTUP_RAM2_SIZE, SB_REG_IS_DATA);
   sbSetVirtualIO(&sbx2, &vio_config2);
-  sbSetRoot(&sbx2, &sb2_root_driver);
 
   /* Starting sandboxed threads.*/
   start_sb1();

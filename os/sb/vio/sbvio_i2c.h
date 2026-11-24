@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    sb/vhal/sbvio_i2c.h
+ * @file    sb/vio/sbvio_i2c.h
  * @brief   ARM SandBox host Virtual I2C macros and structures.
  *
  * @addtogroup ARM_SANDBOX_HOST_VIO_I2C

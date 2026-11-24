@@ -21,8 +21,22 @@
 /* Module local functions.                                                   */
 /*===========================================================================*/
 
-static BYTE translate_oflag(int oflag) {
-  int flags = oflag & VO_SUPPORTED_FLAGS_MASK;
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+static inline void ff_lock(void) {
+
+  chMtxLock(&vfs_fatfs_driver_static.mutex);
+}
+
+static inline void ff_unlock(void) {
+
+  chMtxUnlock(&vfs_fatfs_driver_static.mutex);
+}
+#else
+#define ff_lock()
+#define ff_unlock()
+#endif
+
+static BYTE translate_oflag(int flags) {
   BYTE mode;
 
   switch (flags & VO_ACCMODE) {
@@ -32,39 +46,16 @@ static BYTE translate_oflag(int oflag) {
   case VO_WRONLY:
     mode = FA_WRITE;
     break;
-  case VO_RDWR:
+  default:
     mode = FA_READ | FA_WRITE;
     break;
-  default:
-    return (BYTE)0;
   }
-
-  /* Mutation flags require a writable file object.*/
-  if (((flags & (VO_APPEND | VO_CREAT | VO_TRUNC | VO_EXCL)) != 0) &&
-      ((mode & FA_WRITE) == 0)) {
-    return (BYTE)0;
-  }
-
-  /* Exclusive mode is meaningful only together with creation.*/
-  if (((flags & VO_EXCL) != 0) && ((flags & VO_CREAT) == 0)) {
-    return (BYTE)0;
-  }
-
-  /* FA_OPEN_APPEND includes create-if-missing, therefore it cannot
-     represent append without VO_CREAT.*/
-  if (((flags & VO_APPEND) != 0) && ((flags & VO_CREAT) == 0)) {
-    return (BYTE)0;
-  }
-
   if ((flags & VO_CREAT) != 0) {
     if ((flags & VO_EXCL) != 0) {
       mode |= FA_CREATE_NEW;
     }
     else if ((flags & VO_TRUNC) != 0) {
       mode |= FA_CREATE_ALWAYS;
-    }
-    else if ((flags & VO_APPEND) != 0) {
-      mode |= FA_OPEN_APPEND;
     }
     else {
       mode |= FA_OPEN_ALWAYS;
@@ -140,7 +131,7 @@ static msg_t translate_error(FRESULT res) {
     msg = CH_RET_EIO;
     break;
   case FR_LOCKED:
-    msg = CH_RET_EACCES;
+    msg = CH_RET_EBUSY;
     break;
   case FR_INVALID_PARAMETER:
     msg = CH_RET_EINVAL;
@@ -151,6 +142,89 @@ static msg_t translate_error(FRESULT res) {
   }
 
   return msg;
+}
+
+/* Checks for directory entries, the dot entries are not reported by
+   f_readdir(). Called with the FatFS lock held.*/
+static bool dir_has_entries(const char *path, FILINFO *info) {
+  DIR dir;
+  bool found = false;
+
+  if (f_opendir(&dir, (const TCHAR *)path) == FR_OK) {
+    found = (f_readdir(&dir, info) == FR_OK) && (info->fname[0] != '\0');
+    (void)f_closedir(&dir);
+  }
+
+  return found;
+}
+
+/* Source of the zeros filling the gap between the end of file and a
+   position set past it, one sector.*/
+static const uint8_t zero_block[512] = {0U};
+
+/* Moves the native position to a position set past the end of file when
+   the file has reached it. Called with the FatFS lock held.*/
+static FRESULT sync_seekpos(vfs_fatfs_file_node_c *self) {
+  FRESULT res = FR_OK;
+
+  if ((self->seekpos > (vfs_offset_t)0) &&
+      ((FSIZE_t)self->seekpos <= f_size(&self->file))) {
+    res = f_lseek(&self->file, (FSIZE_t)self->seekpos);
+    if (res == FR_OK) {
+      self->seekpos = (vfs_offset_t)0;
+    }
+  }
+
+  return res;
+}
+
+/* Returns the file position, also when set past the end of file. Called
+   with the FatFS lock held.*/
+static FSIZE_t get_position(vfs_fatfs_file_node_c *self) {
+
+  return self->seekpos > (vfs_offset_t)0 ? (FSIZE_t)self->seekpos :
+         f_tell(&self->file);
+}
+
+/* Sets the file position, a position past the end of file is kept by the
+   node and the file is extended by the next write. Called with the FatFS
+   lock held.*/
+static FRESULT set_position(vfs_fatfs_file_node_c *self, FSIZE_t position) {
+  FRESULT res;
+
+  if (position > f_size(&self->file)) {
+    self->seekpos = (vfs_offset_t)position;
+    return FR_OK;
+  }
+  res = f_lseek(&self->file, position);
+  if (res == FR_OK) {
+    self->seekpos = (vfs_offset_t)0;
+  }
+
+  return res;
+}
+
+/* Extends the file with zeros up to a position set past the end of file
+   and moves the native position there. Called with the FatFS lock held.*/
+static msg_t fill_to_seekpos(vfs_fatfs_file_node_c *self) {
+  FSIZE_t target = (FSIZE_t)self->seekpos;
+  FRESULT res;
+  UINT n, bw;
+
+  res = f_lseek(&self->file, f_size(&self->file));
+  while ((res == FR_OK) && (f_tell(&self->file) < target)) {
+    n = (target - f_tell(&self->file)) > (FSIZE_t)sizeof zero_block ?
+        (UINT)sizeof zero_block : (UINT)(target - f_tell(&self->file));
+    res = f_write(&self->file, (const void *)zero_block, n, &bw);
+    if ((res == FR_OK) && (bw < n)) {
+      return CH_RET_ENOSPC;
+    }
+  }
+  if (res == FR_OK) {
+    self->seekpos = (vfs_offset_t)0;
+  }
+
+  return translate_error(res);
 }
 
 static bool is_leap_year(unsigned year) {
@@ -214,6 +288,21 @@ static void set_timestamp_stat(WORD fdate, WORD ftime, vfs_stat_t *sp) {
   sp->valid |= VFS_STAT_VALID_MTIME;
 }
 
+/* After an open, the window holds the directory entry of a FAT file, the
+   entry pointer is not used for exFAT files.*/
+static DWORD get_open_mtime(const FIL *fp) {
+  const FATFS *fsp = fp->obj.fs;
+  const BYTE *ep;
+
+  if ((fsp->fs_type == FS_EXFAT) || (fsp->winsect != fp->dir_sect)) {
+    return 0U;
+  }
+
+  ep = fp->dir_ptr + FAT_DIR_MODTIME;
+  return (DWORD)ep[0] | ((DWORD)ep[1] << 8) |
+         ((DWORD)ep[2] << 16) | ((DWORD)ep[3] << 24);
+}
+
 static bool get_cluster_size(const FATFS *fsp, uint64_t *sizep) {
   uint64_t sector_size;
   uint64_t cluster_size;
@@ -261,6 +350,43 @@ static void set_storage_stat(const FATFS *fsp, FSIZE_t size,
   }
 }
 
+/* Allocation and result conversion are outside the native operation lock.*/
+static msg_t read_directory(vfs_fatfs_dir_node_c *self,
+                            vfs_direntry_info_t *dip, bool rewind) {
+  FILINFO *fip;
+  FRESULT res;
+  msg_t ret;
+
+  fip = chPoolAlloc(&vfs_fatfs_driver_static.info_nodes_pool);
+  if (fip == NULL) {
+    return CH_RET_ENOMEM;
+  }
+  ff_lock();
+  res = rewind ? f_rewinddir(&self->dir) : FR_OK;
+  if (res == FR_OK) {
+    res = f_readdir(&self->dir, fip);
+  }
+  ff_unlock();
+  if (res != FR_OK) {
+    ret = translate_error(res);
+  }
+  else if (fip->fname[0] == '\0') {
+    ret = (msg_t)0;
+  }
+  else {
+    dip->mode = translate_mode(fip->fattrib);
+    /* Sizes beyond the offset range are saturated.*/
+    dip->size = fip->fsize > (FSIZE_t)INT32_MAX ? (vfs_offset_t)INT32_MAX :
+                (vfs_offset_t)fip->fsize;
+    strncpy(dip->name, fip->fname, VFS_CFG_NAMELEN_MAX);
+    dip->name[VFS_CFG_NAMELEN_MAX] = '\0';
+    ret = (msg_t)1;
+  }
+  chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, fip);
+
+  return ret;
+}
+
 /*===========================================================================*/
 /* Module exported functions.                                                */
 /*===========================================================================*/
@@ -272,30 +398,34 @@ static void set_storage_stat(const FATFS *fsp, FSIZE_t size,
  */
 void __drv_fatfs_init(void) {
 
-    /* Initializing pools.*/
-    chPoolObjectInit(&vfs_fatfs_driver_static.dir_nodes_pool,
-                     sizeof (vfs_fatfs_dir_node_c),
-                     chCoreAllocAlignedI);
-    chPoolObjectInit(&vfs_fatfs_driver_static.file_nodes_pool,
-                     sizeof (vfs_fatfs_file_node_c),
-                     chCoreAllocAlignedI);
-    chPoolObjectInit(&vfs_fatfs_driver_static.info_nodes_pool,
-                     sizeof (FILINFO),
-                     chCoreAllocAlignedI);
-    chPoolObjectInit(&vfs_fatfs_driver_static.fs_nodes_pool,
-                     sizeof (FATFS),
-                     NULL);
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  chMtxObjectInit(&vfs_fatfs_driver_static.mutex);
+#endif
 
-    /* Preloading pools.*/
-    chPoolLoadArray(&vfs_fatfs_driver_static.dir_nodes_pool,
-                    &vfs_fatfs_driver_static.dir_nodes[0],
-                    DRV_CFG_FATFS_DIR_NODES_NUM);
-    chPoolLoadArray(&vfs_fatfs_driver_static.file_nodes_pool,
-                    &vfs_fatfs_driver_static.file_nodes[0],
-                    DRV_CFG_FATFS_FILE_NODES_NUM);
-    chPoolLoadArray(&vfs_fatfs_driver_static.fs_nodes_pool,
-                    &__nocache_vfs_fatfs_driver_static.fs[0],
-                    DRV_CFG_FATFS_FS_NUM);
+  /* Initializing pools.*/
+  chPoolObjectInit(&vfs_fatfs_driver_static.dir_nodes_pool,
+                   sizeof (vfs_fatfs_dir_node_c),
+                   chCoreAllocAlignedI);
+  chPoolObjectInit(&vfs_fatfs_driver_static.file_nodes_pool,
+                   sizeof (vfs_fatfs_file_node_c),
+                   chCoreAllocAlignedI);
+  chPoolObjectInit(&vfs_fatfs_driver_static.info_nodes_pool,
+                   sizeof (FILINFO),
+                   chCoreAllocAlignedI);
+  chPoolObjectInit(&vfs_fatfs_driver_static.fs_nodes_pool,
+                   sizeof (FATFS),
+                   NULL);
+
+  /* Preloading pools.*/
+  chPoolLoadArray(&vfs_fatfs_driver_static.dir_nodes_pool,
+                  &vfs_fatfs_driver_static.dir_nodes[0],
+                  DRV_CFG_FATFS_DIR_NODES_NUM);
+  chPoolLoadArray(&vfs_fatfs_driver_static.file_nodes_pool,
+                  &vfs_fatfs_driver_static.file_nodes[0],
+                  DRV_CFG_FATFS_FILE_NODES_NUM);
+  chPoolLoadArray(&vfs_fatfs_driver_static.fs_nodes_pool,
+                  &__nocache_vfs_fatfs_driver_static.fs[0],
+                  DRV_CFG_FATFS_FS_NUM);
 }
 
 /**
@@ -313,21 +443,24 @@ msg_t ffdrvMount(const char *name, bool mountnow) {
   FATFS *fs;
   FRESULT res;
 
+  ff_lock();
   fs = f_getfs(name);
   if (fs == NULL) {
+    /* This fixed pool has no growth provider and cannot block.*/
     fs = chPoolAlloc(&vfs_fatfs_driver_static.fs_nodes_pool);
     if (fs == NULL) {
+      ff_unlock();
       return CH_RET_ENOMEM;
     }
   }
-
   res = f_mount(fs, name, (BYTE)(mountnow ? 1 : 0));
   if (res != FR_OK) {
-    /* Deregistering from FatFS before freeing, f_mount() registers the
-       object in the global volume table before attempting the actual mount
-       so a failure leaves a dangling pointer if not cleaned up.*/
-    (void) f_mount(NULL, name, 0);
-    chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, (void *)fs);
+    /* FatFS registers the object even when the immediate mount fails.*/
+    (void)f_mount(NULL, name, 0);
+  }
+  ff_unlock();
+  if (res != FR_OK) {
+    chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, fs);
   }
 
   return translate_error(res);
@@ -345,17 +478,16 @@ msg_t ffdrvUnmount(const char *name) {
   FATFS *fs;
   FRESULT res;
 
+  ff_lock();
   fs = f_getfs(name);
   if (fs == NULL) {
+    ff_unlock();
     return CH_RET_EINVAL;
   }
-
   res = f_unmount(name);
-
-  /* Only freeing the object if FatFS successfully deregistered it,
-     otherwise the global volume table still references it.*/
+  ff_unlock();
   if (res == FR_OK) {
-    chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, (void *)fs);
+    chPoolFree(&vfs_fatfs_driver_static.fs_nodes_pool, fs);
   }
 
   return translate_error(res);
@@ -366,7 +498,6 @@ msg_t ffdrvUnmount(const char *name) {
 /*===========================================================================*/
 
 /* TODO automatic forward declarations of all method implementations.*/
-static msg_t __ffdir_next_impl(void *ip, vfs_direntry_info_t *dip);
 
 /**
  * @name        Methods implementations of vfs_fatfs_dir_node_c
@@ -410,7 +541,9 @@ static void __ffdir_dispose_impl(void *ip) {
   vfs_fatfs_dir_node_c *self = (vfs_fatfs_dir_node_c *)ip;
 
   /* Closing directory.*/
+  ff_lock();
   (void) f_closedir(&self->dir);
+  ff_unlock();
 
   /* Finalization of the ancestors-defined parts.*/
   __vfsdir_dispose_impl(ip);
@@ -433,7 +566,9 @@ static msg_t __ffdir_stat_impl(void *ip, vfs_stat_t *sp) {
   vfs_fatfs_dir_node_c *self = (vfs_fatfs_dir_node_c *)ip;
 
   (void)__vfsnode_stat_impl(ip, sp);
+  ff_lock();
   set_storage_stat(self->dir.obj.fs, (FSIZE_t)0, sp);
+  ff_unlock();
 
   return CH_RET_SUCCESS;
 }
@@ -449,19 +584,8 @@ static msg_t __ffdir_stat_impl(void *ip, vfs_stat_t *sp) {
  * @return                      The operation result.
  */
 static msg_t __ffdir_first_impl(void *ip, vfs_direntry_info_t *dip) {
-  vfs_fatfs_dir_node_c *self = (vfs_fatfs_dir_node_c *)ip;
-  msg_t ret;
-  FRESULT res;
 
-  res = f_rewinddir(&self->dir);
-  if (res == FR_OK) {
-    ret = __ffdir_next_impl(ip, dip);
-  }
-  else {
-    ret = translate_error(res);
-  }
-
-  return ret;
+  return read_directory((vfs_fatfs_dir_node_c *)ip, dip, true);
 }
 
 /**
@@ -475,43 +599,8 @@ static msg_t __ffdir_first_impl(void *ip, vfs_direntry_info_t *dip) {
  * @return                      The operation result.
  */
 static msg_t __ffdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
-  vfs_fatfs_dir_node_c *self = (vfs_fatfs_dir_node_c *)ip;
-  msg_t ret;
 
-  do {
-    FRESULT res;
-    FILINFO *fip;
-
-    fip = (FILINFO *)chPoolAlloc(&vfs_fatfs_driver_static.info_nodes_pool);
-    if (fip != NULL) {
-
-      res = f_readdir(&self->dir, fip);
-      if (res == FR_OK) {
-        if (fip->fname[0] == '\0') {
-          ret = (msg_t)0;
-        }
-        else {
-          dip->mode = translate_mode(fip->fattrib);
-          dip->size = (vfs_offset_t)fip->fsize;
-          strncpy(dip->name, fip->fname, VFS_CFG_NAMELEN_MAX);
-          dip->name[VFS_CFG_NAMELEN_MAX] = '\0';
-          ret = (msg_t)1;
-        }
-      }
-      else {
-        ret = translate_error(res);
-      }
-
-      chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, (void *)fip);
-    }
-    else {
-      ret = CH_RET_ENOMEM;
-      break;
-    }
-  }
-  while (false);
-
-  return ret;
+  return read_directory((vfs_fatfs_dir_node_c *)ip, dip, false);
 }
 /** @} */
 
@@ -573,14 +662,18 @@ static vfs_fatfs_dir_node_c *ffdirObjectInit(vfs_fatfs_dir_node_c *self,
  * @param[in]     vmt           VMT pointer for the new object.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Opened access and status flags.
  * @return                      A new reference to the object.
  */
 static void *__fffile_objinit_impl(void *ip, const void *vmt,
-                                   vfs_fs_c *driver, vfs_mode_t mode) {
+                                   vfs_fs_c *driver, vfs_mode_t mode,
+                                   int flags) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
+  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode, flags);
+  self->seekpos = (vfs_offset_t)0;
+  self->mtime = 0U;
 
   return self;
 }
@@ -599,7 +692,9 @@ static void __fffile_dispose_impl(void *ip) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
 
   /* Closing file.*/
+  ff_lock();
   (void) f_close(&self->file);
+  ff_unlock();
 
   /* Finalization of the ancestors-defined parts.*/
   __vfsfile_dispose_impl(ip);
@@ -621,9 +716,19 @@ static void __fffile_dispose_impl(void *ip) {
 static msg_t __fffile_stat_impl(void *ip, vfs_stat_t *sp) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
 
+  ff_lock();
+  if (self->file.obj.objsize > (FSIZE_t)INT32_MAX) {
+    ff_unlock();
+
+    return CH_RET_EOVERFLOW;
+  }
   sp->mode = self->mode;
   sp->size = (vfs_offset_t)self->file.obj.objsize;
   set_storage_stat(self->file.obj.fs, self->file.obj.objsize, sp);
+  if (self->mtime != 0U) {
+    set_timestamp_stat((WORD)(self->mtime >> 16), (WORD)self->mtime, sp);
+  }
+  ff_unlock();
 
   return CH_RET_SUCCESS;
 }
@@ -644,12 +749,22 @@ static ssize_t __fffile_read_impl(void *ip, uint8_t *buf, size_t n) {
   FRESULT res;
   UINT br;
 
-  res = f_read(&self->file, (void *)buf, (UINT)n, &br);
+  if (n > UINT_MAX) {
+    return CH_RET_EINVAL;
+  }
+  ff_lock();
+  res = sync_seekpos(self);
+  br = 0U;
+  if ((res == FR_OK) && (self->seekpos == (vfs_offset_t)0)) {
+    res = f_read(&self->file, (void *)buf, (UINT)n, &br);
+  }
+  ff_unlock();
   if (res != FR_OK) {
 
     return translate_error(res);
   }
 
+  /* A position past the end of file reads as end of file.*/
   return (ssize_t)br;
 }
 
@@ -666,13 +781,65 @@ static ssize_t __fffile_read_impl(void *ip, uint8_t *buf, size_t n) {
  */
 static ssize_t __fffile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
+  msg_t ret = CH_RET_SUCCESS;
+  FSIZE_t start;
   FRESULT res;
-  UINT bw;
+  UINT bw = 0U;
 
-  res = f_write(&self->file, (const void *)buf, (UINT)n, &bw);
-  if (res != FR_OK) {
+  if (n > UINT_MAX) {
+    return CH_RET_EINVAL;
+  }
+  if (n == 0U) {
+    return (ssize_t)0;
+  }
+  ff_lock();
 
-    return translate_error(res);
+  /* Files do not grow beyond the offset range, a write crossing it is
+     shortened.*/
+  if ((self->flags & VO_APPEND) != 0) {
+    start = f_size(&self->file);
+  }
+  else {
+    start = get_position(self);
+  }
+  if (start >= (FSIZE_t)INT32_MAX) {
+    ff_unlock();
+
+    return CH_RET_EFBIG;
+  }
+  if ((FSIZE_t)n > ((FSIZE_t)INT32_MAX - start)) {
+    n = (size_t)((FSIZE_t)INT32_MAX - start);
+  }
+
+  /* FatFS stores the modification time when synchronizing.*/
+  self->mtime = 0U;
+
+  if ((self->flags & VO_APPEND) != 0) {
+    /* Append and write are one native operation, also after a seek.*/
+    ret = translate_error(f_lseek(&self->file, f_size(&self->file)));
+  }
+  else {
+    /* A gap left by a position past the end of file is filled with zeros
+       before writing.*/
+    ret = translate_error(sync_seekpos(self));
+    if (!CH_RET_IS_ERROR(ret) && (self->seekpos > (vfs_offset_t)0)) {
+      ret = fill_to_seekpos(self);
+    }
+  }
+  if (!CH_RET_IS_ERROR(ret)) {
+    res = f_write(&self->file, (const void *)buf, (UINT)n, &bw);
+    ret = translate_error(res);
+    if (res == FR_OK) {
+      self->seekpos = (vfs_offset_t)0;
+    }
+  }
+  ff_unlock();
+  CH_RETURN_ON_ERROR(ret);
+
+  /* A full volume is reported with a short count and then with no bytes
+     written.*/
+  if (bw == 0U) {
+    return CH_RET_ENOSPC;
   }
 
   return (ssize_t)bw;
@@ -692,30 +859,18 @@ static ssize_t __fffile_write_impl(void *ip, const uint8_t *buf, size_t n) {
 static msg_t __fffile_setpos_impl(void *ip, vfs_offset_t offset,
                                   vfs_seekmode_t whence) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
-  vfs_offset_t finaloff;
+  vfs_offset_t target;
+  msg_t ret;
 
-  chDbgCheck((whence == SEEK_SET) ||
-             (whence == SEEK_CUR) ||
-             (whence == SEEK_END));
-
-  switch (whence) {
-  case VFS_SEEK_CUR:
-    finaloff = offset + (vfs_offset_t)self->file.fptr;
-    break;
-  case VFS_SEEK_END:
-    finaloff = offset + (vfs_offset_t)self->file.obj.objsize;
-    break;
-  case VFS_SEEK_SET:
-  default:
-    finaloff = offset;
-    break;
+  ff_lock();
+  ret = __vfs_seek_target(offset, whence, (uint64_t)get_position(self),
+                          f_size(&self->file), &target);
+  if (!CH_RET_IS_ERROR(ret)) {
+    ret = translate_error(set_position(self, (FSIZE_t)target));
   }
+  ff_unlock();
 
-  if (finaloff < 0) {
-    return CH_RET_EOVERFLOW;
-  }
-
-  return translate_error(f_lseek(&self->file, (FSIZE_t)finaloff));
+  return ret;
 }
 
 /**
@@ -729,8 +884,84 @@ static msg_t __fffile_setpos_impl(void *ip, vfs_offset_t offset,
  */
 static vfs_offset_t __fffile_getpos_impl(void *ip) {
   vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
+  vfs_offset_t offset;
 
-  return (vfs_offset_t)f_tell(&self->file);
+  ff_lock();
+  if (self->seekpos > (vfs_offset_t)0) {
+    offset = self->seekpos;
+  }
+  else {
+    offset = f_tell(&self->file) > INT32_MAX ? CH_RET_EOVERFLOW :
+             (vfs_offset_t)f_tell(&self->file);
+  }
+  ff_unlock();
+
+  return offset;
+}
+
+/**
+ * @memberof    vfs_fatfs_file_node_c
+ * @protected
+ *
+ * @brief       Override of method @p vfsFileSync().
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_fatfs_file_node_c instance.
+ * @return                      The operation result.
+ */
+static msg_t __fffile_sync_impl(void *ip) {
+  vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
+  FRESULT res;
+
+  ff_lock();
+  res = f_sync(&self->file);
+  ff_unlock();
+
+  return translate_error(res);
+}
+
+/**
+ * @memberof    vfs_fatfs_file_node_c
+ * @protected
+ *
+ * @brief       Override of method @p __vfsfile_truncate().
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_fatfs_file_node_c instance.
+ * @param[in]     length        New file size.
+ * @return                      The operation result.
+ */
+static msg_t __fffile_truncate_impl(void *ip, vfs_offset_t length) {
+  vfs_fatfs_file_node_c *self = (vfs_fatfs_file_node_c *)ip;
+  FSIZE_t position;
+  msg_t ret = CH_RET_SUCCESS;
+  FRESULT res = FR_OK;
+
+  ff_lock();
+  position = get_position(self);
+  if ((FSIZE_t)length != f_size(&self->file)) {
+    self->mtime = 0U;
+  }
+  if ((FSIZE_t)length < f_size(&self->file)) {
+    res = f_lseek(&self->file, (FSIZE_t)length);
+    if (res == FR_OK) {
+      res = f_truncate(&self->file);
+    }
+  }
+  else if ((FSIZE_t)length > f_size(&self->file)) {
+    /* Extension with zeros from the end of file.*/
+    self->seekpos = length;
+    ret = fill_to_seekpos(self);
+  }
+
+  /* The file position is not changed, it can be past the new end.*/
+  if (res == FR_OK) {
+    res = set_position(self, position);
+  }
+  ff_unlock();
+  if (!CH_RET_IS_ERROR(ret)) {
+    ret = translate_error(res);
+  }
+
+  return ret;
 }
 
 /** @} */
@@ -748,7 +979,9 @@ static const struct vfs_fatfs_file_node_vmt __vfs_fatfs_file_node_vmt = {
   .write                    = __fffile_write_impl,
   .setpos                   = __fffile_setpos_impl,
   .getpos                   = __fffile_getpos_impl,
-  .control                  = __vfsfile_control_impl
+  .control                  = __vfsfile_control_impl,
+  .sync                     = __fffile_sync_impl,
+  .truncate                 = __fffile_truncate_impl
 };
 
 /**
@@ -764,15 +997,17 @@ static const struct vfs_fatfs_file_node_vmt __vfs_fatfs_file_node_vmt = {
  *                              to be initialized.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Opened access and status flags.
  * @return                      Pointer to the initialized object.
  *
  * @objinit
  */
 static vfs_fatfs_file_node_c *fffileObjectInit(vfs_fatfs_file_node_c *self,
                                                vfs_fs_c *driver,
-                                               vfs_mode_t mode) {
+                                               vfs_mode_t mode, int flags) {
 
-  return __fffile_objinit_impl(self, &__vfs_fatfs_file_node_vmt, driver, mode);
+  return __fffile_objinit_impl(self, &__vfs_fatfs_file_node_vmt, driver,
+                               mode, flags);
 }
 /** @} */
 
@@ -850,8 +1085,12 @@ msg_t __ffdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
     fip = (FILINFO *)chPoolAlloc(&vfs_fatfs_driver_static.info_nodes_pool);
     if (fip != NULL) {
 
+      ff_lock();
       res = f_stat((const TCHAR *)path, fip);
-      if (res == FR_OK) {
+      if ((res == FR_OK) && (fip->fsize > (FSIZE_t)INT32_MAX)) {
+        ret = CH_RET_EOVERFLOW;
+      }
+      else if (res == FR_OK) {
         FATFS *fsp;
 
         sp->mode = translate_mode(fip->fattrib);
@@ -866,6 +1105,7 @@ msg_t __ffdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
         ret = translate_error(res);
       }
 
+      ff_unlock();
       chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, (void *)fip);
     }
     else {
@@ -893,40 +1133,28 @@ msg_t __ffdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
 msg_t __ffdrv_opendir_impl(void *ip, const char *path,
                            vfs_directory_node_c **vdnpp) {
   vfs_fatfs_driver_c *self = (vfs_fatfs_driver_c *)ip;
-  msg_t ret;
+  vfs_fatfs_dir_node_c *node;
+  vfs_mode_t mode = (vfs_mode_t)0;
+  FRESULT res;
 
-  do {
-    vfs_fatfs_dir_node_c *ffdnp;
-    FRESULT res;
-
-    ffdnp = chPoolAlloc(&vfs_fatfs_driver_static.dir_nodes_pool);
-    if (ffdnp != NULL) {
-
-      res = f_opendir(&ffdnp->dir, (const TCHAR *)path);
-      if (res == FR_OK) {
-
-        /* Node object initialization.*/
-        (void) ffdirObjectInit(ffdnp,
-                               (vfs_fs_c *)self,
-                               translate_mode(ffdnp->dir.obj.attr));
-
-        *vdnpp = (vfs_directory_node_c *)ffdnp;
-        ret = CH_RET_SUCCESS;
-        break;
-      }
-
-      chPoolFree(&vfs_fatfs_driver_static.dir_nodes_pool, (void *)ffdnp);
-    }
-    else {
-      ret = CH_RET_ENOMEM;
-      break;
-    }
-
-    ret = translate_error(res);
+  node = chPoolAlloc(&vfs_fatfs_driver_static.dir_nodes_pool);
+  if (node == NULL) {
+    return CH_RET_ENOMEM;
   }
-  while (false);
+  ff_lock();
+  res = f_opendir(&node->dir, (const TCHAR *)path);
+  if (res == FR_OK) {
+    mode = translate_mode(node->dir.obj.attr);
+  }
+  ff_unlock();
+  if (res != FR_OK) {
+    chPoolFree(&vfs_fatfs_driver_static.dir_nodes_pool, node);
+    return translate_error(res);
+  }
+  (void)ffdirObjectInit(node, (vfs_fs_c *)self, mode);
+  *vdnpp = (vfs_directory_node_c *)node;
 
-  return ret;
+  return CH_RET_SUCCESS;
 }
 
 /**
@@ -945,56 +1173,99 @@ msg_t __ffdrv_opendir_impl(void *ip, const char *path,
 msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
                             vfs_file_node_c **vfnpp) {
   vfs_fatfs_driver_c *self = (vfs_fatfs_driver_c *)ip;
+  vfs_fatfs_file_node_c *node;
+  vfs_mode_t node_mode = (vfs_mode_t)0;
+  BYTE mode;
+  FRESULT res;
+  FILINFO *info = NULL;
+  DWORD mtime = 0U;
   msg_t ret;
 
-  do {
-    vfs_fatfs_file_node_c *fffnp;
-    FRESULT res;
-    BYTE mode;
-
-    mode = translate_oflag(flags);
-    if (mode == (BYTE)0) {
-      ret = CH_RET_EINVAL;
-      break;
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
+  if ((flags & VO_DIRECTORY) != 0) {
+    return CH_RET_ENOTDIR;
+  }
+  if (strcmp(path, "/") == 0) {
+    return CH_RET_EISDIR;
+  }
+  mode = translate_oflag(flags);
+  node = chPoolAlloc(&vfs_fatfs_driver_static.file_nodes_pool);
+  if (node == NULL) {
+    return CH_RET_ENOMEM;
+  }
+  if ((flags & VO_CREAT) != 0) {
+    info = chPoolAlloc(&vfs_fatfs_driver_static.info_nodes_pool);
+    if (info == NULL) {
+      chPoolFree(&vfs_fatfs_driver_static.file_nodes_pool, node);
+      return CH_RET_ENOMEM;
     }
-
-    fffnp = chPoolAlloc(&vfs_fatfs_driver_static.file_nodes_pool);
-    if (fffnp != NULL) {
-
-      res = f_open(&fffnp->file, (const TCHAR *)path, mode);
-      if (res == FR_OK) {
-
-        /* Truncation without creation must not create a missing file.*/
-        if (((flags & VO_TRUNC) != 0) && ((flags & VO_CREAT) == 0)) {
-          res = f_truncate(&fffnp->file);
-        }
-
-        if (res == FR_OK) {
-          /* Node object initialization.*/
-          (void) fffileObjectInit(fffnp,
-                                  (vfs_fs_c *)self,
-                                  translate_mode(fffnp->file.obj.attr));
-
-          *vfnpp = (vfs_file_node_c *)fffnp;
-          ret = CH_RET_SUCCESS;
-          break;
-        }
-
-        (void) f_close(&fffnp->file);
+  }
+  ff_lock();
+  res = FR_OK;
+  if (info != NULL) {
+    /* Resolve native create-on-directory and read-only existing-file errors.
+       The native exclusive create still handles a missing name atomically.*/
+    res = f_stat((const TCHAR *)path, info);
+    if (res == FR_OK) {
+      if ((flags & VO_EXCL) != 0) {
+        res = FR_EXIST;
       }
-
-      chPoolFree(&vfs_fatfs_driver_static.file_nodes_pool, (void *)fffnp);
+      else if ((info->fattrib & AM_DIR) != 0) {
+        res = FR_IS_DIRECTORY;
+      }
+      else if (info->fsize > (FSIZE_t)INT32_MAX) {
+        /* Rejected before a native truncation.*/
+        ret = CH_RET_EOVERFLOW;
+      }
+      else if ((flags & VO_TRUNC) == 0) {
+        mode &= (BYTE)~FA_OPEN_ALWAYS;
+      }
     }
-    else {
-      ret = CH_RET_ENOMEM;
-      break;
+    else if (res == FR_NO_FILE) {
+      res = FR_OK;
     }
-
+  }
+  if ((res == FR_OK) && !CH_RET_IS_ERROR(ret)) {
+    res = f_open(&node->file, (const TCHAR *)path, mode);
+    if (res == FR_OK) {
+      /* Files beyond the offset range cannot be opened.*/
+      if (f_size(&node->file) > (FSIZE_t)INT32_MAX) {
+        ret = CH_RET_EOVERFLOW;
+      }
+      else if (((flags & VO_TRUNC) != 0) && ((flags & VO_CREAT) == 0)) {
+        res = f_truncate(&node->file);
+      }
+      else if ((mode & (FA_CREATE_NEW | FA_CREATE_ALWAYS |
+                        FA_OPEN_ALWAYS)) == 0U) {
+        /* An existing file opened without changes, a created, overwritten
+           or truncated file gets its time when synchronized.*/
+        mtime = get_open_mtime(&node->file);
+      }
+      if ((res == FR_OK) && !CH_RET_IS_ERROR(ret)) {
+        node_mode = translate_mode(node->file.obj.attr);
+      }
+      else {
+        (void)f_close(&node->file);
+      }
+    }
+  }
+  ff_unlock();
+  if (info != NULL) {
+    chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, info);
+  }
+  if (res != FR_OK) {
     ret = translate_error(res);
   }
-  while (false);
+  if (CH_RET_IS_ERROR(ret)) {
+    chPoolFree(&vfs_fatfs_driver_static.file_nodes_pool, node);
+    return ret;
+  }
+  (void)fffileObjectInit(node, (vfs_fs_c *)self, node_mode, flags);
+  node->mtime = mtime;
+  *vfnpp = (vfs_file_node_c *)node;
 
-  return ret;
+  return CH_RET_SUCCESS;
 }
 
 /**
@@ -1008,10 +1279,31 @@ msg_t __ffdrv_openfile_impl(void *ip, const char *path, int flags,
  * @return                      The operation result.
  */
 msg_t __ffdrv_unlink_impl(void *ip, const char *path) {
+  FILINFO *info;
+  FRESULT res;
 
   (void)ip;
+  if (strcmp(path, "/") == 0) {
+    return CH_RET_EISDIR;
+  }
+  info = chPoolAlloc(&vfs_fatfs_driver_static.info_nodes_pool);
+  if (info == NULL) {
+    return CH_RET_ENOMEM;
+  }
+  ff_lock();
+  res = f_stat((const TCHAR *)path, info);
+  if (res == FR_OK) {
+    if ((info->fattrib & AM_DIR) != 0U) {
+      res = FR_IS_DIRECTORY;
+    }
+    else {
+      res = f_unlink((const TCHAR *)path);
+    }
+  }
+  ff_unlock();
+  chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, info);
 
-  return translate_error(f_unlink((const TCHAR *)path));
+  return translate_error(res);
 }
 
 /**
@@ -1026,11 +1318,28 @@ msg_t __ffdrv_unlink_impl(void *ip, const char *path) {
  * @return                      The operation result.
  */
 msg_t __ffdrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
+  FILINFO *info = NULL;
+  FRESULT res;
 
   (void)ip;
+  if (strcmp(oldpath, newpath) == 0) {
+    if (strcmp(oldpath, "/") == 0) {
+      return CH_RET_SUCCESS;
+    }
+    info = chPoolAlloc(&vfs_fatfs_driver_static.info_nodes_pool);
+    if (info == NULL) {
+      return CH_RET_ENOMEM;
+    }
+  }
+  ff_lock();
+  res = info != NULL ? f_stat((const TCHAR *)oldpath, info) :
+        f_rename((const TCHAR *)oldpath, (const TCHAR *)newpath);
+  ff_unlock();
+  if (info != NULL) {
+    chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, info);
+  }
 
-  return translate_error(f_rename((const TCHAR *)oldpath,
-                                  (const TCHAR *)newpath));
+  return translate_error(res);
 }
 
 /**
@@ -1045,11 +1354,20 @@ msg_t __ffdrv_rename_impl(void *ip, const char *oldpath, const char *newpath) {
  * @return                      The operation result.
  */
 msg_t __ffdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
+  FRESULT res;
 
   (void)ip;
-  (void)mode; /* Not handled by FatFS.*/
+  (void)mode;
+  ff_lock();
+  res = f_mkdir((const TCHAR *)path);
+  ff_unlock();
 
-  return translate_error(f_mkdir((const TCHAR *)path));
+  /* No cluster or directory entry available for the new directory.*/
+  if (res == FR_DENIED) {
+    return CH_RET_ENOSPC;
+  }
+
+  return translate_error(res);
 }
 
 /**
@@ -1063,10 +1381,42 @@ msg_t __ffdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
  * @return                      The operation result.
  */
 msg_t __ffdrv_rmdir_impl(void *ip, const char *path) {
+  FILINFO *info;
+  FRESULT res;
+  bool not_empty = false;
 
   (void)ip;
+  if (strcmp(path, "/") == 0) {
+    return CH_RET_EACCES;
+  }
+  info = chPoolAlloc(&vfs_fatfs_driver_static.info_nodes_pool);
+  if (info == NULL) {
+    return CH_RET_ENOMEM;
+  }
+  ff_lock();
+  res = f_stat((const TCHAR *)path, info);
+  if (res == FR_OK) {
+    if ((info->fattrib & AM_DIR) == 0U) {
+      res = FR_NOT_DIRECTORY;
+    }
+    else {
+      res = f_unlink((const TCHAR *)path);
 
-  return translate_error(f_rmdir((const TCHAR *)path));
+      /* FatFS denies the removal of read-only and non-empty directories,
+         the second case is checked under the same lock.*/
+      if ((res == FR_DENIED) && ((info->fattrib & AM_RDO) == 0U)) {
+        not_empty = dir_has_entries(path, info);
+      }
+    }
+  }
+  ff_unlock();
+  chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, info);
+
+  if (not_empty) {
+    return CH_ENCODE_ERROR(ENOTEMPTY);
+  }
+
+  return translate_error(res);
 }
 /** @} */
 

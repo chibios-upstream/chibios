@@ -135,6 +135,8 @@ struct vfs_tmpl_file_node_vmt {
   msg_t (*setpos)(void *ip, vfs_offset_t offset, vfs_seekmode_t whence);
   vfs_offset_t (*getpos)(void *ip);
   msg_t (*control)(void *ip, vfs_control_op_t operation, void *arg);
+  msg_t (*sync)(void *ip);
+  msg_t (*truncate)(void *ip, vfs_offset_t length);
   /* From vfs_tmpl_file_node_c.*/
 };
 
@@ -158,6 +160,10 @@ struct vfs_tmpl_file_node {
    * @brief       Node mode information.
    */
   vfs_mode_t                mode;
+  /**
+   * @brief       Immutable access mode and append status shared by duplicates.
+   */
+  int                       flags;
 };
 /** @} */
 

@@ -57,10 +57,10 @@
 /*===========================================================================*/
 
 #if CH_CFG_USE_SEMAPHORES || defined(__DOXYGEN__)
-static semaphore_t sem1;
+static CH_MEM_GLOBAL_COHERENT_BSS semaphore_t sem1;
 #endif
 #if CH_CFG_USE_MUTEXES || defined(__DOXYGEN__)
-static mutex_t mtx1;
+static CH_MEM_GLOBAL_COHERENT_BSS mutex_t mtx1;
 #endif
 
 static void tmo(virtual_timer_t *vtp, void *param) {
@@ -69,8 +69,8 @@ static void tmo(virtual_timer_t *vtp, void *param) {
   (void)param;
 }
 
-static virtual_timer_t vt1, vt2;
-static volatile uint32_t vt_counter;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t vt1, vt2;
+static CH_MEM_GLOBAL_COHERENT_BSS volatile uint32_t vt_counter;
 
 static void vt_continuous_cb(virtual_timer_t *vtp, void *param) {
 
@@ -1090,7 +1090,7 @@ static const testcase_t rt_test_012_011 = {
  */
 
 static void rt_test_012_012_execute(void) {
-  static virtual_timer_t vt1, vt2;
+  static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t vt1, vt2;
   uint32_t n;
 
   /* [12.12.1] Two timers are set then reset without waiting for their

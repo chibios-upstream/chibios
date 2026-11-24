@@ -53,9 +53,10 @@
 #define ALLOC_SIZE 16
 #define HEAP_SIZE (ALLOC_SIZE * 8)
 
-static memory_heap_t test_heap;
-static uint8_t test_heap_buffer[HEAP_SIZE];
-static ALIGNED_VAR(CH_HEAP_ALIGNMENT) heap_header_t integrity_buffer[8];
+static CH_MEM_GLOBAL_COHERENT_BSS memory_heap_t test_heap;
+static CH_MEM_GLOBAL_COHERENT_BSS uint8_t test_heap_buffer[HEAP_SIZE];
+static CH_MEM_GLOBAL_COHERENT_BSS ALIGNED_VAR(CH_HEAP_ALIGNMENT)
+  heap_header_t integrity_buffer[8];
 
 /*===========================================================================*/
 /* Test cases.                                                               */

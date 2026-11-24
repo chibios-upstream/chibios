@@ -201,7 +201,6 @@
  */
 #define ADXL355_RANGE_MASK                  0xC3
 #define ADXL355_RANGE_RANGE_MASK            0x03
-#define ADXL355_RANGE_RANGE_1               (1 << 1)
 #define ADXL355_RANGE_RANGE_0               (1 << 0)
 #define ADXL355_RANGE_RANGE_1               (1 << 1)
 #define ADXL355_RANGE_INT_POL               (1 << 6)

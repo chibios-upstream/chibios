@@ -197,6 +197,10 @@
 #define HAL_USE_ICU                         FALSE
 #endif
 
+#if !defined(HAL_USE_MMC_SPI)
+#define HAL_USE_MMC_SPI                     FALSE
+#endif
+
 #if !defined(HAL_USE_PWM)
 #define HAL_USE_PWM                         FALSE
 #endif

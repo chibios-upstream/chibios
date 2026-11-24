@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    sb/vhal/sbvio_uart.h
+ * @file    sb/vio/sbvio_uart.h
  * @brief   ARM SandBox host Virtual UART macros and structures.
  *
  * @addtogroup ARM_SANDBOX_HOST_VIO_UART

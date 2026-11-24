@@ -14,9 +14,13 @@
     limitations under the License.
 */
 
+/* The stacks area starts and ends on a cache line boundary, so the stacks
+   do not share cache lines with the adjacent data.*/
+__stacks_align__ = DEFINED(__stacks_align__) ? __stacks_align__ : 64;
+
 SECTIONS
 {
-    .stacks (NOLOAD) :
+    .stacks (NOLOAD) : ALIGN(__stacks_align__)
     {
         . = ALIGN(8);
         __und_stack_base__ = .;
@@ -47,7 +51,7 @@ SECTIONS
         __sys_stack_base__ = .;
         __main_thread_stack_base__ = .;
         . += __sys_stack_size__;
-        . = ALIGN(8);
+        . = ALIGN(__stacks_align__);
         __sys_stack_end__ = .;
         __main_thread_stack_end__ = .;
     } > STACKS_RAM

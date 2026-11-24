@@ -54,8 +54,8 @@
 
 #include "ch.h"
 
-static semaphore_t sem1;
-static semaphore_t sem2;
+static CH_MEM_GLOBAL_COHERENT_BSS semaphore_t sem1;
+static CH_MEM_GLOBAL_COHERENT_BSS semaphore_t sem2;
 
 static THD_FUNCTION(thread1, p) {
 

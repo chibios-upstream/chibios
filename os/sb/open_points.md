@@ -11,6 +11,7 @@ not separate backlogs:
 - [SVC and MPU optimizations](note_svc_mpu_optimizations.md)
 - [TTY integration and signal delivery](note_sb_tty.md)
 - [System block and userspace VRQ critical zones](note_sb_system_block.md)
+- [Coherent data regions for loaded applications](note_sb_coherent_regions.md)
 - [VSHM, shared memory among sandboxes, draft spec](note_sb_vshm.md)
 - [VMSG, messages with temporary mapping, draft spec](note_sb_vmsg.md)
 
@@ -63,6 +64,16 @@ The following work is complete and must not be reintroduced as an open item:
   VRQ flags as an argument. `SB_FASTC_VRQ_GCSTS` was removed and code 119 is
   retired. Guests must be rebuilt for hosts with the block; see
   [note_sb_system_block.md](note_sb_system_block.md).
+
+- Loadable applications can place DMA-coherent data in the conventional
+  `.nocache` section, mapped by the loader onto the sandbox region marked
+  `SB_REG_ATTR_DISCOVERABLE` and non-cacheable; discovery is explicit and
+  filtered by attributes (`sbGetDiscoverableRegion()`), memory-type
+  destinations are zeroed per load, device-type destinations are pure
+  addressing overlays. Supported by `sbExecStatic()`, `sbExecDynamic()` and
+  `SB_SYSC_LOADELF`. The ELF loader itself is the generic `os/elf/elf32/`
+  module, `sbelf` is a thin wrapper. Hardware-validated on G474; see
+  [note_sb_coherent_regions.md](note_sb_coherent_regions.md).
 
 ## Priority 1: security and isolation
 
@@ -206,6 +217,43 @@ Detailed designs are in
 - Stress UART asynchronous read/write, event delivery, and restart behavior.
 - Add a minimal networking-oriented sandbox sample after the VETH contract
   is stable.
+- Validate the coherent data region path on the H563 target of
+  `RT-SB-DYNAMIC-RAMBOX-MULTI` (compile-validated only) and add a real
+  DMA showcase using the coherent region (e.g. SPI) on a cached target
+  such as STM32H7.
+- Validate the ELF load cache synchronization (D-cache clean of the loaded
+  image and coherent region, I-cache invalidate in `sbElfLoad()`) on a
+  cached target; it is compile-validated for Cortex-M7 and a barrier-only
+  no-op on the current cache-less targets. The ST ICACHE peripheral of the
+  H5 family is separate from the core caches and is not covered.
+- VIO cache contract (decided and implemented 2026-11-10): zero-copy
+  data-plane buffers (VSPI, VADC, VI2C) must reside in a non-cacheable
+  guest memory region, normally the coherent region through `SB_NOCACHE`,
+  enforced uniformly on all hosts by
+  `sb_is_valid_coherent_read/write_range()` so applications are portable
+  by construction. VIO performs no cache maintenance and no alignment
+  checks. VUART (SIO FIFO) and VETH (copied frames) are exempt.
+  Consequence: hosts offering zero-copy VIO must export a coherent region
+  also on cache-less cores (already the demo convention). The
+  `testsb/SB_VIO-*` pair is migrated using the static fixed-address
+  pattern (client links `.nocache` at 0x2001F000, host maps a matching
+  `SB_REG_IS_NOCACHE_DATA` region, no discovery involved) and
+  hardware-validated on G474: EFAULT rejection of cacheable buffers, ADC
+  linear/stream and SPI contention tests passing from `SB_NOCACHE`
+  buffers. Remaining: re-run the VETH validation on H563 (exempt from the
+  contract but the regression should be confirmed); a small guest-side
+  allocator over the coherent region is a possible follow-up if sizing
+  becomes awkward.
+- Deferred: guest-facing cache maintenance fastcalls (clean/invalidate by
+  validated line-aligned range, no-ops on cache-less hosts, `SB_CACHE_*`
+  alignment macros), only needed for cacheable VSHM sharing and custom
+  protocols, not for VIO under the contract above. The cache line size is
+  a host property (32 bytes on cached Cortex-M, 64 bytes on the Cortex-R
+  targets): guest compile-time alignment macros must default to the
+  pessimistic 64 (over-alignment is always valid), host-side validation
+  uses the true host line size, and the actual value can be exported at
+  runtime through a system block reserved field for dynamically allocated
+  buffers and size rounding.
 
 ### API and ABI review
 
@@ -222,10 +270,8 @@ Detailed designs are in
 
 ### POSIX and examples
 
-- Complete the missing `stat` metadata in `host/sbposix.c`
-  (`st_blocks`, `st_blksize`, `st_ino`, and timestamps).
-- Replace the placeholder directory-entry inode value when the VFS can
-  provide one.
+- Replace the placeholder inode values (`st_ino` zero, directory records
+  one) when the VFS can provide file identities.
 - Add concise host and user documentation for the required flashing and
   debugging order of multi-image systems.
 - Classify applications under `apps/` as maintained regressions/demos or

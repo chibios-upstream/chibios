@@ -48,6 +48,15 @@
  *          Event Source will be signaled with an events mask.<br>
  *          An unlimited number of Event Sources can exist in a system and
  *          each thread can listen on an unlimited number of them.
+ *          <h2>SMP with non-coherent caches</h2>
+ *          Broadcasting an Event Source writes the flags of all its Event
+ *          Listeners, and registering or unregistering a listener writes
+ *          the links of the others. An Event Source used by more than one
+ *          core, broadcast from threads or from ISRs, must be in coherent
+ *          memory together with all its listeners.<br>
+ *          Listeners are usually on the stack of the listening thread, a
+ *          thread with a stack in its core cacheable memory can only listen
+ *          on sources used by its own core.
  * @pre     In order to use the Events APIs the @p CH_CFG_USE_EVENTS option
  *          must be enabled in @p chconf.h.
  * @post    Enabling events requires 1-4 (depending on the architecture)
@@ -143,6 +152,9 @@ void chEvtObjectDispose(event_source_t *esp) {
  *          reference if required.
  * @pre     The event listener must not already be registered on any event
  *          source.
+ * @pre     On SMP systems with non-coherent caches the event listener must
+ *          be in coherent memory if the event source is used by another
+ *          core, see @ref events.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[in] elp       pointer to an @p event_listener_t structure
@@ -183,6 +195,9 @@ void chEvtRegisterMaskWithFlagsI(event_source_t *esp,
  *          reference if required.
  * @pre     The event listener must not already be registered on any event
  *          source.
+ * @pre     On SMP systems with non-coherent caches the event listener must
+ *          be in coherent memory if the event source is used by another
+ *          core, see @ref events.
  *
  * @param[in] esp       pointer to an @p event_source_t object
  * @param[in] elp       pointer to an @p event_listener_t structure

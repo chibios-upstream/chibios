@@ -42,6 +42,7 @@
  * - @subpage vfs_test_003_003
  * - @subpage vfs_test_003_004
  * - @subpage vfs_test_003_005
+ * - @subpage vfs_test_003_006
  * .
  */
 
@@ -76,20 +77,52 @@ static size_t vfs_test_stream_read(void *ip, uint8_t *bp, size_t n) {
   return 0U;
 }
 
-static uint32_t vfs_test_stream_position;
+static int32_t vfs_test_stream_position;
+static int32_t vfs_test_stream_limit = 64;
+static msg_t vfs_test_stream_seek_error = CH_RET_SUCCESS;
+static msg_t vfs_test_stream_size_error = CH_RET_SUCCESS;
 
-static uint32_t vfs_test_stream_seek(void *ip, uint32_t offset, int whence) {
+/* Backend with a fixed size, it rejects positions past the end.*/
+static int32_t vfs_test_stream_seek(void *ip, int32_t offset, int whence) {
+  int64_t target;
 
   (void)ip;
 
+  if (CH_RET_IS_ERROR(vfs_test_stream_seek_error)) {
+    return (int32_t)vfs_test_stream_seek_error;
+  }
   if (whence == RSTM_SEEK_SET) {
-    vfs_test_stream_position = offset;
+    target = (int64_t)offset;
   }
   else if (whence == RSTM_SEEK_CUR) {
-    vfs_test_stream_position += offset;
+    target = (int64_t)vfs_test_stream_position + (int64_t)offset;
   }
+  else if (whence == RSTM_SEEK_END) {
+    target = (int64_t)vfs_test_stream_limit + (int64_t)offset;
+  }
+  else {
+    return (int32_t)CH_RET_EINVAL;
+  }
+  if (target < 0) {
+    return (int32_t)CH_RET_EINVAL;
+  }
+  if (target > (int64_t)vfs_test_stream_limit) {
+    return (int32_t)CH_ENCODE_ERROR(ENOTSUP);
+  }
+  vfs_test_stream_position = (int32_t)target;
 
   return vfs_test_stream_position;
+}
+
+static int32_t vfs_test_stream_getsize(void *ip) {
+
+  (void)ip;
+
+  if (CH_RET_IS_ERROR(vfs_test_stream_size_error)) {
+    return (int32_t)vfs_test_stream_size_error;
+  }
+
+  return vfs_test_stream_limit;
 }
 
 static unsigned vfs_test_tty_drains;
@@ -121,7 +154,8 @@ static const struct random_stream_vmt vfs_test_random_stream_vmt = {
   .instance_offset = 0U,
   .write = vfs_test_stream_write,
   .read = vfs_test_stream_read,
-  .seek = vfs_test_stream_seek
+  .seek = vfs_test_stream_seek,
+  .getsize = vfs_test_stream_getsize
 };
 
 static const struct tty_vmt vfs_test_tty_vmt = {
@@ -195,7 +229,9 @@ static const drv_streams_element_t vfs_test_streams[] = {
  *   destination is rejected.
  * - [3.1.6] A failed directory validation does not change the current
  *   directory.
- * - [3.1.7] A root with no backing file system validates and selects
+ * - [3.1.7] The current directory and its ancestors are not renamed or
+ *   removed through their root.
+ * - [3.1.8] A root with no backing file system validates and selects
  *   its synthetic root directory.
  * .
  */
@@ -207,6 +243,7 @@ static void vfs_test_003_001_execute(void) {
   char cwd[VFS_CFG_PATHLEN_MAX + 1];
   char other_cwd[] = "/tmp";
   char small[2];
+  unsigned calls;
   msg_t ret;
 
   /* [3.1.1] A relative path is resolved against the root current
@@ -300,9 +337,45 @@ static void vfs_test_003_001_execute(void) {
   }
   test_end_step(6);
 
-  /* [3.1.7] A root with no backing file system validates and selects
-     its synthetic root directory.*/
+  /* [3.1.7] The current directory and its ancestors are not renamed or
+     removed through their root.*/
   test_set_step(7);
+  {
+    vfs_test_root_reset();
+    calls = vfs_test_fs.calls;
+    ret = vfsFSRename(&vfs_test_root, "/home/user", "/home/other");
+    test_assert(ret == CH_RET_EBUSY, "current directory renamed");
+    ret = vfsFSRename(&vfs_test_root, "/home", "/house");
+    test_assert(ret == CH_RET_EBUSY, "current directory ancestor renamed");
+    ret = vfsFSRename(&vfs_test_root, ".", "/elsewhere");
+    test_assert(ret == CH_RET_EBUSY, "relative current directory renamed");
+    ret = vfsFSRmdir(&vfs_test_root, "/home/user");
+    test_assert(ret == CH_RET_EBUSY, "current directory removed");
+    ret = vfsFSRmdir(&vfs_test_root, ".");
+    test_assert(ret == CH_RET_EBUSY, "relative current directory removed");
+    test_assert(vfs_test_fs.calls == calls,
+                "busy operation reached the file system");
+    ret = vfsFSRename(&vfs_test_root, "/home/use", "/home/other");
+    test_assert(ret == CH_RET_SUCCESS &&
+                strcmp(vfs_test_fs.path, "/home/use") == 0,
+                "name prefix of the current directory refused");
+    ret = vfsFSRename(&vfs_test_root, "/home/user2", "/home/other");
+    test_assert(ret == CH_RET_SUCCESS &&
+                strcmp(vfs_test_fs.path, "/home/user2") == 0,
+                "sibling of the current directory refused");
+    ret = vfsFSRename(&vfs_test_root, "/home/user/file", "/home/other");
+    test_assert(ret == CH_RET_SUCCESS &&
+                strcmp(vfs_test_fs.path, "/home/user/file") == 0,
+                "content of the current directory refused");
+    ret = vfsFSRmdir(&vfs_test_root, "/home");
+    test_assert(ret == CH_RET_SUCCESS && strcmp(vfs_test_fs.path, "/home") == 0,
+                "ancestor removal not delegated");
+  }
+  test_end_step(7);
+
+  /* [3.1.8] A root with no backing file system validates and selects
+     its synthetic root directory.*/
+  test_set_step(8);
   {
     (void)vfsrootObjectInit(&empty_root, NULL, NULL);
     ret = vfsRootChangeCurrentDirectory(&empty_root, "/");
@@ -310,8 +383,9 @@ static void vfs_test_003_001_execute(void) {
     ret = vfsRootGetCurrentDirectory(&empty_root, cwd, sizeof cwd);
     test_assert(ret == CH_RET_SUCCESS, "synthetic root getcwd failed");
     test_assert(strcmp(cwd, "/") == 0, "synthetic root cwd changed");
+    boDispose(&empty_root);
   }
-  test_end_step(7);
+  test_end_step(8);
 }
 
 static const testcase_t vfs_test_003_001 = {
@@ -327,9 +401,9 @@ static const testcase_t vfs_test_003_001 = {
  * @page vfs_test_003_002 [3.2] Non-root overlay dispatch
  *
  * <h2>Description</h2>
- * A plain overlay accepts absolute paths, applies its backing prefix,
- * exposes a synthetic root, and rejects relative paths without owning
- * a current directory.
+ * A plain overlay forwards borrowed absolute paths, exposes a
+ * synthetic root, and rejects relative paths without owning a current
+ * directory.
  *
  * <h2>Conditions</h2>
  * This test is only executed if the following preprocessor condition
@@ -338,8 +412,8 @@ static const testcase_t vfs_test_003_001 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [3.2.1] An absolute path is routed to the prefixed backing file
- *   system.
+ * - [3.2.1] An absolute path is forwarded unchanged to the backing
+ *   file system.
  * - [3.2.2] The overlay root has the same synthetic metadata when
  *   queried by path or through an opened node.
  * - [3.2.3] A relative path is rejected by a plain overlay.
@@ -353,17 +427,17 @@ static void vfs_test_003_002_execute(void) {
   vfs_stat_t expected;
   msg_t ret;
 
-  /* [3.2.1] An absolute path is routed to the prefixed backing file
-     system.*/
+  /* [3.2.1] An absolute path is forwarded unchanged to the backing
+     file system.*/
   test_set_step(1);
   {
     vfs_test_fs_reset();
     vfs_test_fs.stat = vfs_test_full_stat;
-    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
+    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs);
     ret = vfsFSStat(&overlay, "/nested", &stat);
     test_assert(ret == CH_RET_SUCCESS, "non-root overlay stat failed");
-    test_assert(strcmp(vfs_test_fs.path, "/base/nested") == 0,
-                "non-root overlay prefix not applied");
+    test_assert(strcmp(vfs_test_fs.path, "/nested") == 0,
+                "non-root overlay changed the path");
     test_assert(vfs_test_stat_equal(&stat, &vfs_test_full_stat),
                 "overlay did not preserve backing metadata");
   }
@@ -375,7 +449,7 @@ static void vfs_test_003_002_execute(void) {
   {
     vfs_test_fs_reset();
     vfs_test_fs.stat = vfs_test_full_stat;
-    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, "/base");
+    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs);
     memset(&stat, 0xA5, sizeof stat);
     ret = vfsFSStat(&overlay, "/", &stat);
     test_assert(ret == CH_RET_SUCCESS, "synthetic overlay root stat failed");
@@ -388,7 +462,7 @@ static void vfs_test_003_002_execute(void) {
     test_assert(vfs_test_stat_equal(&stat, &expected),
                 "synthetic overlay root metadata changed");
 
-    (void)ovldrvObjectInit(&overlay, NULL, NULL);
+    (void)ovldrvObjectInit(&overlay, NULL);
     ret = vfsFSStat(&overlay, "/missing", &stat);
     test_assert(ret == CH_RET_ENOENT, "missing overlay path reported as root");
     ret = vfsFSOpenDirectory(&overlay, "/", &dnp);
@@ -406,7 +480,7 @@ static void vfs_test_003_002_execute(void) {
   test_set_step(3);
   {
     vfs_test_fs_reset();
-    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs, NULL);
+    (void)ovldrvObjectInit(&overlay, (vfs_fs_c *)&vfs_test_fs);
     ret = vfsFSStat(&overlay, "relative", &stat);
     test_assert(ret == CH_RET_EINVAL, "relative overlay path accepted");
     test_assert(vfs_test_fs.calls == 0U,
@@ -489,6 +563,11 @@ static void vfs_test_003_003_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "random stream stat failed");
     test_assert(stat.mode == (VFS_MODE_S_IFREG | VFS_MODE_S_IRUSR),
                 "random stream mode changed");
+    test_assert(stat.size == (vfs_offset_t)64, "random stream size lost");
+    vfs_test_stream_size_error = CH_RET_EIO;
+    ret = vfsFSStat(&streams, "/file", &stat);
+    vfs_test_stream_size_error = CH_RET_SUCCESS;
+    test_assert(ret == CH_RET_EIO, "random stream size error lost");
     ret = vfsFSStat(&streams, "/tty", &stat);
     test_assert(ret == CH_RET_SUCCESS, "TTY stat failed");
     test_assert(stat.mode ==
@@ -537,7 +616,7 @@ static void vfs_test_003_003_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "stream node stat failed");
     test_assert(vfs_test_stat_equal(&stat, &expected),
                 "stream node metadata changed");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_ISATTY, NULL);
     test_assert(ret == CH_RET_ENOTTY, "unsupported stream control accepted");
     (void)roRelease(fnp);
   }
@@ -552,37 +631,69 @@ static void vfs_test_003_003_execute(void) {
     ret = vfsFSOpenFile(&streams, "/console", VO_RDWR, &fnp);
     test_assert(ret == CH_RET_SUCCESS, "FIFO open failed");
     byte = 0x5AU;
-    n = vfsWriteFile(fnp, &byte, sizeof byte);
+    n = vfsFileWrite(fnp, &byte, sizeof byte);
     test_assert(n == (ssize_t)sizeof byte, "FIFO write not dispatched");
-    ret = vfsSetFilePosition(fnp, 0, VFS_SEEK_SET);
+    ret = vfsFileSetPosition(fnp, 0, VFS_SEEK_SET);
     test_assert(ret == CH_RET_ESPIPE, "FIFO seek accepted");
-    test_assert(vfsGetFilePosition(fnp) == CH_RET_ESPIPE,
+    test_assert(vfsFileSync(fnp) == CH_RET_EINVAL &&
+                vfsFileTruncate(fnp, 0) == CH_RET_EINVAL,
+                "FIFO sync or truncate accepted");
+    test_assert(vfsFileGetPosition(fnp) == CH_RET_ESPIPE,
                 "FIFO position reported");
     (void)roRelease(fnp);
 
-    vfs_test_stream_position = 0U;
+    vfs_test_stream_position = 0;
     ret = vfsFSOpenFile(&streams, "/file", VO_RDONLY, &fnp);
     test_assert(ret == CH_RET_SUCCESS, "random stream open failed");
-    ret = vfsSetFilePosition(fnp, 7, VFS_SEEK_SET);
+    ret = vfsFileSetPosition(fnp, 7, VFS_SEEK_SET);
     test_assert(ret == CH_RET_SUCCESS, "random stream seek failed");
-    test_assert(vfsGetFilePosition(fnp) == (vfs_offset_t)7,
+    test_assert(vfsFileGetPosition(fnp) == (vfs_offset_t)7,
                 "random stream position changed");
+    vfs_test_stream_limit = 16;
+    test_assert(vfsFileSetPosition(fnp, -2, VFS_SEEK_CUR) == 0 &&
+                vfsFileGetPosition(fnp) == 5 &&
+                vfsFileSetPosition(fnp, -2, VFS_SEEK_END) == 0 &&
+                vfsFileGetPosition(fnp) == 14, "stream signed seek failed");
+    test_assert(vfsNodeStat(fnp, &stat) == CH_RET_SUCCESS &&
+                stat.size == (vfs_offset_t)16, "random stream node size lost");
+    test_assert(vfsFileSetPosition(fnp, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
+                vfsFileSetPosition(fnp, INT32_MAX, VFS_SEEK_CUR) ==
+                  CH_RET_EOVERFLOW &&
+                vfsFileSetPosition(fnp, 17, VFS_SEEK_SET) ==
+                  CH_ENCODE_ERROR(ENOTSUP) &&
+                vfsFileGetPosition(fnp) == 14, "stream seek error lost");
+
+    /* Backend errors are reported, the position is unchanged.*/
+    vfs_test_stream_seek_error = CH_RET_EIO;
+    test_assert(vfsFileGetPosition(fnp) == CH_RET_EIO &&
+                vfsFileSetPosition(fnp, 0, VFS_SEEK_SET) == CH_RET_EIO,
+                "stream seek backend error lost");
+    vfs_test_stream_seek_error = CH_RET_SUCCESS;
+    vfs_test_stream_size_error = CH_RET_EIO;
+    test_assert(vfsFileSetPosition(fnp, -1, VFS_SEEK_END) == CH_RET_EIO &&
+                vfsNodeStat(fnp, &stat) == CH_RET_EIO,
+                "stream size backend error lost");
+    vfs_test_stream_size_error = CH_RET_SUCCESS;
+    test_assert(vfsFileGetPosition(fnp) == 14,
+                "stream position changed by a failed seek");
+    vfs_test_stream_position = 0;
+    vfs_test_stream_limit = 64;
     (void)roRelease(fnp);
 
     vfs_test_tty_drains = 0U;
     vfs_test_tty_status = HAL_RET_SUCCESS;
     ret = vfsFSOpenFile(&streams, "/tty", VO_RDWR, &fnp);
     test_assert(ret == CH_RET_SUCCESS, "TTY open failed");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_ISATTY, NULL);
     test_assert(ret == CH_RET_SUCCESS, "TTY not recognized");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_DRAIN, NULL);
     test_assert(ret == CH_RET_SUCCESS, "TTY drain failed");
     test_assert(vfs_test_tty_drains == 1U, "TTY drain not dispatched");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_ISATTY, &ret);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_ISATTY, &ret);
     test_assert(ret == CH_RET_EINVAL, "TTY accepted invalid control argument");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_BASE + 99U, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_BASE + 99U, NULL);
     test_assert(ret == CH_RET_ENOTTY, "TTY accepted unknown control");
-    ret = vfsSetFilePosition(fnp, 0, VFS_SEEK_SET);
+    ret = vfsFileSetPosition(fnp, 0, VFS_SEEK_SET);
     test_assert(ret == CH_RET_ESPIPE, "TTY seek accepted");
     (void)roRelease(fnp);
   }
@@ -599,7 +710,74 @@ static const testcase_t vfs_test_003_003 = {
 
 #if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_003_004 [3.4] TTY return-code translation
+ * @page vfs_test_003_004 [3.4] Stream open capabilities and directory rejection
+ *
+ * <h2>Description</h2>
+ * Stream open capabilities and directory rejection.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - VFS_CFG_ENABLE_DRV_STREAMS == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [3.4.1] Stream open capabilities and directory rejection.
+ * .
+ */
+
+static void vfs_test_003_004_execute(void) {
+  static const drv_streams_element_t writable[] = {
+    DRV_STREAMS_ELEMENT_REGULAR("file", VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR,
+                                &vfs_test_random_stream),
+    DRV_STREAMS_ELEMENT_END()
+  };
+  vfs_streams_driver_c driver;
+  vfs_node_c *np;
+  msg_t ret;
+
+  /* [3.4.1] Stream open capabilities and directory rejection.*/
+  test_set_step(1);
+  {
+    (void)stmdrvObjectInit(&driver, vfs_test_streams);
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/console", VO_DIRECTORY, &np);
+    test_assert(ret == CH_RET_ENOTDIR, "directory open accepted stream");
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/absent", VO_CREAT | VO_WRONLY, &np);
+    test_assert(ret == CH_RET_EROFS, "stream namespace accepted creation");
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_CREAT | VO_EXCL | VO_WRONLY,
+                    &np);
+    test_assert(ret == CH_RET_EEXIST, "exclusive stream open accepted");
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_WRONLY, &np);
+    test_assert(ret == CH_RET_EACCES, "read-only stream opened for writing");
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty",
+                    VO_CREAT | VO_TRUNC | VO_WRONLY | VO_CLOEXEC, &np);
+    test_assert(ret == CH_RET_SUCCESS, "terminal redirection flags rejected");
+    (void)roRelease(np);
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_APPEND | VO_WRONLY, &np);
+    test_assert(ret == CH_RET_SUCCESS, "terminal append flags rejected");
+    (void)roRelease(np);
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_TRUNC | VO_RDONLY, &np);
+    test_assert(ret == CH_RET_EINVAL, "invalid stream flags accepted");
+    (void)stmdrvObjectInit(&driver, writable);
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_TRUNC | VO_WRONLY, &np);
+    test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream truncated");
+    ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_APPEND | VO_WRONLY, &np);
+    test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream appended");
+  }
+  test_end_step(1);
+}
+
+static const testcase_t vfs_test_003_004 = {
+  "Stream open capabilities and directory rejection",
+  NULL,
+  NULL,
+  vfs_test_003_004_execute
+};
+#endif /* VFS_CFG_ENABLE_DRV_STREAMS == TRUE */
+
+#if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page vfs_test_003_005 [3.5] TTY return-code translation
  *
  * <h2>Description</h2>
  * HAL and XHAL share stable return-code values. TTY configuration
@@ -612,20 +790,20 @@ static const testcase_t vfs_test_003_003 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [3.4.1] Shared status values preserve HAL compatibility and
+ * - [3.5.1] Shared status values preserve HAL compatibility and
  *   distinguish invalid state from an invalid instance.
- * - [3.4.2] Flush and flow configuration failures translate to EINVAL;
+ * - [3.5.2] Flush and flow configuration failures translate to EINVAL;
  *   successful operations still return success.
- * - [3.4.3] Unavailable drivers and other failures remain EIO, and
+ * - [3.5.3] Unavailable drivers and other failures remain EIO, and
  *   non-terminal streams still reject TTY controls.
  * .
  */
 
-static void vfs_test_003_004_teardown(void) {
+static void vfs_test_003_005_teardown(void) {
   vfs_test_tty_status = HAL_RET_SUCCESS;
 }
 
-static void vfs_test_003_004_execute(void) {
+static void vfs_test_003_005_execute(void) {
   vfs_streams_driver_c streams;
   vfs_file_node_c *fnp;
   int action;
@@ -637,7 +815,7 @@ static void vfs_test_003_004_execute(void) {
     MSG_RESET, MSG_TIMEOUT, (msg_t)-100
   };
 
-  /* [3.4.1] Shared status values preserve HAL compatibility and
+  /* [3.5.1] Shared status values preserve HAL compatibility and
      distinguish invalid state from an invalid instance.*/
   test_set_step(1);
   {
@@ -652,7 +830,7 @@ static void vfs_test_003_004_execute(void) {
   }
   test_end_step(1);
 
-  /* [3.4.2] Flush and flow configuration failures translate to EINVAL;
+  /* [3.5.2] Flush and flow configuration failures translate to EINVAL;
      successful operations still return success.*/
   test_set_step(2);
   {
@@ -661,18 +839,18 @@ static void vfs_test_003_004_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "TTY open failed");
     action = -1;
     vfs_test_tty_status = HAL_RET_CONFIG_ERROR;
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_FLUSH, &action);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_FLUSH, &action);
     test_assert(ret == CH_RET_EINVAL, "flush configuration error lost");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_FLOW, &action);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_FLOW, &action);
     test_assert(ret == CH_RET_EINVAL, "flow configuration error lost");
     vfs_test_tty_status = HAL_RET_SUCCESS;
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_DRAIN, NULL);
     test_assert(ret == CH_RET_SUCCESS, "successful drain changed");
     (void)roRelease(fnp);
   }
   test_end_step(2);
 
-  /* [3.4.3] Unavailable drivers and other failures remain EIO, and
+  /* [3.5.3] Unavailable drivers and other failures remain EIO, and
      non-terminal streams still reject TTY controls.*/
   test_set_step(3);
   {
@@ -680,30 +858,30 @@ static void vfs_test_003_004_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "TTY reopen failed");
     for (i = 0U; i < sizeof failures / sizeof failures[0]; i++) {
       vfs_test_tty_status = failures[i];
-      ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+      ret = vfsFileControl(fnp, VFS_CTL_TTY_DRAIN, NULL);
       test_assert(ret == CH_RET_EIO, "non-configuration failure misclassified");
     }
     (void)roRelease(fnp);
     ret = vfsFSOpenFile(&streams, "/console", VO_RDWR, &fnp);
     test_assert(ret == CH_RET_SUCCESS, "FIFO open failed");
-    ret = vfsControlFile(fnp, VFS_CTL_TTY_DRAIN, NULL);
+    ret = vfsFileControl(fnp, VFS_CTL_TTY_DRAIN, NULL);
     test_assert(ret == CH_RET_ENOTTY, "FIFO accepted terminal control");
     (void)roRelease(fnp);
   }
   test_end_step(3);
 }
 
-static const testcase_t vfs_test_003_004 = {
+static const testcase_t vfs_test_003_005 = {
   "TTY return-code translation",
   NULL,
-  vfs_test_003_004_teardown,
-  vfs_test_003_004_execute
+  vfs_test_003_005_teardown,
+  vfs_test_003_005_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_STREAMS == TRUE */
 
 #if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
 /**
- * @page vfs_test_003_005 [3.5] Overlay file system lifetime
+ * @page vfs_test_003_006 [3.6] Overlay file system lifetime
  *
  * <h2>Description</h2>
  * Unregistering or disposing an overlay leaves shared file systems
@@ -716,29 +894,29 @@ static const testcase_t vfs_test_003_004 = {
  * .
  *
  * <h2>Test Steps</h2>
- * - [3.5.1] Removing a mapping leaves the file system usable through
+ * - [3.6.1] Removing a mapping leaves the file system usable through
  *   another overlay and reports a missing mapping on subsequent
  *   unregister attempts.
- * - [3.5.2] Disposing overlays leaves registered and backing file
+ * - [3.6.2] Disposing overlays leaves registered and backing file
  *   systems intact, allowing their caller to dispose them exactly once
  *   after all overlays are gone.
  * .
  */
 
-static void vfs_test_003_005_execute(void) {
+static void vfs_test_003_006_execute(void) {
   vfs_overlay_driver_c first;
   vfs_overlay_driver_c second;
   vfs_stat_t stat;
   msg_t ret;
 
-  /* [3.5.1] Removing a mapping leaves the file system usable through
+  /* [3.6.1] Removing a mapping leaves the file system usable through
      another overlay and reports a missing mapping on subsequent
      unregister attempts.*/
   test_set_step(1);
   {
     vfs_test_fs_reset();
-    (void)ovldrvObjectInit(&first, NULL, NULL);
-    (void)ovldrvObjectInit(&second, (vfs_fs_c *)&vfs_test_fs, NULL);
+    (void)ovldrvObjectInit(&first, NULL);
+    (void)ovldrvObjectInit(&second, (vfs_fs_c *)&vfs_test_fs);
     ret = ovldrvRegisterDriver(&first, (vfs_fs_c *)&vfs_test_fs, "mount");
     test_assert(ret == CH_RET_SUCCESS, "first registration failed");
     ret = ovldrvRegisterDriver(&second, (vfs_fs_c *)&vfs_test_fs, "mount");
@@ -760,7 +938,7 @@ static void vfs_test_003_005_execute(void) {
   }
   test_end_step(1);
 
-  /* [3.5.2] Disposing overlays leaves registered and backing file
+  /* [3.6.2] Disposing overlays leaves registered and backing file
      systems intact, allowing their caller to dispose them exactly once
      after all overlays are gone.*/
   test_set_step(2);
@@ -794,11 +972,11 @@ static void vfs_test_003_005_execute(void) {
   test_end_step(2);
 }
 
-static const testcase_t vfs_test_003_005 = {
+static const testcase_t vfs_test_003_006 = {
   "Overlay file system lifetime",
   NULL,
   NULL,
-  vfs_test_003_005_execute
+  vfs_test_003_006_execute
 };
 #endif /* VFS_CFG_ENABLE_DRV_OVERLAY == TRUE */
 
@@ -822,8 +1000,11 @@ const testcase_t * const vfs_test_sequence_003_array[] = {
 #if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
   &vfs_test_003_004,
 #endif
-#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
+#if (VFS_CFG_ENABLE_DRV_STREAMS == TRUE) || defined(__DOXYGEN__)
   &vfs_test_003_005,
+#endif
+#if (VFS_CFG_ENABLE_DRV_OVERLAY == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_003_006,
 #endif
   NULL
 };

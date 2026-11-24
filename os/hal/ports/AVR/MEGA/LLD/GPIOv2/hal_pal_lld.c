@@ -87,7 +87,7 @@ volatile uint8_t _pin_state_pcint3;
 
 #if PCINT4_EVENT_COUNT || defined(__DOXYGEN__)
 avr_gpio_event_config_t _event_config_pcint4;
-volatile uint8_t _pin_state_pcint4`;
+volatile uint8_t _pin_state_pcint4;
 #endif
 #define PCINT4_BASE (PCINT3_BASE + PCINT3_EVENT_COUNT)
 

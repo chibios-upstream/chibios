@@ -45,3 +45,11 @@
 - path: "demos/various/RT-Win32-Simulator"
   stderr: "fatal error: windows.h: No such file or directory"
   reason: "Windows required"
+
+- path: "(demos/RP|testhal/RP|testxhal|test/rt-ports)/"
+  stderr: "riscv-none-elf-gcc: (Command not found|No such file or directory)"
+  reason: "riscv-none-elf-gcc compiler required"
+
+- path: "demos/STM32/RT-RUST-"
+  stderr: "rustc: (command not found|not found|No such file or directory)"
+  reason: "rustc compiler required"

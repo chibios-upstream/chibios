@@ -31,6 +31,10 @@
 
 #include "vfs.h"
 
+#if defined(OOP_USE_NOTHING)
+#error "Sandbox VFS requires synchronized OOP reference counting"
+#endif
+
 /*===========================================================================*/
 /* Module constants.                                                         */
 /*===========================================================================*/
@@ -53,19 +57,21 @@
  */
 typedef struct {
   /**
-   * @brief   VFS root associated with the sandbox.
-   * @note    The pointed object is owned by the host and must remain valid
-   *          while associated with the sandbox.
+   * @brief   VFS I/O context of the sandbox.
+   * @note    The root is owned by the host: the root and its drivers must
+   *          outlive all the operations and node references.
    * @note    A distinct root is required in order to have private current
    *          directory and mount table state.
-   * @note    A @p NULL pointer means that the sandbox has no path namespace;
+   * @note    A @p NULL root means that the sandbox has no path namespace;
    *          operations on registered file descriptors are still available.
+   * @note    Descriptor registration and root changes require the
+   *          @p SB_STATE_STOPPED state and lifecycle serialization.
    */
-  vfs_root_c                    *vfs_root;
+  vfs_io_c                      context;
   /**
-   * @brief   VFS nodes associated to file descriptors.
+   * @brief   Descriptor storage, accessed only through the I/O context.
    */
-  vfs_node_c                    *vfs_nodes[SB_CFG_FD_NUM];
+  vfs_descriptor_t              descriptors[SB_CFG_FD_NUM];
 } sb_ioblock_t;
 #endif
 
@@ -89,21 +95,6 @@ extern "C" {
 /*===========================================================================*/
 /* Module inline functions.                                                  */
 /*===========================================================================*/
-
-static inline bool sb_is_valid_descriptor(int fd) {
-
-  return (fd >= 0) && (fd < SB_CFG_FD_NUM);
-}
-
-static inline bool sb_is_available_descriptor(sb_ioblock_t *iop, int fd) {
-
-  return (fd >= 0) && (fd < SB_CFG_FD_NUM) && (iop->vfs_nodes[fd] == NULL);
-}
-
-static inline bool sb_is_existing_descriptor(sb_ioblock_t *iop, int fd) {
-
-  return (fd >= 0) && (fd < SB_CFG_FD_NUM) && (iop->vfs_nodes[fd] != NULL);
-}
 
 #endif /* SB_CFG_ENABLE_VFS == TRUE */
 

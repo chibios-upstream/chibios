@@ -548,8 +548,10 @@ const stm32_dma3_channel_t *dma3ChannelAllocI(uint32_t cmask,
       chp->CBR1  = 0U;
       chp->CSAR  = 0U;
       chp->CDAR  = 0U;
+#if STM32_DMA3_HAS_2D_REGISTERS == TRUE
       chp->CTR3  = 0U;
       chp->CBR2  = 0U;
+#endif
       chp->CLLR  = 0U;
 
       return dmachp;

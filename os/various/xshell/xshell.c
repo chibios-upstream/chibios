@@ -403,6 +403,10 @@ static void xshell_move_cursor(xshell_t *xshp, int pos) {
 void xshellObjectInit(xshell_manager_t *smp,
                       const xshell_manager_config_t *config) {
 
+#if XSHELL_CMD_FILES_ENABLED == TRUE
+  chDbgCheck(config->root != NULL);
+#endif
+
   /* Keeping association with configuration data, it needs to be persistent.*/
   smp->config = config;
 
@@ -441,6 +445,9 @@ xshell_t *xshellSpawn(xshell_manager_t *smp,
     memset(xshp, 0, sizeof (xshell_t));
     xshp->stream = stream;
     xshp->envp = envp;
+#if XSHELL_CMD_FILES_ENABLED == TRUE
+    xshp->root = smp->config->root;
+#endif
 
     /* Set default prompt if enabled.*/
 #if XSHELL_PROMPT_STR_LENGTH > 0
@@ -497,8 +504,8 @@ xshell_t *xshellSpawn(xshell_manager_t *smp,
       chThdSetCallbackX(tp, xshell_free, (void *)smp);
 
 #if defined(XSHELL_INIT_HOOK)
-    	/* Instance initialisation hook.*/
-    	XSHELL_INIT_HOOK(xshp);
+      /* Instance initialisation hook.*/
+      XSHELL_INIT_HOOK(xshp);
 #endif
 
       tp = chThdStart(tp);

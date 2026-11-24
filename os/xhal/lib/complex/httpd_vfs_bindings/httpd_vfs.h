@@ -62,7 +62,12 @@ extern "C" {
 #endif
   /**
    * @brief   Initializes the HTTPD custom-file bindings.
-   * @pre     The file system must remain valid while HTTPD is running.
+   * @details Each open HTTP file owns a node reference through reads and
+   *          waits. HTTPD must serialize operations on that file, including
+   *          close. Separate files follow the backend concurrency contract.
+   * @pre     Initialize before HTTPD starts and do not change the binding
+   *          while requests are active. The file system must remain valid
+   *          until HTTPD stops and all file nodes have been disposed.
    *
    * @param[in] fsp       file system used for HTTP content
    *

@@ -187,7 +187,12 @@ union drv_streams_interface {
  *              DRV_STREAMS_ELEMENT_FIFO, @p DRV_STREAMS_ELEMENT_REGULAR, @p
  *              DRV_STREAMS_ELEMENT_TTY, and @p DRV_STREAMS_ELEMENT_END macros
  *              so that the node type and active interface member cannot
- *              diverge.
+ *              diverge. Tables, names and interface pointers are immutable
+ *              after publication and must outlive the driver and all its
+ *              nodes. Backend objects must also remain alive. Separate opens
+ *              can alias the same stream, cursor or terminal: shared state and
+ *              blocking I/O synchronization belong to the backend,
+ *              independently of VFS_CFG_USE_MUTUAL_EXCLUSION.
  */
 struct drv_streams_element {
   /**
@@ -293,6 +298,8 @@ struct vfs_streams_file_node_vmt {
   msg_t (*setpos)(void *ip, vfs_offset_t offset, vfs_seekmode_t whence);
   vfs_offset_t (*getpos)(void *ip);
   msg_t (*control)(void *ip, vfs_control_op_t operation, void *arg);
+  msg_t (*sync)(void *ip);
+  msg_t (*truncate)(void *ip, vfs_offset_t length);
   /* From vfs_streams_file_node_c.*/
 };
 
@@ -317,6 +324,10 @@ struct vfs_streams_file_node {
    */
   vfs_mode_t                mode;
   /**
+   * @brief       Immutable access mode and append status shared by duplicates.
+   */
+  int                       flags;
+  /**
    * @brief       Pointer to the associated element descriptor.
    */
   const drv_streams_element_t *element;
@@ -327,6 +338,13 @@ struct vfs_streams_file_node {
  * @class       vfs_streams_driver_c
  * @extends     vfs_fs_c
  *
+ * @brief       File system exposing borrowed stream interfaces.
+ * @details     Delegated stream calls run in thread context without an upper
+ *              VFS metadata mutex. They borrow data and control arguments for
+ *              the duration of the call. The caller may hold a VFS scratch
+ *              pair, so a backend must not wait for another pair or reenter an
+ *              allocating root operation. See @p drv_streams_element_t for
+ *              backend lifetime and synchronization requirements.
  *
  * @name        Class @p vfs_streams_driver_c structures
  * @{
@@ -385,7 +403,7 @@ extern "C" {
   msg_t __stmdir_next_impl(void *ip, vfs_direntry_info_t *dip);
   /* Methods of vfs_streams_file_node_c.*/
   void *__stmfile_objinit_impl(void *ip, const void *vmt, vfs_fs_c *driver,
-                               const drv_streams_element_t *element);
+                               const drv_streams_element_t *element, int flags);
   void __stmfile_dispose_impl(void *ip);
   msg_t __stmfile_stat_impl(void *ip, vfs_stat_t *sp);
   ssize_t __stmfile_read_impl(void *ip, uint8_t *buf, size_t n);
@@ -454,6 +472,7 @@ static inline vfs_streams_dir_node_c *stmdirObjectInit(vfs_streams_dir_node_c *s
  *                              instance to be initialized.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     element       Element descriptor to be associated.
+ * @param[in]     flags         Opened access and status flags.
  * @return                      Pointer to the initialized object.
  *
  * @objinit
@@ -461,11 +480,12 @@ static inline vfs_streams_dir_node_c *stmdirObjectInit(vfs_streams_dir_node_c *s
 CC_FORCE_INLINE
 static inline vfs_streams_file_node_c *stmfileObjectInit(vfs_streams_file_node_c *self,
                                                          vfs_fs_c *driver,
-                                                         const drv_streams_element_t *element) {
+                                                         const drv_streams_element_t *element,
+                                                         int flags) {
   extern const struct vfs_streams_file_node_vmt __vfs_streams_file_node_vmt;
 
   return __stmfile_objinit_impl(self, &__vfs_streams_file_node_vmt, driver,
-                                element);
+                                element, flags);
 }
 /** @} */
 

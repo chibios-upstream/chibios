@@ -54,8 +54,8 @@
 
 #define PIPE_SIZE 16
 
-static uint8_t buffer[PIPE_SIZE];
-static PIPE_DECL(pipe1, buffer, PIPE_SIZE);
+static CH_MEM_GLOBAL_COHERENT_BSS uint8_t buffer[PIPE_SIZE];
+static CH_MEM_GLOBAL_COHERENT_DATA PIPE_DECL(pipe1, buffer, PIPE_SIZE);
 
 static const uint8_t pipe_pattern[] = "0123456789ABCDEF";
 
@@ -67,8 +67,8 @@ typedef struct {
   uint8_t data[PIPE_SIZE];
 } pipe_test_context_t;
 
-static THD_WORKING_AREA(waPipe1, 256);
-static THD_WORKING_AREA(waPipe2, 256);
+static CH_MEM_GLOBAL_COHERENT_BSS THD_WORKING_AREA(waPipe1, 256);
+static CH_MEM_GLOBAL_COHERENT_BSS THD_WORKING_AREA(waPipe2, 256);
 
 static THD_FUNCTION(pipe_thread, arg) {
   pipe_test_context_t *ctx = arg;

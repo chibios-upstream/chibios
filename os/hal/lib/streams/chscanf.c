@@ -33,9 +33,26 @@
 #include "chscanf.h"
 #include "memstreams.h"
 
+/* The <ctype.h> functions require an unsigned char value or EOF, a stream
+   value is a character or STM_RESET, which is never a character.*/
+static bool stm_isspace(int c) {
+
+  return (c >= 0) && (isspace(c) != 0);
+}
+
+#if CHSCANF_USE_FLOAT
+static int stm_tolower(int c) {
+
+  if (c < 0) {
+    return c;
+  }
+  return tolower(c);
+}
+#endif
+
 static long sym_to_val(char sym, int base)
 {
-  sym = tolower(sym);
+  sym = tolower((unsigned char)sym);
   if (sym <= '7' && sym >= '0') {
     return sym - '0';
   }
@@ -149,8 +166,8 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
         - a %, which indicates the beginning of a control sequence
     */
 
-    if (isspace(f)) {
-      while (isspace(c)) {
+    if (isspace((unsigned char)f)) {
+      while (stm_isspace(c)) {
         c = streamGet(chp);
       }
       f = *fmt++;
@@ -189,7 +206,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
 
     /* Parse the optional width specifier */
     width = 0;
-    while (isdigit(f)) {
+    while (isdigit((unsigned char)f)) {
       width = (width * 10) + (f - '0');
       f     = *fmt++;
     }
@@ -203,7 +220,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
       is_long = true;
       f       = *fmt++;
     } else {
-      is_long = isupper(f);
+      is_long = isupper((unsigned char)f);
     }
 
     is_positive = true;
@@ -233,7 +250,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
 
     case 's':
       /* S specifier discards leading whitespace */
-      while (isspace(c)) {
+      while (stm_isspace(c)) {
         c = streamGet(chp);
         if (c == STM_RESET) {
           return n;
@@ -245,7 +262,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
       }
       for (i = 0; i < width; ++i) {
 
-        if (isspace(c)) {
+        if (stm_isspace(c)) {
           if (buf) {
             ((char*)buf)[i] = 0;
           }
@@ -278,7 +295,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
       exp_base      = 10;
       fixed_point   = 0;
       initial_digit = false;
-      while (isspace(c)) {
+      while (stm_isspace(c)) {
         c = streamGet(chp);
       }
 
@@ -312,12 +329,12 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
           as signifying NaN)
       */
 
-      if (tolower(c) == 'n') {
+      if (stm_tolower(c) == 'n') {
         c = streamGet(chp);
 
         match = "an";
         while (*match != 0) {
-          if (*match != tolower(c)) {
+          if (*match != stm_tolower(c)) {
             streamUnget(chp, c);
             return n;
           }
@@ -333,12 +350,12 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
         goto float_common;
       }
 
-      if (tolower(c) == 'i') {
+      if (stm_tolower(c) == 'i') {
         c = streamGet(chp);
 
         match = "nf";
         while (*match != 0) {
-          if (*match != tolower(c)) {
+          if (*match != stm_tolower(c)) {
             streamUnget(chp, c);
             return n;
           }
@@ -354,7 +371,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
 
         match = "inity";
         while (*match != 0) {
-          if (*match != tolower(c)) {
+          if (*match != stm_tolower(c)) {
             break;
           }
           ++match;
@@ -425,7 +442,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
 
       valf = valf / ch_mpow(base, fixed_point);
 
-      if (tolower(c) == exp_char) {
+      if (stm_tolower(c) == exp_char) {
         if (width-- == 0) {
           return n;
         }
@@ -495,7 +512,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
     case 'i':
     case 'I':
       /* I specifier discards leading whitespace */
-      while (isspace(c)) {
+      while (stm_isspace(c)) {
         c = streamGet(chp);
       }
       /* The char might be +, might be -, might be 0, or might be something else */
@@ -533,7 +550,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
 
     case 'd':
     case 'D':
-      while (isspace(c)) {
+      while (stm_isspace(c)) {
         c = streamGet(chp);
       }
       if (c == '+') {
@@ -556,7 +573,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
     case 'p':
       is_signed = false;
       base      = 16;
-      while (isspace(c)) {
+      while (stm_isspace(c)) {
         c = streamGet(chp);
       }
       if (c == '+') {
@@ -589,7 +606,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
     case 'U':
     case 'u':
       is_signed = false;
-      while (isspace(c)) {
+      while (stm_isspace(c)) {
         c = streamGet(chp);
       }
       if (c == '+') {
@@ -609,7 +626,7 @@ int chvscanf(BaseBufferedStream *chp, const char *fmt, va_list ap)
     case 'o':
       is_signed = false;
       base      = 8;
-      while (isspace(c)) {
+      while (stm_isspace(c)) {
         c = streamGet(chp);
       }
 

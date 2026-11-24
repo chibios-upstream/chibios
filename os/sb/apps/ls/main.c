@@ -23,22 +23,61 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#define NEWLINE_STR         "\n"
+#include "cmdutil.h"
+
+/* MinGW has no allocated blocks count.*/
+#if defined(__MINGW32__)
+#define LS_HAS_BLOCKS       0
+#else
+#define LS_HAS_BLOCKS       1
+#endif
+
+/* Width of a "YYYY-MM-DD HH:MM" time.*/
+#define TIME_FIELD_WIDTH    16
+
+typedef enum {
+  SORT_NAME,
+  SORT_TIME,
+  SORT_SIZE
+} sort_key_t;
 
 typedef struct {
   bool                    aflg;
   bool                    dflg;
   bool                    lflg;
+  bool                    rflg;
+  bool                    sflg;
+  bool                    Fflg;
+  sort_key_t              sort;
 } options_t;
+
+/* Information kept for each listed name, the name follows the structure.*/
+typedef struct {
+  mode_t                  mode;
+  unsigned long           nlink;
+  long                    size;
+  unsigned long           kib;
+  time_t                  mtime;
+  char                    name[];
+} entry_t;
+
+typedef struct {
+  entry_t                 **items;
+  size_t                  count;
+  size_t                  capacity;
+} entry_list_t;
+
+/* Ordering used by qsort(), it has no context parameter.*/
+static const options_t *sort_options;
 
 static void usage(void) {
 
-  fprintf(stderr, "Usage: ls [-adl] [<path>]..." NEWLINE_STR);
+  fprintf(stderr, "usage: ls [-adFlrsSt] [--] [path]...%s", CMD_NEWLINE_STR);
 }
 
-static void report_error(const char *path) {
+static void report_oom(void) {
 
-  fprintf(stderr, "ls: %s: %s" NEWLINE_STR, path, strerror(errno));
+  fprintf(stderr, "ls: out of memory%s", CMD_NEWLINE_STR);
 }
 
 static bool is_hidden_name(const char *name) {
@@ -46,62 +85,30 @@ static bool is_hidden_name(const char *name) {
   return name[0] == '.';
 }
 
-static char get_ftype(mode_t mode) {
+static char get_suffix(mode_t mode) {
 
   if (S_ISDIR(mode)) {
-    return 'd';
-  }
-  if (S_ISCHR(mode)) {
-    return 'c';
-  }
-  if (S_ISBLK(mode)) {
-    return 'b';
+    return '/';
   }
   if (S_ISFIFO(mode)) {
-    return 'f';
+    return '|';
   }
-#ifndef __MINGW32__
-  if (S_ISLNK(mode)) {
-    return 'l';
+  if (S_ISREG(mode) && ((mode & (S_IXUSR | S_IXGRP | S_IXOTH)) != 0)) {
+    return '*';
   }
-  if (S_ISSOCK(mode)) {
-    return 's';
-  }
-#endif
 
-  return '-';
+  return '\0';
 }
 
-static void format_mode(mode_t mode, char buf[10]) {
+static unsigned count_digits(unsigned long value) {
+  unsigned n = 1U;
 
-  buf[0] = ((mode & S_IRUSR) != 0) ? 'r' : '-';
-  buf[1] = ((mode & S_IWUSR) != 0) ? 'w' : '-';
-  buf[2] = ((mode & S_IXUSR) != 0) ? 'x' : '-';
-  buf[3] = ((mode & S_IRGRP) != 0) ? 'r' : '-';
-  buf[4] = ((mode & S_IWGRP) != 0) ? 'w' : '-';
-  buf[5] = ((mode & S_IXGRP) != 0) ? 'x' : '-';
-  buf[6] = ((mode & S_IROTH) != 0) ? 'r' : '-';
-  buf[7] = ((mode & S_IWOTH) != 0) ? 'w' : '-';
-  buf[8] = ((mode & S_IXOTH) != 0) ? 'x' : '-';
-  buf[9] = '\0';
-}
-
-static void print_entry(const char *name, const struct stat *stp,
-                        const options_t *optsp) {
-
-  if (optsp->lflg) {
-    char modebuf[10];
-
-    format_mode(stp->st_mode & (mode_t)0777, modebuf);
-    printf("%c%s %8ld %s" NEWLINE_STR,
-           get_ftype(stp->st_mode),
-           modebuf,
-           (long)stp->st_size,
-           name);
+  while (value >= 10UL) {
+    value /= 10UL;
+    n++;
   }
-  else {
-    printf("%s" NEWLINE_STR, name);
-  }
+
+  return n;
 }
 
 static char *join_path(const char *dir, const char *name) {
@@ -115,7 +122,7 @@ static char *join_path(const char *dir, const char *name) {
 
   path = malloc(ldir + (needs_slash ? 1U : 0U) + lname + 1U);
   if (path == NULL) {
-    fprintf(stderr, "ls: out of memory" NEWLINE_STR);
+    report_oom();
     return NULL;
   }
 
@@ -129,13 +136,149 @@ static char *join_path(const char *dir, const char *name) {
   return path;
 }
 
-static int list_directory(const char *path, const options_t *optsp) {
+static int list_add(entry_list_t *lp, const char *name,
+                    const struct stat *stp) {
+  entry_t *ep;
+  size_t lname;
+
+  if (lp->count == lp->capacity) {
+    size_t capacity = (lp->capacity == 0U) ? 16U : (lp->capacity * 2U);
+    entry_t **items;
+
+    items = realloc(lp->items, capacity * sizeof (entry_t *));
+    if (items == NULL) {
+      report_oom();
+      return -1;
+    }
+    lp->items = items;
+    lp->capacity = capacity;
+  }
+
+  lname = strlen(name);
+  ep = malloc(sizeof (entry_t) + lname + 1U);
+  if (ep == NULL) {
+    report_oom();
+    return -1;
+  }
+  ep->mode  = stp->st_mode;
+  ep->nlink = (unsigned long)stp->st_nlink;
+  ep->size  = (long)stp->st_size;
+#if LS_HAS_BLOCKS
+  ep->kib   = ((unsigned long)stp->st_blocks + 1UL) / 2UL;
+#else
+  ep->kib   = 0UL;
+#endif
+  ep->mtime = stp->st_mtime;
+  memcpy(ep->name, name, lname + 1U);
+  lp->items[lp->count++] = ep;
+
+  return 0;
+}
+
+static void list_free(entry_list_t *lp) {
+  size_t i;
+
+  for (i = 0U; i < lp->count; i++) {
+    free(lp->items[i]);
+  }
+  free(lp->items);
+  memset(lp, 0, sizeof (*lp));
+}
+
+static int compare_entries(const void *a, const void *b) {
+  const entry_t *ea = *(const entry_t * const *)a;
+  const entry_t *eb = *(const entry_t * const *)b;
+  int result = 0;
+
+  /* Newest and largest first, then by name.*/
+  if (sort_options->sort == SORT_TIME) {
+    if (ea->mtime != eb->mtime) {
+      result = (ea->mtime > eb->mtime) ? -1 : 1;
+    }
+  }
+  else if (sort_options->sort == SORT_SIZE) {
+    if (ea->size != eb->size) {
+      result = (ea->size > eb->size) ? -1 : 1;
+    }
+  }
+  if (result == 0) {
+    result = strcmp(ea->name, eb->name);
+  }
+
+  return sort_options->rflg ? -result : result;
+}
+
+static void list_sort(entry_list_t *lp, const options_t *optsp) {
+
+  if (lp->count > 1U) {
+    sort_options = optsp;
+    qsort(lp->items, lp->count, sizeof (entry_t *), compare_entries);
+  }
+}
+
+static void list_print(const entry_list_t *lp, const options_t *optsp,
+                       bool show_total) {
+  unsigned wlinks = 1U, wsize = 1U, wkib = 1U;
+  unsigned long total = 0UL;
+  size_t i;
+
+  for (i = 0U; i < lp->count; i++) {
+    const entry_t *ep = lp->items[i];
+    unsigned n;
+
+    n = count_digits(ep->nlink);
+    wlinks = (n > wlinks) ? n : wlinks;
+    n = count_digits((unsigned long)ep->size);
+    wsize = (n > wsize) ? n : wsize;
+    n = count_digits(ep->kib);
+    wkib = (n > wkib) ? n : wkib;
+    total += ep->kib;
+  }
+
+  if (show_total && (optsp->lflg || optsp->sflg)) {
+    printf("total %lu%s", total, CMD_NEWLINE_STR);
+  }
+
+  for (i = 0U; i < lp->count; i++) {
+    const entry_t *ep = lp->items[i];
+    char suffix = optsp->Fflg ? get_suffix(ep->mode) : '\0';
+
+    if (optsp->sflg) {
+      printf("%*lu ", (int)wkib, ep->kib);
+    }
+    if (optsp->lflg) {
+      char modebuf[CMD_MODE_SIZE], timebuf[CMD_TIME_SIZE];
+
+      /* The VFS reports a zero time when the file system stores none.*/
+      cmdFormatMode(ep->mode, modebuf);
+      if (ep->mtime != (time_t)0) {
+        cmdFormatTime(ep->mtime, false, timebuf);
+      }
+      else {
+        strcpy(timebuf, "-");
+      }
+      printf("%s %*lu %*ld %-*s ", modebuf, (int)wlinks, ep->nlink,
+             (int)wsize, ep->size, TIME_FIELD_WIDTH, timebuf);
+    }
+    if (suffix != '\0') {
+      printf("%s%c%s", ep->name, suffix, CMD_NEWLINE_STR);
+    }
+    else {
+      printf("%s%s", ep->name, CMD_NEWLINE_STR);
+    }
+  }
+}
+
+/* Entries that cannot be examined are reported and skipped.*/
+static int read_directory(const char *path, const options_t *optsp,
+                          entry_list_t *lp) {
   DIR *dirp;
   struct dirent *dep;
+  int ret = 0;
 
   dirp = opendir(path);
   if (dirp == NULL) {
-    report_error(path);
+    cmdReportError("ls", path);
     return 1;
   }
 
@@ -149,45 +292,33 @@ static int list_directory(const char *path, const options_t *optsp) {
 
     fullpath = join_path(path, dep->d_name);
     if (fullpath == NULL) {
-      closedir(dirp);
-      return 1;
+      ret = 1;
+      break;
     }
 
     if (stat(fullpath, &st) < 0) {
-      report_error(fullpath);
-      free(fullpath);
-      continue;
+      cmdReportError("ls", fullpath);
+      ret = 1;
     }
-
-    print_entry(dep->d_name, &st, optsp);
+    else if (list_add(lp, dep->d_name, &st) < 0) {
+      free(fullpath);
+      ret = 1;
+      break;
+    }
     free(fullpath);
   }
 
-  closedir(dirp);
+  (void)closedir(dirp);
 
-  return 0;
+  return ret;
 }
 
-static int handle_path(const char *path, const options_t *optsp) {
-  struct stat st;
-
-  if (stat(path, &st) < 0) {
-    report_error(path);
-    return 1;
-  }
-
-  if (!S_ISDIR(st.st_mode) || optsp->dflg) {
-    print_entry(path, &st, optsp);
-    return 0;
-  }
-
-  return list_directory(path, optsp);
-}
-
-static int parse_options(int argc, char *argv[], options_t *optsp, int *argip) {
+static int parse_options(int argc, char *argv[], options_t *optsp,
+                         int *argip) {
   int i;
 
   memset(optsp, 0, sizeof (*optsp));
+  optsp->sort = SORT_NAME;
 
   for (i = 1; i < argc; i++) {
     const char *p = argv[i];
@@ -211,12 +342,29 @@ static int parse_options(int argc, char *argv[], options_t *optsp, int *argip) {
       case 'd':
         optsp->dflg = true;
         break;
+      case 'F':
+        optsp->Fflg = true;
+        break;
       case 'l':
         optsp->lflg = true;
         break;
+      case 'r':
+        optsp->rflg = true;
+        break;
+#if LS_HAS_BLOCKS
+      case 's':
+        optsp->sflg = true;
+        break;
+#endif
+      case 'S':
+        optsp->sort = SORT_SIZE;
+        break;
+      case 't':
+        optsp->sort = SORT_TIME;
+        break;
       default:
         usage();
-        return 1;
+        return 2;
       }
     }
   }
@@ -226,9 +374,13 @@ static int parse_options(int argc, char *argv[], options_t *optsp, int *argip) {
 }
 
 int main(int argc, char *argv[], char *envp[]) {
+  static char *const default_operand[] = {"."};
+  entry_list_t files, dirs;
   options_t options;
-  int argi, ret, exsts;
-  bool show_header, first_path;
+  char *const *operands;
+  int argi, noperands, i, ret;
+  bool printed;
+  size_t j;
 
   (void)envp;
 
@@ -237,28 +389,64 @@ int main(int argc, char *argv[], char *envp[]) {
     return ret;
   }
 
-  exsts = 0;
-  show_header = (bool)((argc - argi) > 1);
-  first_path = true;
-
-  if (argi >= argc) {
-    return handle_path(".", &options);
+  if (argi < argc) {
+    operands = &argv[argi];
+    noperands = argc - argi;
+  }
+  else {
+    operands = default_operand;
+    noperands = 1;
   }
 
-  for (; argi < argc; argi++) {
-    if (show_header) {
-      if (!first_path) {
-        printf(NEWLINE_STR);
-      }
-      printf("%s:%s", argv[argi], NEWLINE_STR);
-    }
+  /* Operands that are not listed as directories come first, then each
+     directory, both in the selected order.*/
+  memset(&files, 0, sizeof files);
+  memset(&dirs, 0, sizeof dirs);
+  for (i = 0; i < noperands; i++) {
+    struct stat st;
+    entry_list_t *lp;
 
-    ret = handle_path(argv[argi], &options);
-    if (ret != 0) {
-      exsts = ret;
+    if (stat(operands[i], &st) < 0) {
+      cmdReportError("ls", operands[i]);
+      ret = 1;
+      continue;
     }
-    first_path = false;
+    lp = (S_ISDIR(st.st_mode) && !options.dflg) ? &dirs : &files;
+    if (list_add(lp, operands[i], &st) < 0) {
+      list_free(&files);
+      list_free(&dirs);
+      return 1;
+    }
   }
 
-  return exsts;
+  list_sort(&files, &options);
+  list_print(&files, &options, false);
+  printed = files.count > 0U;
+
+  list_sort(&dirs, &options);
+  for (j = 0U; j < dirs.count; j++) {
+    const char *path = dirs.items[j]->name;
+    entry_list_t entries;
+
+    if (printed) {
+      printf("%s", CMD_NEWLINE_STR);
+    }
+    if (noperands > 1) {
+      printf("%s:%s", path, CMD_NEWLINE_STR);
+    }
+    printed = true;
+
+    memset(&entries, 0, sizeof entries);
+    if (read_directory(path, &options, &entries) != 0) {
+      ret = 1;
+    }
+    list_sort(&entries, &options);
+    list_print(&entries, &options, true);
+    list_free(&entries);
+  }
+
+  list_free(&files);
+  list_free(&dirs);
+
+  return ret;
 }

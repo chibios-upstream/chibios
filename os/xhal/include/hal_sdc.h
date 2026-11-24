@@ -270,9 +270,9 @@
  */
 #define _sdc_wakeup_i(sdcp, msg)                                            \
   chThdResumeI(&(sdcp)->sync_transfer, msg)
-#endif /* SDC_USE_SYNCHRONIZATION == TRUE */
 
-#if (SDC_USE_SYNCHRONIZATION != TRUE) || defined (__DOXYGEN__)
+#else
+
 /**
  * @brief       Wakes up the thread waiting for transfer completion.
  *
@@ -300,7 +300,7 @@
     (void)(sdcp);                                                           \
     (void)(msg);                                                            \
   } while (false)
-#endif /* SDC_USE_SYNCHRONIZATION != TRUE */
+#endif /* SDC_USE_SYNCHRONIZATION == TRUE */
 
 /**
  * @brief       Common ISR code for successful transfer completion, lock held.
@@ -540,11 +540,7 @@ struct hal_sdc_driver {
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver identifier.
-   */
-  unsigned int              id;
-  /**
-   * @brief       Driver name.
+   * @brief       Driver name, @p NULL if not registered.
    */
   const char                *name;
   /**

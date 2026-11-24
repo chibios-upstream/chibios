@@ -48,7 +48,8 @@
    definition compatible with the vendor include file.*/
 #if !defined(STM32H503xx) && !defined(STM32H533xx) &&                       \
     !defined(STM32H562xx) && !defined(STM32H563xx) &&                       \
-    !defined(STM32H573xx)
+    !defined(STM32H573xx) &&                                                \
+    !defined(STM32H5F5xx)
 #include "board.h"
 #endif
 
@@ -57,7 +58,11 @@
  * @note    This number does not include the 16 system vectors and must be
  *          rounded to a multiple of 8.
  */
+#if defined(STM32H5F5xx)
+#define CORTEX_NUM_VECTORS      168
+#else
 #define CORTEX_NUM_VECTORS      136
+#endif
 
 /**
  * @brief   Number of MPU regions.

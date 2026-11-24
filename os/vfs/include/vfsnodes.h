@@ -338,6 +338,21 @@ struct vfs_stat {
  * @extends     referenced_object_c
  *
  * @brief       Common ancestor class of all VFS nodes.
+ * @details     Each independent user must hold a valid reference throughout an
+ *              operation, including waits and use of borrowed node interfaces.
+ *              Reference counting protects lifetime, not operation ordering.
+ *              Callers must serialize operations on the same open node unless
+ *              its driver explicitly supports concurrent use. Duplicated
+ *              descriptors share that node and its position. Distinct nodes
+ *              may be used concurrently only when their file system and shared
+ *              backend support it. The owning file system is borrowed and must
+ *              outlive the node and its disposal. A reference must be obtained
+ *              from an existing owner before publishing the node to another
+ *              user; inspecting the reference count does not establish
+ *              ownership. The owner and node mode are immutable after
+ *              initialization. Borrowed data buffers and control arguments
+ *              remain valid through the call and may not be retained by the
+ *              driver.
  *
  * @name        Class @p vfs_node_c structures
  * @{
@@ -443,6 +458,11 @@ struct vfs_directory_node {
  * @extends     vfs_node_c
  *
  * @brief       Ancestor class of all VFS file nodes classes.
+ * @details     Constructors take explicit open flags, including for
+ *              host-created nodes. Access and append status remain immutable
+ *              for the node lifetime and are shared by all references and
+ *              duplicated descriptors. Stat permission bits do not grant
+ *              access to an opened handle.
  *
  * @name        Class @p vfs_file_node_c structures
  * @{
@@ -470,6 +490,8 @@ struct vfs_file_node_vmt {
   msg_t (*setpos)(void *ip, vfs_offset_t offset, vfs_seekmode_t whence);
   vfs_offset_t (*getpos)(void *ip);
   msg_t (*control)(void *ip, vfs_control_op_t operation, void *arg);
+  msg_t (*sync)(void *ip);
+  msg_t (*truncate)(void *ip, vfs_offset_t length);
 };
 
 /**
@@ -492,6 +514,10 @@ struct vfs_file_node {
    * @brief       Node mode information.
    */
   vfs_mode_t                mode;
+  /**
+   * @brief       Immutable access mode and append status shared by duplicates.
+   */
+  int                       flags;
 };
 /** @} */
 
@@ -515,7 +541,7 @@ extern "C" {
   msg_t __vfsdir_next_impl(void *ip, vfs_direntry_info_t *dip);
   /* Methods of vfs_file_node_c.*/
   void *__vfsfile_objinit_impl(void *ip, const void *vmt, vfs_fs_c *fs,
-                               vfs_mode_t mode);
+                               vfs_mode_t mode, int flags);
   void __vfsfile_dispose_impl(void *ip);
   ssize_t __vfsfile_read_impl(void *ip, uint8_t *buf, size_t n);
   ssize_t __vfsfile_write_impl(void *ip, const uint8_t *buf, size_t n);
@@ -523,6 +549,15 @@ extern "C" {
                               vfs_seekmode_t whence);
   vfs_offset_t __vfsfile_getpos_impl(void *ip);
   msg_t __vfsfile_control_impl(void *ip, vfs_control_op_t operation, void *arg);
+  msg_t __vfsfile_sync_impl(void *ip);
+  msg_t __vfsfile_truncate_impl(void *ip, vfs_offset_t length);
+  ssize_t vfsFileRead(void *ip, uint8_t *buf, size_t n);
+  ssize_t vfsFileWrite(void *ip, const uint8_t *buf, size_t n);
+  msg_t vfsFileTruncate(void *ip, vfs_offset_t length);
+  /* Regular functions.*/
+  msg_t __vfs_seek_target(vfs_offset_t offset, vfs_seekmode_t whence,
+                          uint64_t current, uint64_t size,
+                          vfs_offset_t *target);
 #ifdef __cplusplus
 }
 #endif
@@ -594,6 +629,24 @@ static inline msg_t vfsNodeStat(void *ip, vfs_stat_t *sp) {
 
   return __vfsnode_stat(self, sp);
 }
+
+/**
+ * @brief       Closes a node.
+ * @details     Releases the caller reference, the node is disposed when its
+ *              last reference is released. Other references, for example
+ *              duplicated descriptors, keep the node open.
+ * @note        The reference cannot be used after the call.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_node_c instance.
+ *
+ * @api
+ */
+CC_FORCE_INLINE
+static inline void vfsNodeClose(void *ip) {
+  vfs_node_c *self = (vfs_node_c *)ip;
+
+  (void)roRelease(self);
+}
 /** @} */
 
 /**
@@ -645,27 +698,27 @@ static inline msg_t vfsDirReadNext(void *ip, vfs_direntry_info_t *dip) {
  * @param[in]     n             Maximum amount of data to be transferred.
  * @return                      The transferred number of bytes or an error.
  *
- * @api
+ * @notapi
  */
 CC_FORCE_INLINE
-static inline ssize_t vfsFileRead(void *ip, uint8_t *buf, size_t n) {
+static inline ssize_t __vfsfile_read(void *ip, uint8_t *buf, size_t n) {
   vfs_file_node_c *self = (vfs_file_node_c *)ip;
 
   return self->vmt->read(ip, buf, n);
 }
 
 /**
- * @brief       File node read.
+ * @brief       File node write.
  *
  * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
  * @param[in]     buf           Pointer to the data buffer.
  * @param[in]     n             Maximum amount of data to be transferred.
  * @return                      The transferred number of bytes or an error.
  *
- * @api
+ * @notapi
  */
 CC_FORCE_INLINE
-static inline ssize_t vfsFileWrite(void *ip, const uint8_t *buf, size_t n) {
+static inline ssize_t __vfsfile_write(void *ip, const uint8_t *buf, size_t n) {
   vfs_file_node_c *self = (vfs_file_node_c *)ip;
 
   return self->vmt->write(ip, buf, n);
@@ -722,6 +775,40 @@ static inline msg_t vfsFileControl(void *ip, vfs_control_op_t operation,
   vfs_file_node_c *self = (vfs_file_node_c *)ip;
 
   return self->vmt->control(ip, operation, arg);
+}
+
+/**
+ * @brief       Writes the buffered data and metadata of the file to its
+ *              storage.
+ * @details     Allowed for any access mode. Nodes without storage to
+ *              synchronize return @p CH_RET_EINVAL.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
+ * @return                      The operation result.
+ *
+ * @api
+ */
+CC_FORCE_INLINE
+static inline msg_t vfsFileSync(void *ip) {
+  vfs_file_node_c *self = (vfs_file_node_c *)ip;
+
+  return self->vmt->sync(ip);
+}
+
+/**
+ * @brief       File node size change.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_file_node_c instance.
+ * @param[in]     length        New file size, not negative.
+ * @return                      The operation result.
+ *
+ * @notapi
+ */
+CC_FORCE_INLINE
+static inline msg_t __vfsfile_truncate(void *ip, vfs_offset_t length) {
+  vfs_file_node_c *self = (vfs_file_node_c *)ip;
+
+  return self->vmt->truncate(ip, length);
 }
 /** @} */
 

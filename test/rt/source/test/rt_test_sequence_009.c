@@ -80,7 +80,7 @@ typedef struct {
   char token;
 } msg_sender_args_t;
 
-static msg_sender_args_t msg_sender_args[2];
+static CH_MEM_GLOBAL_COHERENT_BSS msg_sender_args_t msg_sender_args[2];
 
 static THD_FUNCTION(msg_lifecycle_sender, p) {
   msg_sender_args_t *ap = (msg_sender_args_t *)p;

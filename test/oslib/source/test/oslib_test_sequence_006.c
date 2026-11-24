@@ -58,9 +58,10 @@ typedef struct {
   uint8_t           data[SIZE_OBJECTS];
 } cached_object_t;
 
-static oc_hash_element_t hash_elements[NUM_HASH_ENTRIES];
-static cached_object_t objects[NUM_OBJECTS];
-static objects_cache_t cache1;
+static CH_MEM_GLOBAL_COHERENT_BSS
+  oc_hash_element_t hash_elements[NUM_HASH_ENTRIES];
+static CH_MEM_GLOBAL_COHERENT_BSS cached_object_t objects[NUM_OBJECTS];
+static CH_MEM_GLOBAL_COHERENT_BSS objects_cache_t cache1;
 
 static bool obj_read(objects_cache_t *ocp,
                      oc_object_t *objp,

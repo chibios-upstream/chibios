@@ -28,10 +28,13 @@
 #if (VFS_CFG_ENABLE_DRV_FATFS == TRUE) || defined(__DOXYGEN__)
 
 #include "ff.h"
+#include <limits.h>
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
 /*===========================================================================*/
+
+#define FAT_DIR_MODTIME                     22U
 
 /*===========================================================================*/
 /* Module local macros.                                                      */
@@ -144,6 +147,8 @@ struct vfs_fatfs_file_node_vmt {
   msg_t (*setpos)(void *ip, vfs_offset_t offset, vfs_seekmode_t whence);
   vfs_offset_t (*getpos)(void *ip);
   msg_t (*control)(void *ip, vfs_control_op_t operation, void *arg);
+  msg_t (*sync)(void *ip);
+  msg_t (*truncate)(void *ip, vfs_offset_t length);
   /* From vfs_fatfs_file_node_c.*/
 };
 
@@ -168,9 +173,22 @@ struct vfs_fatfs_file_node {
    */
   vfs_mode_t                mode;
   /**
+   * @brief       Immutable access mode and append status shared by duplicates.
+   */
+  int                       flags;
+  /**
    * @brief       FatFS inner @p FIL structure.
    */
   FIL                       file;
+  /**
+   * @brief       Position set past the end of file, zero when the native
+   *              position applies.
+   */
+  vfs_offset_t              seekpos;
+  /**
+   * @brief       Modification time read at open, zero if unknown or changed.
+   */
+  DWORD                     mtime;
 };
 /** @} */
 
@@ -178,6 +196,12 @@ struct vfs_fatfs_file_node {
  * @brief       Global state of @p vfs_fatfs_driver_c.
  */
 struct vfs_fatfs_driver_static_struct {
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
+  /**
+   * @brief       Singleton FatFS operation mutex.
+   */
+  mutex_t                   mutex;
+#endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
   /**
    * @brief       Pool of file system objects.
    */

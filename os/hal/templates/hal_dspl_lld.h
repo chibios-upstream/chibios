@@ -25,7 +25,7 @@
 #ifndef HAL_DSPL_LLD_H
 #define HAL_DSPL_LLD_H
 
-#if (HAL_USE_DISPLAY == TRUE) || defined(__DOXYGEN__)
+#if (HAL_USE_DSPL == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Driver constants.                                                         */
@@ -65,13 +65,13 @@
  * @brief   Low level fields of the display driver structure.
  */
 #define dspl_lld_driver_fields                                              \
-  uint32_t                  dummy
+  uint32_t                  dummy;
 
 /**
  * @brief   Low level fields of the display configuration structure.
  */
 #define dspl_lld_config_fields                                              \
-  uint32_t                  dummy
+  uint32_t                  dummy;
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -105,7 +105,7 @@ extern "C" {
 }
 #endif
 
-#endif /* HAL_USE_DISPLAY == TRUE */
+#endif /* HAL_USE_DSPL == TRUE */
 
 #endif /* HAL_DSPL_LLD_H */
 

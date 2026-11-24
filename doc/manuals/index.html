@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChibiOS Manuals</title>
+<style>
+  :root { --bg: #ffffff; --fg: #1d1d1f; --muted: #6e6e73; --line: #d9d9de; --link: #0b57d0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161618; --fg: #ececf0; --muted: #a0a0a8; --line: #34343a; --link: #8ab4f8; }
+  }
+  body { background: var(--bg); color: var(--fg); margin: 0; padding: 32px 16px;
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 24px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  a { color: var(--link); text-decoration: none; font-weight: 600; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ChibiOS manuals</h1>
+  <p>Each manual is built by the <code>makehtml.sh</code> script in its
+     <code>doc/build</code> directory.</p>
+  <table>
+    <thead><tr><th>Manual</th><th>Contents</th></tr></thead>
+    <tbody>
+      <tr><td><a href="html/full_rm/index.html">Full reference</a></td><td>RT, NIL, OSLIB, HAL, EX</td></tr>
+      <tr><td><a href="html/rt/index.html">RT</a></td><td>RT kernel, OSLIB</td></tr>
+      <tr><td><a href="html/nil/index.html">NIL</a></td><td>NIL kernel, OSLIB</td></tr>
+      <tr><td><a href="html/hal/index.html">HAL</a></td><td>Classic HAL, OSAL</td></tr>
+      <tr><td><a href="html/ex/index.html">EX</a></td><td>Board-level devices</td></tr>
+      <tr><td><a href="html/xhal/index.html">XHAL</a></td><td>XHAL, OOP, POSIX definitions</td></tr>
+      <tr><td><a href="html/vfs/index.html">VFS</a></td><td>VFS, OOP, utilities</td></tr>
+      <tr><td><a href="html/sb/index.html">SB</a></td><td>Sandboxes, ELF32 loader, utilities, POSIX definitions</td></tr>
+    </tbody>
+  </table>
+</main>
+</body>
+</html>

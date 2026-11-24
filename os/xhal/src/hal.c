@@ -124,17 +124,6 @@ void halInit(void) {
 #if (HAL_USE_TRNG == TRUE) || defined(__DOXYGEN__)
   trngInit();
 #endif
-#if 0
-#if (HAL_USE_UART == TRUE) || defined(__DOXYGEN__)
-  uartInit();
-#endif
-#if (HAL_USE_MMC_SPI == TRUE) || defined(__DOXYGEN__)
-  mmcInit();
-#endif
-#if (HAL_USE_SERIAL_USB == TRUE) || defined(__DOXYGEN__)
-  sduInit();
-#endif
-#endif
 
   /* Community driver overlay initialization.*/
 #if defined(HAL_USE_COMMUNITY) || defined(__DOXYGEN__)

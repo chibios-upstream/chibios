@@ -116,6 +116,16 @@ ASMOBJS  := $(addprefix $(OBJDIR)/, $(notdir $(ASMSRC:.s=.o)))
 ASMXOBJS := $(addprefix $(OBJDIR)/, $(notdir $(patsubst %.S,%.o,$(filter-out $(ASMXSRC_EXCLUDE),$(ASMXSRC)))))
 OBJS     += $(ASMXOBJS) $(ASMOBJS) $(COBJS) $(CPPOBJS) $(CCOBJS)
 
+# Different source files must have different names, the object files share
+# a flat directory.
+SRCFILES  := $(sort $(abspath $(CSRC) $(CPPSRC) $(ASMSRC) $(filter-out $(ASMXSRC_EXCLUDE),$(ASMXSRC))))
+SRCNAMES  := $(notdir $(basename $(SRCFILES)))
+SRCDUPS   := $(sort $(foreach n,$(SRCNAMES),$(if $(word 2,$(filter $(n),$(SRCNAMES))),$(n))))
+ifneq ($(SRCDUPS),)
+  SRCCLASH := $(strip $(foreach f,$(SRCFILES),$(if $(filter $(SRCDUPS),$(notdir $(basename $(f)))),$(f))))
+  $(error source files with the same name, their object files would clash: $(SRCCLASH))
+endif
+
 # Paths
 IINCDIR   := $(sort $(patsubst %,-I%,$(INCDIR) $(DINCDIR) $(UINCDIR)))
 LLIBDIR   := $(sort $(patsubst %,-L%,$(DLIBDIR) $(ULIBDIR)))
@@ -139,7 +149,7 @@ else
   CFLAGS    = $(MCFLAGS) $(OPT) $(COPT) $(CWARN) $(DEFS)
   CPPFLAGS  = $(MCFLAGS) $(OPT) $(CPPOPT) $(CPPWARN) $(DEFS)
 endif
-LDFLAGS   = $(MCFLAGS) $(OPT) -nostartfiles $(LLIBDIR) -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--library-path=$(STARTUPLD),--script=$(LDSCRIPT)$(LDOPT)
+LDFLAGS   = $(MCFLAGS) $(OPT) -nostartfiles $(LLIBDIR) -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--library-path=$(STARTUPLD)$(LDOPT),--script=$(LDSCRIPT)
 
 # Generate dependency information
 ASFLAGS  += -MD -MP -MF $(DEPDIR)/$(@F).d
@@ -147,8 +157,15 @@ ASXFLAGS += -MD -MP -MF $(DEPDIR)/$(@F).d
 CFLAGS   += -MD -MP -MF $(DEPDIR)/$(@F).d
 CPPFLAGS += -MD -MP -MF $(DEPDIR)/$(@F).d
 
-# Paths where to search for sources
-VPATH     = $(SRCPATHS)
+# Paths where to search for sources. Only the source files are searched,
+# other files and directories are never resolved to same-named ones in
+# the source directories.
+vpath %.c   $(SRCPATHS)
+vpath %.cc  $(SRCPATHS)
+vpath %.cpp $(SRCPATHS)
+vpath %.s   $(SRCPATHS)
+vpath %.S   $(SRCPATHS)
+vpath %.rs  $(SRCPATHS)
 
 #
 # Makefile rules

@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    sb/vhal/sbvio_eth.c
+ * @file    sb/vio/sbvio_eth.c
  * @brief   ARM SandBox host Virtual ETH code.
  *
  * @addtogroup ARM_SANDBOX_HOST_VIO_ETH

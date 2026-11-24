@@ -359,7 +359,7 @@ static inline msg_t vnssckClose(void *ip) {
  * @param[in]     domain        Address family of the socket, for example @p
  *                              AF_INET.
  * @param[in]     type          Communication type of the socket, for example
- *                              stream or datagram.
+ *                              @p SOCK_STREAM or @p SOCK_DGRAM.
  * @param[out]    spp           Pointer to the variable that will receive the
  *                              created socket object.
  * @return                      The operation result.

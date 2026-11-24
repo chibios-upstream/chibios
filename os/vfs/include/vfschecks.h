@@ -48,6 +48,19 @@
 #endif
 
 /* Configuration options checks.*/
+#if !defined(VFS_CFG_USE_MUTUAL_EXCLUSION)
+#error "VFS_CFG_USE_MUTUAL_EXCLUSION not defined in vfsconf.h"
+#endif
+
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION != FALSE) &&                             \
+    (VFS_CFG_USE_MUTUAL_EXCLUSION != TRUE)
+#error "invalid value for VFS_CFG_USE_MUTUAL_EXCLUSION"
+#endif
+
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) && (CH_CFG_USE_MUTEXES != TRUE)
+#error "VFS_CFG_USE_MUTUAL_EXCLUSION requires CH_CFG_USE_MUTEXES"
+#endif
+
 #if !defined(VFS_CFG_NAMELEN_MAX)
 #error "VFS_CFG_NAMELEN_MAX not defined in vfsconf.h"
 #endif

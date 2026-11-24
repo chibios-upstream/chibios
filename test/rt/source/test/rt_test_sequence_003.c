@@ -52,14 +52,14 @@ enum {
 };
 
 #if CH_CFG_USE_TM || defined(__DOXYGEN__)
-static time_measurement_t tm1, tm2, tm3;
+static CH_MEM_GLOBAL_COHERENT_BSS time_measurement_t tm1, tm2, tm3;
 #endif
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
-static virtual_timer_t timers_state_vt;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t timers_state_vt;
 #if (CH_CFG_USE_RFCU == TRUE) || defined(__DOXYGEN__)
-static virtual_timer_t timers_overflow_anchor;
-static virtual_timer_t timers_overflow_vt;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t timers_overflow_anchor;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t timers_overflow_vt;
 #endif
 
 static void timers_state_cb(virtual_timer_t *vtp, void *param) {

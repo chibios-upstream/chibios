@@ -180,7 +180,9 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
+#if !defined(__DOXYGEN__)
   extern ROMCONST chdebug_t ch_debug;
+#endif
   thread_t *chRegFirstThread(void);
   thread_t *chRegNextThread(thread_t *tp);
   thread_t *chRegFindThreadByName(const char *name);

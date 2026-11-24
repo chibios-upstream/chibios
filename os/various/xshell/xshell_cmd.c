@@ -34,11 +34,6 @@
 #include "xshell.h"
 #include "xshell_cmd.h"
 
-#if (XSHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
-#include <fcntl.h>
-#include "vfs.h"
-#endif
-
 #if (XSHELL_CMD_TEST_ENABLED == TRUE) || defined(__DOXYGEN__)
 #include "rt_test_root.h"
 #include "oslib_test_root.h"
@@ -59,10 +54,6 @@
 /* Module local types.                                                       */
 /*===========================================================================*/
 
-#if (XSHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
-typedef intptr_t xshell_fd_t;
-#endif
-
 /*===========================================================================*/
 /* Module local variables.                                                   */
 /*===========================================================================*/
@@ -70,131 +61,6 @@ typedef intptr_t xshell_fd_t;
 /*===========================================================================*/
 /* Module local functions.                                                   */
 /*===========================================================================*/
-
-#if (XSHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
-static const xshell_fd_t xshell_invalid_fd = (xshell_fd_t)-1;
-
-#if XSHELL_CMD_FILES_USE_VFS == TRUE
-static int __ret_to_errno(msg_t ret) {
-
-  if (CH_RET_IS_ERROR(ret)) {
-    return CH_DECODE_ERROR(ret);
-  }
-
-  return EIO;
-}
-
-static mode_t __vfs_mode_to_stat_mode(vfs_mode_t mode) {
-  mode_t stat_mode = 0U;
-
-  if (VFS_MODE_S_ISREG(mode)) {
-    stat_mode |= S_IFREG;
-  }
-  if (VFS_MODE_S_ISDIR(mode)) {
-    stat_mode |= S_IFDIR;
-  }
-  if (VFS_MODE_S_ISCHR(mode)) {
-    stat_mode |= S_IFCHR;
-  }
-  if (VFS_MODE_S_ISFIFO(mode)) {
-    stat_mode |= S_IFIFO;
-  }
-
-  return stat_mode;
-}
-#endif
-
-static int __stat(const char *path, struct stat *sp) {
-
-#if XSHELL_CMD_FILES_USE_VFS == TRUE
-  vfs_stat_t statbuf;
-  msg_t ret;
-
-  ret = vfsStat(path, &statbuf);
-  if (CH_RET_IS_ERROR(ret)) {
-    errno = __ret_to_errno(ret);
-    return -1;
-  }
-
-  memset(sp, 0, sizeof(*sp));
-  sp->st_mode = __vfs_mode_to_stat_mode(statbuf.mode);
-  sp->st_size = (off_t)statbuf.size;
-
-  return 0;
-#else
-  return stat(path, sp);
-#endif
-}
-
-static xshell_fd_t __open(const char *path, int flags) {
-
-#if XSHELL_CMD_FILES_USE_VFS == TRUE
-  vfs_file_node_c *vfp;
-  msg_t ret;
-
-  ret = vfsOpenFile(path, flags, &vfp);
-  if (CH_RET_IS_ERROR(ret)) {
-    errno = __ret_to_errno(ret);
-    return xshell_invalid_fd;
-  }
-
-  return (xshell_fd_t)(intptr_t)vfp;
-#else
-  return (xshell_fd_t)open(path, flags, 0666);
-#endif
-}
-
-static int __close(xshell_fd_t fd) {
-
-#if XSHELL_CMD_FILES_USE_VFS == TRUE
-  if (fd != xshell_invalid_fd) {
-    vfsClose((vfs_node_c *)(intptr_t)fd);
-  }
-
-  return 0;
-#else
-  if (fd != xshell_invalid_fd) {
-    return close((int)fd);
-  }
-
-  return 0;
-#endif
-}
-
-static ssize_t __read(xshell_fd_t fd, uint8_t *buf, size_t n) {
-
-#if XSHELL_CMD_FILES_USE_VFS == TRUE
-  ssize_t ret;
-
-  ret = vfsReadFile((vfs_file_node_c *)(intptr_t)fd, buf, n);
-  if (CH_RET_IS_ERROR(ret)) {
-    errno = __ret_to_errno((msg_t)ret);
-    return -1;
-  }
-
-  return ret;
-#else
-  return read((int)fd, buf, n);
-#endif
-}
-
-static ssize_t __write(xshell_fd_t fd, const uint8_t *buf, size_t n) {
-
-#if XSHELL_CMD_FILES_USE_VFS == TRUE
-  ssize_t ret;
-
-  ret = vfsWriteFile((vfs_file_node_c *)(intptr_t)fd, buf, n);
-  if (CH_RET_IS_ERROR(ret)) {
-    errno = __ret_to_errno((msg_t)ret);
-    return -1;
-  }
-
-  return ret;
-#else
-  return write((int)fd, buf, n);
-#endif
-}
-#endif
 
 #if (XSHELL_CMD_EXIT_ENABLED == TRUE) || defined(__DOXYGEN__)
 static void cmd_exit(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
@@ -400,20 +266,22 @@ static void cmd_prompt(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 #endif
 
 #if (XSHELL_CMD_FILES_ENABLED == TRUE) || defined(__DOXYGEN__)
-static void scan_nodes(xshell_t *xshp, char *path, size_t path_capacity, vfs_direntry_info_t *dip) {
+static void scan_nodes(xshell_t *xshp, char *path, size_t path_capacity,
+                       vfs_direntry_info_t *dip) {
   msg_t res;
   vfs_directory_node_c *dirp;
 
   chprintf(xshp->stream, "%s" XSHELL_NEWLINE_STR, path);
-  res = vfsOpenDirectory(path, &dirp);
+  res = vfsFSOpenDirectory(xshp->root, path, &dirp);
   if (res == CH_RET_SUCCESS) {
     size_t i = strlen(path);
 
     while (true) {
-      char *fn = dip->name;
+      char *fn;
       size_t fn_len;
       size_t needed;
-      res = vfsReadDirectoryNext(dirp, dip);
+
+      res = vfsDirReadNext(dirp, dip);
       if (res < (msg_t)1) {
         break;
       }
@@ -427,7 +295,8 @@ static void scan_nodes(xshell_t *xshp, char *path, size_t path_capacity, vfs_dir
       }
 
       if (needed > path_capacity) {
-        chprintf(xshp->stream, "%s%s [path too long]" XSHELL_NEWLINE_STR, path, fn);
+        chprintf(xshp->stream, "%s%s [path too long]" XSHELL_NEWLINE_STR,
+                 path, fn);
         continue;
       }
 
@@ -446,12 +315,11 @@ static void scan_nodes(xshell_t *xshp, char *path, size_t path_capacity, vfs_dir
       }
     }
 
-    vfsClose((vfs_node_c *)dirp);
+    vfsNodeClose(dirp);
   }
 }
 
 static void cmd_tree(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
-
   char *pathbuf = NULL;
   vfs_direntry_info_t *dip = NULL;
   const size_t path_capacity = VFS_CFG_PATHLEN_MAX + 1U;
@@ -466,10 +334,11 @@ static void cmd_tree(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 
   do {
     pathbuf = (char *)chHeapAlloc(NULL, path_capacity);
-    dip = (vfs_direntry_info_t *)chHeapAlloc(NULL, sizeof (vfs_direntry_info_t));
+    dip = (vfs_direntry_info_t *)chHeapAlloc(NULL,
+                                             sizeof (vfs_direntry_info_t));
     if ((pathbuf == NULL) || (dip == NULL)) {
       chprintf(xshp->stream, "Out of memory" XSHELL_NEWLINE_STR);
-     break;
+      break;
     }
 
     strcpy(pathbuf, "/");
@@ -488,7 +357,7 @@ static void cmd_tree(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 
 static void cmd_cat(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   char *buf = NULL;
-  xshell_fd_t fd = xshell_invalid_fd;
+  vfs_file_node_c *fnp = NULL;
 
   (void)envp;
 
@@ -498,32 +367,38 @@ static void cmd_cat(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   }
 
   do {
-    struct stat statbuf;
+    vfs_stat_t statbuf;
+    msg_t ret;
     ssize_t n;
 
     buf = (char *)chHeapAlloc(NULL, XSHELL_CMD_FILES_BUFFER_SIZE);
     if (buf == NULL) {
       chprintf(xshp->stream, "Out of memory" XSHELL_NEWLINE_STR);
-     break;
-    }
-
-    if (__stat(argv[1], &statbuf) < 0) {
-      chprintf(xshp->stream, "stat failed (%d)" XSHELL_NEWLINE_STR, errno);
       break;
     }
 
-    if (!(S_ISREG(statbuf.st_mode) || S_ISCHR(statbuf.st_mode) || S_ISFIFO(statbuf.st_mode))) {
+    ret = vfsFSStat(xshp->root, argv[1], &statbuf);
+    if (CH_RET_IS_ERROR(ret)) {
+      chprintf(xshp->stream, "stat failed (%d)" XSHELL_NEWLINE_STR,
+               CH_DECODE_ERROR(ret));
+      break;
+    }
+
+    if (!(VFS_MODE_S_ISREG(statbuf.mode) || VFS_MODE_S_ISCHR(statbuf.mode) ||
+          VFS_MODE_S_ISFIFO(statbuf.mode))) {
       chprintf(xshp->stream, "Not a valid source type" XSHELL_NEWLINE_STR);
       break;
     }
 
-    fd = __open(argv[1], O_RDONLY);
-    if (fd == xshell_invalid_fd) {
+    ret = vfsFSOpenFile(xshp->root, argv[1], VO_RDONLY, &fnp);
+    if (CH_RET_IS_ERROR(ret)) {
+      fnp = NULL;
       chprintf(xshp->stream, "Cannot open source" XSHELL_NEWLINE_STR);
       break;
     }
 
-    while ((n = __read(fd, (uint8_t *)buf, XSHELL_CMD_FILES_BUFFER_SIZE)) > 0) {
+    while ((n = vfsFileRead(fnp, (uint8_t *)buf,
+                            XSHELL_CMD_FILES_BUFFER_SIZE)) > 0) {
       streamWrite(xshp->stream, (const uint8_t *)buf, n);
 #if CH_HAL_MAJOR >= 10
 #error "TODO: Handle new streams/channels in XHAL here"
@@ -540,7 +415,9 @@ static void cmd_cat(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   }
   while (false);
 
-  (void)__close(fd);
+  if (fnp != NULL) {
+    vfsNodeClose(fnp);
+  }
   if (buf != NULL) {
     chHeapFree((void *)buf);
   }
@@ -548,8 +425,8 @@ static void cmd_cat(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
 
 static void cmd_cp(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   char *buf = NULL;
-  xshell_fd_t src = xshell_invalid_fd;
-  xshell_fd_t dst = xshell_invalid_fd;
+  vfs_file_node_c *src = NULL;
+  vfs_file_node_c *dst = NULL;
 
   (void)envp;
 
@@ -559,48 +436,58 @@ static void cmd_cp(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   }
 
   do {
-    struct stat statbuf;
+    vfs_stat_t statbuf;
+    msg_t ret;
     ssize_t n;
 
     buf = (char *)chHeapAlloc(NULL, XSHELL_CMD_FILES_BUFFER_SIZE);
     if (buf == NULL) {
       chprintf(xshp->stream, "Out of memory" XSHELL_NEWLINE_STR);
-     break;
-    }
-
-    if (__stat(argv[1], &statbuf) < 0) {
-      chprintf(xshp->stream, "stat failed (%d)" XSHELL_NEWLINE_STR, errno);
       break;
     }
 
-    if (!S_ISREG(statbuf.st_mode)) {
+    ret = vfsFSStat(xshp->root, argv[1], &statbuf);
+    if (CH_RET_IS_ERROR(ret)) {
+      chprintf(xshp->stream, "stat failed (%d)" XSHELL_NEWLINE_STR,
+               CH_DECODE_ERROR(ret));
+      break;
+    }
+
+    if (!VFS_MODE_S_ISREG(statbuf.mode)) {
       chprintf(xshp->stream, "Not a file type" XSHELL_NEWLINE_STR);
       break;
     }
 
-    src = __open(argv[1], O_RDONLY);
-    if (src == xshell_invalid_fd) {
+    ret = vfsFSOpenFile(xshp->root, argv[1], VO_RDONLY, &src);
+    if (CH_RET_IS_ERROR(ret)) {
+      src = NULL;
       chprintf(xshp->stream, "Cannot open source file" XSHELL_NEWLINE_STR);
       break;
     }
 
-    dst = __open(argv[2], O_CREAT | O_WRONLY | O_TRUNC);
-    if (dst == xshell_invalid_fd) {
-      chprintf(xshp->stream, "Cannot open destination file" XSHELL_NEWLINE_STR);
+    ret = vfsFSOpenFile(xshp->root, argv[2], VO_CREAT | VO_WRONLY | VO_TRUNC,
+                        &dst);
+    if (CH_RET_IS_ERROR(ret)) {
+      dst = NULL;
+      chprintf(xshp->stream,
+               "Cannot open destination file" XSHELL_NEWLINE_STR);
       break;
     }
 
-    while ((n = __read(src, (uint8_t *)buf, XSHELL_CMD_FILES_BUFFER_SIZE)) > 0) {
+    while ((n = vfsFileRead(src, (uint8_t *)buf,
+                            XSHELL_CMD_FILES_BUFFER_SIZE)) > 0) {
       bool write_error = false;
       size_t total_written = 0;
 
       while (total_written < (size_t)n) {
         ssize_t written_this_call;
 
-        written_this_call = __write(dst, (const uint8_t *)buf + total_written,
-                                    (size_t)n - total_written);
+        written_this_call = vfsFileWrite(dst,
+                                         (const uint8_t *)buf + total_written,
+                                         (size_t)n - total_written);
         if (written_this_call < 0) {
-          chprintf(xshp->stream, "Error writing destination file" XSHELL_NEWLINE_STR);
+          chprintf(xshp->stream,
+                   "Error writing destination file" XSHELL_NEWLINE_STR);
           write_error = true;
           break;
         }
@@ -627,14 +514,19 @@ static void cmd_cp(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
   }
   while (false);
 
-  (void)__close(dst);
-  (void)__close(src);
+  if (dst != NULL) {
+    vfsNodeClose(dst);
+  }
+  if (src != NULL) {
+    vfsNodeClose(src);
+  }
   if (buf != NULL) {
     chHeapFree((void *)buf);
   }
 }
 
 static void cmd_cd(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
+  msg_t ret;
 
   (void)envp;
 
@@ -643,15 +535,11 @@ static void cmd_cd(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
     return;
   }
 
-  do {
-    msg_t ret;
-
-    ret = vfsChangeCurrentDirectory(argv[1]);
-    if (CH_RET_IS_ERROR(ret)) {
-      chprintf(xshp->stream, "failed (%d)" XSHELL_NEWLINE_STR, CH_DECODE_ERROR(ret));
-    }
+  ret = vfsRootChangeCurrentDirectory(xshp->root, argv[1]);
+  if (CH_RET_IS_ERROR(ret)) {
+    chprintf(xshp->stream, "failed (%d)" XSHELL_NEWLINE_STR,
+             CH_DECODE_ERROR(ret));
   }
-  while (false);
 }
 
 static void cmd_ls(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
@@ -668,24 +556,26 @@ static void cmd_ls(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
     msg_t ret;
     vfs_directory_node_c *dirp;
 
-    dip = (vfs_direntry_info_t *)chHeapAlloc(NULL, sizeof (vfs_direntry_info_t));
+    dip = (vfs_direntry_info_t *)chHeapAlloc(NULL,
+                                             sizeof (vfs_direntry_info_t));
     if (dip == NULL) {
       chprintf(xshp->stream, "Out of memory" XSHELL_NEWLINE_STR);
-     break;
+      break;
     }
 
     /* Opening the (un)specified directory.*/
-    ret = vfsOpenDirectory(argc == 2 ? argv[1] : ".", &dirp);
+    ret = vfsFSOpenDirectory(xshp->root, argc == 2 ? argv[1] : ".", &dirp);
     if (!CH_RET_IS_ERROR(ret)) {
 
-      while (vfsReadDirectoryNext(dirp, dip) > (msg_t)0) {
+      while (vfsDirReadNext(dirp, dip) > (msg_t)0) {
         chprintf(xshp->stream, "%s" XSHELL_NEWLINE_STR, dip->name);
       }
 
-      vfsClose((vfs_node_c *)dirp);
+      vfsNodeClose(dirp);
     }
     else {
-      chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR, CH_DECODE_ERROR(ret));
+      chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR,
+               CH_DECODE_ERROR(ret));
     }
 
   } while (false);
@@ -705,9 +595,10 @@ static void cmd_mkdir(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
     return;
   }
 
-  ret = vfsMkdir(argv[1], 0777U);
+  ret = vfsFSMkdir(xshp->root, argv[1], 0777U);
   if (CH_RET_IS_ERROR(ret)) {
-    chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR, CH_DECODE_ERROR(ret));
+    chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR,
+             CH_DECODE_ERROR(ret));
   }
 }
 
@@ -721,9 +612,10 @@ static void cmd_mv(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
     return;
   }
 
-  ret = vfsRename(argv[1], argv[2]);
+  ret = vfsFSRename(xshp->root, argv[1], argv[2]);
   if (CH_RET_IS_ERROR(ret)) {
-    chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR, CH_DECODE_ERROR(ret));
+    chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR,
+             CH_DECODE_ERROR(ret));
   }
 }
 
@@ -744,12 +636,14 @@ static void cmd_pwd(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
     buf = (char *)chHeapAlloc(NULL, VFS_CFG_PATHLEN_MAX + 1);
     if (buf == NULL) {
       chprintf(xshp->stream, "Out of memory" XSHELL_NEWLINE_STR);
-     break;
+      break;
     }
 
-    ret = vfsGetCurrentDirectory(buf, VFS_CFG_PATHLEN_MAX + 1);
+    ret = vfsRootGetCurrentDirectory(xshp->root, buf,
+                                     VFS_CFG_PATHLEN_MAX + 1);
     if (CH_RET_IS_ERROR(ret)) {
-      chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR, CH_DECODE_ERROR(ret));
+      chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR,
+               CH_DECODE_ERROR(ret));
     }
     else {
       chprintf(xshp->stream, "%s" XSHELL_NEWLINE_STR, buf);
@@ -772,9 +666,10 @@ static void cmd_rm(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
     return;
   }
 
-  ret = vfsUnlink(argv[1]);
+  ret = vfsFSUnlink(xshp->root, argv[1]);
   if (CH_RET_IS_ERROR(ret)) {
-    chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR, CH_DECODE_ERROR(ret));
+    chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR,
+             CH_DECODE_ERROR(ret));
   }
 }
 
@@ -788,9 +683,10 @@ static void cmd_rmdir(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
     return;
   }
 
-  ret = vfsRmdir(argv[1]);
+  ret = vfsFSRmdir(xshp->root, argv[1]);
   if (CH_RET_IS_ERROR(ret)) {
-    chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR, CH_DECODE_ERROR(ret));
+    chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR,
+             CH_DECODE_ERROR(ret));
   }
 }
 
@@ -805,14 +701,15 @@ static void cmd_stat(xshell_t *xshp, int argc, char *argv[], char *envp[]) {
     return;
   }
 
-  ret = vfsStat(argv[1], &statbuf);
+  ret = vfsFSStat(xshp->root, argv[1], &statbuf);
   if (CH_RET_IS_ERROR(ret)) {
-    chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR, CH_DECODE_ERROR(ret));
+    chprintf(xshp->stream, "Failed (%d)" XSHELL_NEWLINE_STR,
+             CH_DECODE_ERROR(ret));
     return;
   }
 
-  chprintf(xshp->stream, "Mode 0x%04lx Size %d" XSHELL_NEWLINE_STR, statbuf.mode,
-                                                              statbuf.size);
+  chprintf(xshp->stream, "Mode 0x%04lx Size %d" XSHELL_NEWLINE_STR,
+           statbuf.mode, statbuf.size);
 }
 #endif
 

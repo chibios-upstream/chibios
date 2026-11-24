@@ -35,6 +35,9 @@
  *          - PRIVATE_COHERENT, variables private to a specific core that
  *            require cache coherence.
  *          .
+ *          Each class has two variants, BSS for uninitialized variables
+ *          and DATA for initialized variables. Static initializers like
+ *          @p SEMAPHORE_DECL() produce initialized variables.
  *          Memory classes are defined in the port layer and their full
  *          implementation is not mandatory, some could be unimplemented on
  *          specific architectures. If a memory class is not defined in the
@@ -47,10 +50,41 @@
  *          - Missing LOCAL_COHERENT is defaulted to GLOBAL_COHERENT.
  *          - Missing GLOBAL_COHERENT is defaulted to standard BSS segment.
  *          .
+ *          DATA variants follow the same rules, the last fallback is the
+ *          standard DATA segment.
  *          Note, depending on the architecture, cache coherence can be
  *          implemented by placing variables in a non-cacheable area. This
  *          can have a performance impact so it is better to not place
  *          variables in coherent classes unless strictly required.
+ *          <h2>SMP with non-coherent caches</h2>
+ *          When the data caches of the cores are not coherent, the coherent
+ *          classes are the only memory where a core sees the writes of the
+ *          other cores, usually because they are not cacheable. The other
+ *          classes can be cached: their data must be used by a single core
+ *          or exchanged with cache maintenance by the application, the
+ *          kernel performs none. The private classes hold the data of a
+ *          single core, such as the thread stacks.<br>
+ *          The following must be in a coherent class:
+ *          - all the @p thread_t structures, the registry links them in a
+ *            list shared by all cores, and the scheduler and the
+ *            synchronization objects write them from any core;
+ *          - the synchronization objects used by more than one core,
+ *            including thread references, threads queues, event sources
+ *            and their listeners;
+ *          - the data passed through pointers to a thread on another core,
+ *            for example with messages, mailboxes, objects FIFOs and jobs.
+ *          .
+ *          An object and its buffers use the same class, for example a
+ *          mailbox and its messages buffer, a pipe and its buffer, a heap
+ *          or a memory pool and its memory area.<br>
+ *          Cacheable data written by different cores must not share a
+ *          cache line, the write-back of a dirty line overwrites the bytes
+ *          written by the other core in the same line. The private classes
+ *          should be separate areas for each core, and the ports of cores
+ *          with data caches align thread stacks and working areas to the
+ *          cache line.<br>
+ *          The threads, events and messages modules and the OSLIB modules
+ *          describe their own requirements.
  * @{
  */
 
@@ -83,7 +117,9 @@
  * @note    This is equivalent to a normal C uninitialized variable, the
  *          port layer has the option to enforce some kind of attribute when
  *          this modifier is used.
- * @note    Only uninitialized variables can be tagged with this attribute.
+ * @note    Only uninitialized variables can be tagged with this attribute,
+ *          an initializer would be silently discarded. Use the DATA variant
+ *          for initialized variables.
  */
 #if defined(PORT_MEM_GLOBAL_BSS) || defined(__DOXYGEN__)
 #define CH_MEM_GLOBAL_BSS               PORT_MEM_GLOBAL_BSS
@@ -97,7 +133,9 @@
  *          core, if the system does not support this memory class then the
  *          variable is created as @p CH_MEM_GLOBAL_BSS.
  * @note    Cache Coherence is not implied in this class of memories.
- * @note    Only uninitialized variables can be tagged with this attribute.
+ * @note    Only uninitialized variables can be tagged with this attribute,
+ *          an initializer would be silently discarded. Use the DATA variant
+ *          for initialized variables.
  *
  * @param[in] c         core number as a numeric literal
  */
@@ -116,7 +154,9 @@
  * @note    This class of memory is optimal for thread-private data, thread
  *          stacks and, in general, any variable that is exclusively accessed
  *          by a known core.
- * @note    Only uninitialized variables can be tagged with this attribute.
+ * @note    Only uninitialized variables can be tagged with this attribute,
+ *          an initializer would be silently discarded. Use the DATA variant
+ *          for initialized variables.
  *
  * @param[in] c         core number as a numeric literal
  */
@@ -138,7 +178,9 @@
  *          normal variable (no modifier).
  * @note    On multicore systems all OS synchronization objects (semaphores,
  *          mutexes, queues, etc) must be declared as coherent.
- * @note    Only uninitialized variables can be tagged with this attribute.
+ * @note    Only uninitialized variables can be tagged with this attribute,
+ *          an initializer would be silently discarded. Use the DATA variant
+ *          for initialized variables.
  */
 #if defined(PORT_MEM_GLOBAL_COHERENT_BSS) || defined(__DOXYGEN__)
 #define CH_MEM_GLOBAL_COHERENT_BSS      PORT_MEM_GLOBAL_COHERENT_BSS
@@ -159,7 +201,9 @@
  * @note    On multicore systems all OS synchronization objects (semaphores,
  *          mutexes, queues, etc) must be declared as shared or the
  *          inter-core synchronization will fail.
- * @note    Only uninitialized variables can be tagged with this attribute.
+ * @note    Only uninitialized variables can be tagged with this attribute,
+ *          an initializer would be silently discarded. Use the DATA variant
+ *          for initialized variables.
  *
  * @param[in] c         core number as a numeric literal
  */
@@ -178,7 +222,9 @@
  * @note    This class of memory is optimal for thread-private data, thread
  *          stacks and, in general, any variable that is exclusively accessed
  *          by a known core.
- * @note    Only uninitialized variables can be tagged with this attribute.
+ * @note    Only uninitialized variables can be tagged with this attribute,
+ *          an initializer would be silently discarded. Use the DATA variant
+ *          for initialized variables.
  *
  * @param[in] c         core number as a numeric literal
  */
@@ -186,6 +232,77 @@
 #define CH_MEM_PRIVATE_COHERENT_BSS(c)  PORT_MEM_PRIVATE_COHERENT_BSS##c
 #else
 #define CH_MEM_PRIVATE_COHERENT_BSS(c)  CH_MEM_LOCAL_COHERENT_BSS(c) /* Fallback.*/
+#endif
+
+/**
+ * @brief   Global RAM affinity macro for initialized variables.
+ * @details DATA variant of @p CH_MEM_GLOBAL_BSS.
+ */
+#if defined(PORT_MEM_GLOBAL_DATA) || defined(__DOXYGEN__)
+#define CH_MEM_GLOBAL_DATA              PORT_MEM_GLOBAL_DATA
+#else
+#define CH_MEM_GLOBAL_DATA              /* Default DATA.*/
+#endif
+
+/**
+ * @brief   Local RAM affinity macro for initialized variables.
+ * @details DATA variant of @p CH_MEM_LOCAL_BSS().
+ *
+ * @param[in] c         core number as a numeric literal
+ */
+#if defined(PORT_MEM_LOCAL_DATA) || defined(__DOXYGEN__)
+#define CH_MEM_LOCAL_DATA(c)            PORT_MEM_LOCAL_DATA##c
+#else
+#define CH_MEM_LOCAL_DATA(c)            CH_MEM_GLOBAL_DATA /* Fallback.*/
+#endif
+
+/**
+ * @brief   Private RAM affinity macro for initialized variables.
+ * @details DATA variant of @p CH_MEM_PRIVATE_BSS().
+ *
+ * @param[in] c         core number as a numeric literal
+ */
+#if defined(PORT_MEM_PRIVATE_DATA) || defined(__DOXYGEN__)
+#define CH_MEM_PRIVATE_DATA(c)          PORT_MEM_PRIVATE_DATA##c
+#else
+#define CH_MEM_PRIVATE_DATA(c)          CH_MEM_LOCAL_DATA(c) /* Fallback.*/
+#endif
+
+/**
+ * @brief   Global and coherent RAM affinity macro for initialized
+ *          variables.
+ * @details DATA variant of @p CH_MEM_GLOBAL_COHERENT_BSS.
+ */
+#if defined(PORT_MEM_GLOBAL_COHERENT_DATA) || defined(__DOXYGEN__)
+#define CH_MEM_GLOBAL_COHERENT_DATA     PORT_MEM_GLOBAL_COHERENT_DATA
+#else
+#define CH_MEM_GLOBAL_COHERENT_DATA     /* Default DATA.*/
+#endif
+
+/**
+ * @brief   Local and coherent RAM affinity macro for initialized
+ *          variables.
+ * @details DATA variant of @p CH_MEM_LOCAL_COHERENT_BSS().
+ *
+ * @param[in] c         core number as a numeric literal
+ */
+#if defined(PORT_MEM_LOCAL_COHERENT_DATA) || defined(__DOXYGEN__)
+#define CH_MEM_LOCAL_COHERENT_DATA(c)   PORT_MEM_LOCAL_COHERENT_DATA##c
+#else
+#define CH_MEM_LOCAL_COHERENT_DATA(c)   CH_MEM_GLOBAL_COHERENT_DATA /* Fallback.*/
+#endif
+
+/**
+ * @brief   Private and coherent RAM affinity macro for initialized
+ *          variables.
+ * @details DATA variant of @p CH_MEM_PRIVATE_COHERENT_BSS().
+ *
+ * @param[in] c         core number as a numeric literal
+ */
+#if defined(PORT_MEM_PRIVATE_COHERENT_DATA) || defined(__DOXYGEN__)
+#define CH_MEM_PRIVATE_COHERENT_DATA(c) PORT_MEM_PRIVATE_COHERENT_DATA##c
+#else
+#define CH_MEM_PRIVATE_COHERENT_DATA(c) CH_MEM_LOCAL_COHERENT_DATA(c) /* Fallback.*/
 #endif
 
 /*===========================================================================*/

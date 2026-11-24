@@ -147,7 +147,7 @@ static msg_t __chfsdir_stat_impl(void *ip, vfs_stat_t *sp) {
   (void)self;
   (void)sp;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -166,7 +166,7 @@ static msg_t __chfsdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
   (void)self;
   (void)dip;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -185,7 +185,7 @@ static msg_t __chfsdir_first_impl(void *ip, vfs_direntry_info_t *dip) {
   (void)self;
   (void)dip;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 /** @} */
 
@@ -247,14 +247,16 @@ vfs_chfs_dir_node_c *chfsdirObjectInit(vfs_chfs_dir_node_c *self,
  * @param[in]     vmt           VMT pointer for the new object.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Opened access and status flags.
  * @return                      A new reference to the object.
  */
 static void *__chfsfile_objinit_impl(void *ip, const void *vmt,
-                                     vfs_fs_c *driver, vfs_mode_t mode) {
+                                     vfs_fs_c *driver, vfs_mode_t mode,
+                                     int flags) {
   vfs_chfs_file_node_c *self = (vfs_chfs_file_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
+  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode, flags);
 
   return self;
 }
@@ -295,7 +297,7 @@ static msg_t __chfsfile_stat_impl(void *ip, vfs_stat_t *sp) {
   (void)self;
   (void)sp;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -316,7 +318,7 @@ static ssize_t __chfsfile_read_impl(void *ip, uint8_t *buf, size_t n) {
   (void)buf;
   (void)n;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -337,7 +339,7 @@ static ssize_t __chfsfile_write_impl(void *ip, const uint8_t *buf, size_t n) {
   (void)buf;
   (void)n;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -359,7 +361,7 @@ static msg_t __chfsfile_setpos_impl(void *ip, vfs_offset_t offset,
   (void)offset;
   (void)whence;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -394,7 +396,9 @@ static const struct vfs_chfs_file_node_vmt __vfs_chfs_file_node_vmt = {
   .write                    = __chfsfile_write_impl,
   .setpos                   = __chfsfile_setpos_impl,
   .getpos                   = __chfsfile_getpos_impl,
-  .control                  = __vfsfile_control_impl
+  .control                  = __vfsfile_control_impl,
+  .sync                     = __vfsfile_sync_impl,
+  .truncate                 = __vfsfile_truncate_impl
 };
 
 /**
@@ -410,6 +414,7 @@ static const struct vfs_chfs_file_node_vmt __vfs_chfs_file_node_vmt = {
  *                              to be initialized.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Opened access and status flags.
  * @return                      Pointer to the initialized object.
  *
  * @objinit
@@ -417,9 +422,10 @@ static const struct vfs_chfs_file_node_vmt __vfs_chfs_file_node_vmt = {
 static __attribute__((unused))
 vfs_chfs_file_node_c *chfsfileObjectInit(vfs_chfs_file_node_c *self,
                                          vfs_fs_c *driver,
-                                         vfs_mode_t mode) {
+                                         vfs_mode_t mode, int flags) {
 
-  return __chfsfile_objinit_impl(self, &__vfs_chfs_file_node_vmt, driver, mode);
+  return __chfsfile_objinit_impl(self, &__vfs_chfs_file_node_vmt, driver,
+                                 mode, flags);
 }
 /** @} */
 
@@ -495,7 +501,7 @@ msg_t __chfsdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
   (void)path;
   (void)sp;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -518,7 +524,7 @@ msg_t __chfsdrv_opendir_impl(void *ip, const char *path,
   (void)path;
   (void)vdnpp;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -543,7 +549,7 @@ msg_t __chfsdrv_openfile_impl(void *ip, const char *path, int flags,
   (void)flags;
   (void)vfnpp;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -562,7 +568,7 @@ msg_t __chfsdrv_unlink_impl(void *ip, const char *path) {
   (void)self;
   (void)path;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -583,7 +589,7 @@ msg_t __chfsdrv_rename_impl(void *ip, const char *oldpath, const char *newpath) 
   (void)oldpath;
   (void)newpath;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -604,7 +610,7 @@ msg_t __chfsdrv_mkdir_impl(void *ip, const char *path, vfs_mode_t mode) {
   (void)path;
   (void)mode;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -623,7 +629,7 @@ msg_t __chfsdrv_rmdir_impl(void *ip, const char *path) {
   (void)self;
   (void)path;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 /** @} */
 
@@ -662,7 +668,7 @@ msg_t chfsdrvMount(void *ip) {
 
   (void)self;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -681,7 +687,7 @@ msg_t chfsdrvUnmount(void *ip) {
 
   (void)self;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 
 /**
@@ -700,6 +706,6 @@ msg_t chfsdrvFormat(void *ip) {
 
   (void)self;
 
-  return CH_RET_SUCCESS;
+  return CH_RET_ENOSYS;
 }
 /** @} */

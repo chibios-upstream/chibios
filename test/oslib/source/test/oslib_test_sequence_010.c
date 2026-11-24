@@ -47,7 +47,7 @@
 /* Shared code.                                                              */
 /*===========================================================================*/
 
-static ALIGNED_VAR(16) uint8_t core_buffer[64];
+static CH_MEM_GLOBAL_COHERENT_BSS ALIGNED_VAR(16) uint8_t core_buffer[64];
 
 /* The real allocator is restored before unlocking or checking test results.
    No test assertion or rescheduling operation runs with the test arena

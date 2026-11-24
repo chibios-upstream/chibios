@@ -35,7 +35,7 @@ endif
 ifneq ($(findstring HAL_USE_DAC TRUE,$(HALCONF)),)
 HALSRC += $(CHIBIOS)/os/hal/src/hal_dac.c
 endif
-ifneq ($(findstring HAL_USE_DISPLAY TRUE,$(HALCONF)),)
+ifneq ($(findstring HAL_USE_DSPL TRUE,$(HALCONF)),)
 HALSRC += $(CHIBIOS)/os/hal/src/hal_dspl.c
 endif
 ifneq ($(findstring HAL_USE_EFL TRUE,$(HALCONF)),)

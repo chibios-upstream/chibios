@@ -1,0 +1,178 @@
+/*
+    ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
+
+    This file is part of ChibiOS.
+
+    ChibiOS is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation version 3 of the License.
+
+    ChibiOS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/**
+ * @page vfs_limitations VFS Limitations
+ *
+ * The VFS offers POSIX-like semantics, it does not claim POSIX
+ * conformance. This page lists the known limits: those of the file systems
+ * and devices below the VFS and the scope of the VFS interfaces.
+ *
+ * - @ref vfs_lim_backends
+ * - @ref vfs_lim_api
+ * - @ref vfs_lim_paths
+ * - @ref vfs_lim_concurrency
+ * - @ref vfs_lim_adapters
+ * .
+ *
+ * @section vfs_lim_backends File systems and devices
+ *
+ * <b>FatFS</b>
+ * - Independent opens of the same file are safe only when all of them are
+ *   read-only, a writer invalidates the state cached by the other handles.
+ *   Applications opening a file more than once enable @p FF_FS_LOCK, sized
+ *   for the simultaneously open files and directories, conflicting opens,
+ *   removals and renames are then rejected with @p CH_RET_EBUSY.
+ *   Duplicated descriptors share one native handle and are not affected.
+ * - Rename does not replace an existing destination, it returns
+ *   @p CH_RET_EEXIST. Open files and directories must not be removed or
+ *   renamed, @p FF_FS_LOCK rejects it for files only.
+ * - Names follow the FAT rules, long names depend on the FatFS
+ *   configuration. FAT has no owner, permission or link information and
+ *   stores times with two seconds of resolution, without a time zone.
+ * - FAT has no sparse files, a write after a position past the end of file
+ *   writes the zeros filling the gap, in a time proportional to its size.
+ * - FatFS stores the modification time when a changed file is
+ *   synchronized. An open file reports the time read at open until it is
+ *   created, written or resized through the node, then only the path stat
+ *   reports the time, after the synchronization. Open exFAT files and open
+ *   directories report no time.
+ * .
+ * <b>LittleFS</b>
+ * - Independent opens of the same file do not share their state, opens
+ *   conflicting with a writer are rejected with @p CH_RET_EBUSY.
+ *   Duplicated descriptors and independent read-only opens are safe.
+ * - An open file is not removed, renamed or replaced by a rename, an open
+ *   directory is not removed or replaced, @p CH_RET_EBUSY is returned. An
+ *   open directory can be renamed. While files are open, the check opens
+ *   the path on a temporary read-only handle, the allocation of its cache
+ *   buffer can fail with @p CH_RET_ENOMEM.
+ * - There are no timestamps, owner or permission information, custom
+ *   attributes are not exposed.
+ * - Separate instances work on disjoint storage areas, a shared storage
+ *   device needs its own synchronization.
+ * .
+ * <b>ROMFS</b>
+ * - Contents and names are read-only, opening for writing, creating,
+ *   removing and renaming return @p CH_RET_EROFS.
+ * - There are no timestamps or file identities.
+ * - Dynamic and compressed content callbacks synchronize their own state,
+ *   the VFS does not serialize them.
+ * .
+ * <b>Streams</b>
+ * - The names are registered statically, creating returns
+ *   @p CH_RET_EROFS, removing, renaming and directory changes return
+ *   @p CH_RET_ENOSYS.
+ * - Sequential devices have no position and no size. A random access
+ *   element is a device with one position, separate opens share it, its
+ *   size comes from the backend. Writable append and truncation are
+ *   rejected.
+ * - Read and write ordering, terminal state and nonblocking behavior are
+ *   properties of the device behind the element.
+ * .
+ * <b>ChibiFS and template drivers</b>
+ * - ChibiFS is not implemented, its operations return
+ *   @p CH_RET_ENOSYS. The template driver is a starting point for driver
+ *   authors, not a usable file system.
+ * .
+ *
+ * @section vfs_lim_api Interface scope
+ *
+ * - Sizes and positions are of type @p vfs_offset_t, a signed 32-bit
+ *   integer, positions beyond @p INT32_MAX return @p CH_RET_EOVERFLOW.
+ *   Files are limited to @p INT32_MAX bytes: a FatFS file of 2 GiB or more,
+ *   written by another system, is rejected by open and stat with
+ *   @p CH_RET_EOVERFLOW and its directory entry reports @p INT32_MAX, a
+ *   write at the limit returns @p CH_RET_EFBIG and a write crossing it is
+ *   shortened. LittleFS limits files natively to @p LFS_FILE_MAX, at most
+ *   @p INT32_MAX, a write crossing it returns @p CH_RET_EFBIG.
+ * - Open accepts the access mode, @p O_APPEND, @p O_CREAT, @p O_TRUNC,
+ *   @p O_EXCL, @p O_DIRECTORY and @p O_CLOEXEC, other flags are rejected.
+ *   Seeks support @p VFS_SEEK_SET, @p VFS_SEEK_CUR and @p VFS_SEEK_END.
+ * - There is no truncation by path, files are truncated by @p O_TRUNC at
+ *   open or through an open descriptor. The last release of a node, which
+ *   can happen after the descriptor is closed, does not report errors: the
+ *   descriptor close synchronizes the file first and returns the error.
+ * - The opened access mode is enforced, there are no owners, permissions,
+ *   umask or timestamp updates.
+ * - There are no hard or symbolic links, @p openat() family,
+ *   @p pread()/@p pwrite(), file locks or file system space queries.
+ * - @p VFD_CLOEXEC is recorded but no VFS user implements an exec, sandbox
+ *   ELF calls return to the caller.
+ * - Directories are read with first and next calls, there are no
+ *   @p telldir()/@p seekdir() positions.
+ * - File system objects and their backends are managed by the caller,
+ *   mount, unmount and format require that no operation or node is active.
+ *   There is no hot removal support.
+ * - Path lengths, name lengths, buffer pairs, descriptor tables and mount
+ *   tables are configured bounds.
+ * .
+ *
+ * @section vfs_lim_paths Paths and current directory
+ *
+ * - @c "." and @c ".." are resolved lexically, without checking the
+ *   intermediate elements: @c "missing/../file" is @c "file" even if
+ *   @c "missing" does not exist.
+ * - The current directory is stored as a path. Through its root, the
+ *   current directory and its ancestors are not renamed and the current
+ *   directory is not removed, @p CH_RET_EBUSY is returned. Other roots over
+ *   the same file system and direct file system calls are not checked,
+ *   they can leave a stale current directory.
+ * - Each root has one current directory, shared by all the users of the
+ *   root. Users needing their own current directory use separate roots.
+ * - The overlay driver routes paths to the mounted file systems and lists
+ *   them, it is not a union file system. Directory listings are live,
+ *   changes of the mounts during a listing can skip or repeat entries.
+ * - Renaming across file systems returns @p CH_RET_EXDEV. Unregistering a
+ *   mount does not unmount or dispose the file system.
+ * .
+ *
+ * @section vfs_lim_concurrency Concurrency
+ *
+ * - Without @p VFS_CFG_USE_MUTUAL_EXCLUSION the callers serialize the
+ *   operations sharing a root, an overlay or a file system.
+ * - Node references protect lifetimes, not ordering: operations on the same
+ *   node, including descriptors sharing it, are serialized by the callers.
+ *   A seek followed by a position read is not atomic.
+ * - The FatFS driver uses one mutex for all volumes, the LittleFS driver
+ *   one per instance, held during the storage operations. Storage callbacks
+ *   do not call the VFS.
+ * .
+ * See @ref vfs_arch_concurrency for the complete rules.
+ *
+ * @section vfs_lim_adapters C library and sandboxes
+ *
+ * - The Newlib bindings install no descriptor, the application installs
+ *   the standard descriptors. C library @p FILE objects are not protected,
+ *   a stream is not used by several threads at the same time.
+ * - @p stat() and @p fstat() report the mode, the size, a link count of 1
+ *   and, when the file system provides them, the block size, the allocated
+ *   blocks and the modification time, also reported as access and status
+ *   change time. The other fields are zero. There are no file identities,
+ *   sandbox directory records report inode 1.
+ * - The sandbox directory records have a fixed layout shared by host and
+ *   guest, both are built from the same tree. A directory read needs room
+ *   for a record with a name of maximum length.
+ * - Sandboxes are isolated from each other only by disjoint name spaces:
+ *   each sandbox root has its own path prefix, shared content is mounted
+ *   read-only. Sandboxes sharing writable directories can remove, change
+ *   or rename each other's files. The host does not rename or remove the
+ *   prefix directory of a running sandbox, or a directory holding the
+ *   current directory of another root.
+ * .
+ */

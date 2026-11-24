@@ -16,6 +16,8 @@
 
 #include "ch.h"
 
+#include "fpu_irq_test.h"
+
 #define R8_RENODE_PRIVATE_TIMER_BASE 0xAE000600U
 #define R8_RENODE_PRIVATE_TIMER_FREQ 667000000U
 
@@ -39,6 +41,8 @@ static volatile uint32_t main_counter;
 static volatile uint32_t fpu_thread_counter;
 static volatile uint32_t fpu_main_counter;
 static volatile uint32_t fpu_error_counter;
+static fpu_irq_test_result_t fpu_irq_result;
+static volatile bool fpu_irq_passed;
 #endif
 
 /*
@@ -141,6 +145,14 @@ int main(void) {
   chSysInit();
 
   timer_init();
+
+#if CORTEX_USE_FPU == TRUE
+  /*
+   * FPU registers across interrupts test, executed once before starting
+   * the other threads.
+   */
+  fpu_irq_passed = fpu_irq_test_execute(&fpu_irq_result);
+#endif
 
   (void) chThdCreateStatic(waThread1,
                            sizeof(waThread1),

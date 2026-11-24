@@ -77,7 +77,7 @@ static void drv_reg_insert(hal_base_driver_c *drvp) {
  * @brief       Driver removal from the HAL registry.
  *
  * @param[in,out] drvp          Pointer to the @p hal_base_driver_c instance to
- *                              be inserted.
+ *                              be removed.
  */
 static void drv_reg_remove(hal_base_driver_c *drvp) {
 
@@ -107,14 +107,18 @@ void drvInit(void) {
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
 /**
  * @brief       Return the first driver in the HAL registry.
+ * @note        The registry is enumerated with the system lock held, drivers
+ *              can be registered and unregistered otherwise.
  *
  * @return                      A pointer to the first driver object.
  * @retval NULL                 If the registry is empty.
  *
- * @api
+ * @iclass
  */
-hal_base_driver_c *drvRegGetFirstX(void) {
+hal_base_driver_c *drvRegGetFirstI(void) {
   hal_regent_t *rep;
+
+  chDbgCheckClassI();
 
   rep = hal_registry.next;
   if (rep == &hal_registry) {
@@ -126,16 +130,19 @@ hal_base_driver_c *drvRegGetFirstX(void) {
 
 /**
  * @brief       Return the next driver in the HAL registry.
- * @note        This function is only available when HAL registry is enabled.
+ * @note        The registry is enumerated with the system lock held, drivers
+ *              can be registered and unregistered otherwise.
  *
  * @param[in]     drvp          Previously found driver.
  * @return                      A pointer to the next driver object.
  * @retval NULL                 If there is no next driver.
  *
- * @api
+ * @iclass
  */
-hal_base_driver_c *drvRegGetNextX(hal_base_driver_c *drvp) {
+hal_base_driver_c *drvRegGetNextI(hal_base_driver_c *drvp) {
   hal_regent_t *rep;
+
+  chDbgCheckClassI();
 
   rep = drvp->regent.next;
   if (rep == &hal_registry) {
@@ -151,7 +158,7 @@ hal_base_driver_c *drvRegGetNextX(hal_base_driver_c *drvp) {
  *              peripheral is physically initialized. An
  *              implementation-dependent default configuration is used for
  *              initialization.
- * @note        This function is only available when HAL registry is enabled.
+ * @note        Only the drivers added with @p drvRegister() can be found.
  *
  * @param[in]     name          Driver name.
  * @param[out]    msgp          Pointer to store the error code or @p NULL.
@@ -166,26 +173,28 @@ hal_base_driver_c *drvStartByName(const char *name, msg_t *msgp) {
   msg_t msg = HAL_RET_SUCCESS;
   hal_base_driver_c *drvp;
 
+  /* The driver is searched under the lock, then started out of it because
+     drvStart() takes the lock itself.*/
   chSysLock();
-
-  drvp = drvRegGetFirstX();
+  drvp = drvRegGetFirstI();
   while (drvp != NULL) {
     if (strcmp(drvGetNameX(drvp), name) == 0) {
-
-      msg = drvStart(drvp, NULL);
-      if (msg != HAL_RET_SUCCESS) {
-        drvp = NULL;
-      }
       break;
     }
-    drvp = drvRegGetNextX(drvp);
+    drvp = drvRegGetNextI(drvp);
+  }
+  chSysUnlock();
+
+  if (drvp != NULL) {
+    msg = drvStart(drvp, NULL);
+    if (msg != HAL_RET_SUCCESS) {
+      drvp = NULL;
+    }
   }
 
   if (msgp != NULL) {
     *msgp = msg;
   }
-
-  chSysUnlock();
 
   return drvp;
 }
@@ -226,9 +235,7 @@ void *__drv_objinit_impl(void *ip, const void *vmt) {
 #endif
 #endif
 #if HAL_USE_REGISTRY == TRUE
-  self->id     = 0U;
-  self->name   = "unk";
-  drv_reg_insert(self);
+  self->name   = NULL;
 #endif
 
   return self;
@@ -246,7 +253,9 @@ void __drv_dispose_impl(void *ip) {
 
   /* Finalization code.*/
 #if HAL_USE_REGISTRY == TRUE
-  drv_reg_remove(self);
+  if (self->name != NULL) {
+    drvUnregister(self);
+  }
 #endif
 
   /* Finalization of the ancestors-defined parts.*/
@@ -263,10 +272,14 @@ void __drv_dispose_impl(void *ip) {
  * @details     Starts driver operations. When called from @p
  *              HAL_DRV_STATE_STOP the peripheral is physically initialized
  *              using the specified configuration. If @p config is @p NULL then
- *              configuration zero is used. Calls while the driver is already
- *              @p HAL_DRV_STATE_READY with @p config equal to @p NULL are
- *              ignored, calls with a non-@p NULL configuration perform a live
- *              reconfiguration equivalent to @p drvSetCfgX().
+ *              the low level driver default configuration is used. Calls while
+ *              the driver is already @p HAL_DRV_STATE_READY with @p config
+ *              equal to @p NULL are ignored, calls with a non-@p NULL
+ *              configuration perform a live reconfiguration equivalent to @p
+ *              drvSetCfgX().
+ * @note        The low level driver default configuration is configuration
+ *              zero of @p drvSelectCfgX() only when the driver configurations
+ *              table is disabled, see @p drvSelectCfgX().
  * @note        The function can fail with error @p HAL_RET_INV_STATE if called
  *              while the driver is already being started or stopped. In case
  *              you need multiple threads to perform start and stop operation
@@ -446,8 +459,13 @@ msg_t drvSetCfgX(void *ip, const void *config) {
 /**
  * @brief       Live reconfiguration using one of the pre-defined driver
  *              configurations.
- * @note        Only configuration zero is guaranteed to exist, it is the
- *              driver default configuration.
+ * @note        With the driver configurations table disabled (@p
+ *              XXX_USE_CONFIGURATIONS set to @p FALSE) only configuration zero
+ *              exists, it is the low level driver default configuration, the
+ *              same used by @p drvStart() with a @p NULL configuration. With
+ *              the table enabled the configurations are the entries of the
+ *              application table, configuration zero is its first entry and an
+ *              empty table has no configurations.
  * @note        This function is only valid in @p HAL_DRV_STATE_READY. Initial
  *              configuration is passed to @p drvStart().
  *
@@ -472,6 +490,77 @@ const void *drvSelectCfgX(void *ip, unsigned cfgnum) {
 
   return config;
 }
+
+#if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
+/**
+ * @brief       Adds the driver to the HAL registry.
+ * @details     The driver is registered under the specified name, it can then
+ *              be found by name and enumerated. Names are unique.
+ * @note        The name string is not copied, it must remain valid while the
+ *              driver is registered.
+ * @note        This function must be called after @p chSysInit().
+ *
+ * @param[in,out] ip            Pointer to a @p hal_base_driver_c instance.
+ * @param[in]     name          Driver name.
+ * @return                      The operation status.
+ * @retval HAL_RET_SUCCESS      Operation successful.
+ * @retval HAL_RET_NO_RESOURCE  If another driver is registered with the same
+ *                              name.
+ *
+ * @api
+ */
+msg_t drvRegister(void *ip, const char *name) {
+  hal_base_driver_c *self = (hal_base_driver_c *)ip;
+  msg_t msg = HAL_RET_SUCCESS;
+  hal_base_driver_c *drvp;
+
+  chDbgCheck((self != NULL) && (name != NULL));
+
+  chSysLock();
+
+  chDbgAssert(self->name == NULL, "already registered");
+
+  /* Names are unique.*/
+  drvp = drvRegGetFirstI();
+  while (drvp != NULL) {
+    if (strcmp(drvp->name, name) == 0) {
+      msg = HAL_RET_NO_RESOURCE;
+      break;
+    }
+    drvp = drvRegGetNextI(drvp);
+  }
+
+  if (msg == HAL_RET_SUCCESS) {
+    self->name = name;
+    drv_reg_insert(self);
+  }
+
+  chSysUnlock();
+
+  return msg;
+}
+
+/**
+ * @brief       Removes the driver from the HAL registry.
+ * @note        Does nothing if the driver is not registered.
+ *
+ * @param[in,out] ip            Pointer to a @p hal_base_driver_c instance.
+ *
+ * @api
+ */
+void drvUnregister(void *ip) {
+  hal_base_driver_c *self = (hal_base_driver_c *)ip;
+
+  chDbgCheck(self != NULL);
+
+  chSysLock();
+  if (self->name != NULL) {
+    drv_reg_remove(self);
+    self->name = NULL;
+  }
+  chSysUnlock();
+}
+#endif /* HAL_USE_REGISTRY == TRUE */
 /** @} */
 
 /** @} */

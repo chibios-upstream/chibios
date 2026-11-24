@@ -46,6 +46,15 @@ static const SPIConfig spi_icm20948_config = {
 };
 
 /*
+ * I2C configuration for MCU_I2C0, the 40-pin header instance (pins 3/5).
+ * Standard mode: no sensor is wired to this bus on the Gemstone O1 (both
+ * onboard sensors are on SPI), so this is a bus-level smoke test only.
+ */
+static const I2CConfig i2c0_config = {
+  .frequency            = 100000U
+};
+
+/*
  * Writes a string to the console, blocking until the last character has
  * left the transmitter.
  */
@@ -800,6 +809,37 @@ static const char *sio_selftest(void) {
 }
 
 /*
+ * Attempts a 1-byte read from address 0x50 (common EEPROM address) on
+ * MCU_I2C0. Nothing is wired up, so a clean NACK (I2C_ACK_FAILURE) is the
+ * expected -- and fine -- outcome; it still proves the async
+ * start/interrupt/complete path runs end to end. A hang or an unexpected
+ * MSG_RESET without I2C_ACK_FAILURE would flag a driver bug.
+ */
+static void i2c_probe_bus(void) {
+  uint8_t data;
+  msg_t msg;
+
+  /* The board owns the pads and decides on their pull-ups.*/
+  board_i2c0_pinmux();
+
+  if (drvStart(&I2CD1, &i2c0_config) != HAL_RET_SUCCESS) {
+    trace_printf("I2C start failed\n");
+    console_write("I2C start FAILED\r\n");
+    return;
+  }
+
+  msg = i2cMasterReceiveTimeout(&I2CD1, 0x50U, &data, 1U, TIME_MS2I(50));
+  if (msg == MSG_OK) {
+    trace_printf("I2C probe: got 0x%02x from 0x50\n", data);
+  }
+  else {
+    trace_printf("I2C probe: msg=%d errors=0x%02x (NACK expected)\n",
+                 (int)msg, (unsigned)i2cGetAndClearErrorsX(&I2CD1));
+  }
+  console_write("I2C probe done\r\n");
+}
+
+/*
  * Blinker thread, proves the scheduler preempts and the tick advances.
  */
 static THD_WORKING_AREA(waHeartbeat, 512);
@@ -890,6 +930,7 @@ int main(void) {
   console_write("type characters to have them echoed back\r\n");
 
   spi_probe_icm20948();
+  i2c_probe_bus();
 
   chThdCreateStatic(waHeartbeat, sizeof (waHeartbeat),
                     NORMALPRIO + 1, heartbeat, NULL);

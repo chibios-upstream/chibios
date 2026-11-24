@@ -45,7 +45,7 @@
 /**
  * @brief   Kernel version string.
  */
-#define CH_VFS_VERSION          "1.0.0"
+#define CH_VFS_VERSION          "1.1.0"
 
 /**
  * @brief   Kernel version major number.
@@ -55,7 +55,7 @@
 /**
  * @brief   Kernel version minor number.
  */
-#define CH_VFS_MINOR            0
+#define CH_VFS_MINOR            1
 
 /**
  * @brief   Kernel version patch number.
@@ -126,43 +126,12 @@
 #include "drvtmplfs.h"
 #endif
 
-/* Application code is supposed to export this symbol when the process-aware
-   root API is enabled.*/
-#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
-extern vfs_root_c *vfs_root;
-#endif
+#include "vfsio.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
   void vfsInit(void);
-#if VFS_CFG_ENABLE_DRV_ROOT == TRUE
-  msg_t vfsChangeCurrentDirectory(const char *path);
-  msg_t vfsGetCurrentDirectory(char *buf, size_t size);
-  msg_t vfsStat(const char *path, vfs_stat_t *sp);
-  msg_t vfsOpen(const char *path, int flags, vfs_node_c **vnpp);
-  msg_t vfsOpenDirectory(const char *name, vfs_directory_node_c **vdnpp);
-  msg_t vfsOpenFile(const char *name, int flags, vfs_file_node_c **vfnpp);
-  msg_t vfsUnlink(const char *path);
-  msg_t vfsRename(const char *oldpath, const char *newpath);
-  msg_t vfsMkdir(const char *path, vfs_mode_t mode);
-  msg_t vfsRmdir(const char *path);
-#endif
-  msg_t vfsGetNodeStat(vfs_node_c *np, vfs_stat_t *sp);
-  void vfsClose(vfs_node_c *vnp);
-  msg_t vfsReadDirectoryFirst(vfs_directory_node_c *vdnp,
-                              vfs_direntry_info_t *dip);
-  msg_t vfsReadDirectoryNext(vfs_directory_node_c *vdnp,
-                             vfs_direntry_info_t *dip);
-  ssize_t vfsReadFile(vfs_file_node_c *vfnp, uint8_t *buf, size_t n);
-  ssize_t vfsWriteFile(vfs_file_node_c *vfnp, const uint8_t *buf, size_t n);
-  msg_t vfsSetFilePosition(vfs_file_node_c *vfnp,
-                           vfs_offset_t offset,
-                           vfs_seekmode_t whence);
-  vfs_offset_t vfsGetFilePosition(vfs_file_node_c *vfnp);
-  msg_t vfsControlFile(vfs_file_node_c *vfnp,
-                       vfs_control_op_t operation,
-                       void *arg);
 #ifdef __cplusplus
 }
 #endif

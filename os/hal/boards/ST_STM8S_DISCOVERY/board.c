@@ -48,9 +48,9 @@ CH_IRQ_HANDLER(13) {
 
   CH_IRQ_PROLOGUE();
 
-  chSysLockFromIsr();
+  chSysLockFromISR();
   chSysTimerHandlerI();
-  chSysUnlockFromIsr();
+  chSysUnlockFromISR();
 
   TIM2->SR1 = 0;
 

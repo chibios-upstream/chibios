@@ -28,7 +28,8 @@
  *          One of the following macros must also be defined:
  *          - STM32H503xx.
  *          - STM32H533xx.
- *          - STM32H562xx, STM32H563xx, STM32H573xx.
+ *          - STM32H562xx, STM32H563xx, STM32H573xx,
+ *          - STM32H5F5xx.
  *          .
  *
  * @addtogroup HAL
@@ -64,6 +65,9 @@
 
 #elif defined(STM32H573xx)
   #define PLATFORM_NAME         "STM32H5 High-performance with security"
+
+#elif defined(STM32H5F5xx)
+  #define PLATFORM_NAME         "STM32H5 High-performance with graphics"
 
 #else
   #error "STM32H5 device not specified"
@@ -246,6 +250,11 @@
 
 #ifndef RCC_CCIPR5_SAI2SEL_Pos
 #define RCC_CCIPR5_SAI2SEL_Pos              19U
+#endif
+
+/* Devices with OTG cells name the USB kernel clock selector differently.*/
+#if !defined(RCC_CCIPR4_USBSEL_Pos) && defined(RCC_CCIPR4_OTGFSSEL_Pos)
+#define RCC_CCIPR4_USBSEL_Pos               RCC_CCIPR4_OTGFSSEL_Pos
 #endif
 
 /**
@@ -1433,6 +1442,9 @@
 
 #elif defined(STM32H573xx) && !defined(STM32H573_XMCUCONF)
 #error "Using a wrong mcuconf.h file, STM32H573_XMCUCONF not defined"
+
+#elif defined(STM32H5F5xx) && !defined(STM32H5F5_XMCUCONF)
+#error "Using a wrong mcuconf.h file, STM32H5F5_XMCUCONF not defined"
 
 #endif
 

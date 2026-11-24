@@ -38,8 +38,37 @@
  */
 #define RP_ROSC_ASSUMED_HZ      6000000U
 
-#if RP_CLOCK_DYNAMIC == TRUE
+#if (RP_CLOCK_DYNAMIC == TRUE) || (RP_QMI_USE_CONTINUOUS_READ == TRUE) ||   \
+    (RP_QMI_MIN_DESELECT_NS > 0U)
 #define RAMFUNC __attribute__((noinline, section(".ramtext")))
+#endif
+
+#if (RP_QMI_USE_CONTINUOUS_READ == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Uncached, non-allocating, untranslated alias of the XIP window.
+ * @note    Every read through it reaches the flash at the physical offset
+ *          given, whatever address translation is in place.
+ */
+#define RP_XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE 0x1C000000U
+
+/**
+ * @brief   Physical flash offsets read to check continuous read.
+ * @note    The address bits these put on IO0 during the first eight clocks
+ *          of an EBh or BBh read are zero, as are bits 4 and 0 of the
+ *          default mode byte, so a flash that ignores continuous read
+ *          decodes the command-less checking reads as instruction 00h.
+ */
+#define RP_QMI_CHECK_OFFSET_A           0x00U
+#define RP_QMI_CHECK_OFFSET_B           0x40U
+
+/**
+ * @brief   Busy-wait iterations for chip select to drop after a read.
+ * @note    The QMI keeps chip select asserted for up to 3 x 64 system
+ *          clocks after a read (M0_TIMING.COOLDOWN), continuing the burst
+ *          when the next read is sequential. Each iteration takes several
+ *          clocks.
+ */
+#define RP_QMI_DESELECT_WAIT_LOOPS      256U
 #endif
 
 /*===========================================================================*/
@@ -126,6 +155,21 @@ static volatile uint32_t rp_clock_seq;
 static uint32_t rp_clock_boot_qmi_div;
 #endif
 
+#if (RP_QMI_USE_CONTINUOUS_READ == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   M0_RCMD of the bootrom's read, with a mode byte that keeps the
+ *          flash out of continuous read.
+ * @details Zero until @p rp_qmi_init() has put the flash in continuous
+ *          read, or tried to.
+ */
+static uint32_t rp_qmi_rcmd_normal;
+
+/**
+ * @brief   The boot flash is in continuous read.
+ */
+static bool rp_qmi_continuous;
+#endif
+
 /*===========================================================================*/
 /* Driver local functions.                                                   */
 /*===========================================================================*/
@@ -152,6 +196,110 @@ static void rp_tick_start(uint32_t index, uint32_t cycles) {
   TICKS->TICK[index].CYCLES = cycles;
   TICKS->TICK[index].CTRL = TICKS_CTRL_ENABLE;
 }
+
+#if (RP_QMI_MIN_DESELECT_NS > 0U) || defined(__DOXYGEN__)
+/**
+ * @brief   System clocks covering @p RP_QMI_MIN_DESELECT_NS.
+ *
+ * @param[in] sys_freq  clk_sys frequency in Hz
+ * @return              The QMI MIN_DESELECT value, which may exceed the
+ *                      field.
+ */
+static uint32_t rp_qmi_deselect_cycles(uint32_t sys_freq) {
+
+  /* Rounded up twice, the result is never short of the requested time;
+     the compile-time check bounds the product.*/
+  return ((RP_QMI_MIN_DESELECT_NS * ((sys_freq + 999U) / 1000U)) +
+          999999U) / 1000000U;
+}
+
+/**
+ * @brief   Programs the QMI chip select high time between flash reads.
+ * @details Runs from RAM so no XIP fetch from this core is in flight
+ *          while the timing register changes.
+ * @note    This function MUST be in RAM.
+ *
+ * @param[in] cycles    MIN_DESELECT value in system clocks, 0..31
+ */
+RAMFUNC static void rp_qmi_set_deselect(uint32_t cycles) {
+
+  QMI->M0_TIMING = (QMI->M0_TIMING & ~QMI_TIMING_MIN_DESELECT_Msk) |
+                   QMI_TIMING_MIN_DESELECT(cycles);
+  (void)QMI->M0_TIMING;
+  __DSB();
+  __ISB();
+}
+#endif /* RP_QMI_MIN_DESELECT_NS > 0U */
+
+#if (RP_QMI_USE_CONTINUOUS_READ == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Waits long enough for the QMI to drop chip select.
+ * @note    This function MUST be in RAM.
+ */
+RAMFUNC static void rp_qmi_wait_deselect(void) {
+  volatile uint32_t i;
+
+  for (i = 0U; i < RP_QMI_DESELECT_WAIT_LOOPS; i++) {
+  }
+}
+
+/**
+ * @brief   Puts the boot flash in continuous read and checks that it took.
+ * @details One read goes out with the command and the continuous read mode
+ *          byte, after which a flash that supports continuous read expects
+ *          every read to start at the address, and M0_RFMT drops the
+ *          command. Only one such read, a second command byte would reach
+ *          the flash as address bits. It must start a transaction of its
+ *          own, or the QMI continues the open burst and the mode byte is
+ *          never sent. Two words read before and after must match; if they
+ *          do not the command is restored, and one more read takes the
+ *          flash out of continuous read if it entered it.
+ * @pre     M0_RFMT sends the command and an 8-bit mode byte, M0_RCMD is
+ *          @p rp_qmi_rcmd_normal.
+ * @note    This function MUST be in RAM, interrupts must be masked and the
+ *          other core must not be executing from flash.
+ *
+ * @return              @p true if the flash is in continuous read.
+ */
+RAMFUNC static bool rp_qmi_enter_continuous(void) {
+  volatile const uint32_t *xip =
+      (volatile const uint32_t *)RP_XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE;
+  uint32_t ref_a, ref_b;
+  bool ok;
+
+  ref_a = xip[RP_QMI_CHECK_OFFSET_A / 4U];
+  ref_b = xip[RP_QMI_CHECK_OFFSET_B / 4U];
+
+  /* Erased flash reads the same as a bus nothing drives, it cannot show
+     whether continuous read took.*/
+  if ((ref_a == 0xFFFFFFFFU) && (ref_b == 0xFFFFFFFFU)) {
+    return false;
+  }
+
+  QMI->M0_RCMD = (rp_qmi_rcmd_normal & ~QMI_RCMD_SUFFIX_Msk) |
+                 QMI_RCMD_SUFFIX(RP_QMI_CONTINUOUS_READ_MODE);
+  __DSB();
+  rp_qmi_wait_deselect();
+  (void)xip[RP_QMI_CHECK_OFFSET_A / 4U];
+  __DSB();
+  QMI->M0_RFMT &= ~QMI_RFMT_PREFIX_LEN;
+  __DSB();
+
+  ok = (xip[RP_QMI_CHECK_OFFSET_B / 4U] == ref_b) &&
+       (xip[RP_QMI_CHECK_OFFSET_A / 4U] == ref_a);
+  if (!ok) {
+    QMI->M0_RCMD = rp_qmi_rcmd_normal;
+    QMI->M0_RFMT |= QMI_RFMT_PREFIX_LEN;
+    __DSB();
+    rp_qmi_wait_deselect();
+    (void)xip[RP_QMI_CHECK_OFFSET_A / 4U];
+    __DSB();
+  }
+  __ISB();
+
+  return ok;
+}
+#endif /* RP_QMI_USE_CONTINUOUS_READ == TRUE */
 
 /*===========================================================================*/
 /* Driver exported functions.                                                */
@@ -410,6 +558,14 @@ static bool rp_clock_config_valid(const halclkcfg_t *ccp) {
     return false;
   }
 
+#if RP_QMI_MIN_DESELECT_NS > 0U
+  /* The chip select high time must still fit the field at the target.*/
+  if (rp_qmi_deselect_cycles(sys_freq) >
+      (QMI_TIMING_MIN_DESELECT_Msk >> QMI_TIMING_MIN_DESELECT_Pos)) {
+    return false;
+  }
+#endif
+
   return true;
 }
 
@@ -516,6 +672,9 @@ RAMFUNC static void rp_clock_set_qmi_clkdiv(uint32_t clkdiv) {
  */
 bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
   uint32_t sys_freq, div_old, div_new, div_safe, primask;
+#if RP_QMI_MIN_DESELECT_NS > 0U
+  uint32_t cur_freq, sel_new, sel_safe;
+#endif
 
   osalDbgCheck(ccp != NULL);
 
@@ -539,6 +698,15 @@ bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
                                      : rp_clock_boot_qmi_div;
   div_safe = (div_new > div_old) ? div_new : div_old;
 
+#if RP_QMI_MIN_DESELECT_NS > 0U
+  /* Chip select high time likewise, safe at both frequencies before the
+     switch: the higher one needs more system clocks.*/
+  cur_freq = rp_clock_get_hz(RP_CLK_SYS);
+  sel_new  = rp_qmi_deselect_cycles(sys_freq);
+  sel_safe = rp_qmi_deselect_cycles((cur_freq > sys_freq) ? cur_freq
+                                                          : sys_freq);
+#endif
+
 #if RP_ALLOW_OVERCLOCK == TRUE
   /* A raised core voltage must be stable before the frequency goes up;
      a timeout aborts the switch with the clocks untouched. */
@@ -558,6 +726,9 @@ bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
   /* Flash divider safe at both the current and the target frequency
      before anything changes. */
   rp_clock_set_qmi_clkdiv(div_safe & 0xFFU);
+#if RP_QMI_MIN_DESELECT_NS > 0U
+  rp_qmi_set_deselect(sel_safe);
+#endif
 
   /* Parking clk_sys on clk_ref through the glitchless mux; execution
      continues from flash at the reference frequency. */
@@ -582,6 +753,9 @@ bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
   /* Final flash divider for the new frequency; the encoding for the
      effective divider 256 is zero. */
   rp_clock_set_qmi_clkdiv(div_new & 0xFFU);
+#if RP_QMI_MIN_DESELECT_NS > 0U
+  rp_qmi_set_deselect(sel_new);
+#endif
 
   /* Publishing the new frequencies under the sequence counter: odd
      while the table is inconsistent, readers retry across the window.
@@ -616,5 +790,76 @@ bool hal_lld_clock_switch_mode(const halclkcfg_t *ccp) {
   return false;
 }
 #endif /* RP_CLOCK_DYNAMIC == TRUE */
+
+#if (RP_QMI_USE_CONTINUOUS_READ == TRUE) ||                                 \
+    (RP_QMI_MIN_DESELECT_NS > 0U) || defined(__DOXYGEN__)
+/**
+ * @brief   Applies the boot flash read options.
+ * @details Sets the chip select high time from @p RP_QMI_MIN_DESELECT_NS
+ *          and, with @p RP_QMI_USE_CONTINUOUS_READ, puts the flash in
+ *          continuous read if the bootrom's read format allows it.
+ * @note    Called by @p hal_lld_init() before core 1 starts, interrupts
+ *          are still masked there.
+ *
+ * @notapi
+ */
+void rp_qmi_init(void) {
+
+#if RP_QMI_MIN_DESELECT_NS > 0U
+  rp_qmi_set_deselect(rp_qmi_deselect_cycles(rp_clock_get_hz(RP_CLK_SYS)));
+#endif
+
+#if RP_QMI_USE_CONTINUOUS_READ == TRUE
+  if (((QMI->M0_RFMT & QMI_RFMT_PREFIX_LEN) != 0U) &&
+      ((QMI->M0_RFMT & QMI_RFMT_SUFFIX_LEN_Msk) ==
+       QMI_RFMT_SUFFIX_LEN(QMI_RFMT_SUFFIX_LEN_8))) {
+    rp_qmi_rcmd_normal = QMI->M0_RCMD;
+    rp_qmi_continuous = rp_qmi_enter_continuous();
+  }
+#endif
+}
+#endif
+
+#if (RP_QMI_USE_CONTINUOUS_READ == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Restores a boot flash read format saved before direct access.
+ * @details After an erase, program or ID read the flash is out of
+ *          continuous read, so a saved format without the command can
+ *          only be restored by entering continuous read again.
+ * @note    This function MUST be in RAM, interrupts must be masked and the
+ *          other core must not be executing from flash.
+ *
+ * @param[in] rfmt      saved M0_RFMT value
+ * @param[in] rcmd      saved M0_RCMD value
+ *
+ * @notapi
+ */
+RAMFUNC void rp_qmi_restore_read(uint32_t rfmt, uint32_t rcmd) {
+
+  /* A format with the command, or one this driver did not set up, goes
+     back as it was.*/
+  if (((rfmt & QMI_RFMT_PREFIX_LEN) != 0U) || (rp_qmi_rcmd_normal == 0U)) {
+    QMI->M0_RFMT = rfmt;
+    QMI->M0_RCMD = rcmd;
+    return;
+  }
+
+  QMI->M0_RFMT = rfmt | QMI_RFMT_PREFIX_LEN;
+  QMI->M0_RCMD = rp_qmi_rcmd_normal;
+  rp_qmi_continuous = rp_qmi_enter_continuous();
+}
+
+/**
+ * @brief   Reports whether the boot flash is in continuous read.
+ *
+ * @return              @p true if XIP reads go out without the command.
+ *
+ * @api
+ */
+bool rp_qmi_is_continuous(void) {
+
+  return rp_qmi_continuous;
+}
+#endif
 
 /** @} */

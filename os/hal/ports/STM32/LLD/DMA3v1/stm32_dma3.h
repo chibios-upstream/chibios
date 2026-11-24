@@ -75,9 +75,15 @@
 #define STM32_DMA3_CCR_PRIO_POS         DMA_CCR_PRIO_Pos
 #define STM32_DMA3_CCR_PRIO_MASK        (3U << STM32_DMA3_CCR_PRIO_POS)
 #define STM32_DMA3_CCR_PRIO(n)          ((n) << STM32_DMA3_CCR_PRIO_POS)
+#if defined(DMA_CCR_LAP)
 #define STM32_DMA3_CCR_LAP_POS          DMA_CCR_LAP_Pos
 #define STM32_DMA3_CCR_LAP_MASK         (1U << STM32_DMA3_CCR_LAP_POS)
 #define STM32_DMA3_CCR_LAP(n)           ((n) << STM32_DMA3_CCR_LAP_POS)
+#else
+/* Single master port, no port allocation (STM32C5 LPDMA).*/
+#define STM32_DMA3_CCR_LAP_MASK         0U
+#define STM32_DMA3_CCR_LAP(n)           0U
+#endif
 #define STM32_DMA3_CCR_LAP_MEM          STM32_DMA3_CCR_LAP(STM32_DMA3_MEMORY_PORT)
 #define STM32_DMA3_CCR_LAP_PER          STM32_DMA3_CCR_LAP(STM32_DMA3_PERIPHERAL_PORT)
 #define STM32_DMA3_CCR_LSM              DMA_CCR_LSM
@@ -93,9 +99,15 @@
 #define STM32_DMA3_CCR_EN               DMA_CCR_EN
 
 #define STM32_DMA3_CTR1_DSEC            DMA_CTR1_DSEC
+#if defined(DMA_CTR1_DAP)
 #define STM32_DMA3_CTR1_DAP_POS         DMA_CTR1_DAP_Pos
 #define STM32_DMA3_CTR1_DAP_MASK        (1U << STM32_DMA3_CTR1_DAP_POS)
 #define STM32_DMA3_CTR1_DAP(n)          ((n) << STM32_DMA3_CTR1_DAP_POS)
+#else
+/* Single master port, no port allocation (STM32C5 LPDMA).*/
+#define STM32_DMA3_CTR1_DAP_MASK        0U
+#define STM32_DMA3_CTR1_DAP(n)          0U
+#endif
 #define STM32_DMA3_CTR1_DAP_MEM         STM32_DMA3_CTR1_DAP(STM32_DMA3_MEMORY_PORT)
 #define STM32_DMA3_CTR1_DAP_PER         STM32_DMA3_CTR1_DAP(STM32_DMA3_PERIPHERAL_PORT)
 #define STM32_DMA3_CTR1_DHX             DMA_CTR1_DHX
@@ -111,9 +123,15 @@
 #define STM32_DMA3_CTR1_DDW_HALF        STM32_DMA3_CTR1_DDW_LOG2(1U)
 #define STM32_DMA3_CTR1_DDW_WORD        STM32_DMA3_CTR1_DDW_LOG2(2U)
 #define STM32_DMA3_CTR1_SSEC            DMA_CTR1_SSEC
+#if defined(DMA_CTR1_SAP)
 #define STM32_DMA3_CTR1_SAP_POS         DMA_CTR1_SAP_Pos
 #define STM32_DMA3_CTR1_SAP_MASK        (1U << STM32_DMA3_CTR1_SAP_POS)
 #define STM32_DMA3_CTR1_SAP(n)          ((n) << STM32_DMA3_CTR1_SAP_POS)
+#else
+/* Single master port, no port allocation (STM32C5 LPDMA).*/
+#define STM32_DMA3_CTR1_SAP_MASK        0U
+#define STM32_DMA3_CTR1_SAP(n)          0U
+#endif
 #define STM32_DMA3_CTR1_SAP_MEM         STM32_DMA3_CTR1_SAP(STM32_DMA3_MEMORY_PORT)
 #define STM32_DMA3_CTR1_SAP_PER         STM32_DMA3_CTR1_SAP(STM32_DMA3_PERIPHERAL_PORT)
 #define STM32_DMA3_CTR1_SBX             DMA_CTR1_SBX
@@ -148,7 +166,13 @@
 #define STM32_DMA3_CTR2_TRIGM(n)        ((n) << STM32_DMA3_CTR2_TRIGM_POS)
 #define STM32_DMA3_CTR2_PFREQ           DMA_CTR2_PFREQ
 #define STM32_DMA3_CTR2_BREQ            DMA_CTR2_BREQ
+#if defined(DMA_CTR2_DREQ)
 #define STM32_DMA3_CTR2_DREQ            DMA_CTR2_DREQ
+#else
+/* The hardware request gates the transfer whatever the peripheral is source
+   or destination (STM32C5 LPDMA).*/
+#define STM32_DMA3_CTR2_DREQ            0U
+#endif
 #define STM32_DMA3_CTR2_SWREQ           DMA_CTR2_SWREQ
 #define STM32_DMA3_CTR2_REQSEL_POS      DMA_CTR2_REQSEL_Pos
 #define STM32_DMA3_CTR2_REQSEL_MASK     (0xFFU << STM32_DMA3_CTR2_REQSEL_POS)
@@ -289,6 +313,10 @@
 
 #if !defined(STM32_DMA32_NUM_CHANNELS)
 #error "STM32_DMA32_NUM_CHANNELS not defined in registry"
+#endif
+
+#if !defined(STM32_DMA3_HAS_2D_REGISTERS)
+#error "STM32_DMA3_HAS_2D_REGISTERS not defined in registry"
 #endif
 
 #if (STM32_DMA31_NUM_CHANNELS < 0) || (STM32_DMA31_NUM_CHANNELS > 8)
@@ -478,6 +506,7 @@ void dma3ChannelSetupTransfer(const stm32_dma3_channel_t *dmachp,
   chp->CLLR = llr;
 }
 
+#if (STM32_DMA3_HAS_2D_REGISTERS == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Prepares a DMA3 channel for a 2D transfer.
  * @note    The channel must have 2D capability.
@@ -514,6 +543,7 @@ void dma3ChannelSetupTransfer2D(const stm32_dma3_channel_t *dmachp,
   chp->CBR2 = br2;
   chp->CLLR = llr;
 }
+#endif
 
 /**
  * @brief   Channel enable.

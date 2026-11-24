@@ -53,12 +53,12 @@ CH_MEM_LOCAL_COHERENT_BSS(0) os_instance_t ch0;
 #if (CH_CFG_NO_IDLE_THREAD == FALSE) || defined(__DOXYGEN__)
 /**
  * @brief   Working area for core 0 idle thread.
- * @note    This could be a fully private area but the legacy threads
- *          creation API puts the @p thread_t structure inside so it
- *          needs to be "local".
+ * @note    The idle thread @p thread_t structure is inside the OS
+ *          instance, the stack is only used by the owner core so it
+ *          is private.
  */
-static CH_MEM_LOCAL_COHERENT_BSS(0) THD_STACK(ch_c0_idle_thread_wa,
-                                              PORT_IDLE_THREAD_STACK_SIZE);
+static CH_MEM_PRIVATE_BSS(0) THD_STACK(ch_c0_idle_thread_wa,
+                                       PORT_IDLE_THREAD_STACK_SIZE);
 #endif
 
 extern stkline_t __main_thread_stack_base__, __main_thread_stack_end__;
@@ -87,12 +87,12 @@ CH_MEM_LOCAL_COHERENT_BSS(1) os_instance_t ch1;
 #if (CH_CFG_NO_IDLE_THREAD == FALSE) || defined(__DOXYGEN__)
 /**
  * @brief   Working area for core 1 idle thread.
- * @note    This could be a fully private area but the legacy threads
- *          creation API puts the @p thread_t structure inside so it
- *          needs to be "local".
+ * @note    The idle thread @p thread_t structure is inside the OS
+ *          instance, the stack is only used by the owner core so it
+ *          is private.
  */
-static CH_MEM_LOCAL_COHERENT_BSS(1) THD_STACK(ch_c1_idle_thread_wa,
-                                              PORT_IDLE_THREAD_STACK_SIZE);
+static CH_MEM_PRIVATE_BSS(1) THD_STACK(ch_c1_idle_thread_wa,
+                                       PORT_IDLE_THREAD_STACK_SIZE);
 #endif
 
 extern stkline_t __c1_main_thread_stack_base__, __c1_main_thread_stack_end__;

@@ -2,6 +2,7 @@
 # a matching one is found from top to bottom. If found, its targets are used
 # to build a corresponding makefile in the same order they are defined in
 # the rule. It's recommended to keep regexes as much specific as possible.
+# A target can also carry make options, separated by spaces.
 
 demos/various/RT-ARMCM4-MAKELIB/Makefile:
   - lib
@@ -10,6 +11,19 @@ demos/various/RT-ARMCM4-MAKELIB/Makefile:
 # This makefile is intended to be run manually to test all STM32WLxx related
 # testhal projects. So, there is no need to test its targets in CI.
 testhal/STM32/STM32WLxx/Makefile: []
+
+# These makefiles only run the makefiles below them, which are built
+# directly. Building both at the same time makes them race in the same
+# build directories.
+test/vfs/Makefile$: []
+os/sb/apps/Makefile$: []
+
+# The SB host demos also build their sandbox client projects, in the
+# clients' own build directories, which are built directly and by the other
+# host demos too. The hosts are built without that step.
+demos/STM32/RT-SB-SWITCHED-XSHELL-[A-Z]+-MULTI/make/:
+  - all -o sandboxes
+  - clean
 
 # Build different RT configuration variants and generate gcov files.
 test/rt/variant/make: []

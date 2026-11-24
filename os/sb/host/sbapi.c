@@ -297,7 +297,15 @@ void sb_sysc_loadelf(sb_class_t *sbp, struct port_extctx *ectxp) {
   }
   else {
     memory_area_t ma = {buf, size};
-    ectxp->r0 = (uint32_t)sbElfLoadFile(sbGetRoot(sbp), fname, &ma);
+    const sb_memory_region_t *ncrp;
+
+    /* The coherent data section, if present in the image, is mapped onto
+       the discoverable non-cacheable region, images requiring it are
+       rejected if no such region is configured. Note, memory-type regions
+       are zeroed on load, only one loaded image at a time can use coherent
+       data within a sandbox.*/
+    ncrp = sbGetDiscoverableRegion(sbp, SB_REG_ATTR_CACHEABLE, 0U);
+    ectxp->r0 = (uint32_t)sbElfLoadFile(sbGetRoot(sbp), fname, &ma, ncrp);
   }
 #else
   (void)sbp;

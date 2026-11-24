@@ -920,11 +920,7 @@ struct hal_usb_driver {
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver identifier.
-   */
-  unsigned int              id;
-  /**
-   * @brief       Driver name.
+   * @brief       Driver name, @p NULL if not registered.
    */
   const char                *name;
   /**
@@ -953,15 +949,17 @@ struct hal_usb_driver {
    */
   const USBEndpointConfig   *epc[USB_MAX_ENDPOINTS + 1U];
   /**
-   * @brief       Fields available to the user, an application-defined handler
-   *              can be associated to an IN endpoint.
+   * @brief       Fields available to the user, one per IN endpoint.
+   * @details     An application-defined handler can be associated to each IN
+   *              endpoint.
    * @note        The base index is one, endpoint zero has no element in this
    *              array.
    */
   void                      *in_params[USB_MAX_ENDPOINTS];
   /**
-   * @brief       Fields available to the user, an application-defined handler
-   *              can be associated to an OUT endpoint.
+   * @brief       Fields available to the user, one per OUT endpoint.
+   * @details     An application-defined handler can be associated to each OUT
+   *              endpoint.
    * @note        The base index is one, endpoint zero has no element in this
    *              array.
    */

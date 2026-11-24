@@ -68,17 +68,12 @@ size_t vfs_path_append(char *dst, const char *src, size_t size) {
     return (size_t)0;
   }
 
-  /* Making sure to start with a separator in place.*/
-  if (n == 0U) {
-    *dst++ = '/';
-    n++;
-  }
-  else {
-    dst = dst + n;
-    if (*(dst - 1) != '/') {
-      *dst++ = '/';
-      n++;
+  /* Reserve space for both the separator and the final terminator.*/
+  if ((n == 0U) || (dst[n - 1U] != '/')) {
+    if (n + 1U >= size) {
+      return (size_t)0;
     }
+    dst[n++] = '/';
   }
 
   /* The appended part needs to not begin with a separator.*/
@@ -87,15 +82,14 @@ size_t vfs_path_append(char *dst, const char *src, size_t size) {
   }
 
   /* Appending.*/
-  while ((*dst++ = *src++) != '\0') {
-    n++;
-
-    if (n > size) {
+  while (*src != '\0') {
+    if (n + 1U >= size) {
+      dst[n] = '\0';
       return (size_t)0;
     }
+    dst[n++] = *src++;
   }
-
-  *dst = '\0';
+  dst[n] = '\0';
 
   return n;
 }
@@ -381,6 +375,12 @@ size_t vfs_path_normalize(char *dst, const char *src, size_t size) {
 
     dst += (size_t)ret;
     n   += (size_t)ret;
+
+    /* Preserve the final terminator when normalizing in place.*/
+    if (*src == '\0') {
+      *dst = '\0';
+      return n;
+    }
 
     /* Adding a single separator to the output.*/
     *dst++ = '/';

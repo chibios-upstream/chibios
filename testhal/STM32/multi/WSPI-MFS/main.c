@@ -55,7 +55,8 @@ static const xsnor_config_t snorcfg_mx25 = {
 };
 
 const MFSConfig mfscfg1 = {
-  .flashp           = (BaseFlash *)&snor1.n25q.fls, /* Dirty trick, "fls" at same offset by design.*/
+  /* The "fls" interface is at the same offset in all union members.*/
+  .flashp           = oopGetIf(&snor1.n25q, fls),
   .erased           = 0xFFFFFFFFU,
   .bank_size        = 4096U,
   .bank0_start      = 0U,

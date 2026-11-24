@@ -429,27 +429,26 @@ static const char *get_dir_path(const vfs_rom_dir_node_c *dp) {
   return dp->dir->path;
 }
 
-static msg_t build_absolute_path(char *buf, const char *path) {
+static msg_t validate_absolute_path(const char *path) {
 
   if (!vfs_path_is_separator(*path)) {
     return CH_RET_EINVAL;
   }
-
-  *buf = '\0';
-  if (vfs_path_append(buf, path, VFS_CFG_PATHLEN_MAX + 1) == (size_t)0) {
+  if (strnlen(path, VFS_CFG_PATHLEN_MAX + 1U) > VFS_CFG_PATHLEN_MAX) {
     return CH_RET_ENAMETOOLONG;
   }
 
   return CH_RET_SUCCESS;
 }
 
-static const vfs_romfs_dir_desc_t *find_dir(const vfs_rom_driver_c *drvp,
-                                            const char *path) {
+static const vfs_romfs_dir_desc_t *find_dir_n(const vfs_rom_driver_c *drvp,
+                                            const char *path, size_t len) {
   size_t i;
 
   i = 0U;
   while (i < drvp->tree->dirs_num) {
-    if (strcmp(drvp->tree->dirs[i].path, path) == 0) {
+    if ((strncmp(drvp->tree->dirs[i].path, path, len) == 0) &&
+        (drvp->tree->dirs[i].path[len] == '\0')) {
       return &drvp->tree->dirs[i];
     }
 
@@ -457,6 +456,12 @@ static const vfs_romfs_dir_desc_t *find_dir(const vfs_rom_driver_c *drvp,
   }
 
   return NULL;
+}
+
+static const vfs_romfs_dir_desc_t *find_dir(const vfs_rom_driver_c *drvp,
+                                          const char *path) {
+
+  return find_dir_n(drvp, path, strlen(path));
 }
 
 static bool get_child_dir_name(const char *parent,
@@ -567,9 +572,9 @@ static msg_t get_file_stat(const vfs_romfs_file_desc_t *filep,
 }
 
 static const vfs_romfs_file_desc_t *find_file(vfs_rom_driver_c *drvp,
-                                              char *path) {
+                                              const char *path) {
   const vfs_romfs_dir_desc_t *dirp;
-  char *sep;
+  const char *sep;
   const char *name;
   size_t i;
 
@@ -588,9 +593,7 @@ static const vfs_romfs_file_desc_t *find_file(vfs_rom_driver_c *drvp,
     dirp = find_dir(drvp, "/");
   }
   else {
-    *sep = '\0';
-    dirp = find_dir(drvp, path);
-    *sep = '/';
+    dirp = find_dir_n(drvp, path, (size_t)(sep - path));
   }
 
   if (dirp == NULL) {
@@ -607,19 +610,6 @@ static const vfs_romfs_file_desc_t *find_file(vfs_rom_driver_c *drvp,
   }
 
   return NULL;
-}
-
-static bool is_read_only_open(int flags) {
-
-  if ((flags & VO_ACCMODE) != VO_RDONLY) {
-    return false;
-  }
-
-  if ((flags & (VO_APPEND | VO_CREAT | VO_TRUNC | VO_EXCL)) != 0) {
-    return false;
-  }
-
-  return true;
 }
 
 static msg_t __romdir_next_impl(void *ip, vfs_direntry_info_t *dip);
@@ -867,6 +857,7 @@ static vfs_rom_dir_node_c *romdirObjectInit(vfs_rom_dir_node_c *self,
  * @param[in]     vmt           VMT pointer for the new object.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Opened access and status flags.
  * @param[in]     file          Pointer to the file descriptor.
  * @param[in]     size          File size for the current open session.
  * @param[in]     session       Dynamic file session pointer.
@@ -874,11 +865,12 @@ static vfs_rom_dir_node_c *romdirObjectInit(vfs_rom_dir_node_c *self,
  */
 static void *__romfile_objinit_impl(void *ip, const void *vmt,
                                     vfs_fs_c *driver, vfs_mode_t mode,
+                                    int flags,
                                     const vfs_romfs_file_desc_t *file,
                                     vfs_offset_t size, void *session) {
   vfs_rom_file_node_c *self = (vfs_rom_file_node_c *)ip;
 
-  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode);
+  self = __vfsfile_objinit_impl(ip, vmt, (vfs_fs_c *)driver, mode, flags);
   self->file = file;
   self->position = (vfs_offset_t)0;
   self->size = size;
@@ -1033,37 +1025,14 @@ static ssize_t __romfile_write_impl(void *ip, const uint8_t *buf, size_t n) {
 static msg_t __romfile_setpos_impl(void *ip, vfs_offset_t offset,
                                    vfs_seekmode_t whence) {
   vfs_rom_file_node_c *self = (vfs_rom_file_node_c *)ip;
-  vfs_offset_t newpos;
+  vfs_offset_t target;
+  msg_t ret;
 
-  switch (whence) {
-  case VFS_SEEK_SET:
-    newpos = offset;
-    break;
-  case VFS_SEEK_CUR:
-    if (((offset > (vfs_offset_t)0) &&
-         (offset > (self->size - self->position))) ||
-        ((offset < (vfs_offset_t)0) &&
-         (offset < ((vfs_offset_t)0 - self->position)))) {
-      return CH_RET_EINVAL;
-    }
-    newpos = self->position + offset;
-    break;
-  case VFS_SEEK_END:
-    if ((offset > (vfs_offset_t)0) ||
-        (offset < ((vfs_offset_t)0 - self->size))) {
-      return CH_RET_EINVAL;
-    }
-    newpos = self->size + offset;
-    break;
-  default:
-    return CH_RET_EINVAL;
-  }
-
-  if ((newpos < (vfs_offset_t)0) || (newpos > self->size)) {
-    return CH_RET_EINVAL;
-  }
-
-  self->position = newpos;
+  ret = __vfs_seek_target(offset, whence, (uint64_t)self->position,
+                          (uint64_t)self->size, &target);
+  CH_RETURN_ON_ERROR(ret);
+  /* Positions past the end of file read as end of file.*/
+  self->position = target;
 
   return CH_RET_SUCCESS;
 }
@@ -1078,6 +1047,20 @@ static vfs_offset_t __romfile_getpos_impl(void *ip) {
   vfs_rom_file_node_c *self = (vfs_rom_file_node_c *)ip;
 
   return self->position;
+}
+
+/**
+ * @brief       Override of method @p vfsFileSync().
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_rom_file_node_c instance.
+ * @return                      The operation result.
+ */
+static msg_t __romfile_sync_impl(void *ip) {
+
+  /* Read-only content, nothing to write.*/
+  (void)ip;
+
+  return CH_RET_SUCCESS;
 }
 
 /** @} */
@@ -1095,7 +1078,9 @@ static const struct vfs_rom_file_node_vmt __vfs_rom_file_node_vmt = {
   .write                    = __romfile_write_impl,
   .setpos                   = __romfile_setpos_impl,
   .getpos                   = __romfile_getpos_impl,
-  .control                  = __vfsfile_control_impl
+  .control                  = __vfsfile_control_impl,
+  .sync                     = __romfile_sync_impl,
+  .truncate                 = __vfsfile_truncate_impl
 };
 
 /**
@@ -1109,6 +1094,7 @@ static const struct vfs_rom_file_node_vmt __vfs_rom_file_node_vmt = {
  *                              be initialized.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     mode          Node mode flags.
+ * @param[in]     flags         Opened access and status flags.
  * @param[in]     file          Pointer to the file descriptor.
  * @param[in]     size          File size for the current open session.
  * @param[in]     session       Dynamic file session pointer.
@@ -1118,13 +1104,13 @@ static const struct vfs_rom_file_node_vmt __vfs_rom_file_node_vmt = {
  */
 static vfs_rom_file_node_c *romfileObjectInit(vfs_rom_file_node_c *self,
                                               vfs_fs_c *driver,
-                                              vfs_mode_t mode,
+                                              vfs_mode_t mode, int flags,
                                               const vfs_romfs_file_desc_t *file,
                                               vfs_offset_t size,
                                               void *session) {
 
   return __romfile_objinit_impl(self, &__vfs_rom_file_node_vmt,
-                                driver, mode, file, size, session);
+                                driver, mode, flags, file, size, session);
 }
 /** @} */
 
@@ -1178,14 +1164,11 @@ void __romdrv_dispose_impl(void *ip) {
  */
 msg_t __romdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
   vfs_rom_driver_c *self = (vfs_rom_driver_c *)ip;
-  vfs_shared_buffer_t *shbuf;
   msg_t ret;
 
-  shbuf = vfs_buffer_take_wait();
-
-  ret = build_absolute_path(shbuf->buf, path);
+  ret = validate_absolute_path(path);
   if (!CH_RET_IS_ERROR(ret)) {
-    if (strcmp(shbuf->buf, "/") == 0) {
+    if (strcmp(path, "/") == 0) {
       sp->mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR | VFS_MODE_S_IXUSR;
       sp->size = (vfs_offset_t)0;
       ret = CH_RET_SUCCESS;
@@ -1194,14 +1177,14 @@ msg_t __romdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
       const vfs_romfs_dir_desc_t *dirp;
       const vfs_romfs_file_desc_t *filep;
 
-      dirp = find_dir(self, shbuf->buf);
+      dirp = find_dir(self, path);
       if (dirp != NULL) {
         sp->mode = VFS_MODE_S_IFDIR | VFS_MODE_S_IRUSR | VFS_MODE_S_IXUSR;
         sp->size = (vfs_offset_t)0;
         ret = CH_RET_SUCCESS;
       }
       else {
-        filep = find_file(self, shbuf->buf);
+        filep = find_file(self, path);
         if (filep != NULL) {
           ret = get_file_stat(filep, sp);
         }
@@ -1211,8 +1194,6 @@ msg_t __romdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
       }
     }
   }
-
-  vfs_buffer_release(shbuf);
 
   return ret;
 }
@@ -1229,21 +1210,18 @@ msg_t __romdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
 msg_t __romdrv_opendir_impl(void *ip, const char *path,
                             vfs_directory_node_c **vdnpp) {
   vfs_rom_driver_c *self = (vfs_rom_driver_c *)ip;
-  vfs_shared_buffer_t *shbuf;
   const vfs_romfs_dir_desc_t *dirp;
   msg_t ret;
 
-  shbuf = vfs_buffer_take_wait();
-
-  ret = build_absolute_path(shbuf->buf, path);
+  ret = validate_absolute_path(path);
   if (!CH_RET_IS_ERROR(ret)) {
-    if (strcmp(shbuf->buf, "/") == 0) {
+    if (strcmp(path, "/") == 0) {
       dirp = find_dir(self, "/");
     }
     else {
-      dirp = find_dir(self, shbuf->buf);
+      dirp = find_dir(self, path);
       if (dirp == NULL) {
-        if (find_file(self, shbuf->buf) != NULL) {
+        if (find_file(self, path) != NULL) {
           ret = CH_RET_ENOTDIR;
         }
         else {
@@ -1269,8 +1247,6 @@ msg_t __romdrv_opendir_impl(void *ip, const char *path,
     }
   }
 
-  vfs_buffer_release(shbuf);
-
   return ret;
 }
 
@@ -1287,28 +1263,33 @@ msg_t __romdrv_opendir_impl(void *ip, const char *path,
 msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
                              vfs_file_node_c **vfnpp) {
   vfs_rom_driver_c *self = (vfs_rom_driver_c *)ip;
-  vfs_shared_buffer_t *shbuf;
   msg_t ret;
 
-  if (!is_read_only_open(flags)) {
-    return CH_RET_EROFS;
-  }
-
-  shbuf = vfs_buffer_take_wait();
-
-  ret = build_absolute_path(shbuf->buf, path);
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
+  ret = validate_absolute_path(path);
   if (!CH_RET_IS_ERROR(ret)) {
     const vfs_romfs_file_desc_t *filep;
 
-    filep = find_file(self, shbuf->buf);
+    filep = find_file(self, path);
     if (filep != NULL) {
       vfs_rom_file_node_c *rfnp;
       vfs_offset_t size;
       void *session;
 
+      if ((flags & VO_DIRECTORY) != 0) {
+        return CH_RET_ENOTDIR;
+      }
+      if ((flags & VO_EXCL) != 0) {
+        return CH_RET_EEXIST;
+      }
+      if ((flags & VO_ACCMODE) != VO_RDONLY) {
+        return CH_RET_EROFS;
+      }
+      /* Creation of an existing read-only file is a read-only open.*/
       ret = validate_file_descriptor(filep);
       if (CH_RET_IS_ERROR(ret)) {
-        goto romdrv_openfile_done;
+        return ret;
       }
 
       size = filep->size;
@@ -1317,29 +1298,29 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
       if (is_dynamic_file(filep)) {
         if (filep->content.dynamic.ops->open == NULL) {
           ret = CH_RET_ENOSYS;
-          goto romdrv_openfile_done;
+          return ret;
         }
 
         ret = filep->content.dynamic.ops->open(filep->content.dynamic.arg,
-                                               flags, &session, &size);
+                                               VO_RDONLY, &session, &size);
         if (CH_RET_IS_ERROR(ret)) {
-          goto romdrv_openfile_done;
+          return ret;
         }
       }
       else if (is_compressed_file(filep)) {
 #if DRV_CFG_ROM_ENABLE_COMPRESSION == FALSE
         ret = CH_RET_ENOSYS;
-        goto romdrv_openfile_done;
+        return ret;
 #else
         if (filep->content.compressed.ops->open == NULL) {
           ret = CH_RET_ENOSYS;
-          goto romdrv_openfile_done;
+          return ret;
         }
 
         ret = filep->content.compressed.ops->open(
-                filep->content.compressed.arg, flags, &session, &size);
+                filep->content.compressed.arg, VO_RDONLY, &session, &size);
         if (CH_RET_IS_ERROR(ret)) {
-          goto romdrv_openfile_done;
+          return ret;
         }
 #endif
       }
@@ -1347,7 +1328,7 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
       rfnp = chPoolAlloc(&vfs_rom_driver_static.file_nodes_pool);
       if (rfnp != NULL) {
         (void)romfileObjectInit(rfnp, (vfs_fs_c *)self,
-                                VFS_MODE_S_IFREG | filep->mode,
+                                VFS_MODE_S_IFREG | filep->mode, flags,
                                 filep, size, session);
         *vfnpp = (vfs_file_node_c *)rfnp;
         ret = CH_RET_SUCCESS;
@@ -1365,17 +1346,16 @@ msg_t __romdrv_openfile_impl(void *ip, const char *path, int flags,
       }
     }
     else {
-      if ((strcmp(shbuf->buf, "/") == 0) || (find_dir(self, shbuf->buf) != NULL)) {
+      if ((strcmp(path, "/") == 0) || (find_dir(self, path) != NULL)) {
         ret = CH_RET_EISDIR;
       }
       else {
-        ret = CH_RET_ENOENT;
+        ret = ((flags & VO_CREAT) != 0) ||
+              ((flags & VO_ACCMODE) != VO_RDONLY) ?
+              CH_RET_EROFS : CH_RET_ENOENT;
       }
     }
   }
-
-romdrv_openfile_done:
-  vfs_buffer_release(shbuf);
 
   return ret;
 }
@@ -1459,7 +1439,5 @@ const struct vfs_rom_driver_vmt __vfs_rom_driver_vmt = {
   .mkdir                    = __romdrv_mkdir_impl,
   .rmdir                    = __romdrv_rmdir_impl
 };
-
-/** @} */
 
 /** @} */

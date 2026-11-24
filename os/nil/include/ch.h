@@ -630,7 +630,7 @@ struct nil_os_instance {
 /* Module macros.                                                            */
 /*===========================================================================*/
 
-#if CH_DBG_SYSTEM_STATE_CHECK == TRUE
+#if (CH_DBG_SYSTEM_STATE_CHECK == TRUE) && !defined(__DOXYGEN__)
 #define __dbg_enter_lock() (nil.lock_cnt = (cnt_t)1)
 #define __dbg_leave_lock() (nil.lock_cnt = (cnt_t)0)
 #endif

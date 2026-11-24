@@ -39,15 +39,17 @@ static uint8_t txbuf[32];
 #define ADC_STREAM_TIMEOUT                  TIME_MS2I(2000)
 #define ADC_GPT_TRIGGER_PERIOD              100000U
 
-static adcsample_t adc_linear_samples[ADC_CHANNELS * ADC_LINEAR_DEPTH];
-static adcsample_t adc_stream_samples[ADC_CHANNELS * ADC_STREAM_DEPTH];
+/* DMA-accessed by the host side, must reside in the coherent region.*/
+static SB_NOCACHE adcsample_t adc_linear_samples[ADC_CHANNELS * ADC_LINEAR_DEPTH];
+static SB_NOCACHE adcsample_t adc_stream_samples[ADC_CHANNELS * ADC_STREAM_DEPTH];
 
 #define SPI_CFG_HS                          0U
 #define SPI_CFG_LS                          1U
 #define SPI_XFER_SIZE                       128U
 
-static uint8_t spi_txbuf[SPI_XFER_SIZE];
-static uint8_t spi_rxbuf[SPI_XFER_SIZE];
+/* DMA-accessed by the host side, must reside in the coherent region.*/
+static SB_NOCACHE uint8_t spi_txbuf[SPI_XFER_SIZE];
+static SB_NOCACHE uint8_t spi_rxbuf[SPI_XFER_SIZE];
 
 static THD_STACK(spi_thd1_stack, 512);
 static THD_STACK(spi_thd2_stack, 512);

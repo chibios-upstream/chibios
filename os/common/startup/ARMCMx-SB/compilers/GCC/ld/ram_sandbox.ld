@@ -101,4 +101,24 @@ SECTIONS
         *(.heap_rsvd)
         __heap_rsvd_end__ = .;
     }
+
+    /* Coherent data segment, the loader places it into the discoverable
+       non-cacheable region provided by the host (coherent RAM, a device
+       space, or a frame buffer configured as non-cacheable), an error is
+       reported at load time if the application uses this segment and the
+       host provides no such region.
+       The link address is conventional, the segment is relocated at load
+       time, it only needs to be far enough from the main segment, the two
+       link windows must never overlap nor be adjacent.
+       Note, this segment is BSS-like, initialized data is not supported,
+       the host zeroes the whole destination region before loading when it
+       is a memory region, device regions are never written.*/
+    .nocache 0xC0000000 (NOLOAD) : ALIGN(4)
+    {
+        __nocache_base__ = .;
+        *(.nocache)
+        *(.nocache.*)
+        . = ALIGN(4);
+        __nocache_end__ = .;
+    }
 }

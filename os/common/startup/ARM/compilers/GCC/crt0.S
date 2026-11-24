@@ -79,11 +79,31 @@ Reset_Handler:
 //                ldr     r1, =__sys_stack_size__
 //                sub     r0, r0, r1
                 /* Core initialization.*/
+#if !defined(THUMB_NO_INTERWORKING)
                 bl      __cpu_init
+#else /* defined(THUMB_NO_INTERWORKING) */
+                add     r0, pc, #1
+                bx      r0
+                .code   16
+                bl      __cpu_init
+                mov     r0, pc
+                bx      r0
+                .code   32
+#endif /* defined(THUMB_NO_INTERWORKING) */
                 /*
                  * Early initialization.
                  */
+#if !defined(THUMB_NO_INTERWORKING)
                 bl      __early_init
+#else /* defined(THUMB_NO_INTERWORKING) */
+                add     r0, pc, #1
+                bx      r0
+                .code   16
+                bl      __early_init
+                mov     r0, pc
+                bx      r0
+                .code   32
+#endif /* defined(THUMB_NO_INTERWORKING) */
 
                 /*
                  * Data initialization.
@@ -111,13 +131,33 @@ Reset_Handler:
                 /*
                  * Late initialization.
                  */
+#if !defined(THUMB_NO_INTERWORKING)
                 bl      __late_init
+#else /* defined(THUMB_NO_INTERWORKING) */
+                add     r0, pc, #1
+                bx      r0
+                .code   16
+                bl      __late_init
+                mov     r0, pc
+                bx      r0
+                .code   32
+#endif /* defined(THUMB_NO_INTERWORKING) */
 
                 /*
                  * Main program invocation.
                  */
+#if !defined(THUMB_NO_INTERWORKING)
                 bl      main
                 b       __default_exit
+#else /* defined(THUMB_NO_INTERWORKING) */
+                add     r0, pc, #1
+                bx      r0
+                .code   16
+                bl      main
+                ldr     r1, =__default_exit
+                bx      r1
+                .code   32
+#endif /* defined(THUMB_NO_INTERWORKING) */
 
 #endif /* !defined(__DOXYGEN__) */
 

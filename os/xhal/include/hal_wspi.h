@@ -117,9 +117,9 @@
  */
 #define _wspi_wakeup_i(wspip, msg)                                          \
   chThdResumeI(&(wspip)->sync_transfer, msg)
-#endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 
-#if (WSPI_USE_SYNCHRONIZATION != TRUE) || defined (__DOXYGEN__)
+#else
+
 /**
  * @brief       Wakes up the waiting thread.
  *
@@ -147,7 +147,7 @@
     (void)(wspip);                                                          \
     (void)(msg);                                                            \
   } while (false)
-#endif /* WSPI_USE_SYNCHRONIZATION != TRUE */
+#endif /* WSPI_USE_SYNCHRONIZATION == TRUE */
 
 /**
  * @brief       Common ISR code for successful operation completion, lock held.
@@ -401,11 +401,7 @@ struct hal_wspi_driver {
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver identifier.
-   */
-  unsigned int              id;
-  /**
-   * @brief       Driver name.
+   * @brief       Driver name, @p NULL if not registered.
    */
   const char                *name;
   /**

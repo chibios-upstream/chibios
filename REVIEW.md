@@ -116,24 +116,26 @@ Stage C dimensions (deep):
   (issue, knowledge base, separate fix) and leave the author out of it. The same
   principle the CI applies to style (changed lines only) applies to judgment
   findings.
-- **Changelog is reviewer-owned:** every change's `readme.txt` entry references
-  its pull request — `(github PR #N)` — and backports add
-  `(backported to <release>)`. The reviewer OWNS this entry, for two reasons:
-  the reviewer just analysed the change so is best placed to describe it
-  accurately, and `readme.txt`'s top-of-section is a frequent merge-conflict
-  point, so it is kept out of the author's hands. So:
+- **Changelog is reviewer-owned:** every change's `CHANGELOG.md` entry
+  references its pull request — `([#N](https://github.com/chibios-upstream/chibios/pull/N))`
+  — and backports add `*(backported to <release>)*`. The reviewer OWNS this
+  entry, for two reasons: the reviewer just analysed the change so is best
+  placed to describe it accurately, and the `[Unreleased]` section of
+  `CHANGELOG.md` is a frequent merge-conflict point, so it is kept out of the
+  author's hands. So:
   - if the entry is **missing**, the reviewer DRAFTS it (from the review just
     done) and pushes it to the PR branch — it is NOT raised as a finding;
-  - if present but **mis-tagged** (missing PR number, `FIX:`/`NEW:` prefix,
-    wrapping, annotations), the reviewer fixes it the same way.
+  - if present but **mis-tagged** (missing PR link, wrong `Added`/`Changed`/
+    `Fixed` section or `[COMPONENT]` tag, wrapping, annotations), the reviewer
+    fixes it the same way.
   Either way it is a small, clearly-attributed commit to the PR branch plus a
   one-line comment — never a finding, never a fix round on its own.
   **Time it to a clean Stage D:** add the entry as part of the pass that reaches
   advisory-LGTM — by then content (C) and style (D) have settled, so the entry
   will not churn, and it lands *with* the PR rather than needing a post-merge
   follow-up (doing it "near merge" risks the merge happening first). **Exception:**
-  a PR that only refines a feature still under `*** Next ***` (not yet released)
-  needs no entry — it is covered by that feature's existing `NEW:` line; only
+  a PR that only refines a feature still under `[Unreleased]` (not yet released)
+  needs no entry — it is covered by that feature's existing `Added` entry; only
   changes to already-released behaviour/APIs get one. The author is only
   expected to make the change itself correct; the changelog line is on the
   reviewer.
@@ -156,9 +158,9 @@ and judgment; there is no automatic mechanism.
   run the mechanical gates **locally** (stylecheck on touched `.c/.h` + a representative
   build for the touched port) — the stable branches have no CI.
 - The backport commit message references the original `master` commit hash.
-- **Changelog is the visible record:** the change's entry in `readme.txt` on `master` gains a
-  `(backported to <release>)` annotation — one per stable release that received it, e.g.
-  `(backported to 21.11.6).` An entry without annotations has not been backported anywhere.
+- **Changelog is the visible record:** the change's entry in `CHANGELOG.md` on `master` gains a
+  `*(backported to <release>)*` annotation — one per stable release that received it, e.g.
+  `*(backported to 21.11.6)*`. An entry without annotations has not been backported anywhere.
 - Landing: via PR (review rules apply) or direct maintainer push.
 
 ## Review output template

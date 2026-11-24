@@ -146,6 +146,9 @@ extern "C" {
 #endif
   void rp_clock_init(void);
   uint32_t rp_clock_get_hz(uint32_t clk_index);
+  void rp_qmi_init(void);
+  void rp_qmi_restore_read(uint32_t rfmt, uint32_t rcmd);
+  bool rp_qmi_is_continuous(void);
 #ifdef __cplusplus
 }
 #endif

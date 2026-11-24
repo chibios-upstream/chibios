@@ -38,6 +38,12 @@
  * <h2>Test Cases</h2>
  * - @subpage vfs_test_006_001
  * - @subpage vfs_test_006_002
+ * - @subpage vfs_test_006_003
+ * - @subpage vfs_test_006_004
+ * - @subpage vfs_test_006_005
+ * - @subpage vfs_test_006_006
+ * - @subpage vfs_test_006_007
+ * - @subpage vfs_test_006_008
  * .
  */
 
@@ -60,6 +66,28 @@ static uint8_t vfs_test_fat_disk[VFS_TEST_FAT_SECTOR_SIZE *
                                  VFS_TEST_FAT_SECTORS];
 static DSTATUS vfs_test_fat_status = STA_NOINIT;
 static vfs_fatfs_driver_c vfs_test_fat_driver;
+
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+static THD_WORKING_AREA(vfs_test_fat_io_wa, 4096);
+static THD_WORKING_AREA(vfs_test_fat_other_wa, 4096);
+static thread_reference_t vfs_test_fat_waiter;
+static bool vfs_test_fat_pause, vfs_test_fat_done;
+static ssize_t vfs_test_fat_read_result;
+static msg_t vfs_test_fat_stat_result;
+
+static THD_FUNCTION(vfs_test_fat_reader, arg) {
+  uint8_t buffer[VFS_TEST_FAT_SECTOR_SIZE];
+
+  vfs_test_fat_read_result = vfsFileRead(arg, buffer, sizeof buffer);
+}
+
+static THD_FUNCTION(vfs_test_fat_other, arg) {
+  vfs_stat_t stat;
+
+  vfs_test_fat_stat_result = vfsNodeStat(arg, &stat);
+  vfs_test_fat_done = true;
+}
+#endif
 
 DSTATUS disk_initialize(BYTE pdrv) {
 
@@ -90,6 +118,15 @@ DRESULT disk_read(BYTE pdrv, BYTE *buf, LBA_t sector, UINT count) {
     return RES_PARERR;
   }
 
+#if VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+  if (vfs_test_fat_pause) {
+    vfs_test_fat_pause = false;
+    chDbgAssert(chMtxGetNextMutexX() != NULL, "unprotected FatFS I/O");
+    chSysLock();
+    (void)chThdSuspendS(&vfs_test_fat_waiter);
+    chSysUnlock();
+  }
+#endif
   memcpy(buf, &vfs_test_fat_disk[(size_t)sector *
                                  VFS_TEST_FAT_SECTOR_SIZE],
          (size_t)count * VFS_TEST_FAT_SECTOR_SIZE);
@@ -134,14 +171,56 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buf) {
   }
 }
 
+#define VFS_TEST_FAT_TIME(y, mo, d, h, mi, s)                               \
+  (((DWORD)((y) - 1980U) << 25) | ((DWORD)(mo) << 21) |                     \
+   ((DWORD)(d) << 16) | ((DWORD)(h) << 11) | ((DWORD)(mi) << 5) |           \
+   ((DWORD)(s) / 2U))
+
+#define VFS_TEST_FAT_DEFAULT_TIME                                           \
+  VFS_TEST_FAT_TIME(2024U, 2U, 29U, 12U, 34U, 56U)
+
+/* Clock used by FatFS for the new timestamps.*/
+static DWORD vfs_test_fat_time = VFS_TEST_FAT_DEFAULT_TIME;
+
 DWORD get_fattime(void) {
 
-  return ((DWORD)(2024U - 1980U) << 25) |
-         ((DWORD)2U << 21) |
-         ((DWORD)29U << 16) |
-         ((DWORD)12U << 11) |
-         ((DWORD)34U << 5) |
-         ((DWORD)56U / 2U);
+  return vfs_test_fat_time;
+}
+
+/* Checks the modification time reported by a stat, zero for none.*/
+static bool vfs_test_fat_mtime(msg_t ret, const vfs_stat_t *sp,
+                               int64_t expected) {
+
+  if (ret != CH_RET_SUCCESS) {
+    return false;
+  }
+  if (expected == 0) {
+    return ((sp->valid & VFS_STAT_VALID_MTIME) == 0U) &&
+           (sp->mtime.tv_sec == 0) && (sp->mtime.tv_nsec == 0U);
+  }
+
+  return ((sp->valid & VFS_STAT_VALID_MTIME) != 0U) &&
+         (sp->mtime.tv_sec == expected) && (sp->mtime.tv_nsec == 0U);
+}
+
+/* Sets the size of a short directory entry in the RAM disk image, the
+   volume is unmounted.*/
+static bool vfs_test_fat_set_size(const char *sfn, uint32_t size) {
+  size_t i;
+
+  for (i = 0U; (i + 32U) <= sizeof vfs_test_fat_disk; i += 32U) {
+    uint8_t *ep = &vfs_test_fat_disk[i];
+
+    if ((memcmp(ep, sfn, 11U) == 0) && (ep[11] != 0x0FU)) {
+      ep[28] = (uint8_t)size;
+      ep[29] = (uint8_t)(size >> 8);
+      ep[30] = (uint8_t)(size >> 16);
+      ep[31] = (uint8_t)(size >> 24);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /*===========================================================================*/
@@ -306,20 +385,205 @@ static const testcase_t vfs_test_006_001 = {
 };
 
 /**
- * @page vfs_test_006_002 [6.2] Open flag semantics
+ * @page vfs_test_006_002 [6.2] Open file modification time
+ *
+ * <h2>Description</h2>
+ * An opened file reports the time read at open until it is created,
+ * written or resized through the node, the time of a change is stored
+ * by the synchronization.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.2.1] A created file reports no time, its close stores the time
+ *   of the synchronization.
+ * - [6.2.2] An unchanged file reports its stored time, also after
+ *   reads, synchronizations and resizes to the same size.
+ * - [6.2.3] Writes and resizes drop the time, the synchronization
+ *   stores the new one.
+ * - [6.2.4] Opens truncating or overwriting the file report no time,
+ *   an open creating nothing reports the stored time.
+ * .
+ */
+
+static void vfs_test_006_002_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  vfs_test_fat_time = VFS_TEST_FAT_DEFAULT_TIME;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_002_teardown(void) {
+  msg_t ret;
+
+  vfs_test_fat_time = VFS_TEST_FAT_DEFAULT_TIME;
+  ret = ffdrvUnmount("0:");
+  test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
+}
+
+static void vfs_test_006_002_execute(void) {
+  uint8_t buf[4];
+  vfs_file_node_c *fnp;
+  vfs_stat_t stat;
+  msg_t ret;
+
+  /* [6.2.1] A created file reports no time, its close stores the time
+     of the synchronization.*/
+  test_set_step(1);
+  {
+    vfs_test_fat_time = VFS_TEST_FAT_TIME(2025U, 7U, 14U, 10U, 20U, 30U);
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin",
+                        VO_CREAT | VO_RDWR, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS file create failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, 0),
+                "created file reported a time");
+    test_assert(vfsFileWrite(fnp, (const uint8_t *)"data", 4U) == 4,
+                "FatFS file write failed");
+    vfs_test_fat_time = VFS_TEST_FAT_TIME(2025U, 7U, 14U, 10U, 21U, 0U);
+    (void)roRelease(fnp);
+    ret = vfsFSStat(&vfs_test_fat_driver, "/time.bin", &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752488460),
+                "close time not stored");
+  }
+  test_end_step(1);
+
+  /* [6.2.2] An unchanged file reports its stored time, also after
+     reads, synchronizations and resizes to the same size.*/
+  test_set_step(2);
+  {
+    vfs_test_fat_time = VFS_TEST_FAT_TIME(2025U, 7U, 15U, 8U, 0U, 0U);
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin", VO_RDONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752488460),
+                "stored time not reported");
+    test_assert((vfsFileRead(fnp, buf, sizeof buf) == 4) &&
+                (vfsFileSync(fnp) == CH_RET_SUCCESS),
+                "FatFS read or sync failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752488460),
+                "time lost by read or sync");
+    (void)roRelease(fnp);
+
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin",
+                        VO_CREAT | VO_RDWR, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+    test_assert((vfsFileTruncate(fnp, 4) == CH_RET_SUCCESS) &&
+                (vfsFileSync(fnp) == CH_RET_SUCCESS),
+                "FatFS truncate or sync failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752488460),
+                "time lost by an unchanged size");
+    (void)roRelease(fnp);
+    ret = vfsFSStat(&vfs_test_fat_driver, "/time.bin", &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752488460),
+                "unchanged file time rewritten");
+  }
+  test_end_step(2);
+
+  /* [6.2.3] Writes and resizes drop the time, the synchronization
+     stores the new one.*/
+  test_set_step(3);
+  {
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin", VO_RDWR, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+    test_assert(vfsFileWrite(fnp, (const uint8_t *)"x", 1U) == 1,
+                "FatFS file write failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, 0), "time kept by a write");
+    test_assert(vfsFileSync(fnp) == CH_RET_SUCCESS, "FatFS sync failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, 0), "time back after a sync");
+    ret = vfsFSStat(&vfs_test_fat_driver, "/time.bin", &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1752566400),
+                "sync time not stored");
+    (void)roRelease(fnp);
+
+    vfs_test_fat_time = VFS_TEST_FAT_TIME(2025U, 12U, 31U, 23U, 59U, 58U);
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin", VO_RDWR, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+    test_assert(vfsFileTruncate(fnp, 2) == CH_RET_SUCCESS,
+                "FatFS truncate failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, 0), "time kept by a resize");
+    (void)roRelease(fnp);
+    ret = vfsFSStat(&vfs_test_fat_driver, "/time.bin", &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1767225598),
+                "resize time not stored");
+  }
+  test_end_step(3);
+
+  /* [6.2.4] Opens truncating or overwriting the file report no time,
+     an open creating nothing reports the stored time.*/
+  test_set_step(4);
+  {
+    vfs_test_fat_time = VFS_TEST_FAT_TIME(2026U, 1U, 1U, 0U, 0U, 2U);
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin",
+                        VO_CREAT | VO_RDWR, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1767225598),
+                "existing file time not reported");
+    (void)roRelease(fnp);
+
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin",
+                        VO_RDWR | VO_TRUNC, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, 0),
+                "truncating open reported a time");
+    (void)roRelease(fnp);
+
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/time.bin",
+                        VO_CREAT | VO_RDWR | VO_TRUNC, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "FatFS file open failed");
+    ret = vfsNodeStat(fnp, &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, 0),
+                "overwriting open reported a time");
+    (void)roRelease(fnp);
+    ret = vfsFSStat(&vfs_test_fat_driver, "/time.bin", &stat);
+    test_assert(vfs_test_fat_mtime(ret, &stat, (int64_t)1767225602),
+                "overwrite time not stored");
+  }
+  test_end_step(4);
+}
+
+static const testcase_t vfs_test_006_002 = {
+  "Open file modification time",
+  vfs_test_006_002_setup,
+  vfs_test_006_002_teardown,
+  vfs_test_006_002_execute
+};
+
+/**
+ * @page vfs_test_006_003 [6.3] Open flag semantics
  *
  * <h2>Description</h2>
  * Creation preserves existing contents unless truncation is requested,
  * truncation without creation requires an existing file.
  *
  * <h2>Test Steps</h2>
- * - [6.2.1] Creation without truncation preserves an existing file.
- * - [6.2.2] Truncation clears an existing file but does not create a
+ * - [6.3.1] Creation without truncation preserves an existing file.
+ * - [6.3.2] Truncation clears an existing file but does not create a
  *   missing file unless creation is also requested.
  * .
  */
 
-static void vfs_test_006_002_setup(void) {
+static void vfs_test_006_003_setup(void) {
   MKFS_PARM options = {
     .fmt     = FM_ANY,
     .n_fat   = 1U,
@@ -340,21 +604,21 @@ static void vfs_test_006_002_setup(void) {
   test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
 }
 
-static void vfs_test_006_002_teardown(void) {
+static void vfs_test_006_003_teardown(void) {
   msg_t ret;
 
   ret = ffdrvUnmount("0:");
   test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
 }
 
-static void vfs_test_006_002_execute(void) {
+static void vfs_test_006_003_execute(void) {
   static const uint8_t contents[37];
   vfs_file_node_c *fnp;
   vfs_stat_t stat;
   ssize_t n;
   msg_t ret;
 
-  /* [6.2.1] Creation without truncation preserves an existing file.*/
+  /* [6.3.1] Creation without truncation preserves an existing file.*/
   test_set_step(1);
   {
     ret = vfsFSOpenFile(&vfs_test_fat_driver, "/flags.bin",
@@ -376,7 +640,7 @@ static void vfs_test_006_002_execute(void) {
   }
   test_end_step(1);
 
-  /* [6.2.2] Truncation clears an existing file but does not create a
+  /* [6.3.2] Truncation clears an existing file but does not create a
      missing file unless creation is also requested.*/
   test_set_step(2);
   {
@@ -417,11 +681,514 @@ static void vfs_test_006_002_execute(void) {
   test_end_step(2);
 }
 
-static const testcase_t vfs_test_006_002 = {
+static const testcase_t vfs_test_006_003 = {
   "Open flag semantics",
-  vfs_test_006_002_setup,
-  vfs_test_006_002_teardown,
-  vfs_test_006_002_execute
+  vfs_test_006_003_setup,
+  vfs_test_006_003_teardown,
+  vfs_test_006_003_execute
+};
+
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
+/**
+ * @page vfs_test_006_004 [6.4] Singleton wrapper exclusion during I/O
+ *
+ * <h2>Description</h2>
+ * A suspended disk read keeps another node on the singleton filesystem
+ * out of native state; ordinary errors and directory iteration release
+ * the lock.
+ *
+ * <h2>Conditions</h2>
+ * This test is only executed if the following preprocessor condition
+ * evaluates to true:
+ * - VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE
+ * .
+ *
+ * <h2>Test Steps</h2>
+ * - [6.4.1] Hold a native read at disk I/O and attempt metadata access
+ *   through another open node.
+ * - [6.4.2] Exercise error exits and rewind/read without recursive
+ *   mutex acquisition.
+ * - [6.4.3] A failed immediate mount unregisters its native object
+ *   before returning it to the pool.
+ * .
+ */
+
+static void vfs_test_006_004_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_004_teardown(void) {
+  test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS, "unmount failed");
+  test_assert(ffdrvUnmount("0:") == CH_RET_EINVAL, "second unmount error");
+  test_assert(ffdrvMount("0:", true) == CH_RET_SUCCESS, "remount failed");
+  test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS, "final unmount failed");
+}
+
+static void vfs_test_006_004_execute(void) {
+  static const uint8_t contents[VFS_TEST_FAT_SECTOR_SIZE] = {42};
+  vfs_file_node_c *first, *second;
+  vfs_directory_node_c *dir;
+  vfs_direntry_info_t entry;
+  thread_t *reader, *other;
+  bool blocked;
+  uint8_t boot[VFS_TEST_FAT_SECTOR_SIZE];
+  unsigned i;
+  msg_t ret;
+
+  /* [6.4.1] Hold a native read at disk I/O and attempt metadata access
+     through another open node.*/
+  test_set_step(1);
+  {
+    ret = vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin",
+                        VO_CREAT | VO_WRONLY, &first);
+    test_assert(ret == CH_RET_SUCCESS, "create failed");
+    test_assert(vfsFileWrite(first, contents, sizeof contents) == sizeof contents,
+                "seed write failed");
+    (void)roRelease(first);
+    test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin",
+                              VO_RDONLY, &first) == CH_RET_SUCCESS, "open failed");
+    test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin",
+                              VO_RDONLY, &second) == CH_RET_SUCCESS, "reopen failed");
+    vfs_test_fat_pause = true;
+    vfs_test_fat_done = false;
+    reader = chThdCreateStatic(vfs_test_fat_io_wa, sizeof vfs_test_fat_io_wa,
+                              chThdGetPriorityX() + 2, vfs_test_fat_reader, first);
+    other = chThdCreateStatic(vfs_test_fat_other_wa, sizeof vfs_test_fat_other_wa,
+                             chThdGetPriorityX() + 1, vfs_test_fat_other, second);
+    blocked = (vfs_test_fat_waiter != NULL) && !vfs_test_fat_done;
+    chThdResume(&vfs_test_fat_waiter, MSG_OK);
+    (void)chThdWait(reader);
+    (void)chThdWait(other);
+    (void)roRelease(first);
+    (void)roRelease(second);
+    test_assert(blocked, "another node entered the active native filesystem");
+    test_assert(vfs_test_fat_read_result == sizeof contents, "read failed");
+    test_assert(vfs_test_fat_stat_result == CH_RET_SUCCESS, "stat failed");
+  }
+  test_end_step(1);
+
+  /* [6.4.2] Exercise error exits and rewind/read without recursive
+     mutex acquisition.*/
+  test_set_step(2);
+  {
+    test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/absent.bin", VO_RDONLY,
+                              &first) == CH_RET_ENOENT, "missing file error");
+    test_assert(vfsFSOpenFile(&vfs_test_fat_driver, "/wait.bin", VO_RDONLY,
+                              &first) == CH_RET_SUCCESS, "reopen after error failed");
+    test_assert(vfsFileSetPosition(first, -1, VFS_SEEK_SET) == CH_RET_EINVAL,
+                "negative seek error");
+    test_assert(vfsFileGetPosition(first) == 0, "position after error changed");
+    (void)roRelease(first);
+    test_assert(vfsFSOpenDirectory(&vfs_test_fat_driver, "/", &dir) ==
+                CH_RET_SUCCESS, "directory open failed");
+    test_assert(vfsDirReadFirst(dir, &entry) == 1, "first failed");
+    test_assert(vfsDirReadNext(dir, &entry) == 0, "end failed");
+    test_assert(vfsDirReadFirst(dir, &entry) == 1, "rewind failed");
+    (void)roRelease(dir);
+  }
+  test_end_step(2);
+
+  /* [6.4.3] A failed immediate mount unregisters its native object
+     before returning it to the pool.*/
+  test_set_step(3);
+  {
+    test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS, "unmount failed");
+    memcpy(boot, vfs_test_fat_disk, sizeof boot);
+    memset(vfs_test_fat_disk, 0, sizeof boot);
+    for (i = 0U; i <= DRV_CFG_FATFS_FS_NUM; i++) {
+      test_assert(ffdrvMount("0:", true) == CH_RET_EIO, "bad volume error");
+      test_assert(ffdrvUnmount("0:") == CH_RET_EINVAL,
+                  "failed mount left a registered object");
+    }
+    memcpy(vfs_test_fat_disk, boot, sizeof boot);
+    test_assert(ffdrvMount("0:", true) == CH_RET_SUCCESS,
+                "failed mount leaked native storage or mutex");
+  }
+  test_end_step(3);
+}
+
+static const testcase_t vfs_test_006_004 = {
+  "Singleton wrapper exclusion during I/O",
+  vfs_test_006_004_setup,
+  vfs_test_006_004_teardown,
+  vfs_test_006_004_execute
+};
+#endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
+
+/**
+ * @page vfs_test_006_005 [6.5] POSIX open flag matrix
+ *
+ * <h2>Description</h2>
+ * POSIX open flag matrix.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.5.1] POSIX open flag matrix.
+ * - [6.5.2] Conflicting opens.
+ * .
+ */
+
+static void vfs_test_006_005_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_005_teardown(void) {
+  msg_t ret;
+
+  ret = ffdrvUnmount("0:");
+  test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
+}
+
+static void vfs_test_006_005_execute(void) {
+
+  /* [6.5.1] POSIX open flag matrix.*/
+  test_set_step(1);
+  {
+    vfs_test_open_matrix((vfs_fs_c *)&vfs_test_fat_driver);
+    vfs_test_handle_contract((vfs_fs_c *)&vfs_test_fat_driver, true);
+#if defined(VFS_TEST_SB) && VFS_CFG_ENABLE_DRV_ROOT == TRUE
+    vfs_test_sb_native((vfs_fs_c *)&vfs_test_fat_driver);
+#endif
+#if defined(VFS_TEST_NEWLIB) && VFS_CFG_ENABLE_DRV_ROOT == TRUE
+    vfs_test_newlib_native((vfs_fs_c *)&vfs_test_fat_driver);
+#endif
+  }
+  test_end_step(1);
+
+  /* [6.5.2] Conflicting opens.*/
+  test_set_step(2);
+  {
+#if FF_FS_LOCK != 0
+    vfs_test_open_conflicts((vfs_fs_c *)&vfs_test_fat_driver, true);
+#endif
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_006_005 = {
+  "POSIX open flag matrix",
+  vfs_test_006_005_setup,
+  vfs_test_006_005_teardown,
+  vfs_test_006_005_execute
+};
+
+/**
+ * @page vfs_test_006_006 [6.6] Space exhaustion and directory removal errors
+ *
+ * <h2>Description</h2>
+ * A full volume reports ENOSPC after any partial write and on mkdir, a
+ * non-empty directory ENOTEMPTY.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.6.1] Directory removal errors.
+ * - [6.6.2] Space exhaustion.
+ * .
+ */
+
+static void vfs_test_006_006_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_006_teardown(void) {
+  msg_t ret;
+
+  ret = ffdrvUnmount("0:");
+  test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
+}
+
+static void vfs_test_006_006_execute(void) {
+  static uint8_t block[1024];
+  vfs_fs_c *fsp = (vfs_fs_c *)&vfs_test_fat_driver;
+  vfs_file_node_c *fnp;
+  ssize_t n;
+  msg_t ret;
+  unsigned i;
+
+  /* [6.6.1] Directory removal errors.*/
+  test_set_step(1);
+  {
+    ret = vfsFSMkdir(fsp, "/dir", VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR);
+    test_assert(ret == CH_RET_SUCCESS, "mkdir failed");
+    ret = vfsFSOpenFile(fsp, "/dir/file", VO_CREAT | VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "file creation failed");
+    vfsNodeClose(fnp);
+    ret = vfsFSRmdir(fsp, "/dir");
+    test_assert(ret == CH_ENCODE_ERROR(ENOTEMPTY),
+                "non-empty directory removal error");
+    ret = vfsFSUnlink(fsp, "/dir/file");
+    test_assert(ret == CH_RET_SUCCESS, "file removal failed");
+    ret = vfsFSRmdir(fsp, "/dir");
+    test_assert(ret == CH_RET_SUCCESS, "empty directory removal failed");
+  }
+  test_end_step(1);
+
+  /* [6.6.2] Space exhaustion.*/
+  test_set_step(2);
+  {
+    memset(block, 0x5A, sizeof block);
+    ret = vfsFSOpenFile(fsp, "/fill", VO_CREAT | VO_TRUNC | VO_WRONLY, &fnp);
+    test_assert(ret == CH_RET_SUCCESS, "fill file creation failed");
+    n = 0;
+    for (i = 0U; i < 256U; i++) {
+      n = vfsFileWrite(fnp, block, sizeof block);
+      if (n != (ssize_t)sizeof block) {
+        break;
+      }
+    }
+    test_assert((n == CH_RET_ENOSPC) ||
+                ((n > 0) && (n < (ssize_t)sizeof block)),
+                "the volume did not fill");
+    n = vfsFileWrite(fnp, block, sizeof block);
+    test_assert(n == CH_RET_ENOSPC, "full volume write error");
+    n = vfsFileWrite(fnp, block, 0U);
+    test_assert(n == 0, "zero-length write on a full volume");
+    ret = vfsFSMkdir(fsp, "/newdir", VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR);
+    test_assert(ret == CH_RET_ENOSPC, "full volume mkdir error");
+    vfsNodeClose(fnp);
+    ret = vfsFSUnlink(fsp, "/fill");
+    test_assert(ret == CH_RET_SUCCESS, "fill file removal failed");
+    ret = vfsFSMkdir(fsp, "/newdir", VFS_MODE_S_IRUSR | VFS_MODE_S_IWUSR);
+    test_assert(ret == CH_RET_SUCCESS, "mkdir after freeing space failed");
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_006_006 = {
+  "Space exhaustion and directory removal errors",
+  vfs_test_006_006_setup,
+  vfs_test_006_006_teardown,
+  vfs_test_006_006_execute
+};
+
+/**
+ * @page vfs_test_006_007 [6.7] Positions past the end of file
+ *
+ * <h2>Description</h2>
+ * Positions past the end of file leave the file unchanged until a
+ * write, the gap is filled with zeros over stale storage content.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.7.1] Positions past the end of file.
+ * - [6.7.2] Synchronization and size changes.
+ * .
+ */
+
+static void vfs_test_006_007_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  /* Stale content in the data area, a gap must not expose it.*/
+  memset(vfs_test_fat_disk, 0x5A, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_007_teardown(void) {
+  msg_t ret;
+
+  ret = ffdrvUnmount("0:");
+  test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
+}
+
+static void vfs_test_006_007_execute(void) {
+
+  /* [6.7.1] Positions past the end of file.*/
+  test_set_step(1);
+  {
+    vfs_test_seek_past_end((vfs_fs_c *)&vfs_test_fat_driver);
+  }
+  test_end_step(1);
+
+  /* [6.7.2] Synchronization and size changes.*/
+  test_set_step(2);
+  {
+    vfs_test_sync_truncate((vfs_fs_c *)&vfs_test_fat_driver);
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_006_007 = {
+  "Positions past the end of file",
+  vfs_test_006_007_setup,
+  vfs_test_006_007_teardown,
+  vfs_test_006_007_execute
+};
+
+/**
+ * @page vfs_test_006_008 [6.8] File sizes beyond the offset range
+ *
+ * <h2>Description</h2>
+ * Files of 2 GiB or more are rejected by open and stat with EOVERFLOW,
+ * directory entries saturate their size, a file does not grow beyond
+ * INT32_MAX.
+ *
+ * <h2>Test Steps</h2>
+ * - [6.8.1] A 2 GiB file.
+ * - [6.8.2] A file at the end of the offset range.
+ * .
+ */
+
+static void vfs_test_006_008_setup(void) {
+  MKFS_PARM options = {
+    .fmt     = FM_ANY,
+    .n_fat   = 1U,
+    .align   = 0U,
+    .n_root  = 0U,
+    .au_size = VFS_TEST_FAT_SECTOR_SIZE
+  };
+  uint8_t work[VFS_TEST_FAT_SECTOR_SIZE];
+  FRESULT fres;
+  msg_t ret;
+
+  memset(vfs_test_fat_disk, 0, sizeof vfs_test_fat_disk);
+  vfs_test_fat_status = STA_NOINIT;
+  (void)ffdrvObjectInit(&vfs_test_fat_driver);
+  fres = f_mkfs("0:", &options, work, sizeof work);
+  test_assert(fres == FR_OK, "FatFS format failed");
+  ret = ffdrvMount("0:", true);
+  test_assert(ret == CH_RET_SUCCESS, "FatFS mount failed");
+}
+
+static void vfs_test_006_008_teardown(void) {
+  msg_t ret;
+
+  ret = ffdrvUnmount("0:");
+  test_assert(ret == CH_RET_SUCCESS, "FatFS unmount failed");
+}
+
+static void vfs_test_006_008_execute(void) {
+  vfs_fs_c *fsp = (vfs_fs_c *)&vfs_test_fat_driver;
+  vfs_directory_node_c *dnp;
+  vfs_file_node_c *fnp;
+  vfs_direntry_info_t entry;
+  vfs_stat_t st;
+  bool found;
+
+  /* [6.8.1] A 2 GiB file.*/
+  test_set_step(1);
+  {
+    test_assert(vfsFSOpenFile(fsp, "/BIG", VO_CREAT | VO_WRONLY, &fnp) == 0 &&
+                vfsFileWrite(fnp, (const uint8_t *)"x", 1) == 1,
+                "file creation failed");
+    vfsNodeClose(fnp);
+    test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS &&
+                vfs_test_fat_set_size("BIG        ", 0x80000000U) &&
+                ffdrvMount("0:", true) == CH_RET_SUCCESS,
+                "directory entry not changed");
+    test_assert(vfsFSStat(fsp, "/BIG", &st) == CH_RET_EOVERFLOW,
+                "stat size narrowed");
+    test_assert(vfsFSOpenFile(fsp, "/BIG", VO_RDONLY, &fnp) ==
+                  CH_RET_EOVERFLOW &&
+                vfsFSOpenFile(fsp, "/BIG", VO_RDWR, &fnp) == CH_RET_EOVERFLOW &&
+                vfsFSOpenFile(fsp, "/BIG", VO_WRONLY | VO_TRUNC, &fnp) ==
+                  CH_RET_EOVERFLOW &&
+                vfsFSOpenFile(fsp, "/BIG", VO_CREAT | VO_WRONLY | VO_TRUNC,
+                              &fnp) == CH_RET_EOVERFLOW,
+                "file beyond the offset range opened");
+    test_assert(vfsFSStat(fsp, "/BIG", &st) == CH_RET_EOVERFLOW,
+                "rejected truncating open changed the file");
+    test_assert(vfsFSOpenDirectory(fsp, "/", &dnp) == 0,
+                "directory open failed");
+    found = false;
+    while (vfsDirReadNext(dnp, &entry) == (msg_t)1) {
+      if (strcmp(entry.name, "BIG") == 0) {
+        found = entry.size == (vfs_offset_t)INT32_MAX;
+      }
+    }
+    vfsNodeClose(dnp);
+    test_assert(found, "directory entry size not saturated");
+  }
+  test_end_step(1);
+
+  /* [6.8.2] A file at the end of the offset range.*/
+  test_set_step(2);
+  {
+    test_assert(ffdrvUnmount("0:") == CH_RET_SUCCESS &&
+                vfs_test_fat_set_size("BIG        ", 0x7FFFFFFEU) &&
+                ffdrvMount("0:", true) == CH_RET_SUCCESS,
+                "directory entry not changed");
+    test_assert(vfsFSStat(fsp, "/BIG", &st) == 0 &&
+                st.size == (vfs_offset_t)0x7FFFFFFE, "stat size changed");
+    test_assert(vfsFSOpenFile(fsp, "/BIG", VO_RDWR, &fnp) == 0,
+                "file within the offset range rejected");
+    test_assert(vfsFileSetPosition(fnp, 1, VFS_SEEK_END) == 0 &&
+                vfsFileGetPosition(fnp) == (vfs_offset_t)INT32_MAX &&
+                vfsFileWrite(fnp, (const uint8_t *)"y", 1) == CH_RET_EFBIG &&
+                vfsNodeStat(fnp, &st) == 0 &&
+                st.size == (vfs_offset_t)0x7FFFFFFE,
+                "file grew beyond the offset range");
+    vfsNodeClose(fnp);
+  }
+  test_end_step(2);
+}
+
+static const testcase_t vfs_test_006_008 = {
+  "File sizes beyond the offset range",
+  vfs_test_006_008_setup,
+  vfs_test_006_008_teardown,
+  vfs_test_006_008_execute
 };
 
 /*===========================================================================*/
@@ -434,6 +1201,14 @@ static const testcase_t vfs_test_006_002 = {
 const testcase_t * const vfs_test_sequence_006_array[] = {
   &vfs_test_006_001,
   &vfs_test_006_002,
+  &vfs_test_006_003,
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined(__DOXYGEN__)
+  &vfs_test_006_004,
+#endif
+  &vfs_test_006_005,
+  &vfs_test_006_006,
+  &vfs_test_006_007,
+  &vfs_test_006_008,
   NULL
 };
 

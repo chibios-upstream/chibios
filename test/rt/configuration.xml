@@ -108,15 +108,16 @@ bool test_find_ready_trace(thread_t *tp, tstate_t state, msg_t *msgp);
     <global_code>
       <value><![CDATA[/*
  * Shared thread storage, usable as legacy working areas or as stack/object
- * pairs for descriptor-based thread creation.
+ * pairs for descriptor-based thread creation. It contains the thread
+ * objects so it is in coherent memory.
  */
-ALIGNED_VAR(PORT_WORKING_AREA_ALIGN) test_thread_slot_t
-  test_thread_slots[MAX_THREADS];
+CH_MEM_GLOBAL_COHERENT_BSS ALIGNED_VAR(PORT_WORKING_AREA_ALIGN)
+test_thread_slot_t test_thread_slots[MAX_THREADS];
 
 /*
  * Pointers to the spawned threads.
  */
-thread_t *threads[MAX_THREADS];
+CH_MEM_GLOBAL_COHERENT_BSS thread_t *threads[MAX_THREADS];
 
 /*
  * Pointers to the working areas.
@@ -736,14 +737,14 @@ enum {
 };
 
 #if CH_CFG_USE_TM || defined(__DOXYGEN__)
-static time_measurement_t tm1, tm2, tm3;
+static CH_MEM_GLOBAL_COHERENT_BSS time_measurement_t tm1, tm2, tm3;
 #endif
 
 #if (CH_CFG_ST_TIMEDELTA > 0) || defined(__DOXYGEN__)
-static virtual_timer_t timers_state_vt;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t timers_state_vt;
 #if (CH_CFG_USE_RFCU == TRUE) || defined(__DOXYGEN__)
-static virtual_timer_t timers_overflow_anchor;
-static virtual_timer_t timers_overflow_vt;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t timers_overflow_anchor;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t timers_overflow_vt;
 #endif
 
 static void timers_state_cb(virtual_timer_t *vtp, void *param) {
@@ -1432,7 +1433,7 @@ static THD_FUNCTION(registry_thread, p) {
 #endif
 
 #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
-static MUTEX_DECL(priority_mtx);
+static CH_MEM_GLOBAL_COHERENT_DATA MUTEX_DECL(priority_mtx);
 
 static THD_FUNCTION(priority_thread, p) {
 
@@ -2443,10 +2444,10 @@ test_assert_sequence("D", "invalid sequence");]]></value>
         <value />
       </condition>
       <shared_code>
-        <value><![CDATA[static thread_reference_t tr1;
-static threads_queue_t tq1;
-static msg_t qmsg1;
-static msg_t qmsg2;
+        <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_BSS thread_reference_t tr1;
+static CH_MEM_GLOBAL_COHERENT_BSS threads_queue_t tq1;
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t qmsg1;
+static CH_MEM_GLOBAL_COHERENT_BSS msg_t qmsg2;
 
 static THD_FUNCTION(thread1, p) {
 
@@ -2725,8 +2726,8 @@ test_assert_sequence("DE", "invalid sequence");]]></value>
       <shared_code>
         <value><![CDATA[#include "ch.h"
 
-static semaphore_t sem1;
-static semaphore_t sem2;
+static CH_MEM_GLOBAL_COHERENT_BSS semaphore_t sem1;
+static CH_MEM_GLOBAL_COHERENT_BSS semaphore_t sem2;
 
 static THD_FUNCTION(thread1, p) {
 
@@ -3434,10 +3435,10 @@ test_assert(empty, "invalid wait semaphore");]]></value>
         <value><![CDATA[CH_CFG_USE_MUTEXES == TRUE]]></value>
       </condition>
       <shared_code>
-        <value><![CDATA[static MUTEX_DECL(m1);
-static MUTEX_DECL(m2);
+        <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_DATA MUTEX_DECL(m1);
+static CH_MEM_GLOBAL_COHERENT_DATA MUTEX_DECL(m2);
 #if CH_CFG_USE_CONDVARS || defined(__DOXYGEN__)
-static CONDVAR_DECL(c1);
+static CH_MEM_GLOBAL_COHERENT_DATA CONDVAR_DECL(c1);
 #endif
 
 #if CH_DBG_THREADS_PROFILING || defined(__DOXYGEN__)
@@ -3588,7 +3589,7 @@ static THD_FUNCTION(thread11M, p) {
   test_emit_token(*(char *)p);
 }
 
-static thread_reference_t priority_chain_ref;
+static CH_MEM_GLOBAL_COHERENT_BSS thread_reference_t priority_chain_ref;
 
 static THD_FUNCTION(thread13L, p) {
 
@@ -5097,7 +5098,7 @@ typedef struct {
   char token;
 } msg_sender_args_t;
 
-static msg_sender_args_t msg_sender_args[2];
+static CH_MEM_GLOBAL_COHERENT_BSS msg_sender_args_t msg_sender_args[2];
 
 static THD_FUNCTION(msg_lifecycle_sender, p) {
   msg_sender_args_t *ap = (msg_sender_args_t *)p;
@@ -5570,8 +5571,8 @@ test_assert_sequence("AB", "queued senders not rejected");]]></value>
         <value><![CDATA[CH_CFG_USE_EVENTS == TRUE]]></value>
       </condition>
       <shared_code>
-        <value><![CDATA[static EVENTSOURCE_DECL(es1);
-static EVENTSOURCE_DECL(es2);
+        <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_DATA EVENTSOURCE_DECL(es1);
+static CH_MEM_GLOBAL_COHERENT_DATA EVENTSOURCE_DECL(es2);
 
 static void h1(eventid_t id) {(void)id;test_emit_token('A');}
 static void h2(eventid_t id) {(void)id;test_emit_token('B');}
@@ -6284,10 +6285,12 @@ test_assert_lock(!chEvtIsListeningI(&es2), "stuck listener");]]></value>
       </condition>
       <shared_code>
         <value><![CDATA[#if CH_CFG_USE_HEAP
-static memory_heap_t heap1;
+static CH_MEM_GLOBAL_COHERENT_BSS memory_heap_t heap1;
 #endif
 #if CH_CFG_USE_MEMPOOLS
-static memory_pool_t mp1;
+static CH_MEM_GLOBAL_COHERENT_BSS memory_pool_t mp1;
+static CH_MEM_GLOBAL_COHERENT_BSS memory_pool_t mp2;
+static CH_MEM_GLOBAL_COHERENT_BSS thread_t thd_objs[4];
 #endif
 
 static THD_FUNCTION(dyn_thread1, p) {
@@ -6656,6 +6659,246 @@ test_assert(largest1 == largest3, "largest fragment size changed");]]></value>
             </step>
           </steps>
         </case>
+        <case>
+          <brief>
+            <value>Threads spawning from Memory Pool and Memory Heap.</value>
+          </brief>
+          <description>
+            <value>Thread objects are allocated from a pool containing two
+              elements and stacks from the Memory Heap.&lt;br&gt;&#xD;
+              The test expects a spawn with a huge stack requirement to fail
+              without consuming a thread object, then two spawns to succeed
+              and a third one to fail because the pool is empty.</value>
+          </description>
+          <condition>
+            <value><![CDATA[(CH_CFG_USE_HEAP == TRUE) && (CH_CFG_USE_MEMPOOLS == TRUE)]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chHeapObjectInit(&heap1, TEST_SHARED_BUFFER,
+                 TEST_SHARED_BUFFER_SIZE);
+chPoolObjectInit(&mp1, sizeof (thread_t), NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chPoolObjectDispose(&mp1);
+chHeapObjectDispose(&heap1);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[size_t n1, total1, largest1;
+size_t n2, total2, largest2;
+unsigned i;
+tprio_t prio;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Getting base priority and heap info, adding two thread
+                  objects to the pool.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[prio = chThdGetPriorityX();
+n1 = chHeapStatus(&heap1, &total1, &largest1);
+test_assert(n1 == 1, "heap fragmented");
+for (i = 0; i < 2; i++)
+  chPoolFree(&mp1, &thd_objs[i]);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Spawning a thread with a huge stack, it is expected to
+                  fail.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[THD_HEAP_DECL(td, "dyn1", &heap1, (((size_t)-1) >> 1U) + 1U,
+              prio-1, dyn_thread1, "X", NULL);
+
+threads[0] = chThdSpawnFromHeap(&mp1, &td);
+test_assert(threads[0] == NULL, "thread spawn not failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Spawning three threads, the first two are expected to
+                  succeed and the third one to fail because the pool is
+                  empty.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[thread_heap_descriptor_t td[3] = {
+  __THD_HEAP_DECL_DATA("dyn1", &heap1, THD_STACK_SIZE(THREADS_STACK_SIZE),
+                       prio-1, dyn_thread1, "A", NULL),
+  __THD_HEAP_DECL_DATA("dyn2", &heap1, THD_STACK_SIZE(THREADS_STACK_SIZE),
+                       prio-2, dyn_thread1, "B", NULL),
+  __THD_HEAP_DECL_DATA("dyn3", &heap1, THD_STACK_SIZE(THREADS_STACK_SIZE),
+                       prio-3, dyn_thread1, "C", NULL)
+};
+
+for (i = 0; i < 3; i++)
+  threads[i] = chThdSpawnFromHeap(&mp1, &td[i]);
+test_assert((threads[0] != NULL) &&
+            (threads[1] != NULL),
+            "thread spawn failed");
+test_assert(threads[2] == NULL,
+            "thread spawn not failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Letting threads execute then checking the start order and
+                  freeing memory.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_wait_threads();
+test_assert_sequence("AB", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Getting heap info again for verification, testing that
+                  the pool contains two elements again.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[n2 = chHeapStatus(&heap1, &total2, &largest2);
+test_assert(n1 == n2, "fragmentation changed");
+test_assert(total1 == total2, "total free space changed");
+test_assert(largest1 == largest2, "largest fragment size changed");
+for (i = 0; i < 2; i++)
+  test_assert(chPoolAlloc(&mp1) != NULL, "pool list empty");
+test_assert(chPoolAlloc(&mp1) == NULL, "pool list not empty");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
+        <case>
+          <brief>
+            <value>Threads spawning from Memory Pools.</value>
+          </brief>
+          <description>
+            <value>Thread objects are allocated from a pool containing four
+              elements and stacks from a pool containing three
+              elements.&lt;br&gt;&#xD;
+              The test expects the first three spawns to succeed and the
+              fourth one to fail without consuming a thread object.</value>
+          </description>
+          <condition>
+            <value><![CDATA[CH_CFG_USE_MEMPOOLS == TRUE]]></value>
+          </condition>
+          <various_code>
+            <setup_code>
+              <value><![CDATA[chPoolObjectInit(&mp1, sizeof (thread_t), NULL);
+chPoolObjectInitAligned(&mp2, THD_POOL_STACK_SIZE(THREADS_STACK_SIZE),
+                        PORT_WORKING_AREA_ALIGN, NULL);]]></value>
+            </setup_code>
+            <teardown_code>
+              <value><![CDATA[chPoolObjectDispose(&mp2);
+chPoolObjectDispose(&mp1);]]></value>
+            </teardown_code>
+            <local_variables>
+              <value><![CDATA[unsigned i;
+tprio_t prio;]]></value>
+            </local_variables>
+          </various_code>
+          <steps>
+            <step>
+              <description>
+                <value>Adding four thread objects to the first pool and three
+                  stacks to the second pool.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0; i < 4; i++)
+  chPoolFree(&mp1, &thd_objs[i]);
+for (i = 0; i < 3; i++)
+  chPoolFree(&mp2, wa[i]);]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Getting base priority for threads.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[prio = chThdGetPriorityX();]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Spawning four threads, the first three are expected to
+                  succeed and the fourth one to fail because the stacks
+                  pool is empty.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[thread_pool_descriptor_t td[4] = {
+  __THD_POOL_DECL_DATA("dyn1", &mp2, prio-1, dyn_thread1, "A", NULL),
+  __THD_POOL_DECL_DATA("dyn2", &mp2, prio-2, dyn_thread1, "B", NULL),
+  __THD_POOL_DECL_DATA("dyn3", &mp2, prio-3, dyn_thread1, "C", NULL),
+  __THD_POOL_DECL_DATA("dyn4", &mp2, prio-4, dyn_thread1, "D", NULL)
+};
+
+for (i = 0; i < 4; i++)
+  threads[i] = chThdSpawnFromMemoryPool(&mp1, &td[i]);
+test_assert((threads[0] != NULL) &&
+            (threads[1] != NULL) &&
+            (threads[2] != NULL),
+            "thread spawn failed");
+test_assert(threads[3] == NULL,
+            "thread spawn not failed");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Letting them run, free the memory then checking the
+                  execution sequence.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[test_wait_threads();
+test_assert_sequence("ABC", "invalid sequence");]]></value>
+              </code>
+            </step>
+            <step>
+              <description>
+                <value>Testing that the pools contain four thread objects and
+                  three stacks again.</value>
+              </description>
+              <tags>
+                <value />
+              </tags>
+              <code>
+                <value><![CDATA[for (i = 0; i < 4; i++)
+  test_assert(chPoolAlloc(&mp1) != NULL, "objects pool list empty");
+test_assert(chPoolAlloc(&mp1) == NULL, "objects pool list not empty");
+for (i = 0; i < 3; i++)
+  test_assert(chPoolAlloc(&mp2) != NULL, "stacks pool list empty");
+test_assert(chPoolAlloc(&mp2) == NULL, "stacks pool list not empty");]]></value>
+              </code>
+            </step>
+          </steps>
+        </case>
       </cases>
     </sequence>
     <sequence>
@@ -6680,10 +6923,10 @@ test_assert(largest1 == largest3, "largest fragment size changed");]]></value>
       </condition>
       <shared_code>
         <value><![CDATA[#if CH_CFG_USE_SEMAPHORES || defined(__DOXYGEN__)
-static semaphore_t sem1;
+static CH_MEM_GLOBAL_COHERENT_BSS semaphore_t sem1;
 #endif
 #if CH_CFG_USE_MUTEXES || defined(__DOXYGEN__)
-static mutex_t mtx1;
+static CH_MEM_GLOBAL_COHERENT_BSS mutex_t mtx1;
 #endif
 
 static void tmo(virtual_timer_t *vtp, void *param) {
@@ -6692,8 +6935,8 @@ static void tmo(virtual_timer_t *vtp, void *param) {
   (void)param;
 }
 
-static virtual_timer_t vt1, vt2;
-static volatile uint32_t vt_counter;
+static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t vt1, vt2;
+static CH_MEM_GLOBAL_COHERENT_BSS volatile uint32_t vt_counter;
 
 static void vt_continuous_cb(virtual_timer_t *vtp, void *param) {
 
@@ -7790,7 +8033,7 @@ test_assert(stamp1 <= stamp2, "not monotonic");]]></value>
               <value />
             </teardown_code>
             <local_variables>
-              <value><![CDATA[static virtual_timer_t vt1, vt2;
+              <value><![CDATA[static CH_MEM_GLOBAL_COHERENT_BSS virtual_timer_t vt1, vt2;
 uint32_t n;]]></value>
             </local_variables>
           </various_code>
@@ -8166,7 +8409,7 @@ test_println(" bytes");
 }
 
 #if (CH_CFG_USE_MUTEXES_RECURSIVE == TRUE) || defined(__DOXYGEN__)
-static mutex_t m1;
+static CH_MEM_GLOBAL_COHERENT_BSS mutex_t m1;
 #endif]]></value>
       </shared_code>
       <cases>

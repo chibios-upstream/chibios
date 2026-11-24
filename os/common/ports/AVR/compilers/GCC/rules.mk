@@ -42,6 +42,16 @@ ASMOBJS   := $(addprefix $(OBJDIR)/, $(notdir $(ASMSRC:.s=.o)))
 ASMXOBJS  := $(addprefix $(OBJDIR)/, $(notdir $(ASMXSRC:.S=.o)))
 OBJS	  := $(ASMXOBJS) $(ASMOBJS) $(ACOBJS) $(ACPPOBJS)
 
+# Different source files must have different names, the object files share
+# a flat directory.
+SRCFILES  := $(sort $(abspath $(CSRC) $(CPPSRC) $(ASMSRC) $(ASMXSRC)))
+SRCNAMES  := $(notdir $(basename $(SRCFILES)))
+SRCDUPS   := $(sort $(foreach n,$(SRCNAMES),$(if $(word 2,$(filter $(n),$(SRCNAMES))),$(n))))
+ifneq ($(SRCDUPS),)
+  SRCCLASH := $(strip $(foreach f,$(SRCFILES),$(if $(filter $(SRCDUPS),$(notdir $(basename $(f)))),$(f))))
+  $(error source files with the same name, their object files would clash: $(SRCCLASH))
+endif
+
 # Paths
 IINCDIR   := $(patsubst %, -I%,$(INCDIR) $(DINCDIR) $(UINCDIR))
 LLIBDIR   := $(patsubst %, -L%,$(DLIBDIR) $(ULIBDIR))
@@ -70,8 +80,14 @@ ADEFS = -DF_CPU=$(F_CPU)
 # Place -D or -U options here for C++ sources
 CPPDEFS = -DF_CPU=$(F_CPU)UL
 
-# Paths where to search for sources
-VPATH     = $(SRCPATHS)
+# Paths where to search for sources. Only the source files are searched,
+# other files and directories are never resolved to same-named ones in
+# the source directories.
+vpath %.c   $(SRCPATHS)
+vpath %.cc  $(SRCPATHS)
+vpath %.cpp $(SRCPATHS)
+vpath %.s   $(SRCPATHS)
+vpath %.S   $(SRCPATHS)
 
 # Various settings for C flags.
 MCFLAGS := -mmcu=$(MCU)

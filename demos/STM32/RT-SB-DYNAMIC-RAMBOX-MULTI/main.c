@@ -29,16 +29,12 @@
 /* VFS-related.                                                              */
 /*===========================================================================*/
 
-/* A read-only /bin shared by the host and the sandbox.*/
+/* A read-only /bin, the sandbox shell is loaded from it.*/
 static vfs_rom_driver_c bin_driver;
 
-/* Host and private sandbox roots, each with its own current directory.*/
-static vfs_root_c root_driver;
+/* Private sandbox root, with its own current directory.*/
 static vfs_root_c sb1_root_driver;
 static vfs_streams_driver_c dev_driver;
-
-/* Implicit root used by the host VFS API.*/
-vfs_root_c *vfs_root = &root_driver;
 
 /* POSIX TTY over the target's console SIO, and /dev/null.*/
 static hal_posix_tty_sio_c ttyS0;
@@ -135,11 +131,16 @@ int main(void) {
   /* No block device or removable storage is required.*/
   romdrvObjectInit(&bin_driver, &bin_romfs);
   stmdrvObjectInit(&dev_driver, streams);
-  init_root(&root_driver);
   init_root(&sb1_root_driver);
 
   sbObjectInit(&sbx1);
   sbSetRoot(&sbx1, &sb1_root_driver);
+
+  /* Exporting a discoverable coherent data region, the ".nocache" section
+     of loaded applications is mapped onto it by the loader. The region is
+     exported with coherent semantics also on cores without data cache.*/
+  sbSetRegion(&sbx1, 1, portab_nocache_region, PORTAB_NOCACHE_REGION_SIZE,
+              SB_REG_IS_NOCACHE_DATA | SB_REG_ATTR_DISCOVERABLE);
 
   /* Load, wait for termination, finalize, and restart the shell.*/
   while (true) {
@@ -152,16 +153,26 @@ int main(void) {
       chSysHalt("TTY reset");
     }
 
-    ret = vfsFSOpen((vfs_fs_c *)sbGetRoot(&sbx1),
-                    "/dev/ttyS0", VO_RDWR, &np);
+    ret = vfsRootOpen(sbGetRoot(&sbx1), "/dev/ttyS0", VO_RDWR, &np);
     if (CH_RET_IS_ERROR(ret)) {
       chprintf(console, "Opening /dev/ttyS0 failed (%08lx)\n", ret);
       continue;
     }
-    sbRegisterDescriptor(&sbx1, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
-    sbRegisterDescriptor(&sbx1, STDOUT_FILENO, (vfs_node_c *)roAddRef(np));
-    sbRegisterDescriptor(&sbx1, STDERR_FILENO, (vfs_node_c *)roAddRef(np));
-    vfsClose(np);
+    ret = sbRegisterDescriptor(&sbx1, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
+    if (CH_RET_IS_ERROR(ret)) {
+      chSysHalt("SBX1 descriptor");
+    }
+    ret = sbRegisterDescriptor(&sbx1, STDOUT_FILENO,
+                               (vfs_node_c *)roAddRef(np));
+    if (CH_RET_IS_ERROR(ret)) {
+      chSysHalt("SBX1 descriptor");
+    }
+    ret = sbRegisterDescriptor(&sbx1, STDERR_FILENO,
+                               (vfs_node_c *)roAddRef(np));
+    if (CH_RET_IS_ERROR(ret)) {
+      chSysHalt("SBX1 descriptor");
+    }
+    vfsNodeClose(np);
 
     ret = sbExecDynamic(&sbx1, NORMALPRIO - 10, PORTAB_SHELL_HEAP_SIZE,
                         "/bin/msh.elf", sbx1_argv, sbx1_envp);

@@ -58,7 +58,9 @@
 /* External declarations.                                                    */
 /*===========================================================================*/
 
+#if !defined(__DOXYGEN__)
 extern sb_t sb;
+#endif /* !defined(__DOXYGEN__) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,6 +72,9 @@ extern "C" {
   bool sbFinalize(sb_class_t *sbp);
   thread_t *sbStart(sb_class_t *sbp, tprio_t prio, stkline_t *stkbase,
                     const char *argv[], const char *envp[]);
+  const sb_memory_region_t *sbGetDiscoverableRegion(sb_class_t *sbp,
+                                                    uint32_t mask,
+                                                    uint32_t attr);
 #if SB_CFG_ENABLE_VFS == TRUE
   msg_t sbExecStatic(sb_class_t *sbp, tprio_t prio,
                      stkline_t *stkbase, const char *path,
@@ -206,7 +211,7 @@ static inline void sbSetRegion(sb_class_t *sbp, unsigned region,
  */
 static inline vfs_root_c *sbGetRoot(sb_class_t *sbp) {
 
-  return sbp->io.vfs_root;
+  return vfsIOGetRootX(&sbp->io.context);
 }
 
 /**
@@ -226,30 +231,31 @@ static inline void sbSetRoot(sb_class_t *sbp, vfs_root_c *rootp) {
 
   chDbgAssert(sbp->state == SB_STATE_STOPPED, "invalid lifecycle state");
 
-  sbp->io.vfs_root = rootp;
+  vfsIOSetRoot(&sbp->io.context, rootp);
 }
 
 /**
  * @brief   Registers a file descriptor on a sandbox.
  * @pre     The sandbox must be in @p SB_STATE_STOPPED state.
- * @note    Ownership of the node reference is transferred to the sandbox.
+ * @note    Ownership transfers only on success. Failed registration leaves
+ *          the reference with the caller. Nodes require standard OOP reference
+ *          hooks and explicitly initialized open access flags.
  *          The reference is released on sandbox termination or if the next
  *          start operation fails.
  *
  * @param[in] sbp       pointer to a @p sb_class_t structure
  * @param[in] fd        file descriptor to be assigned
  * @param[in] np        VFS node to be registered on the file descriptor
+ * @return              CH_RET_SUCCESS or an encoded error.
  *
  * @api
  */
-static inline void sbRegisterDescriptor(sb_class_t *sbp, int fd,
-                                        vfs_node_c *np) {
+static inline msg_t sbRegisterDescriptor(sb_class_t *sbp, int fd,
+                                         vfs_node_c *np) {
 
   chDbgAssert(sbp->state == SB_STATE_STOPPED, "invalid lifecycle state");
-  chDbgAssert(sb_is_available_descriptor(&sbp->io, fd),
-              "invalid file descriptor");
 
-  sbp->io.vfs_nodes[fd]  = np;
+  return vfsIOInstall(&sbp->io.context, fd, np);
 }
 #endif /* SB_CFG_ENABLE_VFS == TRUE */
 

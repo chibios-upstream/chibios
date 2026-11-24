@@ -17,9 +17,16 @@
 #ifndef CMDUTIL_H
 #define CMDUTIL_H
 
+#include <stdbool.h>
 #include <stddef.h>
+#include <time.h>
+#include <sys/types.h>
 
 #define CMD_NEWLINE_STR     "\n"
+
+/* Buffer sizes for cmdFormatMode() and cmdFormatTime().*/
+#define CMD_MODE_SIZE       11U
+#define CMD_TIME_SIZE       32U
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +35,8 @@ extern "C" {
   void cmdReportError(const char *command, const char *operand);
   int cmdParseUnsigned(const char *text, unsigned long maximum,
                        unsigned long *valuep);
+  void cmdFormatMode(mode_t mode, char *buf);
+  void cmdFormatTime(time_t t, bool seconds, char *buf);
 #ifdef __cplusplus
 }
 #endif

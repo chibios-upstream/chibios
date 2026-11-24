@@ -251,8 +251,9 @@ _exit:
                 ldr     r1, [r4], #4
                 blx     r1
                 b       .Lfiniloop
-                mov     r0, r6
 .Lendfiniloop:
+                /* Exit code preserved across the destructors.*/
+                mov     r0, r6
 #endif /* CRT0_CALL_DESTRUCTORS == TRUE */
                 ldr     r1, =__sandbox
                 ldr     r2, [r1, #16]           /* Predefined exit vector.*/

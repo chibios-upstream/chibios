@@ -31,6 +31,26 @@ static vfs_mode_t streams_file_mode(const drv_streams_element_t *dsep) {
   return dsep->mode;
 }
 
+/* Size of an element, regular elements report the size of their random
+   stream, the other elements have no size.*/
+static msg_t streams_file_size(const drv_streams_element_t *dsep,
+                               vfs_offset_t *sizep) {
+  int32_t size = 0;
+
+  if (VFS_MODE_S_ISREG(dsep->mode)) {
+    if (dsep->interface.rstream == NULL) {
+      return CH_RET_EIO;
+    }
+    size = rstmGetSize(dsep->interface.rstream);
+    if (size < 0) {
+      return (msg_t)size;
+    }
+  }
+  *sizep = (vfs_offset_t)size;
+
+  return CH_RET_SUCCESS;
+}
+
 static sequential_stream_i *
 streams_file_stream(const drv_streams_element_t *dsep) {
 
@@ -191,7 +211,10 @@ msg_t __stmdir_next_impl(void *ip, vfs_direntry_info_t *dip) {
   if (vsdp->streams[self->index].name != NULL) {
 
     dip->mode = streams_file_mode(&vsdp->streams[self->index]);
-    dip->size = (vfs_offset_t)0;
+    if (CH_RET_IS_ERROR(streams_file_size(&vsdp->streams[self->index],
+                                          &dip->size))) {
+      dip->size = (vfs_offset_t)0;
+    }
     strcpy(dip->name, vsdp->streams[self->index].name);
 
     self->index++;
@@ -236,14 +259,17 @@ const struct vfs_streams_dir_node_vmt __vfs_streams_dir_node_vmt = {
  * @param[in]     vmt           VMT pointer for the new object.
  * @param[in]     driver        Pointer to the controlling driver.
  * @param[in]     element       Element descriptor to be associated.
+ * @param[in]     flags         Opened access and status flags.
  * @return                      A new reference to the object.
  */
 void *__stmfile_objinit_impl(void *ip, const void *vmt, vfs_fs_c *driver,
-                             const drv_streams_element_t *element) {
+                             const drv_streams_element_t *element,
+                             int flags) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
 
   /* Initialization code.*/
-  self = __vfsfile_objinit_impl(self, vmt, (vfs_fs_c *)driver, element->mode);
+  self = __vfsfile_objinit_impl(self, vmt, (vfs_fs_c *)driver,
+                                element->mode, flags);
   self->element = element;
 
   return self;
@@ -280,8 +306,13 @@ void __stmfile_dispose_impl(void *ip) {
  * @return                      The operation result.
  */
 msg_t __stmfile_stat_impl(void *ip, vfs_stat_t *sp) {
+  vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
+  msg_t ret;
 
-  return __vfsnode_stat_impl(ip, sp);
+  ret = __vfsnode_stat_impl(ip, sp);
+  CH_RETURN_ON_ERROR(ret);
+
+  return streams_file_size(self->element, &sp->size);
 }
 
 /**
@@ -346,17 +377,41 @@ msg_t __stmfile_setpos_impl(void *ip, vfs_offset_t offset,
                             vfs_seekmode_t whence) {
   vfs_streams_file_node_c *self = (vfs_streams_file_node_c *)ip;
   random_stream_i *rstream;
+  int32_t current, size, result;
+  vfs_offset_t target;
+  msg_t ret;
 
-  if ((self->element->mode & VFS_MODE_S_IFMT) != VFS_MODE_S_IFREG) {
+  if (!VFS_MODE_S_ISREG(self->mode)) {
     return CH_RET_ESPIPE;
   }
-
+  if ((whence != VFS_SEEK_SET) && (whence != VFS_SEEK_CUR) &&
+      (whence != VFS_SEEK_END)) {
+    return CH_RET_EINVAL;
+  }
   rstream = self->element->interface.rstream;
   if (rstream == NULL) {
     return CH_RET_EIO;
   }
+  current = rstmSeek(rstream, 0, RSTM_SEEK_CUR);
+  if (current < 0) {
+    return (msg_t)current;
+  }
+  size = 0;
+  if (whence == VFS_SEEK_END) {
+    size = rstmGetSize(rstream);
+    if (size < 0) {
+      return (msg_t)size;
+    }
+  }
+  ret = __vfs_seek_target(offset, whence, (uint64_t)current, (uint64_t)size,
+                          &target);
+  CH_RETURN_ON_ERROR(ret);
 
-  rstmSeek(rstream, (uint32_t)offset, (int)whence);
+  /* The backend reports a target it cannot reach and keeps its position.*/
+  result = rstmSeek(rstream, (int32_t)target, RSTM_SEEK_SET);
+  if (result < 0) {
+    return (msg_t)result;
+  }
 
   return CH_RET_SUCCESS;
 }
@@ -384,7 +439,8 @@ vfs_offset_t __stmfile_getpos_impl(void *ip) {
     return CH_RET_EIO;
   }
 
-  return (vfs_offset_t)rstmSeek(rstream, 0U, RSTM_SEEK_CUR);
+  /* Position or backend error.*/
+  return (vfs_offset_t)rstmSeek(rstream, 0, RSTM_SEEK_CUR);
 }
 
 /**
@@ -487,7 +543,9 @@ const struct vfs_streams_file_node_vmt __vfs_streams_file_node_vmt = {
   .write                    = __stmfile_write_impl,
   .setpos                   = __stmfile_setpos_impl,
   .getpos                   = __stmfile_getpos_impl,
-  .control                  = __stmfile_control_impl
+  .control                  = __stmfile_control_impl,
+  .sync                     = __vfsfile_sync_impl,
+  .truncate                 = __vfsfile_truncate_impl
 };
 
 /*===========================================================================*/
@@ -589,7 +647,7 @@ msg_t __stmdrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp) {
       if (strncmp(fname, dsep->name, VFS_CFG_NAMELEN_MAX) == 0) {
 
         sp->mode = streams_file_mode(dsep);
-        return CH_RET_SUCCESS;
+        return streams_file_size(dsep, &sp->size);
       }
 
       dsep++;
@@ -619,6 +677,12 @@ msg_t __stmdrv_opendir_impl(void *ip, const char *path,
   vfs_streams_driver_c *self = (vfs_streams_driver_c *)ip;
   msg_t ret;
 
+  if (strcmp(path, "/") != 0) {
+    vfs_stat_t st;
+
+    ret = vfsFSStat(self, path, &st);
+    return CH_RET_IS_ERROR(ret) ? ret : CH_RET_ENOTDIR;
+  }
   do {
     vfs_streams_dir_node_c *sdnp;
 
@@ -666,7 +730,8 @@ msg_t __stmdrv_openfile_impl(void *ip, const char *path, int flags,
   const drv_streams_element_t *dsep;
   msg_t ret;
 
-  (void)flags; /* TODO  handle invalid modes.*/
+  ret = __vfs_check_open(path, flags);
+  CH_RETURN_ON_ERROR(ret);
 
   do {
     char fname[VFS_CFG_NAMELEN_MAX + 1]; /* TODO remove automatic buffer.*/
@@ -691,14 +756,32 @@ msg_t __stmdrv_openfile_impl(void *ip, const char *path, int flags,
     while (dsep->name != NULL) {
       if (strncmp(fname, dsep->name, VFS_CFG_NAMELEN_MAX) == 0) {
         vfs_streams_file_node_c *sfnp;
+        int access = flags & VO_ACCMODE;
 
+        if ((flags & VO_DIRECTORY) != 0) {
+          return CH_RET_ENOTDIR;
+        }
+        if ((flags & VO_EXCL) != 0) {
+          return CH_RET_EEXIST;
+        }
+        if (((access != VO_WRONLY) &&
+             ((dsep->mode & VFS_MODE_S_IRUSR) == 0)) ||
+            ((access != VO_RDONLY) &&
+             ((dsep->mode & VFS_MODE_S_IWUSR) == 0))) {
+          return CH_RET_EACCES;
+        }
+        if (VFS_MODE_S_ISREG(dsep->mode) &&
+            (((flags & VO_TRUNC) != 0) ||
+             (((flags & VO_APPEND) != 0) && (access != VO_RDONLY)))) {
+          return CH_ENCODE_ERROR(ENOTSUP);
+        }
         sfnp = chPoolAlloc(&vfs_streams_driver_static.file_nodes_pool);
         if (sfnp != NULL) {
 
           /* Node object initialization.*/
           (void) stmfileObjectInit(sfnp,
                                    (vfs_fs_c *)self,
-                                   dsep);
+                                   dsep, flags);
 
           *vfnpp = (vfs_file_node_c *)sfnp;
           return CH_RET_SUCCESS;
@@ -710,7 +793,7 @@ msg_t __stmdrv_openfile_impl(void *ip, const char *path, int flags,
       dsep++;
     }
 
-    ret = CH_RET_ENOENT;
+    ret = (flags & VO_CREAT) != 0 ? CH_RET_EROFS : CH_RET_ENOENT;
   }
   while (false);
 

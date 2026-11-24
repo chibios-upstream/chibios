@@ -153,6 +153,9 @@
 #define SB_POSIX_STAT           16
 #define SB_POSIX_TCGETATTR      17
 #define SB_POSIX_TCSETATTR      18
+#define SB_POSIX_ISATTY         19
+#define SB_POSIX_FSYNC          20
+#define SB_POSIX_FTRUNCATE      21
 /** @} */
 
 /**

@@ -261,11 +261,16 @@ static flash_error_t __flash_fls_acquire_exclusive_impl(void *ip) {
   hal_flash_base_c *self = oopIfGetOwner(hal_flash_base_c, ip);
 
   chDbgCheck(self != NULL);
+
 #if HAL_USE_MUTUAL_EXCLUSION == TRUE
   drvLock(self);
-#endif
 
   return FLASH_NO_ERROR;
+#else
+  chDbgAssert(false, "mutual exclusion not enabled");
+
+  return FLASH_ERROR_UNIMPLEMENTED;
+#endif
 }
 
 /**
@@ -279,11 +284,16 @@ static flash_error_t __flash_fls_release_exclusive_impl(void *ip) {
   hal_flash_base_c *self = oopIfGetOwner(hal_flash_base_c, ip);
 
   chDbgCheck(self != NULL);
+
 #if HAL_USE_MUTUAL_EXCLUSION == TRUE
   drvUnlock(self);
-#endif
 
   return FLASH_NO_ERROR;
+#else
+  chDbgAssert(false, "mutual exclusion not enabled");
+
+  return FLASH_ERROR_UNIMPLEMENTED;
+#endif
 }
 /** @} */
 

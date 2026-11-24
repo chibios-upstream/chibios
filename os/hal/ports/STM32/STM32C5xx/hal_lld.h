@@ -209,7 +209,7 @@ extern const halclkcfg_t hal_clkcfg_reset;
 extern const halclkcfg_t hal_clkcfg_default;
 
 #if HAL_USE_ADC || HAL_USE_DAC || HAL_USE_I2C || HAL_USE_SPI ||             \
-    defined(__DOXYGEN__)
+    HAL_USE_UART || defined(__DOXYGEN__)
 #include "stm32_dma3.h"
 #endif
 

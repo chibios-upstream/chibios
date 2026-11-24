@@ -33,18 +33,11 @@
 static vfs_fatfs_driver_c fatfs_driver;
 #endif
 
-/* VFS root object.*/
-static vfs_root_c root_driver;
-
 /* Private root for sandbox 1.*/
 static vfs_root_c sb1_root_driver;
 
 /* VFS streams driver representing the private /dev directory.*/
 static vfs_streams_driver_c sb1_dev_driver;
-
-/* VFS API will use this object as implicit root, defining this
-   symbol is expected.*/
-vfs_root_c *vfs_root = &root_driver;
 
 /* Used for /dev/null.*/
 static NullStream nullstream;
@@ -159,10 +152,8 @@ int main(void) {
                                NORMALPRIO + 10, thd1_func, NULL, NULL);
   chThdSpawnRunning(&thd1, &thd1_desc);
 
-  /* Initializing the VFS root on top of a FatFS driver. This is accessible
-     from kernel space and covers the whole file system.*/
+  /* Initializing the FatFS driver.*/
   ffdrvObjectInit(&fatfs_driver);
-  vfsrootObjectInit(&root_driver, (vfs_fs_c *)&fatfs_driver, NULL);
 
   /* Initializing the private sandbox root. It uses the FatFS driver but is
      restricted to the "/sb1" directory.*/
@@ -195,16 +186,28 @@ int main(void) {
       chThdSleepMilliseconds(500);
 
       /* Associating standard input, output and error to sandbox 1.*/
-      ret = vfsFSOpen((vfs_fs_c *)sbGetRoot(&sbx1),
+      ret = vfsRootOpen(sbGetRoot(&sbx1),
                       "/dev/VSD1", VO_RDWR, &np);
       if (CH_RET_IS_ERROR(ret)) {
         chprintf((BaseSequentialStream *)&SD2, "Opening /dev/VSD1 failed (%08lx)\r\n", ret);
         continue;
       }
-      sbRegisterDescriptor(&sbx1, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
-      sbRegisterDescriptor(&sbx1, STDOUT_FILENO, (vfs_node_c *)roAddRef(np));
-      sbRegisterDescriptor(&sbx1, STDERR_FILENO, (vfs_node_c *)roAddRef(np));
-      vfsClose(np);
+      ret = sbRegisterDescriptor(&sbx1, STDIN_FILENO,
+                                 (vfs_node_c *)roAddRef(np));
+      if (CH_RET_IS_ERROR(ret)) {
+        chSysHalt("SBX1 descriptor");
+      }
+      ret = sbRegisterDescriptor(&sbx1, STDOUT_FILENO,
+                                 (vfs_node_c *)roAddRef(np));
+      if (CH_RET_IS_ERROR(ret)) {
+        chSysHalt("SBX1 descriptor");
+      }
+      ret = sbRegisterDescriptor(&sbx1, STDERR_FILENO,
+                                 (vfs_node_c *)roAddRef(np));
+      if (CH_RET_IS_ERROR(ret)) {
+        chSysHalt("SBX1 descriptor");
+      }
+      vfsNodeClose(np);
 
       /*
        * Running the sandbox.

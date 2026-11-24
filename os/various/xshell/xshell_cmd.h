@@ -65,14 +65,6 @@
 #define XSHELL_CMD_TEST_SB_ENABLED          FALSE
 #endif
 
-#if !defined(XSHELL_CMD_FILES_ENABLED) || defined(__DOXYGEN__)
-#define XSHELL_CMD_FILES_ENABLED            FALSE
-#endif
-
-#if !defined(XSHELL_CMD_FILES_USE_VFS) || defined(__DOXYGEN__)
-#define XSHELL_CMD_FILES_USE_VFS            FALSE
-#endif
-
 #if !defined(XSHELL_CMD_FILES_BUFFER_SIZE)  || defined(__DOXYGEN__)
 #define XSHELL_CMD_FILES_BUFFER_SIZE        2048U
 #endif

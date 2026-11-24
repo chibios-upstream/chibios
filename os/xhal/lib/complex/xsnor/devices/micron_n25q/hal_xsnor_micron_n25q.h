@@ -157,11 +157,7 @@ struct hal_xsnor_micron_n25q {
 #endif /* HAL_USE_MUTUAL_EXCLUSION == TRUE */
 #if (HAL_USE_REGISTRY == TRUE) || defined (__DOXYGEN__)
   /**
-   * @brief       Driver identifier.
-   */
-  unsigned int              id;
-  /**
-   * @brief       Driver name.
+   * @brief       Driver name, @p NULL if not registered.
    */
   const char                *name;
   /**

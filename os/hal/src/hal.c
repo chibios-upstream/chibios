@@ -80,6 +80,9 @@ void halInit(void) {
 #if (HAL_USE_DAC == TRUE) || defined(__DOXYGEN__)
   dacInit();
 #endif
+#if (HAL_USE_DSPL == TRUE) || defined(__DOXYGEN__)
+  dsplInit();
+#endif
 #if (HAL_USE_EFL == TRUE) || defined(__DOXYGEN__)
   eflInit();
 #endif

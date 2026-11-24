@@ -17,7 +17,7 @@
 */
 
 /**
- * @file    sb/vhal/sbvio_gpio.h
+ * @file    sb/vio/sbvio_gpio.h
  * @brief   ARM SandBox host Virtual GPIO macros and structures.
  *
  * @addtogroup ARM_SANDBOX_HOST_VIO_GPIO

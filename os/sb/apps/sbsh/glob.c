@@ -73,6 +73,21 @@ static bool wildcard_match(const sbsh_plan_t *plan,
   return (bool)(*pattern == '\0');
 }
 
+/* Sorts the matches of a pattern in place, an insertion sort uses no memory
+   and a pattern matches a few names.*/
+static void sort_matches(char **argv, int n) {
+  int i, j;
+
+  for (i = 1; i < n; i++) {
+    char *p = argv[i];
+
+    for (j = i; (j > 0) && (strcmp(argv[j - 1], p) > 0); j--) {
+      argv[j] = argv[j - 1];
+    }
+    argv[j] = p;
+  }
+}
+
 static void arena_init(sbsh_state_t *state) {
 
 #if defined(SBAPP_NATIVE)
@@ -272,28 +287,40 @@ static int expand_pattern(sbsh_state_t *state,
 
     offset = 0U;
     while (offset < (size_t)n) {
-      struct dirent *entry;
+      struct dirent entry;
+      const char *name;
+      size_t remaining = (size_t)n - offset;
 
-      entry = (struct dirent *)(void *)(state->pathbuf + offset);
-      if ((entry->d_reclen == 0U) ||
-          (offset + entry->d_reclen > (size_t)n)) {
+      if (remaining < SB_DIRENT_RECLEN(0)) {
         errno = EIO;
         (void)close(fd);
         return -1;
       }
-      if (!is_dots(entry->d_name) &&
-          wildcard_match(plan, last, entry->d_name)) {
+      memcpy(&entry, state->pathbuf + offset,
+             offsetof(struct dirent, d_name));
+      name = state->pathbuf + offset + offsetof(struct dirent, d_name);
+      if ((entry.d_reclen < SB_DIRENT_RECLEN(0)) ||
+          ((entry.d_reclen % SB_DIRENT_ALIGNMENT) != 0U) ||
+          ((size_t)entry.d_reclen > remaining) ||
+          (memchr(name, '\0', entry.d_reclen -
+                              offsetof(struct dirent, d_name)) == NULL)) {
+        errno = EIO;
+        (void)close(fd);
+        return -1;
+      }
+      if (!is_dots(name) &&
+          wildcard_match(plan, last, name)) {
         if (add_match(state,
                       argcp,
                       pattern,
                       prefix_length,
-                      entry->d_name) != 0) {
+                      name) != 0) {
           (void)close(fd);
           return -1;
         }
         matches++;
       }
-      offset += entry->d_reclen;
+      offset += entry.d_reclen;
     }
   }
   (void)close(fd);
@@ -337,6 +364,9 @@ int sbsh_expand_command(sbsh_state_t *state,
       if (add_argument(state, &argc, word->text) != 0) {
         return -1;
       }
+    }
+    else {
+      sort_matches(&state->expanded_argv[argc - matches], matches);
     }
   }
   state->expanded_argv[argc] = NULL;

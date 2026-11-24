@@ -75,14 +75,18 @@
 /**
  * @brief   Stack initial alignment constant.
  * @note    It is the alignment required for the stack pointer.
+ * @note    It is set to the cache line size in order to have stacks sizes
+ *          multiple of the cache line, see @p PORT_CACHE_LINE_SIZE.
  */
-#define PORT_STACK_ALIGN                8U
+#define PORT_STACK_ALIGN                PORT_CACHE_LINE_SIZE
 
 /**
  * @brief   Working Areas alignment constant.
  * @note    It is the alignment to be enforced for thread working areas.
+ * @note    It is set to the cache line size in order to have working areas
+ *          aligned with cache lines, see @p PORT_CACHE_LINE_SIZE.
  */
-#define PORT_WORKING_AREA_ALIGN         8U
+#define PORT_WORKING_AREA_ALIGN         PORT_CACHE_LINE_SIZE
 /** @} */
 
 /**
@@ -107,11 +111,16 @@
   #define PORT_ARCHITECTURE_ARM_CORTEXR8
   #define PORT_ARCHITECTURE_NAME        "ARMv7-R"
   #define PORT_CORE_VARIANT_NAME        "ARM Cortex-R8"
+  /**
+   * @brief   L1 data cache line size of the core.
+   */
+  #define PORT_L1_CACHE_LINE_SIZE       32U
 
 #elif CORTEX_MODEL == ARM_CORE_CORTEX_R5
   #define PORT_ARCHITECTURE_ARM_CORTEXR5
   #define PORT_ARCHITECTURE_NAME        "ARMv7-R"
   #define PORT_CORE_VARIANT_NAME        "ARM Cortex-R5"
+  #define PORT_L1_CACHE_LINE_SIZE       32U
 
 #else
   #error "unknown or unsupported ARMv7-R core"
@@ -151,8 +160,29 @@
 #endif
 
 /**
+ * @brief   Cache line size for stacks and working areas.
+ * @details Stacks and working areas are aligned to this size and their
+ *          size is a multiple of it, so they never share a cache line with
+ *          other data. On SMP systems with non-coherent caches a dirty line
+ *          shared with data written by another core corrupts that data
+ *          when it is written back.
+ * @note    The default is the L1 data cache line size of the core, it must
+ *          be increased if an outer cache has larger lines.
+ * @note    Must be a power of two not lower than the L1 data cache line
+ *          size.
+ */
+#if !defined(PORT_CACHE_LINE_SIZE) || defined(__DOXYGEN__)
+#define PORT_CACHE_LINE_SIZE            PORT_L1_CACHE_LINE_SIZE
+#endif
+
+/**
  * @brief   FPU support in context switch.
  * @details Activating this option activates the FPU support in the kernel.
+ *          Threads and interrupt handlers can both use the FPU: the IRQ
+ *          entry code saves the FPU registers not preserved by called
+ *          functions (d0-d7, FPSCR) and the context switch saves the
+ *          others (d8-d15, FPSCR).
+ * @note    The IRQ stack usage grows by 72 bytes.
  */
 #if !defined(CORTEX_USE_FPU)
 #define CORTEX_USE_FPU                  FALSE
@@ -242,6 +272,13 @@
  */
 #define PORT_MPU_DRBAR(base)            MPU_DRBAR_ADDR(base)
 
+/**
+ * @name    MPU regions initialization settings
+ * @details Initial values of the DRBAR, DRSR and DRACR registers of each
+ *          MPU region, programmed when @p PORT_MPU_INITIALIZE is @p TRUE.
+ *          Only the first @p PORT_MPU_REGIONS regions are programmed.
+ * @{
+ */
 #if !defined(PORT_MPU_DRBAR0_INIT) || defined(__DOXYGEN__)
 #define PORT_MPU_DRBAR0_INIT            0U
 #endif
@@ -458,10 +495,16 @@
 #if !defined(PORT_MPU_DRACR23_INIT) || defined(__DOXYGEN__)
 #define PORT_MPU_DRACR23_INIT           0U
 #endif
+/** @} */
 
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
+
+#if (PORT_CACHE_LINE_SIZE < PORT_L1_CACHE_LINE_SIZE) ||                    \
+    ((PORT_CACHE_LINE_SIZE & (PORT_CACHE_LINE_SIZE - 1U)) != 0U)
+#error "invalid PORT_CACHE_LINE_SIZE value"
+#endif
 
 #if (PORT_MPU_INITIALIZE == TRUE) &&                                    \
     ((PORT_MPU_REGIONS < 1U) || (PORT_MPU_REGIONS > 24U))
@@ -509,14 +552,19 @@
  *          interrupt handler when preemption is required.
  */
 struct port_extctx {
-  uint32_t              pc_irq;
-  uint32_t              cpsr_irq;
+#if (CORTEX_USE_FPU == TRUE) || defined(__DOXYGEN__)
+  uint64_t              d0_d7[8];
+  uint32_t              fpscr;
+  uint32_t              reserved;
+#endif
   uint32_t              r0;
   uint32_t              r1;
   uint32_t              r2;
   uint32_t              r3;
   uint32_t              r12;
   uint32_t              lr_usr;
+  uint32_t              pc_irq;
+  uint32_t              cpsr_irq;
 };
 
 /**
@@ -526,7 +574,7 @@ struct port_extctx {
  */
 struct port_intctx {
 #if (CORTEX_USE_FPU == TRUE) || defined(__DOXYGEN__)
-  uint64_t              d[16];
+  uint64_t              d8_d15[8];
   uint32_t              fpscr;
 #endif
   uint32_t              r4;

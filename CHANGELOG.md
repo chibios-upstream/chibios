@@ -8,6 +8,97 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [STM32] UART driver on the GPDMA devices (STM32H5, U5, U3 and C5), where
+  `HAL_USE_UART` did not build: the USARTv3 driver gets a GPDMA path, with
+  the `STM32_UART_<port>_RX_DMA3_CHANNEL` and `_TX_DMA3_CHANNEL` settings
+  in `mcuconf.h`
+  ([#672](https://github.com/chibios-upstream/chibios/pull/672)).
+- [VFS] `vfsFileSync()` and `vfsFileTruncate()` file node methods,
+  implemented by the FatFS and LittleFS drivers, `vfsIOSync()` and
+  `vfsIOTruncate()` for descriptors, and `fsync()` and `ftruncate()` in the
+  Newlib bindings
+  ([#656](https://github.com/chibios-upstream/chibios/pull/656)).
+- [VFS] `vfsNodeClose()`, closes a node by releasing the caller reference
+  ([#642](https://github.com/chibios-upstream/chibios/pull/642)).
+- [VFS] Newlib bindings: `unlink()`, `rename()` and `mkdir()` through the
+  VFS root, and `newlibVfsGetIO()` for the operations without a Newlib
+  system call
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] `VO_DIRECTORY` and `VO_CLOEXEC` open flags; open arguments are
+  validated before any allocation or driver call, and a trailing separator
+  or `VO_DIRECTORY` selects the directory lookup first
+  ([#631](https://github.com/chibios-upstream/chibios/pull/631)).
+- [VFS] `vfs_io_c` I/O context: a caller-provided descriptor table owning
+  node references, with `dup`/`dup2`, the `VFD_CLOEXEC` descriptor flag and
+  an optional borrowed root for the path operations; open reserves its
+  descriptor before calling the file system
+  ([#631](https://github.com/chibios-upstream/chibios/pull/631)).
+- [VFS] Optional local mutual exclusion, `VFS_CFG_USE_MUTUAL_EXCLUSION`,
+  disabled by default: a mutex in each overlay and root protects its mount
+  table and current directory without serializing the operations, the FatFS
+  driver serializes its native calls with one module mutex and the LittleFS
+  driver with one mutex per instance, so `FF_FS_REENTRANT` and the LittleFS
+  thread-safe build are no longer required for concurrent use
+  ([#613](https://github.com/chibios-upstream/chibios/pull/613)).
+- [HAL] AVR ATmega: `ATMEGA8_MINIMAL` and `ATMEGA162_MINIMAL` boards for the
+  older devices, the `RT-ATMEGA8-MINIMAL` and `NIL-ATMEGA8-MINIMAL` demos,
+  and the `RT-ATMEGA162-XMEM` demo, which uses a 32 KiB SRAM on the external
+  memory interface as the kernel core memory
+  ([#667](https://github.com/chibios-upstream/chibios/pull/667)).
+- [HAL] AVR ATmega SIO driver on the USARTv1: `SIOD0`–`SIOD3` on
+  USART0–USART3, allocated with the `AVR_SIO_USE_USARTx` switches, and a
+  `testhal/AVR/multi/SIO` echo test on every port of the Arduino Uno,
+  Arduino Mega, ATmega8 and ATmega162 targets
+  ([#584](https://github.com/chibios-upstream/chibios/pull/584),
+  [#668](https://github.com/chibios-upstream/chibios/pull/668)).
+- [HAL] Quadrature encoder abstract interface, `BaseEncoder` in
+  `hal_encoder.h`, and a GPIO quadrature encoder complex driver
+  implementing it in software on PAL pad events, usable on any port with
+  `PAL_USE_CALLBACKS` (`os/hal/lib/complex/gpio_qencoder`). Self-checking
+  test for the Arduino Uno in `testhal/AVR/MEGA/ENCODER`
+  ([#582](https://github.com/chibios-upstream/chibios/pull/582)).
+- [RP] RP2350 boot flash options in the classic HAL and XHAL ports, both off
+  by default: `RP_QMI_USE_CONTINUOUS_READ` puts the flash in continuous
+  read, so an XIP cache miss skips the read command (28 flash clocks
+  instead of 36 for a quad EBh read), and falls back to normal reads if
+  the check fails; `RP_QMI_MIN_DESELECT_NS` sets the chip select high
+  time between reads, also across `RP_CLOCK_DYNAMIC` clock switches
+  ([#581](https://github.com/chibios-upstream/chibios/pull/581)).
+- [STM32] STM32H5F5 support in the classic HAL and XHAL STM32H5xx ports:
+  registry, `STM32H5F5xJ.ld` linker script, mcuconf/xmcuconf templates and
+  updater scripts, the `ST_STM32H5F5J_DK` board and RT-STM32-MULTI and
+  RT-XHAL-STM32-MULTI configurations
+  ([#578](https://github.com/chibios-upstream/chibios/pull/578)).
+- [ARMV7R] Recursive locks in the ARMv7-R port, single core:
+  `port_get_lock_status()` and `port_is_locked()`, so the X-class functions
+  using them, such as `i2cGetAndClearErrorsX()`, link on ARMv7-R targets
+  ([#543](https://github.com/chibios-upstream/chibios/pull/543)).
+- [RT] Dynamic threads of the spawn kind, `chThdSpawnFromHeap()` and
+  `chThdSpawnFromMemoryPool()`: the `thread_t` comes from a pool and the
+  stack from a heap or a pool, described by the new
+  `thread_heap_descriptor_t` and `thread_pool_descriptor_t` types and their
+  `THD_HEAP_DECL()` and `THD_POOL_DECL()` initializers. No change to
+  `thread_t`. The threads and dynamic threads documentation cover SMP
+  systems with non-coherent caches, where the `thread_t` must be coherent
+  and the stack can be in the core cacheable memory
+  ([#567](https://github.com/chibios-upstream/chibios/pull/567)).
+- [RT] DATA variants of the memory classes, from `CH_MEM_GLOBAL_DATA` to
+  `CH_MEM_PRIVATE_COHERENT_DATA()`, for initialized variables such as the
+  objects declared with `SEMAPHORE_DECL()`: the BSS classes discard the
+  initializer without a warning. Without a port definition they fall back
+  to the normal `.data`
+  ([#565](https://github.com/chibios-upstream/chibios/pull/565)).
+  The memory classes documentation lists what must be in coherent memory
+  on SMP systems with non-coherent caches: all the `thread_t` structures,
+  the synchronization objects used by more than one core, the data passed
+  through pointers to another core, and the cache line rule
+  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
+- [XHAL] Stub platform in `os/xhal/ports/stub`, without drivers:
+  XHAL-based code such as the test suites builds on targets that have no
+  XHAL platform yet. The application provides the board files and an
+  `xmcuconf.h` defining `__STUB_XMCUCONF__`; the system tick, periodic mode
+  only, comes from the OS port or the application
+  ([#564](https://github.com/chibios-upstream/chibios/pull/564)).
 - [BUILD] `ASMXSRC_EXCLUDE` variable in the ARMCMx GCC and LLVM build rules:
   makefiles included before the rules can now leave files listed by other
   makefiles out of the build, such as the standard vector table replaced by
@@ -129,11 +220,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 - [XHAL] XHAL port for the TI AM67/J722S MCU-domain Cortex-R5F, the first TI
   port in XHAL: `AM67R5F` startup device, ARMv7-R AM67 sub-port handling the
   VIM interrupt manager, platform in `os/xhal/ports/TI/AM67`, DMTIMERv1 ST,
-  UARTv1 SIO and MCSPIv1 SPI drivers, the `T3_GEM_O1` board (T3 Gemstone O1)
-  and the `RT-XHAL-T3-GEM-O1` demo
+  UARTv1 SIO, MCSPIv1 SPI and I2Cv1 I2C drivers, the `T3_GEM_O1` board
+  (T3 Gemstone O1) and the `RT-XHAL-T3-GEM-O1` demo
   ([#287](https://github.com/chibios-upstream/chibios/pull/287),
   [#289](https://github.com/chibios-upstream/chibios/pull/289),
-  [#320](https://github.com/chibios-upstream/chibios/pull/320)).
+  [#320](https://github.com/chibios-upstream/chibios/pull/320),
+  [#541](https://github.com/chibios-upstream/chibios/pull/541)).
 - [XHAL] Plain non-blocking byte queue (`plain_queue_t`, `qObjectInit()`,
   `qResetI()`, `qPutI()`, `qGetI()`, `qReadI()`, `qWriteI()`) in the XHAL
   queues module, now aggregated by the input and output queues; `qSpaceI()`
@@ -282,6 +374,16 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   [#225](https://github.com/chibios-upstream/chibios/pull/225)).
 - [ARMV6M] Alternate common IRQ dispatcher port for ARMv6-M
   ([#171](https://github.com/chibios-upstream/chibios/pull/171)).
+  Every vector the port does not own reaches its conventional handler as
+  with `vectors.S`
+  ([#563](https://github.com/chibios-upstream/chibios/pull/563)),
+  the standard vector table is left out through `ASMXSRC_EXCLUDE`, so the
+  startup and port makefiles can be included in any order
+  ([#558](https://github.com/chibios-upstream/chibios/pull/558)),
+  the dispatcher is assembled in unified syntax and builds with Clang
+  ([#559](https://github.com/chibios-upstream/chibios/pull/559)),
+  and IAR and RVCT are rejected
+  ([#560](https://github.com/chibios-upstream/chibios/pull/560)).
 - [RP] RP2350 POWMAN register map added to the CMSIS device header
   ([#147](https://github.com/chibios-upstream/chibios/pull/147)).
 - [RT] RT non-releasing thread synchronization
@@ -405,10 +507,124 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
-- [ARMV6M] The ARMv6-M-ALT port's `chcore.h` stops with "unsupported
-  compiler" under IAR and RVCT, for which the port has no assembly or vector
-  table, instead of naming them; such a build would never reschedule on
-  interrupt exit ([#560](https://github.com/chibios-upstream/chibios/pull/560)).
+- [VFS] LittleFS driver: removing, renaming or replacing by a rename an
+  open file, and removing or replacing an open directory, return `EBUSY`
+  instead of detaching the open handles and losing their writes
+  ([#660](https://github.com/chibios-upstream/chibios/pull/660))
+  *(backported to 21.11.6)*.
+- [VFS] Newlib and sandbox `stat()`/`fstat()` report the permission bits, a
+  link count of 1 and, when the file system provides them, the block size,
+  the allocated blocks and the modification time; opened FatFS files report
+  the modification time read at open until changed through the node
+  ([#658](https://github.com/chibios-upstream/chibios/pull/658)).
+- [VFS] `vfsIOClose()` and the Newlib `close()` synchronize a regular file
+  before releasing it and return the flush error, the descriptor is closed
+  anyway
+  ([#656](https://github.com/chibios-upstream/chibios/pull/656)).
+- [VFS] FatFS driver: files of 2 GiB or more are rejected by open and
+  stat with `EOVERFLOW` instead of reporting negative sizes, directory
+  entries saturate the size to `INT32_MAX`, writes stop at `INT32_MAX`
+  with `EFBIG`
+  ([#655](https://github.com/chibios-upstream/chibios/pull/655)).
+- [OOP] `random_stream_i`: `rstmSeek()` takes a signed offset and returns
+  the new position or a negative error code, leaving the position unchanged
+  on error; new `rstmGetSize()` returns the stream size
+  ([#654](https://github.com/chibios-upstream/chibios/pull/654)).
+- [VFS] Streams driver: backend seek errors are returned instead of a
+  guessed `ENOTSUP`, stat and directory entries report the size of regular
+  elements
+  ([#654](https://github.com/chibios-upstream/chibios/pull/654)).
+- [VFS] FatFS and ROMFS: positions past the end of file are accepted without
+  changing the file, reads there return end of file and the next FatFS
+  write fills the gap with zeros; a seek past the end no longer extends a
+  writable FatFS file or returns `ENOTSUP`
+  ([#653](https://github.com/chibios-upstream/chibios/pull/653)).
+- [VFS] FatFS driver: opens, removals and renames rejected by `FF_FS_LOCK`
+  return `EBUSY` instead of `EACCES`
+  ([#648](https://github.com/chibios-upstream/chibios/pull/648)).
+- [VFS] Newlib bindings: with `SYSCALL_USE_VFS` the bindings use their own
+  VFS I/O context, `newlibVfsInit()` must be called with the root before
+  any C library I/O, and the standard descriptors are installed by the
+  application; the bindings no longer use `vfs_root`
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] Removed the default root `vfs_root` and the functions using it or
+  aliasing node methods: `vfsOpen()`, `vfsOpenFile()`,
+  `vfsOpenDirectory()`, `vfsStat()`, `vfsUnlink()`, `vfsRename()`,
+  `vfsMkdir()`, `vfsRmdir()`, `vfsChangeCurrentDirectory()`,
+  `vfsGetCurrentDirectory()`, `vfsClose()`, `vfsGetNodeStat()`,
+  `vfsReadDirectoryFirst()`, `vfsReadDirectoryNext()`, `vfsReadFile()`,
+  `vfsWriteFile()`, `vfsSetFilePosition()`, `vfsGetFilePosition()` and
+  `vfsControlFile()`; use the root, file system and node methods
+  (`vfsRootOpen()`, `vfsFSOpenFile()`, `vfsFSStat()`, `vfsNodeClose()`,
+  `vfsFileRead()`...) or an I/O context
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] Removed the xshell `XSHELL_CMD_FILES_USE_VFS` option, the file
+  commands always use the VFS directly
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] xshell file commands use the root set in the new `root` field of
+  `xshell_manager_config_t`; the old shell file commands use the root set
+  with `shellSetFileSystemRoot()`
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] File nodes enforce the access mode of their open: writing to a node
+  opened read-only, or reading from one opened write-only, returns
+  `EBADF`; the file node constructor takes the open flags
+  ([#631](https://github.com/chibios-upstream/chibios/pull/631)).
+- [VFS] Root and overlay operations take their path buffers from the shared
+  pool: each root operation takes a buffer pair for its whole duration and
+  roots and overlays no longer contain path buffers. `VFS_CFG_PATHBUFS_NUM`
+  now counts buffer pairs. The path prefix moved from the overlay to the
+  root: `ovldrvObjectInit()` only takes the overlaid file system,
+  `vfsrootObjectInit()` keeps its prefix argument. The current directory of
+  a root is allocated from core memory on the first directory change. New
+  `vfsRootOpen()` opens a file or a directory through a root, relative paths
+  included
+  ([#611](https://github.com/chibios-upstream/chibios/pull/611)).
+- [BUILD] All the build rules stop with an error listing the clashing files
+  when two source files have the same name in different directories, such
+  as `imu/driver.c` and `baro/driver.c`. The object files share a flat
+  directory: make compiled only one of the two and linked it twice, so the
+  link failed far from the cause. Names are compared without the extension,
+  so `foo.c` and `foo.S` clash too
+  ([#585](https://github.com/chibios-upstream/chibios/pull/585)).
+- [TEST] The RT and OSLIB test suites keep all their data in the global
+  coherent memory class: the storage of the test threads, which contains
+  their `thread_t`, the static objects and buffers of the test sequences
+  and the test framework context. On SMP systems with non-coherent caches
+  the suites run on a core after the other without cache maintenance in the
+  application. `chlib.h` defines `CH_MEM_GLOBAL_COHERENT_DATA` as normal
+  DATA for NIL. No change on the current ports
+  ([#571](https://github.com/chibios-upstream/chibios/pull/571),
+  [#573](https://github.com/chibios-upstream/chibios/pull/573)).
+- [ARMV7R] Stacks and working areas are aligned to the cache line and their
+  sizes are multiples of it, so they never share a line with other data:
+  `PORT_STACK_ALIGN` and `PORT_WORKING_AREA_ALIGN` are the new
+  `PORT_CACHE_LINE_SIZE` setting, by default the L1 data cache line of the
+  core, 32 bytes on Cortex-R5 and Cortex-R8, and it can be raised for an
+  outer cache with larger lines
+  ([#570](https://github.com/chibios-upstream/chibios/pull/570)).
+  The ARMCRx linker rules align both ends of the banked mode stacks areas
+  to `__stacks_align__`, 64 bytes by default and overridable in the linker
+  script
+  ([#571](https://github.com/chibios-upstream/chibios/pull/571)).
+  Working areas can be slightly larger, no code change, and no change with
+  stack sizes multiple of 64 bytes, as in the current demos.
+- [ARMV7R] The simulator platform is renamed after the simulated core:
+  `platforms/simulator` becomes `platforms/sim-r8` and `port_simulator.mk`
+  becomes `port_sim-r8.mk`, makefiles including the old file must be
+  updated. No code change
+  ([#568](https://github.com/chibios-upstream/chibios/pull/568)).
+- [OSLIB] For SMP systems with non-coherent caches, the memory core,
+  default heap and objects factory descriptors are in the global coherent
+  memory class, all cores use them, and the RT idle thread stacks move to
+  the private class, their `thread_t` is in the OS instance
+  ([#565](https://github.com/chibios-upstream/chibios/pull/565)).
+  The core allocator static area, used when `CH_CFG_MEMCORE_SIZE` is not
+  zero, is in the global coherent class too, and the core allocator,
+  delegates, mailboxes, objects FIFOs, pipes, jobs queues and objects
+  caches documentation cover these systems
+  ([#566](https://github.com/chibios-upstream/chibios/pull/566),
+  [#571](https://github.com/chibios-upstream/chibios/pull/571)).
+  No change on the current ports.
 - [RP] The RP2040 and RP2350 demo and test configurations set
   `CH_CFG_ST_TIMEDELTA` to 50 instead of 20, 50 microseconds at their 1 MHz
   system tick, except `testrt/VT_STORM`. Their tickless wakeup executes from
@@ -583,29 +799,132 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
-- [ARMV6M] The ARMv6-M-ALT IRQ dispatcher used divided-syntax mnemonics that
-  Clang's integrated assembler rejects, so the port could not be built with
-  the ARMCMx LLVM build rules; it is now assembled in unified syntax, with
-  unchanged machine code except an equivalent `mov` encoding in
-  `__port_thread_start`, and CI assembles both ARMv6-M ports and the vector
-  tables with Clang
-  ([#559](https://github.com/chibios-upstream/chibios/pull/559)).
-- [ARMV6M] The ARMv6-M-ALT port makefile removed the standard `vectors.S`
-  with immediate assignments, so it had to be included after the startup
-  makefile and it froze the startup file lists: an `RP2040_BOOT_STAGE2`
-  override set later in the project makefile was silently ignored and the
-  default second stage bootloader was linked. The port now lists
-  `vectors.S` in `ASMXSRC_EXCLUDE`, the override is honoured, and the
-  startup and port makefiles can be included in any order; a project with
-  its own copy of the ARMCMx `rules.mk` needs the new lines
-  ([#558](https://github.com/chibios-upstream/chibios/pull/558)).
-- [RP] At `-O0`, `__port_smp_halt_from_ram()`, the RAM-resident remote-panic
-  halt of the `ARMv6-M` (RP2040) and `ARMv8-M-ML-ALT` (RP2350) RP2 SMP back
-  ends, called an out-of-line `port_get_core_id()` in flash, against its
-  contract of not relying on flash; no in-tree path reaches it with XIP
-  disabled. It now reads `SIO->CPUID` directly, and the other optimization
-  levels generate the same code as before
-  ([#556](https://github.com/chibios-upstream/chibios/pull/556)).
+- [VFS] LittleFS driver: independent writable opens of the same file were
+  accepted and the data of one writer was lost; an open conflicting with a
+  writer, or a writable open of an open file, now returns `EBUSY`
+  ([#648](https://github.com/chibios-upstream/chibios/pull/648))
+  *(backported to 21.11.6)*.
+- [VFS] Root: renaming the current directory or one of its ancestors, or
+  removing the current directory, left a stale current directory; through
+  the root these operations now return `EBUSY`
+  ([#646](https://github.com/chibios-upstream/chibios/pull/646))
+  *(backported to 21.11.6)*.
+- [VFS] FatFS driver: a write on a full volume returned 0 instead of
+  `ENOSPC`, `mkdir()` on a full volume and `rmdir()` of a non-empty
+  directory returned `EACCES` instead of `ENOSPC` and `ENOTEMPTY`
+  ([#643](https://github.com/chibios-upstream/chibios/pull/643))
+  *(backported to 21.11.6)*.
+- [VFS] Newlib bindings: `lseek()` did nothing and returned 0, `isatty()`
+  reported every descriptor as a terminal, `fstat()` rejected directories
+  and reported no size, and a full descriptor table was detected only
+  after opening the file
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] Old shell `cat` read `sizeof (int)` bytes per call
+  ([#632](https://github.com/chibios-upstream/chibios/pull/632)).
+- [VFS] POSIX open and file semantics across drivers: FatFS append without
+  `O_CREAT` was rejected and append writes after a seek did not go to the
+  end of file, invalid flag combinations were accepted or ignored, seeks
+  could produce negative or overflowing positions, unlink and rmdir did not
+  check the node type, LittleFS reported `EBADF` as `ENOENT` and its
+  not-empty, invalid, no-space, too-big and corruption errors as a generic
+  inner error
+  ([#631](https://github.com/chibios-upstream/chibios/pull/631)).
+- [HAL] STM32 USARTv1, USARTv2 and USARTv3 serial drivers: data written
+  from an interrupt with a higher priority than the USART's while the USART
+  interrupt was being served could stay in the output queue until a later
+  write, the `CR1` bits set by its notification were overwritten
+  ([#626](https://github.com/chibios-upstream/chibios/pull/626))
+  *(backported to 21.11.6)*.
+- [HAL] STM32 USARTv2 and USARTv3 serial drivers: when a byte was received
+  in the same interrupt in which the transmission completed, the end of
+  transmission was missed, `CHN_TRANSMISSION_END` was not raised and
+  `TCIE` stayed set with no further interrupt to clear it
+  ([#622](https://github.com/chibios-upstream/chibios/pull/622))
+  *(backported to 21.11.6)*.
+- [VFS] Newlib bindings: closing a descriptor while another thread was using
+  it could release the node during that operation, and descriptor numbers
+  were looked up without protection; descriptors now own their node
+  reference, the table is updated in critical sections and operations keep
+  their node referenced
+  ([#613](https://github.com/chibios-upstream/chibios/pull/613)).
+- [VFS] Two threads using the same root or overlay, or roots sharing an
+  overlay, could overwrite each other's paths: roots and overlays kept their
+  path buffers in the object (issue #597)
+  ([#611](https://github.com/chibios-upstream/chibios/pull/611)).
+- [VFS] With a `VFS_CFG_PATHLEN_MAX` value giving buffers that are not a
+  multiple of the pointer size, 128 for example, the shared path buffers were
+  misaligned: with checks enabled the system halted in `vfsInit()`, without
+  checks the pool used misaligned pointers
+  ([#609](https://github.com/chibios-upstream/chibios/pull/609))
+  *(backported to 21.11.6)*.
+- [BUILD] The ARM build rules, also used by ARMCRx, built the ARM mode C++
+  objects from the Thumb source list and listed the Thumb C objects twice:
+  in ARM mode C++ sources were silently left out of the build, and with
+  `USE_THUMB=yes` the link failed with multiple definitions. No change for
+  the current projects, which build in ARM mode without C++
+  ([#587](https://github.com/chibios-upstream/chibios/pull/587)).
+- [HAL] AVR ATmega SYSTICKv1: the driver did not build on the ATmega8, 16,
+  32, 64, 162 and 8515, periodic mode now uses Timer 2 on the ATmega8. The
+  ATmega64 Timer 0 ticked 2, 4 or 8 times too fast at CLK/64, CLK/256 and
+  CLK/1024, and on the devices sharing `TIMSK` between the timers, such as
+  the ATmega128, both tick modes cleared the interrupt enables of the other
+  timers
+  ([#615](https://github.com/chibios-upstream/chibios/pull/615))
+  *(backported to 21.11.6)*.
+- [HAL] AVR ATmega GPIOv2: a stray character in the PCINT4 pin-state
+  declaration broke the build of configurations with `AVR_GPIO_USE_PCINT4`
+  enabled (ATmega324PB)
+  ([#579](https://github.com/chibios-upstream/chibios/pull/579)).
+- [AVR] RT and NIL did not assemble on the devices without `CALL` (avr2,
+  avr25 and avr4 cores, such as the ATmega8, ATmega88 and ATmega8515): the
+  thread start now calls `chThdExit()` with `RCALL` there
+  ([#614](https://github.com/chibios-upstream/chibios/pull/614))
+  *(backported to 21.11.6)*.
+- [ARM] THUMB mode (`USE_THUMB = yes`) of the ARM7 port did not link since
+  18.2.0: the port lost its THUMB entry points and, since 19.1.1, the
+  startup its pure THUMB calls, while `chcore.h` still used them. Both are
+  restored from 17.6.4; pure ARM builds are unchanged. THUMB builds also
+  need [#587](https://github.com/chibios-upstream/chibios/pull/587)
+  ([#588](https://github.com/chibios-upstream/chibios/pull/588)).
+- [ARMV7R] The IRQ return did not clear the local exclusive monitor, which
+  ARMv7-R requires after a context switch. Code using LDREX/STREX with
+  IRQs enabled, such as the C11 and GCC atomics, could see a Store-Exclusive
+  succeed after an interrupt although the monitor had been armed by other
+  code, or the location written by a plain store, in between. Both IRQ
+  returns now execute CLREX
+  ([#575](https://github.com/chibios-upstream/chibios/pull/575)).
+- [BUILD] The ARMCRx, ARMCMx (GCC and LLVM) and RISC-V Hazard3 build rules
+  passed the makefile `--defsym` options after the linker script, so a
+  script assignment with a `DEFINED()` default ignored them: the layout
+  used the default while the symbol took the makefile value. The ARMCRx
+  `USE_*_STACKSIZE` settings and the RP2350 RISC-V core 1 stack sizes were
+  affected. The makefile options now come before the script and take
+  precedence. No change in the current demos, which pass the script
+  defaults or nothing
+  ([#574](https://github.com/chibios-upstream/chibios/pull/574)).
+- [ARMV7M] On the Cortex-M7 the ARMv7-M and ARMv7-M-ALT ports enabled the
+  MPU, for `PORT_MPU_INITIALIZE`, the guard pages or the switched regions,
+  with the data cache already enabled by the startup code and without
+  cache maintenance: memory made non-cacheable by a region after the
+  startup used it through the cache could keep dirty lines, which
+  overwrote it when evicted. The data cache is now cleaned and invalidated
+  after the MPU is enabled. No change on cores without data cache
+  ([#572](https://github.com/chibios-upstream/chibios/pull/572)).
+- [ARMV7R] With `CORTEX_USE_FPU` enabled, the IRQ entry saved only the
+  integer registers, so an interrupt handler using the FPU, or compiled
+  code using the FPU registers for integer data, corrupted the FPU state
+  of the interrupted thread. The IRQ entry now saves d0-d7 and FPSCR, also
+  in the thread frame when the interrupt exits through a context switch,
+  and the context switch saves only d8-d15 and FPSCR. The IRQ stack usage
+  grows by 72 bytes. RT-ARMCR8-GENERIC runs a test of the FPU registers
+  across interrupts in FPU builds. No change without the FPU
+  ([#569](https://github.com/chibios-upstream/chibios/pull/569)).
+- [ARMV7R] The simulator platform IRQ dispatcher did not declare the ISR to
+  the kernel, so with `CH_DBG_SYSTEM_STATE_CHECK` enabled the first system
+  tick halted with "SV#6" in RT-ARMCR8-GENERIC. The dispatch is now
+  bracketed by `CH_IRQ_PROLOGUE()` and `CH_IRQ_EPILOGUE()` like on the AM67
+  platform. No change in the default configuration
+  ([#568](https://github.com/chibios-upstream/chibios/pull/568)).
 - [STM32] STM32H7A3/H7B3/H7B0 (classic and XHAL): the APB3 and APB4 clocks
   were named `STM32_CDPCLK` and `STM32_SRDPCLK` while the clock tree used
   `STM32_PCLK4` for LPTIM2-5, LPUART1, SPI6, I2C4 and DFSDM2, so builds using
@@ -613,11 +932,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   `RT-STM32-MULTI` H7A3 demo among them. The clocks are now `STM32_PCLK3` and
   `STM32_PCLK4`, as on the other STM32H7 devices, and the APB3 frequency
   check is enabled
-  ([#553](https://github.com/chibios-upstream/chibios/pull/553)).
+  ([#553](https://github.com/chibios-upstream/chibios/pull/553))
+  *(backported to 21.11.6)*.
 - [STM32] STM32H7 (classic and XHAL): with LSE selected as the USART2-8 clock
   source, UART5 had no clock defined and its baud rate was computed from
   PCLK1
-  ([#553](https://github.com/chibios-upstream/chibios/pull/553)).
+  ([#553](https://github.com/chibios-upstream/chibios/pull/553))
+  *(backported to 21.11.6)*.
 - [SB] A sandbox executing an SVC with an invalid stack pointer was not
   terminated: the SVC left pending by the failed exception stacking was taken
   on the fault exit frame and resumed the sandbox with the kernel lock held,
@@ -1093,9 +1414,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   longer depends on inter-core FIFO space
   ([#251](https://github.com/chibios-upstream/chibios/pull/251)), flash-lockout
   startup-readiness serialization
-  ([#250](https://github.com/chibios-upstream/chibios/pull/250)), and
+  ([#250](https://github.com/chibios-upstream/chibios/pull/250)),
   compile-time rejection of unsafe ARMv8-M spinlock overrides (RP2350-E2)
-  ([#249](https://github.com/chibios-upstream/chibios/pull/249)).
+  ([#249](https://github.com/chibios-upstream/chibios/pull/249)), and a
+  RAM-resident remote-panic halt that no longer calls into flash at `-O0`
+  ([#556](https://github.com/chibios-upstream/chibios/pull/556)).
 - [RT] Initial SMP kernel-lock ownership is now established at startup
   ([#241](https://github.com/chibios-upstream/chibios/pull/241)), and explicit
   thread affinity is validated

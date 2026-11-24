@@ -50,11 +50,13 @@
 
 #define MEMORY_POOL_SIZE 4
 
-static uintptr_t objects[MEMORY_POOL_SIZE];
-static MEMORYPOOL_DECL(mp1, sizeof (uintptr_t), PORT_NATURAL_ALIGN, NULL);
+static CH_MEM_GLOBAL_COHERENT_BSS uintptr_t objects[MEMORY_POOL_SIZE];
+static CH_MEM_GLOBAL_COHERENT_DATA
+  MEMORYPOOL_DECL(mp1, sizeof (uintptr_t), PORT_NATURAL_ALIGN, NULL);
 
 #if CH_CFG_USE_SEMAPHORES
-static GUARDEDMEMORYPOOL_DECL(gmp1, sizeof (uintptr_t), PORT_NATURAL_ALIGN);
+static CH_MEM_GLOBAL_COHERENT_DATA
+  GUARDEDMEMORYPOOL_DECL(gmp1, sizeof (uintptr_t), PORT_NATURAL_ALIGN);
 #endif
 
 static void *null_provider(size_t size, unsigned align) {

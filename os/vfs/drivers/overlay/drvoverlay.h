@@ -75,6 +75,26 @@
 /* Module macros.                                                            */
 /*===========================================================================*/
 
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == FALSE) || defined (__DOXYGEN__)
+/**
+ * @brief       Disabled local metadata lock.
+ *
+ * @param[in,out] ip            Overlay or root object.
+ *
+ * @notapi
+ */
+#define __ovldrv_lock(ip)
+
+/**
+ * @brief       Disabled local metadata unlock.
+ *
+ * @param[in,out] ip            Overlay or root object.
+ *
+ * @notapi
+ */
+#define __ovldrv_unlock(ip)
+#endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == FALSE */
+
 /*===========================================================================*/
 /* Module data structures and types.                                         */
 /*===========================================================================*/
@@ -135,6 +155,10 @@ struct vfs_overlay_dir_node {
    */
   unsigned                  index;
   /**
+   * @brief       Mounts, backing, or end enumeration phase.
+   */
+  unsigned                  phase;
+  /**
    * @brief       File system to be overlaid.
    */
   vfs_directory_node_c      *overlaid_root;
@@ -150,7 +174,14 @@ struct vfs_overlay_dir_node {
  *              Unregistering a file system or disposing the overlay does not
  *              dispose them. The caller must keep them alive while accessible
  *              through an overlay or while their nodes or operations remain
- *              active.
+ *              active. Routing borrows read-only absolute paths and does not
+ *              allocate path buffers. Backing prefixes are provided by the
+ *              root driver. Optional local metadata locking protects mount
+ *              lookup and updates, and is released before delegation. Backing
+ *              pointers remain immutable after publication. Directory
+ *              enumeration is a live view: mount changes may skip or repeat
+ *              entries, but do not restart backing iteration. Callers
+ *              serialize use of each open directory.
  *
  * @name        Class @p vfs_overlay_driver_c structures
  * @{
@@ -186,12 +217,16 @@ struct vfs_overlay_driver {
    * @brief       Virtual Methods Table.
    */
   const struct vfs_overlay_driver_vmt *vmt;
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
+  /**
+   * @brief       Local metadata mutex, also used by derived roots.
+   */
+  mutex_t                   mutex;
+#endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
   vfs_fs_c                  *overlaid_drv;
-  const char                *path_prefix;
   unsigned                  next_driver;
   const char                *names[DRV_CFG_OVERLAY_DRV_MAX];
   vfs_fs_c                  *drivers[DRV_CFG_OVERLAY_DRV_MAX];
-  char                      buf[VFS_CFG_PATHLEN_MAX + 1];
 };
 /** @} */
 
@@ -226,7 +261,7 @@ extern "C" {
   msg_t __ovldir_next_impl(void *ip, vfs_direntry_info_t *dip);
   /* Methods of vfs_overlay_driver_c.*/
   void *__ovldrv_objinit_impl(void *ip, const void *vmt,
-                              vfs_fs_c *overlaid_drv, const char *path_prefix);
+                              vfs_fs_c *overlaid_drv);
   void __ovldrv_dispose_impl(void *ip);
   msg_t __ovldrv_stat_impl(void *ip, const char *path, vfs_stat_t *sp);
   msg_t __ovldrv_opendir_impl(void *ip, const char *path,
@@ -241,6 +276,11 @@ extern "C" {
   msg_t ovldrvRegisterDriver(void *ip, vfs_fs_c *fsp, const char *name);
   msg_t ovldrvUnregisterDriver(void *ip, const char *name);
   /* Regular functions.*/
+  msg_t __ovldrv_match(vfs_overlay_driver_c *self, const char **pathp,
+                       vfs_fs_c **fspp);
+  msg_t __ovldrv_open_root(vfs_overlay_driver_c *self,
+                           const char *backing_path,
+                           vfs_directory_node_c **vdnpp);
   void __drv_overlay_init(void);
 #ifdef __cplusplus
 }
@@ -286,21 +326,52 @@ static inline vfs_overlay_dir_node_c *ovldirObjectInit(vfs_overlay_dir_node_c *s
  *                              to be initialized.
  * @param[in]     overlaid_drv  Pointer to a file system to be overlaid or @p
  *                              NULL.
- * @param[in]     path_prefix   Prefix to be added to the paths or @p NULL, it
- *                              must be a normalized absolute path.
  * @return                      Pointer to the initialized object.
  *
  * @objinit
  */
 CC_FORCE_INLINE
 static inline vfs_overlay_driver_c *ovldrvObjectInit(vfs_overlay_driver_c *self,
-                                                     vfs_fs_c *overlaid_drv,
-                                                     const char *path_prefix) {
+                                                     vfs_fs_c *overlaid_drv) {
   extern const struct vfs_overlay_driver_vmt __vfs_overlay_driver_vmt;
 
-  return __ovldrv_objinit_impl(self, &__vfs_overlay_driver_vmt, overlaid_drv,
-                               path_prefix);
+  return __ovldrv_objinit_impl(self, &__vfs_overlay_driver_vmt, overlaid_drv);
 }
+/** @} */
+
+/**
+ * @name        Inline methods of vfs_overlay_driver_c
+ * @{
+ */
+#if (VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE) || defined (__DOXYGEN__)
+/**
+ * @brief       Locks local overlay/root metadata.
+ * @note        Thread context only. Do not nest metadata locks or hold one
+ *              across delegation, callbacks, disposal, or blocking allocation.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_overlay_driver_c instance.
+ *
+ * @notapi
+ */
+CC_FORCE_INLINE
+static inline void __ovldrv_lock(void *ip) {
+  vfs_overlay_driver_c *self = (vfs_overlay_driver_c *)ip;
+  chMtxLock(&self->mutex);
+}
+
+/**
+ * @brief       Unlocks local overlay/root metadata.
+ *
+ * @param[in,out] ip            Pointer to a @p vfs_overlay_driver_c instance.
+ *
+ * @notapi
+ */
+CC_FORCE_INLINE
+static inline void __ovldrv_unlock(void *ip) {
+  vfs_overlay_driver_c *self = (vfs_overlay_driver_c *)ip;
+  chMtxUnlock(&self->mutex);
+}
+#endif /* VFS_CFG_USE_MUTUAL_EXCLUSION == TRUE */
 /** @} */
 
 #endif /* VFS_CFG_ENABLE_DRV_OVERLAY == TRUE */

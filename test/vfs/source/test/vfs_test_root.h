@@ -30,6 +30,13 @@
 #include "vfs_test_sequence_004.h"
 #include "vfs_test_sequence_005.h"
 #include "vfs_test_sequence_006.h"
+#include "vfs_test_sequence_007.h"
+#include "vfs_test_sequence_008.h"
+#include "vfs_test_sequence_009.h"
+#include "vfs_test_sequence_010.h"
+#include "vfs_test_sequence_011.h"
+#include "vfs_test_sequence_012.h"
+#include "vfs_test_sequence_013.h"
 
 #if !defined(__DOXYGEN__)
 
@@ -95,7 +102,20 @@ bool vfs_test_path_becomes_absolute(const char *cwd, const char *input,
 bool vfs_test_stat_equal(const vfs_stat_t *actual,
                          const vfs_stat_t *expected);
 bool vfs_test_stat_optional_is_clear(const vfs_stat_t *sp);
+bool vfs_test_posix_stat_equal(const struct stat *st, const vfs_stat_t *vst);
 void vfs_test_fs_reset(void);
+void vfs_test_open_matrix(vfs_fs_c *fsp);
+void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs);
+void vfs_test_open_conflicts(vfs_fs_c *fsp, bool fatfs);
+void vfs_test_seek_past_end(vfs_fs_c *fsp);
+void vfs_test_sync_truncate(vfs_fs_c *fsp);
+#if defined(VFS_TEST_SB)
+#include "sb_test.h"
+#endif
+#if defined(VFS_TEST_NEWLIB) && (VFS_CFG_ENABLE_DRV_ROOT == TRUE)
+#include "newlib_test.h"
+void vfs_test_newlib_native(vfs_fs_c *fsp);
+#endif
 #if VFS_CFG_ENABLE_DRV_ROOT == TRUE
 void vfs_test_root_reset(void);
 #endif

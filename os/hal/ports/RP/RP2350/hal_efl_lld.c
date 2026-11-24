@@ -609,8 +609,12 @@ RAMFUNC static bool rp_flash_enter_xip(EFlashDriver *eflp) {
   /* Disable direct mode and restore saved XIP configuration (CS0 and CS1). */
   qmi->DIRECT_CSR = 0U;
   qmi->M0_TIMING  = eflp->xip_timing;
+#if RP_QMI_USE_CONTINUOUS_READ == TRUE
+  rp_qmi_restore_read(eflp->xip_rfmt, eflp->xip_rcmd);
+#else
   qmi->M0_RFMT    = eflp->xip_rfmt;
   qmi->M0_RCMD    = eflp->xip_rcmd;
+#endif
   qmi->M1_TIMING  = eflp->xip_m1_timing;
   qmi->M1_RFMT    = eflp->xip_m1_rfmt;
   qmi->M1_RCMD    = eflp->xip_m1_rcmd;

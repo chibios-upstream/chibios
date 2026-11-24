@@ -36,6 +36,21 @@
 /*===========================================================================*/
 
 /**
+ * @brief   Enables local VFS mutual exclusion.
+ * @details Protects root/overlay metadata, singleton FatFS state and each
+ *          LittleFS instance. Metadata locks are released before delegation;
+ *          leaf wrapper locks cover native library calls and storage I/O.
+ *          When disabled, callers serialize shared state. Shared hardware
+ *          and other backends retain their own synchronization requirements.
+ *          Direct and convenience APIs follow the same rules; this option
+ *          does not make multi-call sequences atomic or order same-node use.
+ *          Pool, reference and descriptor protection remain independent.
+ */
+#if !defined(VFS_CFG_USE_MUTUAL_EXCLUSION) || defined(__DOXYGEN__)
+#define VFS_CFG_USE_MUTUAL_EXCLUSION        FALSE
+#endif
+
+/**
  * @brief   Maximum filename length.
  */
 #if !defined(VFS_CFG_NAMELEN_MAX) || defined(__DOXYGEN__)
@@ -50,7 +65,9 @@
 #endif
 
 /**
- * @brief   Number of shared path buffers.
+ * @brief   Number of shared path buffer pairs.
+ * @details Each pool element holds two full paths or one scratch buffer
+ *          spanning both paths, and is reserved by a single allocation.
  */
 #if !defined(VFS_CFG_PATHBUFS_NUM) || defined(__DOXYGEN__)
 #define VFS_CFG_PATHBUFS_NUM                1
@@ -133,7 +150,7 @@
 /**
  * @brief   Number of directory nodes pre-allocated in the pool.
  */
-#if !defined(DRV_CFG_OVERLAY_NODES_NUM) || defined(__DOXYGEN__)
+#if !defined(DRV_CFG_OVERLAY_DIR_NODES_NUM) || defined(__DOXYGEN__)
 #define DRV_CFG_OVERLAY_DIR_NODES_NUM       1
 #endif
 
@@ -223,7 +240,7 @@
 /*===========================================================================*/
 
 /**
- * @brief   Number of shared path buffers.
+ * @brief   Number of directory nodes pre-allocated in the pool.
  */
 #if !defined(DRV_CFG_LITTLEFS_DIR_NODES_NUM) || defined(__DOXYGEN__)
 #define DRV_CFG_LITTLEFS_DIR_NODES_NUM      1
@@ -252,6 +269,10 @@
  */
 /*===========================================================================*/
 
+#if !defined(DRV_CFG_ROM_ENABLE_COMPRESSION) || defined(__DOXYGEN__)
+#define DRV_CFG_ROM_ENABLE_COMPRESSION      FALSE
+#endif
+
 #if !defined(DRV_CFG_ROM_DIR_NODES_NUM) || defined(__DOXYGEN__)
 #define DRV_CFG_ROM_DIR_NODES_NUM           1
 #endif
@@ -259,6 +280,8 @@
 #if !defined(DRV_CFG_ROM_FILE_NODES_NUM) || defined(__DOXYGEN__)
 #define DRV_CFG_ROM_FILE_NODES_NUM          4
 #endif
+
+/** @} */
 
 #endif /* VFSCONF_H */
 

@@ -1,11 +1,15 @@
 /* Actual shell with controllable I/O; --shell uses native PTY I/O. */
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 static bool native_io, terminal;
@@ -159,6 +163,52 @@ static void assert_restored(void) {
   assert(memcmp(&attributes, &original, sizeof original) == 0);
 }
 
+/* Command lines expanded in a scratch directory, echo prints each argument
+   followed by a space.*/
+static void test_expansion(char *argv[]) {
+  static const char *const files[] = {"b2", "a1", "c3.x", "sub/z", "sub/y"};
+  char dir[] = "/tmp/msh-glob-XXXXXX";
+  char cwd[PATH_MAX];
+  unsigned i;
+  int fd;
+
+  assert(getcwd(cwd, sizeof cwd) != NULL);
+  assert(mkdtemp(dir) != NULL);
+  assert(chdir(dir) == 0);
+  assert(mkdir("sub", 0700) == 0);
+  for (i = 0U; i < sizeof files / sizeof files[0]; i++) {
+    fd = open(files[i], O_CREAT | O_WRONLY, 0600);
+    assert(fd >= 0);
+    (void)close(fd);
+  }
+
+  setup(false, "echo *\n"
+               "echo \"*\" \"a b\" -*\n"
+               "echo zz* \"zz*\"\n"
+               "echo \"x /nonexistent/c*\"\n"
+               "echo first sub/? last\n"
+               "echo nodir/*\n"
+               "echo /tm?\n");
+  assert(msh_main(1, argv, environ) == 0);
+  assert(strstr(output[STDOUT_FILENO], "\na1 b2 c3.x sub \n") != NULL);
+  assert(strstr(output[STDOUT_FILENO], "\n* a b -* \n") != NULL);
+  assert(strstr(output[STDOUT_FILENO], "\nzz* zz* \n") != NULL);
+  assert(strstr(output[STDOUT_FILENO], "\nx /nonexistent/c* \n") != NULL);
+  assert(strstr(output[STDOUT_FILENO], "\nfirst sub/y sub/z last \n") !=
+         NULL);
+  assert(strstr(output[STDOUT_FILENO], "\nnodir/* \n") != NULL);
+  if (access("/tmp", F_OK) == 0) {
+    assert(strstr(output[STDOUT_FILENO], "\n/tmp \n") != NULL);
+  }
+
+  for (i = 0U; i < sizeof files / sizeof files[0]; i++) {
+    assert(unlink(files[i]) == 0);
+  }
+  assert(rmdir("sub") == 0);
+  assert(chdir(cwd) == 0);
+  assert(rmdir(dir) == 0);
+}
+
 int main(int argc, char *argv[]) {
   char line[SHELL_MAX_LINE_LENGTH];
   unsigned tty;
@@ -250,6 +300,8 @@ int main(int argc, char *argv[]) {
   set_error = EIO;
   assert(shell_getline(line, sizeof line));
   assert(strcmp(output[STDERR_FILENO], "msh: cannot restore terminal\n") == 0);
+
+  test_expansion(argv);
 
   puts("msh terminal unit tests passed");
   return 0;

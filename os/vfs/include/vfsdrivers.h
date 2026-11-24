@@ -37,7 +37,7 @@
  * @name    File open flags compatible with Posix
  * @{
  */
-#define VO_SUPPORTED_FLAGS_MASK             (O_ACCMODE | O_APPEND | O_CREAT | O_TRUNC | O_EXCL)
+#define VO_SUPPORTED_FLAGS_MASK             (O_ACCMODE | O_APPEND | O_CREAT | O_TRUNC | O_EXCL | O_DIRECTORY | O_CLOEXEC)
 #define VO_ACCMODE                          O_ACCMODE
 #define VO_RDONLY                           O_RDONLY
 #define VO_WRONLY                           O_WRONLY
@@ -46,6 +46,8 @@
 #define VO_CREAT                            O_CREAT
 #define VO_TRUNC                            O_TRUNC
 #define VO_EXCL                             O_EXCL
+#define VO_DIRECTORY                        O_DIRECTORY
+#define VO_CLOEXEC                          O_CLOEXEC
 /** @} */
 
 /*===========================================================================*/
@@ -70,7 +72,17 @@
  *
  * @brief       Common ancestor class of all VFS file system classes.
  * @details     Base class for objects that implement a Posix-like file system
- *              interface using normalized absolute paths.
+ *              interface using normalized absolute paths. Root objects also
+ *              accept relative paths and normalize them against their CWD.
+ *              Methods use internal local synchronization, controlled by
+ *              VFS_CFG_USE_MUTUAL_EXCLUSION; they do not provide atomic
+ *              multi-call transactions. The caller must keep the file system
+ *              alive through all operations and node disposal. Successful
+ *              opens transfer one node reference to the caller. Input paths
+ *              and other borrowed arguments must remain valid and unchanged
+ *              until the call returns. Native filesystem mount, unmount,
+ *              format and object disposal require externally quiesced users of
+ *              the affected filesystem.
  *
  * @name        Class @p vfs_fs_c structures
  * @{
@@ -128,6 +140,8 @@ extern "C" {
   msg_t __vfsfs_mkdir_impl(void *ip, const char *path, vfs_mode_t mode);
   msg_t __vfsfs_rmdir_impl(void *ip, const char *path);
   /* Regular functions.*/
+  msg_t __vfs_check_open(const char *path, int flags);
+  msg_t __vfs_check_directory_flags(int flags);
   msg_t vfsFSOpen(vfs_fs_c *fsp, const char *path, int flags,
                   vfs_node_c **vnpp);
 #ifdef __cplusplus

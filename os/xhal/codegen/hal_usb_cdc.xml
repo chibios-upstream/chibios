@@ -141,8 +141,8 @@ struct hal_usb_cdc_config {
             <brief>Interrupt IN endpoint configuration.</brief>
           </field>
           <field name="svcinfo" ctype="hal_usb_service_info_t">
-            <brief>CDC service ownership metadata, built at object
-              initialization and never changed.</brief>
+            <brief>CDC service ownership metadata.</brief>
+            <details>Built at object initialization and never changed.</details>
           </field>
         </fields>
         <methods>

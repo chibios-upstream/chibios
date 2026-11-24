@@ -120,18 +120,11 @@ static vio_conf_t vio_config2 = {
 static vfs_rom_driver_c rom_driver;
 #endif
 
-/* VFS root object.*/
-static vfs_root_c root_driver;
-
 /* Private root for sandbox 2.*/
 static vfs_root_c sb2_root_driver;
 
 /* VFS streams driver object representing the /dev directory.*/
 static vfs_streams_driver_c dev_driver;
-
-/* VFS API will use this object as implicit root, defining this
-   symbol is expected.*/
-vfs_root_c *vfs_root = &root_driver;
 
 static null_stream_c nullstream;
 
@@ -204,14 +197,23 @@ static void start_sb2(void) {
 
   /*
    * Associating standard input, output and error to sandbox 2.*/
-  ret = vfsOpen("/dev/null", 0, &np);
+  ret = vfsFSOpen((vfs_fs_c *)&dev_driver, "/null", VO_RDWR, &np);
   if (CH_RET_IS_ERROR(ret)) {
     chSysHalt("VFS");
   }
-  sbRegisterDescriptor(&sbx2, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
-  sbRegisterDescriptor(&sbx2, STDOUT_FILENO, (vfs_node_c *)roAddRef(np));
-  sbRegisterDescriptor(&sbx2, STDERR_FILENO, (vfs_node_c *)roAddRef(np));
-  vfsClose(np);
+  ret = sbRegisterDescriptor(&sbx2, STDIN_FILENO, (vfs_node_c *)roAddRef(np));
+  if (CH_RET_IS_ERROR(ret)) {
+    chSysHalt("sbx2 descriptor");
+  }
+  ret = sbRegisterDescriptor(&sbx2, STDOUT_FILENO, (vfs_node_c *)roAddRef(np));
+  if (CH_RET_IS_ERROR(ret)) {
+    chSysHalt("sbx2 descriptor");
+  }
+  ret = sbRegisterDescriptor(&sbx2, STDERR_FILENO, (vfs_node_c *)roAddRef(np));
+  if (CH_RET_IS_ERROR(ret)) {
+    chSysHalt("sbx2 descriptor");
+  }
+  vfsNodeClose(np);
 
   /* Starting sandboxed thread 2.*/
   utp = sbStart(&sbx2, NORMALPRIO-20, sbx2stk, sbx2_argv, sbx2_envp);
@@ -247,19 +249,13 @@ int main(void) {
   drvStart(&SIOD3, NULL);
   nullstmObjectInit(&nullstream);
 
-  /*
-   * Initializing a ROMFS-backed root, then mounting "/dev" on it.
-   */
-  vfsrootObjectInit(&root_driver,
-                   (vfs_fs_c *)romdrvObjectInit(&rom_driver, &http_romfs),
-                   NULL);
-  ret = ovldrvRegisterDriver(&root_driver,
-                             (vfs_fs_c *)stmdrvObjectInit(&dev_driver,
-                                                         &streams[0]),
-                             "dev");
-  if (CH_RET_IS_ERROR(ret)) {
-    chSysHalt("VFS");
-  }
+  /* ROMFS with the HTTP content, the base of the sandbox root.*/
+  romdrvObjectInit(&rom_driver, &http_romfs);
+
+  /* Streams file system with the null stream, mounted as "/dev" by the
+     sandbox root and used directly by the host for the standard
+     descriptors of sandbox 2.*/
+  stmdrvObjectInit(&dev_driver, &streams[0]);
 
   /* Initializing sandbox 2's private root over the shared ROMFS, then
      mounting the shared streams file system as "/dev".*/

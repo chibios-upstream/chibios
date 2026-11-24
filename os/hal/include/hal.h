@@ -52,7 +52,7 @@
 /**
  * @brief   HAL version string.
  */
-#define CH_HAL_VERSION          "9.1.0"
+#define CH_HAL_VERSION          "9.2.0"
 
 /**
  * @brief   HAL version major number.
@@ -62,7 +62,7 @@
 /**
  * @brief   HAL version minor number.
  */
-#define CH_HAL_MINOR            1
+#define CH_HAL_MINOR            2
 
 /**
  * @brief   HAL version patch number.
@@ -170,8 +170,8 @@
 #define HAL_USE_DAC                         FALSE
 #endif
 
-#if !defined(HAL_USE_DISPLAY)
-#define HAL_USE_DISPLAY                     FALSE
+#if !defined(HAL_USE_DSPL)
+#define HAL_USE_DSPL                        FALSE
 #endif
 
 #if !defined(HAL_USE_EFL)
@@ -348,6 +348,7 @@ static inline bool halClockResume(void) {
 #include "hal_mmcsd.h"
 #include "hal_persistent.h"
 #include "hal_flash.h"
+#include "hal_encoder.h"
 
 /* Shared headers.*/
 #include "hal_safety.h"

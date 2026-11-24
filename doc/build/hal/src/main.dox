@@ -34,4 +34,7 @@
  *   System Abstraction Layer (OSAL). ChibiOS/RT and ChibiOS/NIL are supported
  *   out of the box.
  * .
+ * <h2>Related pages</h2>
+ * - @subpage concepts
+ * .
  */

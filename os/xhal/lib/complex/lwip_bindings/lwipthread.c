@@ -327,7 +327,7 @@ void lwipDefaultLinkDownCB(void *p)
  * @brief LWIP handling thread.
  *
  * @param[in] p pointer to a @p lwipthread_opts structure or @p NULL
- * @return The function does not return.
+ * @note  The function does not return.
  */
 static THD_FUNCTION(lwip_thread, p) {
   event_timer_t evt;

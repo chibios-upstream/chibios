@@ -135,6 +135,11 @@ void hal_lld_init(void) {
   stBind();
 #endif
 
+#if (RP_QMI_USE_CONTINUOUS_READ == TRUE) || (RP_QMI_MIN_DESELECT_NS > 0U)
+  /* Boot flash read options, before core 1 can fetch from flash.*/
+  rp_qmi_init();
+#endif
+
 #if RP_CORE1_START == TRUE
   start_core1();
 #endif

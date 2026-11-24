@@ -207,6 +207,17 @@
 #define AM67_PAD_WKUP_UART0_RXD 0x0024U   /* SPI0_CS2, mux mode 2.         */
 #define AM67_PAD_MCU_MCAN0_TX   0x0034U   /* SPI0_CS3, mux mode 2.         */
 
+/*
+ * MCU_I2C0 pads, 40-pin header pins 3 and 5, mux mode 0.
+ *
+ * The internal pull-ups are enabled on both, as the Linux device tree does
+ * (PIN_INPUT_PULLUP). Whether they are wanted, or the device wired to the
+ * header brings its own resistors, is a board decision, which is why the
+ * driver does not make it; see board_i2c0_pinmux().
+ */
+#define AM67_PAD_I2C0_SCL       0x0044U
+#define AM67_PAD_I2C0_SDA       0x0048U
+
 #if !defined(_FROM_ASM_)
 #include <stdbool.h>
 #ifdef __cplusplus
@@ -215,6 +226,7 @@ extern "C" {
   void boardInit(void);
   void board_imu_enable(void);
   bool board_spi0_pinmux(unsigned channel);
+  void board_i2c0_pinmux(void);
 #ifdef __cplusplus
 }
 #endif

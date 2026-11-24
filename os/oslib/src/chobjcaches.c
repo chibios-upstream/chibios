@@ -42,6 +42,11 @@
  *          - <b>Release Object</b>: Releases an object to the cache handling
  *            the media update, if required.
  *          .
+ *          <h2>SMP with non-coherent caches</h2>
+ *          An objects cache used by more than one core must be in coherent
+ *          memory together with its hash table, its objects and their data
+ *          buffers, an object released by a core can be retrieved by
+ *          another.
  * @pre     In order to use the objects caches APIs the @p CH_CFG_USE_OBJ_CACHES
  *          option must be enabled in @p chconf.h.
  * @note    Compatible with RT and NIL.

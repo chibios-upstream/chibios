@@ -18,5 +18,12 @@
 
 #include "portab.h"
 
+/* Coherent data region exported to loaded applications. The ARMv8-M MPU
+   requires 32 bytes granularity. This core has no data cache so the region
+   is naturally coherent, it is exported with coherent semantics anyway for
+   application portability.*/
+uint8_t __attribute__((aligned(32)))
+portab_nocache_region[PORTAB_NOCACHE_REGION_SIZE];
+
 void portab_setup(void) {
 }

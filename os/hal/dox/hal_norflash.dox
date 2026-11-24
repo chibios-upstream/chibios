@@ -52,3 +52,17 @@
  *
  * @ingroup HAL_COMPLEX_DRIVERS
  */
+
+/**
+ * @defgroup MACRONIX_MX25 Macronix MX25 Device
+ * @brief   Macronix MX25 device support for the Serial NOR Flash driver.
+ *
+ * @ingroup HAL_SERIAL_NOR
+ */
+
+/**
+ * @defgroup MICRON_N25Q Micron N25Q Device
+ * @brief   Micron N25Q device support for the Serial NOR Flash driver.
+ *
+ * @ingroup HAL_SERIAL_NOR
+ */

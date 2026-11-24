@@ -15,7 +15,7 @@
 */
 
 /**
- * @file    sb/user/sbapi.h
+ * @file    sb/user/sbuser.h
  * @brief   ARM SandBox user API macros and structures.
  *
  * @addtogroup ARM_SANDBOX_USER_API
@@ -168,6 +168,19 @@ typedef uint32_t eventflags_t;
 /*===========================================================================*/
 /* Module macros.                                                            */
 /*===========================================================================*/
+
+/**
+ * @brief   Placement in the coherent data section.
+ * @details Decorates a variable declaration for placement in the
+ *          @p .nocache section, mapped by the loader onto the coherent
+ *          (non-cacheable) region exported by the host, if any.
+ * @note    The section is BSS-like, initializers are not supported, the
+ *          whole region is zeroed at load time.
+ * @note    For DMA buffers an explicit cache-line alignment is advisable,
+ *          for example <tt>static SB_NOCACHE uint8_t buf[256]
+ *          __attribute__((aligned(32)));</tt>.
+ */
+#define SB_NOCACHE  __attribute__((section(".nocache")))
 
 /**
  * @brief   VRQ handler declaration.
@@ -501,6 +514,20 @@ static inline msg_t sbFstat(int fd, struct stat *statbuf) {
 }
 
 /**
+ * @brief   Posix-style terminal check.
+ * @note    The terminal state is not changed.
+ *
+ * @param[in] fd        file descriptor
+ * @return              Operation result, success if the file descriptor
+ *                      refers to a terminal.
+ */
+static inline msg_t sbIsatty(int fd) {
+
+  __syscall2r(SB_SYSC_POSIX, SB_POSIX_ISATTY, fd);
+  return (msg_t)r0;
+}
+
+/**
  * @brief   Retrieves terminal attributes.
  *
  * @param[in] fd        file descriptor
@@ -567,6 +594,33 @@ static inline msg_t sbWrite(int fd, const void *buf, size_t count) {
 static inline msg_t sbSeek(int fd, off_t offset, int whence) {
 
   __syscall4r(SB_SYSC_POSIX, SB_POSIX_LSEEK, fd, offset, whence);
+  return (msg_t)r0;
+}
+
+/**
+ * @brief   Posix-style file synchronization.
+ *
+ * @param[in] fd        file descriptor
+ * @return              Operation result.
+ */
+static inline msg_t sbFsync(int fd) {
+
+  __syscall2r(SB_SYSC_POSIX, SB_POSIX_FSYNC, fd);
+  return (msg_t)r0;
+}
+
+/**
+ * @brief   Posix-style file size change.
+ * @note    The file position is not changed, a longer size extends the
+ *          file with zeros.
+ *
+ * @param[in] fd        file descriptor open for writing
+ * @param[in] length    new file size
+ * @return              Operation result.
+ */
+static inline msg_t sbFtruncate(int fd, off_t length) {
+
+  __syscall3r(SB_SYSC_POSIX, SB_POSIX_FTRUNCATE, fd, length);
   return (msg_t)r0;
 }
 
@@ -755,13 +809,12 @@ static inline void sbSleep(sysinterval_t interval) {
 /**
  * @brief   Suspends the invoking thread until the system time arrives to the
  *          specified value.
- * @note    The system time is assumed to be between @p start and @p next
+ * @note    The system time is assumed to be between @p prev and @p next
  *          else the call is assumed to have been called outside the
  *          allowed time interval, in this case no sleep is performed.
  *
  * @param[in] prev      absolute system time of the previous deadline
  * @param[in] next      absolute system time of the next deadline
- * @return              the @p next parameter
  *
  * @api
  */
