@@ -43,9 +43,8 @@
    I-class function sits at CORTEX_MAX_KERNEL_PRIORITY or below (numerically
    higher, i.e. less urgent). SVCall therefore out-prioritizes every VRQ
    producer and a producer cannot preempt a handler mid-sequence; the
-   sequences are atomic by construction (see note_sb_isolation_security.md,
-   margin 6). The fast-priority band above SVCall cannot produce VRQs because
-   it cannot call OS primitives.
+   sequences are atomic by construction. The fast-priority band above SVCall
+   cannot produce VRQs because it cannot call OS primitives.
 
    This guard fails the build if a port or priority reconfiguration ever
    breaks that ordering, rather than silently reopening the lost-update race.
