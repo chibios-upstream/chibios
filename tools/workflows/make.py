@@ -27,6 +27,7 @@ import argparse
 import collections
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -145,7 +146,8 @@ def make(args):
         if not target:
             continue
 
-        cmd_target = cmd + [target]
+        # A target can carry make options, for example "all -o foo".
+        cmd_target = cmd + shlex.split(target)
 
         timestamp=time.time()
         start = time.monotonic()
