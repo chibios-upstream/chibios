@@ -76,6 +76,13 @@
 #endif
 
 /**
+ * @brief   Enables the display subsystem.
+ */
+#if !defined(HAL_USE_DSPL) || defined(__DOXYGEN__)
+#define HAL_USE_DSPL                        FALSE
+#endif
+
+/**
  * @brief   Enables the EFlash subsystem.
  */
 #if !defined(HAL_USE_EFL) || defined(__DOXYGEN__)
@@ -541,6 +548,15 @@
  */
 #if !defined(USB_USE_WAIT) || defined(__DOXYGEN__)
 #define USB_USE_WAIT                        FALSE
+#endif
+
+/**
+ * @brief   Moves EP0 request handling to thread context.
+ * @note    When enabled the legacy requests hook callback is not available
+ *          and the application must provide a dedicated EP0 worker thread.
+ */
+#if !defined(USB_USE_EP0_THREAD) || defined(__DOXYGEN__)
+#define USB_USE_EP0_THREAD                  FALSE
 #endif
 
 /*===========================================================================*/
