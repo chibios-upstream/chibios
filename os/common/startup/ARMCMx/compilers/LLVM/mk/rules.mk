@@ -160,8 +160,14 @@ IINCDIR   := $(patsubst %,-I%,$(INCDIR) $(DINCDIR) $(UINCDIR))
 LLIBDIR   := $(patsubst %,-L%,$(DLIBDIR) $(ULIBDIR) $(ARM_CORTEXM_SYSROOT)/lib/$(ARM_CORTEXM_MULTI_DIR))
 LDFLAGS   = $(MCFLAGS) $(OPT) -nostartfiles $(LLIBDIR) $(ARM_CORTEXM_BUILTINS) -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--library-path=$(STARTUPLD)$(LDOPT),--script=$(LDSCRIPT)
 
-# Paths where to search for sources
-VPATH     = $(SRCPATHS)
+# Paths where to search for sources. Only the source files are searched,
+# other files and directories are never resolved to same-named ones in
+# the source directories.
+vpath %.c   $(SRCPATHS)
+vpath %.cc  $(SRCPATHS)
+vpath %.cpp $(SRCPATHS)
+vpath %.s   $(SRCPATHS)
+vpath %.S   $(SRCPATHS)
 
 #
 # Makefile rules
