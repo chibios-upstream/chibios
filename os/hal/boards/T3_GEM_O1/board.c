@@ -274,8 +274,9 @@ void Reset_Handler(void) {
     "movt    r0, #0xA111               \n"
     "str     r1, [r0]                  \n"
     "dsb                               \n"
-    "movw    sp, #0x7FC0               \n"  /* Temporary stack, TCM top  */
-    "movt    sp, #0x0000               \n"
+    "movw    r0, #0x7FC0               \n"  /* Temporary stack, TCM top  */
+    "movt    r0, #0x0000               \n"
+    "mov     sp, r0                    \n"
     "bl      tcm_early_init            \n"
     "movw    r0, #:lower16:ddr_reset   \n"
     "movt    r0, #:upper16:ddr_reset   \n"
