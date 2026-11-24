@@ -35,6 +35,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   driver with one mutex per instance, so `FF_FS_REENTRANT` and the LittleFS
   thread-safe build are no longer required for concurrent use
   ([#613](https://github.com/chibios-upstream/chibios/pull/613)).
+- [HAL] AVR ATmega: `ATMEGA8_MINIMAL` and `ATMEGA162_MINIMAL` boards for the
+  older devices, the `RT-ATMEGA8-MINIMAL` and `NIL-ATMEGA8-MINIMAL` demos,
+  and the `RT-ATMEGA162-XMEM` demo, which uses a 32 KiB SRAM on the external
+  memory interface as the kernel core memory
+  ([#667](https://github.com/chibios-upstream/chibios/pull/667)).
 - [HAL] AVR ATmega SIO driver on the USARTv1: `SIOD0`–`SIOD3` on
   USART0–USART3, allocated with the `AVR_SIO_USE_USARTx` switches, and a
   `testhal/AVR/MEGA/SIO` echo test for the Arduino Uno
