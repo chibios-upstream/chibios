@@ -112,7 +112,7 @@ static msg_t translate_error(enum lfs_error res) {
     break;
 
   case LFS_ERR_NOTEMPTY:
-    msg = CH_ENCODE_ERROR(ENOTEMPTY);
+    msg = CH_RET_ENOTEMPTY;
     break;
 
   case LFS_ERR_INVAL:
@@ -124,7 +124,7 @@ static msg_t translate_error(enum lfs_error res) {
     break;
 
   case LFS_ERR_FBIG:
-    msg = CH_ENCODE_ERROR(EFBIG);
+    msg = CH_RET_EFBIG;
     break;
 
   case LFS_ERR_CORRUPT:

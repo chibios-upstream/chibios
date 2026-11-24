@@ -963,7 +963,7 @@ static void vfs_test_006_006_execute(void) {
     test_assert(ret == CH_RET_SUCCESS, "file creation failed");
     vfsNodeClose(fnp);
     ret = vfsFSRmdir(fsp, "/dir");
-    test_assert(ret == CH_ENCODE_ERROR(ENOTEMPTY),
+    test_assert(ret == CH_RET_ENOTEMPTY,
                 "non-empty directory removal error");
     ret = vfsFSUnlink(fsp, "/dir/file");
     test_assert(ret == CH_RET_SUCCESS, "file removal failed");

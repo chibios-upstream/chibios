@@ -738,9 +738,9 @@ static void vfs_test_011_008_execute(void) {
     for (i = 0U; i < 2U; i++) {
       vfs_test_io_nodes[i].node.vmt = &vfs_test_io_custom_vmt[i];
       test_assert(vfsIOInsert(&vfs_test_io, &vfs_test_io_nodes[i].node) ==
-                  CH_ENCODE_ERROR(ENOTSUP) &&
+                  CH_RET_ENOTSUP &&
                   vfsIOInstall(&vfs_test_io, 0, &vfs_test_io_nodes[i].node) ==
-                  CH_ENCODE_ERROR(ENOTSUP), "custom reference method admitted");
+                  CH_RET_ENOTSUP, "custom reference method admitted");
       test_assert(vfs_test_io_nodes[i].node.references == 1U &&
                   vfs_test_io_nodes[i].disposals == 0U &&
                   vfs_test_io_custom_calls == 0U,

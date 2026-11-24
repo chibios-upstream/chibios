@@ -642,7 +642,7 @@ void vfs_test_handle_contract(vfs_fs_c *fsp, bool fatfs) {
   test_assert(vfsFSOpenFile(fsp, "/dir/child", VO_CREAT | VO_WRONLY, &fnp) == 0,
               "child creation failed");
   (void)roRelease(fnp);
-  test_assert(vfsFSRmdir(fsp, "/dir") == CH_ENCODE_ERROR(ENOTEMPTY) &&
+  test_assert(vfsFSRmdir(fsp, "/dir") == CH_RET_ENOTEMPTY &&
               vfsFSStat(fsp, "/dir/child", &st) == 0,
               "nonempty directory was removed");
   test_assert(vfsFSUnlink(fsp, "/dir/child") == 0 &&
@@ -1749,7 +1749,7 @@ static int32_t vfs_test_stream_seek(void *ip, int32_t offset, int whence) {
     return (int32_t)CH_RET_EINVAL;
   }
   if (target > (int64_t)vfs_test_stream_limit) {
-    return (int32_t)CH_ENCODE_ERROR(ENOTSUP);
+    return (int32_t)CH_RET_ENOTSUP;
   }
   vfs_test_stream_position = (int32_t)target;
 
@@ -2319,7 +2319,7 @@ test_assert(vfsFileSetPosition(fnp, -1, VFS_SEEK_SET) == CH_RET_EINVAL &&
             vfsFileSetPosition(fnp, INT32_MAX, VFS_SEEK_CUR) ==
               CH_RET_EOVERFLOW &&
             vfsFileSetPosition(fnp, 17, VFS_SEEK_SET) ==
-              CH_ENCODE_ERROR(ENOTSUP) &&
+              CH_RET_ENOTSUP &&
             vfsFileGetPosition(fnp) == 14, "stream seek error lost");
 
 /* Backend errors are reported, the position is unchanged.*/
@@ -2400,9 +2400,9 @@ ret = vfsFSOpen((vfs_fs_c *)&driver, "/tty", VO_TRUNC | VO_RDONLY, &np);
 test_assert(ret == CH_RET_EINVAL, "invalid stream flags accepted");
 (void)stmdrvObjectInit(&driver, writable);
 ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_TRUNC | VO_WRONLY, &np);
-test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream truncated");
+test_assert(ret == CH_RET_ENOTSUP, "random stream truncated");
 ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_APPEND | VO_WRONLY, &np);
-test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream appended");]]></value></code>
+test_assert(ret == CH_RET_ENOTSUP, "random stream appended");]]></value></code>
             </step>
           </steps>
         </case>
@@ -4157,7 +4157,7 @@ ret = vfsFSOpenFile(fsp, "/dir/file", VO_CREAT | VO_WRONLY, &fnp);
 test_assert(ret == CH_RET_SUCCESS, "file creation failed");
 vfsNodeClose(fnp);
 ret = vfsFSRmdir(fsp, "/dir");
-test_assert(ret == CH_ENCODE_ERROR(ENOTEMPTY),
+test_assert(ret == CH_RET_ENOTEMPTY,
             "non-empty directory removal error");
 ret = vfsFSUnlink(fsp, "/dir/file");
 test_assert(ret == CH_RET_SUCCESS, "file removal failed");
@@ -7126,9 +7126,9 @@ vfs_test_io_custom_vmt[1].release = vfs_test_io_custom_release;
 for (i = 0U; i < 2U; i++) {
   vfs_test_io_nodes[i].node.vmt = &vfs_test_io_custom_vmt[i];
   test_assert(vfsIOInsert(&vfs_test_io, &vfs_test_io_nodes[i].node) ==
-              CH_ENCODE_ERROR(ENOTSUP) &&
+              CH_RET_ENOTSUP &&
               vfsIOInstall(&vfs_test_io, 0, &vfs_test_io_nodes[i].node) ==
-              CH_ENCODE_ERROR(ENOTSUP), "custom reference method admitted");
+              CH_RET_ENOTSUP, "custom reference method admitted");
   test_assert(vfs_test_io_nodes[i].node.references == 1U &&
               vfs_test_io_nodes[i].disposals == 0U &&
               vfs_test_io_custom_calls == 0U,
@@ -8071,7 +8071,7 @@ ok = vfs_test_api_waiter != NULL && vfs_test_api_custom_calls == 1U;
 ok &= vfsIOInsert(&vfs_test_api_io,
                   (vfs_node_c *)&vfs_test_api_files[0]) == 0;
 vfs_test_api_join();
-test_assert(ok && vfs_test_api_result == CH_ENCODE_ERROR(ENOTSUP),
+test_assert(ok && vfs_test_api_result == CH_RET_ENOTSUP,
             "rejected open kept reservation during disposal");
 test_assert(vfs_test_api_files[2].disposals == 1U &&
             vfsIOClose(&vfs_test_api_io, 0) == CH_RET_SUCCESS &&
