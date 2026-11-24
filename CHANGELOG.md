@@ -534,6 +534,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [EXT] LittleFS updated from 2.10.1 to 2.11.3, same on-disk version and
+  API; the `lfs_config.h` bindings get the upstream fix of the byte order
+  helpers
+  ([#698](https://github.com/chibios-upstream/chibios/pull/698)).
 - [VFS] LittleFS driver: removing, renaming or replacing by a rename an
   open file, and removing or replacing an open directory, return `EBUSY`
   instead of detaching the open handles and losing their writes
