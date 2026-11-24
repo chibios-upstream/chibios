@@ -45,6 +45,7 @@ change in the next releases.
 - Configuration updater scripts for XHAL, VFS, SB and VIO configuration
   files.
 - Documentation consistency check, run by the continuous integration.
+- LittleFS updated to 2.11.3.
 
 *** What's new in RT/NIL ports ***
 
