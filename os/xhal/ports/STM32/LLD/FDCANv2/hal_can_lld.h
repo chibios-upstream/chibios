@@ -121,6 +121,145 @@
 #define STM32_CAN_USE_FDCAN3                FALSE
 #endif
 
+/**
+ * @brief   Number of enabled FDCAN instances.
+ */
+#define STM32_FDCAN_INSTANCES               (STM32_CAN_USE_FDCAN1 +         \
+                                             STM32_CAN_USE_FDCAN2 +         \
+                                             STM32_CAN_USE_FDCAN3)
+
+/** @brief Default number of standard filter elements per instance. */
+#if !defined(STM32_FDCAN_FLS_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN_FLS_NBR                 (64U / STM32_FDCAN_INSTANCES)
+#endif
+
+/** @brief Default number of extended filter elements per instance. */
+#if !defined(STM32_FDCAN_FLE_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN_FLE_NBR                 (32U / STM32_FDCAN_INSTANCES)
+#endif
+
+/** @brief Default number of receive FIFO 0 elements per instance. */
+#if !defined(STM32_FDCAN_RF0_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN_RF0_NBR                 (32U / STM32_FDCAN_INSTANCES)
+#endif
+
+/** @brief Default number of receive FIFO 1 elements per instance. */
+#if !defined(STM32_FDCAN_RF1_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN_RF1_NBR                 (32U / STM32_FDCAN_INSTANCES)
+#endif
+
+/**
+ * @brief   Default number of reserved receive buffer elements per instance.
+ * @note    Receive buffer interrupt handling is not implemented, these
+ *          elements only reserve Message RAM space.
+ */
+#if !defined(STM32_FDCAN_RB_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN_RB_NBR                  (32U / STM32_FDCAN_INSTANCES)
+#endif
+
+/** @brief Default number of transmit event FIFO elements per instance. */
+#if !defined(STM32_FDCAN_TEF_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN_TEF_NBR                 (16U / STM32_FDCAN_INSTANCES)
+#endif
+
+/** @brief Default number of transmit FIFO elements per instance. */
+#if !defined(STM32_FDCAN_TB_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN_TB_NBR                  (32U / STM32_FDCAN_INSTANCES)
+#endif
+
+/**
+ * @brief   Default number of reserved trigger memory elements per instance.
+ * @note    TTCAN trigger memory is not configured, these elements only
+ *          reserve Message RAM space.
+ */
+#if !defined(STM32_FDCAN_TM_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN_TM_NBR                  (32U / STM32_FDCAN_INSTANCES)
+#endif
+
+/** @name FDCAN1 Message RAM overrides
+ * @{ */
+#if !defined(STM32_FDCAN1_FLS_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN1_FLS_NBR                STM32_FDCAN_FLS_NBR
+#endif
+#if !defined(STM32_FDCAN1_FLE_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN1_FLE_NBR                STM32_FDCAN_FLE_NBR
+#endif
+#if !defined(STM32_FDCAN1_RF0_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN1_RF0_NBR                STM32_FDCAN_RF0_NBR
+#endif
+#if !defined(STM32_FDCAN1_RF1_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN1_RF1_NBR                STM32_FDCAN_RF1_NBR
+#endif
+#if !defined(STM32_FDCAN1_RB_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN1_RB_NBR                 STM32_FDCAN_RB_NBR
+#endif
+#if !defined(STM32_FDCAN1_TEF_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN1_TEF_NBR                STM32_FDCAN_TEF_NBR
+#endif
+#if !defined(STM32_FDCAN1_TB_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN1_TB_NBR                 STM32_FDCAN_TB_NBR
+#endif
+#if !defined(STM32_FDCAN1_TM_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN1_TM_NBR                 STM32_FDCAN_TM_NBR
+#endif
+/** @} */
+
+/** @name FDCAN2 Message RAM overrides
+ * @{ */
+#if !defined(STM32_FDCAN2_FLS_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN2_FLS_NBR                STM32_FDCAN_FLS_NBR
+#endif
+#if !defined(STM32_FDCAN2_FLE_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN2_FLE_NBR                STM32_FDCAN_FLE_NBR
+#endif
+#if !defined(STM32_FDCAN2_RF0_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN2_RF0_NBR                STM32_FDCAN_RF0_NBR
+#endif
+#if !defined(STM32_FDCAN2_RF1_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN2_RF1_NBR                STM32_FDCAN_RF1_NBR
+#endif
+#if !defined(STM32_FDCAN2_RB_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN2_RB_NBR                 STM32_FDCAN_RB_NBR
+#endif
+#if !defined(STM32_FDCAN2_TEF_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN2_TEF_NBR                STM32_FDCAN_TEF_NBR
+#endif
+#if !defined(STM32_FDCAN2_TB_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN2_TB_NBR                 STM32_FDCAN_TB_NBR
+#endif
+#if !defined(STM32_FDCAN2_TM_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN2_TM_NBR                 STM32_FDCAN_TM_NBR
+#endif
+/** @} */
+
+/** @name FDCAN3 Message RAM overrides
+ * @{ */
+#if !defined(STM32_FDCAN3_FLS_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN3_FLS_NBR                STM32_FDCAN_FLS_NBR
+#endif
+#if !defined(STM32_FDCAN3_FLE_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN3_FLE_NBR                STM32_FDCAN_FLE_NBR
+#endif
+#if !defined(STM32_FDCAN3_RF0_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN3_RF0_NBR                STM32_FDCAN_RF0_NBR
+#endif
+#if !defined(STM32_FDCAN3_RF1_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN3_RF1_NBR                STM32_FDCAN_RF1_NBR
+#endif
+#if !defined(STM32_FDCAN3_RB_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN3_RB_NBR                 STM32_FDCAN_RB_NBR
+#endif
+#if !defined(STM32_FDCAN3_TEF_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN3_TEF_NBR                STM32_FDCAN_TEF_NBR
+#endif
+#if !defined(STM32_FDCAN3_TB_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN3_TB_NBR                 STM32_FDCAN_TB_NBR
+#endif
+#if !defined(STM32_FDCAN3_TM_NBR) || defined(__DOXYGEN__)
+#define STM32_FDCAN3_TM_NBR                 STM32_FDCAN_TM_NBR
+#endif
+/** @} */
+
 /** @} */
 
 /*===========================================================================*/
@@ -201,6 +340,11 @@ static const uint8_t dlc_to_bytes[] = {
  * @brief   Type of a word size.
  */
 typedef uint8_t wordsize_t;
+
+/**
+ * @brief   Type of an FDCAN Message RAM descriptor.
+ */
+typedef struct fdcan_ram_config fdcan_ram_config_t;
 
 /**
  * @brief   CAN transmission frame.
@@ -438,7 +582,7 @@ typedef struct {
 #define can_lld_driver_fields                                               \
   wordsize_t                word_size;                                      \
   FDCAN_GlobalTypeDef       *fdcan;                                         \
-  uint32_t                  *ram_base
+  const fdcan_ram_config_t  *ram
 
 /*===========================================================================*/
 /* External declarations.                                                    */
