@@ -46,6 +46,7 @@ change in the next releases.
   files.
 - Documentation consistency check, run by the continuous integration.
 - FatFs updated to R0.16 with the upstream security patches.
+- LittleFS updated to 2.11.3.
 
 *** What's new in RT/NIL ports ***
 

@@ -534,6 +534,10 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [EXT] LittleFS updated from 2.10.1 to 2.11.3, same on-disk version and
+  API; the `lfs_config.h` bindings get the upstream fix of the byte order
+  helpers
+  ([#698](https://github.com/chibios-upstream/chibios/pull/698)).
 - [EXT] FatFs updated from R0.14b to R0.16 with ChaN's patch-1 and patch-2,
   which fix CVE-2026-6682, CVE-2026-6683 and CVE-2026-6687; the ChibiOS
   extensions are carried over unchanged. The project `ffconf.h` files must
