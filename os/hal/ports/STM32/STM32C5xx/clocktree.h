@@ -1542,11 +1542,7 @@
 /**
  * @brief   PSIK_SOURCE sink demand state.
  */
-#if (STM32_CFG_PSIK_ENABLE == TRUE) || defined(__DOXYGEN__)
-  #define STM32_PSIK_SOURCE_DEMANDED        TRUE
-#else
-  #define STM32_PSIK_SOURCE_DEMANDED        FALSE
-#endif
+#define STM32_PSIK_SOURCE_DEMANDED          (STM32_CFG_PSIK_ENABLE == TRUE)
 
 /**
  * @brief   USART1 sink demand state.
@@ -1809,142 +1805,86 @@
 /**
  * @brief   MCO1_HSE_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO1PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSE)) || defined(__DOXYGEN__)
-  #define STM32_MCO1_HSE_SOURCE_DEMANDED    TRUE
-#else
-  #define STM32_MCO1_HSE_SOURCE_DEMANDED    FALSE
-#endif
+#define STM32_MCO1_HSE_SOURCE_DEMANDED      ((STM32_CFG_MCO1PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSE))
 
 /**
  * @brief   MCO1_LSE_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO1PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_LSE)) || defined(__DOXYGEN__)
-  #define STM32_MCO1_LSE_SOURCE_DEMANDED    TRUE
-#else
-  #define STM32_MCO1_LSE_SOURCE_DEMANDED    FALSE
-#endif
+#define STM32_MCO1_LSE_SOURCE_DEMANDED      ((STM32_CFG_MCO1PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_LSE))
 
 /**
  * @brief   MCO1_LSI_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO1PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_LSI)) || defined(__DOXYGEN__)
-  #define STM32_MCO1_LSI_SOURCE_DEMANDED    TRUE
-#else
-  #define STM32_MCO1_LSI_SOURCE_DEMANDED    FALSE
-#endif
+#define STM32_MCO1_LSI_SOURCE_DEMANDED      ((STM32_CFG_MCO1PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_LSI))
 
 /**
  * @brief   MCO1_PSIK_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO1PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_PSIK)) || defined(__DOXYGEN__)
-  #define STM32_MCO1_PSIK_SOURCE_DEMANDED   TRUE
-#else
-  #define STM32_MCO1_PSIK_SOURCE_DEMANDED   FALSE
-#endif
+#define STM32_MCO1_PSIK_SOURCE_DEMANDED     ((STM32_CFG_MCO1PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_PSIK))
 
 /**
  * @brief   MCO1_HSIK_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO1PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSIK)) || defined(__DOXYGEN__)
-  #define STM32_MCO1_HSIK_SOURCE_DEMANDED   TRUE
-#else
-  #define STM32_MCO1_HSIK_SOURCE_DEMANDED   FALSE
-#endif
+#define STM32_MCO1_HSIK_SOURCE_DEMANDED     ((STM32_CFG_MCO1PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSIK))
 
 /**
  * @brief   MCO1_PSIS_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO1PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_PSIS)) || defined(__DOXYGEN__)
-  #define STM32_MCO1_PSIS_SOURCE_DEMANDED   TRUE
-#else
-  #define STM32_MCO1_PSIS_SOURCE_DEMANDED   FALSE
-#endif
+#define STM32_MCO1_PSIS_SOURCE_DEMANDED     ((STM32_CFG_MCO1PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_PSIS))
 
 /**
  * @brief   MCO1_HSIS_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO1PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSIS)) || defined(__DOXYGEN__)
-  #define STM32_MCO1_HSIS_SOURCE_DEMANDED   TRUE
-#else
-  #define STM32_MCO1_HSIS_SOURCE_DEMANDED   FALSE
-#endif
+#define STM32_MCO1_HSIS_SOURCE_DEMANDED     ((STM32_CFG_MCO1PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO1_SEL == RCC_CFGR1_MCO1SEL_HSIS))
 
 /**
  * @brief   MCO2_HSE_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO2PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSE)) || defined(__DOXYGEN__)
-  #define STM32_MCO2_HSE_SOURCE_DEMANDED    TRUE
-#else
-  #define STM32_MCO2_HSE_SOURCE_DEMANDED    FALSE
-#endif
+#define STM32_MCO2_HSE_SOURCE_DEMANDED      ((STM32_CFG_MCO2PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSE))
 
 /**
  * @brief   MCO2_LSE_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO2PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_LSE)) || defined(__DOXYGEN__)
-  #define STM32_MCO2_LSE_SOURCE_DEMANDED    TRUE
-#else
-  #define STM32_MCO2_LSE_SOURCE_DEMANDED    FALSE
-#endif
+#define STM32_MCO2_LSE_SOURCE_DEMANDED      ((STM32_CFG_MCO2PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_LSE))
 
 /**
  * @brief   MCO2_LSI_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO2PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_LSI)) || defined(__DOXYGEN__)
-  #define STM32_MCO2_LSI_SOURCE_DEMANDED    TRUE
-#else
-  #define STM32_MCO2_LSI_SOURCE_DEMANDED    FALSE
-#endif
+#define STM32_MCO2_LSI_SOURCE_DEMANDED      ((STM32_CFG_MCO2PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_LSI))
 
 /**
  * @brief   MCO2_PSIK_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO2PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_PSIK)) || defined(__DOXYGEN__)
-  #define STM32_MCO2_PSIK_SOURCE_DEMANDED   TRUE
-#else
-  #define STM32_MCO2_PSIK_SOURCE_DEMANDED   FALSE
-#endif
+#define STM32_MCO2_PSIK_SOURCE_DEMANDED     ((STM32_CFG_MCO2PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_PSIK))
 
 /**
  * @brief   MCO2_HSIK_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO2PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSIK)) || defined(__DOXYGEN__)
-  #define STM32_MCO2_HSIK_SOURCE_DEMANDED   TRUE
-#else
-  #define STM32_MCO2_HSIK_SOURCE_DEMANDED   FALSE
-#endif
+#define STM32_MCO2_HSIK_SOURCE_DEMANDED     ((STM32_CFG_MCO2PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSIK))
 
 /**
  * @brief   MCO2_PSIDIV3_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO2PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_PSIDIV3)) || defined(__DOXYGEN__)
-  #define STM32_MCO2_PSIDIV3_SOURCE_DEMANDED TRUE
-#else
-  #define STM32_MCO2_PSIDIV3_SOURCE_DEMANDED FALSE
-#endif
+#define STM32_MCO2_PSIDIV3_SOURCE_DEMANDED  ((STM32_CFG_MCO2PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_PSIDIV3))
 
 /**
  * @brief   MCO2_HSIDIV3_SOURCE sink demand state.
  */
-#if ((STM32_CFG_MCO2PRE_VALUE != 0) &&                                      \
-     (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSIDIV3)) || defined(__DOXYGEN__)
-  #define STM32_MCO2_HSIDIV3_SOURCE_DEMANDED TRUE
-#else
-  #define STM32_MCO2_HSIDIV3_SOURCE_DEMANDED FALSE
-#endif
+#define STM32_MCO2_HSIDIV3_SOURCE_DEMANDED  ((STM32_CFG_MCO2PRE_VALUE != 0) && \
+                                             (STM32_CFG_MCO2_SEL == RCC_CFGR1_MCO2SEL_HSIDIV3))
 /** @} */
 
 /**
