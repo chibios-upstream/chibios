@@ -75,6 +75,7 @@
                                              STM32_FLASH_OP_ERROR)
 
 #if defined(FLASH_CR_PSIZE)
+/* H7 has no hardware parallelism limit, use the reset x64 setting. */
 #define STM32_FLASH_PSIZE                   FLASH_CR_PSIZE
 #else
 #define STM32_FLASH_PSIZE                   0U
