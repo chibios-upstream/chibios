@@ -95,16 +95,16 @@ PROJECT = ch
 
 # Imported source files and paths
 CHIBIOS = ../../../..
-CONFDIR  := ./cfg
-BUILDDIR := ./build
-DEPDIR   := ./.dep
+CONFDIR  := ./cfg/atmega162_minimal
+BUILDDIR := ./build/atmega162_minimal
+DEPDIR   := ./.dep/atmega162_minimal
 
 # Licensing files.
 include $(CHIBIOS)/os/license/license.mk
 
 # HAL-OSAL files (optional).
 include $(CHIBIOS)/os/hal/hal.mk
-include $(CHIBIOS)/os/hal/boards/ARDUINO_UNO/board.mk
+include $(CHIBIOS)/os/hal/boards/ATMEGA162_MINIMAL/board.mk
 include $(CHIBIOS)/os/hal/ports/AVR/MEGA/ATMEGAxx/platform.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 
@@ -113,7 +113,8 @@ include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/AVR/compilers/GCC/mk/port.mk
 
 # List C source files here. (C dependencies are automatically generated.)
-CSRC =  $(ALLCSRC) \
+CSRC =  $(ALLCSRC)          \
+        $(CONFDIR)/portab.c  \
         main.c
 
 # List C++ sources file here.
@@ -131,7 +132,7 @@ INCDIR = $(CONFDIR) $(ALLINC)
 #
 
 # Micro-Controller Unit.
-MCU  = atmega328p
+MCU  = atmega162
 
 # MCU frequency (Hz).
 F_CPU = 16000000
