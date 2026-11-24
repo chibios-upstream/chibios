@@ -159,8 +159,12 @@ change in the next releases.
 *** What's new in STM32 HAL support ***
 
 - STM32C5xx support.
-- New devices: STM32H533, STM32H5F5, STM32U5F7, STM32U5F9 and STM32U5G.
-- Embedded flash drivers for STM32G0, STM32U0 and STM32U5F7.
+- New devices: STM32H533, STM32H5F5, STM32U5A5, STM32U5F7, STM32U5F9 and
+  STM32U5G.
+- STM32U5 dynamic clock switching, ADCv8 driver and integrated OTG HS
+  PHY, OTG2 PHY selection through the registry.
+- Embedded flash drivers for STM32G0 (dual bank included), STM32U0 and
+  STM32U5F7.
 - SYSTICKv3, a tick-less system timer on an STM32U5 low power timer.
 - OCTOSPIv3 WSPI driver for STM32U5.
 - UART driver on the GPDMA devices: STM32H5, U5, U3 and C5.
@@ -170,10 +174,12 @@ change in the next releases.
 
 *** What's new in RP HAL support ***
 
-- RP2350 support: runtime clock switching, RTC on the Always-On timer,
+- RP2350 platform: runtime clock switching, RTC on the Always-On timer,
   GPT driver and boot flash options.
-- PIO and DMA API extensions.
-- UART driver for the RP2040.
+- New ADC, PWM, USB device, embedded flash and PIO drivers for RP2040 and
+  RP2350, SMP-safe flash programming with the flash lockout.
+- PIO and DMA API extensions, UART driver for the RP2040.
+- .uf2 images built by the demos when picotool is available.
 
 *** Upgrade notes ***
 
@@ -181,10 +187,17 @@ change in the next releases.
   scripts in tools/updater.
 - The registry descriptor layout changed, debuggers must support RT 8.
 - The generic ARM port is limited to ARM7 and ARM9.
+- Ports: PORT_SETUP_CONTEXT() is replaced by port_setup_context() and the
+  new mandatory port_setup_context_base(), out-of-tree ports must be
+  updated.
 - SB: hosts and guests must be rebuilt together, images built for another
   ABI version are rejected.
-- VFS: the default root and the functions using it are removed, the
-  application owns its roots and I/O contexts.
+- VFS: file systems take absolute normalized paths only, the current
+  directory and relative paths are handled by vfs_root_c roots. The
+  default root and the functions using it are removed, the application
+  owns its roots and I/O contexts.
+- RP: the default exceptions and process stack sizes are 0x400 bytes,
+  projects relying on the previous larger defaults must set them.
 - STM32: XHAL interrupt priorities are set by the platform settings only,
   BOARD_PHY_RESET_DELAY is replaced by BOARD_PHY_RESET_DELAY_US, the FDCAN
   BPS frame field is renamed BRS, isochronous endpoints on OTG must be
