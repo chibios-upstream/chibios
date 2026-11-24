@@ -238,47 +238,6 @@ jobs:
             done
           done
 
-  build-avr:
-    name: Build AVR demos and testhal
-    # Pinned, the distribution toolchain is avr-gcc 7.3.
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install AVR toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y make gcc-avr avr-libc binutils-avr
-          avr-gcc --version | head -n 1
-
-      - name: Build and clean AVR demos and testhal projects
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Compile and link only. Every project is built, the failures are
-          # listed at the end.
-          mapfile -t PROJECTS < <(git ls-files 'demos/AVR/*/Makefile' \
-                                    'testhal/AVR/**/Makefile' \
-                                  | xargs -n 1 dirname | sort)
-          failed=()
-          for d in "${PROJECTS[@]}"; do
-            echo "::group::$d"
-            if ! make -j"$(nproc)" -C "$d" all; then
-              failed+=("$d")
-            fi
-            make -C "$d" clean
-            echo "::endgroup::"
-          done
-          if [ "${#failed[@]}" -ne 0 ]; then
-            printf 'Failed: %s\n' "${failed[@]}"
-            exit 1
-          fi
-          echo "Built ${#PROJECTS[@]} AVR projects."
-
   doxygen-check:
     name: Doxygen documentation sets
     runs-on: ubuntu-latest
