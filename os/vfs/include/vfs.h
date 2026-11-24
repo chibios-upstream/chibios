@@ -45,7 +45,7 @@
 /**
  * @brief   Kernel version string.
  */
-#define CH_VFS_VERSION          "1.0.0"
+#define CH_VFS_VERSION          "1.1.0"
 
 /**
  * @brief   Kernel version major number.
@@ -55,7 +55,7 @@
 /**
  * @brief   Kernel version minor number.
  */
-#define CH_VFS_MINOR            0
+#define CH_VFS_MINOR            1
 
 /**
  * @brief   Kernel version patch number.
