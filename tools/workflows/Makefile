@@ -19,7 +19,8 @@ TARGETS := all clean
 USE_VENV := false
 
 # Makefile based projects
-makefile_dirs := $(addprefix $(ROOT)/,demos test testex testhal testrt os/sb/apps)
+makefile_dirs := $(addprefix $(ROOT)/,demos test testex testhal testrt testsb \
+                   testxhal os/sb/apps)
 makefiles := $(shell $(WORKFLOWS)/find.py --makefile --make --no-overlaps \
 			   $(makefile_dirs))
 
