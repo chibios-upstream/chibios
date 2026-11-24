@@ -107,7 +107,7 @@ static int32_t vfs_test_stream_seek(void *ip, int32_t offset, int whence) {
     return (int32_t)CH_RET_EINVAL;
   }
   if (target > (int64_t)vfs_test_stream_limit) {
-    return (int32_t)CH_ENCODE_ERROR(ENOTSUP);
+    return (int32_t)CH_RET_ENOTSUP;
   }
   vfs_test_stream_position = (int32_t)target;
 
@@ -660,7 +660,7 @@ static void vfs_test_003_003_execute(void) {
                 vfsFileSetPosition(fnp, INT32_MAX, VFS_SEEK_CUR) ==
                   CH_RET_EOVERFLOW &&
                 vfsFileSetPosition(fnp, 17, VFS_SEEK_SET) ==
-                  CH_ENCODE_ERROR(ENOTSUP) &&
+                  CH_RET_ENOTSUP &&
                 vfsFileGetPosition(fnp) == 14, "stream seek error lost");
 
     /* Backend errors are reported, the position is unchanged.*/
@@ -760,9 +760,9 @@ static void vfs_test_003_004_execute(void) {
     test_assert(ret == CH_RET_EINVAL, "invalid stream flags accepted");
     (void)stmdrvObjectInit(&driver, writable);
     ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_TRUNC | VO_WRONLY, &np);
-    test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream truncated");
+    test_assert(ret == CH_RET_ENOTSUP, "random stream truncated");
     ret = vfsFSOpen((vfs_fs_c *)&driver, "/file", VO_APPEND | VO_WRONLY, &np);
-    test_assert(ret == CH_ENCODE_ERROR(ENOTSUP), "random stream appended");
+    test_assert(ret == CH_RET_ENOTSUP, "random stream appended");
   }
   test_end_step(1);
 }

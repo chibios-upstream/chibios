@@ -68,6 +68,8 @@
 #define CH_RET_ENOEXEC          CH_ENCODE_ERROR(ENOEXEC)    /* Invalid executable */
 #define CH_RET_EXDEV            CH_ENCODE_ERROR(EXDEV)      /* Not same volume */
 #define CH_RET_ENOTTY           CH_ENCODE_ERROR(ENOTTY)     /* Inappropriate control operation */
+#define CH_RET_ENOTEMPTY        CH_ENCODE_ERROR(ENOTEMPTY)  /* Directory not empty */
+#define CH_RET_ENOTSUP          CH_ENCODE_ERROR(ENOTSUP)    /* Not supported */
 /** @} */
 
 /*===========================================================================*/
