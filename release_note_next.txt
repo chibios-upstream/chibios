@@ -45,6 +45,7 @@ change in the next releases.
 - Configuration updater scripts for XHAL, VFS, SB and VIO configuration
   files.
 - Documentation consistency check, run by the continuous integration.
+- FatFs updated to R0.16 with the upstream security patches.
 
 *** What's new in RT/NIL ports ***
 
@@ -185,6 +186,8 @@ change in the next releases.
 
 - Configuration files have new and renamed settings, update them with the
   scripts in tools/updater.
+- FatFs R0.16: the project ffconf.h files must be updated, FFCONF_DEF is
+  80386, FF_PATH_DEPTH and FF_FS_CRTIME are new, FF_SYNC_t is removed.
 - The registry descriptor layout changed, debuggers must support RT 8.
 - The generic ARM port is limited to ARM7 and ARM9.
 - Ports: PORT_SETUP_CONTEXT() is replaced by port_setup_context() and the

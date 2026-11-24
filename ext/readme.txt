@@ -12,7 +12,7 @@ ChibiOS makefiles.
 
 Archive                     Directory        Version       License
 --------------------------  ---------------  ------------  -----------------
-fatfs-0.14b_patched.7z      fatfs            R0.14b        FatFs license
+fatfs-0.16_patched.7z       fatfs            R0.16         FatFs license
 FreeRTOS-Kernel-11.3.1.7z   FreeRTOS-Kernel  V11.3.1       MIT
 littlefs-2.10.1.7z          littlefs         2.10.1        BSD-3-Clause
 lwip-2.1.2.7z               lwip             2.1.2         BSD-3-Clause
@@ -21,8 +21,14 @@ wolfssl-4.0.0.7z            wolfssl          4.0.0         GPL-2.0-or-later
 
 - FatFs, by ChaN, https://elm-chan.org/fsw/ff/
   The FatFs license is BSD-style with a single condition, see
-  fatfs/LICENSE.txt. The archive contains patches applied by ChibiOS,
-  details to be documented. Used through os/various/fatfs_bindings.
+  fatfs/LICENSE.txt. R0.16 with patch-1 and patch-2 and the updated
+  ffunicode.c from the FatFs known problems and patches page.
+  ChibiOS changes, enabled by FATFS_CHIBIOS_EXTENSIONS in ffconf.h:
+  f_getfs() returning the FATFS object of a volume, FR_IS_DIRECTORY from
+  f_open() on a directory and FR_NOT_DIRECTORY from f_opendir() on a file.
+  The template source/ffconf.h is renamed _ffconf.h, the projects supply
+  their own ffconf.h. Used through os/various/fatfs_bindings and the VFS
+  FatFS driver.
 - FreeRTOS Kernel, https://github.com/FreeRTOS/FreeRTOS-Kernel
   Sandbox guest kernel, used through os/various/freertos_bindings.
 - littlefs, https://github.com/littlefs-project/littlefs
