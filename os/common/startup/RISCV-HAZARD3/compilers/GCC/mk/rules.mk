@@ -143,8 +143,14 @@ ASXFLAGS += -MD -MP -MF $(DEPDIR)/$(@F).d
 CFLAGS   += -MD -MP -MF $(DEPDIR)/$(@F).d
 CPPFLAGS += -MD -MP -MF $(DEPDIR)/$(@F).d
 
-# Paths where to search for sources
-VPATH     = $(SRCPATHS)
+# Paths where to search for sources. Only the source files are searched,
+# other files and directories are never resolved to same-named ones in
+# the source directories.
+vpath %.c   $(SRCPATHS)
+vpath %.cc  $(SRCPATHS)
+vpath %.cpp $(SRCPATHS)
+vpath %.s   $(SRCPATHS)
+vpath %.S   $(SRCPATHS)
 
 #
 # Makefile rules
