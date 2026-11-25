@@ -860,10 +860,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
-- [HAL] STM32 MACv2: the MAC is no longer reset before its clocks are
-  enabled; on the dual-core STM32H7 devices the system halted in
-  `halInit()` with "peripherals not allocated" when the debug asserts were
-  enabled ([#701](https://github.com/chibios-upstream/chibios/pull/701)).
+- [HAL] STM32 MACv2 and FDCANv2: the units are no longer reset before
+  their clocks are enabled; on the dual-core STM32H7 devices the system
+  halted in `halInit()` with "peripherals not allocated" when the debug
+  asserts were enabled
+  ([#701](https://github.com/chibios-upstream/chibios/pull/701)).
 - [HAL] `chscanf()`: plain `char` arguments of the `<ctype.h>` functions are
   cast to `unsigned char`, and `STM_RESET` is no longer passed to `isspace()`
   and `tolower()`: on signed-char targets these read outside the
