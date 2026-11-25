@@ -38,15 +38,15 @@
 #include "lwip/arch.h"
 #include "lwip/api.h"
 
-#include "wolfssl_chibios.h"
+#include "wolfssl_sslconn.h"
 #include "web.h"
 
 #if LWIP_NETCONN
 
 static char url_buffer[WEB_MAX_PATH_SIZE];
-extern unsigned char server_cert[];
+extern const unsigned char server_cert[];
 extern unsigned int server_cert_len;
-extern unsigned char server_key[];
+extern const unsigned char server_key[];
 extern unsigned int server_key_len;
 
 #define HEXTOI(x) (isdigit(x) ? (x) - '0' : (x) - 'a' + 10)
@@ -175,7 +175,7 @@ THD_FUNCTION(https_server, p) {
   wolfSSL_Init();
 
   /* Create a new SSL connection handle */
-  sc = sslconn_new(NETCONN_TCP, wolfTLSv1_2_server_method());
+  sc = sslconn_new(NETCONN_TCP, wolfSSLv23_server_method());
   if (!sc) {
       while(1) {}
   }
