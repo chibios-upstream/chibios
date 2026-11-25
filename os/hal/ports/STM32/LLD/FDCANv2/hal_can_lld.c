@@ -417,9 +417,9 @@ static unsigned fdcan_payload_size(uint32_t dlc, bool fd, bool remote) {
  */
 void can_lld_init(void) {
 
-  /* Shared-clock ownership and unit reset.*/
+  /* Shared-clock ownership, the unit is enabled and reset by its first
+     user in can_lld_start().*/
   fdcan_users = 0U;
-  rccResetFDCAN();
 
 #if STM32_CAN_USE_FDCAN1
   /* Driver initialization.*/
