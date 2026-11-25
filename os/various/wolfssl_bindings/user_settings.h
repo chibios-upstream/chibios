@@ -8,7 +8,8 @@
 
 
 /* ChibiOS + Lwip */
-#define HAVE_LWIP_NATIVE 
+#define WOLFSSL_USER_IO
+#define WOLFSSL_NO_SOCK
 #define WOLFSSL_CHIBIOS 
 
 #define USER_TICKS 
@@ -25,7 +26,8 @@
 #define SMALL_SESSION_CACHE
 #define WOLFSSL_SMALL_STACK
 
-#define TFM_ARM
+#define WOLFSSL_SP_MATH_ALL
+#define WOLFSSL_SP_SMALL
 #define SINGLE_THREADED
 #define NO_SIG_WRAPPER
 		
@@ -41,6 +43,17 @@
 #define CURVED25519_SMALL
 #define HAVE_ONE_TIME_AUTH
 #define WOLFSSL_DH_CONST
+
+/* TLS 1.2 and 1.3 with the extensions expected by current clients */
+#define WOLFSSL_TLS13
+#define HAVE_TLS_EXTENSIONS
+#define HAVE_SUPPORTED_CURVES
+#define HAVE_SERVER_RENEGOTIATION_INFO
+#define HAVE_EXTENDED_MASTER
+#define HAVE_ENCRYPT_THEN_MAC
+#define HAVE_AESGCM
+#define HAVE_HKDF
+#define WC_RSA_PSS
 		
 /* HW RNG support */
 
@@ -83,4 +96,4 @@ int custom_rand_generate_block(unsigned char* output, unsigned int sz);
 /* Realloc (to use without USE_FAST_MATH) */
 
 void *chHeapRealloc (void *addr, uint32_t size);
-#define XREALLOC(p,n,h,t) chHeapRealloc( (p) , (n) )
+#define XREALLOC(p, n, h, t) ((void)(h), (void)(t), chHeapRealloc((p), (n)))

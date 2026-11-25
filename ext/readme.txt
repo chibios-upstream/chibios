@@ -17,7 +17,7 @@ FreeRTOS-Kernel-11.3.1.7z   FreeRTOS-Kernel  V11.3.1       MIT
 littlefs-2.11.3.7z          littlefs         2.11.3        BSD-3-Clause
 lwip-2.2.1.7z               lwip             2.2.1         BSD-3-Clause
 threadx-6.5.2.202603.7z     threadx          6.5.2.202603  MIT
-wolfssl-4.0.0.7z            wolfssl          4.0.0         GPL-2.0-or-later
+wolfssl-5.9.4.7z            wolfssl          5.9.4         GPL-3.0-or-later
 
 - FatFs, by ChaN, https://elm-chan.org/fsw/ff/
   The FatFs license is BSD-style with a single condition, see
@@ -45,9 +45,12 @@ wolfssl-4.0.0.7z            wolfssl          4.0.0         GPL-2.0-or-later
   and change log. Sandbox guest kernel, used through
   os/various/threadx_bindings.
 - wolfSSL, https://github.com/wolfSSL/wolfssl
-  Licensed by wolfSSL Inc. under the GPLv2 or a commercial license, the
-  source files allow any later GPL version. Used through
-  os/various/wolfssl_bindings.
+  Licensed by wolfSSL Inc. under the GPLv3 (GPLv2 only for the projects
+  listed in wolfssl/LICENSING) or a commercial license. The archive holds
+  part of the v5.9.4-stable release, unmodified: src, wolfssl, wolfcrypt
+  (sources with only the arm and st ports, test, benchmark), the
+  user_settings.h templates in examples/configs, the license and change
+  log. Used through os/various/wolfssl_bindings.
 
 The Zephyr tree used by the Zephyr sandbox guest, os/various/zephyr_bindings,
 is not distributed with ChibiOS, see zephyr_readme.md for how to fetch it.

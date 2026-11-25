@@ -36,35 +36,29 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  *
  */
-#ifndef WOLFSSL_SK_H
-#define WOLFSSL_SK_H
-#include "user_settings.h"
-#include "wolfssl/wolfcrypt/settings.h"
-#include "wolfssl/wolfcrypt/types.h"
-#include "wolfssl/ssl.h"
-#include "lwip/opt.h"
-#include "lwip/arch.h"
-#include "lwip/api.h"
-#define XMALLOC(s,h,t) chibios_alloc(h,s)
-#define XFREE(p,h,t)   chibios_free(p)
 
-struct sslconn {
-    WOLFSSL_CTX *ctx;
-    WOLFSSL *ssl;
-    struct netconn *conn;
-};
+/**
+ * @file    wolfssl_chibios.h
+ * @brief   wolfSSL platform definitions for ChibiOS.
+ * @note    wolfSSL includes this file from @p settings.h when
+ *          @p WOLFSSL_CHIBIOS is defined, before its own types are defined:
+ *          it must not include wolfSSL headers nor use wolfSSL types.
+ */
 
-typedef struct sslconn sslconn;
+#ifndef WOLFSSL_CHIBIOS_H
+#define WOLFSSL_CHIBIOS_H
 
-sslconn *sslconn_accept(struct sslconn *sk);
-sslconn *sslconn_new(enum netconn_type t, WOLFSSL_METHOD *method);
-void sslconn_close(sslconn *sk);
+#define XMALLOC(s, h, t) ((void)(t), chibios_alloc((h), (int)(s)))
+#define XFREE(p, h, t)   ((void)(h), (void)(t), chibios_free(p))
 
-int wolfssl_send_cb(WOLFSSL* ssl, char *buf, int sz, void *ctx);
-int wolfssl_recv_cb(WOLFSSL *ssl, char *buf, int sz, void *ctx);
-
-void *chibios_alloc(void *heap, int size);
-void chibios_free(void *ptr);
-word32 LowResTimer(void);
-
+#ifdef __cplusplus
+extern "C" {
 #endif
+  void *chibios_alloc(void *heap, int size);
+  void chibios_free(void *ptr);
+  unsigned int LowResTimer(void);
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* WOLFSSL_CHIBIOS_H */

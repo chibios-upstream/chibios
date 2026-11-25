@@ -37,15 +37,15 @@
  *
  */
 
-#include "ch.h"
-#include "wolfssl_chibios.h"
-#include "lwip/opt.h"
-#include "lwip/arch.h"
-#include "lwip/api.h"
-#include "lwip/mem.h"
-#include "lwip/sockets.h"
-#include "lwip/tcp.h"
 #include <string.h>
+
+#include "ch.h"
+
+#include "wolfssl_sslconn.h"
+/* For the LowResTimer() and TimeNowInMilliseconds() prototypes.*/
+#include "wolfssl/internal.h"
+#include "lwip/tcp.h"
+
 static int wolfssl_is_initialized = 0;
 
 sslconn *sslconn_accept(sslconn *sk)
@@ -53,16 +53,26 @@ sslconn *sslconn_accept(sslconn *sk)
   sslconn *new;
   struct netconn *newconn = NULL;
   err_t err;
+
   err = netconn_accept(sk->conn, &newconn);
   if (err != ERR_OK) {
-      return NULL;
+    return NULL;
   }
+
   new = chHeapAlloc(NULL, sizeof(sslconn));
-  if (!new)
-      return NULL;
+  if (new == NULL) {
+    netconn_delete(newconn);
+    return NULL;
+  }
+  memset(new, 0, sizeof(sslconn));
   new->conn = newconn;
   new->ctx = sk->ctx;
   new->ssl = wolfSSL_new(new->ctx);
+  if (new->ssl == NULL) {
+    netconn_delete(newconn);
+    chHeapFree(new);
+    return NULL;
+  }
   wolfSSL_SetIOReadCtx(new->ssl, new);
   wolfSSL_SetIOWriteCtx(new->ssl, new);
 
@@ -70,11 +80,11 @@ sslconn *sslconn_accept(sslconn *sk)
     wolfSSL_set_using_nonblock(new->ssl, 1);
     newconn->pcb.tcp->mss = 1480;
     return new;
-  } else {
-    wolfSSL_free(new->ssl);
-    chHeapFree(new);
-    return NULL;
   }
+
+  /* Handshake failed, the connection is released.*/
+  sslconn_close(new);
+  return NULL;
 }
 
 sslconn *sslconn_new(enum netconn_type t, WOLFSSL_METHOD* method)
@@ -108,6 +118,11 @@ error:
 
 void sslconn_close(sslconn *sk)
 {
+    /* Sends close_notify while the connection is still open.*/
+    if (sk->ssl != NULL)
+        (void)wolfSSL_shutdown(sk->ssl);
+    if (sk->rxbuf != NULL)
+        netbuf_delete(sk->rxbuf);
     netconn_delete(sk->conn);
     wolfSSL_free(sk->ssl);
     chHeapFree(sk);
@@ -134,62 +149,41 @@ int wolfssl_send_cb(WOLFSSL* ssl, char *buf, int sz, void *ctx)
     return WOLFSSL_CBIO_ERR_WANT_WRITE;
 }
 
-#define MAX_SSL_BUF 1460
-static uint8_t ssl_recv_buffer[MAX_SSL_BUF];
-static int ssl_rb_len = 0;
-static int ssl_rb_off = 0;
-
 int wolfssl_recv_cb(WOLFSSL *ssl, char *buf, int sz, void *ctx)
 {
-    sslconn *sk = (sslconn *)ctx;
-    struct netbuf *inbuf = NULL;
-    uint8_t *net_buf;
-    uint16_t buflen;
-    (void)ssl;
-    err_t err;
+  sslconn *sk = (sslconn *)ctx;
+  u16_t n;
 
-    if (ssl_rb_len > 0) {
-        if (sz > ssl_rb_len - ssl_rb_off)
-            sz = ssl_rb_len - ssl_rb_off;
-        memcpy(buf, ssl_recv_buffer + ssl_rb_off, sz);
-        ssl_rb_off += sz;
-        if (ssl_rb_off >= ssl_rb_len) {
-            ssl_rb_len = 0;
-            ssl_rb_off = 0;
-        }
-        return sz;
-    }
+  (void)ssl;
 
-    err = netconn_recv(sk->conn, &inbuf);
-    if (err == ERR_OK) {
-        netbuf_data(inbuf, (void **)&net_buf, &buflen);
-        ssl_rb_len = buflen;
-        if (ssl_rb_len > MAX_SSL_BUF)
-            ssl_rb_len = MAX_SSL_BUF;
-        memcpy(ssl_recv_buffer, net_buf, ssl_rb_len);
-        ssl_rb_off = 0;
-        if (sz > ssl_rb_len)
-            sz = ssl_rb_len;
-        memcpy(buf, ssl_recv_buffer, sz);
-        ssl_rb_off += sz;
-        if (ssl_rb_off >= ssl_rb_len) {
-            ssl_rb_len = 0;
-            ssl_rb_off = 0;
-        }
-        netbuf_delete(inbuf);
-        return sz;
-    }
-    else if (err == ERR_CLSD || err == ERR_ABRT || err == ERR_CONN)
+  /* Data is taken from the pending netbuf of this connection, a new one is
+     received only when it has been consumed.*/
+  if (sk->rxbuf == NULL) {
+    err_t err = netconn_recv(sk->conn, &sk->rxbuf);
+    if (err != ERR_OK) {
+      sk->rxbuf = NULL;
+      if (err == ERR_CLSD || err == ERR_ABRT || err == ERR_CONN)
         return WOLFSSL_CBIO_ERR_CONN_CLOSE;
-    else if (err == ERR_RST)
+      else if (err == ERR_RST)
         return WOLFSSL_CBIO_ERR_CONN_RST;
-    else if (err == ERR_MEM)
-        return WOLFSSL_CBIO_ERR_GENERAL;
-    else if (err == ERR_TIMEOUT)
+      else if (err == ERR_TIMEOUT)
         return WOLFSSL_CBIO_ERR_TIMEOUT;
-    else
-        return 0;
-    //return WOLFSSL_CBIO_ERR_WANT_READ;
+      else
+        return WOLFSSL_CBIO_ERR_GENERAL;
+    }
+    sk->rxoff = 0U;
+  }
+
+  if (sz > 0xFFFF)
+    sz = 0xFFFF;
+  n = netbuf_copy_partial(sk->rxbuf, buf, (u16_t)sz, sk->rxoff);
+  sk->rxoff += n;
+  if (sk->rxoff >= netbuf_len(sk->rxbuf)) {
+    netbuf_delete(sk->rxbuf);
+    sk->rxbuf = NULL;
+  }
+
+  return (int)n;
 }
 
 #ifndef ST2S
@@ -206,11 +200,18 @@ word32 LowResTimer(void)
     return ST2S(t);
 }
 
-uint32_t TimeNowInMilliseconds(void)
+#if defined(WOLFSSL_TLS13) && (defined(HAVE_SESSION_TICKET) || \
+    !defined(NO_PSK) || defined(WOLFSSL_DTLS13))
+#ifdef WOLFSSL_32BIT_MILLI_TIME
+word32 TimeNowInMilliseconds(void)
+#else
+sword64 TimeNowInMilliseconds(void)
+#endif
 {
     systime_t t = chVTGetSystemTimeX();
     return ST2MS(t);
 }
+#endif
 
 void *chHeapRealloc (void *addr, uint32_t size)
 {

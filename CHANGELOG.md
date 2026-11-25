@@ -8,6 +8,9 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [STM32] RT-STM32-LWIP-FATFS-USB-HTTPS: NUCLEO-H755ZI target, SDMMC1 on
+  the Zio connector CN8
+  ([#704](https://github.com/chibios-upstream/chibios/pull/704)).
 - [STM32] RT-STM32-LWIP: NUCLEO-H755ZI targets, classic HAL and XHAL, with
   the Ethernet buffers in SRAM3 under the nocache MPU region
   ([#703](https://github.com/chibios-upstream/chibios/pull/703)).
@@ -542,6 +545,12 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [EXT] wolfSSL updated from 4.0.0 to 5.9.4, now licensed under the GPLv3.
+  The bindings enable TLS 1.3 and the TLS 1.2 extensions current clients
+  require, and the `sslconn_*` API moves from `wolfssl_chibios.h` to the new
+  `wolfssl_sslconn.h`. The HTTPS demo gets a new certificate, the previous
+  one expired in 2019
+  ([#704](https://github.com/chibios-upstream/chibios/pull/704)).
 - [EXT] lwIP updated from 2.1.2 to 2.2.1. The httpd FatFS, POSIX and VFS
   bindings need `LWIP_HTTPD_FILE_EXTENSION` enabled in `lwipopts.h`, the
   `pextension` field they use is optional in 2.2. With DHCP the offered
@@ -870,6 +879,9 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Fixed
 
+- [EXT] wolfSSL bindings: received data was kept in a buffer shared by all
+  connections, and the netconn leaked when a handshake failed
+  ([#704](https://github.com/chibios-upstream/chibios/pull/704)).
 - [HAL] STM32 MACv2 and FDCANv2: the units are no longer reset before
   their clocks are enabled; on the dual-core STM32H7 devices the system
   halted in `halInit()` with "peripherals not allocated" when the debug
