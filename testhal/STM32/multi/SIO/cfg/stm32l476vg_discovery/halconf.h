@@ -461,6 +461,17 @@
 #endif
 
 /*===========================================================================*/
+/* Buffered SIO driver related settings.                                     */
+/*===========================================================================*/
+
+/**
+ * @brief   Enables the receive flow control.
+ */
+#if !defined(BSIO_USE_RX_FLOW_CONTROL) || defined(__DOXYGEN__)
+#define BSIO_USE_RX_FLOW_CONTROL            FALSE
+#endif
+
+/*===========================================================================*/
 /* SERIAL_USB driver related setting.                                        */
 /*===========================================================================*/
 

@@ -37,6 +37,13 @@
 /* Driver pre-compile time settings.                                         */
 /*===========================================================================*/
 
+/**
+ * @brief   Enables the receive flow control.
+ */
+#if !defined(BSIO_USE_RX_FLOW_CONTROL) || defined(__DOXYGEN__)
+#define BSIO_USE_RX_FLOW_CONTROL            FALSE
+#endif
+
 /*===========================================================================*/
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
@@ -45,6 +52,7 @@
 /* Driver data structures and types.                                         */
 /*===========================================================================*/
 
+#if (BSIO_USE_RX_FLOW_CONTROL == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Receiver readiness output, invoked in I-class context.
  * @note    Must be bounded, nonblocking, and must not acquire a system lock.
@@ -58,6 +66,7 @@
  * @param[in] ready     true permits transmission, false requests a stop
  */
 typedef void (*bsiorxreadycb_t)(void *arg, bool ready);
+#endif
 
 /**
  * @brief   @p BufferedSIODriver specific methods.
@@ -77,23 +86,31 @@ struct BufferedSIODriverVMT {
 /**
  * @brief   @p SerialDriver specific data.
  */
+#if (BSIO_USE_RX_FLOW_CONTROL == TRUE) || defined(__DOXYGEN__)
 #define __buffered_sio_driver_data                                          \
   __buffered_serial_data                                                    \
   SIODriver             *siop;                                              \
-  bsiorxreadycb_t        rxReadyCb;                                          \
-  void                  *rxReadyArg;                                        \
-  size_t                rxStopWatermark;                                    \
-  size_t                rxResumeWatermark;                                  \
-  bool                  rxStopped;
+  bsiorxreadycb_t        rx_ready_cb;                                        \
+  void                  *rx_ready_arg;                                      \
+  size_t                rx_stop_watermark;                                  \
+  size_t                rx_resume_watermark;                                \
+  bool                  rx_stopped;
+#else
+#define __buffered_sio_driver_data                                          \
+  __buffered_serial_data                                                    \
+  SIODriver             *siop;
+#endif
 
 /**
  * @extends BufferedSerial
  *
  * @brief   Buffered SIO driver class.
- * @details Queue-aware receive flow control is optional and disabled after
- *          object initialization. Existing users need no configuration change.
- * @note    The readiness fields extend this public structure; rebuild users
- *          when updating the library, binary layout compatibility is not kept.
+ * @details Queue-aware receive flow control is available when
+ *          @p BSIO_USE_RX_FLOW_CONTROL is @p TRUE and remains disabled after
+ *          object initialization until a readiness callback is configured.
+ * @note    Enabling flow control extends this public structure. Compile the
+ *          driver and all users with the same option value. With the option
+ *          disabled, the original structure layout and behavior are preserved.
  */
 typedef struct hal_buffered_siol_driver {
   /** @brief Virtual Methods Table.*/
@@ -271,8 +288,10 @@ extern "C" {
                       uint8_t *ib, size_t ibsize,
                       uint8_t *ob, size_t obsize);
   msg_t bsioStart(BufferedSIODriver *bsiop, const BufferedSIOConfig *config);
+#if (BSIO_USE_RX_FLOW_CONTROL == TRUE) || defined(__DOXYGEN__)
   msg_t bsioSetRXFlowControl(BufferedSIODriver *bsiop, bsiorxreadycb_t cb,
                             void *arg, size_t stop, size_t resume);
+#endif
   void bsioStop(BufferedSIODriver *bsiop);
 #ifdef __cplusplus
 }
