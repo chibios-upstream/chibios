@@ -36,6 +36,10 @@
 #error "LWIP_HTTPD_DYNAMIC_HEADERS not defined"
 #endif
 
+#if !defined(LWIP_HTTPD_FILE_EXTENSION)
+#error "LWIP_HTTPD_FILE_EXTENSION not defined"
+#endif
+
 #if !LWIP_HTTPD_CUSTOM_FILES
 #error "LWIP_HTTPD_CUSTOM_FILES not enabled"
 #endif
@@ -46,6 +50,10 @@
 
 #if !LWIP_HTTPD_DYNAMIC_HEADERS
 #error "LWIP_HTTPD_DYNAMIC_HEADERS not enabled"
+#endif
+
+#if !LWIP_HTTPD_FILE_EXTENSION
+#error "LWIP_HTTPD_FILE_EXTENSION not enabled"
 #endif
 
 #ifdef __cplusplus

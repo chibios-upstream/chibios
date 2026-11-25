@@ -15,7 +15,7 @@ Archive                     Directory        Version       License
 fatfs-0.16_patched.7z       fatfs            R0.16         FatFs license
 FreeRTOS-Kernel-11.3.1.7z   FreeRTOS-Kernel  V11.3.1       MIT
 littlefs-2.11.3.7z          littlefs         2.11.3        BSD-3-Clause
-lwip-2.1.2.7z               lwip             2.1.2         BSD-3-Clause
+lwip-2.2.1.7z               lwip             2.2.1         BSD-3-Clause
 threadx-6.5.2.202603.7z     threadx          6.5.2.202603  MIT
 wolfssl-4.0.0.7z            wolfssl          4.0.0         GPL-2.0-or-later
 
@@ -37,7 +37,9 @@ wolfssl-4.0.0.7z            wolfssl          4.0.0         GPL-2.0-or-later
   follow its changes. Used through os/various/littlefs_bindings and the
   VFS LittleFS driver.
 - lwIP, https://savannah.nongnu.org/projects/lwip/
-  Used through os/various/lwip_bindings.
+  Unmodified release, it includes the contrib directory merged upstream in
+  2.2.0, not used by ChibiOS. Used through os/various/lwip_bindings, the
+  httpd file bindings need LWIP_HTTPD_FILE_EXTENSION enabled in lwipopts.h.
 - Eclipse ThreadX, https://github.com/eclipse-threadx/threadx
   The archive contains the common directory of the release, its license
   and change log. Sandbox guest kernel, used through

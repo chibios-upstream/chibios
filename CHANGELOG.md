@@ -539,6 +539,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Changed
 
+- [EXT] lwIP updated from 2.1.2 to 2.2.1. The httpd FatFS, POSIX and VFS
+  bindings need `LWIP_HTTPD_FILE_EXTENSION` enabled in `lwipopts.h`, the
+  `pextension` field they use is optional in 2.2. With DHCP the offered
+  address now goes through address conflict detection, the interface gets
+  its address some seconds later; `LWIP_DHCP_DOES_ACD_CHECK` set to 0
+  skips the check
+  ([#702](https://github.com/chibios-upstream/chibios/pull/702)).
 - [EXT] LittleFS updated from 2.10.1 to 2.11.3, same on-disk version and
   API; the `lfs_config.h` bindings get the upstream fix of the byte order
   helpers
