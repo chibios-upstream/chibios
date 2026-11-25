@@ -128,22 +128,30 @@
                                              STM32_CAN_USE_FDCAN2 +         \
                                              STM32_CAN_USE_FDCAN3)
 
-/** @brief Default number of standard filter elements per instance. */
+/**
+ * @brief   Default number of standard filter elements per instance.
+ */
 #if !defined(STM32_CAN_FDCAN_FLS_NBR) || defined(__DOXYGEN__)
 #define STM32_CAN_FDCAN_FLS_NBR             (64U / STM32_CAN_FDCAN_INSTANCES)
 #endif
 
-/** @brief Default number of extended filter elements per instance. */
+/**
+ * @brief   Default number of extended filter elements per instance.
+ */
 #if !defined(STM32_CAN_FDCAN_FLE_NBR) || defined(__DOXYGEN__)
 #define STM32_CAN_FDCAN_FLE_NBR             (32U / STM32_CAN_FDCAN_INSTANCES)
 #endif
 
-/** @brief Default number of receive FIFO 0 elements per instance. */
+/**
+ * @brief   Default number of receive FIFO 0 elements per instance.
+ */
 #if !defined(STM32_CAN_FDCAN_RF0_NBR) || defined(__DOXYGEN__)
 #define STM32_CAN_FDCAN_RF0_NBR             (32U / STM32_CAN_FDCAN_INSTANCES)
 #endif
 
-/** @brief Default number of receive FIFO 1 elements per instance. */
+/**
+ * @brief   Default number of receive FIFO 1 elements per instance.
+ */
 #if !defined(STM32_CAN_FDCAN_RF1_NBR) || defined(__DOXYGEN__)
 #define STM32_CAN_FDCAN_RF1_NBR             (32U / STM32_CAN_FDCAN_INSTANCES)
 #endif
@@ -157,12 +165,16 @@
 #define STM32_CAN_FDCAN_RB_NBR              (32U / STM32_CAN_FDCAN_INSTANCES)
 #endif
 
-/** @brief Default number of transmit event FIFO elements per instance. */
+/**
+ * @brief   Default number of transmit event FIFO elements per instance.
+ */
 #if !defined(STM32_CAN_FDCAN_TEF_NBR) || defined(__DOXYGEN__)
 #define STM32_CAN_FDCAN_TEF_NBR             (16U / STM32_CAN_FDCAN_INSTANCES)
 #endif
 
-/** @brief Default number of transmit FIFO elements per instance. */
+/**
+ * @brief   Default number of transmit FIFO elements per instance.
+ */
 #if !defined(STM32_CAN_FDCAN_TB_NBR) || defined(__DOXYGEN__)
 #define STM32_CAN_FDCAN_TB_NBR              (32U / STM32_CAN_FDCAN_INSTANCES)
 #endif
@@ -176,8 +188,10 @@
 #define STM32_CAN_FDCAN_TM_NBR              (32U / STM32_CAN_FDCAN_INSTANCES)
 #endif
 
-/** @name FDCAN1 Message RAM overrides
- * @{ */
+/**
+ * @name    FDCAN1 Message RAM overrides
+ * @{
+ */
 #if !defined(STM32_CAN_FDCAN1_FLS_NBR) || defined(__DOXYGEN__)
 #define STM32_CAN_FDCAN1_FLS_NBR            STM32_CAN_FDCAN_FLS_NBR
 #endif
@@ -204,8 +218,10 @@
 #endif
 /** @} */
 
-/** @name FDCAN2 Message RAM overrides
- * @{ */
+/**
+ * @name    FDCAN2 Message RAM overrides
+ * @{
+ */
 #if !defined(STM32_CAN_FDCAN2_FLS_NBR) || defined(__DOXYGEN__)
 #define STM32_CAN_FDCAN2_FLS_NBR            STM32_CAN_FDCAN_FLS_NBR
 #endif
@@ -232,8 +248,10 @@
 #endif
 /** @} */
 
-/** @name FDCAN3 Message RAM overrides
- * @{ */
+/**
+ * @name    FDCAN3 Message RAM overrides
+ * @{
+ */
 #if !defined(STM32_CAN_FDCAN3_FLS_NBR) || defined(__DOXYGEN__)
 #define STM32_CAN_FDCAN3_FLS_NBR            STM32_CAN_FDCAN_FLS_NBR
 #endif
