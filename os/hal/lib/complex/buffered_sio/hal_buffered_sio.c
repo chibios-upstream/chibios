@@ -44,6 +44,24 @@
 /* Driver local functions.                                                   */
 /*===========================================================================*/
 
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+/** @brief Drive an independent receive-ready output. @iclass */
+static void __bsio_set_ready_i(BufferedSIODriver *bsiop, bool ready) {
+
+  bsiop->rx_stopped = !ready;
+  bsiop->rx_ready_cb(bsiop->rx_ready_arg, ready);
+}
+
+/** @brief Request stop at the crossing, including within a FIFO drain. @iclass */
+static void __bsio_check_stop_i(BufferedSIODriver *bsiop) {
+
+  if ((bsiop->rx_ready_cb != NULL) && !bsiop->rx_stopped &&
+      (iqGetFullI(&bsiop->iqueue) >= bsiop->rx_stop_watermark)) {
+    __bsio_set_ready_i(bsiop, false);
+  }
+}
+#endif
+
 static void __bsio_update_tx_irq(BufferedSIODriver *bsiop, bool txdone) {
   sioevents_t current;
   sioevents_t mask;
@@ -84,14 +102,60 @@ static void __bsio_push_data(BufferedSIODriver *bsiop) {
 
 static void __bsio_pop_data(BufferedSIODriver *bsiop) {
 
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+  __bsio_check_stop_i(bsiop);
+#endif
   /* RX FIFO needs to be fully emptied or SIO will not generate more RX FIFO
      events.*/
   while (!sioIsRXEmptyX(bsiop->siop)) {
     bsIncomingDataI((BufferedSerial *)bsiop, sioGetX(bsiop->siop));
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+    __bsio_check_stop_i(bsiop);
+#endif
   }
+
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+  /* Account for pending hardware data before permitting the peer to resume.*/
+  if ((bsiop->rx_ready_cb != NULL) && bsiop->rx_stopped &&
+      (bsiop->state == BS_READY) &&
+      (iqGetFullI(&bsiop->iqueue) <= bsiop->rx_resume_watermark)) {
+    __bsio_set_ready_i(bsiop, true);
+  }
+#endif
 }
 
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+/** @brief Collect events also when data was drained without an ISR. @iclass */
+static void __bsio_post_events_i(BufferedSIODriver *bsiop) {
+  sioevents_t events;
+
+  events = sioGetAndClearEventsX(bsiop->siop);
+  chnAddFlagsI(bsiop, (eventflags_t)(events & ~SIO_EV_ALL_DATA));
+}
+
+static void __bsio_inotify(io_queue_t *qp) {
+  BufferedSIODriver *bsiop = (BufferedSIODriver *)qp->q_link;
+
+  if ((bsiop->rx_ready_cb != NULL) &&
+      (bsiop->state == BS_READY)) {
+    __bsio_pop_data(bsiop);
+    /* A data read can latch errors in the LLD without another interrupt.*/
+    __bsio_post_events_i(bsiop);
+  }
+}
+#endif
+
 static void __bsio_default_cb(SIODriver *siop) {
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+  BufferedSIODriver *bsiop;
+
+  osalSysLockFromISR();
+  bsiop = (BufferedSIODriver *)siop->arg;
+  if ((bsiop == NULL) || (bsiop->state != BS_READY)) {
+    osalSysUnlockFromISR();
+    return;
+  }
+#else
   BufferedSIODriver *bsiop = (BufferedSIODriver *)siop->arg;
   sioevents_t events;
 
@@ -100,6 +164,7 @@ static void __bsio_default_cb(SIODriver *siop) {
   }
 
   osalSysLockFromISR();
+#endif
 
   /* Drain/fill FIFOs before re-enabling data interrupts in the LLD.
      NOTE: this assumes status/error flags are not cleared by data reads,
@@ -113,8 +178,12 @@ static void __bsio_default_cb(SIODriver *siop) {
 
   /* Posting the non-data SIO events as channel event flags, the masks are
      made to match.*/
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+  __bsio_post_events_i(bsiop);
+#else
   events = sioGetAndClearEventsX(siop);
   chnAddFlagsI(bsiop, (eventflags_t)(events & ~SIO_EV_ALL_DATA));
+#endif
 
   osalSysUnlockFromISR();
 }
@@ -204,11 +273,75 @@ void bsioObjectInit(BufferedSIODriver *bsiop, SIODriver *siop,
                    uint8_t *ob, size_t obsize) {
 
   __buffered_serial_objinit_impl((void *)bsiop, (const void *)&vmt,
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+                                 ib, ibsize, __bsio_inotify, (void *)bsiop,
+#else
                                  ib, ibsize, NULL, NULL,
+#endif
                                  ob, obsize, __bsio_onotify, (void *)bsiop);
   bsiop->siop = siop;
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+  bsiop->rx_ready_cb = NULL;
+  bsiop->rx_ready_arg = NULL;
+  bsiop->rx_stop_watermark = 0U;
+  bsiop->rx_resume_watermark = 0U;
+  bsiop->rx_stopped = true;
+#endif
   siop->arg   = (void *)bsiop;
 }
+
+#if (BSIO_USE_RX_FLOW_CONTROL == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Configures independent, queue-aware receiver readiness.
+ * @details Disabled by default. A callback must control readiness independently
+ *          of RDR/FIFO occupancy. Stop is driven immediately and held until
+ *          successful start. NULL detaches the callback, leaving its output
+ *          stopped; argument and watermarks are ignored when detaching.
+ *          Rejected configuration leaves the previous settings unchanged.
+ * @note    Available when @p BSIO_USE_RX_FLOW_CONTROL is @p TRUE.
+ * @note    Reserve enough queue space above @p stop for hardware-pending and
+ *          in-flight data. FIFO presence or its IRQ threshold alone does not
+ *          establish that bound. RX service continues while stopped.
+ *          For queue capacity N, reserve M >= H + T elements and choose
+ *          stop <= N - M, where H bounds unread hardware data and T bounds
+ *          additional arrivals until the peer stops, including output latency.
+ *          Choose 0 <= resume < stop. The caller supplies these bounds;
+ *          neither FIFO depth nor a universal peer tail is inferred here.
+ *          A peer exceeding the margin gets normal overflow/error reporting.
+ * @param[in] bsiop     stopped buffered SIO instance
+ * @param[in] cb        readiness callback or NULL to disable
+ * @param[in] arg       caller-owned callback context
+ * @param[in] stop      positive stop occupancy, strictly below queue size
+ * @param[in] resume    occupancy permitting resume, strictly below stop
+ * @return              HAL_RET_SUCCESS or HAL_RET_CONFIG_ERROR
+ * @api
+ */
+msg_t bsioSetRXFlowControl(BufferedSIODriver *bsiop, bsiorxreadycb_t cb,
+                          void *arg, size_t stop, size_t resume) {
+
+  osalDbgCheck(bsiop != NULL);
+  osalSysLock();
+  if ((bsiop->state != BS_STOP) ||
+      ((cb != NULL) && ((stop >= qSizeX(&bsiop->iqueue)) ||
+                        (resume >= stop)))) {
+    osalSysUnlock();
+    return HAL_RET_CONFIG_ERROR;
+  }
+  if (bsiop->rx_ready_cb != NULL) {
+    __bsio_set_ready_i(bsiop, false);
+  }
+  bsiop->rx_ready_cb = cb;
+  bsiop->rx_ready_arg = cb != NULL ? arg : NULL;
+  bsiop->rx_stop_watermark = cb != NULL ? stop : 0U;
+  bsiop->rx_resume_watermark = cb != NULL ? resume : 0U;
+  bsiop->rx_stopped = true;
+  if (cb != NULL) {
+    __bsio_set_ready_i(bsiop, false);
+  }
+  osalSysUnlock();
+  return HAL_RET_SUCCESS;
+}
+#endif
 
 /**
  * @brief   Configures and starts the driver.
@@ -226,9 +359,22 @@ msg_t bsioStart(BufferedSIODriver *bsiop, const BufferedSIOConfig *config) {
 
   osalDbgCheck(bsiop != NULL);
 
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+  osalSysLock();
+#endif
   osalDbgAssert((bsiop->state == BS_STOP) || (bsiop->state == BS_READY),
                 "invalid state");
 
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+  /* Pending callbacks must not service hardware during reconfiguration.*/
+  bsiop->state = BS_STOP;
+  sioSetCallbackX(bsiop->siop, NULL);
+  bsiop->siop->arg = NULL;
+  if (bsiop->rx_ready_cb != NULL) {
+    __bsio_set_ready_i(bsiop, false);
+  }
+  osalSysUnlock();
+#endif
   msg = sioStart(bsiop->siop, config);
   if (msg == HAL_RET_SUCCESS) {
     osalSysLock();
@@ -237,6 +383,12 @@ msg_t bsioStart(BufferedSIODriver *bsiop, const BufferedSIOConfig *config) {
     sioWriteEnableFlagsX(bsiop->siop, SIO_EV_ALL_ERRORS | SIO_EV_RXNOTEMPY |
                                      SIO_EV_RXIDLE);
     bsiop->state = BS_READY;
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+    if (bsiop->rx_ready_cb != NULL) {
+      __bsio_pop_data(bsiop);
+      __bsio_post_events_i(bsiop);
+    }
+#endif
     osalSysUnlock();
   }
   else {
@@ -259,13 +411,26 @@ void bsioStop(BufferedSIODriver *bsiop) {
 
   osalDbgCheck(bsiop != NULL);
 
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+  osalSysLock();
+#endif
   osalDbgAssert((bsiop->state == BS_STOP) || (bsiop->state == BS_READY),
                 "invalid state");
+
+#if BSIO_USE_RX_FLOW_CONTROL == TRUE
+  bsiop->state = BS_STOP;
+  if (bsiop->rx_ready_cb != NULL) {
+    __bsio_set_ready_i(bsiop, false);
+  }
+  osalSysUnlock();
+#endif
 
   /* Stopping undelying SIO driver.*/
   sioStop(bsiop->siop);
 
+#if BSIO_USE_RX_FLOW_CONTROL == FALSE
   bsiop->state = BS_STOP;
+#endif
 
   osalSysLock();
   oqResetI(&bsiop->oqueue); /* TODO should go in the upper class.*/
