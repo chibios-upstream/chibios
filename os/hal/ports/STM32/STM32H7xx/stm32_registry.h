@@ -101,7 +101,7 @@
 
 /*===========================================================================*/
 /* STM32H730xx, STM32H750xx, STM32H7B0xx, STM32H733xx, STM32H735xx,          */
-/* STM32H753xx, STM32H7B3xx, STM32H755xx, STM32H757xx                        */
+/* STM32H753xx, STM32H7B3xx, STM32H7B3xxQ, STM32H755xx, STM32H757xx.         */
 /*===========================================================================*/
 
 #if defined(STM32H730xx)  || defined(STM32H750xx)  ||                       \
@@ -123,7 +123,11 @@
 #define STM32_HAS_HASH1                     FALSE
 #define STM32_HAS_CRYP1                     FALSE
 
-#endif
+#endif /* defined(STM32H730xx) || defined(STM32H750xx) ||
+          defined(STM32H7B0xx) || defined(STM32H733xx) ||
+          defined(STM32H735xx) || defined(STM32H753xx) ||
+          defined(STM32H7B3xx) || defined(STM32H7B3xxQ) ||
+          defined(STM32H755xx) || defined(STM32H757xx) */
 
 /*===========================================================================*/
 /* STM32H743xx, STM32H753xx, STM32H745xx, STM32H755xx, STM32H747xx,          */
@@ -177,6 +181,12 @@
 #define STM32_EXTI_NUM_LINES                34
 #define STM32_EXTI_IMR1_MASK                0x1F800000U
 #define STM32_EXTI_IMR2_MASK                0xFFFFFFFCU
+
+/* Flash attributes.*/
+#define STM32_FLASH_NUMBER_OF_BANKS         2U
+#define STM32_FLASH_BANK_ADDRESS_OFFSET     0x00100000U
+#define STM32_FLASH_SECTOR_SIZE             131072U
+#define STM32_FLASH_LINE_SIZE               32U
 
 /* GPIO attributes.*/
 #define STM32_HAS_GPIOA                     TRUE
@@ -357,7 +367,9 @@
 /* DCMI attributes.*/
 #define STM32_HAS_DCMI                      TRUE
 
-#endif /* defined(STM32H743xx) || defined(STM32H753xx) */
+#endif /* defined(STM32H743xx) || defined(STM32H753xx) ||
+          defined(STM32H745xx) || defined(STM32H755xx) ||
+          defined(STM32H747xx) || defined(STM32H757xx) */
 
 /*===========================================================================*/
 /* STM32H723xx, STM32H733xx, STM32H725xx, STM32H735xx, STM32H730xx.          */
@@ -410,6 +422,11 @@
 #define STM32_EXTI_NUM_LINES                34
 #define STM32_EXTI_IMR1_MASK                0x1F800000U
 #define STM32_EXTI_IMR2_MASK                0xFFFFFFFCU
+
+/* Flash attributes.*/
+#define STM32_FLASH_NUMBER_OF_BANKS         1U
+#define STM32_FLASH_SECTOR_SIZE             131072U
+#define STM32_FLASH_LINE_SIZE               32U
 
 /* GPIO attributes.*/
 #define STM32_HAS_GPIOA                     TRUE
@@ -642,6 +659,12 @@
 #define STM32_EXTI_IMR1_MASK                0x1F800000U
 #define STM32_EXTI_IMR2_MASK                0xFFFFFFFCU
 
+/* Flash attributes.*/
+#define STM32_FLASH_NUMBER_OF_BANKS         2U
+#define STM32_FLASH_BANK_ADDRESS_OFFSET     0x00100000U
+#define STM32_FLASH_SECTOR_SIZE             8192U
+#define STM32_FLASH_LINE_SIZE               16U
+
 /* GPIO attributes.*/
 #define STM32_HAS_GPIOA                     TRUE
 #define STM32_HAS_GPIOB                     TRUE
@@ -823,7 +846,7 @@
           defined(STM32H7A3xxQ) || defined(STM32H7B3xxQ) */
 
 /*===========================================================================*/
-/* STM32H750xx.                                                              */
+/* STM32H750xx, STM32H7B0xx.                                                 */
 /*===========================================================================*/
 #if defined(STM32H750xx) || defined(STM32H7B0xx) ||                         \
     defined(__DOXYGEN__)
@@ -871,6 +894,16 @@
 #define STM32_EXTI_NUM_LINES                34
 #define STM32_EXTI_IMR1_MASK                0x1F800000U
 #define STM32_EXTI_IMR2_MASK                0xFFFFFFFCU
+
+/* Flash attributes.*/
+#define STM32_FLASH_NUMBER_OF_BANKS         1U
+#if defined(STM32H750xx) || defined(__DOXYGEN__)
+#define STM32_FLASH_SECTOR_SIZE             131072U
+#define STM32_FLASH_LINE_SIZE               32U
+#else
+#define STM32_FLASH_SECTOR_SIZE             8192U
+#define STM32_FLASH_LINE_SIZE               16U
+#endif
 
 /* GPIO attributes.*/
 #define STM32_HAS_GPIOA                     TRUE
@@ -1042,7 +1075,7 @@
 /* DCMI attributes.*/
 #define STM32_HAS_DCMI                      TRUE
 
-#endif /* defined(STM32H750xx) */
+#endif /* defined(STM32H750xx) || defined(STM32H7B0xx) */
 
 #endif /* STM32_REGISTRY_H */
 

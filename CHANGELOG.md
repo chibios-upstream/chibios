@@ -13,6 +13,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   the `STM32_UART_<port>_RX_DMA3_CHANNEL` and `_TX_DMA3_CHANNEL` settings
   in `mcuconf.h`
   ([#672](https://github.com/chibios-upstream/chibios/pull/672)).
+- [STM32] STM32H7xx embedded flash (EFL) driver for the single-bank
+  H72x/H73x, H750 and H7B0 and the dual-bank H74x/H75x and H7A3/H7B3; the
+  geometry comes from the flash-size register, reduced-density dual-bank
+  devices are exposed as one contiguous flash
+  ([#675](https://github.com/chibios-upstream/chibios/pull/675)).
 - [VFS] `vfsFileSync()` and `vfsFileTruncate()` file node methods,
   implemented by the FatFS and LittleFS drivers, `vfsIOSync()` and
   `vfsIOTruncate()` for descriptors, and `fsync()` and `ftruncate()` in the
