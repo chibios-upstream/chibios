@@ -26,3 +26,12 @@ integrated in our structure: WolfSSL, FatFS, LittleFS and lwIP.
 - Improved STM32 HAL.
 - Added ARMv7-M (alternate) port.
 - New unit test library.
+
+*** Known issues ****
+
+- The bundled wolfSSL 4.0.0 has known vulnerabilities, fixed in later
+  wolfSSL releases. It is used only by the RT-STM32-LWIP-FATFS-USB-HTTPS
+  demo and is not updated on this branch: current wolfSSL releases are
+  licensed under the GPLv3 and need changed bindings. Applications using
+  TLS should use a current wolfSSL release, the master branch bundles
+  wolfSSL 5.9.4 with the updated bindings.
