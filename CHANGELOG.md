@@ -8,6 +8,9 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 
 ### Added
 
+- [STM32] RT-STM32-LWIP: NUCLEO-H755ZI targets, classic HAL and XHAL, with
+  the Ethernet buffers in SRAM3 under the nocache MPU region
+  ([#703](https://github.com/chibios-upstream/chibios/pull/703)).
 - [STM32] UART driver on the GPDMA devices (STM32H5, U5, U3 and C5), where
   `HAL_USE_UART` did not build: the USARTv3 driver gets a GPDMA path, with
   the `STM32_UART_<port>_RX_DMA3_CHANNEL` and `_TX_DMA3_CHANNEL` settings
