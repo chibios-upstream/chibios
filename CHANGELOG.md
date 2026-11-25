@@ -569,7 +569,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   new and `FF_SYNC_t` is removed. With `FF_FS_REENTRANT` the bindings
   implement `ff_mutex_create()`, `ff_mutex_delete()`, `ff_mutex_take()` and
   `ff_mutex_give()`
-  ([#697](https://github.com/chibios-upstream/chibios/pull/697)).
+  ([#697](https://github.com/chibios-upstream/chibios/pull/697))
+  *(backported to 21.11.6, CVE fixes only)*.
 - [VFS] LittleFS driver: removing, renaming or replacing by a rename an
   open file, and removing or replacing an open directory, return `EBUSY`
   instead of detaching the open handles and losing their writes
@@ -886,7 +887,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   their clocks are enabled; on the dual-core STM32H7 devices the system
   halted in `halInit()` with "peripherals not allocated" when the debug
   asserts were enabled
-  ([#701](https://github.com/chibios-upstream/chibios/pull/701)).
+  ([#701](https://github.com/chibios-upstream/chibios/pull/701))
+  *(backported to 21.11.6)*.
 - [HAL] `chscanf()`: plain `char` arguments of the `<ctype.h>` functions are
   cast to `unsigned char`, and `STM_RESET` is no longer passed to `isspace()`
   and `tolower()`: on signed-char targets these read outside the
