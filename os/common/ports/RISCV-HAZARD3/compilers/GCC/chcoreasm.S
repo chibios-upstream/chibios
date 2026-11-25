@@ -35,6 +35,11 @@
 #define _FROM_ASM_
 #include "chlicense.h"
 #include "chconf.h"
+#if defined(_CHIBIOS_RT_CONF_)
+/* License-related restrictions are applied on top of chconf.h exactly as
+   ch.h does, the options tested here must match those seen by C code.*/
+#include "chrestrictions.h"
+#endif
 #include "chcore.h"
 
 #if !defined(__DOXYGEN__)
