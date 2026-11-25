@@ -81,7 +81,7 @@
    (rb) * SRAMCAN_RB_SIZE + (tef) * SRAMCAN_TEF_SIZE +                      \
    (tb) * SRAMCAN_TB_SIZE + (tm) * SRAMCAN_TM_SIZE)
 
-#define FDCAN_RAM_FLESA(fls)                (fls)
+#define FDCAN_RAM_FLESA(fls)                ((fls) * SRAMCAN_FLS_SIZE)
 #define FDCAN_RAM_RF0SA(fls, fle)           (FDCAN_RAM_FLESA(fls) +         \
                                              (fle) * SRAMCAN_FLE_SIZE)
 #define FDCAN_RAM_RF1SA(fls, fle, rf0)      (FDCAN_RAM_RF0SA(fls, fle) +    \

@@ -34,7 +34,7 @@
   ((fls) + 2U * (fle) + 18U * (rf0) + 18U * (rf1) + 18U * (rb) +            \
    2U * (tef) + 18U * (tb) + 2U * (tm))
 
-#define FDCAN_RAM_FLESA(fls)                (fls)
+#define FDCAN_RAM_FLESA(fls)                (1U * (fls))
 #define FDCAN_RAM_RF0SA(fls, fle)           (FDCAN_RAM_FLESA(fls) +         \
                                              2U * (fle))
 #define FDCAN_RAM_RF1SA(fls, fle, rf0)      (FDCAN_RAM_RF0SA(fls, fle) +    \
