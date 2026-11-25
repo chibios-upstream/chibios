@@ -199,6 +199,18 @@ _crt0_entry:
                 call    __late_init
 
 #if CRT0_CALL_CONSTRUCTORS == TRUE
+                /* Pre-initialization functions invocation. */
+                la      s0, __preinit_array_base__
+                la      s1, __preinit_array_end__
+.Lpreinitloop:
+                bgeu    s0, s1, .Lpreinitloop_done
+                lw      t0, 0(s0)
+                jalr    t0
+                addi    s0, s0, 4
+                j       .Lpreinitloop
+.Lpreinitloop_done:
+
+                /* Constructors invocation. */
                 la      s0, __init_array_base__
                 la      s1, __init_array_end__
 .Linitloop:
@@ -214,13 +226,15 @@ _crt0_entry:
                 call    main
 
 #if CRT0_CALL_DESTRUCTORS == TRUE
+                /* Destructors invocation, the array is walked backward so
+                   destructors run in reverse order of constructors. */
                 la      s0, __fini_array_base__
                 la      s1, __fini_array_end__
 .Lfiniloop:
                 bgeu    s0, s1, .Lfiniloop_done
-                lw      t0, 0(s0)
+                addi    s1, s1, -4
+                lw      t0, 0(s1)
                 jalr    t0
-                addi    s0, s0, 4
                 j       .Lfiniloop
 .Lfiniloop_done:
 #endif /* CRT0_CALL_DESTRUCTORS == TRUE */
