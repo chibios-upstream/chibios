@@ -440,7 +440,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   clock-rounding system halt
   ([#17](https://github.com/chibios-upstream/chibios/pull/17)). The STM32U0
   and STM32U3 device configurations set the tolerance to 0.5%
-  ([#18](https://github.com/chibios-upstream/chibios/pull/18)).
+  ([#18](https://github.com/chibios-upstream/chibios/pull/18))
+  *(backported to 21.11.6)*.
 - [STM32] STM32G4xx: added FSMC RCC macros, IRQ vector definitions and registry
   switch for the FMC-capable devices (G473/G483/G474/G484), in all four G4
   port copies ([#14](https://github.com/chibios-upstream/chibios/pull/14))
@@ -839,11 +840,13 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   sources ([#27](https://github.com/chibios-upstream/chibios/pull/27)),
   os/various sources
   ([#29](https://github.com/chibios-upstream/chibios/pull/29)) and os/hal/lib
-  sources ([#30](https://github.com/chibios-upstream/chibios/pull/30)).
+  sources ([#30](https://github.com/chibios-upstream/chibios/pull/30))
+  *(backported to 21.11.6, #20, #27, #29 and #30 only)*.
 - [BUILD] `tools/style/stylecheck.py` no longer reports two false positives:
   `#endif /* defined(X) */` guard comments and operators/commas inside string
   literals; strictly more permissive
-  ([#28](https://github.com/chibios-upstream/chibios/pull/28)).
+  ([#28](https://github.com/chibios-upstream/chibios/pull/28))
+  *(backported to 21.11.6)*.
 - [OSLIB] Memory areas functions in OSLIB addressed for portability.
 - [NIL] Implemented a better `chThdSleepUntil()` in NIL using the same logic used
   in the RT implementation.
@@ -1660,47 +1663,55 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   bit 30), so the guard was always false and the RTC register interface was
   unclocked. Enabled via `rccEnableAPB1R1(RCC_APB1ENR1_RTCAPBEN)` on
   STM32U3xx (HAL + XHAL). HW-verified on NUCLEO-U385RG
-  ([#31](https://github.com/chibios-upstream/chibios/pull/31)).
+  ([#31](https://github.com/chibios-upstream/chibios/pull/31))
+  *(backported to 21.11.6)*.
 - [STM32] STM32U3 and STM32U5 RTC drivers operated on the wrong EXTI lines. The ports
   defined `STM32_RTC_GLOBAL_EXTI=17` / `STM32_RTC_TAMP_EXTI=19` (copied from
   STM32H5) and enabled/cleared them, but on U3/U5 those lines are COMP1 and
   VDDUSB (RM0487 Table 131 / RM0456 Table 187) and the RTC has no EXTI line
   at all (RTC interrupts go directly to the NVIC). The RTC EXTI enable/clear
   are now no-ops on both families (HAL and XHAL ports)
-  ([#31](https://github.com/chibios-upstream/chibios/pull/31)).
+  ([#31](https://github.com/chibios-upstream/chibios/pull/31))
+  *(backported to 21.11.6, STM32U3 only)*.
 - [STM32] The STM32F303 mcuconf template was missing its I2S driver settings section,
   so regenerating an F303 configuration silently dropped the I2S settings;
   the section was restored and all templated mcuconf/xmcuconf configurations
   were regenerated against their templates
-  ([#19](https://github.com/chibios-upstream/chibios/pull/19)).
+  ([#19](https://github.com/chibios-upstream/chibios/pull/19))
+  *(backported to 21.11.6)*.
 - [STM32] STM32L4+/L4Rxx clock point name table (`CLK_POINT_NAMES`) had a comma
   misplaced inside the "PLLSAI2R" string literal, so adjacent string literals
   were concatenated and the table held one entry fewer than
   `CLK_ARRAY_SIZE`; clock point names from PLLSAI2R onward were shifted and
   the last was `NULL`. The comma is moved outside the string (HAL and XHAL
-  ports) ([#21](https://github.com/chibios-upstream/chibios/pull/21)).
+  ports) ([#21](https://github.com/chibios-upstream/chibios/pull/21))
+  *(backported to 21.11.6)*.
 - [STM32] STM32U0xx RTC alarm/tamper interrupt could halt the system on the first
   event (assertions enabled): `rtc_lld_serve_interrupt()` cleared the
   RTC/TAMP EXTI lines, which are direct event inputs on STM32U0 (no EXTI
   pending bit) and tripped the `extiClearGroup1()` fixed-lines assertion. The
   clear now masks out the direct lines (HAL and XHAL ports). Same defect as
   the STM32H5 fix in #15
-  ([#16](https://github.com/chibios-upstream/chibios/pull/16)).
+  ([#16](https://github.com/chibios-upstream/chibios/pull/16))
+  *(backported to 21.11.6)*.
 - [STM32] STM32H5xx RTC alarm/tamper interrupt caused a system halt on the first
   event: `rtc_lld_serve_interrupt()` cleared the RTC/TAMP EXTI lines, which
   are direct event inputs on STM32H5 (no EXTI pending bit) and tripped the
   `extiClearGroup1()` fixed-lines assertion. The clear now masks out the
   direct lines (HAL and XHAL ports) (forum bug report,
-  [#15](https://github.com/chibios-upstream/chibios/pull/15)).
+  [#15](https://github.com/chibios-upstream/chibios/pull/15))
+  *(backported to 21.11.6)*.
 - [STM32] OTG1 on STM32H7 kept its ULPI clock gate at the reset-enabled state,
   preventing sleep mode entry/exit when the driver is active (forum bug
   report, [#13](https://github.com/chibios-upstream/chibios/pull/13)).
 - [STM32] Missing SPI2 RCC macros and DMAMUX identifiers in the STM32C0xx HAL and
   XHAL ports, SPI2 was unusable on the devices that have it (forum bug
-  report, [#12](https://github.com/chibios-upstream/chibios/pull/12)).
+  report, [#12](https://github.com/chibios-upstream/chibios/pull/12))
+  *(backported to 21.11.6)*.
 - [STM32] Missing `STM32_ADC_ADC2_IRQ_HOOK` invocations in the STM32 ADCv6 and ADCv7
   drivers (forum bug report,
-  [#11](https://github.com/chibios-upstream/chibios/pull/11)).
+  [#11](https://github.com/chibios-upstream/chibios/pull/11))
+  *(backported to 21.11.6)*.
 - [RT] RT: `chThdCreateFromMemoryPool()` rejected valid fixed memory pools due to
   an overly strict alignment assertion
   ([#3](https://github.com/chibios-upstream/chibios/pull/3))
@@ -1709,7 +1720,8 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   *(backported to 21.11.6)*.
 - [NIL] NIL: fixed wrong alignment check in `chThdCreateI()` (bug #1306)
   *(backported to 21.11.6)*.
-- [HAL] DACv1 trigger mask sized for 3 or 4 bit trigger source identifiers.
+- [HAL] DACv1 trigger mask sized for 3 or 4 bit trigger source identifiers
+  *(backported to 21.11.6)*.
 - [HAL] MFS: write verification when the source aliases the shared
   non-cacheable buffer, `MFS_CFG_STRONG_CHECKING` honoured during mount scans,
   and duplicate transaction erases no longer corrupt the used space accounting
