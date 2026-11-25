@@ -46,161 +46,9 @@
                                             FDCAN_CCCR_PXHD | FDCAN_CCCR_EFBI | \
                                             FDCAN_CCCR_TXP | FDCAN_CCCR_NISO)
 
-/*===========================================================================*/
-/* STM32H723xx, STM32H733xx, STM32H725xx, STM32H735xx, STM32H730xx.          */
-/*===========================================================================*/
-#if defined(STM32H723xx) || defined(STM32H733xx) ||                         \
-    defined(STM32H725xx) || defined(STM32H735xx) ||                         \
-    defined(STM32H730xx) ||                                                 \
-    defined(__DOXYGEN__)
-
-#if (STM32_CAN_USE_FDCAN1 && STM32_CAN_USE_FDCAN2 && STM32_CAN_USE_FDCAN3)
-#define STM32_FDCAN_FLS_NBR                 21U
-#define STM32_FDCAN_FLE_NBR                 10U
-#define STM32_FDCAN_RF0_NBR                 10U
-#define STM32_FDCAN_RF1_NBR                 10U
-#define STM32_FDCAN_RB_NBR                  10U
-#define STM32_FDCAN_TEF_NBR                 5U
-#define STM32_FDCAN_TB_NBR                  10U
-#define STM32_FDCAN_TM_NBR                  10U
-#elif ((STM32_CAN_USE_FDCAN1 && STM32_CAN_USE_FDCAN2 && !STM32_CAN_USE_FDCAN3) || \
-      (STM32_CAN_USE_FDCAN1 && STM32_CAN_USE_FDCAN3 && !STM32_CAN_USE_FDCAN2) || \
-      (STM32_CAN_USE_FDCAN2 && STM32_CAN_USE_FDCAN3 && !STM32_CAN_USE_FDCAN1))
-#define STM32_FDCAN_FLS_NBR                 32U
-#define STM32_FDCAN_FLE_NBR                 16U
-#define STM32_FDCAN_RF0_NBR                 16U
-#define STM32_FDCAN_RF1_NBR                 16U
-#define STM32_FDCAN_RB_NBR                  16U
-#define STM32_FDCAN_TEF_NBR                 8U
-#define STM32_FDCAN_TB_NBR                  16U
-#define STM32_FDCAN_TM_NBR                  16U
-#elif ((STM32_CAN_USE_FDCAN1 && !STM32_CAN_USE_FDCAN2 && !STM32_CAN_USE_FDCAN3) || \
-       (STM32_CAN_USE_FDCAN2 && !STM32_CAN_USE_FDCAN1 && !STM32_CAN_USE_FDCAN3) || \
-       (STM32_CAN_USE_FDCAN3 && !STM32_CAN_USE_FDCAN1 && !STM32_CAN_USE_FDCAN2))
-#define STM32_FDCAN_FLS_NBR                 64U
-#define STM32_FDCAN_FLE_NBR                 32U
-#define STM32_FDCAN_RF0_NBR                 32U
-#define STM32_FDCAN_RF1_NBR                 32U
-#define STM32_FDCAN_RB_NBR                  32U
-#define STM32_FDCAN_TEF_NBR                 16U
-#define STM32_FDCAN_TB_NBR                  32U
-#define STM32_FDCAN_TM_NBR                  32U
-#endif
-#endif /* defined(STM32H723xx) || defined(STM32H733xx) ||
-          defined(STM32H725xx) || defined(STM32H735xx) ||
-          defined(STM32H730xx) */
-
-/*===========================================================================*/
-/* STM32H750xx.                                                              */
-/*===========================================================================*/
-#if defined(STM32H750xx) || defined(STM32H7B0xx) ||                         \
-    defined(__DOXYGEN__)
-
-#if (STM32_CAN_USE_FDCAN1 && STM32_CAN_USE_FDCAN2)
-#define STM32_FDCAN_FLS_NBR                 32U
-#define STM32_FDCAN_FLE_NBR                 16U
-#define STM32_FDCAN_RF0_NBR                 16U
-#define STM32_FDCAN_RF1_NBR                 16U
-#define STM32_FDCAN_RB_NBR                  16U
-#define STM32_FDCAN_TEF_NBR                 8U
-#define STM32_FDCAN_TB_NBR                  16U
-#define STM32_FDCAN_TM_NBR                  16U
-#else
-#define STM32_FDCAN_FLS_NBR                 64U
-#define STM32_FDCAN_FLE_NBR                 32U
-#define STM32_FDCAN_RF0_NBR                 32U
-#define STM32_FDCAN_RF1_NBR                 32U
-#define STM32_FDCAN_RB_NBR                  32U
-#define STM32_FDCAN_TEF_NBR                 16U
-#define STM32_FDCAN_TB_NBR                  32U
-#define STM32_FDCAN_TM_NBR                  32U
-#endif
-#endif /* defined(STM32H750xx) */
-
-/*===========================================================================*/
-/* STM32H743xx, STM32H753xx, STM32H745xx, STM32H755xx, STM32H747xx,          */
-/* STM32H757xx.                                                              */
-/*===========================================================================*/
-#if defined(STM32H743xx) || defined(STM32H753xx) ||                         \
-    defined(STM32H745xx) || defined(STM32H755xx) ||                         \
-    defined(STM32H747xx) || defined(STM32H757xx) ||                         \
-    defined(__DOXYGEN__)
-
-#if (STM32_CAN_USE_FDCAN1 && STM32_CAN_USE_FDCAN2)
-#define STM32_FDCAN_FLS_NBR                 32U
-#define STM32_FDCAN_FLE_NBR                 16U
-#define STM32_FDCAN_RF0_NBR                 16U
-#define STM32_FDCAN_RF1_NBR                 16U
-#define STM32_FDCAN_RB_NBR                  16U
-#define STM32_FDCAN_TEF_NBR                 8U
-#define STM32_FDCAN_TB_NBR                  16U
-#define STM32_FDCAN_TM_NBR                  16U
-#else
-#define STM32_FDCAN_FLS_NBR                 64U
-#define STM32_FDCAN_FLE_NBR                 32U
-#define STM32_FDCAN_RF0_NBR                 32U
-#define STM32_FDCAN_RF1_NBR                 32U
-#define STM32_FDCAN_RB_NBR                  32U
-#define STM32_FDCAN_TEF_NBR                 16U
-#define STM32_FDCAN_TB_NBR                  32U
-#define STM32_FDCAN_TM_NBR                  32U
-#endif
-#endif /* defined(STM32H743xx) || defined(STM32H753xx) */
-
-/*===========================================================================*/
-/* STM32H7A3xx, STM32H7B3xx, STM32H7A3xxQ, STM32H7B3xxQ.                     */
-/*===========================================================================*/
-#if defined(STM32H7A3xx)  || defined(STM32H7B3xx)  ||                       \
-    defined(STM32H7A3xxQ) || defined(STM32H7B3xxQ) ||                       \
-    defined(__DOXYGEN__)
-
-#if (STM32_CAN_USE_FDCAN1 && STM32_CAN_USE_FDCAN2)
-#define STM32_FDCAN_FLS_NBR                 32U
-#define STM32_FDCAN_FLE_NBR                 16U
-#define STM32_FDCAN_RF0_NBR                 16U
-#define STM32_FDCAN_RF1_NBR                 16U
-#define STM32_FDCAN_RB_NBR                  16U
-#define STM32_FDCAN_TEF_NBR                 8U
-#define STM32_FDCAN_TB_NBR                  16U
-#define STM32_FDCAN_TM_NBR                  16U
-#else
-#define STM32_FDCAN_FLS_NBR                 64U
-#define STM32_FDCAN_FLE_NBR                 32U
-#define STM32_FDCAN_RF0_NBR                 32U
-#define STM32_FDCAN_RF1_NBR                 32U
-#define STM32_FDCAN_RB_NBR                  32U
-#define STM32_FDCAN_TEF_NBR                 16U
-#define STM32_FDCAN_TB_NBR                  32U
-#define STM32_FDCAN_TM_NBR                  32U
-#endif
-#endif /* defined(STM32H7A3xx)  || defined(STM32H7B3xx) ||
-          defined(STM32H7A3xxQ) || defined(STM32H7B3xxQ) */
-
 /* Size of element size (RAM words) */
 #define CAN_SIZE_RAM_WORDS              (4U)
 #define FDCAN_SIZE_RAM_WORDS            (18U)
-
-/* Value of instance */
-#if (STM32_CAN_USE_FDCAN1 && STM32_CAN_USE_FDCAN2 && STM32_CAN_USE_FDCAN3)
-#define CAN1_OFFSET_INSTANCE            (0U) // CAN1 DEFINED
-#define CAN2_OFFSET_INSTANCE            (1U) // CAN2 DEFINED
-#define CAN3_OFFSET_INSTANCE            (2U) // CAN3 DEFINED
-#elif (STM32_CAN_USE_FDCAN1 && STM32_CAN_USE_FDCAN2 && !STM32_CAN_USE_FDCAN3)
-#define CAN1_OFFSET_INSTANCE            (0U) // CAN1 DEFINED
-#define CAN2_OFFSET_INSTANCE            (1U) // CAN2 DEFINED
-#elif (STM32_CAN_USE_FDCAN1 && STM32_CAN_USE_FDCAN3 && !STM32_CAN_USE_FDCAN2)
-#define CAN1_OFFSET_INSTANCE            (0U) // CAN1 DEFINED
-#define CAN3_OFFSET_INSTANCE            (1U) // CAN3 DEFINED
-#elif (STM32_CAN_USE_FDCAN2 && STM32_CAN_USE_FDCAN3 && !STM32_CAN_USE_FDCAN1)
-#define CAN2_OFFSET_INSTANCE            (0U) // CAN2 DEFINED
-#define CAN3_OFFSET_INSTANCE            (1U) // CAN3 DEFINED
-#elif (STM32_CAN_USE_FDCAN1 && !STM32_CAN_USE_FDCAN2 && !STM32_CAN_USE_FDCAN3)
-#define CAN1_OFFSET_INSTANCE            (0U) // CAN1 DEFINED
-#elif (STM32_CAN_USE_FDCAN2 && !STM32_CAN_USE_FDCAN1 && !STM32_CAN_USE_FDCAN3)
-#define CAN2_OFFSET_INSTANCE            (0U) // CAN2 DEFINED
-#elif (STM32_CAN_USE_FDCAN3 && !STM32_CAN_USE_FDCAN1 && !STM32_CAN_USE_FDCAN2)
-#define CAN3_OFFSET_INSTANCE            (0U) // CAN3 DEFINED
-#endif
 
 /* Filter Standard Element MAX Size in WORDS for single element. */
 #define SRAMCAN_FLS_SIZE                (1U)
@@ -226,40 +74,93 @@
 /* Trigger Memory MAX Size in WORDS for single element.*/
 #define SRAMCAN_TM_SIZE                 (2U)
 
-/* Filter List Standard Offset.*/
-#define SRAMCAN_FLSSA ((uint32_t)0)
+/* Message RAM layout helpers.*/
+#define FDCAN_RAM_SIZE(fls, fle, rf0, rf1, rb, tef, tb, tm)                 \
+  ((fls) * SRAMCAN_FLS_SIZE + (fle) * SRAMCAN_FLE_SIZE +                    \
+   (rf0) * SRAMCAN_RF0_SIZE + (rf1) * SRAMCAN_RF1_SIZE +                    \
+   (rb) * SRAMCAN_RB_SIZE + (tef) * SRAMCAN_TEF_SIZE +                      \
+   (tb) * SRAMCAN_TB_SIZE + (tm) * SRAMCAN_TM_SIZE)
 
-/* Filter List Extended Offset.*/
-#define SRAMCAN_FLESA ((uint32_t)(SRAMCAN_FLSSA +                           \
-                                  (STM32_FDCAN_FLS_NBR * SRAMCAN_FLS_SIZE)))
+#define FDCAN_RAM_FLESA(fls)                ((fls) * SRAMCAN_FLS_SIZE)
+#define FDCAN_RAM_RF0SA(fls, fle)           (FDCAN_RAM_FLESA(fls) +         \
+                                             (fle) * SRAMCAN_FLE_SIZE)
+#define FDCAN_RAM_RF1SA(fls, fle, rf0)      (FDCAN_RAM_RF0SA(fls, fle) +    \
+                                             (rf0) * SRAMCAN_RF0_SIZE)
+#define FDCAN_RAM_RBSA(fls, fle, rf0, rf1)  (FDCAN_RAM_RF1SA(fls, fle,      \
+                                                             rf0) +         \
+                                             (rf1) * SRAMCAN_RF1_SIZE)
+#define FDCAN_RAM_TEFSA(fls, fle, rf0, rf1, rb)                             \
+  (FDCAN_RAM_RBSA(fls, fle, rf0, rf1) + (rb) * SRAMCAN_RB_SIZE)
+#define FDCAN_RAM_TBSA(fls, fle, rf0, rf1, rb, tef)                         \
+  (FDCAN_RAM_TEFSA(fls, fle, rf0, rf1, rb) +                                \
+   (tef) * SRAMCAN_TEF_SIZE)
 
-/* RX FIFO 0 Offset.*/
-#define SRAMCAN_RF0SA ((uint32_t)(SRAMCAN_FLESA +                           \
-                                  (STM32_FDCAN_FLE_NBR * SRAMCAN_FLE_SIZE)))
+#define FDCAN_RAM_CONFIG_VALID(fls, fle, rf0, rf1, rb, tef, tb, tm)         \
+  (((fls) <= 128U) && ((fle) <= 64U) &&                                     \
+   ((rf0) > 0U) && ((rf0) <= 64U) &&                                        \
+   ((rf1) > 0U) && ((rf1) <= 64U) &&                                        \
+   ((rb) <= 64U) && ((tef) <= 32U) &&                                       \
+   ((tb) > 0U) && ((tb) <= 32U) && ((tm) <= 64U))
 
-/* RX FIFO 1 Offset.*/
-#define SRAMCAN_RF1SA ((uint32_t)(SRAMCAN_RF0SA +                           \
-                                  (STM32_FDCAN_RF0_NBR * SRAMCAN_RF0_SIZE)))
+#if STM32_CAN_USE_FDCAN1
+#define FDCAN1_RAM_SIZE                                                     \
+  FDCAN_RAM_SIZE(STM32_CAN_FDCAN1_FLS_NBR, STM32_CAN_FDCAN1_FLE_NBR,        \
+                 STM32_CAN_FDCAN1_RF0_NBR, STM32_CAN_FDCAN1_RF1_NBR,        \
+                 STM32_CAN_FDCAN1_RB_NBR, STM32_CAN_FDCAN1_TEF_NBR,         \
+                 STM32_CAN_FDCAN1_TB_NBR, STM32_CAN_FDCAN1_TM_NBR)
+#if !FDCAN_RAM_CONFIG_VALID(STM32_CAN_FDCAN1_FLS_NBR, STM32_CAN_FDCAN1_FLE_NBR, \
+                            STM32_CAN_FDCAN1_RF0_NBR, STM32_CAN_FDCAN1_RF1_NBR, \
+                            STM32_CAN_FDCAN1_RB_NBR, STM32_CAN_FDCAN1_TEF_NBR, \
+                            STM32_CAN_FDCAN1_TB_NBR, STM32_CAN_FDCAN1_TM_NBR)
+#error "invalid FDCAN1 Message RAM configuration"
+#endif
+#else
+#define FDCAN1_RAM_SIZE                     0U
+#endif
 
-/* RX Buffer Offset.*/
-#define SRAMCAN_RBSA  ((uint32_t)(SRAMCAN_RF1SA +                           \
-                                  (STM32_FDCAN_RF1_NBR * SRAMCAN_RF1_SIZE)))
+#if STM32_CAN_USE_FDCAN2
+#define FDCAN2_RAM_SIZE                                                     \
+  FDCAN_RAM_SIZE(STM32_CAN_FDCAN2_FLS_NBR, STM32_CAN_FDCAN2_FLE_NBR,        \
+                 STM32_CAN_FDCAN2_RF0_NBR, STM32_CAN_FDCAN2_RF1_NBR,        \
+                 STM32_CAN_FDCAN2_RB_NBR, STM32_CAN_FDCAN2_TEF_NBR,         \
+                 STM32_CAN_FDCAN2_TB_NBR, STM32_CAN_FDCAN2_TM_NBR)
+#if !FDCAN_RAM_CONFIG_VALID(STM32_CAN_FDCAN2_FLS_NBR, STM32_CAN_FDCAN2_FLE_NBR, \
+                            STM32_CAN_FDCAN2_RF0_NBR, STM32_CAN_FDCAN2_RF1_NBR, \
+                            STM32_CAN_FDCAN2_RB_NBR, STM32_CAN_FDCAN2_TEF_NBR, \
+                            STM32_CAN_FDCAN2_TB_NBR, STM32_CAN_FDCAN2_TM_NBR)
+#error "invalid FDCAN2 Message RAM configuration"
+#endif
+#else
+#define FDCAN2_RAM_SIZE                     0U
+#endif
 
-/* TX Event FIFO Offset.*/
-#define SRAMCAN_TEFSA ((uint32_t)(SRAMCAN_RBSA +                            \
-                                  (STM32_FDCAN_RB_NBR * SRAMCAN_RB_SIZE)))
+#if STM32_CAN_USE_FDCAN3
+#define FDCAN3_RAM_SIZE                                                     \
+  FDCAN_RAM_SIZE(STM32_CAN_FDCAN3_FLS_NBR, STM32_CAN_FDCAN3_FLE_NBR,        \
+                 STM32_CAN_FDCAN3_RF0_NBR, STM32_CAN_FDCAN3_RF1_NBR,        \
+                 STM32_CAN_FDCAN3_RB_NBR, STM32_CAN_FDCAN3_TEF_NBR,         \
+                 STM32_CAN_FDCAN3_TB_NBR, STM32_CAN_FDCAN3_TM_NBR)
+#if !FDCAN_RAM_CONFIG_VALID(STM32_CAN_FDCAN3_FLS_NBR, STM32_CAN_FDCAN3_FLE_NBR, \
+                            STM32_CAN_FDCAN3_RF0_NBR, STM32_CAN_FDCAN3_RF1_NBR, \
+                            STM32_CAN_FDCAN3_RB_NBR, STM32_CAN_FDCAN3_TEF_NBR, \
+                            STM32_CAN_FDCAN3_TB_NBR, STM32_CAN_FDCAN3_TM_NBR)
+#error "invalid FDCAN3 Message RAM configuration"
+#endif
+#else
+#define FDCAN3_RAM_SIZE                     0U
+#endif
 
-/* TX Buffers Offset.*/
-#define SRAMCAN_TBSA  ((uint32_t)(SRAMCAN_TEFSA +                           \
-                                  (STM32_FDCAN_TEF_NBR * SRAMCAN_TEF_SIZE)))
+#define FDCAN1_RAM_OFFSET                   0U
+#define FDCAN2_RAM_OFFSET                   (FDCAN1_RAM_OFFSET +            \
+                                             FDCAN1_RAM_SIZE)
+#define FDCAN3_RAM_OFFSET                   (FDCAN2_RAM_OFFSET +            \
+                                             FDCAN2_RAM_SIZE)
+#define FDCAN_RAM_END                       (FDCAN3_RAM_OFFSET +            \
+                                             FDCAN3_RAM_SIZE)
 
-/* Trigger Memory Offset.*/
-#define SRAMCAN_TMSA  ((uint32_t)(SRAMCAN_TBSA +                            \
-                                  (STM32_FDCAN_TB_NBR * SRAMCAN_TB_SIZE)))
-
-/* Message RAM size.*/
-#define SRAMCAN_SIZE  ((uint32_t)(SRAMCAN_TMSA +                            \
-                                  (STM32_FDCAN_TM_NBR * SRAMCAN_TM_SIZE)))
+#if FDCAN_RAM_END > 2560U
+#error "FDCAN Message RAM allocation exceeds 10KB"
+#endif
 
 #define TIMEOUT_INIT_MS                 250U
 #define TIMEOUT_CSA_MS                  250U
@@ -286,6 +187,98 @@ CANDriver CAND3;
 /*===========================================================================*/
 /* Driver local variables and types.                                         */
 /*===========================================================================*/
+
+struct fdcan_ram_config {
+  uint32_t                  *base;
+  uint16_t                  size;
+  uint16_t                  flesa;
+  uint16_t                  rf0sa;
+  uint16_t                  rf1sa;
+  uint16_t                  rbsa;
+  uint16_t                  tefsa;
+  uint16_t                  tbsa;
+  uint8_t                   fls_nbr;
+  uint8_t                   fle_nbr;
+  uint8_t                   rf0_nbr;
+  uint8_t                   rf1_nbr;
+  uint8_t                   tef_nbr;
+  uint8_t                   tb_nbr;
+};
+
+#if STM32_CAN_USE_FDCAN1
+static const fdcan_ram_config_t fdcan1_ram_config = {
+  (uint32_t *)SRAMCAN_BASE + FDCAN1_RAM_OFFSET,
+  FDCAN1_RAM_SIZE,
+  FDCAN_RAM_FLESA(STM32_CAN_FDCAN1_FLS_NBR),
+  FDCAN_RAM_RF0SA(STM32_CAN_FDCAN1_FLS_NBR, STM32_CAN_FDCAN1_FLE_NBR),
+  FDCAN_RAM_RF1SA(STM32_CAN_FDCAN1_FLS_NBR, STM32_CAN_FDCAN1_FLE_NBR,
+                  STM32_CAN_FDCAN1_RF0_NBR),
+  FDCAN_RAM_RBSA(STM32_CAN_FDCAN1_FLS_NBR, STM32_CAN_FDCAN1_FLE_NBR,
+                 STM32_CAN_FDCAN1_RF0_NBR, STM32_CAN_FDCAN1_RF1_NBR),
+  FDCAN_RAM_TEFSA(STM32_CAN_FDCAN1_FLS_NBR, STM32_CAN_FDCAN1_FLE_NBR,
+                  STM32_CAN_FDCAN1_RF0_NBR, STM32_CAN_FDCAN1_RF1_NBR,
+                  STM32_CAN_FDCAN1_RB_NBR),
+  FDCAN_RAM_TBSA(STM32_CAN_FDCAN1_FLS_NBR, STM32_CAN_FDCAN1_FLE_NBR,
+                 STM32_CAN_FDCAN1_RF0_NBR, STM32_CAN_FDCAN1_RF1_NBR,
+                 STM32_CAN_FDCAN1_RB_NBR, STM32_CAN_FDCAN1_TEF_NBR),
+  STM32_CAN_FDCAN1_FLS_NBR,
+  STM32_CAN_FDCAN1_FLE_NBR,
+  STM32_CAN_FDCAN1_RF0_NBR,
+  STM32_CAN_FDCAN1_RF1_NBR,
+  STM32_CAN_FDCAN1_TEF_NBR,
+  STM32_CAN_FDCAN1_TB_NBR
+};
+#endif
+
+#if STM32_CAN_USE_FDCAN2
+static const fdcan_ram_config_t fdcan2_ram_config = {
+  (uint32_t *)SRAMCAN_BASE + FDCAN2_RAM_OFFSET,
+  FDCAN2_RAM_SIZE,
+  FDCAN_RAM_FLESA(STM32_CAN_FDCAN2_FLS_NBR),
+  FDCAN_RAM_RF0SA(STM32_CAN_FDCAN2_FLS_NBR, STM32_CAN_FDCAN2_FLE_NBR),
+  FDCAN_RAM_RF1SA(STM32_CAN_FDCAN2_FLS_NBR, STM32_CAN_FDCAN2_FLE_NBR,
+                  STM32_CAN_FDCAN2_RF0_NBR),
+  FDCAN_RAM_RBSA(STM32_CAN_FDCAN2_FLS_NBR, STM32_CAN_FDCAN2_FLE_NBR,
+                 STM32_CAN_FDCAN2_RF0_NBR, STM32_CAN_FDCAN2_RF1_NBR),
+  FDCAN_RAM_TEFSA(STM32_CAN_FDCAN2_FLS_NBR, STM32_CAN_FDCAN2_FLE_NBR,
+                  STM32_CAN_FDCAN2_RF0_NBR, STM32_CAN_FDCAN2_RF1_NBR,
+                  STM32_CAN_FDCAN2_RB_NBR),
+  FDCAN_RAM_TBSA(STM32_CAN_FDCAN2_FLS_NBR, STM32_CAN_FDCAN2_FLE_NBR,
+                 STM32_CAN_FDCAN2_RF0_NBR, STM32_CAN_FDCAN2_RF1_NBR,
+                 STM32_CAN_FDCAN2_RB_NBR, STM32_CAN_FDCAN2_TEF_NBR),
+  STM32_CAN_FDCAN2_FLS_NBR,
+  STM32_CAN_FDCAN2_FLE_NBR,
+  STM32_CAN_FDCAN2_RF0_NBR,
+  STM32_CAN_FDCAN2_RF1_NBR,
+  STM32_CAN_FDCAN2_TEF_NBR,
+  STM32_CAN_FDCAN2_TB_NBR
+};
+#endif
+
+#if STM32_CAN_USE_FDCAN3
+static const fdcan_ram_config_t fdcan3_ram_config = {
+  (uint32_t *)SRAMCAN_BASE + FDCAN3_RAM_OFFSET,
+  FDCAN3_RAM_SIZE,
+  FDCAN_RAM_FLESA(STM32_CAN_FDCAN3_FLS_NBR),
+  FDCAN_RAM_RF0SA(STM32_CAN_FDCAN3_FLS_NBR, STM32_CAN_FDCAN3_FLE_NBR),
+  FDCAN_RAM_RF1SA(STM32_CAN_FDCAN3_FLS_NBR, STM32_CAN_FDCAN3_FLE_NBR,
+                  STM32_CAN_FDCAN3_RF0_NBR),
+  FDCAN_RAM_RBSA(STM32_CAN_FDCAN3_FLS_NBR, STM32_CAN_FDCAN3_FLE_NBR,
+                 STM32_CAN_FDCAN3_RF0_NBR, STM32_CAN_FDCAN3_RF1_NBR),
+  FDCAN_RAM_TEFSA(STM32_CAN_FDCAN3_FLS_NBR, STM32_CAN_FDCAN3_FLE_NBR,
+                  STM32_CAN_FDCAN3_RF0_NBR, STM32_CAN_FDCAN3_RF1_NBR,
+                  STM32_CAN_FDCAN3_RB_NBR),
+  FDCAN_RAM_TBSA(STM32_CAN_FDCAN3_FLS_NBR, STM32_CAN_FDCAN3_FLE_NBR,
+                 STM32_CAN_FDCAN3_RF0_NBR, STM32_CAN_FDCAN3_RF1_NBR,
+                 STM32_CAN_FDCAN3_RB_NBR, STM32_CAN_FDCAN3_TEF_NBR),
+  STM32_CAN_FDCAN3_FLS_NBR,
+  STM32_CAN_FDCAN3_FLE_NBR,
+  STM32_CAN_FDCAN3_RF0_NBR,
+  STM32_CAN_FDCAN3_RF1_NBR,
+  STM32_CAN_FDCAN3_TEF_NBR,
+  STM32_CAN_FDCAN3_TB_NBR
+};
+#endif
 
 /* Includes controllers in CAN_STARTING. Accessed with the system locked.*/
 static unsigned fdcan_users;
@@ -425,21 +418,21 @@ void can_lld_init(void) {
   /* Driver initialization.*/
   canObjectInit(&CAND1);
   CAND1.fdcan = FDCAN1;
-  CAND1.ram_base = ((uint32_t *)SRAMCAN_BASE + (CAN1_OFFSET_INSTANCE * SRAMCAN_SIZE));
+  CAND1.ram = &fdcan1_ram_config;
 #endif
 
 #if STM32_CAN_USE_FDCAN2
   /* Driver initialization.*/
   canObjectInit(&CAND2);
   CAND2.fdcan = FDCAN2;
-  CAND2.ram_base = ((uint32_t *)SRAMCAN_BASE + (CAN2_OFFSET_INSTANCE * SRAMCAN_SIZE));
+  CAND2.ram = &fdcan2_ram_config;
 #endif
 
 #if STM32_CAN_USE_FDCAN3
   /* Driver initialization.*/
   canObjectInit(&CAND3);
   CAND3.fdcan = FDCAN3;
-  CAND3.ram_base = ((uint32_t *)SRAMCAN_BASE + (CAN3_OFFSET_INSTANCE * SRAMCAN_SIZE));
+  CAND3.ram = &fdcan3_ram_config;
 #endif
 }
 
@@ -455,10 +448,11 @@ void can_lld_init(void) {
  * @notapi
  */
 msg_t can_lld_start(CANDriver *canp) {
-  uint32_t cccr;
+  uint32_t offset, cccr;
   volatile uint32_t *wp;
 
   if ((canp->config == NULL) ||
+      (canp->ram == NULL) ||
       ((canp->config->op_mode != OPMODE_CAN) &&
        (canp->config->op_mode != OPMODE_FDCAN))) {
     return HAL_RET_CONFIG_ERROR;
@@ -480,7 +474,9 @@ msg_t can_lld_start(CANDriver *canp) {
   /* CCE resets this controller's FIFO status. Only clear its own RAM slice,
      after the controller has stopped accessing the old FIFO contents.*/
   canp->fdcan->CCCR |= FDCAN_CCCR_CCE;
-  for (wp = canp->ram_base; wp < canp->ram_base + SRAMCAN_SIZE; wp++) {
+  for (wp = canp->ram->base;
+       wp < canp->ram->base + canp->ram->size;
+       wp++) {
     *wp = 0U;
   }
 
@@ -515,71 +511,24 @@ msg_t can_lld_start(CANDriver *canp) {
 
   canp->fdcan->GFC = canp->config->RXGFC;
 
-#if STM32_CAN_USE_FDCAN1
-  if (&CAND1 == canp) {
-    /* H7 version of FDCAN has configurable memory layout, so configure it */
-    canp->fdcan->SIDFC = FDCAN_CONFIG_SIDFC_LSS(STM32_FDCAN_FLS_NBR) |
-                         FDCAN_CONFIG_SIDFC_FLSSA((CAN1_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_FLSSA);
-    canp->fdcan->XIDFC = FDCAN_CONFIG_XIDFC_LSE(STM32_FDCAN_FLE_NBR) |
-                         FDCAN_CONFIG_XIDFC_FLESA((CAN1_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_FLESA);
-    canp->fdcan->RXF0C = FDCAN_CONFIG_RXF0C_F0S(STM32_FDCAN_RF0_NBR) |
-                         FDCAN_CONFIG_RXF0C_F0SA((CAN1_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_RF0SA) |
-                         FDCAN_CONFIG_RXF0C_F0WM(STM32_FDCAN_FIFO_WATERMARK);
-    canp->fdcan->RXF1C = FDCAN_CONFIG_RXF1C_F1S(STM32_FDCAN_RF1_NBR) |
-                         FDCAN_CONFIG_RXF1C_F1SA((CAN1_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_RF1SA) |
-                         FDCAN_CONFIG_RXF1C_F1WM(STM32_FDCAN_FIFO_WATERMARK);
-    canp->fdcan->RXBC  = FDCAN_CONFIG_RXBC_RBSA((CAN1_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_RBSA);
-    canp->fdcan->TXEFC = FDCAN_CONFIG_TXEFC_EFS(STM32_FDCAN_TEF_NBR) |
-                         FDCAN_CONFIG_TXEFC_EFSA((CAN1_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_TEFSA);
-    /* NB: this doesn't set NDTB, but sets TFQS to run in FIFO mode with no dedicated buffers */
-    canp->fdcan->TXBC  = FDCAN_CONFIG_TXBC_TFQS(STM32_FDCAN_TB_NBR) |
-                         FDCAN_CONFIG_TXBC_TBSA((CAN1_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_TBSA);
-  }
-#endif
-
-#if STM32_CAN_USE_FDCAN2
-  if (&CAND2 == canp) {
-    /* H7 version of FDCAN has configurable memory layout, so configure it */
-    canp->fdcan->SIDFC = FDCAN_CONFIG_SIDFC_LSS(STM32_FDCAN_FLS_NBR) |
-                         FDCAN_CONFIG_SIDFC_FLSSA((CAN2_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_FLSSA);
-    canp->fdcan->XIDFC = FDCAN_CONFIG_XIDFC_LSE(STM32_FDCAN_FLE_NBR) |
-                         FDCAN_CONFIG_XIDFC_FLESA((CAN2_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_FLESA);
-    canp->fdcan->RXF0C = FDCAN_CONFIG_RXF0C_F0S(STM32_FDCAN_RF0_NBR) |
-                         FDCAN_CONFIG_RXF0C_F0SA((CAN2_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_RF0SA) |
-                         FDCAN_CONFIG_RXF0C_F0WM(STM32_FDCAN_FIFO_WATERMARK);
-    canp->fdcan->RXF1C = FDCAN_CONFIG_RXF1C_F1S(STM32_FDCAN_RF1_NBR) |
-                         FDCAN_CONFIG_RXF1C_F1SA((CAN2_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_RF1SA) |
-                         FDCAN_CONFIG_RXF1C_F1WM(STM32_FDCAN_FIFO_WATERMARK);
-    canp->fdcan->RXBC  = FDCAN_CONFIG_RXBC_RBSA((CAN2_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_RBSA);
-    canp->fdcan->TXEFC = FDCAN_CONFIG_TXEFC_EFS(STM32_FDCAN_TEF_NBR) |
-                         FDCAN_CONFIG_TXEFC_EFSA((CAN2_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_TEFSA);
-    /* NB: this doesn't set NDTB, but sets TFQS to run in FIFO mode with no dedicated buffers */
-    canp->fdcan->TXBC  = FDCAN_CONFIG_TXBC_TFQS(STM32_FDCAN_TB_NBR) |
-                         FDCAN_CONFIG_TXBC_TBSA((CAN2_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_TBSA);
-  }
-#endif
-
-#if STM32_CAN_USE_FDCAN3
-  if (&CAND3 == canp) {
-    /* H7 version of FDCAN has configurable memory layout, so configure it */
-    canp->fdcan->SIDFC = FDCAN_CONFIG_SIDFC_LSS(STM32_FDCAN_FLS_NBR) |
-                         FDCAN_CONFIG_SIDFC_FLSSA((CAN3_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_FLSSA);
-    canp->fdcan->XIDFC = FDCAN_CONFIG_XIDFC_LSE(STM32_FDCAN_FLE_NBR) |
-                         FDCAN_CONFIG_XIDFC_FLESA((CAN3_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_FLESA);
-    canp->fdcan->RXF0C = FDCAN_CONFIG_RXF0C_F0S(STM32_FDCAN_RF0_NBR) |
-                         FDCAN_CONFIG_RXF0C_F0SA((CAN3_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_RF0SA) |
-                         FDCAN_CONFIG_RXF0C_F0WM(STM32_FDCAN_FIFO_WATERMARK);
-    canp->fdcan->RXF1C = FDCAN_CONFIG_RXF1C_F1S(STM32_FDCAN_RF1_NBR) |
-                         FDCAN_CONFIG_RXF1C_F1SA((CAN3_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_RF1SA) |
-                         FDCAN_CONFIG_RXF1C_F1WM(STM32_FDCAN_FIFO_WATERMARK);
-    canp->fdcan->RXBC  = FDCAN_CONFIG_RXBC_RBSA((CAN3_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_RBSA);
-    canp->fdcan->TXEFC = FDCAN_CONFIG_TXEFC_EFS(STM32_FDCAN_TEF_NBR) |
-                         FDCAN_CONFIG_TXEFC_EFSA((CAN3_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_TEFSA);
-    /* NB: this doesn't set NDTB, but sets TFQS to run in FIFO mode with no dedicated buffers */
-    canp->fdcan->TXBC  = FDCAN_CONFIG_TXBC_TFQS(STM32_FDCAN_TB_NBR) |
-                         FDCAN_CONFIG_TXBC_TBSA((CAN3_OFFSET_INSTANCE * SRAMCAN_SIZE) + SRAMCAN_TBSA);
-  }
-#endif
+  /* H7 FDCAN instances share one Message RAM, each with a packed slice.*/
+  offset = (uint32_t)(canp->ram->base - (uint32_t *)SRAMCAN_BASE);
+  canp->fdcan->SIDFC = FDCAN_CONFIG_SIDFC_LSS(canp->ram->fls_nbr) |
+                       FDCAN_CONFIG_SIDFC_FLSSA(offset);
+  canp->fdcan->XIDFC = FDCAN_CONFIG_XIDFC_LSE(canp->ram->fle_nbr) |
+                       FDCAN_CONFIG_XIDFC_FLESA(offset + canp->ram->flesa);
+  canp->fdcan->RXF0C = FDCAN_CONFIG_RXF0C_F0S(canp->ram->rf0_nbr) |
+                       FDCAN_CONFIG_RXF0C_F0SA(offset + canp->ram->rf0sa) |
+                       FDCAN_CONFIG_RXF0C_F0WM(STM32_FDCAN_FIFO_WATERMARK);
+  canp->fdcan->RXF1C = FDCAN_CONFIG_RXF1C_F1S(canp->ram->rf1_nbr) |
+                       FDCAN_CONFIG_RXF1C_F1SA(offset + canp->ram->rf1sa) |
+                       FDCAN_CONFIG_RXF1C_F1WM(STM32_FDCAN_FIFO_WATERMARK);
+  canp->fdcan->RXBC = FDCAN_CONFIG_RXBC_RBSA(offset + canp->ram->rbsa);
+  canp->fdcan->TXEFC = FDCAN_CONFIG_TXEFC_EFS(canp->ram->tef_nbr) |
+                       FDCAN_CONFIG_TXEFC_EFSA(offset + canp->ram->tefsa);
+  /* NDTB remains zero, TFQS selects FIFO mode without dedicated buffers.*/
+  canp->fdcan->TXBC = FDCAN_CONFIG_TXBC_TFQS(canp->ram->tb_nbr) |
+                      FDCAN_CONFIG_TXBC_TBSA(offset + canp->ram->tbsa);
 
   /* Data field. Data field sizes > 8
      bytes are intended for CAN FD operation only. */
@@ -682,7 +631,7 @@ void can_lld_transmit(CANDriver *canp, canmbx_t mailbox, const CANTxFrame *ctfp)
   put_index = ((canp->fdcan->TXFQS & FDCAN_TXFQS_TFQPI) >> FDCAN_TXFQS_TFQPI_Pos);
 
   /* Writing frame. */
-  tx_address = canp->ram_base + (SRAMCAN_TBSA + (put_index * canp->word_size));
+  tx_address = canp->ram->base + canp->ram->tbsa + put_index * canp->word_size;
 
   *tx_address++ = ctfp->header32[0];
   *tx_address++ = ctfp->header32[1];
@@ -752,12 +701,12 @@ void can_lld_receive(CANDriver *canp, canmbx_t mailbox, CANRxFrame *crfp) {
   if (mailbox == 1U) {
      /* GET index RXF0, add it and the length to the rx_address.*/
      get_index = (canp->fdcan->RXF0S & FDCAN_RXF0S_F0GI_Msk) >> FDCAN_RXF0S_F0GI_Pos;
-     rx_address = canp->ram_base + ((SRAMCAN_RF0SA + (get_index * canp->word_size)));
+     rx_address = canp->ram->base + canp->ram->rf0sa + get_index * canp->word_size;
   }
   else {
      /* GET index RXF1, add it and the length to the rx_address.*/
      get_index = (canp->fdcan->RXF1S & FDCAN_RXF1S_F1GI_Msk) >> FDCAN_RXF1S_F1GI_Pos;
-     rx_address = canp->ram_base + ((SRAMCAN_RF1SA + (get_index * canp->word_size)));
+     rx_address = canp->ram->base + canp->ram->rf1sa + get_index * canp->word_size;
   }
   crfp->header32[0] = *rx_address++;
   crfp->header32[1] = *rx_address++;
@@ -909,24 +858,24 @@ void can_lld_set_filters(CANDriver *canp, uint8_t num, const CANFilter *cfp) {
     }
   }
 
-  valid = valid && (num_std_filter <= STM32_FDCAN_FLS_NBR) &&
-          (num_ext_filter <= STM32_FDCAN_FLE_NBR);
+  valid = valid && (num_std_filter <= canp->ram->fls_nbr) &&
+          (num_ext_filter <= canp->ram->fle_nbr);
   osalDbgAssert(valid, "invalid filters");
   if (!valid) {
     return;
   }
 
   /* Base address of standard filter. */
-  filter_std = (CANRxStandardFilter *)(canp->ram_base + SRAMCAN_FLSSA);
+  filter_std = (CANRxStandardFilter *)canp->ram->base;
   /* Base address of extended filter. */
-  filter_ext = (CANRxExtendedFilter *)(canp->ram_base + SRAMCAN_FLESA);
+  filter_ext = (CANRxExtendedFilter *)(canp->ram->base + canp->ram->flesa);
 
   /* Unused entries must be disabled, including when num is zero. Otherwise
      filters left by the previous call remain active.*/
-  for (i = 0U; i < STM32_FDCAN_FLS_NBR; i++) {
+  for (i = 0U; i < canp->ram->fls_nbr; i++) {
     filter_std[i].data32 = 0U;
   }
-  for (i = 0U; i < STM32_FDCAN_FLE_NBR; i++) {
+  for (i = 0U; i < canp->ram->fle_nbr; i++) {
     filter_ext[i].data32[0] = 0U;
     filter_ext[i].data32[1] = 0U;
   }
