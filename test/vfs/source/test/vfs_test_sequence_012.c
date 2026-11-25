@@ -1173,7 +1173,7 @@ static void vfs_test_012_008_execute(void) {
     ok &= vfsIOInsert(&vfs_test_api_io,
                       (vfs_node_c *)&vfs_test_api_files[0]) == 0;
     vfs_test_api_join();
-    test_assert(ok && vfs_test_api_result == CH_ENCODE_ERROR(ENOTSUP),
+    test_assert(ok && vfs_test_api_result == CH_RET_ENOTSUP,
                 "rejected open kept reservation during disposal");
     test_assert(vfs_test_api_files[2].disposals == 1U &&
                 vfsIOClose(&vfs_test_api_io, 0) == CH_RET_SUCCESS &&

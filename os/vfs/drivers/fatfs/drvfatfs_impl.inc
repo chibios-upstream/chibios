@@ -1413,7 +1413,7 @@ msg_t __ffdrv_rmdir_impl(void *ip, const char *path) {
   chPoolFree(&vfs_fatfs_driver_static.info_nodes_pool, info);
 
   if (not_empty) {
-    return CH_ENCODE_ERROR(ENOTEMPTY);
+    return CH_RET_ENOTEMPTY;
   }
 
   return translate_error(res);

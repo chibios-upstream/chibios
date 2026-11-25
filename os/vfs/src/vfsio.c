@@ -91,7 +91,7 @@ static msg_t check_node(vfs_node_c *np) {
   }
   if ((np->vmt->addref != __ro_addref_impl) ||
       (np->vmt->release != __ro_release_impl)) {
-    return CH_ENCODE_ERROR(ENOTSUP);
+    return CH_RET_ENOTSUP;
   }
 
   return CH_RET_SUCCESS;

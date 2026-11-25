@@ -773,7 +773,7 @@ msg_t __stmdrv_openfile_impl(void *ip, const char *path, int flags,
         if (VFS_MODE_S_ISREG(dsep->mode) &&
             (((flags & VO_TRUNC) != 0) ||
              (((flags & VO_APPEND) != 0) && (access != VO_RDONLY)))) {
-          return CH_ENCODE_ERROR(ENOTSUP);
+          return CH_RET_ENOTSUP;
         }
         sfnp = chPoolAlloc(&vfs_streams_driver_static.file_nodes_pool);
         if (sfnp != NULL) {

@@ -13,6 +13,11 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   the `STM32_UART_<port>_RX_DMA3_CHANNEL` and `_TX_DMA3_CHANNEL` settings
   in `mcuconf.h`
   ([#672](https://github.com/chibios-upstream/chibios/pull/672)).
+- [STM32] STM32H7xx embedded flash (EFL) driver for the single-bank
+  H72x/H73x, H750 and H7B0 and the dual-bank H74x/H75x and H7A3/H7B3; the
+  geometry comes from the flash-size register, reduced-density dual-bank
+  devices are exposed as one contiguous flash
+  ([#675](https://github.com/chibios-upstream/chibios/pull/675)).
 - [VFS] `vfsFileSync()` and `vfsFileTruncate()` file node methods,
   implemented by the FatFS and LittleFS drivers, `vfsIOSync()` and
   `vfsIOTruncate()` for descriptors, and `fsync()` and `ftruncate()` in the
@@ -318,8 +323,9 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   [#253](https://github.com/chibios-upstream/chibios/pull/253),
   [#268](https://github.com/chibios-upstream/chibios/pull/268)).
 - [STM32] STM32G0xx embedded flash (EFL) support for 256K and 512K devices
-  (single-bank; dual-bank G0B1/G0C1 parts must be configured single-bank)
-  ([#191](https://github.com/chibios-upstream/chibios/pull/191)).
+  ([#191](https://github.com/chibios-upstream/chibios/pull/191)), with dual
+  bank mode and the STM32G0C1 and STM32G0B0 devices
+  ([#516](https://github.com/chibios-upstream/chibios/pull/516)).
 - [STM32] FDCAN timestamp counter (`TSCC`) configuration, exposed and
   programmed in configuration mode across classic FDCANv1/FDCANv2 and XHAL
   FDCANv1 ([#237](https://github.com/chibios-upstream/chibios/pull/237)).
@@ -504,9 +510,47 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
   ranges, and the generic functions stay available with
   `CH_CFG_USE_MEMCHECKS` disabled
   ([#316](https://github.com/chibios-upstream/chibios/pull/316)).
+- [STM32] STM32C5xx support, an initial compile-tested port: CMSIS and startup
+  integration, the `ST_NUCLEO64_C562RE` board, a demo target, the clock model
+  and the configuration generators. STM32U5 clock variants for U595, U599,
+  U5A5 and U5A9 and the `ST_NUCLEO144_U5A5ZJ_Q` board
+  ([#79](https://github.com/chibios-upstream/chibios/pull/79)), with the
+  STM32U5A5 target in `RT-STM32-MULTI` on a type-2 U5 platform using OTGv1
+  ([#80](https://github.com/chibios-upstream/chibios/pull/80)).
+- [STM32] STM32U5 integrated OTG_HS PHY: power, clock, tuning and shutdown
+  sequencing ([#81](https://github.com/chibios-upstream/chibios/pull/81)). The
+  OTG2 PHY is selected through registry capabilities, embedded full speed,
+  external ULPI or integrated high speed, falling back to
+  `BOARD_OTG2_USES_ULPI` when the settings are absent
+  ([#83](https://github.com/chibios-upstream/chibios/pull/83)).
+- [STM32] STM32U5 dynamic clock switching, `STM32_CFG_CLOCK_DYNAMIC`, with
+  the clock tree checked at run time by the generated clock tree code
+  ([#57](https://github.com/chibios-upstream/chibios/pull/57)).
+- [STM32] STM32U5 ADCv8 driver for ADC1 and ADC2, classic HAL and XHAL
+  ([#131](https://github.com/chibios-upstream/chibios/pull/131)).
+- [RP] Classic HAL RP2350 platform, and the ADCv1, PWMv1, USBv1 (device),
+  EFLv1 and PIOv1 drivers for the RP2040 and RP2350.
+- [RP] SMP flash lockout in the RP2040 EFL driver, as on the RP2350:
+  `RP_EFL_XIP_SAFETY` selects the strategy and SMP builds require one
+  ([#115](https://github.com/chibios-upstream/chibios/pull/115)).
+- [RP] The RP2040 and RP2350 demos build their `.uf2` image in the "all"
+  target when `picotool` is available
+  ([#74](https://github.com/chibios-upstream/chibios/pull/74)).
 
 ### Changed
 
+- [EXT] LittleFS updated from 2.10.1 to 2.11.3, same on-disk version and
+  API; the `lfs_config.h` bindings get the upstream fix of the byte order
+  helpers
+  ([#698](https://github.com/chibios-upstream/chibios/pull/698)).
+- [EXT] FatFs updated from R0.14b to R0.16 with ChaN's patch-1 and patch-2,
+  which fix CVE-2026-6682, CVE-2026-6683 and CVE-2026-6687; the ChibiOS
+  extensions are carried over unchanged. The project `ffconf.h` files must
+  be updated: `FFCONF_DEF` is 80386, `FF_PATH_DEPTH` and `FF_FS_CRTIME` are
+  new and `FF_SYNC_t` is removed. With `FF_FS_REENTRANT` the bindings
+  implement `ff_mutex_create()`, `ff_mutex_delete()`, `ff_mutex_take()` and
+  `ff_mutex_give()`
+  ([#697](https://github.com/chibios-upstream/chibios/pull/697)).
 - [VFS] LittleFS driver: removing, renaming or replacing by a rename an
   open file, and removing or replacing an open directory, return `EBUSY`
   instead of detaching the open handles and losing their writes
@@ -796,9 +840,50 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 - [RT] Function `chCoreGetStatusX()` changed to return a memory region object
   instead of a simple size.
 - [OSLIB] RT and NIL upgraded to support the enhanced OSLIB.
+- [VFS] The VFS abstraction is split into the `vfs_fs_c` file system interface
+  and the `vfs_root_c` process context: file systems and non-root overlays
+  accept normalized absolute paths only, the current directory and relative
+  paths are handled by the root. Roots are optional,
+  `VFS_CFG_ENABLE_DRV_ROOT`, and require the overlay driver
+  ([#89](https://github.com/chibios-upstream/chibios/pull/89)).
+- [RT] Port interface: the `PORT_SETUP_CONTEXT()` macro is replaced in all
+  ports by the inline function `port_setup_context()`, taking a pointer to the
+  port context instead of the thread, and `port_setup_context_base()` is a new
+  mandatory port function for already running execution flows such as the boot
+  threads. Out-of-tree ports must provide both
+  ([#33](https://github.com/chibios-upstream/chibios/pull/33)).
+- [RP] The RP2040, RP2350 and RP2350 RISC-V startup makefiles default to 0x400
+  bytes for both the exceptions and the process stacks, previously 0x800 and
+  0x800 on ARM, 0x400 and 0x800 on Hazard3. Projects relying on the larger
+  defaults must set `USE_EXCEPTIONS_STACKSIZE` and `USE_PROCESS_STACKSIZE`
+  ([#95](https://github.com/chibios-upstream/chibios/pull/95)).
 
 ### Fixed
 
+- [HAL] `chscanf()`: plain `char` arguments of the `<ctype.h>` functions are
+  cast to `unsigned char`, and `STM_RESET` is no longer passed to `isspace()`
+  and `tolower()`: on signed-char targets these read outside the
+  classification table, and a whitespace skipping loop could spin. The OOP
+  `oop_chscanf.c` float parsing also compiles again
+  ([#690](https://github.com/chibios-upstream/chibios/pull/690)).
+- [BUILD] The build rules searched every prerequisite in the source paths: a
+  project compiling a file from a directory holding another build, like the
+  NIL alternate port fixtures, resolved its `.dep` and `build` directories to
+  the other ones and failed. Only source files are searched now
+  ([#689](https://github.com/chibios-upstream/chibios/pull/689)).
+- [HAL] Ten legacy board files called `chSysLockFromIsr()` and
+  `chSysUnlockFromIsr()`, which no longer exist; `OLIMEX_LPC_P2148/buzzer.c`
+  is updated to the current kernel API
+  ([#677](https://github.com/chibios-upstream/chibios/pull/677)).
+- [STM32] STM32H5: the TIM1 update vector number is named
+  `STM32_TIM1_UP_NUMBER`, as expected by the TIM drivers, so PWM, ICU and GPT
+  on TIM1 build ([#664](https://github.com/chibios-upstream/chibios/pull/664))
+  *(backported to 21.11.6)*.
+- [VFS] The ChibiFS skeleton methods returned success without setting the
+  returned node, they now return `ENOSYS`; the `vfsconf.h` overlay setting
+  tested `DRV_CFG_OVERLAY_NODES_NUM` but defined
+  `DRV_CFG_OVERLAY_DIR_NODES_NUM`, so overriding it caused a redefinition
+  ([#604](https://github.com/chibios-upstream/chibios/pull/604)).
 - [VFS] LittleFS driver: independent writable opens of the same file were
   accepted and the data of one writer was lost; an open conflicting with a
   writer, or a writable open of an open file, now returns `EBUSY`
@@ -1596,3 +1681,63 @@ applied to a maintenance branch are marked *(backported to 21.11.6)*.
 - [NIL] NIL: fixed wrong alignment check in `chThdCreateI()` (bug #1306)
   *(backported to 21.11.6)*.
 - [HAL] DACv1 trigger mask sized for 3 or 4 bit trigger source identifiers.
+- [HAL] MFS: write verification when the source aliases the shared
+  non-cacheable buffer, `MFS_CFG_STRONG_CHECKING` honoured during mount scans,
+  and duplicate transaction erases no longer corrupt the used space accounting
+  ([#58](https://github.com/chibios-upstream/chibios/pull/58)) *(backported to
+  21.11.6)*.
+- [VFS] ROMFS: chunked reads are guarded at the end of file, backends making
+  no progress or reporting more than requested are rejected, and
+  `SEEK_CUR`/`SEEK_END` bounds are checked before the offset addition
+  ([#59](https://github.com/chibios-upstream/chibios/pull/59)) *(backported to
+  21.11.6)*.
+- [RT] C++ wrappers: `Scheduler::rescheduleS()` calls `chSchRescheduleS()`,
+  message polling context and registry reference handoff, wrappers around
+  embedded kernel objects are no longer copyable, typed mailbox fetch and peek
+  for small types, `ObjectsPool` storage stride and `ThreadsPool` memory pool
+  access ([#61](https://github.com/chibios-upstream/chibios/pull/61))
+  *(backported to 21.11.6)*.
+- [RT] RT: the thread working-area reuse checks were not atomic, they are now
+  done in the locked creation paths before the registry insertion
+  ([#63](https://github.com/chibios-upstream/chibios/pull/63)).
+- [STM32] STM32 RTCv3: the month decoding used the time register field
+  offsets, now the date register ones; no functional change, the positions
+  coincide on all the RTCv3 parts
+  ([#75](https://github.com/chibios-upstream/chibios/pull/75)).
+- [STM32] STM32U5 and STM32U3 registries: a missing or unsupported device now
+  stops the build with an error instead of leaving the capabilities undefined
+  ([#76](https://github.com/chibios-upstream/chibios/pull/76),
+  [#78](https://github.com/chibios-upstream/chibios/pull/78)).
+- [STM32] STM32U5 clock and USB initialization: HSE bypass configured before
+  enabling HSE, the OTG register address, the integrated HS PHY analog block
+  released from power-down, and the USB supply enabled and monitored
+  ([#82](https://github.com/chibios-upstream/chibios/pull/82)).
+- [ARMV6M] ARMv6-M: the IRQ trampoline literal is kept in range
+  ([#88](https://github.com/chibios-upstream/chibios/pull/88)); RP2 SMP: halt
+  on a remote panic regardless of the receiving core
+  ([#104](https://github.com/chibios-upstream/chibios/pull/104)), and the SMP
+  support source is compiled out of non-SMP builds
+  ([#112](https://github.com/chibios-upstream/chibios/pull/112)).
+- [RP] RP2040 fixes from the RP2040 implementation review: register bitfield
+  definitions ([#110](https://github.com/chibios-upstream/chibios/pull/110)),
+  linker script memory regions and the boot2 size assertion
+  ([#111](https://github.com/chibios-upstream/chibios/pull/111)), the boot ROM
+  region size and core-local BSS
+  ([#95](https://github.com/chibios-upstream/chibios/pull/95)), compile-time
+  clock checks ([#119](https://github.com/chibios-upstream/chibios/pull/119),
+  [#129](https://github.com/chibios-upstream/chibios/pull/129)), DMA
+  cross-core channel free
+  ([#105](https://github.com/chibios-upstream/chibios/pull/105)) and the
+  RP2040-E13 abort workaround
+  ([#121](https://github.com/chibios-upstream/chibios/pull/121)), PAL event
+  affinity and the RP2040-E6 analogue pads
+  ([#118](https://github.com/chibios-upstream/chibios/pull/118)), I2C repeated
+  START, NACK reporting and whole-call timeouts
+  ([#117](https://github.com/chibios-upstream/chibios/pull/117)), SPI DMA
+  allocation failures and the unimplemented LLD select mode
+  ([#96](https://github.com/chibios-upstream/chibios/pull/96),
+  [#114](https://github.com/chibios-upstream/chibios/pull/114)), system tick
+  alarms set in the past
+  ([#106](https://github.com/chibios-upstream/chibios/pull/106)) and the
+  watchdog `LOAD` overflow
+  ([#99](https://github.com/chibios-upstream/chibios/pull/99)).
