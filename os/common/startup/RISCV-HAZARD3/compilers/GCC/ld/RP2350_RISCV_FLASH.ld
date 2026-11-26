@@ -96,11 +96,14 @@ SECTIONS
     } > VECTORS_FLASH AT > VECTORS_FLASH_LMA
 
     /* Global constructors/destructors. Prioritized entries are sorted by
-       ascending priority, entries without a priority come last. CRT0 walks
-       the pre-init and init arrays forward and the fini array backward. */
+       ascending priority, entries without a priority come last. Pre-init
+       sections with a suffix, which the compiler does not emit, are sorted
+       by name. CRT0 walks the pre-init and init arrays forward and the fini
+       array backward. */
     .xtors : ALIGN(4)
     {
         __preinit_array_base__ = .;
+        KEEP(*(SORT(.preinit_array.*)))
         KEEP(*(.preinit_array))
         __preinit_array_end__ = .;
         __init_array_base__ = .;
