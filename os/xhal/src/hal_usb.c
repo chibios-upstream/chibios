@@ -2343,6 +2343,15 @@ msg_t usbEp0WaitSetup(void *ip) {
   }
 
   msg = chThdSuspendTimeoutS(&self->ep0thread, TIME_INFINITE);
+  if ((msg == MSG_OK) &&
+      ((self->ep0setup == 0U) ||
+       (self->state == HAL_DRV_STATE_STOP) ||
+       (self->state == HAL_DRV_STATE_STOPPING))) {
+    /* A bus reset, a suspend, a fault or a stop served after the SETUP made
+       this thread ready, and before it ran, has discarded that SETUP. A stop
+       in progress may not have withdrawn it yet.*/
+    msg = (self->state == USB_ERROR) ? HAL_RET_HW_FAILURE : MSG_RESET;
+  }
   if (msg == MSG_OK) {
     self->ep0setup = 0U;
     ep0_take_request_i(self);
