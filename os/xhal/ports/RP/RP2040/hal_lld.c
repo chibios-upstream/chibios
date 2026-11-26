@@ -60,6 +60,7 @@ static void start_core1(void) {
                              (uint32_t)&RP_CORE1_STACK_END,
                              (uint32_t)RP_CORE1_ENTRY_POINT};
   unsigned seq;
+  unsigned n;
 
   /* Force-reset core1 via PSM before starting the FIFO launch handshake.
    *
@@ -76,6 +77,20 @@ static void start_core1(void) {
    * off, and rises again once it has been released and is running.*/
   PSM->SET.FRCE_OFF = PSM_ANY_PROC1;         /* Assert reset to core1.     */
   while (PSM->DONE & PSM_ANY_PROC1) {}       /* Wait until it powers off.  */
+
+  /* Releasing all the SIO spinlocks while core1 is held in reset.
+   *
+   * The spinlocks are SIO state and survive a reset that does not reset
+   * SIO, a debugger reset for example. A spinlock left claimed by the
+   * previous run, typically the kernel lock of a core stopped inside a
+   * critical section, would never be released and the kernel would wait
+   * for it forever during its initialization. Here core1 can neither hold
+   * nor take a spinlock and this core has not taken any yet. Writing any
+   * value releases a spinlock.*/
+  for (n = 0U; n < 32U; n++) {
+    SIO->SPINLOCK[n] = 0U;
+  }
+
   PSM->CLR.FRCE_OFF = PSM_ANY_PROC1;         /* Release, core1 enters ROM. */
 
   /* Starting core 1.*/
