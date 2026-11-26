@@ -119,6 +119,11 @@ struct hal_usb_cdc_config {
           <field name="linecoding" ctype="usb_cdc_linecoding_t">
             <brief>Current CDC line coding state.</brief>
           </field>
+          <field name="newlinecoding" ctype="usb_cdc_linecoding_t">
+            <brief>CDC line coding being received.</brief>
+            <note>It becomes the current one when its request has
+              completed.</note>
+          </field>
           <field name="control_line_state" ctype="uint16_t">
             <brief>Current CDC control line state bitmap.</brief>
           </field>
@@ -355,6 +360,7 @@ if ((self->config != NULL) && (ep == self->config->bulk_out)) {
             <method shortname="setup">
               <implementation><![CDATA[
 const uint8_t *setup;
+msg_t msg;
 
 chDbgAssert((handledp != NULL) && (self->config != NULL),
               "invalid setup context");
@@ -379,9 +385,24 @@ case CDC_GET_LINE_CODING:
                      sizeof(self->linecoding));
 case CDC_SET_LINE_CODING:
   *handledp = true;
-  return usbEp0Receive(self->config->usbp,
-                       (uint8_t *)&self->linecoding,
-                       sizeof(self->linecoding));
+  /* The data stage has to carry the whole structure, and the current line
+     coding changes only when the request has completed. The data is not
+     received on the stack: an aborted transfer can still write to its
+     buffer after this function has returned.*/
+  if (((size_t)setup[6] | ((size_t)setup[7] << 8U)) !=
+      sizeof(self->newlinecoding)) {
+    usbEp0Stall(self->config->usbp);
+    return HAL_RET_SUCCESS;
+  }
+  msg = usbEp0Receive(self->config->usbp,
+                      (uint8_t *)&self->newlinecoding,
+                      sizeof(self->newlinecoding));
+  if (msg == MSG_OK) {
+    chSysLock();
+    self->linecoding = self->newlinecoding;
+    chSysUnlock();
+  }
+  return msg;
 case CDC_SET_CONTROL_LINE_STATE:
   *handledp = true;
   self->control_line_state = (uint16_t)setup[2] |

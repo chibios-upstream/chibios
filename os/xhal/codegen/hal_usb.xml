@@ -1539,6 +1539,9 @@ return ep0_reply_or_ack(self, buf, n);]]></implementation>
               <note>A buffer smaller than the data stage announced by the
                 request cannot receive it: the request is stalled and
                 @p MSG_RESET returned.</note>
+              <note>A data stage shorter than announced by the request is not
+                acknowledged: the request is stalled and @p MSG_RESET
+                returned, the buffer contents are then undefined.</note>
               <param name="buf" ctype="uint8_t *" dir="out">Receive buffer.</param>
               <param name="n" ctype="size_t" dir="in">Receive size.</param>
               <return>The operation status.</return>
@@ -2903,6 +2906,15 @@ chDbgAssert(ep == 0U, "EP not zero");
 
 switch (usbp->ep0state) {
 case USB_EP0_OUT_RX:
+  if (usbGetReceiveTransactionSizeX(usbp, 0U) != usbp->ep0n) {
+    /* The data stage ended on a short packet, before the size announced
+       by the request was received. The request is not acknowledged.*/
+    chSysLockFromISR();
+    setup_error_i(usbp);
+    ep0_resume_waiter_i(usbp, MSG_RESET);
+    chSysUnlockFromISR();
+    return;
+  }
   usbp->ep0state = USB_EP0_IN_SENDING_STS;
   chSysLockFromISR();
   usbStartTransmitI(usbp, 0U, NULL, 0U);

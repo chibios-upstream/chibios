@@ -1205,6 +1205,15 @@ void _usb_ep0out(hal_usb_driver_c *usbp, usbep_t ep) {
 
   switch (usbp->ep0state) {
   case USB_EP0_OUT_RX:
+    if (usbGetReceiveTransactionSizeX(usbp, 0U) != usbp->ep0n) {
+      /* The data stage ended on a short packet, before the size announced
+         by the request was received. The request is not acknowledged.*/
+      chSysLockFromISR();
+      setup_error_i(usbp);
+      ep0_resume_waiter_i(usbp, MSG_RESET);
+      chSysUnlockFromISR();
+      return;
+    }
     usbp->ep0state = USB_EP0_IN_SENDING_STS;
     chSysLockFromISR();
     usbStartTransmitI(usbp, 0U, NULL, 0U);
@@ -2383,6 +2392,9 @@ msg_t usbEp0Reply(void *ip, const uint8_t *buf, size_t n) {
  * @note        A buffer smaller than the data stage announced by the request
  *              cannot receive it: the request is stalled and @p MSG_RESET
  *              returned.
+ * @note        A data stage shorter than announced by the request is not
+ *              acknowledged: the request is stalled and @p MSG_RESET returned,
+ *              the buffer contents are then undefined.
  *
  * @param[in,out] ip            Pointer to a @p hal_usb_driver_c instance.
  * @param[out]    buf           Receive buffer.
