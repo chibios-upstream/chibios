@@ -73,8 +73,9 @@ static const uint16_t epwm_hspclkdiv_divisor[8] = {1U, 2U, 4U, 6U, 8U, 10U,
 /* Outputs of an eCAP instance, an eHRPWM instance has PWM_CHANNELS.*/
 #define ECAP_CHANNELS            1U
 
-/* Longest eHRPWM period in TBCLK ticks, TBPRD is a 16-bit register.*/
-#define EPWM_MAX_PERIOD_TICKS    0xFFFFU
+/* Longest eHRPWM period in TBCLK ticks: the counter runs from zero to
+   TBPRD included, a 16-bit register.*/
+#define EPWM_MAX_PERIOD_TICKS    0x10000U
 
 /*===========================================================================*/
 /* Driver exported variables.                                                */
@@ -209,6 +210,9 @@ static uint64_t epwm_rescale(uint32_t frequency, uint32_t tbclk,
 
 /**
  * @brief   TBPRD value for a period.
+ * @details In up-count mode the counter runs from zero to TBPRD
+ *          included, so the period is TBPRD + 1 TBCLK ticks and TBPRD
+ *          is programmed with one count less than the period.
  * @pre     The period fits TBPRD: checked by @p pwm_lld_is_valid_config()
  *          for the configured period, asserted for the others.
  *
@@ -224,14 +228,15 @@ static uint16_t epwm_tbprd(hal_pwm_driver_c *pwmp, pwmcnt_t period) {
   chDbgAssert((ticks >= 1U) && (ticks <= EPWM_MAX_PERIOD_TICKS),
               "period out of range");
 
-  return (uint16_t)ticks;
+  return (uint16_t)(ticks - 1U);
 }
 
 /**
  * @brief   CMPA/CMPB value for a pulse width.
  * @details Widths beyond the 16-bit compare are saturated: a compare
  *          above TBPRD never matches and the output stays high for the
- *          whole period.
+ *          whole period. With a 65536-tick period TBPRD is 0xFFFF and a
+ *          full 100% duty is not achievable.
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
  * @param[in] width     the pulse width, in @p config->frequency ticks
@@ -260,13 +265,8 @@ static uint16_t epwm_cmp(hal_pwm_driver_c *pwmp, pwmcnt_t width) {
  *          the classic driver's ehrpwm_out_reassert(), generalized from a
  *          single hardcoded output to whichever channel changed.
  *
- *          TBPRD is written as @p pwmp->period directly, not period - 1:
- *          the classic driver's epwm_tbprd_for() assigns
- *          @p TBCLK_HZ @c / @p frame_hz straight to TBPRD with no
- *          adjustment, so TBPRD counts frames, unlike an STM32 timer's
- *          ARR. "Directly" means after @p epwm_rescale() rescaling, not
- *          the raw @p config->frequency value -- see that function's
- *          header.
+ *          TBPRD is written with one count less than @p pwmp->period,
+ *          after the @p epwm_rescale() rescaling, see @p epwm_tbprd().
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
  * @param[in] channel   0 for output A, 1 for output B
@@ -470,11 +470,12 @@ static void pwm_lld_apply_config(hal_pwm_driver_c *pwmp,
         PWM_OUTPUT_ACTIVE_HIGH) {
       /* Active and shadow pairs: writing only the shadow pair deadlocks
          if CAP1 was left at 0, there would be no period boundary for the
-         shadow to load from.*/
+         shadow to load from. TSCTR runs from zero to CAP1 included, the
+         period registers hold one count less than the period.*/
       ecap_reassert_mode(pwmp);
-      ecap_wr32(pwmp, ECAP_CAP1, pwmp->period);
+      ecap_wr32(pwmp, ECAP_CAP1, pwmp->period - 1U);
       ecap_wr32(pwmp, ECAP_CAP2, 0U);
-      ecap_wr32(pwmp, ECAP_CAP3, pwmp->period);
+      ecap_wr32(pwmp, ECAP_CAP3, pwmp->period - 1U);
       ecap_wr32(pwmp, ECAP_CAP4, 0U);
     }
     else if ((ecap_rd16(pwmp, ECAP_ECCTL2) & ECCTL2_APWM_MODE) != 0U) {
@@ -686,7 +687,7 @@ void pwm_lld_change_period(hal_pwm_driver_c *pwmp, pwmcnt_t period) {
 
   if (pwmp->is_ecap) {
     chDbgAssert(period >= 1U, "period out of range");
-    ecap_wr32(pwmp, ECAP_CAP3, (uint32_t)period);
+    ecap_wr32(pwmp, ECAP_CAP3, (uint32_t)period - 1U);
   }
   else {
     epwm_wr16(pwmp, EPWM_TBPRD, epwm_tbprd(pwmp, period));
