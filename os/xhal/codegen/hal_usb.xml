@@ -56,6 +56,12 @@
         <define name="USB_FEATURE_DEVICE_REMOTE_WAKEUP" value="1U" />
         <define name="USB_FEATURE_TEST_MODE" value="2U" />
       </group>
+      <group description="Test mode selectors">
+        <define name="USB_TEST_MODE_J" value="1U" />
+        <define name="USB_TEST_MODE_K" value="2U" />
+        <define name="USB_TEST_MODE_SE0_NAK" value="3U" />
+        <define name="USB_TEST_MODE_PACKET" value="4U" />
+      </group>
       <group description="Device addressing modes">
         <define name="USB_EARLY_SET_ADDRESS" value="0" />
         <define name="USB_LATE_SET_ADDRESS" value="1" />
@@ -444,7 +450,22 @@ struct hal_usb_binder;]]></verbatim>
       </struct>
       <verbatim><![CDATA[
 /* Inclusion of LLD header.*/
-#include "hal_usb_lld.h"]]></verbatim>
+#include "hal_usb_lld.h"
+
+/* Test modes are an optional capability of the low level drivers. A driver
+   for a high-speed controller defines both macros, both are invoked in
+   I-Locked state: the first one returns true when the link is a high-speed
+   one and the selector is supported, the second one enters the test mode
+   and is invoked when the status stage of the request has completed.
+   Without them the SET_FEATURE(TEST_MODE) request is stalled.*/
+#if !defined(usb_lld_check_test_mode) && !defined(usb_lld_set_test_mode)
+#define usb_lld_check_test_mode(usbp, selector) false
+#define usb_lld_set_test_mode(usbp, selector)                               \
+  do {                                                                      \
+    (void)(usbp);                                                           \
+    (void)(selector);                                                       \
+  } while (false)
+#endif]]></verbatim>
       <struct name="hal_usb_config">
         <brief>USB hardware configuration structure.</brief>
         <note>Protocol and class behavior are configured separately through
@@ -1697,6 +1718,27 @@ case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
     self->status |= 2U;
     chSysUnlock();
     msg = usbEp0Acknowledge(self);
+  }
+  else if ((req[2] == USB_FEATURE_TEST_MODE) && (req[3] == 0U) &&
+           (req[4] == 0U)) {
+    chSysLock();
+    /* The low level driver is not accessed for a request replaced by a
+       reset or a stop.*/
+    if (!ep0_is_current_i(self)) {
+      chSysUnlock();
+      return MSG_RESET;
+    }
+    if (usb_lld_check_test_mode(self, req[5])) {
+      /* The test mode is entered when the status stage has completed, it
+         is left by a power cycle only.*/
+      self->ep0endcb = set_test_mode;
+      chSysUnlock();
+      msg = usbEp0Acknowledge(self);
+    }
+    else {
+      chSysUnlock();
+      usbEp0Stall(self);
+    }
   }
   else {
     usbEp0Stall(self);
@@ -3163,6 +3205,15 @@ if ((usbp->state == HAL_DRV_STATE_READY) || (usbp->state == USB_SELECTED)) {
   usbp->state = (usbp->address != 0U) ? USB_SELECTED : HAL_DRV_STATE_READY;
   usb_post_events_i(usbp, USB_FLAGS_ADDRESS);
 }
+chSysUnlockFromISR();]]></implementation>
+      </function>
+      <function name="set_test_mode" ctype="void">
+        <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
+        <implementation><![CDATA[
+chSysLockFromISR();
+/* The request is the one whose status stage has just completed, a SETUP
+   or a reset would have removed this callback.*/
+usb_lld_set_test_mode(usbp, usbp->ep0req[5]);
 chSysUnlockFromISR();]]></implementation>
       </function>
       <function name="ep0_reply_or_ack" ctype="msg_t">

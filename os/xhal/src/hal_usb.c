@@ -277,6 +277,14 @@ static void set_address(hal_usb_driver_c *usbp) {
   chSysUnlockFromISR();
 }
 
+static void set_test_mode(hal_usb_driver_c *usbp) {
+  chSysLockFromISR();
+  /* The request is the one whose status stage has just completed, a SETUP
+     or a reset would have removed this callback.*/
+  usb_lld_set_test_mode(usbp, usbp->ep0req[5]);
+  chSysUnlockFromISR();
+}
+
 static msg_t ep0_reply_or_ack(hal_usb_driver_c *usbp, const uint8_t *buf,
                               size_t n) {
   msg_t msg;
@@ -2574,6 +2582,27 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
       self->status |= 2U;
       chSysUnlock();
       msg = usbEp0Acknowledge(self);
+    }
+    else if ((req[2] == USB_FEATURE_TEST_MODE) && (req[3] == 0U) &&
+             (req[4] == 0U)) {
+      chSysLock();
+      /* The low level driver is not accessed for a request replaced by a
+         reset or a stop.*/
+      if (!ep0_is_current_i(self)) {
+        chSysUnlock();
+        return MSG_RESET;
+      }
+      if (usb_lld_check_test_mode(self, req[5])) {
+        /* The test mode is entered when the status stage has completed, it
+           is left by a power cycle only.*/
+        self->ep0endcb = set_test_mode;
+        chSysUnlock();
+        msg = usbEp0Acknowledge(self);
+      }
+      else {
+        chSysUnlock();
+        usbEp0Stall(self);
+      }
     }
     else {
       usbEp0Stall(self);

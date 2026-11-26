@@ -656,7 +656,7 @@ typedef struct {
 #define DCTL_SGINAK             (1U << 7)   /**< Set global non-periodic
                                                  IN NAK.                    */
 #define DCTL_TCTL_MASK          (7U << 4)   /**< Test control mask.         */
-#define DCTL_TCTL(n)            ((n) << 4   /**< Test control value.        */
+#define DCTL_TCTL(n)            ((n) << 4)  /**< Test control value.        */
 #define DCTL_GONSTS             (1U << 3)   /**< Global OUT NAK status.     */
 #define DCTL_GINSTS             (1U << 2)   /**< Global non-periodic IN
                                                  NAK status.                */
