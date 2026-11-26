@@ -73,6 +73,9 @@ static const uint16_t epwm_hspclkdiv_divisor[8] = {1U, 2U, 4U, 6U, 8U, 10U,
 /* Outputs of an eCAP instance, an eHRPWM instance has PWM_CHANNELS.*/
 #define ECAP_CHANNELS            1U
 
+/* Longest eHRPWM period in TBCLK ticks, TBPRD is a 16-bit register.*/
+#define EPWM_MAX_PERIOD_TICKS    0xFFFFU
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -108,17 +111,19 @@ hal_pwm_driver_c PWMD5;
  *          nothing outputs until the caller configures a channel. For an
  *          eCAP instance only channel 0 is meaningful; channel 1 stays
  *          disabled here for the same reason it must stay disabled in
- *          any config used with one -- see pwm_lld_start().
+ *          any config used with one -- see pwm_lld_is_valid_config().
  */
+#if (PWM_USE_CONFIGURATIONS == FALSE) || defined(__DOXYGEN__)
 static const hal_pwm_config_t pwm_default_config = {
-  .frequency     = 1000000U,
-  .period        = 20000U,
+  .frequency      = 1000000U,
+  .period         = 20000U,
   .enabled_events = 0U,
-  .channels      = {
+  .channels       = {
     {.mode = PWM_OUTPUT_DISABLED},
     {.mode = PWM_OUTPUT_DISABLED}
   }
 };
+#endif
 
 /*===========================================================================*/
 /* Driver local functions -- eHRPWM (16-bit registers).                      */
@@ -141,9 +146,9 @@ static inline uint16_t epwm_rd16(hal_pwm_driver_c *pwmp, uint32_t off) {
  *          {1,2,4,6,8,10,12,14}, CLKDIV a power of two up to 128), unlike
  *          STM32's single flexible divider -- an arbitrary requested
  *          frequency is approximated, not hit exactly. 64 combinations,
- *          brute forced once per @p pwm_lld_start(). The caller rescales
+ *          brute forced once per configuration. The caller rescales
  *          every period/width write against @p actual_tbclk to compensate
- *          for the approximation -- see @p epwm_ticks().
+ *          for the approximation -- see @p epwm_rescale().
  *
  * @param[in] frequency     requested tick frequency in Hz
  * @param[out] tbctl_presc  resolved TBCTL HSPCLKDIV/CLKDIV field bits
@@ -183,23 +188,65 @@ static bool epwm_find_prescale(uint32_t frequency, uint16_t *tbctl_presc,
 }
 
 /**
- * @brief   Rescales a period/width expressed in @p config->frequency ticks
- *          to a register value in actual-TBCLK ticks.
+ * @brief   Rescales a period/width expressed in @p frequency ticks to
+ *          actual-TBCLK ticks.
  * @details No-op when the prescaler landed exactly on the requested
- *          frequency; otherwise this is what keeps @p pwm_lld_start()'s
- *          closest-match approximation from leaking into every caller's
- *          output timing. 64-bit intermediate: @p ticks (up to 65535) times
- *          @p actual_tbclk (up to 250 MHz) overflows 32 bits.
+ *          frequency; otherwise this is what keeps the closest-match
+ *          prescaler from leaking into every caller's output timing.
+ *          64-bit intermediate: a 32-bit tick count times a TBCLK of up
+ *          to 250 MHz overflows 32 bits.
+ *
+ * @param[in] frequency requested tick frequency, in Hz
+ * @param[in] tbclk     TBCLK actually reached by the prescaler, in Hz
+ * @param[in] ticks     a period or width, in @p frequency ticks
+ * @return              the same duration, in actual-TBCLK ticks
+ */
+static uint64_t epwm_rescale(uint32_t frequency, uint32_t tbclk,
+                             pwmcnt_t ticks) {
+
+  return ((uint64_t)ticks * (uint64_t)tbclk) / (uint64_t)frequency;
+}
+
+/**
+ * @brief   TBPRD value for a period.
+ * @pre     The period fits TBPRD: checked by @p pwm_lld_is_valid_config()
+ *          for the configured period, asserted for the others.
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
- * @param[in] ticks     a period or width, in @p config->frequency ticks
- * @return              the same duration, in actual-TBCLK register ticks
+ * @param[in] period    the period, in @p config->frequency ticks
+ * @return              the TBPRD value
  */
-static uint16_t epwm_ticks(hal_pwm_driver_c *pwmp, uint32_t ticks) {
+static uint16_t epwm_tbprd(hal_pwm_driver_c *pwmp, pwmcnt_t period) {
   const hal_pwm_config_t *config = (const hal_pwm_config_t *)pwmp->config;
+  uint64_t ticks;
 
-  return (uint16_t)(((uint64_t)ticks * (uint64_t)pwmp->actual_tbclk) /
-                    (uint64_t)config->frequency);
+  ticks = epwm_rescale(config->frequency, pwmp->actual_tbclk, period);
+  chDbgAssert((ticks >= 1U) && (ticks <= EPWM_MAX_PERIOD_TICKS),
+              "period out of range");
+
+  return (uint16_t)ticks;
+}
+
+/**
+ * @brief   CMPA/CMPB value for a pulse width.
+ * @details Widths beyond the 16-bit compare are saturated: a compare
+ *          above TBPRD never matches and the output stays high for the
+ *          whole period.
+ *
+ * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
+ * @param[in] width     the pulse width, in @p config->frequency ticks
+ * @return              the compare value
+ */
+static uint16_t epwm_cmp(hal_pwm_driver_c *pwmp, pwmcnt_t width) {
+  const hal_pwm_config_t *config = (const hal_pwm_config_t *)pwmp->config;
+  uint64_t ticks;
+
+  ticks = epwm_rescale(config->frequency, pwmp->actual_tbclk, width);
+  if (ticks > 0xFFFFU) {
+    ticks = 0xFFFFU;
+  }
+
+  return (uint16_t)ticks;
 }
 
 /**
@@ -207,8 +254,9 @@ static uint16_t epwm_ticks(hal_pwm_driver_c *pwmp, uint32_t ticks) {
  *          qualifier, then releases that channel's software force.
  * @details See the file header: this fights Linux's pwm-tiehrpwm driver,
  *          which can rewrite these same registers at any point. Called
- *          from @p pwm_lld_start() (initial setup) and every
- *          @p pwm_lld_enable_channel() (steady-state reassertion) --
+ *          from @p pwm_lld_apply_config() (start and live
+ *          reconfiguration) and every @p pwm_lld_enable_channel()
+ *          (steady-state reassertion) --
  *          the classic driver's ehrpwm_out_reassert(), generalized from a
  *          single hardcoded output to whichever channel changed.
  *
@@ -216,8 +264,9 @@ static uint16_t epwm_ticks(hal_pwm_driver_c *pwmp, uint32_t ticks) {
  *          the classic driver's epwm_tbprd_for() assigns
  *          @p TBCLK_HZ @c / @p frame_hz straight to TBPRD with no
  *          adjustment, so TBPRD counts frames, unlike an STM32 timer's
- *          ARR. "Directly" means after @p epwm_ticks() rescaling, not the
- *          raw @p config->frequency value -- see that function's header.
+ *          ARR. "Directly" means after @p epwm_rescale() rescaling, not
+ *          the raw @p config->frequency value -- see that function's
+ *          header.
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
  * @param[in] channel   0 for output A, 1 for output B
@@ -226,7 +275,7 @@ static void epwm_reassert(hal_pwm_driver_c *pwmp, pwmchannel_t channel) {
   uint16_t force = epwm_rd16(pwmp, EPWM_AQCSFRC);
 
   epwm_wr16(pwmp, EPWM_CMPCTL, CMPCTL_SHADOW_LOAD_ZERO);
-  epwm_wr16(pwmp, EPWM_TBPRD, epwm_ticks(pwmp, pwmp->period));
+  epwm_wr16(pwmp, EPWM_TBPRD, epwm_tbprd(pwmp, pwmp->period));
   epwm_wr16(pwmp, EPWM_TBCTL, TBCTL_CTRMODE_UP | pwmp->tbctl_presc);
 
   if (channel == 0U) {
@@ -302,6 +351,154 @@ static void ecap_reassert_mode(hal_pwm_driver_c *pwmp) {
 }
 
 /*===========================================================================*/
+/* Driver local functions -- configuration.                                  */
+/*===========================================================================*/
+
+/**
+ * @brief   Returns one of the pre-defined PWM configurations.
+ *
+ * @param[in] cfgnum    driver configuration number
+ * @return              The configuration pointer, or @p NULL if invalid.
+ */
+static const hal_pwm_config_t *pwm_lld_get_config(unsigned cfgnum) {
+
+#if PWM_USE_CONFIGURATIONS == TRUE
+  extern const pwm_configurations_t pwm_configurations;
+
+  if (cfgnum >= pwm_configurations.cfgsnum) {
+    return NULL;
+  }
+
+  return &pwm_configurations.cfgs[cfgnum];
+#else
+
+  if (cfgnum != 0U) {
+    return NULL;
+  }
+
+  return &pwm_default_config;
+#endif
+}
+
+/**
+ * @brief   Validates a PWM configuration for an instance.
+ * @details No hardware is accessed. Rejected configurations: a zero
+ *          frequency or period, any enabled event (this driver serves
+ *          no interrupt, see @p pwm_lld_enable_events()), an output mode
+ *          other than disabled or active high. On eHRPWM, a period that
+ *          does not fit TBPRD at the TBCLK the prescaler reaches. On
+ *          eCAP, a frequency other than @p AM67_ECAP_CLOCK, since there
+ *          is no prescaler, and an output on channel 1, which does not
+ *          exist.
+ *
+ * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
+ * @param[in] config    pointer to the @p hal_pwm_config_t structure
+ * @return              Configuration validity.
+ */
+static bool pwm_lld_is_valid_config(hal_pwm_driver_c *pwmp,
+                                    const hal_pwm_config_t *config) {
+  pwmchannel_t ch;
+  uint16_t presc;
+  uint32_t tbclk;
+  uint64_t ticks;
+
+  if ((config->frequency == 0U) || (config->period == 0U)) {
+    return false;
+  }
+
+  if (config->enabled_events != 0U) {
+    return false;
+  }
+
+  /* Unknown modes are rejected instead of being treated as disabled.*/
+  for (ch = 0U; ch < PWM_CHANNELS; ch++) {
+    switch (config->channels[ch].mode & PWM_OUTPUT_MASK) {
+    case PWM_OUTPUT_DISABLED:
+    case PWM_OUTPUT_ACTIVE_HIGH:
+      break;
+    default:
+      return false;
+    }
+  }
+
+  if (pwmp->is_ecap) {
+    if (config->frequency != AM67_ECAP_CLOCK) {
+      return false;
+    }
+    if ((config->channels[1].mode & PWM_OUTPUT_MASK) !=
+        PWM_OUTPUT_DISABLED) {
+      return false;
+    }
+    return true;
+  }
+
+  if (!epwm_find_prescale(config->frequency, &presc, &tbclk)) {
+    return false;
+  }
+  ticks = epwm_rescale(config->frequency, tbclk, config->period);
+
+  return (ticks >= 1U) && (ticks <= EPWM_MAX_PERIOD_TICKS);
+}
+
+/**
+ * @brief   Programs an instance with a validated configuration.
+ * @details Used by @p pwm_lld_start() and, in the READY state, by
+ *          @p pwm_lld_setcfg(). Enabled outputs restart at a zero width
+ *          and disabled outputs are driven low: the channels do not
+ *          survive a reconfiguration. On eCAP the active pair CAP1/CAP2
+ *          is written together with the shadow pair CAP3/CAP4, see the
+ *          file header; an eCAP left out of APWM mode is not touched.
+ * @pre     The configuration has been validated by
+ *          @p pwm_lld_is_valid_config().
+ *
+ * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
+ * @param[in] config    pointer to the @p hal_pwm_config_t structure
+ */
+static void pwm_lld_apply_config(hal_pwm_driver_c *pwmp,
+                                 const hal_pwm_config_t *config) {
+  pwmchannel_t ch;
+
+  /* The tick conversions read the configuration from the driver.*/
+  pwmp->config         = config;
+  pwmp->period         = config->period;
+  pwmp->enabled        = 0U;
+  pwmp->enabled_events = 0U;
+  pwmp->events         = 0U;
+
+  if (pwmp->is_ecap) {
+    if ((config->channels[0].mode & PWM_OUTPUT_MASK) ==
+        PWM_OUTPUT_ACTIVE_HIGH) {
+      /* Active and shadow pairs: writing only the shadow pair deadlocks
+         if CAP1 was left at 0, there would be no period boundary for the
+         shadow to load from.*/
+      ecap_reassert_mode(pwmp);
+      ecap_wr32(pwmp, ECAP_CAP1, pwmp->period);
+      ecap_wr32(pwmp, ECAP_CAP2, 0U);
+      ecap_wr32(pwmp, ECAP_CAP3, pwmp->period);
+      ecap_wr32(pwmp, ECAP_CAP4, 0U);
+    }
+    else if ((ecap_rd16(pwmp, ECAP_ECCTL2) & ECCTL2_APWM_MODE) != 0U) {
+      /* Low from the next period boundary.*/
+      ecap_wr32(pwmp, ECAP_CAP4, 0U);
+    }
+  }
+  else {
+    (void)epwm_find_prescale(config->frequency, &pwmp->tbctl_presc,
+                             &pwmp->actual_tbclk);
+    for (ch = 0U; ch < PWM_CHANNELS; ch++) {
+      if ((config->channels[ch].mode & PWM_OUTPUT_MASK) ==
+          PWM_OUTPUT_ACTIVE_HIGH) {
+        epwm_reassert(pwmp, ch);
+        epwm_wr16(pwmp, ch == 0U ? EPWM_CMPA : EPWM_CMPB, 0U);
+      }
+      else {
+        epwm_force_low(pwmp, ch);
+      }
+    }
+  }
+}
+
+/*===========================================================================*/
 /* Driver exported functions.                                                */
 /*===========================================================================*/
 
@@ -357,74 +554,17 @@ void pwm_lld_init(void) {
  * @notapi
  */
 msg_t pwm_lld_start(hal_pwm_driver_c *pwmp) {
-  const hal_pwm_config_t *config = (const hal_pwm_config_t *)pwmp->config;
-  pwmchannel_t ch;
+  const hal_pwm_config_t *config;
 
+  /* Validation of the retained configuration, a NULL configuration
+     selects configuration zero. In the STARTING state
+     pwm_lld_setcfg() does not access the hardware.*/
+  config = pwm_lld_setcfg(pwmp, (const hal_pwm_config_t *)pwmp->config);
   if (config == NULL) {
-    config = pwm_lld_selcfg(pwmp, 0U);
-  }
-  if (config == NULL) {
-    return HAL_RET_CONFIG_ERROR;
-  }
-  if ((config->frequency == 0U) || (config->period == 0U)) {
-    return HAL_RET_CONFIG_ERROR;
-  }
-  for (ch = 0U; ch < PWM_CHANNELS; ch++) {
-    if ((config->channels[ch].mode & PWM_OUTPUT_MASK) ==
-        PWM_OUTPUT_ACTIVE_LOW) {
-      /* Only up-count/active-high is implemented -- see the file header.*/
-      return HAL_RET_CONFIG_ERROR;
-    }
-  }
-  if (pwmp->is_ecap && ((config->channels[1].mode & PWM_OUTPUT_MASK) !=
-                        PWM_OUTPUT_DISABLED)) {
-    /* An eCAP instance has one output; channel 1 does not exist.*/
     return HAL_RET_CONFIG_ERROR;
   }
 
-  pwmp->config         = config;
-  pwmp->period         = config->period;
-  pwmp->enabled        = 0U;
-  pwmp->enabled_events = config->enabled_events;
-  pwmp->events         = 0U;
-
-  if (pwmp->is_ecap) {
-    /* No prescaler exists to approximate a mismatched frequency with (see
-       the file header) -- refuse loudly rather than silently run at the
-       wrong rate, same principle as eHRPWM's rescale exists to avoid.*/
-    if (config->frequency != AM67_ECAP_CLOCK) {
-      return HAL_RET_CONFIG_ERROR;
-    }
-    if ((config->channels[0].mode & PWM_OUTPUT_MASK) ==
-        PWM_OUTPUT_ACTIVE_HIGH) {
-      ecap_reassert_mode(pwmp);
-      /* Active AND shadow, once: writing only the shadow pair deadlocks
-         if Linux left CAP1 at 0 (see the file header) -- there would be
-         no period boundary for the shadow to ever load from.*/
-      ecap_wr32(pwmp, ECAP_CAP1, pwmp->period);
-      ecap_wr32(pwmp, ECAP_CAP2, 0U);
-      ecap_wr32(pwmp, ECAP_CAP3, pwmp->period);
-      ecap_wr32(pwmp, ECAP_CAP4, 0U);
-    }
-    /* Disabled: nothing to force low, an eCAP output with APWM mode never
-       enabled reads whatever Linux left it as, same as at cold boot.*/
-  }
-  else {
-    if (!epwm_find_prescale(config->frequency, &pwmp->tbctl_presc,
-                            &pwmp->actual_tbclk)) {
-      return HAL_RET_CONFIG_ERROR;
-    }
-    for (ch = 0U; ch < PWM_CHANNELS; ch++) {
-      if ((config->channels[ch].mode & PWM_OUTPUT_MASK) ==
-          PWM_OUTPUT_ACTIVE_HIGH) {
-        epwm_reassert(pwmp, ch);
-        epwm_wr16(pwmp, ch == 0U ? EPWM_CMPA : EPWM_CMPB, 0U);
-      }
-      else {
-        epwm_force_low(pwmp, ch);
-      }
-    }
-  }
+  pwm_lld_apply_config(pwmp, config);
 
   return HAL_RET_SUCCESS;
 }
@@ -454,22 +594,33 @@ void pwm_lld_stop(hal_pwm_driver_c *pwmp) {
 
 /**
  * @brief   PWM configuration.
+ * @details The configuration is validated, see
+ *          @p pwm_lld_is_valid_config(). In the STARTING state nothing
+ *          else is done, @p pwm_lld_start() programs the instance. In the
+ *          READY state the configuration is applied at once and the
+ *          channels do not survive it, see @p pwm_lld_apply_config().
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
- * @param[in] config    pointer to the @p hal_pwm_config_t structure
- * @return              A pointer to the configuration to use.
+ * @param[in] config    pointer to the @p hal_pwm_config_t structure, or
+ *                      @p NULL for configuration zero
+ * @return              The configuration pointer.
+ * @retval NULL         if the configuration is rejected.
  *
  * @notapi
  */
 const hal_pwm_config_t *pwm_lld_setcfg(hal_pwm_driver_c *pwmp,
                                        const hal_pwm_config_t *config) {
-  (void)pwmp;
 
   if (config == NULL) {
-    return pwm_lld_selcfg(pwmp, 0U);
+    config = pwm_lld_get_config(0U);
   }
-  if ((config->frequency == 0U) || (config->period == 0U)) {
+  if ((config == NULL) || !pwm_lld_is_valid_config(pwmp, config)) {
     return NULL;
+  }
+
+  /* Live reconfiguration of a started driver.*/
+  if (drvGetStateX(pwmp) == HAL_DRV_STATE_READY) {
+    pwm_lld_apply_config(pwmp, config);
   }
 
   return config;
@@ -477,6 +628,8 @@ const hal_pwm_config_t *pwm_lld_setcfg(hal_pwm_driver_c *pwmp,
 
 /**
  * @brief   Selects one of the pre-defined PWM configurations.
+ * @details Same validation and live reconfiguration as
+ *          @p pwm_lld_setcfg().
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
  * @param[in] cfgnum    driver configuration number
@@ -486,24 +639,13 @@ const hal_pwm_config_t *pwm_lld_setcfg(hal_pwm_driver_c *pwmp,
  */
 const hal_pwm_config_t *pwm_lld_selcfg(hal_pwm_driver_c *pwmp,
                                        unsigned cfgnum) {
-  (void)pwmp;
+  const hal_pwm_config_t *config = pwm_lld_get_config(cfgnum);
 
-#if PWM_USE_CONFIGURATIONS == TRUE
-  extern const pwm_configurations_t pwm_configurations;
-
-  if (cfgnum >= pwm_configurations.cfgsnum) {
+  if (config == NULL) {
     return NULL;
   }
 
-  return &pwm_configurations.cfgs[cfgnum];
-#else
-
-  if (cfgnum != 0U) {
-    return NULL;
-  }
-
-  return &pwm_default_config;
-#endif
+  return pwm_lld_setcfg(pwmp, config);
 }
 
 /**
@@ -524,14 +666,16 @@ void pwm_lld_set_callback(hal_pwm_driver_c *pwmp, drv_cb_t cb) {
 
 /**
  * @brief   Changes the period of the PWM peripheral.
- * @details eHRPWM: takes effect immediately via TBPRD's shadow-load-at-
- *          zero mode; the next @p pwm_lld_enable_channel() call reasserts
- *          it regardless -- from @p pwmp->period, which is why this
- *          function updates that field rather than only writing the
- *          register: skipping it would make the new period revert on the
- *          next channel-enable call. eCAP: only the shadow period (CAP3)
- *          is written, loading at the next boundary -- the active CAP1 is
- *          never rewritten after @p pwm_lld_start(), see the file header.
+ * @details eHRPWM: takes effect at the next counter zero via TBPRD's
+ *          shadow-load-at-zero mode; the class layer has already stored
+ *          the period in @p pwmp->period, from which every following
+ *          @p pwm_lld_enable_channel() reasserts TBPRD. eCAP: only the
+ *          shadow period (CAP3) is written, loading at the next boundary
+ *          -- the active CAP1 is only written by a (re)configuration, see
+ *          the file header.
+ * @pre     The period fits the hardware, see
+ *          @p pwm_lld_is_valid_config(). Periods out of range fail a
+ *          debug assertion.
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
  * @param[in] period    new cycle time, in @p config->frequency ticks
@@ -540,13 +684,12 @@ void pwm_lld_set_callback(hal_pwm_driver_c *pwmp, drv_cb_t cb) {
  */
 void pwm_lld_change_period(hal_pwm_driver_c *pwmp, pwmcnt_t period) {
 
-  pwmp->period = period;
-
   if (pwmp->is_ecap) {
+    chDbgAssert(period >= 1U, "period out of range");
     ecap_wr32(pwmp, ECAP_CAP3, (uint32_t)period);
   }
   else {
-    epwm_wr16(pwmp, EPWM_TBPRD, epwm_ticks(pwmp, period));
+    epwm_wr16(pwmp, EPWM_TBPRD, epwm_tbprd(pwmp, period));
   }
 }
 
@@ -555,8 +698,12 @@ void pwm_lld_change_period(hal_pwm_driver_c *pwmp, pwmcnt_t period) {
  * @details eHRPWM: reasserts the shared time base and this channel's
  *          action qualifier before writing the new duty -- see the file
  *          header. eCAP: reasserts only ECCTL2 (mode bits), then writes
- *          the shadow compare (CAP4); the active CAP1/CAP2 pair is never
- *          touched again after @p pwm_lld_start().
+ *          the shadow compare (CAP4); the active CAP1/CAP2 pair is only
+ *          written by a (re)configuration.
+ * @note    An output disabled in the configuration is not driven, the
+ *          call has no effect on it.
+ * @note    eHRPWM widths beyond the 16-bit compare are saturated, see
+ *          @p epwm_cmp().
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
  * @param[in] channel   PWM channel identifier (0 = A, 1 = B; eCAP has
@@ -568,16 +715,21 @@ void pwm_lld_change_period(hal_pwm_driver_c *pwmp, pwmcnt_t period) {
 void pwm_lld_enable_channel(hal_pwm_driver_c *pwmp,
                             pwmchannel_t channel,
                             pwmcnt_t width) {
+  const hal_pwm_config_t *config = (const hal_pwm_config_t *)pwmp->config;
+
+  if ((config->channels[channel].mode & PWM_OUTPUT_MASK) ==
+      PWM_OUTPUT_DISABLED) {
+    return;
+  }
 
   if (pwmp->is_ecap) {
-    chDbgAssert(channel == 0U, "eCAP has one channel");
     ecap_reassert_mode(pwmp);
     ecap_wr32(pwmp, ECAP_CAP4, (uint32_t)width);
   }
   else {
     epwm_reassert(pwmp, channel);
     epwm_wr16(pwmp, channel == 0U ? EPWM_CMPA : EPWM_CMPB,
-             epwm_ticks(pwmp, width));
+              epwm_cmp(pwmp, width));
   }
 }
 
@@ -593,7 +745,6 @@ void pwm_lld_enable_channel(hal_pwm_driver_c *pwmp,
 void pwm_lld_disable_channel(hal_pwm_driver_c *pwmp, pwmchannel_t channel) {
 
   if (pwmp->is_ecap) {
-    chDbgAssert(channel == 0U, "eCAP has one channel");
     ecap_wr32(pwmp, ECAP_CAP4, 0U);
   }
   else {
@@ -603,9 +754,13 @@ void pwm_lld_disable_channel(hal_pwm_driver_c *pwmp, pwmchannel_t channel) {
 
 /**
  * @brief   Enables PWM event notifications.
- * @details No-op: this driver has no period-elapsed or compare-match
- *          interrupt wired up, so there is no hardware event to enable.
- *          The class layer tracks the requested mask on its own.
+ * @note    This driver serves no interrupt and delivers no event. The
+ *          configurations with enabled events are rejected, event bits
+ *          passed here fail a debug assertion and are ignored in release
+ *          builds.
+ * @note    The class layer caches the requested events before this call,
+ *          they are stripped back out of the cache: on this driver the
+ *          @p enabled_events field is always zero.
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
  * @param[in] events    events mask
@@ -614,12 +769,14 @@ void pwm_lld_disable_channel(hal_pwm_driver_c *pwmp, pwmchannel_t channel) {
  */
 void pwm_lld_enable_events(hal_pwm_driver_c *pwmp, pwm_events_t events) {
 
-  (void)pwmp;
-  (void)events;
+  chDbgAssert(events == 0U, "events not supported");
+
+  pwmp->enabled_events = 0U;
 }
 
 /**
  * @brief   Disables PWM event notifications.
+ * @note    No event can be enabled on this driver, nothing to disable.
  *
  * @param[in] pwmp      pointer to the @p hal_pwm_driver_c object
  * @param[in] events    events mask
