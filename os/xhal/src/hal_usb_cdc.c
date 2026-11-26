@@ -471,6 +471,7 @@ void __cdcsvc_out_impl(void *ip, usbep_t ep) {
 msg_t __cdcsvc_setup_impl(void *ip, bool *handledp) {
   hal_usb_cdc_service_c *self = (hal_usb_cdc_service_c *)ip;
   const uint8_t *setup;
+  msg_t msg;
 
   chDbgAssert((handledp != NULL) && (self->config != NULL),
                 "invalid setup context");
@@ -495,9 +496,24 @@ msg_t __cdcsvc_setup_impl(void *ip, bool *handledp) {
                        sizeof(self->linecoding));
   case CDC_SET_LINE_CODING:
     *handledp = true;
-    return usbEp0Receive(self->config->usbp,
-                         (uint8_t *)&self->linecoding,
-                         sizeof(self->linecoding));
+    /* The data stage has to carry the whole structure, and the current line
+       coding changes only when the request has completed. The data is not
+       received on the stack: an aborted transfer can still write to its
+       buffer after this function has returned.*/
+    if (((size_t)setup[6] | ((size_t)setup[7] << 8U)) !=
+        sizeof(self->newlinecoding)) {
+      usbEp0Stall(self->config->usbp);
+      return HAL_RET_SUCCESS;
+    }
+    msg = usbEp0Receive(self->config->usbp,
+                        (uint8_t *)&self->newlinecoding,
+                        sizeof(self->newlinecoding));
+    if (msg == MSG_OK) {
+      chSysLock();
+      self->linecoding = self->newlinecoding;
+      chSysUnlock();
+    }
+    return msg;
   case CDC_SET_CONTROL_LINE_STATE:
     *handledp = true;
     self->control_line_state = (uint16_t)setup[2] |

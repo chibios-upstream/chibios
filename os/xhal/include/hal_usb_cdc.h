@@ -259,6 +259,11 @@ struct hal_usb_cdc_service {
    */
   usb_cdc_linecoding_t      linecoding;
   /**
+   * @brief       CDC line coding being received.
+   * @note        It becomes the current one when its request has completed.
+   */
+  usb_cdc_linecoding_t      newlinecoding;
+  /**
    * @brief       Current CDC control line state bitmap.
    */
   uint16_t                  control_line_state;
