@@ -56,6 +56,12 @@
 #define AM67_I2C_USE_MCU_I2C0               TRUE
 #define AM67_I2C_MCU_I2C0_IRQ_PRIORITY      8U
 
+/*
+ * PWM driver system settings.
+ */
+#define AM67_PWM_USE_EPWM0                  TRUE
+#define AM67_PWM_USE_ECAP0                  TRUE
+
 #endif /* XMCUCONF_H */
 
 /** @} */

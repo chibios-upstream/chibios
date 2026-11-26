@@ -55,6 +55,39 @@ static const I2CConfig i2c0_config = {
 };
 
 /*
+ * PWM configuration for EPWM0: 1 MHz ticks (1 tick = 1 us) and a 20 ms,
+ * 50 Hz period, the usual servo timing. Both outputs are driven, at
+ * different widths (see pwm_probe_servo()): they share the time base, so
+ * different pulses show that CMPB is independent of CMPA. The prescaler
+ * cannot reach 1 MHz exactly, the driver rescales the ticks to the
+ * 976.5625 kHz it reaches.
+ */
+static const PWMConfig pwm0_config = {
+  .frequency            = 1000000U,
+  .period               = 20000U,
+  .enabled_events       = 0U,
+  .channels             = {
+    {.mode = PWM_OUTPUT_ACTIVE_HIGH},
+    {.mode = PWM_OUTPUT_ACTIVE_HIGH}
+  }
+};
+
+/*
+ * PWM configuration for ECAP0 (PWMD3) in APWM mode, same 50 Hz period as
+ * EPWM0. eCAP has no prescaler, the frequency must be AM67_ECAP_CLOCK: the
+ * period and the width are 125 MHz ticks, not microseconds.
+ */
+static const PWMConfig pwm_ecap0_config = {
+  .frequency            = AM67_ECAP_CLOCK,
+  .period               = 2500000U,
+  .enabled_events       = 0U,
+  .channels             = {
+    {.mode = PWM_OUTPUT_ACTIVE_HIGH},
+    {.mode = PWM_OUTPUT_DISABLED}
+  }
+};
+
+/*
  * Writes a string to the console, blocking until the last character has
  * left the transmitter.
  */
@@ -839,6 +872,43 @@ static void i2c_probe_bus(void) {
   console_write("I2C probe done\r\n");
 }
 
+/* 1500 us at AM67_ECAP_CLOCK (125 MHz).*/
+#define PWM_ECAP0_WIDTH_1500US  187500U
+
+/*
+ * Starts EPWM0 with a 1500 us pulse on output A and 1200 us on output B,
+ * and ECAP0 with 1500 us, all at 50 Hz. The pads, the module power and the
+ * clocks come from the Linux device tree, see board.h: without them the
+ * registers are programmed but no pin moves. The heartbeat thread enables
+ * the channels again every second.
+ */
+static void pwm_probe_servo(void) {
+  msg_t msg;
+
+  /* A refused configuration is reported, the probe does not claim a
+     start.*/
+  msg = drvStart(&PWMD1, &pwm0_config);
+  if (msg == HAL_RET_SUCCESS) {
+    pwmEnableChannel(&PWMD1, 0U, 1500U);
+    pwmEnableChannel(&PWMD1, 1U, 1200U);
+    trace_printf("PWM: EPWM0 ch A 1500 us, ch B 1200 us, both @ 50 Hz\n");
+  }
+  else {
+    trace_printf("PWM: EPWM0 drvStart failed, msg=%d\n", (int)msg);
+  }
+
+  msg = drvStart(&PWMD3, &pwm_ecap0_config);
+  if (msg == HAL_RET_SUCCESS) {
+    pwmEnableChannel(&PWMD3, 0U, PWM_ECAP0_WIDTH_1500US);
+    trace_printf("PWM: ECAP0 started, 1500 us @ 50 Hz\n");
+  }
+  else {
+    trace_printf("PWM: ECAP0 drvStart failed, msg=%d\n", (int)msg);
+  }
+
+  console_write("PWM probe done\r\n");
+}
+
 /*
  * Blinker thread, proves the scheduler preempts and the tick advances.
  */
@@ -853,6 +923,11 @@ static THD_FUNCTION(heartbeat, arg) {
   while (true) {
     trace_printf("heartbeat %u t=%u ms\n", n, (unsigned)chVTGetSystemTimeX());
     console_write("heartbeat\r\n");
+    /* Writing the channels again reasserts the registers that Linux may
+       have reprogrammed, see the PWMv1 hal_pwm_lld.c file header.*/
+    pwmEnableChannel(&PWMD1, 0U, 1500U);
+    pwmEnableChannel(&PWMD1, 1U, 1200U);
+    pwmEnableChannel(&PWMD3, 0U, PWM_ECAP0_WIDTH_1500US);
     n++;
     chThdSleepMilliseconds(1000);
   }
@@ -931,6 +1006,7 @@ int main(void) {
 
   spi_probe_icm20948();
   i2c_probe_bus();
+  pwm_probe_servo();
 
   chThdCreateStatic(waHeartbeat, sizeof (waHeartbeat),
                     NORMALPRIO + 1, heartbeat, NULL);
