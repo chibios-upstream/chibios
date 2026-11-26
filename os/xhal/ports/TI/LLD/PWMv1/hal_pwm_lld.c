@@ -70,6 +70,9 @@
 static const uint16_t epwm_hspclkdiv_divisor[8] = {1U, 2U, 4U, 6U, 8U, 10U,
                                                     12U, 14U};
 
+/* Outputs of an eCAP instance, an eHRPWM instance has PWM_CHANNELS.*/
+#define ECAP_CHANNELS            1U
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -311,32 +314,37 @@ void pwm_lld_init(void) {
 
 #if AM67_PWM_USE_EPWM0 == TRUE
   pwmObjectInit(&PWMD1);
-  PWMD1.base    = AM67_EPWM0_BASE;
-  PWMD1.is_ecap = false;
+  PWMD1.base     = AM67_EPWM0_BASE;
+  PWMD1.is_ecap  = false;
+  PWMD1.channels = PWM_CHANNELS;
 #endif
 
 #if AM67_PWM_USE_EPWM1 == TRUE
   pwmObjectInit(&PWMD2);
-  PWMD2.base    = AM67_EPWM1_BASE;
-  PWMD2.is_ecap = false;
+  PWMD2.base     = AM67_EPWM1_BASE;
+  PWMD2.is_ecap  = false;
+  PWMD2.channels = PWM_CHANNELS;
 #endif
 
 #if AM67_PWM_USE_ECAP0 == TRUE
   pwmObjectInit(&PWMD3);
-  PWMD3.base    = AM67_ECAP0_BASE;
-  PWMD3.is_ecap = true;
+  PWMD3.base     = AM67_ECAP0_BASE;
+  PWMD3.is_ecap  = true;
+  PWMD3.channels = ECAP_CHANNELS;
 #endif
 
 #if AM67_PWM_USE_ECAP1 == TRUE
   pwmObjectInit(&PWMD4);
-  PWMD4.base    = AM67_ECAP1_BASE;
-  PWMD4.is_ecap = true;
+  PWMD4.base     = AM67_ECAP1_BASE;
+  PWMD4.is_ecap  = true;
+  PWMD4.channels = ECAP_CHANNELS;
 #endif
 
 #if AM67_PWM_USE_ECAP2 == TRUE
   pwmObjectInit(&PWMD5);
-  PWMD5.base    = AM67_ECAP2_BASE;
-  PWMD5.is_ecap = true;
+  PWMD5.base     = AM67_ECAP2_BASE;
+  PWMD5.is_ecap  = true;
+  PWMD5.channels = ECAP_CHANNELS;
 #endif
 }
 
