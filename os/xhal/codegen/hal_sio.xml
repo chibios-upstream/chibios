@@ -1205,8 +1205,20 @@ drvStop(self->siop);]]></implementation>
             <method shortname="setcfg">
               <implementation><![CDATA[
 
-/* Configuring the underlying SIO driver.*/
-return __sio_setcfg_impl(self->siop, config);]]></implementation>
+/* Configuring the underlying SIO driver through its interface, its
+   current configuration is updated as well.*/
+if (drvSetCfgX(self->siop, config) != HAL_RET_SUCCESS) {
+  return NULL;
+}
+
+return self->siop->config;]]></implementation>
+            </method>
+            <method shortname="selcfg">
+              <implementation><![CDATA[
+
+/* Selecting the configuration of the underlying SIO driver through its
+   interface, its current configuration is updated as well.*/
+return drvSelectCfgX(self->siop, cfgnum);]]></implementation>
             </method>
           </override>
         </methods>
