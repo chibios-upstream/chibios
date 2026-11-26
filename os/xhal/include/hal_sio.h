@@ -788,6 +788,7 @@ extern "C" {
   msg_t __bsio_start_impl(void *ip, const void *config);
   void __bsio_stop_impl(void *ip, driver_state_t prevstate);
   const void *__bsio_setcfg_impl(void *ip, const void *config);
+  const void *__bsio_selcfg_impl(void *ip, unsigned cfgnum);
   void bsIncomingDataI(void *ip, uint8_t b);
   msg_t bsRequestDataI(void *ip);
 #endif /* SIO_USE_BUFFERING == TRUE */

@@ -1271,8 +1271,28 @@ void __bsio_stop_impl(void *ip, driver_state_t prevstate) {
 const void *__bsio_setcfg_impl(void *ip, const void *config) {
   hal_buffered_sio_c *self = (hal_buffered_sio_c *)ip;
 
-  /* Configuring the underlying SIO driver.*/
-  return __sio_setcfg_impl(self->siop, config);
+  /* Configuring the underlying SIO driver through its interface, its
+     current configuration is updated as well.*/
+  if (drvSetCfgX(self->siop, config) != HAL_RET_SUCCESS) {
+    return NULL;
+  }
+
+  return self->siop->config;
+}
+
+/**
+ * @brief       Override of method @p __drv_sel_cfg().
+ *
+ * @param[in,out] ip            Pointer to a @p hal_buffered_sio_c instance.
+ * @param[in]     cfgnum        Driver configuration number.
+ * @return                      The configuration pointer.
+ */
+const void *__bsio_selcfg_impl(void *ip, unsigned cfgnum) {
+  hal_buffered_sio_c *self = (hal_buffered_sio_c *)ip;
+
+  /* Selecting the configuration of the underlying SIO driver through its
+     interface, its current configuration is updated as well.*/
+  return drvSelectCfgX(self->siop, cfgnum);
 }
 /** @} */
 
@@ -1285,7 +1305,7 @@ const struct hal_buffered_sio_vmt __hal_buffered_sio_vmt = {
   .start                    = __bsio_start_impl,
   .stop                     = __bsio_stop_impl,
   .setcfg                   = __bsio_setcfg_impl,
-  .selcfg                   = NULL /* Method not found.*/
+  .selcfg                   = __bsio_selcfg_impl
 };
 
 /**
