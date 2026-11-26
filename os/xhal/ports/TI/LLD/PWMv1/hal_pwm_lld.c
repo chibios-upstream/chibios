@@ -1,4 +1,5 @@
 /*
+    T3 Gemstone - Copyright (C) 2026 T3 Foundation (https://t3vakfi.org).
     ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,37 +23,34 @@
  *          eHRPWM (EPWM0 -> PWMD1, EPWM1 -> PWMD2): each instance has two
  *          outputs (A, B) sharing a time base but independent compares.
  *          CMPCTL, TBPRD, TBCTL and AQCTLA/AQCTLB are reasserted on every
- *          @p pwm_lld_enable_channel() call, not just once at start. This
- *          is not defensive padding: Linux's pwm-tiehrpwm driver programs
- *          these same registers when gemstone-r5f-setup.service brings the
- *          peripheral's clock up at boot (channel A is exported as sysfs
- *          pwm0), racing this firmware during the same startup window.
- *          The classic vendor module (am67_epwm.c, ehrpwm_out_reassert())
- *          discovered this the hard way -- a write-once-never-revisited
- *          AQCTLA/TBPRD left the last writer at boot owning the
- *          peripheral permanently, which surfaced as a command that took
- *          effect for one frame and then silently reverted. TBCTR is
- *          deliberately never touched: zeroing the counter mid-period
- *          stretches or truncates the frame in flight.
+ *          @p pwm_lld_enable_channel() call, not just once at start. On
+ *          this SoC Linux binds the same modules (pwm-tiehrpwm) and
+ *          programs these registers when it enables an output, possibly
+ *          after this driver has started. With registers written only
+ *          once the last writer owns the output, and a commanded width
+ *          takes effect for one period and is then lost. TBCTR is never
+ *          written: zeroing the counter mid-period stretches or truncates
+ *          the period in flight.
  *
- *          eCAP in APWM mode (ECAP0/1/2 -> PWMD3/4/5): a different IP
- *          entirely, one output per instance, no prescaler (fck fixed at
+ *          eCAP in APWM mode (ECAP0/1/2 -> PWMD3/4/5): a different IP,
+ *          one output per instance, no prescaler (fck fixed at
  *          @p AM67_ECAP_CLOCK). Unlike eHRPWM, its period/compare pair is
- *          genuinely double-buffered: CAP1/CAP2 are the *active* values
- *          the hardware is using right now, CAP3/CAP4 are *shadow* values
- *          that load into CAP1/CAP2 at the next period boundary. The
- *          classic module (am67_ecap.c) found that writing only the
- *          shadow pair deadlocks if Linux left the active CAP1 at 0: with
- *          no period, TSCTR never reaches a boundary to load from, so the
- *          shadow write never takes effect. Its fix -- write CAP1/CAP2
- *          directly once, at first activation, then only ever touch the
- *          CAP3/CAP4 shadow afterwards -- is a real safety property this
- *          port must not lose. Unlike eHRPWM's registers, CAP1/CAP2 are
- *          not proven idempotent to rewrite repeatedly, so
- *          pwm_lld_enable_channel() does NOT reassert them the way it
- *          does eHRPWM's TBPRD: only ECCTL2 (pure mode-control bits, safe
- *          to rewrite any number of times) is reasserted every call, and
- *          only the CAP4 shadow compare carries the new width.
+ *          double-buffered: CAP1/CAP2 are the active values, CAP3/CAP4 the
+ *          shadow values loaded into CAP1/CAP2 at the next period
+ *          boundary. Writing only the shadow pair deadlocks if the active
+ *          CAP1 was left at 0: TSCTR never reaches a boundary to load
+ *          from. A (re)configuration therefore writes the active pair as
+ *          well, and only the shadow pair is written afterwards.
+ *          CAP1/CAP2 are not known to be glitch-free to rewrite while
+ *          running, so @p pwm_lld_enable_channel() does not reassert them
+ *          the way it does eHRPWM's TBPRD: only ECCTL2 (mode-control
+ *          bits, safe to rewrite any number of times) is reasserted on
+ *          every call, and only the CAP4 shadow compare carries the new
+ *          width.
+ *
+ *          The module power, the functional clocks, the eHRPWM time-base
+ *          clock gate and the pads are not handled by this driver, see
+ *          the T3_GEM_O1 board.h.
  *
  * @addtogroup PWM
  * @{
@@ -108,7 +106,7 @@ hal_pwm_driver_c PWMD5;
 /**
  * @brief   Driver default configuration.
  * @details 1 MHz tick (1 tick = 1 us) and a 20 ms / 50 Hz frame, the
- *          standard RC servo/ESC rate. Both channels start disabled --
+ *          usual servo rate. Both channels start disabled --
  *          nothing outputs until the caller configures a channel. For an
  *          eCAP instance only channel 0 is meaningful; channel 1 stays
  *          disabled here for the same reason it must stay disabled in
@@ -257,13 +255,11 @@ static uint16_t epwm_cmp(hal_pwm_driver_c *pwmp, pwmcnt_t width) {
 /**
  * @brief   Reasserts the shared time-base and one channel's action
  *          qualifier, then releases that channel's software force.
- * @details See the file header: this fights Linux's pwm-tiehrpwm driver,
- *          which can rewrite these same registers at any point. Called
- *          from @p pwm_lld_apply_config() (start and live
- *          reconfiguration) and every @p pwm_lld_enable_channel()
- *          (steady-state reassertion) --
- *          the classic driver's ehrpwm_out_reassert(), generalized from a
- *          single hardcoded output to whichever channel changed.
+ * @details See the file header: Linux's pwm-tiehrpwm driver can rewrite
+ *          these same registers at any point. Called from
+ *          @p pwm_lld_apply_config() (start and live reconfiguration) and
+ *          every @p pwm_lld_enable_channel() (steady-state reassertion),
+ *          for the channel being changed.
  *
  *          TBPRD is written with one count less than @p pwmp->period,
  *          after the @p epwm_rescale() rescaling, see @p epwm_tbprd().
@@ -335,8 +331,9 @@ static inline uint16_t ecap_rd16(hal_pwm_driver_c *pwmp, uint32_t off) {
 /**
  * @brief   Puts the eCAP into APWM mode, active high, free-running.
  * @details Only mode-control bits -- safe to call any number of times,
- *          unlike a rewrite of CAP1-4. Called from @p pwm_lld_start() and
- *          every @p pwm_lld_enable_channel(), mirroring eHRPWM's TBCTL
+ *          unlike a rewrite of CAP1-4. Called from
+ *          @p pwm_lld_apply_config() and every
+ *          @p pwm_lld_enable_channel(), mirroring eHRPWM's TBCTL
  *          reassertion for the same reason (Linux's pwm-tiecap driver can
  *          rewrite ECCTL2 at any point).
  *

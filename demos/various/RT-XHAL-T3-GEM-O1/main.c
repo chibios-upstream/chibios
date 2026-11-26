@@ -55,16 +55,12 @@ static const I2CConfig i2c0_config = {
 };
 
 /*
- * PWM configuration for EPWM0. 1 MHz tick (1 tick = 1 us), 20 ms / 50 Hz
- * frame -- standard RC servo/ESC timing. Both channels are driven, at
- * deliberately different widths (see pwm_probe_servo()): they share the
- * time base, so identical pulses could not distinguish a genuinely
- * independent CMPB from B mirroring A.
- *
- * Confirmed on hardware 2026-08-10 (T3 Gemstone O1), scope plus register
- * readback: TBPRD 19531, CMPA 1464, CMPB 1171 at TBCLK 976,562.5 Hz ->
- * 49.998 Hz with 1499.1 us and 1199.1 us pulses. AQCTLB read 0x0102,
- * CMPB-driven, confirming channel B is independent.
+ * PWM configuration for EPWM0: 1 MHz ticks (1 tick = 1 us) and a 20 ms,
+ * 50 Hz period, the usual servo timing. Both outputs are driven, at
+ * different widths (see pwm_probe_servo()): they share the time base, so
+ * different pulses show that CMPB is independent of CMPA. The prescaler
+ * cannot reach 1 MHz exactly, the driver rescales the ticks to the
+ * 976.5625 kHz it reaches.
  */
 static const PWMConfig pwm0_config = {
   .frequency            = 1000000U,
@@ -77,18 +73,9 @@ static const PWMConfig pwm0_config = {
 };
 
 /*
- * PWM configuration for ECAP0 (PWMD3), same 50 Hz frame as EPWM0. eCAP
- * has no prescaler -- its fck is fixed at AM67_ECAP_CLOCK -- so
- * pwm_lld_start() requires frequency to equal that exactly and rejects
- * anything else. period and width below are therefore ticks at 125 MHz,
- * not microseconds: 125,000,000 / 50 Hz = 2,500,000 for a 20 ms frame.
- * Unused by ArduPilot today (see hal_pwm_lld.c's file header) -- this
- * only exercises the eCAP APWM code path, otherwise dead code here.
- *
- * Not verified on hardware: ECAP0's pad is not muxed by the board's
- * overlay, so the output cannot be scoped as shipped. The register path
- * was observed to run on 2026-08-10; the absence of a signal is the
- * pinmux, not the driver.
+ * PWM configuration for ECAP0 (PWMD3) in APWM mode, same 50 Hz period as
+ * EPWM0. eCAP has no prescaler, the frequency must be AM67_ECAP_CLOCK: the
+ * period and the width are 125 MHz ticks, not microseconds.
  */
 static const PWMConfig pwm_ecap0_config = {
   .frequency            = AM67_ECAP_CLOCK,
@@ -885,22 +872,21 @@ static void i2c_probe_bus(void) {
   console_write("I2C probe done\r\n");
 }
 
-/*
- * Starts EPWM0 channel A at a 1500 us pulse (servo center) and 50 Hz.
- * pwmEnableChannel() is called again every heartbeat tick from the
- * heartbeat thread below -- not redundant, see hal_pwm_lld.c's file
- * header on why this driver reasserts on every write.
- */
-/* 1500 us at AM67_ECAP_CLOCK (125 MHz): 1500e-6 * 125e6 ticks.*/
+/* 1500 us at AM67_ECAP_CLOCK (125 MHz).*/
 #define PWM_ECAP0_WIDTH_1500US  187500U
 
+/*
+ * Starts EPWM0 with a 1500 us pulse on output A and 1200 us on output B,
+ * and ECAP0 with 1500 us, all at 50 Hz. The pads, the module power and the
+ * clocks come from the Linux device tree, see board.h: without them the
+ * registers are programmed but no pin moves. The heartbeat thread enables
+ * the channels again every second.
+ */
 static void pwm_probe_servo(void) {
   msg_t msg;
 
-  /* Both results are reported, not discarded. pwm_lld_start() rejects an
-     eCAP frequency that is not AM67_ECAP_CLOCK, and a probe that printed
-     "started" over a refused configuration would be worse than one that
-     printed nothing.*/
+  /* A refused configuration is reported, the probe does not claim a
+     start.*/
   msg = drvStart(&PWMD1, &pwm0_config);
   if (msg == HAL_RET_SUCCESS) {
     pwmEnableChannel(&PWMD1, 0U, 1500U);
@@ -937,9 +923,8 @@ static THD_FUNCTION(heartbeat, arg) {
   while (true) {
     trace_printf("heartbeat %u t=%u ms\n", n, (unsigned)chVTGetSystemTimeX());
     console_write("heartbeat\r\n");
-    /* Reasserts EPWM0's shared time base and channel A's action qualifier
-       every tick, same as an RCOutput driver's per-frame output write
-       would -- see hal_pwm_lld.c's file header.*/
+    /* Writing the channels again reasserts the registers that Linux may
+       have reprogrammed, see the PWMv1 hal_pwm_lld.c file header.*/
     pwmEnableChannel(&PWMD1, 0U, 1500U);
     pwmEnableChannel(&PWMD1, 1U, 1200U);
     pwmEnableChannel(&PWMD3, 0U, PWM_ECAP0_WIDTH_1500US);

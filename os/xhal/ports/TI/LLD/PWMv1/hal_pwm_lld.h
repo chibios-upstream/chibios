@@ -1,4 +1,5 @@
 /*
+    T3 Gemstone - Copyright (C) 2026 T3 Foundation (https://t3vakfi.org).
     ChibiOS - Copyright (C) 2006-2026 Giovanni Di Sirio.
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +21,7 @@
  * @details Covers two structurally different IP blocks under one XHAL PWM
  *          class, because only one hal_pwm_lld.h can exist per build:
  *
- *          - eHRPWM (EPWM0/EPWM1 -> PWMD1/PWMD2): classic ti,am3352-ehrpwm,
+ *          - eHRPWM (EPWM0/EPWM1 -> PWMD1/PWMD2): the ti,am3352-ehrpwm IP,
  *            16-bit registers, up-count PWM (HIGH at counter zero, LOW at
  *            its compare), two outputs (A, B) per instance sharing one time
  *            base but independent compares. Its prescaler is a coarse
@@ -32,26 +33,22 @@
  *          - eCAP (ECAP0/1/2 -> PWMD3/4/5) run in APWM mode: a different
  *            IP entirely (32-bit TSCTR/CAP1-4, no prescaler -- fck is
  *            fixed at @p AM67_ECAP_CLOCK), one output per instance, no A/B
- *            pair. Since there is no prescaler to approximate with,
- *            @p pwm_lld_start() requires @p hal_pwm_config_t::frequency to
- *            equal @p AM67_ECAP_CLOCK exactly and refuses the config
- *            otherwise. Per ArduPilot's RCOutput.h this hardware is
- *            currently unused (a quad only needs the four eHRPWM outputs),
- *            kept for when a fifth/sixth output is needed.
+ *            pair. Since there is no prescaler to approximate with, a
+ *            configuration is accepted only if its
+ *            @p hal_pwm_config_t::frequency equals @p AM67_ECAP_CLOCK.
  *
- *          Both were confirmed against the J722S register spreadsheet and
- *          their respective Linux drivers (pwm-tiehrpwm, pwm-tiecap).
+ *          Both were checked against the J722S register descriptions and
+ *          the Linux pwm-tiehrpwm and pwm-tiecap drivers.
  *          @p hal_pwm_driver_c::period and the @p width passed to
- *          @p pwmEnableChannel() are always real hardware ticks at
- *          whichever rate the instance actually runs at, same contract as
- *          every other PWM LLD -- for eHRPWM this means every write is
- *          rescaled from @p hal_pwm_config_t::frequency ticks to the
- *          actually-achieved TBCLK (see @p actual_tbclk), since the coarse
- *          prescaler rarely hits the requested frequency exactly; a board
- *          test on 2026-08-10 measured a 2.44% timing error (1500 us
- *          commanded, 1536 us out) before this rescale existed.
- *          @p PWM_CHANNELS is 2 (the eHRPWM maximum); eCAP instances only
- *          ever populate channel 0.
+ *          @p pwmEnableChannel() are in @p hal_pwm_config_t::frequency
+ *          ticks, same contract as every other PWM LLD. For eHRPWM every
+ *          write is rescaled to the TBCLK actually reached (see
+ *          @p actual_tbclk), since the coarse prescaler rarely hits the
+ *          requested frequency exactly.
+ *          @p PWM_CHANNELS is 2 (the eHRPWM maximum); eCAP instances have
+ *          one channel.
+ *          No interrupt is served: configurations with enabled events are
+ *          rejected and no callback is ever invoked.
  *
  * @addtogroup PWM
  * @{
@@ -75,8 +72,8 @@
 
 /* Register offsets, eHRPWM (16-bit registers) *******************************/
 
-#define EPWM_TBCTL              0x00U  /* Time-base control.                  */
-#define EPWM_TBCTR              0x08U  /* Time-base counter.                  */
+#define EPWM_TBCTL               0x00U  /* Time-base control.                  */
+#define EPWM_TBCTR               0x08U  /* Time-base counter.                  */
 #define EPWM_TBPRD               0x0AU  /* Time-base period.                   */
 #define EPWM_CMPCTL              0x0EU  /* Compare control (reset = shadow).   */
 #define EPWM_CMPA                0x12U  /* Counter-compare A (15:0).           */
@@ -149,7 +146,7 @@
 /**
  * @brief   PWMD3 driver enable switch.
  * @details If set to @p TRUE the support for ECAP0 (in APWM mode) is
- *          included. Unused by ArduPilot today, see the file header.
+ *          included.
  */
 #if !defined(AM67_PWM_USE_ECAP0) || defined(__DOXYGEN__)
 #define AM67_PWM_USE_ECAP0    FALSE
@@ -217,18 +214,17 @@
      have unrelated register maps, see the file header.*/                   \
   bool                      is_ecap;                                        \
   /* Resolved TBCTL HSPCLKDIV/CLKDIV prescale field bits, from the          \
-     closest-match search in pwm_lld_start(). Meaningless (left zero) for   \
+     closest-match search of each configuration. Meaningless (zero) for     \
      an ECAP instance, which has no prescaler.*/                            \
   uint16_t                  tbctl_presc;                                    \
   /* TBCLK actually reached by tbctl_presc, in Hz -- eHRPWM's prescaler is  \
-     a coarse 64-combination tree (see pwm_lld_start()'s file header note)  \
-     and rarely lands on config->frequency exactly. period/width are       \
-     rescaled from config->frequency ticks to this rate before every       \
-     register write, so the caller-facing contract ("ticks at              \
-     config->frequency") holds despite the hardware approximation.         \
-     Meaningless (left zero) for an ECAP instance: no prescaler, fck is     \
-     fixed at AM67_ECAP_CLOCK and pwm_lld_start() requires                  \
-     config->frequency to equal it exactly.*/                              \
+     a coarse 64-combination tree (see epwm_find_prescale()) and rarely     \
+     lands on config->frequency exactly. period/width are rescaled from     \
+     config->frequency ticks to this rate before every register write,      \
+     so the caller-facing contract ("ticks at config->frequency") holds     \
+     despite the hardware approximation. Meaningless (zero) for an ECAP     \
+     instance: no prescaler, its configurations must use AM67_ECAP_CLOCK    \
+     as their frequency.*/                                                  \
   uint32_t                  actual_tbclk
 
 /**
