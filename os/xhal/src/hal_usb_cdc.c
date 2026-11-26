@@ -500,8 +500,22 @@ msg_t __cdcsvc_setup_impl(void *ip, bool *handledp) {
                          sizeof(self->linecoding));
   case CDC_SET_CONTROL_LINE_STATE:
     *handledp = true;
+    /* The request has no data stage, one that announces a data stage is
+       refused before the line state changes.*/
+    if (((uint16_t)setup[6] | ((uint16_t)setup[7] << 8U)) != 0U) {
+      usbEp0Stall(self->config->usbp);
+      return HAL_RET_SUCCESS;
+    }
+    /* The line state changes only while the request is still the current
+       one, in the critical section of the check.*/
+    chSysLock();
+    if (!usbEp0IsCurrentI(self->config->usbp)) {
+      chSysUnlock();
+      return MSG_RESET;
+    }
     self->control_line_state = (uint16_t)setup[2] |
                                ((uint16_t)setup[3] << 8U);
+    chSysUnlock();
     usbCdcServiceOnControlLineState(self);
     return usbEp0Acknowledge(self->config->usbp);
   default:
