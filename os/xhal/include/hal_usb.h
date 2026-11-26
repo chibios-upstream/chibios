@@ -96,6 +96,16 @@
 /** @} */
 
 /**
+ * @name    Test mode selectors
+ * @{
+ */
+#define USB_TEST_MODE_J                     1U
+#define USB_TEST_MODE_K                     2U
+#define USB_TEST_MODE_SE0_NAK               3U
+#define USB_TEST_MODE_PACKET                4U
+/** @} */
+
+/**
  * @name    Device addressing modes
  * @{
  */
@@ -628,6 +638,24 @@ struct usb_endpoint_config {
 
 /* Inclusion of LLD header.*/
 #include "hal_usb_lld.h"
+
+/* Test modes are an optional capability of the low level drivers. A driver
+   for a high-speed controller defines both macros. The first one returns
+   true when the link is a high-speed one and the selector is supported, it
+   is invoked in S-Locked state by the thread handling the request. The
+   second one enters the test mode, it is invoked in I-Locked state from
+   the interrupt that completes the status stage of the request. Without
+   them the SET_FEATURE(TEST_MODE) request is stalled.*/
+#if !defined(usb_lld_check_test_mode) && !defined(usb_lld_set_test_mode)
+#define usb_lld_check_test_mode(usbp, selector) false
+#define usb_lld_set_test_mode(usbp, selector)                               \
+  do {                                                                      \
+    (void)(usbp);                                                           \
+    (void)(selector);                                                       \
+  } while (false)
+#elif !defined(usb_lld_check_test_mode) || !defined(usb_lld_set_test_mode)
+#error "both usb_lld_check_test_mode and usb_lld_set_test_mode required"
+#endif
 
 /**
  * @brief       USB hardware configuration structure.

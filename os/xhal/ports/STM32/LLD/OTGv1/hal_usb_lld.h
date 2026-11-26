@@ -416,6 +416,38 @@ typedef struct {
 #define usb_lld_get_transaction_size(usbp, ep)                              \
   ((usbp)->epc[ep]->out_state->rxcnt)
 
+/**
+ * @brief   Checks whether a test mode can be entered.
+ * @details The test modes exist on a high-speed link only, the speed is the
+ *          enumerated one because a high-speed PHY can enumerate at full
+ *          speed.
+ *
+ * @param[in] usbp      pointer to the @p hal_usb_driver_c object
+ * @param[in] selector  test mode selector
+ * @return              The test mode availability.
+ *
+ * @notapi
+ */
+#define usb_lld_check_test_mode(usbp, selector)                             \
+  ((((usbp)->otg->DSTS & DSTS_ENUMSPD_MASK) == DSTS_ENUMSPD_HS_480) &&      \
+   ((selector) >= USB_TEST_MODE_J) && ((selector) <= USB_TEST_MODE_PACKET))
+
+/**
+ * @brief   Enters a test mode.
+ * @note    The test mode selectors are the values of the test control field.
+ * @note    A test mode is left by a power cycle.
+ *
+ * @param[in] usbp      pointer to the @p hal_usb_driver_c object
+ * @param[in] selector  test mode selector
+ *
+ * @notapi
+ */
+#define usb_lld_set_test_mode(usbp, selector)                               \
+  do {                                                                      \
+    (usbp)->otg->DCTL = ((usbp)->otg->DCTL & ~DCTL_TCTL_MASK) |             \
+                        DCTL_TCTL((uint32_t)(selector));                    \
+  } while (false)
+
 /*===========================================================================*/
 /* External declarations.                                                    */
 /*===========================================================================*/
