@@ -262,6 +262,36 @@ static bool ep0_is_current_i(hal_usb_driver_c *usbp) {
   return usbp->ep0rseq == usbp->ep0seq;
 }
 
+/**
+ * @brief       Checks a request without a data stage before its effects are
+ *              applied.
+ * @details     The request must still be the current one and must not announce
+ *              a data stage. A current request with a non-zero @p wLength is
+ *              refused here, endpoint zero is stalled: the acknowledge would
+ *              refuse it too, but after the effects.
+ *
+ * @param[in,out] usbp          USB driver instance.
+ * @return                      The request status.
+ * @retval false                The request has been replaced or refused, its
+ *                              effects must not be applied.
+ * @retval true                 The effects of the request can be applied.
+ *
+ * @iclass
+ */
+static bool ep0_accept_no_data_i(hal_usb_driver_c *usbp) {
+  chDbgCheckClassI();
+
+  if (!ep0_is_current_i(usbp)) {
+    return false;
+  }
+  if (get_hword(&usbp->ep0req[6]) != 0U) {
+    setup_error_i(usbp);
+    return false;
+  }
+
+  return true;
+}
+
 static void set_address(hal_usb_driver_c *usbp) {
   chSysLockFromISR();
   /* Bus events must not undo the lifecycle transition made by drvStop().*/
@@ -2551,7 +2581,7 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
        ((uint32_t)USB_REQ_CLEAR_FEATURE << 8):
     if (req[2] == USB_FEATURE_DEVICE_REMOTE_WAKEUP) {
       chSysLock();
-      if (!ep0_is_current_i(self)) {
+      if (!ep0_accept_no_data_i(self)) {
         chSysUnlock();
         return MSG_RESET;
       }
@@ -2567,7 +2597,7 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
        ((uint32_t)USB_REQ_SET_FEATURE << 8):
     if (req[2] == USB_FEATURE_DEVICE_REMOTE_WAKEUP) {
       chSysLock();
-      if (!ep0_is_current_i(self)) {
+      if (!ep0_accept_no_data_i(self)) {
         chSysUnlock();
         return MSG_RESET;
       }
@@ -2582,7 +2612,7 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
   case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
        ((uint32_t)USB_REQ_SET_ADDRESS << 8):
     chSysLock();
-    if (!ep0_is_current_i(self)) {
+    if (!ep0_accept_no_data_i(self)) {
       chSysUnlock();
       return MSG_RESET;
     }
@@ -2632,7 +2662,7 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
       chSysUnlock();
       return HAL_RET_HW_FAILURE;
     }
-    if (!ep0_is_current_i(self)) {
+    if (!ep0_accept_no_data_i(self)) {
       chSysUnlock();
       return MSG_RESET;
     }
@@ -2705,7 +2735,7 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
        ((uint32_t)USB_REQ_CLEAR_FEATURE << 8):
     if (req[2] == USB_FEATURE_ENDPOINT_HALT) {
       chSysLock();
-      if (!ep0_is_current_i(self)) {
+      if (!ep0_accept_no_data_i(self)) {
         chSysUnlock();
         return MSG_RESET;
       }
@@ -2737,7 +2767,7 @@ msg_t usbEp0HandleStandardRequest(void *ip, bool *handledp) {
        ((uint32_t)USB_REQ_SET_FEATURE << 8):
     if (req[2] == USB_FEATURE_ENDPOINT_HALT) {
       chSysLock();
-      if (!ep0_is_current_i(self)) {
+      if (!ep0_accept_no_data_i(self)) {
         chSysUnlock();
         return MSG_RESET;
       }

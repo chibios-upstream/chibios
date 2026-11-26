@@ -1674,7 +1674,7 @@ case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
      ((uint32_t)USB_REQ_CLEAR_FEATURE << 8):
   if (req[2] == USB_FEATURE_DEVICE_REMOTE_WAKEUP) {
     chSysLock();
-    if (!ep0_is_current_i(self)) {
+    if (!ep0_accept_no_data_i(self)) {
       chSysUnlock();
       return MSG_RESET;
     }
@@ -1690,7 +1690,7 @@ case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
      ((uint32_t)USB_REQ_SET_FEATURE << 8):
   if (req[2] == USB_FEATURE_DEVICE_REMOTE_WAKEUP) {
     chSysLock();
-    if (!ep0_is_current_i(self)) {
+    if (!ep0_accept_no_data_i(self)) {
       chSysUnlock();
       return MSG_RESET;
     }
@@ -1705,7 +1705,7 @@ case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
 case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
      ((uint32_t)USB_REQ_SET_ADDRESS << 8):
   chSysLock();
-  if (!ep0_is_current_i(self)) {
+  if (!ep0_accept_no_data_i(self)) {
     chSysUnlock();
     return MSG_RESET;
   }
@@ -1755,7 +1755,7 @@ case (uint32_t)USB_RTYPE_RECIPIENT_DEVICE |
     chSysUnlock();
     return HAL_RET_HW_FAILURE;
   }
-  if (!ep0_is_current_i(self)) {
+  if (!ep0_accept_no_data_i(self)) {
     chSysUnlock();
     return MSG_RESET;
   }
@@ -1828,7 +1828,7 @@ case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
      ((uint32_t)USB_REQ_CLEAR_FEATURE << 8):
   if (req[2] == USB_FEATURE_ENDPOINT_HALT) {
     chSysLock();
-    if (!ep0_is_current_i(self)) {
+    if (!ep0_accept_no_data_i(self)) {
       chSysUnlock();
       return MSG_RESET;
     }
@@ -1860,7 +1860,7 @@ case (uint32_t)USB_RTYPE_RECIPIENT_ENDPOINT |
      ((uint32_t)USB_REQ_SET_FEATURE << 8):
   if (req[2] == USB_FEATURE_ENDPOINT_HALT) {
     chSysLock();
-    if (!ep0_is_current_i(self)) {
+    if (!ep0_accept_no_data_i(self)) {
       chSysUnlock();
       return MSG_RESET;
     }
@@ -3148,6 +3148,35 @@ if ((usbp->state == HAL_DRV_STATE_UNINIT) ||
 }
 
 return usbp->ep0rseq == usbp->ep0seq;]]></implementation>
+      </function>
+      <function name="ep0_accept_no_data_i" ctype="bool">
+        <brief>Checks a request without a data stage before its effects are
+        applied.</brief>
+        <details>The request must still be the current one and must not
+        announce a data stage. A current request with a non-zero @p wLength
+        is refused here, endpoint zero is stalled: the acknowledge would
+        refuse it too, but after the effects.</details>
+        <param name="usbp" ctype="hal_usb_driver_c *" dir="both">
+          USB driver instance.
+        </param>
+        <return>The request status.</return>
+        <retval value="false">The request has been replaced or refused, its
+        effects must not be applied.</retval>
+        <retval value="true">The effects of the request can be applied.
+        </retval>
+        <iclass />
+        <implementation><![CDATA[
+chDbgCheckClassI();
+
+if (!ep0_is_current_i(usbp)) {
+  return false;
+}
+if (get_hword(&usbp->ep0req[6]) != 0U) {
+  setup_error_i(usbp);
+  return false;
+}
+
+return true;]]></implementation>
       </function>
       <function name="set_address" ctype="void">
         <param name="usbp" ctype="hal_usb_driver_c *" dir="both"></param>
