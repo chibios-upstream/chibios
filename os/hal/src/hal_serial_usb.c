@@ -24,6 +24,10 @@
 
 #include "hal.h"
 
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+#include <string.h>
+#endif
+
 #if (HAL_USE_SERIAL_USB == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
@@ -41,14 +45,181 @@
 /*
  * Current Line Coding.
  */
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+static const cdc_linecoding_t default_linecoding = {
+  {0x00, 0x96, 0x00, 0x00},             /* 38400.                           */
+  LC_STOP_1, LC_PARITY_NONE, 8
+};
+static SerialUSBDriver *line_drivers;
+#else
 static cdc_linecoding_t linecoding = {
   {0x00, 0x96, 0x00, 0x00},             /* 38400.                           */
   LC_STOP_1, LC_PARITY_NONE, 8
 };
+#endif
 
 /*===========================================================================*/
 /* Driver local functions.                                                   */
 /*===========================================================================*/
+
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+/** @brief Decodes a USB little-endian word without alignment assumptions. */
+static uint16_t sdu_get_word(const uint8_t *p) {
+
+  return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8U));
+}
+
+/** @brief Finds a started SDU by USB driver and complete interface index. */
+static SerialUSBDriver *sdu_find_line_i(USBDriver *usbp, uint16_t iface) {
+  SerialUSBDriver *sdup;
+
+  for (sdup = line_drivers; sdup != NULL; sdup = sdup->line_next) {
+    if ((sdup->config->usbp == usbp) &&
+        ((uint16_t)sdup->config->control_if == iface)) {
+      return sdup;
+    }
+  }
+  return NULL;
+}
+
+/** @brief Publishes settings and their change notifications atomically. */
+static void sdu_set_line_i(SerialUSBDriver *sdup,
+                           const cdc_linecoding_t *coding, uint16_t lines) {
+  eventflags_t flags = (eventflags_t)0;
+  uint16_t changed = sdup->control_lines ^ lines;
+
+  if (memcmp(&sdup->linecoding, coding, sizeof(*coding)) != 0) {
+    sdup->linecoding = *coding;
+    flags |= SDU_LINE_CODING_CHANGED;
+  }
+  if (changed != 0U) {
+    sdup->control_lines = lines;
+    flags |= SDU_CONTROL_LINE_CHANGED;
+    if ((changed & SDU_CONTROL_DTR) != 0U) {
+      flags |= (lines & SDU_CONTROL_DTR) != 0U ? SDU_DTR_ASSERTED :
+                                                SDU_DTR_DEASSERTED;
+    }
+  }
+  if (flags != (eventflags_t)0) {
+    chnAddFlagsI(sdup, flags);
+    if ((sdup->config != NULL) && (sdup->config->line_cb != NULL)) {
+      sdup->config->line_cb(sdup, flags);
+    }
+  }
+}
+
+/** @brief Invalidates a pending request and clears the previous session. */
+static void sdu_reset_line_i(SerialUSBDriver *sdup) {
+
+  sdup->pending_request = 0U;
+  sdu_set_line_i(sdup, &default_linecoding, 0U);
+}
+
+/** @brief Removes the driver from the typed control-interface registry. */
+static void sdu_remove_line_i(SerialUSBDriver *sdup) {
+  SerialUSBDriver **link = &line_drivers;
+
+  while (*link != NULL) {
+    if (*link == sdup) {
+      *link = sdup->line_next;
+      sdup->line_next = NULL;
+      break;
+    }
+    link = &(*link)->line_next;
+  }
+}
+
+/** @brief Commits staged settings after successful status completion. */
+static void sdu_line_complete(USBDriver *usbp) {
+  SerialUSBDriver *sdup;
+  uint8_t request;
+
+  osalSysLockFromISR();
+  sdup = sdu_find_line_i(usbp, sdu_get_word(&usbp->setup[4]));
+  if ((sdup != NULL) && (usbp->state == USB_ACTIVE)) {
+    request = sdup->pending_request;
+    sdup->pending_request = 0U;
+    if (request == usbp->setup[1]) {
+      if (request == CDC_SET_LINE_CODING) {
+        sdu_set_line_i(sdup, &sdup->pending_linecoding,
+                        sdup->control_lines);
+      }
+      else if (request == CDC_SET_CONTROL_LINE_STATE) {
+        sdu_set_line_i(sdup, &sdup->linecoding,
+                        sdup->pending_control_lines);
+      }
+      else {
+        /* The request was invalidated by a lifecycle operation.*/
+      }
+    }
+  }
+  osalSysUnlockFromISR();
+}
+
+/** @brief Handles CDC settings in the interrupt-driven EP0 requests hook. */
+static bool sdu_line_request(USBDriver *usbp) {
+  SerialUSBDriver *sdup;
+  SerialUSBDriver *p;
+  uint16_t value;
+  uint16_t length;
+  bool handled = false;
+
+  osalSysLockFromISR();
+  /* A new SETUP supersedes any staged request on this USB controller.*/
+  for (p = line_drivers; p != NULL; p = p->line_next) {
+    if (p->config->usbp == usbp) {
+      p->pending_request = 0U;
+    }
+  }
+  sdup = sdu_find_line_i(usbp, sdu_get_word(&usbp->setup[4]));
+  if ((sdup != NULL) && (usbp->state == USB_ACTIVE)) {
+    value = sdu_get_word(&usbp->setup[2]);
+    length = sdu_get_word(&usbp->setup[6]);
+    switch (usbp->setup[1]) {
+    case CDC_GET_LINE_CODING:
+      if ((usbp->setup[0] == (USB_RTYPE_DIR_DEV2HOST |
+                             USB_RTYPE_TYPE_CLASS |
+                             USB_RTYPE_RECIPIENT_INTERFACE)) &&
+          (value == 0U) && (length == sizeof(cdc_linecoding_t))) {
+        /* A persistent reply snapshot, unaffected by lifecycle changes.*/
+        sdup->pending_linecoding = sdup->linecoding;
+        usbSetupTransfer(usbp, (uint8_t *)&sdup->pending_linecoding,
+                         sizeof(cdc_linecoding_t), NULL);
+        handled = true;
+      }
+      break;
+    case CDC_SET_LINE_CODING:
+      if ((usbp->setup[0] == (USB_RTYPE_DIR_HOST2DEV |
+                             USB_RTYPE_TYPE_CLASS |
+                             USB_RTYPE_RECIPIENT_INTERFACE)) &&
+          (value == 0U) && (length == sizeof(cdc_linecoding_t))) {
+        sdup->pending_request = CDC_SET_LINE_CODING;
+        usbSetupTransfer(usbp, (uint8_t *)&sdup->pending_linecoding,
+                         sizeof(cdc_linecoding_t), sdu_line_complete);
+        handled = true;
+      }
+      break;
+    case CDC_SET_CONTROL_LINE_STATE:
+      if ((usbp->setup[0] == (USB_RTYPE_DIR_HOST2DEV |
+                             USB_RTYPE_TYPE_CLASS |
+                             USB_RTYPE_RECIPIENT_INTERFACE)) &&
+          (length == 0U) &&
+          ((value & (uint16_t)~(SDU_CONTROL_DTR | SDU_CONTROL_RTS)) == 0U)) {
+        sdup->pending_control_lines = value;
+        sdup->pending_request = CDC_SET_CONTROL_LINE_STATE;
+        usbSetupTransfer(usbp, NULL, 0U, sdu_line_complete);
+        handled = true;
+      }
+      break;
+    default:
+      break;
+    }
+  }
+  osalSysUnlockFromISR();
+
+  return handled;
+}
+#endif /* SERIAL_USB_USE_LINE_CONTROL == TRUE */
 
 static bool sdu_start_receive(SerialUSBDriver *sdup) {
   uint8_t *buf;
@@ -208,6 +379,53 @@ static void obnotify(io_buffers_queue_t *bqp) {
 /* Driver exported functions.                                                */
 /*===========================================================================*/
 
+#if (SERIAL_USB_USE_LINE_CONTROL == TRUE) || defined(__DOXYGEN__)
+/**
+ * @brief   Copies a coherent snapshot of the host-requested line settings.
+ * @note    DTR/RTS are host-controlled signals, not proof that a host program
+ *          is reading. No UART configuration or bulk transfer policy changes
+ *          automatically when these settings change.
+ * @note    Initial/reset/stopped settings are 38400/8N1 with DTR/RTS clear.
+ *          Ordinary USB suspend/resume preserves the committed settings.
+ *
+ * @param[in] sdup      the driver instance
+ * @param[out] state    destination snapshot
+ *
+ * @iclass
+ */
+void sduGetLineStateI(SerialUSBDriver *sdup, sdu_line_state_t *state) {
+  const cdc_linecoding_t *coding;
+
+  osalDbgCheckClassI();
+  osalDbgCheck((sdup != NULL) && (state != NULL));
+  coding = &sdup->linecoding;
+  state->baud = (uint32_t)coding->dwDTERate[0] |
+                ((uint32_t)coding->dwDTERate[1] << 8U) |
+                ((uint32_t)coding->dwDTERate[2] << 16U) |
+                ((uint32_t)coding->dwDTERate[3] << 24U);
+  state->stop_bits = coding->bCharFormat;
+  state->parity = coding->bParityType;
+  state->data_bits = coding->bDataBits;
+  state->control_lines = sdup->control_lines;
+}
+
+/**
+ * @brief   Copies a coherent snapshot of the host-requested line settings.
+ * @details Thread-context wrapper for sduGetLineStateI().
+ *
+ * @param[in] sdup      the driver instance
+ * @param[out] state    destination snapshot
+ *
+ * @api
+ */
+void sduGetLineState(SerialUSBDriver *sdup, sdu_line_state_t *state) {
+
+  osalSysLock();
+  sduGetLineStateI(sdup, state);
+  osalSysUnlock();
+}
+#endif
+
 /**
  * @brief   Serial Driver initialization.
  * @note    This function is implicitly invoked by @p halInit(), there is
@@ -232,6 +450,14 @@ void sduObjectInit(SerialUSBDriver *sdup) {
   sdup->vmt = &vmt;
   osalEventObjectInit(&sdup->event);
   sdup->state = SDU_STOP;
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+  sdup->config = NULL;
+  sdup->linecoding = default_linecoding;
+  sdup->control_lines = 0U;
+  sdup->pending_request = 0U;
+  sdup->line_next = NULL;
+  sdup->line_owner = NULL;
+#endif
   ibqObjectInit(&sdup->ibqueue, true, sdup->ib,
                 SERIAL_USB_BUFFERS_SIZE, SERIAL_USB_BUFFERS_NUMBER,
                 ibnotify, sdup);
@@ -242,6 +468,13 @@ void sduObjectInit(SerialUSBDriver *sdup) {
 
 /**
  * @brief   Configures and starts the driver.
+ * @note    With line control enabled, interface bindings must be unique on
+ *          each USB controller. Repeated start with the same configuration
+ *          is a no-op; changing it requires a stop. Before moving an SDU to
+ *          another USB controller, stop the old USB controller too.
+ * @note    Lifecycle operations must be serialized by the caller. Driver,
+ *          configuration must outlive pending transfers. USB controller objects
+ *          must outlive the SDU object, including while the SDU is stopped.
  *
  * @param[in] sdup      pointer to a @p SerialUSBDriver object
  * @param[in] config    the serial over USB driver configuration
@@ -266,6 +499,25 @@ msg_t sduStart(SerialUSBDriver *sdup, const SerialUSBConfig *config) {
                 "invalid state");
 
   usbp = config->usbp;
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+  /* Repeated starts are harmless; live rebinding requires stop first.*/
+  if (sdup->state == SDU_READY) {
+    msg_t result = config == sdup->config ? HAL_RET_SUCCESS : HAL_RET_INV_STATE;
+
+    osalSysUnlock();
+    return result;
+  }
+  /* The old controller must no longer access the persistent EP0 storage.*/
+  if ((sdup->line_owner != NULL) && (sdup->line_owner != usbp) &&
+      (sdup->line_owner->state != USB_STOP)) {
+    osalSysUnlock();
+    return HAL_RET_INV_STATE;
+  }
+  if (sdu_find_line_i(usbp, (uint16_t)config->control_if) != NULL) {
+    osalSysUnlock();
+    return HAL_RET_CONFIG_ERROR;
+  }
+#endif
   usbp->in_params[config->bulk_in - 1U]   = sdup;
   usbp->out_params[config->bulk_out - 1U] = sdup;
   if (config->int_in > 0U) {
@@ -273,6 +525,12 @@ msg_t sduStart(SerialUSBDriver *sdup, const SerialUSBConfig *config) {
   }
   sdup->config = config;
   sdup->state = SDU_READY;
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+  sdup->pending_request = 0U;
+  sdup->line_owner = usbp;
+  sdup->line_next = line_drivers;
+  line_drivers = sdup;
+#endif
 
   osalSysUnlock();
 
@@ -301,6 +559,11 @@ void sduStop(SerialUSBDriver *sdup) {
   if (sdup->config != NULL) {
     usbp = sdup->config->usbp;
   }
+
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+  sdu_remove_line_i(sdup);
+  sdu_reset_line_i(sdup);
+#endif
 
   /* Driver in stopped state.*/
   if (usbp != NULL) {
@@ -336,6 +599,14 @@ void sduStop(SerialUSBDriver *sdup) {
  */
 void sduSuspendHookI(SerialUSBDriver *sdup) {
 
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+  /* Reset/unconfigure can follow a suspend without a queue state change.*/
+  sdup->pending_request = 0U;
+  if ((sdup->config != NULL) &&
+      (sdup->config->usbp->state != USB_SUSPENDED)) {
+    sdu_reset_line_i(sdup);
+  }
+#endif
   /* Avoiding events spam.*/
   if (bqIsSuspendedX(&sdup->ibqueue) && bqIsSuspendedX(&sdup->obqueue)) {
     return;
@@ -383,6 +654,9 @@ void sduWakeupHookI(SerialUSBDriver *sdup) {
  */
 void sduConfigureHookI(SerialUSBDriver *sdup) {
 
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+  sdu_reset_line_i(sdup);
+#endif
   ibqResetI(&sdup->ibqueue);
   bqResumeX(&sdup->ibqueue);
   obqResetI(&sdup->obqueue);
@@ -395,6 +669,11 @@ void sduConfigureHookI(SerialUSBDriver *sdup) {
  * @brief   Default requests hook.
  * @details Applications wanting to use the Serial over USB driver can use
  *          this function as requests hook in the USB configuration.
+ *          With line control enabled, requests are routed by control_if to
+ *          a started SDU on this USB controller. Settings are committed on
+ *          successful status completion. Applications must dispatch reset,
+ *          unconfigure and suspend to sduSuspendHookI(), configuration to
+ *          sduConfigureHookI(), and wakeup to sduWakeupHookI().
  *          The following requests are emulated:
  *          - CDC_GET_LINE_CODING.
  *          - CDC_SET_LINE_CODING.
@@ -408,6 +687,9 @@ void sduConfigureHookI(SerialUSBDriver *sdup) {
  */
 bool sduRequestsHook(USBDriver *usbp) {
 
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+  return sdu_line_request(usbp);
+#else
   if ((usbp->setup[0] & USB_RTYPE_TYPE_MASK) == USB_RTYPE_TYPE_CLASS) {
     switch (usbp->setup[1]) {
     case CDC_GET_LINE_CODING:
@@ -425,6 +707,7 @@ bool sduRequestsHook(USBDriver *usbp) {
     }
   }
   return false;
+#endif
 }
 
 /**

@@ -1612,6 +1612,18 @@ void _usb_ep0out(USBDriver *usbp, usbep_t ep) {
 
   switch (usbp->ep0state) {
   case USB_EP0_OUT_RX:
+    /* Check before starting the IN status stage, some drivers share the
+       endpoint-zero IN and OUT state storage.*/
+    if (usbGetReceiveTransactionSizeX(usbp, 0U) != usbp->ep0n) {
+      osalSysLockFromISR();
+      setup_error_i(usbp);
+#if USB_USE_EP0_THREAD == TRUE
+      ep0_resume_waiter_i(usbp, MSG_RESET);
+#endif
+      osalSysUnlockFromISR();
+      _usb_isr_invoke_event_cb(usbp, USB_EVENT_STALLED);
+      return;
+    }
     /* Receive phase over, sending the zero sized status packet.*/
     usbp->ep0state = USB_EP0_IN_SENDING_STS;
 #if (USB_EP0_STATUS_STAGE == USB_EP0_STATUS_STAGE_SW)
