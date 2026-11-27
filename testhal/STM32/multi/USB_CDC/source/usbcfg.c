@@ -339,5 +339,10 @@ const SerialUSBConfig serusbcfg = {
   &PORTAB_USB1,
   USB1_DATA_REQUEST_EP,
   USB1_DATA_AVAILABLE_EP,
-  USB1_INTERRUPT_REQUEST_EP
+  USB1_INTERRUPT_REQUEST_EP,
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+  /* CDC communication interface in vcom_configuration_descriptor_data.*/
+  0U,
+  NULL
+#endif
 };

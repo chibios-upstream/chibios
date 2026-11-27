@@ -465,6 +465,16 @@
 /*===========================================================================*/
 
 /**
+ * @brief   Per-instance CDC line settings and notifications.
+ * @details Requires explicit control-interface bindings in SerialUSBConfig.
+ *          Only the interrupt-driven EP0 requests hook is supported.
+ * @note    Disabled by default to preserve existing configurations and ABI.
+ */
+#if !defined(SERIAL_USB_USE_LINE_CONTROL) || defined(__DOXYGEN__)
+#define SERIAL_USB_USE_LINE_CONTROL        FALSE
+#endif
+
+/**
  * @brief   Serial over USB buffers size.
  * @details Configuration parameter, the buffer size must be a multiple of
  *          the USB data endpoint maximum packet size.

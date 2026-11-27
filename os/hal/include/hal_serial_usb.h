@@ -42,6 +42,16 @@
  * @{
  */
 /**
+ * @brief   Per-instance CDC line settings and notifications.
+ * @details Requires explicit control-interface bindings in SerialUSBConfig.
+ *          Only the interrupt-driven EP0 requests hook is supported.
+ * @note    Disabled by default to preserve existing configurations and ABI.
+ */
+#if !defined(SERIAL_USB_USE_LINE_CONTROL) || defined(__DOXYGEN__)
+#define SERIAL_USB_USE_LINE_CONTROL        FALSE
+#endif
+
+/**
  * @brief   Serial over USB buffers size.
  * @details Configuration parameter, the buffer size must be a multiple of
  *          the USB data endpoint maximum packet size.
@@ -99,6 +109,10 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
+#if (SERIAL_USB_USE_LINE_CONTROL == TRUE) && (USB_USE_EP0_THREAD == TRUE)
+#error "SerialUSB line control requires the interrupt-driven EP0 hook"
+#endif
+
 #if HAL_USE_USB == FALSE
 #error "Serial over USB Driver requires HAL_USE_USB"
 #endif
@@ -120,6 +134,52 @@ typedef enum {
  * @brief   Structure representing a serial over USB driver.
  */
 typedef struct SerialUSBDriver SerialUSBDriver;
+
+#if (SERIAL_USB_USE_LINE_CONTROL == TRUE) || defined(__DOXYGEN__)
+/**
+ * @name    Host control-line bits
+ * @{
+ */
+#define SDU_CONTROL_DTR             1U
+#define SDU_CONTROL_RTS             2U
+/** @} */
+
+/**
+ * @name    SerialUSB-specific channel event flags
+ * @note    These do not change the meaning of CHN_CONNECTED/DISCONNECTED.
+ * @{
+ */
+#define SDU_LINE_CODING_CHANGED     ((eventflags_t)0x1000U)
+#define SDU_CONTROL_LINE_CHANGED    ((eventflags_t)0x2000U)
+#define SDU_DTR_ASSERTED            ((eventflags_t)0x4000U)
+#define SDU_DTR_DEASSERTED          ((eventflags_t)0x8000U)
+/** @} */
+
+/**
+ * @brief   Snapshot of the host-requested settings, not UART configuration.
+ */
+typedef struct {
+  uint32_t                  baud;
+  uint16_t                  control_lines;
+  uint8_t                   stop_bits;  /**< CDC LC_STOP_* encoding.        */
+  uint8_t                   parity;     /**< CDC LC_PARITY_* encoding.      */
+  uint8_t                   data_bits;
+} sdu_line_state_t;
+
+/**
+ * @brief   Notification after committed settings change.
+ * @note    Called in locked I-class context, from an ISR or a lifecycle API.
+ *          Must be bounded/nonblocking and must not reconfigure the driver.
+ *          Use sduGetLineStateI() to read the updated settings.
+ * @note    Also called when reset, unconfigure or stop clears settings.
+ *          Channel event flags can coalesce; this callback observes each
+ *          published change. Identical settings do not generate events.
+ *
+ * @param[in] sdup      the driver instance
+ * @param[in] flags     the SDU_* change flags
+ */
+typedef void (*sdulinecallback_t)(SerialUSBDriver *sdup, eventflags_t flags);
+#endif
 
 /**
  * @brief   Serial over USB Driver configuration structure.
@@ -145,7 +205,31 @@ typedef struct {
    *          present, USB descriptors must be changed accordingly.
    */
   usbep_t                   int_in;
+#if (SERIAL_USB_USE_LINE_CONTROL == TRUE) || defined(__DOXYGEN__)
+  /**
+   * @brief   CDC communication interface number from the USB descriptors.
+   * @note    Must be unique among started SDUs on the same USB driver.
+   */
+  uint8_t                   control_if;
+  /** @brief Optional line-settings callback, or NULL. */
+  sdulinecallback_t          line_cb;
+#endif
 } SerialUSBConfig;
+
+#if SERIAL_USB_USE_LINE_CONTROL == TRUE
+#define _serial_usb_line_data                                               \
+  /* Committed settings and persistent EP0 staging storage.*/               \
+  cdc_linecoding_t           linecoding;                                    \
+  cdc_linecoding_t           pending_linecoding;                            \
+  uint16_t                  control_lines;                                  \
+  uint16_t                  pending_control_lines;                          \
+  uint8_t                   pending_request;                                \
+  /* Typed registry linkage and previous USB owner.*/                       \
+  SerialUSBDriver           *line_next;                                     \
+  USBDriver                 *line_owner;
+#else
+#define _serial_usb_line_data
+#endif
 
 /**
  * @brief   @p SerialDriver specific data.
@@ -166,7 +250,8 @@ typedef struct {
                                               SERIAL_USB_BUFFERS_SIZE)];    \
   /* End of the mandatory fields.*/                                         \
   /* Current configuration data.*/                                          \
-  const SerialUSBConfig     *config;
+  const SerialUSBConfig     *config;                                        \
+  _serial_usb_line_data
 
 /**
  * @brief   @p SerialUSBDriver specific methods.
@@ -206,6 +291,10 @@ struct SerialUSBDriver {
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+#if (SERIAL_USB_USE_LINE_CONTROL == TRUE) || defined(__DOXYGEN__)
+  void sduGetLineStateI(SerialUSBDriver *sdup, sdu_line_state_t *state);
+  void sduGetLineState(SerialUSBDriver *sdup, sdu_line_state_t *state);
 #endif
   void sduInit(void);
   void sduObjectInit(SerialUSBDriver *sdup);
